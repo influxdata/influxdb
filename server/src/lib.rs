@@ -74,9 +74,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::BytesMut;
 use db::load::create_preserved_catalog;
-use init::InitStatus;
-use observability_deps::tracing::{debug, info, warn};
-use parking_lot::Mutex;
+use observability_deps::tracing::{debug, error, info, warn};
+use parking_lot::{Mutex, RwLockUpgradableReadGuard};
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use data_types::{
@@ -93,6 +92,7 @@ use generated_types::influxdata::transfer::column::v1 as pb;
 use influxdb_line_protocol::ParsedLine;
 use metrics::{KeyValue, MetricObserverBuilder, MetricRegistry};
 use object_store::{ObjectStore, ObjectStoreApi};
+use parking_lot::RwLock;
 use query::{exec::Executor, DatabaseStore};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
 use write_buffer::config::WriteBufferConfig;
@@ -220,11 +220,11 @@ pub enum Error {
     #[snafu(display("cannot create preserved catalog: {}", source))]
     CannotCreatePreservedCatalog { source: DatabaseError },
 
-    #[snafu(display("cannot set id: {}", source))]
-    SetIdError { source: crate::init::Error },
+    #[snafu(display("id already set"))]
+    IdAlreadySet,
 
-    #[snafu(display("cannot get id: {}", source))]
-    GetIdError { source: crate::init::Error },
+    #[snafu(display("id not set"))]
+    IdNotSet,
 
     #[snafu(display(
         "cannot create write buffer with config: {:?}, error: {}",
@@ -297,6 +297,8 @@ pub struct ServerConfig {
     metric_registry: Arc<MetricRegistry>,
 
     remote_template: Option<RemoteTemplate>,
+
+    wipe_catalog_on_error: bool,
 }
 
 impl ServerConfig {
@@ -311,6 +313,7 @@ impl ServerConfig {
             object_store,
             metric_registry,
             remote_template,
+            wipe_catalog_on_error: true,
         }
     }
 
@@ -414,7 +417,6 @@ impl ServerMetrics {
 /// of these structs, which keeps track of all replication and query rules.
 #[derive(Debug)]
 pub struct Server<M: ConnectionManager> {
-    config: Arc<Config>,
     connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
     exec: Arc<Executor>,
@@ -426,7 +428,50 @@ pub struct Server<M: ConnectionManager> {
     /// and populates the endpoint with this data.
     pub registry: Arc<metrics::MetricRegistry>,
 
-    init_status: Arc<InitStatus>,
+    /// The state machine for server startup
+    stage: Arc<RwLock<ServerStage>>,
+}
+
+/// The stage of the server in the startup process
+///
+/// The progression is linear Startup -> InitReady -> Initializing -> Initialized
+/// with the sole exception that on failure Initializing -> InitReady
+///
+/// Errors encountered on server init will be retried, however, errors encountered
+/// during database init will require operator intervention
+///
+/// These errors are exposed via `Server::error_generic` and `Server::error_database` respectively
+///
+/// They do not impact the state machine's progression, but instead are exposed to the
+/// gRPC management API to allow an operator to assess the state of the system
+#[derive(Debug)]
+enum ServerStage {
+    /// Server has started but doesn't have a server id yet
+    Startup {
+        remote_template: Option<RemoteTemplate>,
+        wipe_catalog_on_error: bool,
+    },
+
+    /// Server can be initialized
+    InitReady {
+        wipe_catalog_on_error: bool,
+        config: Arc<Config>,
+        last_error: Option<Arc<init::Error>>,
+    },
+
+    /// Server has a server id, has started loading
+    Initializing {
+        wipe_catalog_on_error: bool,
+        config: Arc<Config>,
+        last_error: Option<Arc<init::Error>>,
+    },
+
+    /// Server has finish initializing, possibly with errors
+    Initialized {
+        config: Arc<Config>,
+        /// Errors that occurred during some DB init.
+        database_errors: HashMap<String, Arc<init::Error>>,
+    },
 }
 
 #[derive(Debug)]
@@ -454,22 +499,23 @@ where
             // to test the metrics provide a different registry to the `ServerConfig`.
             metric_registry,
             remote_template,
+            wipe_catalog_on_error,
         } = config;
+
         let num_worker_threads = num_worker_threads.unwrap_or_else(num_cpus::get);
+        let exec = Arc::new(Executor::new(num_worker_threads));
 
         Self {
-            config: Arc::new(Config::new(
-                Arc::clone(&jobs),
-                Arc::clone(&metric_registry),
-                remote_template,
-            )),
             store: object_store,
             connection_manager: Arc::new(connection_manager),
-            exec: Arc::new(Executor::new(num_worker_threads)),
+            exec,
             jobs,
             metrics: Arc::new(ServerMetrics::new(Arc::clone(&metric_registry))),
             registry: Arc::clone(&metric_registry),
-            init_status: Arc::new(InitStatus::new()),
+            stage: Arc::new(RwLock::new(ServerStage::Startup {
+                remote_template,
+                wipe_catalog_on_error,
+            })),
         }
     }
 
@@ -478,68 +524,112 @@ where
     ///
     /// A valid server ID Must be non-zero.
     pub fn set_id(&self, id: ServerId) -> Result<()> {
-        self.init_status.server_id.set(id).context(SetIdError)
-    }
+        let mut stage = self.stage.write();
+        match &mut *stage {
+            ServerStage::Startup {
+                remote_template,
+                wipe_catalog_on_error,
+            } => {
+                let remote_template = remote_template.take();
 
-    /// Returns the current server ID, or an error if not yet set.
-    pub fn require_id(&self) -> Result<ServerId> {
-        self.init_status.server_id.get().context(GetIdError)
+                *stage = ServerStage::InitReady {
+                    wipe_catalog_on_error: *wipe_catalog_on_error,
+                    config: Arc::new(Config::new(
+                        Arc::clone(&self.jobs),
+                        Arc::clone(&self.store),
+                        Arc::clone(&self.exec),
+                        id,
+                        Arc::clone(&self.registry),
+                        remote_template,
+                    )),
+                    last_error: None,
+                };
+                Ok(())
+            }
+            _ => Err(Error::IdAlreadySet),
+        }
     }
 
     /// Check if server is loaded. Databases are loaded and server is ready to read/write.
     pub fn initialized(&self) -> bool {
-        self.init_status.initialized()
+        matches!(&*self.stage.read(), ServerStage::Initialized { .. })
+    }
+
+    /// Require that server is loaded. Databases are loaded and server is ready to read/write.
+    fn require_initialized(&self) -> Result<Arc<Config>> {
+        match &*self.stage.read() {
+            ServerStage::Startup { .. } => Err(Error::IdNotSet),
+            ServerStage::InitReady { config, .. } | ServerStage::Initializing { config, .. } => {
+                Err(Error::ServerNotInitialized {
+                    server_id: config.server_id(),
+                })
+            }
+            ServerStage::Initialized { config, .. } => Ok(Arc::clone(&config)),
+        }
+    }
+
+    /// Returns the config for this server if server id has been set
+    fn config(&self) -> Result<Arc<Config>> {
+        let stage = self.stage.read();
+        match &*stage {
+            ServerStage::Startup { .. } => Err(Error::IdNotSet),
+            ServerStage::InitReady { config, .. }
+            | ServerStage::Initializing { config, .. }
+            | ServerStage::Initialized { config, .. } => Ok(Arc::clone(&config)),
+        }
+    }
+
+    /// Returns the server id for this server if set
+    pub fn server_id(&self) -> Option<ServerId> {
+        self.config().map(|x| x.server_id()).ok()
     }
 
     /// Error occurred during generic server init (e.g. listing store content).
     pub fn error_generic(&self) -> Option<Arc<crate::init::Error>> {
-        self.init_status.error_generic()
+        let stage = self.stage.read();
+        match &*stage {
+            ServerStage::InitReady { last_error, .. } => last_error.clone(),
+            ServerStage::Initializing { last_error, .. } => last_error.clone(),
+            _ => None,
+        }
     }
 
     /// List all databases with errors in sorted order.
     pub fn databases_with_errors(&self) -> Vec<String> {
-        self.init_status.databases_with_errors()
+        let stage = self.stage.read();
+        match &*stage {
+            ServerStage::Initialized {
+                database_errors, ..
+            } => database_errors.keys().cloned().collect(),
+            _ => Default::default(),
+        }
     }
 
     /// Error that occurred during initialization of a specific database.
     pub fn error_database(&self, db_name: &str) -> Option<Arc<crate::init::Error>> {
-        self.init_status.error_database(db_name)
+        let stage = self.stage.read();
+        match &*stage {
+            ServerStage::Initialized {
+                database_errors, ..
+            } => database_errors.get(db_name).cloned(),
+            _ => None,
+        }
     }
 
     /// Current database init state.
     pub fn database_state(&self, name: &str) -> Option<DatabaseStateCode> {
-        if let Ok(name) = DatabaseName::new(name) {
-            self.config.db_state(&name)
-        } else {
-            None
-        }
-    }
-
-    /// Require that server is loaded. Databases are loaded and server is ready to read/write.
-    fn require_initialized(&self) -> Result<ServerId> {
-        // since a server ID is the pre-requirement for init, check this first
-        let server_id = self.require_id()?;
-
-        // ordering here isn't that important since this method is not used to check-and-modify the flag
-        if self.initialized() {
-            Ok(server_id)
-        } else {
-            Err(Error::ServerNotInitialized { server_id })
-        }
+        let db_name = DatabaseName::new(name).ok()?;
+        let config = self.config().ok()?;
+        config.db_state(&db_name)
     }
 
     /// Tells the server the set of rules for a database.
     pub async fn create_database(&self, rules: DatabaseRules) -> Result<()> {
         // Return an error if this server is not yet ready
-        let server_id = self.require_initialized()?;
+        let config = self.require_initialized()?;
 
         // Reserve name before expensive IO (e.g. loading the preserved catalog)
-        let mut db_reservation = self.config.create_db(
-            Arc::clone(&self.store),
-            Arc::clone(&self.exec),
-            server_id,
-            rules.name.clone(),
-        )?;
+        let mut db_reservation = config.create_db(rules.name.clone())?;
 
         // register rules
         db_reservation.advance_rules_loaded(rules.clone())?;
@@ -548,14 +638,14 @@ where
         let (preserved_catalog, catalog) = create_preserved_catalog(
             rules.db_name(),
             Arc::clone(&self.store),
-            server_id,
-            self.config.metrics_registry(),
+            config.server_id(),
+            config.metrics_registry(),
         )
         .await
         .map_err(|e| Box::new(e) as _)
         .context(CannotCreatePreservedCatalog)?;
 
-        let write_buffer = WriteBufferConfig::new(server_id, &rules)
+        let write_buffer = WriteBufferConfig::new(config.server_id(), &rules)
             .await
             .map_err(|e| Error::CreatingWriteBuffer {
                 config: rules.write_buffer_connection.clone(),
@@ -575,13 +665,8 @@ where
     }
 
     pub async fn persist_database_rules<'a>(&self, rules: DatabaseRules) -> Result<()> {
-        let location = object_store_path_for_database_config(
-            &self
-                .init_status
-                .root_path(&self.store)
-                .context(GetIdError)?,
-            &rules.name,
-        );
+        let config = self.config()?;
+        let location = object_store_path_for_database_config(&config.root_path(), &rules.name);
 
         let mut data = BytesMut::new();
         encode_database_rules(rules, &mut data).context(ErrorSerializingRulesProtobuf)?;
@@ -604,15 +689,62 @@ where
     /// object store. Any databases in the config already won't be
     /// replaced.
     ///
-    /// This requires the serverID to be set. It will be a no-op if the configs are already loaded and the server is ready.
+    /// This requires the serverID to be set.
+    ///
+    /// It will be a no-op if the configs are already loaded and the server is ready.
     pub async fn maybe_initialize_server(&self) {
-        self.init_status
-            .maybe_initialize_server(
-                Arc::clone(&self.store),
-                Arc::clone(&self.config),
-                Arc::clone(&self.exec),
-            )
-            .await;
+        // Explicit scope to help async generator
+        let (wipe_catalog_on_error, config) = {
+            let state = self.stage.upgradable_read();
+            match &*state {
+                ServerStage::InitReady {
+                    wipe_catalog_on_error,
+                    config,
+                    last_error,
+                } => {
+                    let config = Arc::clone(config);
+                    let last_error = last_error.clone();
+                    let wipe_catalog_on_error = *wipe_catalog_on_error;
+
+                    // Mark the server as initializing and drop lock
+
+                    let mut state = RwLockUpgradableReadGuard::upgrade(state);
+                    *state = ServerStage::Initializing {
+                        config: Arc::clone(&config),
+                        wipe_catalog_on_error,
+                        last_error,
+                    };
+                    (wipe_catalog_on_error, config)
+                }
+                _ => return,
+            }
+        };
+
+        let init_result = init::initialize_server(Arc::clone(&config), wipe_catalog_on_error).await;
+        let new_stage = match init_result {
+            // Success -> move to next stage
+            Ok(results) => {
+                info!(server_id=%config.server_id(), "server initialized");
+                ServerStage::Initialized {
+                    config,
+                    database_errors: results
+                        .into_iter()
+                        .filter_map(|(name, res)| Some((name.to_string(), Arc::new(res.err()?))))
+                        .collect(),
+                }
+            }
+            // Error -> return to InitReady
+            Err(err) => {
+                error!(%err, "error during server init");
+                ServerStage::InitReady {
+                    wipe_catalog_on_error,
+                    config,
+                    last_error: Some(Arc::new(err)),
+                }
+            }
+        };
+
+        *self.stage.write() = new_stage;
     }
 
     pub async fn write_pb(&self, database_batch: pb::DatabaseBatch) -> Result<()> {
@@ -640,11 +772,10 @@ where
         default_time: i64,
     ) -> Result<()> {
         // Return an error if this server is not yet ready
-        self.require_initialized()?;
+        let config = self.require_initialized()?;
 
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
-        let db = self
-            .config
+        let db = config
             .db_initialized(&db_name)
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
@@ -744,9 +875,12 @@ where
         node_group: &[ServerId],
         entry: Entry,
     ) -> Result<()> {
+        // Return an error if this server is not yet ready
+        let config = self.config()?;
+
         let addrs: Vec<_> = node_group
             .iter()
-            .filter_map(|&node| self.config.resolve_remote(node))
+            .filter_map(|&node| config.resolve_remote(node))
             .collect();
         if addrs.is_empty() {
             return NoRemoteConfigured { node_group }.fail();
@@ -775,11 +909,10 @@ where
 
     pub async fn write_entry(&self, db_name: &str, entry_bytes: Vec<u8>) -> Result<()> {
         // Return an error if this server is not yet ready
-        self.require_initialized()?;
+        let config = self.require_initialized()?;
 
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
-        let db = self
-            .config
+        let db = config
             .db_initialized(&db_name)
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
@@ -825,11 +958,11 @@ where
     }
 
     pub fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<Db>> {
-        self.config.db_initialized(name)
+        self.config().ok()?.db_initialized(name)
     }
 
     pub fn db_rules(&self, name: &DatabaseName<'_>) -> Option<Arc<DatabaseRules>> {
-        self.config.db_initialized(name).map(|d| d.rules())
+        self.db(name).map(|d| d.rules())
     }
 
     // Update database rules and save on success.
@@ -841,8 +974,8 @@ where
     where
         F: FnOnce(DatabaseRules) -> Result<DatabaseRules, E> + Send,
     {
-        let rules = self
-            .config
+        let config = self.config()?;
+        let rules = config
             .update_db_rules(db_name, update)
             .map_err(|e| match e {
                 crate::config::UpdateError::Closure(e) => UpdateError::Closure(e),
@@ -854,16 +987,23 @@ where
         Ok(rules)
     }
 
-    pub fn remotes_sorted(&self) -> Vec<(ServerId, String)> {
-        self.config.remotes_sorted()
+    pub fn remotes_sorted(&self) -> Result<Vec<(ServerId, String)>> {
+        // TODO: Should these be on ConnectionManager and not Config
+        let config = self.config()?;
+        Ok(config.remotes_sorted())
     }
 
-    pub fn update_remote(&self, id: ServerId, addr: GRpcConnectionString) {
-        self.config.update_remote(id, addr)
+    pub fn update_remote(&self, id: ServerId, addr: GRpcConnectionString) -> Result<()> {
+        // TODO: Should these be on ConnectionManager and not Config
+        let config = self.config()?;
+        config.update_remote(id, addr);
+        Ok(())
     }
 
-    pub fn delete_remote(&self, id: ServerId) -> Option<GRpcConnectionString> {
-        self.config.delete_remote(id)
+    pub fn delete_remote(&self, id: ServerId) -> Result<Option<GRpcConnectionString>> {
+        // TODO: Should these be on ConnectionManager and not Config
+        let config = self.config()?;
+        Ok(config.delete_remote(id))
     }
 
     pub fn spawn_dummy_job(&self, nanos: Vec<u64>) -> TaskTracker<Job> {
@@ -893,14 +1033,15 @@ where
         partition_key: impl Into<String>,
         chunk_id: u32,
     ) -> Result<TaskTracker<Job>> {
+        let config = self.require_initialized()?;
+
         let db_name = db_name.to_string();
         let name = DatabaseName::new(&db_name).context(InvalidDatabaseName)?;
 
         let partition_key = partition_key.into();
         let table_name = table_name.into();
 
-        let db = self
-            .config
+        let db = config
             .db_initialized(&name)
             .context(DatabaseNotFound { db_name: &db_name })?;
 
@@ -921,25 +1062,62 @@ where
     /// DB jobs and this command.
     pub fn wipe_preserved_catalog(
         &self,
-        db_name: DatabaseName<'static>,
+        db_name: &DatabaseName<'static>,
     ) -> Result<TaskTracker<Job>> {
-        if self.config.db_initialized(&db_name).is_some() {
-            return Err(Error::DatabaseAlreadyExists {
-                db_name: db_name.to_string(),
-            });
-        }
+        // Can only wipe catalog of database that failed to initialize
+        let config = match &*self.stage.read() {
+            ServerStage::Initialized {
+                config,
+                database_errors,
+            } => {
+                if config.db_initialized(db_name).is_some() {
+                    return Err(Error::DatabaseAlreadyExists {
+                        db_name: db_name.to_string(),
+                    });
+                }
+
+                if !database_errors.contains_key(db_name.as_str()) {
+                    // TODO: Should this be an error? Some end-to-end tests assume it is non-fatal
+                    warn!(%db_name, "wiping database not present at startup");
+                }
+                Arc::clone(config)
+            }
+            ServerStage::Startup { .. } => return Err(Error::IdNotSet),
+            ServerStage::Initializing { config, .. } | ServerStage::InitReady { config, .. } => {
+                return Err(Error::ServerNotInitialized {
+                    server_id: config.server_id(),
+                })
+            }
+        };
 
         let (tracker, registration) = self.jobs.register(Job::WipePreservedCatalog {
             db_name: db_name.to_string(),
         });
-        let object_store = Arc::clone(&self.store);
-        let config = Arc::clone(&self.config);
-        let server_id = self.require_id()?;
-        let init_status = Arc::clone(&self.init_status);
+
+        let state = Arc::clone(&self.stage);
+        let db_name = db_name.clone();
+
         let task = async move {
-            init_status
-                .wipe_preserved_catalog_and_maybe_recover(object_store, config, server_id, db_name)
-                .await
+            let result = init::wipe_preserved_catalog_and_maybe_recover(config, &db_name).await;
+
+            match &mut *state.write() {
+                ServerStage::Initialized {
+                    database_errors, ..
+                } => match result {
+                    Ok(_) => {
+                        info!(%db_name, "wiped preserved catalog of registered database and recovered");
+                        database_errors.remove(db_name.as_str());
+                        Ok(())
+                    }
+                    Err(e) => {
+                        warn!(%db_name, %e, "wiped preserved catalog of registered database but still cannot recover");
+                        let e = Arc::new(e);
+                        database_errors.insert(db_name.to_string(), Arc::clone(&e));
+                        Err(e)
+                    }
+                },
+                _ => unreachable!("server cannot become uninitialized"),
+            }
         };
         tokio::spawn(task.track(registration));
 
@@ -973,7 +1151,9 @@ where
         }
 
         info!("shutting down background workers");
-        self.config.drain().await;
+        if let Ok(config) = self.config() {
+            config.drain().await;
+        }
 
         info!("draining tracker registry");
 
@@ -999,11 +1179,15 @@ where
     type Error = Error;
 
     fn db_names_sorted(&self) -> Vec<String> {
-        self.config
-            .db_names_sorted()
-            .iter()
-            .map(|i| i.clone().into())
-            .collect()
+        self.config()
+            .map(|config| {
+                config
+                    .db_names_sorted()
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
@@ -1214,25 +1398,15 @@ mod tests {
         let manager = TestConnectionManager::new();
         let server = Server::new(manager, config());
 
-        let resp = server.require_id().unwrap_err();
-        assert!(matches!(
-            resp,
-            Error::GetIdError {
-                source: crate::init::Error::IdNotSet
-            }
-        ));
+        let resp = server.config().unwrap_err();
+        assert!(matches!(resp, Error::IdNotSet));
 
         let lines = parsed_lines("cpu foo=1 10");
         let resp = server
             .write_lines("foo", &lines, ARBITRARY_DEFAULT_TIME)
             .await
             .unwrap_err();
-        assert!(matches!(
-            resp,
-            Error::GetIdError {
-                source: crate::init::Error::IdNotSet
-            }
-        ));
+        assert!(matches!(resp, Error::IdNotSet));
     }
 
     #[tokio::test]
@@ -1559,7 +1733,7 @@ mod tests {
 
         let remote_ids = vec![bad_remote_id, good_remote_id_1, good_remote_id_2];
         let db = server.db(&db_name).unwrap();
-        db.update_db_rules(|mut rules| {
+        db.update_rules(|mut rules| {
             let shard_config = ShardConfig {
                 hash_ring: Some(HashRing {
                     shards: vec![TEST_SHARD_ID].into(),
@@ -1589,7 +1763,9 @@ mod tests {
         );
 
         // one remote is configured but it's down and we'll get connection error
-        server.update_remote(bad_remote_id, BAD_REMOTE_ADDR.into());
+        server
+            .update_remote(bad_remote_id, BAD_REMOTE_ADDR.into())
+            .unwrap();
         let err = server
             .write_lines(&db_name, &lines, ARBITRARY_DEFAULT_TIME)
             .await
@@ -1606,8 +1782,12 @@ mod tests {
 
         // We configure the address for the other remote, this time connection will succeed
         // despite the bad remote failing to connect.
-        server.update_remote(good_remote_id_1, GOOD_REMOTE_ADDR_1.into());
-        server.update_remote(good_remote_id_2, GOOD_REMOTE_ADDR_2.into());
+        server
+            .update_remote(good_remote_id_1, GOOD_REMOTE_ADDR_1.into())
+            .unwrap();
+        server
+            .update_remote(good_remote_id_2, GOOD_REMOTE_ADDR_2.into())
+            .unwrap();
 
         // Remotes are tried in random order, so we need to repeat the test a few times to have a reasonable
         // probability both the remotes will get hit.
@@ -1796,7 +1976,7 @@ mod tests {
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).unwrap();
         let rules = db
-            .update_db_rules(|mut rules| {
+            .update_rules(|mut rules| {
                 rules.lifecycle_rules.buffer_size_hard =
                     Some(std::num::NonZeroUsize::new(10).unwrap());
                 Ok::<_, Infallible>(rules)
@@ -1844,12 +2024,7 @@ mod tests {
         let err = create_simple_database(&server, "bananas")
             .await
             .unwrap_err();
-        assert!(matches!(
-            err,
-            Error::GetIdError {
-                source: crate::init::Error::IdNotSet
-            }
-        ));
+        assert!(matches!(err, Error::IdNotSet));
 
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         // do NOT call `server.maybe_load_database_configs` so DBs are not loaded and server is not ready
@@ -1873,7 +2048,7 @@ mod tests {
 
         let t_0 = Instant::now();
         loop {
-            if server.require_initialized().is_ok() {
+            if server.config().is_ok() {
                 break;
             }
             assert!(t_0.elapsed() < Duration::from_secs(10));
@@ -1916,9 +2091,12 @@ mod tests {
         create_simple_database(&server, "foo")
             .await
             .expect("failed to create database");
-        let root = server.init_status.root_path(&store).unwrap();
-        server.config.drain().await;
+
+        let config = server.require_initialized().unwrap();
+        let root = config.root_path();
+        config.drain().await;
         drop(server);
+        drop(config);
 
         // tamper store
         let path = object_store_path_for_database_config(&root, &DatabaseName::new("bar").unwrap());
@@ -2003,18 +2181,24 @@ mod tests {
         let server = Server::new(manager, config);
         server.set_id(server_id).unwrap();
         server.maybe_initialize_server().await;
+
         create_simple_database(&server, db_name_existing.clone())
             .await
             .expect("failed to create database");
+
         create_simple_database(&server, db_name_rules_broken.clone())
             .await
             .expect("failed to create database");
+
         create_simple_database(&server, db_name_catalog_broken.clone())
             .await
             .expect("failed to create database");
-        let root = server.init_status.root_path(&store).unwrap();
-        server.config.drain().await;
+
+        let config = server.require_initialized().unwrap();
+        let root = config.root_path();
+        config.drain().await;
         drop(server);
+        drop(config);
 
         // tamper store to break one database
         let path = object_store_path_for_database_config(&root, &db_name_rules_broken);
@@ -2045,22 +2229,18 @@ mod tests {
         let store = Arc::try_unwrap(store).unwrap();
         store.get(&path).await.unwrap();
         let manager = TestConnectionManager::new();
-        let config = config_with_store(store);
-        let server = Server::new(manager, config);
-
         // need to disable auto-wipe for this test
-        server
-            .init_status
-            .wipe_on_error
-            .store(false, std::sync::atomic::Ordering::Relaxed);
+        let mut config = config_with_store(store);
+        config.wipe_catalog_on_error = false;
+        let server = Server::new(manager, config);
 
         // cannot wipe if server ID is not set
         assert_eq!(
             server
-                .wipe_preserved_catalog(db_name_non_existing.clone())
+                .wipe_preserved_catalog(&db_name_non_existing)
                 .unwrap_err()
                 .to_string(),
-            "cannot get id: unable to use server until id is set"
+            "id not set"
         );
 
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
@@ -2069,31 +2249,29 @@ mod tests {
         // 1. cannot wipe if DB exists
         assert_eq!(
             server
-                .wipe_preserved_catalog(db_name_existing.clone())
+                .wipe_preserved_catalog(&db_name_existing)
                 .unwrap_err()
                 .to_string(),
             "database already exists: db_existing"
         );
-        assert!(PreservedCatalog::exists(
-            &server.store,
-            server.require_id().unwrap(),
-            &db_name_existing.to_string()
-        )
-        .await
-        .unwrap());
+        assert!(
+            PreservedCatalog::exists(&server.store, server_id, db_name_existing.as_str())
+                .await
+                .unwrap()
+        );
 
         // 2. wiping a non-existing DB just works, but won't bring DB into existence
         assert!(server.error_database(&db_name_non_existing).is_none());
         PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(&server.store),
-            server.require_id().unwrap(),
+            server_id,
             db_name_non_existing.to_string(),
             (),
         )
         .await
         .unwrap();
         let tracker = server
-            .wipe_preserved_catalog(db_name_non_existing.clone())
+            .wipe_preserved_catalog(&db_name_non_existing)
             .unwrap();
         let metadata = tracker.metadata();
         let expected_metadata = Job::WipePreservedCatalog {
@@ -2103,7 +2281,7 @@ mod tests {
         tracker.join().await;
         assert!(!PreservedCatalog::exists(
             &server.store,
-            server.require_id().unwrap(),
+            server_id,
             &db_name_non_existing.to_string()
         )
         .await
@@ -2114,7 +2292,7 @@ mod tests {
         // 3. wipe DB with broken rules file, this won't bring DB back to life
         assert!(server.error_database(&db_name_rules_broken).is_some());
         let tracker = server
-            .wipe_preserved_catalog(db_name_rules_broken.clone())
+            .wipe_preserved_catalog(&db_name_rules_broken)
             .unwrap();
         let metadata = tracker.metadata();
         let expected_metadata = Job::WipePreservedCatalog {
@@ -2124,7 +2302,7 @@ mod tests {
         tracker.join().await;
         assert!(!PreservedCatalog::exists(
             &server.store,
-            server.require_id().unwrap(),
+            server_id,
             &db_name_rules_broken.to_string()
         )
         .await
@@ -2135,7 +2313,7 @@ mod tests {
         // 4. wipe DB with broken catalog, this will bring the DB back to life
         assert!(server.error_database(&db_name_catalog_broken).is_some());
         let tracker = server
-            .wipe_preserved_catalog(db_name_catalog_broken.clone())
+            .wipe_preserved_catalog(&db_name_catalog_broken)
             .unwrap();
         let metadata = tracker.metadata();
         let expected_metadata = Job::WipePreservedCatalog {
@@ -2145,7 +2323,7 @@ mod tests {
         tracker.join().await;
         assert!(PreservedCatalog::exists(
             &server.store,
-            server.require_id().unwrap(),
+            server_id,
             &db_name_catalog_broken.to_string()
         )
         .await
@@ -2166,18 +2344,16 @@ mod tests {
             .unwrap();
         assert_eq!(
             server
-                .wipe_preserved_catalog(db_name_created.clone())
+                .wipe_preserved_catalog(&db_name_created)
                 .unwrap_err()
                 .to_string(),
             "database already exists: db_created"
         );
-        assert!(PreservedCatalog::exists(
-            &server.store,
-            server.require_id().unwrap(),
-            &db_name_created.to_string()
-        )
-        .await
-        .unwrap());
+        assert!(
+            PreservedCatalog::exists(&server.store, server_id, &db_name_created.to_string())
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]

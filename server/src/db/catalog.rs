@@ -6,15 +6,16 @@ use hashbrown::{HashMap, HashSet};
 
 use data_types::chunk_metadata::ChunkSummary;
 use data_types::chunk_metadata::DetailedChunkSummary;
-use data_types::partition_metadata::{PartitionSummary, TableSummary};
+use data_types::partition_metadata::{PartitionAddr, PartitionSummary, TableSummary};
 use internal_types::schema::Schema;
-use snafu::Snafu;
+use snafu::{OptionExt, Snafu};
 use tracker::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 
 use self::chunk::CatalogChunk;
 use self::metrics::CatalogMetrics;
 use self::partition::Partition;
 use self::table::Table;
+use data_types::write_summary::WriteSummary;
 
 pub mod chunk;
 mod metrics;
@@ -135,11 +136,8 @@ impl Catalog {
     /// Get a specific table by name, returning `None` if there is no such table
     pub fn table(&self, table_name: impl AsRef<str>) -> Result<MappedRwLockReadGuard<'_, Table>> {
         let table_name = table_name.as_ref();
-        RwLockReadGuard::try_map(self.tables.read(), |tables| tables.get(table_name)).map_err(
-            |_| Error::TableNotFound {
-                table: table_name.to_string(),
-            },
-        )
+        RwLockReadGuard::try_map(self.tables.read(), |tables| tables.get(table_name))
+            .map_err(|_| TableNotFound { table: table_name }.build())
     }
 
     /// Get a specific partition by name, returning an error if it can't be found
@@ -154,9 +152,9 @@ impl Catalog {
         self.table(table_name)?
             .partition(partition_key)
             .cloned()
-            .ok_or_else(|| Error::PartitionNotFound {
-                partition: partition_key.to_string(),
-                table: table_name.to_string(),
+            .context(PartitionNotFound {
+                partition: partition_key,
+                table: table_name,
             })
     }
 
@@ -174,9 +172,9 @@ impl Catalog {
             .read()
             .chunk(chunk_id)
             .cloned()
-            .ok_or_else(|| Error::ChunkNotFound {
-                partition: partition_key.to_string(),
-                table: table_name.to_string(),
+            .context(ChunkNotFound {
+                partition: partition_key,
+                table: table_name,
                 chunk_id,
             })
     }
@@ -226,6 +224,23 @@ impl Catalog {
             .values()
             .flat_map(|table| table.partition_summaries())
             .collect()
+    }
+
+    /// Returns a list of persistence window summaries for each partition
+    pub fn persistence_summaries(&self) -> Vec<(PartitionAddr, WriteSummary)> {
+        let mut summaries = Vec::new();
+        let tables = self.tables.read();
+        for table in tables.values() {
+            for partition in table.partitions() {
+                let partition = partition.read();
+                if let Some(w) = partition.persistence_windows() {
+                    for summary in w.summaries() {
+                        summaries.push((partition.addr().clone(), summary))
+                    }
+                }
+            }
+        }
+        summaries
     }
 
     pub fn chunk_summaries(&self) -> Vec<ChunkSummary> {

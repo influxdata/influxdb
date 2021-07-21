@@ -1,22 +1,28 @@
 use std::{
+    collections::BTreeMap,
     convert::{TryFrom, TryInto},
+    sync::Arc,
     time::Duration,
 };
 
 use async_trait::async_trait;
 use data_types::server_id::ServerId;
 use entry::{Entry, Sequence, SequencedEntry};
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt};
 use observability_deps::tracing::{debug, info};
 use rdkafka::{
     consumer::{BaseConsumer, Consumer, StreamConsumer},
     error::KafkaError,
     producer::{FutureProducer, FutureRecord},
+    types::RDKafkaErrorCode,
     util::Timeout,
-    ClientConfig, Message, TopicPartitionList,
+    ClientConfig, Message, Offset, TopicPartitionList,
 };
 
-use crate::core::{EntryStream, WriteBufferError, WriteBufferReading, WriteBufferWriting};
+use crate::core::{
+    EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
+    WriteBufferWriting,
+};
 
 pub struct KafkaBufferProducer {
     conn: String,
@@ -77,8 +83,8 @@ impl KafkaBufferProducer {
         let mut cfg = ClientConfig::new();
         cfg.set("bootstrap.servers", &conn);
         cfg.set("message.timeout.ms", "5000");
-        cfg.set("message.max.bytes", "10000000");
-        cfg.set("queue.buffering.max.kbytes", "10485760");
+        cfg.set("message.max.bytes", "31457280");
+        cfg.set("queue.buffering.max.kbytes", "31457280");
         cfg.set("request.required.acks", "all"); // equivalent to acks=-1
 
         let producer: FutureProducer = cfg.create()?;
@@ -94,7 +100,7 @@ impl KafkaBufferProducer {
 pub struct KafkaBufferConsumer {
     conn: String,
     database_name: String,
-    consumers: Vec<(u32, StreamConsumer)>,
+    consumers: BTreeMap<u32, Arc<StreamConsumer>>,
 }
 
 // Needed because rdkafka's StreamConsumer doesn't impl Debug
@@ -107,31 +113,94 @@ impl std::fmt::Debug for KafkaBufferConsumer {
     }
 }
 
+#[async_trait]
 impl WriteBufferReading for KafkaBufferConsumer {
-    fn streams<'life0, 'async_trait>(&'life0 self) -> Vec<(u32, EntryStream<'async_trait>)>
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
-        self.consumers
-            .iter()
-            .map(|(sequencer_id, consumer)| {
-                let stream = consumer
-                    .stream()
-                    .map(|message| {
-                        let message = message?;
-                        let entry = Entry::try_from(message.payload().unwrap().to_vec())?;
-                        let sequence = Sequence {
-                            id: message.partition().try_into()?,
-                            number: message.offset().try_into()?,
-                        };
+    fn streams(&mut self) -> Vec<(u32, EntryStream<'_>)> {
+        let mut streams = vec![];
 
-                        Ok(SequencedEntry::new_from_sequence(sequence, entry)?)
+        for (sequencer_id, consumer) in &self.consumers {
+            let sequencer_id = *sequencer_id;
+            let consumer_cloned = Arc::clone(consumer);
+            let database_name = self.database_name.clone();
+
+            let stream = consumer
+                .stream()
+                .map(move |message| {
+                    let message = message?;
+                    let entry = Entry::try_from(message.payload().unwrap().to_vec())?;
+                    let sequence = Sequence {
+                        id: message.partition().try_into()?,
+                        number: message.offset().try_into()?,
+                    };
+
+                    Ok(SequencedEntry::new_from_sequence(sequence, entry)?)
+                })
+                .boxed();
+
+            let fetch_high_watermark = move || {
+                let consumer_cloned = Arc::clone(&consumer_cloned);
+                let database_name = database_name.clone();
+
+                let fut = async move {
+                    match tokio::task::spawn_blocking(move || {
+                        consumer_cloned.fetch_watermarks(
+                            &database_name,
+                            sequencer_id as i32,
+                            Duration::from_secs(60),
+                        )
                     })
-                    .boxed();
-                (*sequencer_id, stream)
+                    .await
+                    .expect("subtask failed")
+                    {
+                        Ok((_low, high)) => Ok(high as u64),
+                        Err(KafkaError::MetadataFetch(RDKafkaErrorCode::UnknownPartition)) => Ok(0),
+                        Err(e) => Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
+                    }
+                };
+
+                fut.boxed() as FetchHighWatermarkFut<'_>
+            };
+            let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
+
+            streams.push((
+                sequencer_id,
+                EntryStream {
+                    stream,
+                    fetch_high_watermark,
+                },
+            ));
+        }
+
+        streams
+    }
+
+    async fn seek(
+        &mut self,
+        sequencer_id: u32,
+        sequence_number: u64,
+    ) -> Result<(), WriteBufferError> {
+        if let Some(consumer) = self.consumers.get(&sequencer_id) {
+            let consumer = Arc::clone(consumer);
+            let database_name = self.database_name.clone();
+            let offset = if sequence_number > 0 {
+                Offset::Offset(sequence_number as i64)
+            } else {
+                Offset::Beginning
+            };
+
+            tokio::task::spawn_blocking(move || {
+                consumer.seek(
+                    &database_name,
+                    sequencer_id as i32,
+                    offset,
+                    Duration::from_secs(60),
+                )
             })
-            .collect()
+            .await
+            .expect("subtask failed")?;
+        }
+
+        Ok(())
     }
 }
 
@@ -169,11 +238,21 @@ impl KafkaBufferConsumer {
 
                 let mut assignment = TopicPartitionList::new();
                 assignment.add_partition(&database_name, partition as i32);
-                consumer.assign(&assignment)?;
 
-                Ok((partition, consumer))
+                // We must set the offset to `Beginning` here to avoid the following error during seek:
+                //     KafkaError (Seek error: Local: Erroneous state)
+                //
+                // Also see:
+                // - https://github.com/Blizzard/node-rdkafka/issues/237
+                // - https://github.com/confluentinc/confluent-kafka-go/issues/121#issuecomment-362308376
+                assignment
+                    .set_partition_offset(&database_name, partition as i32, Offset::Beginning)
+                    .expect("partition was set just before");
+
+                consumer.assign(&assignment)?;
+                Ok((partition, Arc::new(consumer)))
             })
-            .collect::<Result<Vec<(u32, StreamConsumer)>, KafkaError>>()?;
+            .collect::<Result<BTreeMap<u32, Arc<StreamConsumer>>, KafkaError>>()?;
 
         Ok(Self {
             conn,

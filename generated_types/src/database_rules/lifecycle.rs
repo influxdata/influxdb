@@ -35,6 +35,10 @@ impl From<LifecycleRules> for management::LifecycleRules {
             persist_row_threshold: config.persist_row_threshold.get() as u64,
             persist_age_threshold_seconds: config.persist_age_threshold_seconds.get(),
             mub_row_threshold: config.mub_row_threshold.get() as u64,
+            parquet_cache_limit: config
+                .parquet_cache_limit
+                .map(|v| v.get())
+                .unwrap_or_default(),
         }
     }
 }
@@ -69,6 +73,7 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
                 .unwrap_or_else(|| NonZeroU32::new(DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS).unwrap()),
             mub_row_threshold: NonZeroUsize::new(proto.mub_row_threshold as usize)
                 .unwrap_or_else(|| NonZeroUsize::new(DEFAULT_MUB_ROW_THRESHOLD).unwrap()),
+            parquet_cache_limit: NonZeroU64::new(proto.parquet_cache_limit),
         })
     }
 }
@@ -93,6 +98,7 @@ mod tests {
             persist_row_threshold: 57,
             persist_age_threshold_seconds: 23,
             mub_row_threshold: 3454,
+            parquet_cache_limit: 10,
         };
 
         let config: LifecycleRules = protobuf.clone().try_into().unwrap();
@@ -125,6 +131,11 @@ mod tests {
             protobuf.persist_age_threshold_seconds
         );
         assert_eq!(back.mub_row_threshold, protobuf.mub_row_threshold);
+        assert_eq!(
+            config.parquet_cache_limit.unwrap().get(),
+            protobuf.parquet_cache_limit
+        );
+        assert_eq!(back.parquet_cache_limit, protobuf.parquet_cache_limit);
     }
 
     #[test]

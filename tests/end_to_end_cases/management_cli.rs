@@ -244,6 +244,18 @@ async fn test_list_chunks_error() {
 async fn test_remotes() {
     let server_fixture = ServerFixture::create_single_use().await;
     let addr = server_fixture.grpc_base();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("server")
+        .arg("set")
+        .arg("32")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Ok"));
+
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("server")

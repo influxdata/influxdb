@@ -65,6 +65,8 @@ async fn test_list_update_remotes() {
     const TEST_REMOTE_ADDR_2: &str = "4.3.2.1:4321";
     const TEST_REMOTE_ADDR_2_UPDATED: &str = "40.30.20.10:4321";
 
+    client.update_server_id(123).await.unwrap();
+
     let res = client.list_remotes().await.expect("list remotes failed");
     assert_eq!(res.len(), 0);
 

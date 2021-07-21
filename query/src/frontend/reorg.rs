@@ -268,8 +268,9 @@ struct ScanPlan<C: QueryChunk + 'static> {
 
 #[cfg(test)]
 mod test {
+    use arrow::compute::SortOptions;
     use arrow_util::assert_batches_eq;
-    use internal_types::schema::{merge::SchemaMerger, sort::SortOptions};
+    use internal_types::schema::merge::SchemaMerger;
 
     use crate::{
         exec::{Executor, ExecutorType},

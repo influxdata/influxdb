@@ -8,7 +8,7 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
     use server::Error;
 
     match error {
-        Error::GetIdError { .. } => PreconditionViolation {
+        Error::IdNotSet => PreconditionViolation {
             category: "Writer ID".to_string(),
             subject: "influxdata.com/iox".to_string(),
             description: "Writer ID must be set".to_string(),

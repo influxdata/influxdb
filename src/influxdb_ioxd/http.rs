@@ -342,12 +342,26 @@ impl ApplicationError {
     }
 }
 
-const MAX_SIZE: usize = 10_485_760; // max write request size of 10MB
-
-fn router<M>(server: Arc<AppServer<M>>) -> Router<Body, ApplicationError>
+struct Server<M>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
+    app_server: Arc<AppServer<M>>,
+    max_request_size: usize,
+}
+
+fn router<M>(
+    app_server: Arc<AppServer<M>>,
+    max_request_size: usize,
+) -> Router<Body, ApplicationError>
+where
+    M: ConnectionManager + Send + Sync + Debug + 'static,
+{
+    let server = Server {
+        app_server,
+        max_request_size,
+    };
+
     // Create a router and specify the the handlers.
     Router::builder()
         .data(server)
@@ -408,7 +422,7 @@ struct WriteInfo {
 
 /// Parse the request's body into raw bytes, applying size limits and
 /// content encoding as needed.
-async fn parse_body(req: hyper::Request<Body>) -> Result<Bytes, ApplicationError> {
+async fn parse_body(req: hyper::Request<Body>, max_size: usize) -> Result<Bytes, ApplicationError> {
     // clippy says the const needs to be assigned to a local variable:
     // error: a `const` item with interior mutability should not be borrowed
     let header_name = CONTENT_ENCODING;
@@ -431,9 +445,9 @@ async fn parse_body(req: hyper::Request<Body>) -> Result<Bytes, ApplicationError
     while let Some(chunk) = payload.next().await {
         let chunk = chunk.context(ClientHangup)?;
         // limit max size of in-memory payload
-        if (body.len() + chunk.len()) > MAX_SIZE {
+        if (body.len() + chunk.len()) > max_size {
             return Err(ApplicationError::RequestSizeExceeded {
-                max_body_size: MAX_SIZE,
+                max_body_size: max_size,
             });
         }
         body.extend_from_slice(&chunk);
@@ -445,9 +459,9 @@ async fn parse_body(req: hyper::Request<Body>) -> Result<Bytes, ApplicationError
         use std::io::Read;
         let decoder = flate2::read::GzDecoder::new(&body[..]);
 
-        // Read at most MAX_SIZE bytes to prevent a decompression bomb based
+        // Read at most max_size bytes to prevent a decompression bomb based
         // DoS.
-        let mut decoder = decoder.take(MAX_SIZE as u64);
+        let mut decoder = decoder.take(max_size as u64);
         let mut decoded_data = Vec::new();
         decoder
             .read_to_end(&mut decoded_data)
@@ -464,7 +478,12 @@ where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
     let path = req.uri().path().to_string();
-    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
+    let Server {
+        app_server: server,
+        max_request_size,
+    } = req.data::<Server<M>>().expect("server state");
+    let max_request_size = *max_request_size;
+    let server = Arc::clone(&server);
 
     // TODO(edd): figure out best way of catching all errors in this observation.
     let obs = server.metrics.http_requests.observation(); // instrument request
@@ -481,7 +500,7 @@ where
     let db_name = org_and_bucket_to_database(&write_info.org, &write_info.bucket)
         .context(BucketMappingError)?;
 
-    let body = parse_body(req).await?;
+    let body = parse_body(req, max_request_size).await?;
 
     let body = str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
 
@@ -595,7 +614,7 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
     let path = req.uri().path().to_string();
-    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
+    let server = Arc::clone(&req.data::<Server<M>>().expect("server state").app_server);
 
     // TODO(edd): figure out best way of catching all errors in this observation.
     let obs = server.metrics.http_requests.observation(); // instrument request
@@ -661,7 +680,7 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
 async fn health<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
+    let server = Arc::clone(&req.data::<Server<M>>().expect("server state").app_server);
     let path = req.uri().path().to_string();
     server
         .metrics
@@ -677,7 +696,7 @@ async fn health<M: ConnectionManager + Send + Sync + Debug + 'static>(
 async fn handle_metrics<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
+    let server = Arc::clone(&req.data::<Server<M>>().expect("server state").app_server);
     let path = req.uri().path().to_string();
     server
         .metrics
@@ -700,7 +719,7 @@ async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
 ) -> Result<Response<Body>, ApplicationError> {
     let path = req.uri().path().to_string();
 
-    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
+    let server = Arc::clone(&req.data::<Server<M>>().expect("server state").app_server);
 
     // TODO - catch error conditions
     let obs = server.metrics.http_requests.observation();
@@ -841,11 +860,12 @@ pub async fn serve<M>(
     addr: AddrIncoming,
     server: Arc<AppServer<M>>,
     shutdown: CancellationToken,
+    max_request_size: usize,
 ) -> Result<(), hyper::Error>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    let router = router(server);
+    let router = router(server, max_request_size);
     let service = RouterService::new(router).unwrap();
 
     hyper::Server::builder(addr)
@@ -1234,6 +1254,8 @@ mod tests {
         .await;
     }
 
+    const TEST_MAX_REQUEST_SIZE: usize = 1024 * 1024;
+
     #[tokio::test]
     async fn client_hangup_during_parse() {
         #[derive(Debug, Snafu)]
@@ -1253,7 +1275,9 @@ mod tests {
             .body(body)
             .unwrap();
 
-        let parse_result = parse_body(request).await.unwrap_err();
+        let parse_result = parse_body(request, TEST_MAX_REQUEST_SIZE)
+            .await
+            .unwrap_err();
         assert_eq!(
             parse_result.to_string(),
             "Client hung up while sending body: error reading a body from connection: Blarg Error"
@@ -1334,7 +1358,12 @@ mod tests {
         let addr = AddrIncoming::bind(&bind_addr).expect("failed to bind server");
         let server_url = format!("http://{}", addr.local_addr());
 
-        tokio::task::spawn(serve(addr, server, CancellationToken::new()));
+        tokio::task::spawn(serve(
+            addr,
+            server,
+            CancellationToken::new(),
+            TEST_MAX_REQUEST_SIZE,
+        ));
         println!("Started server at {}", server_url);
         server_url
     }

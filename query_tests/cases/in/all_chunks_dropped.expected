@@ -1,25 +1,27 @@
 -- Test Setup: OneMeasurementAllChunksDropped
 -- SQL: SELECT * from information_schema.tables;
-+---------------+--------------------+---------------+------------+
-| table_catalog | table_schema       | table_name    | table_type |
-+---------------+--------------------+---------------+------------+
-| public        | iox                | h2o           | BASE TABLE |
-| public        | system             | chunks        | BASE TABLE |
-| public        | system             | columns       | BASE TABLE |
-| public        | system             | chunk_columns | BASE TABLE |
-| public        | system             | operations    | BASE TABLE |
-| public        | information_schema | tables        | VIEW       |
-| public        | information_schema | columns       | VIEW       |
-+---------------+--------------------+---------------+------------+
++---------------+--------------------+---------------------+------------+
+| table_catalog | table_schema       | table_name          | table_type |
++---------------+--------------------+---------------------+------------+
+| public        | iox                | h2o                 | BASE TABLE |
+| public        | system             | chunks              | BASE TABLE |
+| public        | system             | columns             | BASE TABLE |
+| public        | system             | chunk_columns       | BASE TABLE |
+| public        | system             | operations          | BASE TABLE |
+| public        | system             | persistence_windows | BASE TABLE |
+| public        | information_schema | tables              | VIEW       |
+| public        | information_schema | columns             | VIEW       |
++---------------+--------------------+---------------------+------------+
 -- SQL: SHOW TABLES;
-+---------------+--------------------+---------------+------------+
-| table_catalog | table_schema       | table_name    | table_type |
-+---------------+--------------------+---------------+------------+
-| public        | iox                | h2o           | BASE TABLE |
-| public        | system             | chunks        | BASE TABLE |
-| public        | system             | columns       | BASE TABLE |
-| public        | system             | chunk_columns | BASE TABLE |
-| public        | system             | operations    | BASE TABLE |
-| public        | information_schema | tables        | VIEW       |
-| public        | information_schema | columns       | VIEW       |
-+---------------+--------------------+---------------+------------+
++---------------+--------------------+---------------------+------------+
+| table_catalog | table_schema       | table_name          | table_type |
++---------------+--------------------+---------------------+------------+
+| public        | iox                | h2o                 | BASE TABLE |
+| public        | system             | chunks              | BASE TABLE |
+| public        | system             | columns             | BASE TABLE |
+| public        | system             | chunk_columns       | BASE TABLE |
+| public        | system             | operations          | BASE TABLE |
+| public        | system             | persistence_windows | BASE TABLE |
+| public        | information_schema | tables              | VIEW       |
+| public        | information_schema | columns             | VIEW       |
++---------------+--------------------+---------------------+------------+

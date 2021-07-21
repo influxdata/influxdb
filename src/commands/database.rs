@@ -119,6 +119,11 @@ struct Create {
     /// Maximum number of rows to buffer in a MUB chunk before compacting it
     #[structopt(long, default_value = "100000")]
     mub_row_threshold: u64,
+
+    /// Use up to this amount of space in bytes for caching Parquet files. A
+    /// value of zero disables Parquet file caching.
+    #[structopt(long, default_value = "0")]
+    parquet_cache_limit: u64,
 }
 
 /// Get list of databases
@@ -193,6 +198,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                     persist_row_threshold: command.persist_row_threshold,
                     persist_age_threshold_seconds: command.persist_age_threshold_seconds,
                     mub_row_threshold: command.mub_row_threshold,
+                    parquet_cache_limit: command.parquet_cache_limit,
                 }),
 
                 // Default to hourly partitions

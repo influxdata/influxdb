@@ -195,7 +195,15 @@ pub async fn main(config: Config) -> Result<()> {
     let bind_addr = config.http_bind_address;
     let addr = AddrIncoming::bind(&bind_addr).context(StartListeningHttp { bind_addr })?;
 
-    let http_server = http::serve(addr, Arc::clone(&app_server), frontend_shutdown.clone()).fuse();
+    let max_http_request_size = config.max_http_request_size;
+
+    let http_server = http::serve(
+        addr,
+        Arc::clone(&app_server),
+        frontend_shutdown.clone(),
+        max_http_request_size,
+    )
+    .fuse();
     info!(bind_address=?bind_addr, "HTTP server listening");
 
     info!(git_hash, "InfluxDB IOx server ready");
