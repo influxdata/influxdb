@@ -45,6 +45,11 @@ func NewCommand(server server.Interface) *Command {
 
 // Run executes the import command using the specified args.
 func (cmd *Command) Run(args []string) (err error) {
+	cmd.Logger, err = zap.NewProductionConfig().Build()
+	if err != nil {
+		return err
+	}
+
 	err = cmd.parseFlags(args)
 	if err != nil {
 		return err
@@ -56,6 +61,7 @@ func (cmd *Command) Run(args []string) (err error) {
 	}
 
 	i := newImporter(cmd.server, cmd.database, cmd.retentionPolicy, cmd.replace, cmd.buildTSI, cmd.Logger)
+	i.log.Info("import starting")
 
 	reader := binary.NewReader(cmd.Stdin)
 	_, err = reader.ReadHeader()
