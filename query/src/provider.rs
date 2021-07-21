@@ -1946,7 +1946,7 @@ mod test {
                 .with_three_rows_of_data(),
         );
 
-        // chunk3 no overlap, duplicates within
+        // chunk4 no overlap, duplicates within
         let chunk4 = Arc::new(
             TestChunk::new("t")
                 .with_id(4)
@@ -1995,10 +1995,10 @@ mod test {
             "| 1000      | WA   | 1970-01-01 00:00:00.000008    |",
             "| 10        | VT   | 1970-01-01 00:00:00.000010    |",
             "| 70        | UT   | 1970-01-01 00:00:00.000020    |",
-            "| 1000      | WA   | 1970-01-01 00:00:00.000008    |",
-            "| 10        | VT   | 1970-01-01 00:00:00.000010    |",
-            "| 70        | UT   | 1970-01-01 00:00:00.000020    |",
-            "| 50        | VT   | 1970-01-01 00:00:00.000010    |",
+            "| 1000      | WA   | 1970-01-01 00:00:00.000028    |",
+            "| 10        | VT   | 1970-01-01 00:00:00.000210    |",
+            "| 70        | UT   | 1970-01-01 00:00:00.000220    |",
+            "| 50        | VT   | 1970-01-01 00:00:00.000210    |",
             "+-----------+------+-------------------------------+",
         ];
         assert_batches_eq!(&expected, &raw_data(&chunks).await);
@@ -2008,9 +2008,9 @@ mod test {
             deduplicator.build_scan_plan(Arc::from("t"), schema, chunks, Predicate::default());
         let batch = collect(plan.unwrap()).await.unwrap();
         // Final data is partially sorted with duplicates removed. Detailed:
-        //   . chunk1 and chunk2 will be sorted merged and deduplicated (rows 8-32)
+        //   . chunk1 and chunk2 will be sorted merged and deduplicated (rows 7-14)
         //   . chunk3 will stay in its original (rows 1-3)
-        //   . chunk4 will be sorted and deduplicated (rows 4-7)
+        //   . chunk4 will be sorted and deduplicated (rows 4-6)
         let expected = vec![
             "+-----------+------+-------------------------------+",
             "| field_int | tag1 | time                          |",
@@ -2018,9 +2018,9 @@ mod test {
             "| 1000      | WA   | 1970-01-01 00:00:00.000008    |",
             "| 10        | VT   | 1970-01-01 00:00:00.000010    |",
             "| 70        | UT   | 1970-01-01 00:00:00.000020    |",
-            "| 70        | UT   | 1970-01-01 00:00:00.000020    |",
-            "| 50        | VT   | 1970-01-01 00:00:00.000010    |",
-            "| 1000      | WA   | 1970-01-01 00:00:00.000008    |",
+            "| 70        | UT   | 1970-01-01 00:00:00.000220    |",
+            "| 50        | VT   | 1970-01-01 00:00:00.000210    |",
+            "| 1000      | WA   | 1970-01-01 00:00:00.000028    |",
             "| 100       | AL   | 1970-01-01 00:00:00.000000050 |",
             "| 70        | CT   | 1970-01-01 00:00:00.000000100 |",
             "| 70        | CT   | 1970-01-01 00:00:00.000000500 |",
