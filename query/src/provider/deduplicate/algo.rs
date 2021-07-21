@@ -5,6 +5,7 @@ use std::{cmp::Ordering, ops::Range, sync::Arc};
 use arrow::{
     array::{ArrayRef, UInt64Array},
     compute::TakeOptions,
+    datatypes::{DataType, TimeUnit},
     error::Result as ArrowResult,
     record_batch::RecordBatch,
 };
@@ -14,6 +15,8 @@ use datafusion::physical_plan::{
     coalesce_batches::concat_batches, expressions::PhysicalSortExpr, PhysicalExpr, SQLMetric,
 };
 use observability_deps::tracing::trace;
+
+use crate::provider::deduplicate::key_ranges::key_ranges;
 
 // Handles the deduplication across potentially multiple
 // [`RecordBatch`]es which are already sorted on a primary key,
@@ -211,8 +214,14 @@ impl RecordBatchDeduplicator {
         // is_sort_key[col_idx] = true if it is present in sort keys
         let mut is_sort_key: Vec<bool> = vec![false; batch.columns().len()];
 
-        // Figure out where the partitions are:
-        let columns: Vec<_> = self
+        // Figure out the columns used to optimize the way we compute the ranges.
+        // Since in IOx's use cases, every ingesting row is almost unique, the optimal way
+        // to get the ranges is to compare row by row from the highest cardinality column
+        // to the lowest one
+        //
+        // First get key columns which are the sort key columns in lowest to
+        // highest cardinality plus time column at the end
+        let mut columns: Vec<_> = self
             .sort_keys
             .iter()
             .map(|skey| {
@@ -230,9 +239,27 @@ impl RecordBatchDeduplicator {
                 }
             })
             .collect();
+        //
+        // Then converting the columns order from: lowest cardinality, second lowest, ..., highest cardinality, time
+        // to: highest cardinality, time, second highest cardinality, ...., lowest cardinality
+        //
+        // If the last column is time, swap time with its previous column (if any) which is
+        // the column with the highest cardinality
+        let len = columns.len();
+        if len > 1 {
+            if let DataType::Timestamp(TimeUnit::Nanosecond, _) =
+                columns[len - 1].values.data_type()
+            {
+                columns.swap(len - 2, len - 1);
+            }
+        }
+        // Reverse the list
+        let columns: Vec<_> = columns.into_iter().rev().collect();
 
         // Compute partitions (aka breakpoints between the ranges)
-        let ranges = arrow::compute::lexicographical_partition_ranges(&columns)?.collect();
+        // Each range (or partition) includes a unique sort key value which is
+        // a unique combination of PK columns. PK columns consist of all tags and the time col.
+        let ranges = key_ranges(&columns)?.collect();
 
         Ok(DuplicateRanges {
             is_sort_key,
@@ -364,6 +391,7 @@ fn get_col_name(expr: &dyn PhysicalExpr) -> &str {
 
 #[cfg(test)]
 mod test {
+    use arrow::array::{Int64Array, TimestampNanosecondArray};
     use arrow::compute::SortOptions;
     use arrow::{
         array::{ArrayRef, Float64Array, StringArray},
@@ -373,6 +401,8 @@ mod test {
     use arrow_util::assert_batches_eq;
     use datafusion::physical_plan::expressions::col;
     use datafusion::physical_plan::MetricType;
+
+    use crate::provider::deduplicate::key_ranges::range;
 
     use super::*;
 
@@ -709,5 +739,101 @@ mod test {
 
         let results = dedupe.last_batch_with_no_same_sort_key(&current_batch);
         assert!(results.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_compute_ranges() {
+        // Input columns:
+        //  The input columns are sorted on this sort order:
+        //    (Lowest_Cardinality, Second_Highest_Cardinality, Highest_Cardinality, Time)
+        //
+        // Invisible Index |  Lowest_Cardinality  | Second_Highest_Cardinality | Highest_Cardinality | Time
+        // (not a real col)
+        // --------------- | -------------------- | --------------------------- | ------------------- | ----
+        //         0       |          1           |              1              |            1        |   1
+        //         1       |          1           |              1              |            1        |   10
+        //         2       |          1           |              1              |            3        |   8
+        //         3       |          1           |              1              |            4        |   9
+        //         4       |          1           |              1              |            4        |   9
+        //         5       |          1           |              1              |            5        |   1
+        //         6       |          1           |              1              |            5        |   15
+        //         7       |          1           |              2              |            5        |   15
+        //         8       |          1           |              2              |            5        |   15
+        //         9       |          2           |              2              |            5        |   15
+        // Out put ranges: 8 ranges on their invisible indices
+        //   [0, 1],
+        //   [1, 2],
+        //   [2, 3],
+        //   [3, 5],  -- 2 rows with same values (1, 1, 4, 9)
+        //   [5, 6],
+        //   [6, 7],
+        //   [7, 9],  -- 2 rows with same values (1, 2, 5, 15)
+        //   [9, 10],
+
+        let mut lowest_cardinality = vec![Some("1"); 9]; // 9 first values are all Some(1)
+        lowest_cardinality.push(Some("2")); // Add Some(2)
+        let lowest_cardinality = Arc::new(StringArray::from(lowest_cardinality)) as ArrayRef;
+
+        let mut second_highest_cardinality = vec![Some(1.0); 7];
+        second_highest_cardinality.append(&mut vec![Some(2.0); 3]);
+        let second_higest_cardinality =
+            Arc::new(Float64Array::from(second_highest_cardinality)) as ArrayRef;
+
+        let mut highest_cardinality = vec![Some(1), Some(1), Some(3), Some(4), Some(4)];
+        highest_cardinality.append(&mut vec![Some(5); 5]);
+        let highest_cardinality = Arc::new(Int64Array::from(highest_cardinality)) as ArrayRef;
+
+        let mut time = vec![Some(1), Some(10), Some(8), Some(9), Some(9), Some(1)];
+        time.append(&mut vec![Some(15); 4]);
+        let time = Arc::new(TimestampNanosecondArray::from(time)) as ArrayRef;
+
+        let batch = RecordBatch::try_from_iter(vec![
+            ("lowest_cardinality", lowest_cardinality),
+            ("second_highest_cardinality", second_higest_cardinality),
+            ("highest_cardinality", highest_cardinality),
+            ("time", time),
+        ])
+        .unwrap();
+
+        let options = SortOptions {
+            descending: false,
+            nulls_first: false,
+        };
+
+        let sort_keys = vec![
+            PhysicalSortExpr {
+                expr: col("lowest_cardinality", &batch.schema()).unwrap(),
+                options,
+            },
+            PhysicalSortExpr {
+                expr: col("second_highest_cardinality", &batch.schema()).unwrap(),
+                options,
+            },
+            PhysicalSortExpr {
+                expr: col("highest_cardinality", &batch.schema()).unwrap(),
+                options,
+            },
+            PhysicalSortExpr {
+                expr: col("time", &batch.schema()).unwrap(),
+                options,
+            },
+        ];
+
+        let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
+        let dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, None);
+        let key_ranges = dedupe.compute_ranges(&batch).unwrap().ranges;
+
+        let expected_key_range = vec![
+            range(0, 1),
+            range(1, 2),
+            range(2, 3),
+            range(3, 5),
+            range(5, 6),
+            range(6, 7),
+            range(7, 9),
+            range(9, 10),
+        ];
+
+        assert_eq!(key_ranges, expected_key_range);
     }
 }

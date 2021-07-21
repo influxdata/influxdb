@@ -50,7 +50,7 @@ use std::{
     time::{Duration, Instant},
 };
 use write_buffer::config::WriteBufferConfig;
-use write_buffer::core::WriteBufferError;
+use write_buffer::core::{FetchHighWatermark, WriteBufferError};
 
 pub mod access;
 pub mod catalog;
@@ -143,6 +143,91 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Metrics for data ingest via write buffer.
+#[derive(Debug)]
+struct WriteBufferIngestMetrics {
+    /// Metrics domain
+    domain: Arc<metrics::Domain>,
+}
+
+impl WriteBufferIngestMetrics {
+    fn new(domain: Arc<metrics::Domain>) -> Self {
+        Self { domain }
+    }
+
+    fn new_sequencer_metrics(&self, sequencer_id: u32) -> SequencerMetrics {
+        let labels = vec![KeyValue::new("sequencer_id", sequencer_id.to_string())];
+
+        let red = self
+            .domain
+            .register_red_metric_with_labels(Some("ingest"), labels.clone());
+        let bytes_read = self.domain.register_counter_metric_with_labels(
+            "read",
+            Some("bytes"),
+            "Bytes read from sequencer",
+            labels.clone(),
+        );
+        let last_sequence_number = self.domain.register_gauge_metric_with_labels(
+            "last_sequence_number",
+            None,
+            "Last consumed sequence number (e.g. Kafka offset)",
+            &labels,
+        );
+        let sequence_number_lag = self.domain.register_gauge_metric_with_labels(
+            "sequence_number_lag",
+            None,
+            "The difference between the the last sequence number available (e.g. Kafka offset) and (= minus) last consumed sequence number",
+            &labels,
+        );
+        let last_min_ts = self.domain.register_gauge_metric_with_labels(
+            "last_min_ts",
+            None,
+            "Minimum timestamp of last write as unix timestamp in nanoseconds",
+            &labels,
+        );
+        let last_max_ts = self.domain.register_gauge_metric_with_labels(
+            "last_max_ts",
+            None,
+            "Maximum timestamp of last write as unix timestamp in nanoseconds",
+            &labels,
+        );
+
+        SequencerMetrics {
+            red,
+            bytes_read,
+            last_sequence_number,
+            sequence_number_lag,
+            last_min_ts,
+            last_max_ts,
+        }
+    }
+}
+
+/// Metrics for a single sequencer.
+#[derive(Debug)]
+struct SequencerMetrics {
+    /// Metrics for tracking ingest.
+    red: metrics::RedMetric,
+
+    /// Bytes read from sequencer.
+    ///
+    /// This metrics is independent of the success / error state of the entries.
+    bytes_read: metrics::Counter,
+
+    /// Last consumed sequence number (e.g. Kafka offset).
+    last_sequence_number: metrics::Gauge,
+
+    // The difference between the the last sequence number available (e.g. Kafka offset) and (= minus) last consumed
+    // sequence number.
+    sequence_number_lag: metrics::Gauge,
+
+    /// Minimum timestamp of last write as unix timestamp in nanoseconds.
+    last_min_ts: metrics::Gauge,
+
+    /// Maximum timestamp of last write as unix timestamp in nanoseconds.
+    last_max_ts: metrics::Gauge,
+}
 
 /// This is the main IOx Database object. It is the root object of any
 /// specific InfluxDB IOx instance
@@ -248,8 +333,8 @@ pub struct Db {
     /// Metric labels
     metric_labels: Vec<KeyValue>,
 
-    /// Metrics for tracking the number of errors that occur while ingesting data
-    ingest_errors: metrics::Counter,
+    /// Ingest metrics
+    ingest_metrics: WriteBufferIngestMetrics,
 
     /// Optionally connect to a write buffer for either buffering writes or reading buffered writes
     write_buffer: Option<WriteBufferConfig>,
@@ -285,9 +370,8 @@ impl Db {
         let metric_labels = database_to_commit.catalog.metric_labels.clone();
 
         let ingest_domain =
-            metrics_registry.register_domain_with_labels("ingest", metric_labels.clone());
-        let ingest_errors =
-            ingest_domain.register_counter_metric("errors", None, "Number of errors during ingest");
+            metrics_registry.register_domain_with_labels("write_buffer", metric_labels.clone());
+        let ingest_metrics = WriteBufferIngestMetrics::new(Arc::new(ingest_domain));
 
         let catalog = Arc::new(database_to_commit.catalog);
 
@@ -316,7 +400,7 @@ impl Db {
             worker_iterations_lifecycle: AtomicUsize::new(0),
             worker_iterations_cleanup: AtomicUsize::new(0),
             metric_labels,
-            ingest_errors,
+            ingest_metrics,
             write_buffer: database_to_commit.write_buffer,
             cleanup_lock: Default::default(),
         }
@@ -687,8 +771,13 @@ impl Db {
                         .try_lock()
                         .expect("no streams should exist at this point");
                     let mut futures = vec![];
-                    for (_sequencer_id, stream) in write_buffer.streams() {
-                        let fut = self.stream_in_sequenced_entries(stream);
+                    for (sequencer_id, stream) in write_buffer.streams() {
+                        let metrics = self.ingest_metrics.new_sequencer_metrics(sequencer_id);
+                        let fut = self.stream_in_sequenced_entries(
+                            stream.stream,
+                            stream.fetch_high_watermark,
+                            metrics,
+                        );
                         futures.push(fut);
                     }
 
@@ -705,32 +794,122 @@ impl Db {
 
     /// This is used to take entries from a `Stream` and put them in the mutable buffer, such as
     /// streaming entries from a write buffer.
-    async fn stream_in_sequenced_entries(
-        &self,
-        stream: BoxStream<'_, Result<SequencedEntry, WriteBufferError>>,
+    async fn stream_in_sequenced_entries<'a>(
+        &'a self,
+        mut stream: BoxStream<'a, Result<SequencedEntry, WriteBufferError>>,
+        f_mark: FetchHighWatermark<'a>,
+        mut metrics: SequencerMetrics,
     ) {
-        stream
-            .for_each(|sequenced_entry_result| async {
-                let sequenced_entry = match sequenced_entry_result {
-                    Ok(sequenced_entry) => sequenced_entry,
-                    Err(e) => {
-                        debug!(?e, "Error converting write buffer data to SequencedEntry");
-                        self.ingest_errors.add(1);
-                        return;
-                    }
-                };
+        let mut watermark_last_updated: Option<Instant> = None;
+        let mut watermark = 0;
 
-                let sequenced_entry = Arc::new(sequenced_entry);
+        while let Some(sequenced_entry_result) = stream.next().await {
+            let red_observation = metrics.red.observation();
 
-                if let Err(e) = self.store_sequenced_entry(sequenced_entry) {
+            // get entry from sequencer
+            let sequenced_entry = match sequenced_entry_result {
+                Ok(sequenced_entry) => sequenced_entry,
+                Err(e) => {
+                    debug!(?e, "Error converting write buffer data to SequencedEntry");
+                    red_observation.client_error();
+                    continue;
+                }
+            };
+            let sequenced_entry = Arc::new(sequenced_entry);
+
+            // store entry
+            match self.store_sequenced_entry(Arc::clone(&sequenced_entry)) {
+                Ok(_) => {
+                    red_observation.ok();
+                }
+                Err(e) => {
                     debug!(
                         ?e,
                         "Error storing SequencedEntry from write buffer in database"
                     );
-                    self.ingest_errors.add(1);
+                    red_observation.error();
                 }
-            })
-            .await
+            }
+
+            // maybe update sequencer watermark
+            // We are not updating this watermark every round because asking the sequencer for that watermark can be
+            // quite expensive.
+            if watermark_last_updated
+                .map(|ts| ts.elapsed() > Duration::from_secs(10))
+                .unwrap_or(true)
+            {
+                match f_mark().await {
+                    Ok(w) => {
+                        watermark = w;
+                    }
+                    Err(e) => {
+                        debug!(%e, "Error while reading sequencer watermark")
+                    }
+                }
+                watermark_last_updated = Some(Instant::now());
+            }
+
+            // update:
+            // - bytes read
+            // - last sequence number
+            // - lag
+            // - min ts
+            // - max ts
+            let sequence = sequenced_entry
+                .sequence()
+                .expect("entry from write buffer must be sequenced");
+            let entry = sequenced_entry.entry();
+            metrics.bytes_read.add(entry.data().len() as u64);
+            metrics
+                .last_sequence_number
+                .set(sequence.number as usize, &[]);
+            metrics.sequence_number_lag.set(
+                watermark.saturating_sub(sequence.number).saturating_sub(1) as usize,
+                &[],
+            );
+            if let Some(min_ts) = entry
+                .partition_writes()
+                .map(|partition_writes| {
+                    partition_writes
+                        .iter()
+                        .filter_map(|partition_write| {
+                            partition_write
+                                .table_batches()
+                                .iter()
+                                .filter_map(|table_batch| table_batch.min_max_time().ok())
+                                .map(|(min, _max)| min)
+                                .max()
+                        })
+                        .min()
+                })
+                .flatten()
+            {
+                metrics
+                    .last_min_ts
+                    .set(min_ts.timestamp_nanos() as usize, &[]);
+            }
+            if let Some(max_ts) = entry
+                .partition_writes()
+                .map(|partition_writes| {
+                    partition_writes
+                        .iter()
+                        .filter_map(|partition_write| {
+                            partition_write
+                                .table_batches()
+                                .iter()
+                                .filter_map(|table_batch| table_batch.min_max_time().ok())
+                                .map(|(_min, max)| max)
+                                .max()
+                        })
+                        .max()
+                })
+                .flatten()
+            {
+                metrics
+                    .last_max_ts
+                    .set(max_ts.timestamp_nanos() as usize, &[]);
+            }
+        }
     }
 
     async fn cleanup_unreferenced_parquet_files(
@@ -1238,19 +1417,27 @@ mod tests {
 
     #[tokio::test]
     async fn read_from_write_buffer_write_to_mutable_buffer() {
-        let entry = lp_to_entry("cpu bar=1 10");
         let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
-        write_buffer_state
-            .push_entry(SequencedEntry::new_from_sequence(Sequence::new(0, 0), entry).unwrap());
+        write_buffer_state.push_entry(
+            SequencedEntry::new_from_sequence(Sequence::new(0, 0), lp_to_entry("mem foo=1 10"))
+                .unwrap(),
+        );
+        write_buffer_state.push_entry(
+            SequencedEntry::new_from_sequence(
+                Sequence::new(0, 7),
+                lp_to_entry("cpu bar=2 20\ncpu bar=3 30"),
+            )
+            .unwrap(),
+        );
         let write_buffer = MockBufferForReading::new(write_buffer_state);
 
-        let db = TestDb::builder()
+        let test_db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Reading(Arc::new(
                 tokio::sync::Mutex::new(Box::new(write_buffer) as _),
             )))
             .build()
-            .await
-            .db;
+            .await;
+        let db = test_db.db;
 
         // do: start background task loop
         let shutdown: CancellationToken = Default::default();
@@ -1279,18 +1466,84 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
 
+        // check: metrics
+        // We need to do that BEFORE shutting down the background loop because gauges would be dropped and resetted otherwise
+        let metrics = test_db.metric_registry;
+        metrics
+            .has_metric_family("write_buffer_ingest_requests_total")
+            .with_labels(&[
+                ("db_name", "placeholder"),
+                ("svr_id", "1"),
+                ("sequencer_id", "0"),
+                ("status", "ok"),
+            ])
+            .counter()
+            .eq(2.0)
+            .unwrap();
+        metrics
+            .has_metric_family("write_buffer_read_bytes_total")
+            .with_labels(&[
+                ("db_name", "placeholder"),
+                ("svr_id", "1"),
+                ("sequencer_id", "0"),
+            ])
+            .counter()
+            .eq(528.0)
+            .unwrap();
+        metrics
+            .has_metric_family("write_buffer_last_sequence_number")
+            .with_labels(&[
+                ("db_name", "placeholder"),
+                ("svr_id", "1"),
+                ("sequencer_id", "0"),
+            ])
+            .gauge()
+            .eq(7.0)
+            .unwrap();
+        metrics
+            .has_metric_family("write_buffer_sequence_number_lag")
+            .with_labels(&[
+                ("db_name", "placeholder"),
+                ("svr_id", "1"),
+                ("sequencer_id", "0"),
+            ])
+            .gauge()
+            .eq(0.0)
+            .unwrap();
+        metrics
+            .has_metric_family("write_buffer_last_min_ts")
+            .with_labels(&[
+                ("db_name", "placeholder"),
+                ("svr_id", "1"),
+                ("sequencer_id", "0"),
+            ])
+            .gauge()
+            .eq(20.0)
+            .unwrap();
+        metrics
+            .has_metric_family("write_buffer_last_max_ts")
+            .with_labels(&[
+                ("db_name", "placeholder"),
+                ("svr_id", "1"),
+                ("sequencer_id", "0"),
+            ])
+            .gauge()
+            .eq(30.0)
+            .unwrap();
+
         // do: stop background task loop
         shutdown.cancel();
         join_handle.await.unwrap();
 
         // check: the expected results should be there
-        let batches = run_query(db, "select * from cpu").await;
+        let batches = run_query(db, "select * from cpu order by time").await;
 
         let expected = vec![
             "+-----+-------------------------------+",
             "| bar | time                          |",
             "+-----+-------------------------------+",
-            "| 1   | 1970-01-01 00:00:00.000000010 |",
+            "| 2   | 1970-01-01 00:00:00.000000020 |",
+            "| 3   | 1970-01-01 00:00:00.000000030 |",
             "+-----+-------------------------------+",
         ];
         assert_batches_eq!(expected, &batches);
@@ -1325,11 +1578,16 @@ mod tests {
         // check: after a while the error should be reported in the database's metrics
         let t_0 = Instant::now();
         loop {
-            let family = metrics.try_has_metric_family("ingest_errors_total");
+            let family = metrics.try_has_metric_family("write_buffer_ingest_requests_total");
 
             if let Ok(metric) = family {
                 if metric
-                    .with_labels(&[("db_name", "placeholder"), ("svr_id", "1")])
+                    .with_labels(&[
+                        ("db_name", "placeholder"),
+                        ("svr_id", "1"),
+                        ("sequencer_id", "0"),
+                        ("status", "client_error"),
+                    ])
                     .counter()
                     .eq(1.0)
                     .is_ok()

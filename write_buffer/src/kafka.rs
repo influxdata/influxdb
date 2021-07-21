@@ -8,17 +8,21 @@ use std::{
 use async_trait::async_trait;
 use data_types::server_id::ServerId;
 use entry::{Entry, Sequence, SequencedEntry};
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt};
 use observability_deps::tracing::{debug, info};
 use rdkafka::{
     consumer::{BaseConsumer, Consumer, StreamConsumer},
     error::KafkaError,
     producer::{FutureProducer, FutureRecord},
+    types::RDKafkaErrorCode,
     util::Timeout,
     ClientConfig, Message, Offset, TopicPartitionList,
 };
 
-use crate::core::{EntryStream, WriteBufferError, WriteBufferReading, WriteBufferWriting};
+use crate::core::{
+    EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
+    WriteBufferWriting,
+};
 
 pub struct KafkaBufferProducer {
     conn: String,
@@ -112,25 +116,62 @@ impl std::fmt::Debug for KafkaBufferConsumer {
 #[async_trait]
 impl WriteBufferReading for KafkaBufferConsumer {
     fn streams(&mut self) -> Vec<(u32, EntryStream<'_>)> {
-        self.consumers
-            .iter()
-            .map(|(sequencer_id, consumer)| {
-                let stream = consumer
-                    .stream()
-                    .map(move |message| {
-                        let message = message?;
-                        let entry = Entry::try_from(message.payload().unwrap().to_vec())?;
-                        let sequence = Sequence {
-                            id: message.partition().try_into()?,
-                            number: message.offset().try_into()?,
-                        };
+        let mut streams = vec![];
 
-                        Ok(SequencedEntry::new_from_sequence(sequence, entry)?)
+        for (sequencer_id, consumer) in &self.consumers {
+            let sequencer_id = *sequencer_id;
+            let consumer_cloned = Arc::clone(consumer);
+            let database_name = self.database_name.clone();
+
+            let stream = consumer
+                .stream()
+                .map(move |message| {
+                    let message = message?;
+                    let entry = Entry::try_from(message.payload().unwrap().to_vec())?;
+                    let sequence = Sequence {
+                        id: message.partition().try_into()?,
+                        number: message.offset().try_into()?,
+                    };
+
+                    Ok(SequencedEntry::new_from_sequence(sequence, entry)?)
+                })
+                .boxed();
+
+            let fetch_high_watermark = move || {
+                let consumer_cloned = Arc::clone(&consumer_cloned);
+                let database_name = database_name.clone();
+
+                let fut = async move {
+                    match tokio::task::spawn_blocking(move || {
+                        consumer_cloned.fetch_watermarks(
+                            &database_name,
+                            sequencer_id as i32,
+                            Duration::from_secs(60),
+                        )
                     })
-                    .boxed();
-                (*sequencer_id, stream)
-            })
-            .collect()
+                    .await
+                    .expect("subtask failed")
+                    {
+                        Ok((_low, high)) => Ok(high as u64),
+                        Err(KafkaError::MetadataFetch(RDKafkaErrorCode::UnknownPartition)) => Ok(0),
+                        Err(e) => Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
+                    }
+                };
+
+                fut.boxed() as FetchHighWatermarkFut<'_>
+            };
+            let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
+
+            streams.push((
+                sequencer_id,
+                EntryStream {
+                    stream,
+                    fetch_high_watermark,
+                },
+            ));
+        }
+
+        streams
     }
 
     async fn seek(
