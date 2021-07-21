@@ -3,7 +3,6 @@
 use async_trait::async_trait;
 use snafu::Snafu;
 
-use crate::cache::LocalFSCache;
 use crate::{path::cloud::CloudPath, ObjectStoreApi};
 
 /// A specialized `Error` for Azure object store-related errors
@@ -36,7 +35,6 @@ pub type GoogleCloudStorage = DummyObjectStore;
 
 #[async_trait]
 impl ObjectStoreApi for DummyObjectStore {
-    type Cache = LocalFSCache;
     type Path = CloudPath;
     type Error = Error;
 
@@ -85,10 +83,6 @@ impl ObjectStoreApi for DummyObjectStore {
         _prefix: &Self::Path,
     ) -> crate::Result<crate::ListResult<Self::Path>, Self::Error> {
         NotSupported { name: &self.name }.fail()
-    }
-
-    fn cache(&self) -> Option<&Self::Cache> {
-        todo!()
     }
 }
 

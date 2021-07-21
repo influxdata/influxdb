@@ -72,7 +72,6 @@ pub struct File {
 
 #[async_trait]
 impl ObjectStoreApi for File {
-    type Cache = Self;
     type Path = FilePath;
     type Error = Error;
 
@@ -250,10 +249,6 @@ impl ObjectStoreApi for File {
             common_prefixes: common_prefixes.into_iter().collect(),
             objects,
         })
-    }
-
-    fn cache(&self) -> Option<&Self::Cache> {
-        Some(self)
     }
 }
 

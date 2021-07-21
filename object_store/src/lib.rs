@@ -63,9 +63,6 @@ use std::{io, path::PathBuf};
 /// Universal API to multiple object store services.
 #[async_trait]
 pub trait ObjectStoreApi: Send + Sync + 'static {
-    /// The type of the local filesystem cache to use with this object store.
-    type Cache: cache::Cache;
-
     /// The type of the locations used in interacting with this object store.
     type Path: path::ObjectStorePath;
 
@@ -107,14 +104,15 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
         &self,
         prefix: &Self::Path,
     ) -> Result<ListResult<Self::Path>, Self::Error>;
-
-    /// Return the local filesystem cache, if configured, for this object store.
-    fn cache(&self) -> Option<&Self::Cache>;
 }
 
 /// Universal interface to multiple object store services.
 #[derive(Debug)]
-pub struct ObjectStore(pub ObjectStoreIntegration);
+pub struct ObjectStore {
+    /// The object store
+    pub integration: ObjectStoreIntegration,
+    cache: Option<ObjectStoreFileCache>,
+}
 
 impl ObjectStore {
     /// Configure a connection to Amazon S3.
@@ -134,7 +132,10 @@ impl ObjectStore {
             endpoint,
             session_token,
         )?;
-        Ok(Self(ObjectStoreIntegration::AmazonS3(s3)))
+        Ok(Self {
+            integration: ObjectStoreIntegration::AmazonS3(s3),
+            cache: None,
+        })
     }
 
     /// Configure a connection to Google Cloud Storage.
@@ -143,33 +144,48 @@ impl ObjectStore {
         bucket_name: impl Into<String>,
     ) -> Result<Self> {
         let gcs = gcp::new_gcs(service_account_path, bucket_name)?;
-        Ok(Self(ObjectStoreIntegration::GoogleCloudStorage(gcs)))
+        Ok(Self {
+            integration: ObjectStoreIntegration::GoogleCloudStorage(gcs),
+            cache: None,
+        })
     }
 
     /// Configure in-memory storage.
     pub fn new_in_memory() -> Self {
         let in_mem = InMemory::new();
-        Self(ObjectStoreIntegration::InMemory(in_mem))
+        Self {
+            integration: ObjectStoreIntegration::InMemory(in_mem),
+            cache: None,
+        }
     }
 
     /// For Testing: Configure throttled in-memory storage.
     pub fn new_in_memory_throttled(config: ThrottleConfig) -> Self {
         let in_mem = InMemory::new();
         let in_mem_throttled = ThrottledStore::new(in_mem, config);
-        Self(ObjectStoreIntegration::InMemoryThrottled(in_mem_throttled))
+        Self {
+            integration: ObjectStoreIntegration::InMemoryThrottled(in_mem_throttled),
+            cache: None,
+        }
     }
 
     /// For Testing: Configure a object store with invalid credentials
     /// that will always fail on operations (hopefully)
     pub fn new_failing_store() -> Result<Self> {
         let s3 = aws::new_failing_s3()?;
-        Ok(Self(ObjectStoreIntegration::AmazonS3(s3)))
+        Ok(Self {
+            integration: ObjectStoreIntegration::AmazonS3(s3),
+            cache: None,
+        })
     }
 
     /// Configure local file storage, rooted at `root`
     pub fn new_file(root: impl Into<PathBuf>) -> Self {
         let file = File::new(root);
-        Self(ObjectStoreIntegration::File(file))
+        Self {
+            integration: ObjectStoreIntegration::File(file),
+            cache: None,
+        }
     }
 
     /// Configure a connection to Microsoft Azure Blob store.
@@ -179,15 +195,16 @@ impl ObjectStore {
         container_name: impl Into<String>,
     ) -> Result<Self> {
         let azure = azure::new_azure(account, access_key, container_name)?;
-        Ok(Self(ObjectStoreIntegration::MicrosoftAzure(Box::new(
-            azure,
-        ))))
+        Ok(Self {
+            integration: ObjectStoreIntegration::MicrosoftAzure(Box::new(azure)),
+            cache: None,
+        })
     }
 
     /// Create implementation-specific path from parsed representation.
     pub fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> path::Path {
         use ObjectStoreIntegration::*;
-        match &self.0 {
+        match &self.integration {
             AmazonS3(_) => path::Path::AmazonS3(path.into()),
             GoogleCloudStorage(_) => path::Path::GoogleCloudStorage(path.into()),
             InMemory(_) => path::Path::InMemory(path),
@@ -196,17 +213,21 @@ impl ObjectStore {
             MicrosoftAzure(_) => path::Path::MicrosoftAzure(path.into()),
         }
     }
+
+    /// Returns the filesystem cache if configured
+    pub fn cache(&self) -> &Option<ObjectStoreFileCache> {
+        &self.cache
+    }
 }
 
 #[async_trait]
 impl ObjectStoreApi for ObjectStore {
-    type Cache = ObjectStoreFileCache;
     type Path = path::Path;
     type Error = Error;
 
     fn new_path(&self) -> Self::Path {
         use ObjectStoreIntegration::*;
-        match &self.0 {
+        match &self.integration {
             AmazonS3(s3) => path::Path::AmazonS3(s3.new_path()),
             GoogleCloudStorage(gcs) => path::Path::GoogleCloudStorage(gcs.new_path()),
             InMemory(in_mem) => path::Path::InMemory(in_mem.new_path()),
@@ -223,7 +244,7 @@ impl ObjectStoreApi for ObjectStore {
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
         use ObjectStoreIntegration::*;
-        match (&self.0, location) {
+        match (&self.integration, location) {
             (AmazonS3(s3), path::Path::AmazonS3(location)) => {
                 s3.put(location, bytes, length).await?
             }
@@ -252,7 +273,7 @@ impl ObjectStoreApi for ObjectStore {
 
     async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>> {
         use ObjectStoreIntegration::*;
-        Ok(match (&self.0, location) {
+        Ok(match (&self.integration, location) {
             (AmazonS3(s3), path::Path::AmazonS3(location)) => {
                 s3.get(location).await?.err_into().boxed()
             }
@@ -280,7 +301,7 @@ impl ObjectStoreApi for ObjectStore {
 
     async fn delete(&self, location: &Self::Path) -> Result<()> {
         use ObjectStoreIntegration::*;
-        match (&self.0, location) {
+        match (&self.integration, location) {
             (AmazonS3(s3), path::Path::AmazonS3(location)) => s3.delete(location).await?,
             (GoogleCloudStorage(gcs), path::Path::GoogleCloudStorage(location)) => {
                 gcs.delete(location).await?
@@ -304,7 +325,7 @@ impl ObjectStoreApi for ObjectStore {
         prefix: Option<&'a Self::Path>,
     ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
         use ObjectStoreIntegration::*;
-        Ok(match (&self.0, prefix) {
+        Ok(match (&self.integration, prefix) {
             (AmazonS3(s3), Some(path::Path::AmazonS3(prefix))) => s3
                 .list(Some(prefix))
                 .await?
@@ -390,7 +411,7 @@ impl ObjectStoreApi for ObjectStore {
 
     async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
         use ObjectStoreIntegration::*;
-        match (&self.0, prefix) {
+        match (&self.integration, prefix) {
             (AmazonS3(s3), path::Path::AmazonS3(prefix)) => s3
                 .list_with_delimiter(prefix)
                 .map_ok(|list_result| list_result.map_paths(path::Path::AmazonS3))
@@ -423,10 +444,6 @@ impl ObjectStoreApi for ObjectStore {
                 .context(AzureObjectStoreError),
             _ => unreachable!(),
         }
-    }
-
-    fn cache(&self) -> Option<&Self::Cache> {
-        todo!()
     }
 }
 

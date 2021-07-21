@@ -1,7 +1,6 @@
 //! This module contains the IOx implementation for using Google Cloud Storage
 //! as the object store.
 use crate::{
-    cache::{Cache, LocalFSCache},
     path::{cloud::CloudPath, DELIMITER},
     ListResult, ObjectMeta, ObjectStoreApi,
 };
@@ -80,7 +79,6 @@ pub struct GoogleCloudStorage {
 
 #[async_trait]
 impl ObjectStoreApi for GoogleCloudStorage {
-    type Cache = LocalFSCache;
     type Path = CloudPath;
     type Error = Error;
 
@@ -250,10 +248,6 @@ impl ObjectStoreApi for GoogleCloudStorage {
         };
 
         Ok(result)
-    }
-
-    fn cache(&self) -> Option<&Self::Cache> {
-        todo!()
     }
 }
 

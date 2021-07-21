@@ -106,8 +106,6 @@ impl<T: ObjectStoreApi> ThrottledStore<T> {
 
 #[async_trait]
 impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
-    type Cache = T::Cache;
-
     type Path = T::Path;
 
     type Error = T::Error;
@@ -225,10 +223,6 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
             }
             Err(err) => Err(err),
         }
-    }
-
-    fn cache(&self) -> Option<&Self::Cache> {
-        todo!()
     }
 }
 
