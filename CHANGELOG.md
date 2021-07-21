@@ -35,6 +35,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21888](https://github.com/influxdata/influxdb/pull/21888/): Ported the `influxd inspect dump-wal` command from 1.x.
 1. [21828](https://github.com/influxdata/influxdb/pull/21828): Added the command `influx inspect verify-wal`.
 1. [21814](https://github.com/influxdata/influxdb/pull/21814): Ported the `influxd inspect report-tsm` command from 1.x.
+1. [XXXXX](https://github.com/influxdata/influxdb/pull/XXXXX): Added `--ui-disabled` option to `influxd` to allow for running with the UI disabled.
 
 ### Bug Fixes
 
