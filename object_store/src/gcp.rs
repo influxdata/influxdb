@@ -80,6 +80,7 @@ pub struct GoogleCloudStorage {
 
 #[async_trait]
 impl ObjectStoreApi for GoogleCloudStorage {
+    type Cache = LocalFSCache;
     type Path = CloudPath;
     type Error = Error;
 
@@ -251,7 +252,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
         Ok(result)
     }
 
-    fn cache(&self) -> Option<&dyn Cache> {
+    fn cache(&self) -> Option<&Self::Cache> {
         todo!()
     }
 }

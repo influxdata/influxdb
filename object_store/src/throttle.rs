@@ -1,7 +1,6 @@
 //! This module contains the IOx implementation for wrapping existing object store types into an artificial "sleep" wrapper.
 use std::{convert::TryInto, io, sync::Arc};
 
-use crate::cache::Cache;
 use crate::{ListResult, ObjectStoreApi, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -107,6 +106,8 @@ impl<T: ObjectStoreApi> ThrottledStore<T> {
 
 #[async_trait]
 impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
+    type Cache = T::Cache;
+
     type Path = T::Path;
 
     type Error = T::Error;
@@ -226,7 +227,7 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
         }
     }
 
-    fn cache(&self) -> Option<&dyn Cache> {
+    fn cache(&self) -> Option<&Self::Cache> {
         todo!()
     }
 }

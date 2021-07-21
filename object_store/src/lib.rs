@@ -50,17 +50,22 @@ use throttle::ThrottledStore;
 /// Publically expose throttling configuration
 pub use throttle::ThrottleConfig;
 
-use crate::cache::Cache;
+use crate::cache::{Cache, LocalFSCache};
+use crate::path::Path;
 use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{stream::BoxStream, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use snafu::{ResultExt, Snafu};
+use std::sync::Arc;
 use std::{io, path::PathBuf};
 
 /// Universal API to multiple object store services.
 #[async_trait]
 pub trait ObjectStoreApi: Send + Sync + 'static {
+    /// The type of the local filesystem cache to use with this object store.
+    type Cache: cache::Cache;
+
     /// The type of the locations used in interacting with this object store.
     type Path: path::ObjectStorePath;
 
@@ -104,7 +109,7 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
     ) -> Result<ListResult<Self::Path>, Self::Error>;
 
     /// Return the local filesystem cache, if configured, for this object store.
-    fn cache(&self) -> Option<&dyn Cache>;
+    fn cache(&self) -> Option<&Self::Cache>;
 }
 
 /// Universal interface to multiple object store services.
@@ -195,6 +200,7 @@ impl ObjectStore {
 
 #[async_trait]
 impl ObjectStoreApi for ObjectStore {
+    type Cache = ObjectStoreFileCache;
     type Path = path::Path;
     type Error = Error;
 
@@ -419,7 +425,7 @@ impl ObjectStoreApi for ObjectStore {
         }
     }
 
-    fn cache(&self) -> Option<&dyn Cache> {
+    fn cache(&self) -> Option<&Self::Cache> {
         todo!()
     }
 }
@@ -439,6 +445,51 @@ pub enum ObjectStoreIntegration {
     File(File),
     /// Microsoft Azure Blob storage
     MicrosoftAzure(Box<MicrosoftAzure>),
+}
+
+/// Cache wrapper so local file object store can pass through to its implementation
+/// while others use the `LocalFSCache`.
+#[derive(Debug)]
+pub enum ObjectStoreFileCache {
+    /// If using the local filesystem for object store, don't create additional copies for caching
+    Passthrough(File),
+    /// Remote object stores should use the LocalFSCache implementation
+    File(LocalFSCache),
+}
+
+#[async_trait]
+impl Cache for ObjectStoreFileCache {
+    fn evict(&self, path: &Path) -> crate::cache::Result<()> {
+        match &self {
+            Self::Passthrough(f) => f.evict(path),
+            Self::File(f) => f.evict(path),
+        }
+    }
+
+    async fn fs_path_or_cache(
+        &self,
+        path: &Path,
+        store: Arc<ObjectStore>,
+    ) -> crate::cache::Result<&str> {
+        match &self {
+            Self::Passthrough(f) => f.fs_path_or_cache(path, store).await,
+            Self::File(f) => f.fs_path_or_cache(path, store).await,
+        }
+    }
+
+    fn size(&self) -> u64 {
+        match &self {
+            Self::Passthrough(f) => f.size(),
+            Self::File(f) => f.size(),
+        }
+    }
+
+    fn limit(&self) -> u64 {
+        match &self {
+            Self::Passthrough(f) => f.size(),
+            Self::File(f) => f.size(),
+        }
+    }
 }
 
 /// Result of a list call that includes objects, prefixes (directories) and a

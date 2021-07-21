@@ -65,6 +65,7 @@ pub struct MicrosoftAzure {
 
 #[async_trait]
 impl ObjectStoreApi for MicrosoftAzure {
+    type Cache = LocalFSCache;
     type Path = CloudPath;
     type Error = Error;
 
@@ -241,7 +242,7 @@ impl ObjectStoreApi for MicrosoftAzure {
         })
     }
 
-    fn cache(&self) -> Option<&dyn Cache> {
+    fn cache(&self) -> Option<&Self::Cache> {
         todo!()
     }
 }

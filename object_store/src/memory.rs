@@ -1,8 +1,8 @@
 //! This module contains the IOx implementation for using memory as the object
 //! store.
+use crate::cache::LocalFSCache;
 use crate::{
-    cache::Cache, path::parsed::DirsAndFileName, ListResult, ObjectMeta, ObjectStoreApi,
-    ObjectStorePath,
+    path::parsed::DirsAndFileName, ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -39,6 +39,7 @@ pub struct InMemory {
 
 #[async_trait]
 impl ObjectStoreApi for InMemory {
+    type Cache = LocalFSCache;
     type Path = DirsAndFileName;
     type Error = Error;
 
@@ -155,7 +156,7 @@ impl ObjectStoreApi for InMemory {
         })
     }
 
-    fn cache(&self) -> Option<&dyn Cache> {
+    fn cache(&self) -> Option<&Self::Cache> {
         todo!()
     }
 }

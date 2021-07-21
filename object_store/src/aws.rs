@@ -134,6 +134,7 @@ impl fmt::Debug for AmazonS3 {
 
 #[async_trait]
 impl ObjectStoreApi for AmazonS3 {
+    type Cache = LocalFSCache;
     type Path = CloudPath;
     type Error = Error;
 
@@ -287,7 +288,7 @@ impl ObjectStoreApi for AmazonS3 {
         self.list_with_delimiter_and_token(prefix, &None).await
     }
 
-    fn cache(&self) -> Option<&dyn Cache> {
+    fn cache(&self) -> Option<&Self::Cache> {
         todo!()
     }
 }

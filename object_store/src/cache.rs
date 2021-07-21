@@ -40,7 +40,9 @@ pub trait Cache {
 
 /// Implementation of the local file system cache that keeps the LRU stats and
 /// performs any evictions to load new objects in.
-pub(crate) struct LocalFSCache {}
+#[derive(Debug)]
+#[allow(missing_copy_implementations)]
+pub struct LocalFSCache {}
 
 #[async_trait]
 impl Cache for LocalFSCache {
