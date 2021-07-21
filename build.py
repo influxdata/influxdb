@@ -30,6 +30,7 @@ MAN_DIR = "/usr/share/man"
 
 INIT_SCRIPT = "scripts/init.sh"
 SYSTEMD_SCRIPT = "scripts/influxdb.service"
+SYSTEMD_START_SCRIPT = "scripts/influxd-systemd-start.sh"
 PREINST_SCRIPT = "scripts/pre-install.sh"
 POSTINST_SCRIPT = "scripts/post-install.sh"
 POSTUNINST_SCRIPT = "scripts/post-uninstall.sh"
@@ -149,6 +150,8 @@ def package_scripts(build_root, config_only=False, windows=False):
         os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], INIT_SCRIPT.split('/')[1]), 0o644)
         shutil.copyfile(SYSTEMD_SCRIPT, os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_SCRIPT.split('/')[1]))
         os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_SCRIPT.split('/')[1]), 0o644)
+        shutil.copyfile(SYSTEMD_START_SCRIPT, os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_START_SCRIPT.split('/')[1]))
+        os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_START_SCRIPT.split('/')[1]), 0o744)
         shutil.copyfile(LOGROTATE_SCRIPT, os.path.join(build_root, LOGROTATE_DIR[1:], "influxdb"))
         os.chmod(os.path.join(build_root, LOGROTATE_DIR[1:], "influxdb"), 0o644)
         shutil.copyfile(DEFAULT_CONFIG, os.path.join(build_root, CONFIG_DIR[1:], "influxdb.conf"))
