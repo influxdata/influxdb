@@ -14,6 +14,7 @@ use rdkafka::{
     consumer::{BaseConsumer, Consumer, StreamConsumer},
     error::KafkaError,
     producer::{FutureProducer, FutureRecord},
+    types::RDKafkaErrorCode,
     util::Timeout,
     ClientConfig, Message, Offset, TopicPartitionList,
 };
@@ -141,7 +142,7 @@ impl WriteBufferReading for KafkaBufferConsumer {
                 let database_name = database_name.clone();
 
                 let fut = async move {
-                    let (_low, high) = tokio::task::spawn_blocking(move || {
+                    match tokio::task::spawn_blocking(move || {
                         consumer_cloned.fetch_watermarks(
                             &database_name,
                             sequencer_id as i32,
@@ -149,9 +150,12 @@ impl WriteBufferReading for KafkaBufferConsumer {
                         )
                     })
                     .await
-                    .expect("subtask failed")?;
-
-                    Ok(high as u64)
+                    .expect("subtask failed")
+                    {
+                        Ok((_low, high)) => Ok(high as u64),
+                        Err(KafkaError::MetadataFetch(RDKafkaErrorCode::UnknownPartition)) => Ok(0),
+                        Err(e) => Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
+                    }
                 };
 
                 fut.boxed() as FetchHighWatermarkFut<'_>
