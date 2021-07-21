@@ -16,7 +16,10 @@ use std::ops::Range;
 /// values will be connected: (a, b) and (b, c), where start = 0 and end = n for the first and last
 /// range.
 ///
-/// The algorithms here work with any set of columns but it is implemented to optimize the input columns
+/// The algorithm works with any set of data (no sort needed) and columns but it is implemented to optimize the use case in which:
+///    1. Every row is almost unique
+///    2. Order of input columns is from highest to lowest cardinality
+///
 /// Example Input columns:
 /// Invisible Index |  Highest_Cardinality | Time | Second_Highest_Cardinality | Lowest_Cardinality
 /// --------------- | -------------------- | ---- | -------------------------- | --------------------
@@ -30,7 +33,7 @@ use std::ops::Range;
 ///         7       |          5           |  15  |             2              |            1
 ///         8       |          5           |  15  |             2              |            1
 ///         9       |          5           |  15  |             2              |            2
-///  The columns are sorted (and RLE) on this sort order:
+///  The columns are sorted (and RLE) on this different sort order:
 ///    (Lowest_Cardinality, Second_Highest_Cardinality, Highest_Cardinality, Time)
 /// Out put ranges: 8 ranges on their invisible indices
 ///   [0, 1],
@@ -56,7 +59,7 @@ struct KeyRangeIterator<'a> {
 }
 
 impl<'a> KeyRangeIterator<'a> {
-    fn try_new(columns: &'a [SortColumn]) -> ArrowResult<KeyRangeIterator<'a>> {
+    fn try_new(columns: &'a [SortColumn]) -> ArrowResult<Self> {
         if columns.is_empty() {
             return Err(ArrowError::InvalidArgumentError(
                 "Key range requires at least one column".to_string(),
@@ -69,9 +72,9 @@ impl<'a> KeyRangeIterator<'a> {
             ));
         };
 
-        let comparator = KeyRangeComparator::try_new(columns)?;
-        Ok(KeyRangeIterator {
-            comparator,
+        //let comparator = KeyRangeComparator::try_new(columns)?;
+        Ok(Self {
+            comparator: KeyRangeComparator::try_new(columns)?,
             num_rows,
             start_range_idx: 0,
         })
@@ -89,7 +92,7 @@ impl<'a> Iterator for KeyRangeIterator<'a> {
 
         let mut idx = self.start_range_idx + 1;
         while idx < self.num_rows {
-            if self.comparator.compare(&self.start_range_idx, &idx) == Ordering::Equal {
+            if self.comparator.compare(self.start_range_idx, idx) == Ordering::Equal {
                 idx += 1;
             } else {
                 break;
@@ -117,11 +120,11 @@ pub(super) struct KeyRangeComparator<'a> {
 
 impl KeyRangeComparator<'_> {
     /// compare values at the wrapped columns with given indices.
-    pub(super) fn compare<'a, 'b>(&'a self, a_idx: &'b usize, b_idx: &'b usize) -> Ordering {
+    pub(super) fn compare(&self, a_idx: usize, b_idx: usize) -> Ordering {
         for (data, comparator, sort_option) in &self.compare_items {
-            match (data.is_valid(*a_idx), data.is_valid(*b_idx)) {
+            match (data.is_valid(a_idx), data.is_valid(b_idx)) {
                 (true, true) => {
-                    match (comparator)(*a_idx, *b_idx) {
+                    match (comparator)(a_idx, b_idx) {
                         // equal, move on to next column
                         Ordering::Equal => continue,
                         order => {

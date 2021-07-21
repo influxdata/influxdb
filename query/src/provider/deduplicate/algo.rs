@@ -214,9 +214,13 @@ impl RecordBatchDeduplicator {
         // is_sort_key[col_idx] = true if it is present in sort keys
         let mut is_sort_key: Vec<bool> = vec![false; batch.columns().len()];
 
-        // Figure out the columns used to compute the ranges
-        // With the way to build sort key, columns computed below is
-        // the sort key in lowest to highest cardinality plus time column at the end
+        // Figure out the columns used to optimize the way we compute the ranges.
+        // Since in IOx's use cases, every ingesting row is almost unique, the optimal way
+        // to get the ranges is to compare row by row from the highest cardinality column
+        // to the lowest one
+        //
+        // First get key columns which are the sort key columns in lowest to
+        // highest cardinality plus time column at the end
         let mut columns: Vec<_> = self
             .sort_keys
             .iter()
@@ -235,25 +239,26 @@ impl RecordBatchDeduplicator {
                 }
             })
             .collect();
-
-        // Now converting the columns order from: lowest cardinality, second lowest, ..., highest cardinality, time
+        //
+        // Then converting the columns order from: lowest cardinality, second lowest, ..., highest cardinality, time
         // to: highest cardinality, time, second highest cardinality, ...., lowest cardinality
         //
-        // If the last column is time, swap time with its previous column which is the column with highest cardinality
+        // If the last column is time, swap time with its previous column (if any) which is
+        // the column with the highest cardinality
         let len = columns.len();
         if len > 1 {
-            if let DataType::Timestamp(TimeUnit::Second, _) = columns[len - 1].values.data_type() {
+            if let DataType::Timestamp(TimeUnit::Nanosecond, _) =
+                columns[len - 1].values.data_type()
+            {
                 columns.swap(len - 2, len - 1);
             }
         }
-
-        // Reverse that list
+        // Reverse the list
         let columns: Vec<_> = columns.into_iter().rev().collect();
 
         // Compute partitions (aka breakpoints between the ranges)
         // Each range (or partition) includes a unique sort key value which is
         // a unique combination of PK columns. PK columns consist of all tags and the time col.
-        //let ranges = arrow::compute::lexicographical_partition_ranges(&columns)?.collect();
         let ranges = key_ranges(&columns)?.collect();
 
         Ok(DuplicateRanges {
@@ -773,8 +778,6 @@ mod test {
         //   [6, 7],
         //   [7, 9],  -- 2 rows with same values (1, 2, 5, 15)
         //   [9, 10],
-
-        //fn compute_ranges(&self, batch: &RecordBatch) -> ArrowResult<DuplicateRanges> {
 
         let mut lowest_cardinality = vec![Some("1"); 9]; // 9 first values are all Some(1)
         lowest_cardinality.push(Some("2")); // Add Some(2)
