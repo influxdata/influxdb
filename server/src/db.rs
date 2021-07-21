@@ -144,14 +144,14 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Metrics for data ingest.
+/// Metrics for data ingest via write buffer.
 #[derive(Debug)]
-struct IngestMetrics {
+struct WriteBufferIngestMetrics {
     /// Metrics domain
     domain: Arc<metrics::Domain>,
 }
 
-impl IngestMetrics {
+impl WriteBufferIngestMetrics {
     fn new(domain: Arc<metrics::Domain>) -> Self {
         Self { domain }
     }
@@ -161,7 +161,7 @@ impl IngestMetrics {
 
         let red = self
             .domain
-            .register_red_metric_with_labels(Some("write_buffer"), labels.clone());
+            .register_red_metric_with_labels(Some("ingest"), labels.clone());
         let bytes_read = self.domain.register_counter_metric_with_labels(
             "read",
             Some("bytes"),
@@ -334,7 +334,7 @@ pub struct Db {
     metric_labels: Vec<KeyValue>,
 
     /// Ingest metrics
-    ingest_metrics: IngestMetrics,
+    ingest_metrics: WriteBufferIngestMetrics,
 
     /// Optionally connect to a write buffer for either buffering writes or reading buffered writes
     write_buffer: Option<WriteBufferConfig>,
@@ -370,8 +370,8 @@ impl Db {
         let metric_labels = database_to_commit.catalog.metric_labels.clone();
 
         let ingest_domain =
-            metrics_registry.register_domain_with_labels("ingest", metric_labels.clone());
-        let ingest_metrics = IngestMetrics::new(Arc::new(ingest_domain));
+            metrics_registry.register_domain_with_labels("write_buffer", metric_labels.clone());
+        let ingest_metrics = WriteBufferIngestMetrics::new(Arc::new(ingest_domain));
 
         let catalog = Arc::new(database_to_commit.catalog);
 
@@ -1470,7 +1470,7 @@ mod tests {
         // We need to do that BEFORE shutting down the background loop because gauges would be dropped and resetted otherwise
         let metrics = test_db.metric_registry;
         metrics
-            .has_metric_family("ingest_write_buffer_requests_total")
+            .has_metric_family("write_buffer_ingest_requests_total")
             .with_labels(&[
                 ("db_name", "placeholder"),
                 ("svr_id", "1"),
@@ -1481,7 +1481,7 @@ mod tests {
             .eq(2.0)
             .unwrap();
         metrics
-            .has_metric_family("ingest_read_bytes_total")
+            .has_metric_family("write_buffer_read_bytes_total")
             .with_labels(&[
                 ("db_name", "placeholder"),
                 ("svr_id", "1"),
@@ -1491,7 +1491,7 @@ mod tests {
             .eq(528.0)
             .unwrap();
         metrics
-            .has_metric_family("ingest_last_sequence_number")
+            .has_metric_family("write_buffer_last_sequence_number")
             .with_labels(&[
                 ("db_name", "placeholder"),
                 ("svr_id", "1"),
@@ -1501,7 +1501,7 @@ mod tests {
             .eq(7.0)
             .unwrap();
         metrics
-            .has_metric_family("ingest_sequence_number_lag")
+            .has_metric_family("write_buffer_sequence_number_lag")
             .with_labels(&[
                 ("db_name", "placeholder"),
                 ("svr_id", "1"),
@@ -1511,7 +1511,7 @@ mod tests {
             .eq(0.0)
             .unwrap();
         metrics
-            .has_metric_family("ingest_last_min_ts")
+            .has_metric_family("write_buffer_last_min_ts")
             .with_labels(&[
                 ("db_name", "placeholder"),
                 ("svr_id", "1"),
@@ -1521,7 +1521,7 @@ mod tests {
             .eq(20.0)
             .unwrap();
         metrics
-            .has_metric_family("ingest_last_max_ts")
+            .has_metric_family("write_buffer_last_max_ts")
             .with_labels(&[
                 ("db_name", "placeholder"),
                 ("svr_id", "1"),
@@ -1578,7 +1578,7 @@ mod tests {
         // check: after a while the error should be reported in the database's metrics
         let t_0 = Instant::now();
         loop {
-            let family = metrics.try_has_metric_family("ingest_write_buffer_requests_total");
+            let family = metrics.try_has_metric_family("write_buffer_ingest_requests_total");
 
             if let Ok(metric) = family {
                 if metric
