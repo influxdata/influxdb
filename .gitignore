@@ -14,7 +14,8 @@ vendor
 influxd.bolt
 *.db
 
-# GPG private keys
+# Files generated in CI
+rustup-init.sh
 private.key
 
 # TLS keys generated for testing

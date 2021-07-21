@@ -408,6 +408,7 @@ jobs:
       - run:
           name: Check flag generation
           command: ./scripts/ci/lint/flags.bash
+      - run: make checkgenerate
       - run: make vet
       - run: make checkfmt
       - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.

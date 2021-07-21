@@ -7,14 +7,7 @@
 #
 #    * All cmds must be added to this top level Makefile.
 #    * All binaries are placed in ./bin, its recommended to add this directory to your PATH.
-#    * Each package that has a need to run go generate, must have its own Makefile for that purpose.
-#    * All recursive Makefiles must support the all and clean targets
 #
-
-# SUBDIRS are directories that have their own Makefile.
-# It is required that all SUBDIRS have the `all` and `clean` targets.
-SUBDIRS := static storage
-
 export GOPATH=$(shell go env GOPATH)
 export GOOS=$(shell go env GOOS)
 export GOARCH=$(shell go env GOARCH)
@@ -73,12 +66,7 @@ SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -
 CMDS := \
 	bin/$(GOOS)/influxd
 
-all: $(SUBDIRS) generate $(CMDS)
-
-# Target to build subdirs.
-# Each subdirs must support the `all` target.
-$(SUBDIRS):
-	$(MAKE) -C $@ all
+all: generate $(CMDS)
 
 #
 # Define targets for commands
@@ -86,8 +74,14 @@ $(SUBDIRS):
 bin/$(GOOS)/influxd: $(SOURCES)
 	$(GO_BUILD) -o $@ ./cmd/$(shell basename "$@")
 
-# Ease of use build for just the go binary
 influxd: bin/$(GOOS)/influxd
+
+static/data/build: scripts/fetch-ui-assets.sh
+	./scripts/fetch-ui-assets.sh
+
+# static/static_gen.go is the output of go-bindata, embedding all assets used by the UI.
+static/static_gen.go: static/data/build static/data/swagger.yml
+	$(GO_GENERATE) ./static
 
 #
 # Define targets for the web ui
@@ -131,7 +125,29 @@ checktidy:
 checkgenerate:
 	./etc/checkgenerate.sh
 
-generate: $(SUBDIRS)
+# generate-web-assets outputs all the files needed to link the UI to the back-end.
+# Currently, none of these files are tracked by git.
+generate-web-assets: static/static_gen.go
+
+# generate-sources outputs all the Go files generated from protobufs, tmpls, and other tooling.
+# These files are tracked by git; CI will enforce that they are up-to-date.
+generate-sources: gogo tmpl stringer goimports
+	$(GO_GENERATE) ./influxql/... ./models/... ./pkg/... ./storage/... ./tsdb/... ./v1/...
+
+generate: generate-web-assets generate-sources
+
+gogo:
+	$(GO_INSTALL) github.com/gogo/protobuf/protoc-gen-gogo
+	$(GO_INSTALL) github.com/gogo/protobuf/protoc-gen-gogofaster
+
+tmpl:
+	$(GO_INSTALL) github.com/benbjohnson/tmpl
+
+stringer:
+	$(GO_INSTALL) golang.org/x/tools/cmd/stringer
+
+goimports:
+	$(GO_INSTALL) golang.org/x/tools/cmd/goimports
 
 test-go:
 	$(GO_TEST) $(GO_TEST_PATHS)
@@ -160,10 +176,10 @@ bench:
 build: all
 
 pkg-config:
-	go build -o $(GOPATH)/bin/pkg-config github.com/influxdata/pkg-config
+	$(GO_INSTALL) github.com/influxdata/pkg-config
 
 clean:
-	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
+	$(RM) -r static/static_gen.go static/data/build
 	$(RM) -r bin
 	$(RM) -r dist
 
