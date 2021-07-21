@@ -2,10 +2,13 @@ use std::{collections::BTreeMap, sync::Arc, task::Poll};
 
 use async_trait::async_trait;
 use entry::{Entry, Sequence, SequencedEntry};
-use futures::{stream, StreamExt};
+use futures::{stream, FutureExt, StreamExt};
 use parking_lot::Mutex;
 
-use crate::core::{EntryStream, WriteBufferError, WriteBufferReading, WriteBufferWriting};
+use crate::core::{
+    EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
+    WriteBufferWriting,
+};
 
 type EntryResVec = Vec<Result<SequencedEntry, WriteBufferError>>;
 
@@ -244,7 +247,40 @@ impl WriteBufferReading for MockBufferForReading {
                 Poll::Pending
             })
             .boxed();
-            streams.push((sequencer_id, stream));
+
+            let shared_state = self.shared_state.clone();
+
+            let fetch_high_watermark = move || {
+                let shared_state = shared_state.clone();
+
+                let fut = async move {
+                    let entries = shared_state.entries.lock();
+                    let entry_vec = entries.get(&sequencer_id).unwrap();
+                    let watermark = entry_vec
+                        .iter()
+                        .filter_map(|entry_res| {
+                            entry_res
+                                .as_ref()
+                                .ok()
+                                .map(|entry| entry.sequence().unwrap().number)
+                        })
+                        .max()
+                        .map(|n| n + 1)
+                        .unwrap_or(0);
+
+                    Ok(watermark)
+                };
+                fut.boxed() as FetchHighWatermarkFut<'_>
+            };
+            let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
+
+            streams.push((
+                sequencer_id,
+                EntryStream {
+                    stream,
+                    fetch_high_watermark,
+                },
+            ));
         }
 
         streams
