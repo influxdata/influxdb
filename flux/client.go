@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/influxdata/influxdb/v2/chronograf"
 )
 
 // Shared transports for all clients to prevent leaking connections.
@@ -49,7 +47,7 @@ func (c *Client) pingTimeout(ctx context.Context) error {
 	case resp := <-resps:
 		return resp
 	case <-ctx.Done():
-		return chronograf.ErrUpstreamTimeout
+		return fmt.Errorf("request to backend timed out")
 	}
 }
 

@@ -13,7 +13,7 @@
 
 # SUBDIRS are directories that have their own Makefile.
 # It is required that all SUBDIRS have the `all` and `clean` targets.
-SUBDIRS := http ui chronograf storage
+SUBDIRS := static storage
 
 export GOPATH=$(shell go env GOPATH)
 export GOOS=$(shell go env GOOS)
@@ -68,12 +68,6 @@ SOURCES := $(shell find . -name '*.go' -not -name '*_test.go') go.mod go.sum
 
 # All go source files excluding the vendored sources.
 SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -name '*_test.go' -print)
-
-# All assets for chronograf
-UISOURCES := $(shell find ui -type f -not \( -path ui/build/\* -o -path ui/node_modules/\* -o -path ui/.cache/\* -o -name Makefile -prune \) )
-
-# All precanned dashboards
-PRECANNED := $(shell find chronograf/canned -name '*.json')
 
 # List of binary cmds to build
 CMDS := \
@@ -139,9 +133,6 @@ checkgenerate:
 
 generate: $(SUBDIRS)
 
-test-js: node_modules
-	make -C ui test
-
 test-go:
 	$(GO_TEST) $(GO_TEST_PATHS)
 
@@ -176,26 +167,6 @@ clean:
 	$(RM) -r bin
 	$(RM) -r dist
 
-define CHRONOGIRAFFE
-             ._ o o
-             \_`-)|_
-          ,""      _\_
-        ,"  ## |   0 0.
-      ," ##   ,-\__    `.
-    ,"       /     `--._;) - "HAI, I'm Chronogiraffe. Let's be friends!"
-  ,"     ## /
-,"   ##    /
-endef
-export CHRONOGIRAFFE
-chronogiraffe: $(SUBDIRS) generate $(CMDS)
-	@echo "$$CHRONOGIRAFFE"
-
-run: chronogiraffe
-	./bin/$(GOOS)/influxd --assets-path=ui/build
-
-run-e2e: chronogiraffe
-	./bin/$(GOOS)/influxd --assets-path=ui/build --e2e-testing --store=memory
-
 # generate feature flags
 flags:
 	$(GO_GENERATE) ./kit/feature
@@ -216,4 +187,4 @@ dshell: dshell-image
 	@docker container run --rm -p 8086:8086 -p 8080:8080 -u $(shell id -u) -it -v $(shell pwd):/code -w /code influxdb:dshell 
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race test-tls bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx pkg-config
+.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race test-tls bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx pkg-config
