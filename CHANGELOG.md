@@ -5,7 +5,6 @@
 -	[#21707](https://github.com/influxdata/influxdb/pull/21707): chore: add logging to compaction
 -	[#21752](https://github.com/influxdata/influxdb/pull/21752): feat: add total-buffer-bytes config parameter to subscriptions
 -	[#21820](https://github.com/influxdata/influxdb/pull/21820): chore: update flux to v0.120.1
--	[#21882](https://github.com/influxdata/influxdb/pull/21882): chore: update protobuf library versions and remove influx_tsm
 
 ### Bugfixes
 
@@ -14,8 +13,6 @@
 -	[#21666](https://github.com/influxdata/influxdb/pull/21666): fix: do not panic on cleaning up failed iterators
 -	[#21693](https://github.com/influxdata/influxdb/pull/21693): fix: don't access a field in a nil struct
 -	[#21558](https://github.com/influxdata/influxdb/pull/21558): fix: do not send non-UTF-8 characters to subscriptions
--	[#21750](https://github.com/influxdata/influxdb/pull/21750): fix: rename arm rpms with yum-compatible names
--	[#21777](https://github.com/influxdata/influxdb/pull/21777): fix: convert arm arch names for rpms during builds via docker
 -	[#21792](https://github.com/influxdata/influxdb/pull/21792): fix: error instead of panic for statement rewrite failure
 -	[#21795](https://github.com/influxdata/influxdb/pull/21795): fix: show shards gives empty expiry time for inf duration shards
 -	[#21843](https://github.com/influxdata/influxdb/pull/21843): fix: hard limit on field size while parsing line protocol
@@ -83,6 +80,14 @@ v1.9.0 [unreleased]
 -	[#21358](https://github.com/influxdata/influxdb/pull/21358): fix: disable MergeFiltersRule until it is more stable
 -	[#21452](https://github.com/influxdata/influxdb/pull/21452): chore(ae): add more logging
 -	[#21516](https://github.com/influxdata/influxdb/pull/21516): fix: FGA enablement
+
+v1.8.7 [2021-07-21]
+-------------------
+
+-	[#21750](https://github.com/influxdata/influxdb/pull/21750): fix: rename arm rpms with yum-compatible names
+-	[#21777](https://github.com/influxdata/influxdb/pull/21777): fix: convert arm arch names for rpms during builds via docker
+-	[#21895](https://github.com/influxdata/influxdb/pull/21895): fix: systemd unit should block on startup until http endpoint is ready
+-	[#21882](https://github.com/influxdata/influxdb/pull/21882): chore: update protobuf library versions and remove influx_tsm
 
 v1.8.6 [2021-05-21]
 -------------------
