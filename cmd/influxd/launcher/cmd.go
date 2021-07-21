@@ -587,7 +587,7 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			DestP:   &o.UIDisabled,
 			Flag:    "ui-disabled",
 			Default: o.UIDisabled,
-			Desc:    "disable the InfluxDB ui",
+			Desc:    "Disable the InfluxDB UI",
 		},
 	}
 }
