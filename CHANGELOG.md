@@ -1,4 +1,7 @@
-v1.8.7 [unreleased]
+v1.8.8 [unreleased]
+-------------------
+
+v1.8.7 [2021-07-21]
 -------------------
 
 - [#21749](https://github.com/influxdata/influxdb/pull/21749): fix: rename arm rpms with yum-compatible names
