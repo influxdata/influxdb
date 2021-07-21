@@ -80,7 +80,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 
 use data_types::{
     database_rules::{
-        DatabaseRules, NodeGroup, RoutingRules, Shard, ShardConfig, ShardId, WriteBufferConnection,
+        DatabaseRules, NodeGroup, RoutingRules, ShardConfig, ShardId, Sink, WriteBufferConnection,
     },
     database_state::DatabaseStateCode,
     job::Job,
@@ -848,14 +848,14 @@ where
         &self,
         db_name: &str,
         db: &Db,
-        shards: Arc<HashMap<u32, Shard>>,
+        shards: Arc<HashMap<u32, Sink>>,
         sharded_entry: ShardedEntry,
     ) -> Result<()> {
         match sharded_entry.shard_id {
             Some(shard_id) => {
                 let shard = shards.get(&shard_id).context(ShardNotFound { shard_id })?;
                 match shard {
-                    Shard::Iox(node_group) => {
+                    Sink::Iox(node_group) => {
                         self.write_entry_downstream(db_name, node_group, sharded_entry.entry)
                             .await?
                     }
@@ -1741,7 +1741,7 @@ mod tests {
                     ..Default::default()
                 }),
                 shards: Arc::new(
-                    vec![(TEST_SHARD_ID, Shard::Iox(remote_ids.clone()))]
+                    vec![(TEST_SHARD_ID, Sink::Iox(remote_ids.clone()))]
                         .into_iter()
                         .collect(),
                 ),

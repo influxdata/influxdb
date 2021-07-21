@@ -329,12 +329,12 @@ pub struct ShardConfig {
     pub ignore_errors: bool,
     /// Mapping between shard IDs and node groups. Other sharding rules use
     /// ShardId as targets.
-    pub shards: Arc<HashMap<ShardId, Shard>>,
+    pub shards: Arc<HashMap<ShardId, Sink>>,
 }
 
-/// Configuration for a specific IOx shard
+/// Configuration for a specific IOx sink
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Shard {
+pub enum Sink {
     Iox(NodeGroup),
 }
 

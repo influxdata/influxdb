@@ -3,9 +3,7 @@ use std::sync::Arc;
 
 use regex::Regex;
 
-use data_types::database_rules::{
-    HashRing, Matcher, MatcherToShard, NodeGroup, Shard, ShardConfig,
-};
+use data_types::database_rules::{HashRing, Matcher, MatcherToShard, NodeGroup, ShardConfig};
 use data_types::server_id::ServerId;
 
 use crate::google::{FieldViolation, FieldViolationExt, FromField};
@@ -110,26 +108,6 @@ impl TryFrom<management::HashRing> for HashRing {
     }
 }
 
-impl From<Shard> for management::Shard {
-    fn from(shard: Shard) -> Self {
-        let sink = match shard {
-            Shard::Iox(node_group) => management::shard::Sink::Iox(node_group.into()),
-        };
-        management::Shard { sink: Some(sink) }
-    }
-}
-
-impl TryFrom<management::Shard> for Shard {
-    type Error = FieldViolation;
-
-    fn try_from(proto: management::Shard) -> Result<Self, Self::Error> {
-        let sink = proto.sink.ok_or_else(|| FieldViolation::required(""))?;
-        Ok(match sink {
-            management::shard::Sink::Iox(node_group) => Shard::Iox(node_group.scope("node_group")?),
-        })
-    }
-}
-
 impl From<NodeGroup> for management::NodeGroup {
     fn from(node_group: NodeGroup) -> Self {
         Self {
@@ -195,9 +173,10 @@ impl TryFrom<management::Matcher> for Matcher {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use data_types::consistent_hasher::ConsistentHasher;
-    use data_types::database_rules::DatabaseRules;
+    use data_types::database_rules::{DatabaseRules, Sink};
+
+    use super::*;
 
     #[test]
     fn test_matcher_default() {
@@ -343,8 +322,8 @@ mod tests {
             shards: vec![
                 (
                     1,
-                    management::Shard {
-                        sink: Some(management::shard::Sink::Iox(management::NodeGroup {
+                    management::Sink {
+                        sink: Some(management::sink::Sink::Iox(management::NodeGroup {
                             nodes: vec![
                                 management::node_group::Node { id: 10 },
                                 management::node_group::Node { id: 11 },
@@ -355,8 +334,8 @@ mod tests {
                 ),
                 (
                     2,
-                    management::Shard {
-                        sink: Some(management::shard::Sink::Iox(management::NodeGroup {
+                    management::Sink {
+                        sink: Some(management::sink::Sink::Iox(management::NodeGroup {
                             nodes: vec![management::node_group::Node { id: 20 }],
                         })),
                     },
@@ -370,12 +349,8 @@ mod tests {
         let shard_config: ShardConfig = protobuf.try_into().unwrap();
 
         assert_eq!(shard_config.shards.len(), 2);
-        assert!(
-            matches!(&shard_config.shards[&1], Shard::Iox(node_group) if node_group.len() == 3)
-        );
-        assert!(
-            matches!(&shard_config.shards[&2], Shard::Iox(node_group) if node_group.len() == 1)
-        );
+        assert!(matches!(&shard_config.shards[&1], Sink::Iox(node_group) if node_group.len() == 3));
+        assert!(matches!(&shard_config.shards[&2], Sink::Iox(node_group) if node_group.len() == 1));
     }
 
     #[test]

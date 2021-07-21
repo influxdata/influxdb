@@ -33,7 +33,7 @@ message ShardConfig {
 
   /// Mapping between shard IDs and node groups. Other sharding rules use
   /// ShardId as targets.
-  map<uint32, Shard> shards = 4;
+  map<uint32, Sink> shards = 4;
 }
 
 // Maps a matcher with specific shard. If the line/row matches
@@ -53,7 +53,7 @@ message Matcher {
 }
 
 // Configuration for a specific shard
-message Shard {
+message Sink {
   oneof sink {
     NodeGroup iox = 1;
   }

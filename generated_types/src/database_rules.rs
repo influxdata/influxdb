@@ -14,6 +14,7 @@ use crate::influxdata::iox::management::v1 as management;
 mod lifecycle;
 mod partition;
 mod shard;
+mod sink;
 
 impl From<DatabaseRules> for management::DatabaseRules {
     fn from(rules: DatabaseRules) -> Self {
