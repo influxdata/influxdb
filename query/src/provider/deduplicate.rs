@@ -1,5 +1,6 @@
 //! Implemention of DeduplicateExec operator (resolves primary key conflicts) plumbing and tests
 mod algo;
+mod key_ranges;
 
 use std::{fmt, sync::Arc};
 
