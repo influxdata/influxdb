@@ -56,7 +56,7 @@ func (dumpWAL *dumpWALCommand) run(args []string) error {
 
 func (dumpWAL *dumpWALCommand) processWALFile(path string) error {
 	if filepath.Ext(path) != "."+tsm1.WALFileExtension {
-		fmt.Println("invalid wal file path, skipping", path)
+		fmt.Fprintf(os.Stderr, "invalid wal file path, skipping %s\n", path)
 		return nil
 	}
 
@@ -71,12 +71,13 @@ func (dumpWAL *dumpWALCommand) processWALFile(path string) error {
 	}
 	defer f.Close()
 	r := tsm1.NewWALSegmentReader(f)
+	defer r.Close()
 
 	// Iterate over the WAL entries.
 	for r.Next() {
 		entry, err := r.Read()
 		if err != nil {
-			return fmt.Errorf("cannot read entry: %s", err)
+			return fmt.Errorf("failed to read entry from %q: %w", path, err)
 		}
 
 		switch entry := entry.(type) {
@@ -95,14 +96,14 @@ func (dumpWAL *dumpWALCommand) processWALFile(path string) error {
 				for _, v := range entry.Values[k] {
 					t := v.UnixNano()
 
-					// Check for duplicate/out of order keys.
-					if min, ok := minTimestampByKey[k]; ok && t <= min {
-						duplicateKeys[k] = struct{}{}
-					}
-					minTimestampByKey[k] = t
-
-					// Skip printing if we are only showing duplicate keys.
 					if dumpWAL.findDuplicates {
+						// Check for duplicate/out of order keys.
+						if min, ok := minTimestampByKey[k]; ok && t <= min {
+							duplicateKeys[k] = struct{}{}
+						}
+						minTimestampByKey[k] = t
+
+						// Skip printing if we are only showing duplicate keys.
 						continue
 					}
 
