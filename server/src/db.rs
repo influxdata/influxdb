@@ -183,13 +183,13 @@ impl IngestMetrics {
         let last_min_ts = self.domain.register_gauge_metric_with_labels(
             "last_min_ts",
             None,
-            "Minimum unix timestamp of last write as unix timestamp in nanoseconds",
+            "Minimum timestamp of last write as unix timestamp in nanoseconds",
             &labels,
         );
         let last_max_ts = self.domain.register_gauge_metric_with_labels(
             "last_max_ts",
             None,
-            "Maximum unix timestamp of last write as unix timestamp in nanoseconds",
+            "Maximum timestamp of last write as unix timestamp in nanoseconds",
             &labels,
         );
 
@@ -222,10 +222,10 @@ struct SequencerMetrics {
     /// available.
     sequence_number_lag: metrics::Gauge,
 
-    /// Minimum unix timestamp of last write as unix timestamp in nanoseconds.
+    /// Minimum timestamp of last write as unix timestamp in nanoseconds.
     last_min_ts: metrics::Gauge,
 
-    /// Maximum unix timestamp of last write as unix timestamp in nanoseconds.
+    /// Maximum timestamp of last write as unix timestamp in nanoseconds.
     last_max_ts: metrics::Gauge,
 }
 
