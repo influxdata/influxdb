@@ -177,7 +177,7 @@ impl IngestMetrics {
         let sequence_number_lag = self.domain.register_gauge_metric_with_labels(
             "sequence_number_lag",
             None,
-            "The difference between the last consumed sequence number (e.g. Kafka offset) and the last sequence number available",
+            "The difference between the the last sequence number available (e.g. Kafka offset) and (= minus) last consumed sequence number",
             &labels,
         );
         let last_min_ts = self.domain.register_gauge_metric_with_labels(
@@ -218,8 +218,8 @@ struct SequencerMetrics {
     /// Last consumed sequence number (e.g. Kafka offset).
     last_sequence_number: metrics::Gauge,
 
-    /// The difference between the last consumed sequence number (e.g. Kafka offset) and the last sequence number
-    /// available.
+    // The difference between the the last sequence number available (e.g. Kafka offset) and (= minus) last consumed
+    // sequence number.
     sequence_number_lag: metrics::Gauge,
 
     /// Minimum timestamp of last write as unix timestamp in nanoseconds.
