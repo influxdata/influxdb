@@ -835,7 +835,7 @@ impl Db {
             // We are not updating this watermark every round because asking the sequencer for that watermark can be
             // quite expensive.
             if watermark_last_updated
-                .map(|ts| ts.elapsed() > Duration::from_secs(60))
+                .map(|ts| ts.elapsed() > Duration::from_secs(10))
                 .unwrap_or(true)
             {
                 match f_mark().await {
