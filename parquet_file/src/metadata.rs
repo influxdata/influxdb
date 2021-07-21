@@ -109,7 +109,7 @@ use parquet::{
 };
 use persistence_windows::{
     checkpoint::{DatabaseCheckpoint, PartitionCheckpoint},
-    min_max_sequence::MinMaxSequence,
+    min_max_sequence::OptionalMinMaxSequence,
 };
 use prost::Message;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -121,7 +121,7 @@ use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputPro
 ///
 /// **Important: When changing this structure, consider bumping the
 ///   [catalog transaction version](crate::catalog::TRANSACTION_VERSION)!**
-pub const METADATA_VERSION: u32 = 3;
+pub const METADATA_VERSION: u32 = 4;
 
 /// File-level metadata key to store the IOx-specific data.
 ///
@@ -311,13 +311,19 @@ impl IoxMetadata {
             .sequencer_numbers
             .into_iter()
             .map(|(sequencer_id, min_max)| {
-                if min_max.min <= min_max.max {
-                    Ok((sequencer_id, MinMaxSequence::new(min_max.min, min_max.max)))
+                let min = match min_max.min {
+                    u64::MAX => None,
+                    min => Some(min),
+                };
+                let max = min_max.max;
+
+                if min.map(|min| min <= max).unwrap_or(true) {
+                    Ok((sequencer_id, OptionalMinMaxSequence::new(min, max)))
                 } else {
                     Err(Error::IoxMetadataMinMax)
                 }
             })
-            .collect::<Result<BTreeMap<u32, MinMaxSequence>>>()?;
+            .collect::<Result<BTreeMap<u32, OptionalMinMaxSequence>>>()?;
         let min_unpersisted_timestamp = decode_timestamp(
             proto_partition_checkpoint
                 .min_unpersisted_timestamp
@@ -343,13 +349,19 @@ impl IoxMetadata {
             .sequencer_numbers
             .into_iter()
             .map(|(sequencer_id, min_max)| {
-                if min_max.min <= min_max.max {
-                    Ok((sequencer_id, MinMaxSequence::new(min_max.min, min_max.max)))
+                let min = match min_max.min {
+                    u64::MAX => None,
+                    min => Some(min),
+                };
+                let max = min_max.max;
+
+                if min.map(|min| min <= max).unwrap_or(true) {
+                    Ok((sequencer_id, OptionalMinMaxSequence::new(min, max)))
                 } else {
                     Err(Error::IoxMetadataMinMax)
                 }
             })
-            .collect::<Result<BTreeMap<u32, MinMaxSequence>>>()?;
+            .collect::<Result<BTreeMap<u32, OptionalMinMaxSequence>>>()?;
         let database_checkpoint = DatabaseCheckpoint::new(sequencer_numbers);
 
         Ok(Self {
@@ -372,7 +384,7 @@ impl IoxMetadata {
                     (
                         sequencer_id,
                         proto::MinMaxSequence {
-                            min: min_max.min(),
+                            min: min_max.min().unwrap_or(u64::MAX),
                             max: min_max.max(),
                         },
                     )
@@ -391,7 +403,7 @@ impl IoxMetadata {
                     (
                         sequencer_id,
                         proto::MinMaxSequence {
-                            min: min_max.min(),
+                            min: min_max.min().unwrap_or(u64::MAX),
                             max: min_max.max(),
                         },
                     )

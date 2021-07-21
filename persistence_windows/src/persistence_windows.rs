@@ -11,8 +11,8 @@ use data_types::{partition_metadata::PartitionAddr, write_summary::WriteSummary}
 use entry::Sequence;
 use internal_types::guard::{ReadGuard, ReadLock};
 
-use crate::checkpoint::PartitionCheckpoint;
 use crate::min_max_sequence::MinMaxSequence;
+use crate::{checkpoint::PartitionCheckpoint, min_max_sequence::OptionalMinMaxSequence};
 use data_types::instant::to_approximate_datetime;
 
 const DEFAULT_CLOSED_WINDOW_PERIOD: Duration = Duration::from_secs(30);
@@ -80,7 +80,7 @@ pub struct FlushHandle {
     timestamp: DateTime<Utc>,
 
     /// The sequence number ranges not including those persisted by this flush
-    sequencer_numbers: BTreeMap<u32, MinMaxSequence>,
+    sequencer_numbers: BTreeMap<u32, OptionalMinMaxSequence>,
 }
 
 impl FlushHandle {
@@ -230,7 +230,7 @@ impl PersistenceWindows {
     /// Returns the sequence number range of unpersisted writes described by this instance
     ///
     /// Can optionally skip the persistable window if any
-    fn sequence_numbers(&self, skip_persistable: bool) -> BTreeMap<u32, MinMaxSequence> {
+    fn sequence_numbers(&self, skip_persistable: bool) -> BTreeMap<u32, OptionalMinMaxSequence> {
         if self.is_empty() {
             Default::default()
         }
@@ -242,20 +242,25 @@ impl PersistenceWindows {
 
         self.max_sequence_numbers
             .iter()
-            .filter_map(|(sequencer_id, max_sequence_number)| {
+            .map(|(sequencer_id, max_sequence_number)| {
                 // Find first window containing writes from sequencer_id
                 let window = self
                     .windows()
                     .skip(skip)
                     .filter_map(|window| window.sequencer_numbers.get(sequencer_id))
-                    .next()?;
+                    .next();
 
-                assert!(window.max() <= *max_sequence_number);
+                let min = if let Some(window) = window {
+                    assert!(window.max() <= *max_sequence_number);
+                    Some(window.min())
+                } else {
+                    None
+                };
 
-                Some((
+                (
                     *sequencer_id,
-                    MinMaxSequence::new(window.min(), *max_sequence_number),
-                ))
+                    OptionalMinMaxSequence::new(min, *max_sequence_number),
+                )
             })
             .collect()
     }
@@ -1131,7 +1136,7 @@ mod tests {
         let flush_checkpoint = guard.checkpoint();
         assert_eq!(
             flush_checkpoint.sequencer_numbers(1).unwrap(),
-            MinMaxSequence::new(4, 4)
+            OptionalMinMaxSequence::new(Some(4), 4)
         );
         assert_eq!(flush_checkpoint.min_unpersisted_timestamp(), truncated_time);
 
@@ -1139,7 +1144,7 @@ mod tests {
         let checkpoint = w.checkpoint().unwrap();
         assert_eq!(
             checkpoint.sequencer_numbers(1).unwrap(),
-            MinMaxSequence::new(2, 4)
+            OptionalMinMaxSequence::new(Some(2), 4)
         );
         assert_eq!(checkpoint.min_unpersisted_timestamp(), start);
 
@@ -1159,6 +1164,13 @@ mod tests {
         assert_eq!(w.persistable.as_ref().unwrap().min_time, truncated_time);
 
         let guard = w.flush_handle(instant + Duration::from_secs(240)).unwrap();
+
+        // that checkpoint has an optional minimum
+        let flush_checkpoint = guard.checkpoint();
+        assert_eq!(
+            flush_checkpoint.sequencer_numbers(1).unwrap(),
+            OptionalMinMaxSequence::new(None, 4)
+        );
 
         w.add_range(
             Some(&Sequence { id: 1, number: 9 }),
@@ -1258,7 +1270,7 @@ mod tests {
         let checkpoint = flush.checkpoint();
         assert_eq!(
             checkpoint.sequencer_numbers(1).unwrap(),
-            MinMaxSequence::new(6, 10)
+            OptionalMinMaxSequence::new(Some(6), 10)
         );
         assert_eq!(checkpoint.min_unpersisted_timestamp(), truncated_time);
 
@@ -1266,7 +1278,7 @@ mod tests {
         let checkpoint = w.checkpoint().unwrap();
         assert_eq!(
             checkpoint.sequencer_numbers(1).unwrap(),
-            MinMaxSequence::new(2, 14)
+            OptionalMinMaxSequence::new(Some(2), 14)
         );
         assert_eq!(checkpoint.min_unpersisted_timestamp(), start);
 
@@ -1276,7 +1288,7 @@ mod tests {
         let checkpoint = w.checkpoint().unwrap();
         assert_eq!(
             checkpoint.sequencer_numbers(1).unwrap(),
-            MinMaxSequence::new(6, 14)
+            OptionalMinMaxSequence::new(Some(6), 14)
         );
         assert_eq!(checkpoint.min_unpersisted_timestamp(), start);
 
