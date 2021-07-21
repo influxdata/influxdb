@@ -11,8 +11,11 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	types "github.com/gogo/protobuf/types"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -24,7 +27,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 type ReadGroupRequest_Group int32
 
@@ -197,7 +200,7 @@ func (m *ReadFilterRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_ReadFilterRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -242,7 +245,7 @@ func (m *ReadGroupRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_ReadGroupRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -279,7 +282,7 @@ func (m *Aggregate) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Aggregate.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -317,7 +320,7 @@ func (m *Tag) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Tag.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -355,7 +358,7 @@ func (m *ReadResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_ReadResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -400,7 +403,7 @@ func (m *ReadResponse_Frame) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_ReadResponse_Frame.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -426,25 +429,25 @@ type isReadResponse_Frame_Data interface {
 }
 
 type ReadResponse_Frame_Group struct {
-	Group *ReadResponse_GroupFrame `protobuf:"bytes,7,opt,name=group,proto3,oneof"`
+	Group *ReadResponse_GroupFrame `protobuf:"bytes,7,opt,name=group,proto3,oneof" json:"group,omitempty"`
 }
 type ReadResponse_Frame_Series struct {
-	Series *ReadResponse_SeriesFrame `protobuf:"bytes,1,opt,name=series,proto3,oneof"`
+	Series *ReadResponse_SeriesFrame `protobuf:"bytes,1,opt,name=series,proto3,oneof" json:"series,omitempty"`
 }
 type ReadResponse_Frame_FloatPoints struct {
-	FloatPoints *ReadResponse_FloatPointsFrame `protobuf:"bytes,2,opt,name=float_points,json=floatPoints,proto3,oneof"`
+	FloatPoints *ReadResponse_FloatPointsFrame `protobuf:"bytes,2,opt,name=float_points,json=floatPoints,proto3,oneof" json:"float_points,omitempty"`
 }
 type ReadResponse_Frame_IntegerPoints struct {
-	IntegerPoints *ReadResponse_IntegerPointsFrame `protobuf:"bytes,3,opt,name=integer_points,json=integerPoints,proto3,oneof"`
+	IntegerPoints *ReadResponse_IntegerPointsFrame `protobuf:"bytes,3,opt,name=integer_points,json=integerPoints,proto3,oneof" json:"integer_points,omitempty"`
 }
 type ReadResponse_Frame_UnsignedPoints struct {
-	UnsignedPoints *ReadResponse_UnsignedPointsFrame `protobuf:"bytes,4,opt,name=unsigned_points,json=unsignedPoints,proto3,oneof"`
+	UnsignedPoints *ReadResponse_UnsignedPointsFrame `protobuf:"bytes,4,opt,name=unsigned_points,json=unsignedPoints,proto3,oneof" json:"unsigned_points,omitempty"`
 }
 type ReadResponse_Frame_BooleanPoints struct {
-	BooleanPoints *ReadResponse_BooleanPointsFrame `protobuf:"bytes,5,opt,name=boolean_points,json=booleanPoints,proto3,oneof"`
+	BooleanPoints *ReadResponse_BooleanPointsFrame `protobuf:"bytes,5,opt,name=boolean_points,json=booleanPoints,proto3,oneof" json:"boolean_points,omitempty"`
 }
 type ReadResponse_Frame_StringPoints struct {
-	StringPoints *ReadResponse_StringPointsFrame `protobuf:"bytes,6,opt,name=string_points,json=stringPoints,proto3,oneof"`
+	StringPoints *ReadResponse_StringPointsFrame `protobuf:"bytes,6,opt,name=string_points,json=stringPoints,proto3,oneof" json:"string_points,omitempty"`
 }
 
 func (*ReadResponse_Frame_Group) isReadResponse_Frame_Data()          {}
@@ -511,9 +514,9 @@ func (m *ReadResponse_Frame) GetStringPoints() *ReadResponse_StringPointsFrame {
 	return nil
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*ReadResponse_Frame) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _ReadResponse_Frame_OneofMarshaler, _ReadResponse_Frame_OneofUnmarshaler, _ReadResponse_Frame_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*ReadResponse_Frame) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*ReadResponse_Frame_Group)(nil),
 		(*ReadResponse_Frame_Series)(nil),
 		(*ReadResponse_Frame_FloatPoints)(nil),
@@ -522,162 +525,6 @@ func (*ReadResponse_Frame) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Bu
 		(*ReadResponse_Frame_BooleanPoints)(nil),
 		(*ReadResponse_Frame_StringPoints)(nil),
 	}
-}
-
-func _ReadResponse_Frame_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*ReadResponse_Frame)
-	// data
-	switch x := m.Data.(type) {
-	case *ReadResponse_Frame_Group:
-		_ = b.EncodeVarint(7<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Group); err != nil {
-			return err
-		}
-	case *ReadResponse_Frame_Series:
-		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Series); err != nil {
-			return err
-		}
-	case *ReadResponse_Frame_FloatPoints:
-		_ = b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.FloatPoints); err != nil {
-			return err
-		}
-	case *ReadResponse_Frame_IntegerPoints:
-		_ = b.EncodeVarint(3<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.IntegerPoints); err != nil {
-			return err
-		}
-	case *ReadResponse_Frame_UnsignedPoints:
-		_ = b.EncodeVarint(4<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.UnsignedPoints); err != nil {
-			return err
-		}
-	case *ReadResponse_Frame_BooleanPoints:
-		_ = b.EncodeVarint(5<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.BooleanPoints); err != nil {
-			return err
-		}
-	case *ReadResponse_Frame_StringPoints:
-		_ = b.EncodeVarint(6<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.StringPoints); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("ReadResponse_Frame.Data has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _ReadResponse_Frame_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*ReadResponse_Frame)
-	switch tag {
-	case 7: // data.group
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(ReadResponse_GroupFrame)
-		err := b.DecodeMessage(msg)
-		m.Data = &ReadResponse_Frame_Group{msg}
-		return true, err
-	case 1: // data.series
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(ReadResponse_SeriesFrame)
-		err := b.DecodeMessage(msg)
-		m.Data = &ReadResponse_Frame_Series{msg}
-		return true, err
-	case 2: // data.float_points
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(ReadResponse_FloatPointsFrame)
-		err := b.DecodeMessage(msg)
-		m.Data = &ReadResponse_Frame_FloatPoints{msg}
-		return true, err
-	case 3: // data.integer_points
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(ReadResponse_IntegerPointsFrame)
-		err := b.DecodeMessage(msg)
-		m.Data = &ReadResponse_Frame_IntegerPoints{msg}
-		return true, err
-	case 4: // data.unsigned_points
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(ReadResponse_UnsignedPointsFrame)
-		err := b.DecodeMessage(msg)
-		m.Data = &ReadResponse_Frame_UnsignedPoints{msg}
-		return true, err
-	case 5: // data.boolean_points
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(ReadResponse_BooleanPointsFrame)
-		err := b.DecodeMessage(msg)
-		m.Data = &ReadResponse_Frame_BooleanPoints{msg}
-		return true, err
-	case 6: // data.string_points
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(ReadResponse_StringPointsFrame)
-		err := b.DecodeMessage(msg)
-		m.Data = &ReadResponse_Frame_StringPoints{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _ReadResponse_Frame_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*ReadResponse_Frame)
-	// data
-	switch x := m.Data.(type) {
-	case *ReadResponse_Frame_Group:
-		s := proto.Size(x.Group)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *ReadResponse_Frame_Series:
-		s := proto.Size(x.Series)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *ReadResponse_Frame_FloatPoints:
-		s := proto.Size(x.FloatPoints)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *ReadResponse_Frame_IntegerPoints:
-		s := proto.Size(x.IntegerPoints)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *ReadResponse_Frame_UnsignedPoints:
-		s := proto.Size(x.UnsignedPoints)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *ReadResponse_Frame_BooleanPoints:
-		s := proto.Size(x.BooleanPoints)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *ReadResponse_Frame_StringPoints:
-		s := proto.Size(x.StringPoints)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 type ReadResponse_GroupFrame struct {
@@ -701,7 +548,7 @@ func (m *ReadResponse_GroupFrame) XXX_Marshal(b []byte, deterministic bool) ([]b
 		return xxx_messageInfo_ReadResponse_GroupFrame.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -739,7 +586,7 @@ func (m *ReadResponse_SeriesFrame) XXX_Marshal(b []byte, deterministic bool) ([]
 		return xxx_messageInfo_ReadResponse_SeriesFrame.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -777,7 +624,7 @@ func (m *ReadResponse_FloatPointsFrame) XXX_Marshal(b []byte, deterministic bool
 		return xxx_messageInfo_ReadResponse_FloatPointsFrame.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -815,7 +662,7 @@ func (m *ReadResponse_IntegerPointsFrame) XXX_Marshal(b []byte, deterministic bo
 		return xxx_messageInfo_ReadResponse_IntegerPointsFrame.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -853,7 +700,7 @@ func (m *ReadResponse_UnsignedPointsFrame) XXX_Marshal(b []byte, deterministic b
 		return xxx_messageInfo_ReadResponse_UnsignedPointsFrame.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -891,7 +738,7 @@ func (m *ReadResponse_BooleanPointsFrame) XXX_Marshal(b []byte, deterministic bo
 		return xxx_messageInfo_ReadResponse_BooleanPointsFrame.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -929,7 +776,7 @@ func (m *ReadResponse_StringPointsFrame) XXX_Marshal(b []byte, deterministic boo
 		return xxx_messageInfo_ReadResponse_StringPointsFrame.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -966,7 +813,7 @@ func (m *CapabilitiesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return xxx_messageInfo_CapabilitiesResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1007,7 +854,7 @@ func (m *TimestampRange) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return xxx_messageInfo_TimestampRange.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1047,7 +894,7 @@ func (m *TagKeysRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return xxx_messageInfo_TagKeysRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1088,7 +935,7 @@ func (m *TagValuesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_TagValuesRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1126,7 +973,7 @@ func (m *StringValuesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return xxx_messageInfo_StringValuesResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1455,6 +1302,26 @@ type StorageServer interface {
 	Capabilities(context.Context, *types.Empty) (*CapabilitiesResponse, error)
 }
 
+// UnimplementedStorageServer can be embedded to have forward compatible implementations.
+type UnimplementedStorageServer struct {
+}
+
+func (*UnimplementedStorageServer) ReadFilter(req *ReadFilterRequest, srv Storage_ReadFilterServer) error {
+	return status.Errorf(codes.Unimplemented, "method ReadFilter not implemented")
+}
+func (*UnimplementedStorageServer) ReadGroup(req *ReadGroupRequest, srv Storage_ReadGroupServer) error {
+	return status.Errorf(codes.Unimplemented, "method ReadGroup not implemented")
+}
+func (*UnimplementedStorageServer) TagKeys(req *TagKeysRequest, srv Storage_TagKeysServer) error {
+	return status.Errorf(codes.Unimplemented, "method TagKeys not implemented")
+}
+func (*UnimplementedStorageServer) TagValues(req *TagValuesRequest, srv Storage_TagValuesServer) error {
+	return status.Errorf(codes.Unimplemented, "method TagValues not implemented")
+}
+func (*UnimplementedStorageServer) Capabilities(ctx context.Context, req *types.Empty) (*CapabilitiesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Capabilities not implemented")
+}
+
 func RegisterStorageServer(s *grpc.Server, srv StorageServer) {
 	s.RegisterService(&_Storage_serviceDesc, srv)
 }
@@ -1598,7 +1465,7 @@ var _Storage_serviceDesc = grpc.ServiceDesc{
 func (m *ReadFilterRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1606,45 +1473,56 @@ func (m *ReadFilterRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReadFilterRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadFilterRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.ReadSource != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.ReadSource.Size()))
-		n1, err := m.ReadSource.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n1
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintStorageCommon(dAtA, i, uint64(m.Range.Size()))
-	n2, err := m.Range.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n2
 	if m.Predicate != nil {
+		{
+			size, err := m.Predicate.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
+		}
+		i--
 		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.Predicate.Size()))
-		n3, err := m.Predicate.MarshalTo(dAtA[i:])
+	}
+	{
+		size, err := m.Range.MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
-		i += n3
+		i -= size
+		i = encodeVarintStorageCommon(dAtA, i, uint64(size))
 	}
-	return i, nil
+	i--
+	dAtA[i] = 0x12
+	if m.ReadSource != nil {
+		{
+			size, err := m.ReadSource.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ReadGroupRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1652,81 +1530,88 @@ func (m *ReadGroupRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReadGroupRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadGroupRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.ReadSource != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.ReadSource.Size()))
-		n4, err := m.ReadSource.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n4
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintStorageCommon(dAtA, i, uint64(m.Range.Size()))
-	n5, err := m.Range.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n5
-	if m.Predicate != nil {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.Predicate.Size()))
-		n6, err := m.Predicate.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n6
-	}
-	if len(m.GroupKeys) > 0 {
-		for _, s := range m.GroupKeys {
-			dAtA[i] = 0x22
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
-		}
-	}
-	if m.Group != 0 {
-		dAtA[i] = 0x28
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.Group))
+	if m.Hints != 0 {
+		i -= 4
+		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(m.Hints))
+		i--
+		dAtA[i] = 0x3d
 	}
 	if m.Aggregate != nil {
+		{
+			size, err := m.Aggregate.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
+		}
+		i--
 		dAtA[i] = 0x32
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.Aggregate.Size()))
-		n7, err := m.Aggregate.MarshalTo(dAtA[i:])
+	}
+	if m.Group != 0 {
+		i = encodeVarintStorageCommon(dAtA, i, uint64(m.Group))
+		i--
+		dAtA[i] = 0x28
+	}
+	if len(m.GroupKeys) > 0 {
+		for iNdEx := len(m.GroupKeys) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.GroupKeys[iNdEx])
+			copy(dAtA[i:], m.GroupKeys[iNdEx])
+			i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.GroupKeys[iNdEx])))
+			i--
+			dAtA[i] = 0x22
+		}
+	}
+	if m.Predicate != nil {
+		{
+			size, err := m.Predicate.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	{
+		size, err := m.Range.MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
-		i += n7
+		i -= size
+		i = encodeVarintStorageCommon(dAtA, i, uint64(size))
 	}
-	if m.Hints != 0 {
-		dAtA[i] = 0x3d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(m.Hints))
-		i += 4
+	i--
+	dAtA[i] = 0x12
+	if m.ReadSource != nil {
+		{
+			size, err := m.ReadSource.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *Aggregate) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1734,22 +1619,27 @@ func (m *Aggregate) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Aggregate) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Aggregate) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.Type != 0 {
-		dAtA[i] = 0x8
-		i++
 		i = encodeVarintStorageCommon(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x8
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *Tag) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1757,29 +1647,36 @@ func (m *Tag) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Tag) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Tag) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Key) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Key)))
-		i += copy(dAtA[i:], m.Key)
-	}
 	if len(m.Value) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.Value)
+		copy(dAtA[i:], m.Value)
 		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Value)))
-		i += copy(dAtA[i:], m.Value)
+		i--
+		dAtA[i] = 0x12
 	}
-	return i, nil
+	if len(m.Key) > 0 {
+		i -= len(m.Key)
+		copy(dAtA[i:], m.Key)
+		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Key)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ReadResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1787,29 +1684,36 @@ func (m *ReadResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReadResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.Frames) > 0 {
-		for _, msg := range m.Frames {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintStorageCommon(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Frames) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Frames[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintStorageCommon(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ReadResponse_Frame) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1817,122 +1721,178 @@ func (m *ReadResponse_Frame) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReadResponse_Frame) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_Frame) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.Data != nil {
-		nn8, err := m.Data.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size := m.Data.Size()
+			i -= size
+			if _, err := m.Data.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
 		}
-		i += nn8
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ReadResponse_Frame_Series) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_Frame_Series) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	if m.Series != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.Series.Size()))
-		n9, err := m.Series.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size, err := m.Series.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
 		}
-		i += n9
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 func (m *ReadResponse_Frame_FloatPoints) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_Frame_FloatPoints) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	if m.FloatPoints != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.FloatPoints.Size()))
-		n10, err := m.FloatPoints.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size, err := m.FloatPoints.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
 		}
-		i += n10
+		i--
+		dAtA[i] = 0x12
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 func (m *ReadResponse_Frame_IntegerPoints) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_Frame_IntegerPoints) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	if m.IntegerPoints != nil {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.IntegerPoints.Size()))
-		n11, err := m.IntegerPoints.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size, err := m.IntegerPoints.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
 		}
-		i += n11
+		i--
+		dAtA[i] = 0x1a
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 func (m *ReadResponse_Frame_UnsignedPoints) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_Frame_UnsignedPoints) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	if m.UnsignedPoints != nil {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.UnsignedPoints.Size()))
-		n12, err := m.UnsignedPoints.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size, err := m.UnsignedPoints.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
 		}
-		i += n12
+		i--
+		dAtA[i] = 0x22
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 func (m *ReadResponse_Frame_BooleanPoints) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_Frame_BooleanPoints) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	if m.BooleanPoints != nil {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.BooleanPoints.Size()))
-		n13, err := m.BooleanPoints.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size, err := m.BooleanPoints.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
 		}
-		i += n13
+		i--
+		dAtA[i] = 0x2a
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 func (m *ReadResponse_Frame_StringPoints) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_Frame_StringPoints) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	if m.StringPoints != nil {
-		dAtA[i] = 0x32
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.StringPoints.Size()))
-		n14, err := m.StringPoints.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size, err := m.StringPoints.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
 		}
-		i += n14
+		i--
+		dAtA[i] = 0x32
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 func (m *ReadResponse_Frame_Group) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_Frame_Group) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	if m.Group != nil {
-		dAtA[i] = 0x3a
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.Group.Size()))
-		n15, err := m.Group.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size, err := m.Group.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
 		}
-		i += n15
+		i--
+		dAtA[i] = 0x3a
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 func (m *ReadResponse_GroupFrame) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1940,33 +1900,40 @@ func (m *ReadResponse_GroupFrame) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReadResponse_GroupFrame) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_GroupFrame) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.TagKeys) > 0 {
-		for _, b := range m.TagKeys {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintStorageCommon(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
-		}
-	}
 	if len(m.PartitionKeyVals) > 0 {
-		for _, b := range m.PartitionKeyVals {
+		for iNdEx := len(m.PartitionKeyVals) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.PartitionKeyVals[iNdEx])
+			copy(dAtA[i:], m.PartitionKeyVals[iNdEx])
+			i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.PartitionKeyVals[iNdEx])))
+			i--
 			dAtA[i] = 0x12
-			i++
-			i = encodeVarintStorageCommon(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
 		}
 	}
-	return i, nil
+	if len(m.TagKeys) > 0 {
+		for iNdEx := len(m.TagKeys) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.TagKeys[iNdEx])
+			copy(dAtA[i:], m.TagKeys[iNdEx])
+			i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.TagKeys[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ReadResponse_SeriesFrame) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1974,34 +1941,41 @@ func (m *ReadResponse_SeriesFrame) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReadResponse_SeriesFrame) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_SeriesFrame) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
+	if m.DataType != 0 {
+		i = encodeVarintStorageCommon(dAtA, i, uint64(m.DataType))
+		i--
+		dAtA[i] = 0x10
+	}
 	if len(m.Tags) > 0 {
-		for _, msg := range m.Tags {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintStorageCommon(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Tags) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Tags[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintStorageCommon(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	if m.DataType != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.DataType))
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ReadResponse_FloatPointsFrame) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -2009,36 +1983,41 @@ func (m *ReadResponse_FloatPointsFrame) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReadResponse_FloatPointsFrame) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_FloatPointsFrame) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Timestamps) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Timestamps)*8))
-		for _, num := range m.Timestamps {
-			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(num))
-			i += 8
-		}
-	}
 	if len(m.Values) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Values)*8))
-		for _, num := range m.Values {
-			f16 := math.Float64bits(float64(num))
-			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(f16))
-			i += 8
+		for iNdEx := len(m.Values) - 1; iNdEx >= 0; iNdEx-- {
+			f15 := math.Float64bits(float64(m.Values[iNdEx]))
+			i -= 8
+			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(f15))
 		}
+		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Values)*8))
+		i--
+		dAtA[i] = 0x12
 	}
-	return i, nil
+	if len(m.Timestamps) > 0 {
+		for iNdEx := len(m.Timestamps) - 1; iNdEx >= 0; iNdEx-- {
+			i -= 8
+			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(m.Timestamps[iNdEx]))
+		}
+		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Timestamps)*8))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ReadResponse_IntegerPointsFrame) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -2046,44 +2025,50 @@ func (m *ReadResponse_IntegerPointsFrame) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReadResponse_IntegerPointsFrame) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_IntegerPointsFrame) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Timestamps) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Timestamps)*8))
-		for _, num := range m.Timestamps {
-			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(num))
-			i += 8
-		}
-	}
 	if len(m.Values) > 0 {
-		dAtA18 := make([]byte, len(m.Values)*10)
-		var j17 int
+		dAtA17 := make([]byte, len(m.Values)*10)
+		var j16 int
 		for _, num1 := range m.Values {
 			num := uint64(num1)
 			for num >= 1<<7 {
-				dAtA18[j17] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA17[j16] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j17++
+				j16++
 			}
-			dAtA18[j17] = uint8(num)
-			j17++
+			dAtA17[j16] = uint8(num)
+			j16++
 		}
+		i -= j16
+		copy(dAtA[i:], dAtA17[:j16])
+		i = encodeVarintStorageCommon(dAtA, i, uint64(j16))
+		i--
 		dAtA[i] = 0x12
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(j17))
-		i += copy(dAtA[i:], dAtA18[:j17])
 	}
-	return i, nil
+	if len(m.Timestamps) > 0 {
+		for iNdEx := len(m.Timestamps) - 1; iNdEx >= 0; iNdEx-- {
+			i -= 8
+			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(m.Timestamps[iNdEx]))
+		}
+		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Timestamps)*8))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ReadResponse_UnsignedPointsFrame) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -2091,43 +2076,49 @@ func (m *ReadResponse_UnsignedPointsFrame) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReadResponse_UnsignedPointsFrame) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_UnsignedPointsFrame) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Timestamps) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Timestamps)*8))
-		for _, num := range m.Timestamps {
-			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(num))
-			i += 8
-		}
-	}
 	if len(m.Values) > 0 {
-		dAtA20 := make([]byte, len(m.Values)*10)
-		var j19 int
+		dAtA19 := make([]byte, len(m.Values)*10)
+		var j18 int
 		for _, num := range m.Values {
 			for num >= 1<<7 {
-				dAtA20[j19] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA19[j18] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j19++
+				j18++
 			}
-			dAtA20[j19] = uint8(num)
-			j19++
+			dAtA19[j18] = uint8(num)
+			j18++
 		}
+		i -= j18
+		copy(dAtA[i:], dAtA19[:j18])
+		i = encodeVarintStorageCommon(dAtA, i, uint64(j18))
+		i--
 		dAtA[i] = 0x12
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(j19))
-		i += copy(dAtA[i:], dAtA20[:j19])
 	}
-	return i, nil
+	if len(m.Timestamps) > 0 {
+		for iNdEx := len(m.Timestamps) - 1; iNdEx >= 0; iNdEx-- {
+			i -= 8
+			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(m.Timestamps[iNdEx]))
+		}
+		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Timestamps)*8))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ReadResponse_BooleanPointsFrame) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -2135,39 +2126,44 @@ func (m *ReadResponse_BooleanPointsFrame) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReadResponse_BooleanPointsFrame) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_BooleanPointsFrame) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Timestamps) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Timestamps)*8))
-		for _, num := range m.Timestamps {
-			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(num))
-			i += 8
-		}
-	}
 	if len(m.Values) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Values)))
-		for _, b := range m.Values {
-			if b {
+		for iNdEx := len(m.Values) - 1; iNdEx >= 0; iNdEx-- {
+			i--
+			if m.Values[iNdEx] {
 				dAtA[i] = 1
 			} else {
 				dAtA[i] = 0
 			}
-			i++
 		}
+		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Values)))
+		i--
+		dAtA[i] = 0x12
 	}
-	return i, nil
+	if len(m.Timestamps) > 0 {
+		for iNdEx := len(m.Timestamps) - 1; iNdEx >= 0; iNdEx-- {
+			i -= 8
+			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(m.Timestamps[iNdEx]))
+		}
+		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Timestamps)*8))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ReadResponse_StringPointsFrame) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -2175,41 +2171,40 @@ func (m *ReadResponse_StringPointsFrame) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReadResponse_StringPointsFrame) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadResponse_StringPointsFrame) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Timestamps) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Timestamps)*8))
-		for _, num := range m.Timestamps {
-			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(num))
-			i += 8
-		}
-	}
 	if len(m.Values) > 0 {
-		for _, s := range m.Values {
+		for iNdEx := len(m.Values) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Values[iNdEx])
+			copy(dAtA[i:], m.Values[iNdEx])
+			i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Values[iNdEx])))
+			i--
 			dAtA[i] = 0x12
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
 		}
 	}
-	return i, nil
+	if len(m.Timestamps) > 0 {
+		for iNdEx := len(m.Timestamps) - 1; iNdEx >= 0; iNdEx-- {
+			i -= 8
+			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(m.Timestamps[iNdEx]))
+		}
+		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Timestamps)*8))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *CapabilitiesResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -2217,34 +2212,41 @@ func (m *CapabilitiesResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CapabilitiesResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CapabilitiesResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.Caps) > 0 {
-		for k, _ := range m.Caps {
-			dAtA[i] = 0xa
-			i++
+		for k := range m.Caps {
 			v := m.Caps[k]
-			mapSize := 1 + len(k) + sovStorageCommon(uint64(len(k))) + 1 + len(v) + sovStorageCommon(uint64(len(v)))
-			i = encodeVarintStorageCommon(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintStorageCommon(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			dAtA[i] = 0x12
-			i++
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
 			i = encodeVarintStorageCommon(dAtA, i, uint64(len(v)))
-			i += copy(dAtA[i:], v)
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintStorageCommon(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintStorageCommon(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *TimestampRange) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -2252,27 +2254,32 @@ func (m *TimestampRange) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *TimestampRange) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *TimestampRange) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.Start != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.Start))
-	}
 	if m.End != 0 {
-		dAtA[i] = 0x10
-		i++
 		i = encodeVarintStorageCommon(dAtA, i, uint64(m.End))
+		i--
+		dAtA[i] = 0x10
 	}
-	return i, nil
+	if m.Start != 0 {
+		i = encodeVarintStorageCommon(dAtA, i, uint64(m.Start))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *TagKeysRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -2280,45 +2287,56 @@ func (m *TagKeysRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *TagKeysRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *TagKeysRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.TagsSource != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.TagsSource.Size()))
-		n21, err := m.TagsSource.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n21
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintStorageCommon(dAtA, i, uint64(m.Range.Size()))
-	n22, err := m.Range.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n22
 	if m.Predicate != nil {
+		{
+			size, err := m.Predicate.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
+		}
+		i--
 		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.Predicate.Size()))
-		n23, err := m.Predicate.MarshalTo(dAtA[i:])
+	}
+	{
+		size, err := m.Range.MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
-		i += n23
+		i -= size
+		i = encodeVarintStorageCommon(dAtA, i, uint64(size))
 	}
-	return i, nil
+	i--
+	dAtA[i] = 0x12
+	if m.TagsSource != nil {
+		{
+			size, err := m.TagsSource.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *TagValuesRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -2326,51 +2344,63 @@ func (m *TagValuesRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *TagValuesRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *TagValuesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.TagsSource != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.TagsSource.Size()))
-		n24, err := m.TagsSource.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n24
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintStorageCommon(dAtA, i, uint64(m.Range.Size()))
-	n25, err := m.Range.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n25
-	if m.Predicate != nil {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintStorageCommon(dAtA, i, uint64(m.Predicate.Size()))
-		n26, err := m.Predicate.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n26
-	}
 	if len(m.TagKey) > 0 {
-		dAtA[i] = 0x22
-		i++
+		i -= len(m.TagKey)
+		copy(dAtA[i:], m.TagKey)
 		i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.TagKey)))
-		i += copy(dAtA[i:], m.TagKey)
+		i--
+		dAtA[i] = 0x22
 	}
-	return i, nil
+	if m.Predicate != nil {
+		{
+			size, err := m.Predicate.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	{
+		size, err := m.Range.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintStorageCommon(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	if m.TagsSource != nil {
+		{
+			size, err := m.TagsSource.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintStorageCommon(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *StringValuesResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -2378,29 +2408,37 @@ func (m *StringValuesResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *StringValuesResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *StringValuesResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.Values) > 0 {
-		for _, b := range m.Values {
+		for iNdEx := len(m.Values) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Values[iNdEx])
+			copy(dAtA[i:], m.Values[iNdEx])
+			i = encodeVarintStorageCommon(dAtA, i, uint64(len(m.Values[iNdEx])))
+			i--
 			dAtA[i] = 0xa
-			i++
-			i = encodeVarintStorageCommon(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintStorageCommon(dAtA []byte, offset int, v uint64) int {
+	offset -= sovStorageCommon(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *ReadFilterRequest) Size() (n int) {
 	if m == nil {
@@ -2811,14 +2849,7 @@ func (m *StringValuesResponse) Size() (n int) {
 }
 
 func sovStorageCommon(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozStorageCommon(x uint64) (n int) {
 	return sovStorageCommon(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -2963,10 +2994,7 @@ func (m *ReadFilterRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -3218,10 +3246,7 @@ func (m *ReadGroupRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -3290,10 +3315,7 @@ func (m *Aggregate) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -3411,10 +3433,7 @@ func (m *Tag) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -3498,10 +3517,7 @@ func (m *ReadResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -3796,10 +3812,7 @@ func (m *ReadResponse_Frame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -3913,10 +3926,7 @@ func (m *ReadResponse_GroupFrame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -4019,10 +4029,7 @@ func (m *ReadResponse_SeriesFrame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -4178,10 +4185,7 @@ func (m *ReadResponse_FloatPointsFrame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -4359,10 +4363,7 @@ func (m *ReadResponse_IntegerPointsFrame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -4540,10 +4541,7 @@ func (m *ReadResponse_UnsignedPointsFrame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -4715,10 +4713,7 @@ func (m *ReadResponse_BooleanPointsFrame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -4852,10 +4847,7 @@ func (m *ReadResponse_StringPointsFrame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -5015,7 +5007,7 @@ func (m *CapabilitiesResponse) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthStorageCommon
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -5032,10 +5024,7 @@ func (m *CapabilitiesResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -5123,10 +5112,7 @@ func (m *TimestampRange) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -5281,10 +5267,7 @@ func (m *TagKeysRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -5471,10 +5454,7 @@ func (m *TagValuesRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -5556,10 +5536,7 @@ func (m *StringValuesResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorageCommon
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthStorageCommon
 			}
 			if (iNdEx + skippy) > l {
@@ -5577,6 +5554,7 @@ func (m *StringValuesResponse) Unmarshal(dAtA []byte) error {
 func skipStorageCommon(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
+	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -5608,10 +5586,8 @@ func skipStorageCommon(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			return iNdEx, nil
 		case 1:
 			iNdEx += 8
-			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -5632,55 +5608,30 @@ func skipStorageCommon(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthStorageCommon
 			}
 			iNdEx += length
-			if iNdEx < 0 {
-				return 0, ErrInvalidLengthStorageCommon
-			}
-			return iNdEx, nil
 		case 3:
-			for {
-				var innerWire uint64
-				var start int = iNdEx
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return 0, ErrIntOverflowStorageCommon
-					}
-					if iNdEx >= l {
-						return 0, io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					innerWire |= (uint64(b) & 0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				innerWireType := int(innerWire & 0x7)
-				if innerWireType == 4 {
-					break
-				}
-				next, err := skipStorageCommon(dAtA[start:])
-				if err != nil {
-					return 0, err
-				}
-				iNdEx = start + next
-				if iNdEx < 0 {
-					return 0, ErrInvalidLengthStorageCommon
-				}
-			}
-			return iNdEx, nil
+			depth++
 		case 4:
-			return iNdEx, nil
+			if depth == 0 {
+				return 0, ErrUnexpectedEndOfGroupStorageCommon
+			}
+			depth--
 		case 5:
 			iNdEx += 4
-			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
+		if iNdEx < 0 {
+			return 0, ErrInvalidLengthStorageCommon
+		}
+		if depth == 0 {
+			return iNdEx, nil
+		}
 	}
-	panic("unreachable")
+	return 0, io.ErrUnexpectedEOF
 }
 
 var (
-	ErrInvalidLengthStorageCommon = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowStorageCommon   = fmt.Errorf("proto: integer overflow")
+	ErrInvalidLengthStorageCommon        = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowStorageCommon          = fmt.Errorf("proto: integer overflow")
+	ErrUnexpectedEndOfGroupStorageCommon = fmt.Errorf("proto: unexpected end of group")
 )

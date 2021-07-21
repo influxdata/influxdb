@@ -1,6 +1,9 @@
 v1.7.11 [unreleased]
 --------------------
 
+### Bugfixes
+-	[#21908](https://github.com/influxdata/influxdb/pull/21908): chore: update protobuf library versions and remove influx_tsm
+
 v1.7.10 [2020-02-07]
 --------------------
 
