@@ -13,6 +13,7 @@ use internal_types::guard::{ReadGuard, ReadLock};
 
 use crate::checkpoint::PartitionCheckpoint;
 use crate::min_max_sequence::MinMaxSequence;
+use data_types::instant::to_approximate_datetime;
 
 const DEFAULT_CLOSED_WINDOW_PERIOD: Duration = Duration::from_secs(30);
 
@@ -45,15 +46,8 @@ pub struct PersistenceWindows {
     late_arrival_period: Duration,
     closed_window_period: Duration,
 
-    /// The datetime this PersistenceWindows was created
-    ///
-    /// `PersistenceWindows` internally uses monotonic `Instant`, however,
-    /// these cannot be rendered. To provide a stable rendering of Wall timestamp,
-    /// a single timestamp is recorded at creation time
-    created_at_time: DateTime<Utc>,
-
     /// The instant this PersistenceWindows was created
-    created_at_instant: Instant,
+    created_at: Instant,
 
     /// The last instant passed to PersistenceWindows::add_range
     last_instant: Instant,
@@ -116,7 +110,6 @@ impl PersistenceWindows {
 
         let closed_window_count = late_arrival_seconds / closed_window_seconds;
 
-        let created_at_time = Utc::now();
         let created_at_instant = Instant::now();
 
         Self {
@@ -126,8 +119,7 @@ impl PersistenceWindows {
             addr,
             late_arrival_period,
             closed_window_period,
-            created_at_time,
-            created_at_instant,
+            created_at: created_at_instant,
             last_instant: created_at_instant,
             max_sequence_numbers: Default::default(),
         }
@@ -362,25 +354,12 @@ impl PersistenceWindows {
     /// These are approximate because persistence may partially flush a window, which will
     /// update the min row timestamp but not the row count
     pub fn summaries(&self) -> impl Iterator<Item = WriteSummary> + '_ {
-        self.windows().map(move |window| {
-            let window_age = chrono::Duration::from_std(
-                window.created_at.duration_since(self.created_at_instant),
-            )
-            .expect("duration overflow");
-
-            let time_of_first_write = self.created_at_time + window_age;
-
-            let window_duration =
-                chrono::Duration::from_std(window.last_instant.duration_since(window.created_at))
-                    .expect("duration overflow");
-
-            WriteSummary {
-                time_of_first_write,
-                time_of_last_write: time_of_first_write + window_duration,
-                min_timestamp: window.min_time,
-                max_timestamp: window.max_time,
-                row_count: window.row_count,
-            }
+        self.windows().map(move |window| WriteSummary {
+            time_of_first_write: to_approximate_datetime(window.created_at),
+            time_of_last_write: to_approximate_datetime(window.last_instant),
+            min_timestamp: window.min_time,
+            max_timestamp: window.max_time,
+            row_count: window.row_count,
         })
     }
 
@@ -1333,7 +1312,8 @@ mod tests {
     fn test_summaries() {
         let late_arrival_period = Duration::from_secs(100);
         let mut w = make_windows(late_arrival_period);
-        let instant = w.created_at_instant;
+        let instant = w.created_at;
+        let created_at_time = to_approximate_datetime(w.created_at);
 
         // Window 1
         w.add_range(
@@ -1387,17 +1367,17 @@ mod tests {
             summaries,
             vec![
                 WriteSummary {
-                    time_of_first_write: w.created_at_time + chrono::Duration::milliseconds(1),
-                    time_of_last_write: w.created_at_time + chrono::Duration::milliseconds(50),
+                    time_of_first_write: created_at_time + chrono::Duration::milliseconds(1),
+                    time_of_last_write: created_at_time + chrono::Duration::milliseconds(50),
                     min_timestamp: Utc.timestamp_nanos(1),
                     max_timestamp: Utc.timestamp_nanos(340),
                     row_count: 21
                 },
                 WriteSummary {
-                    time_of_first_write: w.created_at_time
+                    time_of_first_write: created_at_time
                         + closed_duration
                         + chrono::Duration::milliseconds(1),
-                    time_of_last_write: w.created_at_time
+                    time_of_last_write: created_at_time
                         + closed_duration
                         + chrono::Duration::milliseconds(1),
                     min_timestamp: Utc.timestamp_nanos(89),
@@ -1405,8 +1385,8 @@ mod tests {
                     row_count: 3
                 },
                 WriteSummary {
-                    time_of_first_write: w.created_at_time + closed_duration * 3,
-                    time_of_last_write: w.created_at_time + closed_duration * 3,
+                    time_of_first_write: created_at_time + closed_duration * 3,
+                    time_of_last_write: created_at_time + closed_duration * 3,
                     min_timestamp: Utc.timestamp_nanos(3),
                     max_timestamp: Utc.timestamp_nanos(4),
                     row_count: 8
@@ -1424,8 +1404,8 @@ mod tests {
             summaries,
             vec![
                 WriteSummary {
-                    time_of_first_write: w.created_at_time + chrono::Duration::milliseconds(1),
-                    time_of_last_write: w.created_at_time
+                    time_of_first_write: created_at_time + chrono::Duration::milliseconds(1),
+                    time_of_last_write: created_at_time
                         + closed_duration
                         + chrono::Duration::milliseconds(1),
                     min_timestamp: Utc.timestamp_nanos(1),
@@ -1433,8 +1413,8 @@ mod tests {
                     row_count: 24
                 },
                 WriteSummary {
-                    time_of_first_write: w.created_at_time + closed_duration * 3,
-                    time_of_last_write: w.created_at_time + closed_duration * 3,
+                    time_of_first_write: created_at_time + closed_duration * 3,
+                    time_of_last_write: created_at_time + closed_duration * 3,
                     min_timestamp: Utc.timestamp_nanos(3),
                     max_timestamp: Utc.timestamp_nanos(4),
                     row_count: 8
