@@ -826,6 +826,7 @@ dependencies = [
  "influxdb_line_protocol",
  "num_cpus",
  "observability_deps",
+ "once_cell",
  "percent-encoding",
  "regex",
  "serde",

@@ -15,6 +15,7 @@ regex = "1.4"
 serde = { version = "1.0", features = ["rc", "derive"] }
 snafu = "0.6"
 observability_deps = { path = "../observability_deps" }
+once_cell = { version = "1.4.0", features = ["parking_lot"] }
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }
