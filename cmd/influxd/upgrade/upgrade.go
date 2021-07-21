@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/influxdata/influx-cli/v2/clients"
+	"github.com/influxdata/influx-cli/v2/pkg/stdio"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/bolt"
@@ -29,7 +31,6 @@ import (
 	"github.com/influxdata/influxdb/v2/v1/services/meta/filestore"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/tcnksm/go-input"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -153,8 +154,7 @@ func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
 			if err != nil {
 				return err
 			}
-			ui := &input.UI{Writer: cmd.OutOrStdout(), Reader: cmd.InOrStdin()}
-			return runUpgradeE(ctx, ui, options, logger)
+			return runUpgradeE(ctx, clients.CLI{StdIO: stdio.TerminalStdio}, options, logger)
 		},
 		Args: cobra.NoArgs,
 	}
@@ -232,7 +232,7 @@ func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
 			DestP:   &options.target.retention,
 			Flag:    "retention",
 			Default: "",
-			Desc:    "optional: duration bucket will retain data. 0 is infinite. The default is 0.",
+			Desc:    "optional: duration bucket will retain data (i.e '1w' or '72h'). Default is infinite.",
 			Short:   'r',
 		},
 		{
@@ -349,7 +349,7 @@ func buildLogger(options *logOptions, verbose bool) (*zap.Logger, error) {
 	return log, nil
 }
 
-func runUpgradeE(ctx context.Context, ui *input.UI, options *options, log *zap.Logger) error {
+func runUpgradeE(ctx context.Context, cli clients.CLI, options *options, log *zap.Logger) error {
 	if options.source.configFile != "" && options.source.dbDir != "" {
 		return errors.New("only one of --v1-dir or --config-file may be specified")
 	}
@@ -443,7 +443,7 @@ func runUpgradeE(ctx context.Context, ui *input.UI, options *options, log *zap.L
 		return errors.New("InfluxDB has been already set up")
 	}
 
-	req, err := onboardingRequest(ui, options)
+	req, err := onboardingRequest(cli, options)
 	if err != nil {
 		return err
 	}
@@ -461,7 +461,7 @@ func runUpgradeE(ctx context.Context, ui *input.UI, options *options, log *zap.L
 		return err
 	}
 
-	db2BucketIds, err := upgradeDatabases(ctx, ui, v1, v2, options, or.Org.ID, log)
+	db2BucketIds, err := upgradeDatabases(ctx, cli, v1, v2, options, or.Org.ID, log)
 	if err != nil {
 		// remove all files
 		log.Error("Database upgrade error, removing data", zap.Error(err))
