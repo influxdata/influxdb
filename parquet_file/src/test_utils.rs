@@ -756,12 +756,24 @@ pub fn create_partition_and_database_checkpoint(
     table_name: Arc<str>,
     partition_key: Arc<str>,
 ) -> (PartitionCheckpoint, DatabaseCheckpoint) {
-    // create partition checkpoint
+    // create first partition checkpoint
     let mut sequencer_numbers = BTreeMap::new();
     sequencer_numbers.insert(1, MinMaxSequence::new(15, 18));
     sequencer_numbers.insert(2, MinMaxSequence::new(25, 28));
     let min_unpersisted_timestamp = Utc.timestamp(10, 20);
-    let partition_checkpoint = PartitionCheckpoint::new(
+    let partition_checkpoint_1 = PartitionCheckpoint::new(
+        Arc::clone(&table_name),
+        Arc::clone(&partition_key),
+        sequencer_numbers,
+        min_unpersisted_timestamp,
+    );
+
+    // create second partition checkpoint
+    let mut sequencer_numbers = BTreeMap::new();
+    sequencer_numbers.insert(2, MinMaxSequence::new(24, 29));
+    sequencer_numbers.insert(3, MinMaxSequence::new(35, 38));
+    let min_unpersisted_timestamp = Utc.timestamp(20, 30);
+    let partition_checkpoint_2 = PartitionCheckpoint::new(
         table_name,
         partition_key,
         sequencer_numbers,
@@ -769,6 +781,7 @@ pub fn create_partition_and_database_checkpoint(
     );
 
     // build database checkpoint
-    let builder = PersistCheckpointBuilder::new(partition_checkpoint);
+    let mut builder = PersistCheckpointBuilder::new(partition_checkpoint_1);
+    builder.register_other_partition(&partition_checkpoint_2);
     builder.build()
 }

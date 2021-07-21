@@ -51,8 +51,11 @@ message PartitionCheckpoint {
 // This effectively contains the minimum sequence numbers over the whole database that are the starting point for
 // replay.
 message DatabaseCheckpoint {
-  // Maps `sequencer_id` to the minimum sequence numbers seen.
-  map<uint32, uint64> min_sequencer_numbers = 1;
+  // was `min_sequence_numbers`
+  reserved 1;
+
+  // Maps sequencer_id to the minimum and maximum sequence numbers seen.
+  map<uint32, MinMaxSequence> sequencer_numbers = 2;
 }
 
 // The minimum and maximum sequence numbers seen for a given sequencer.

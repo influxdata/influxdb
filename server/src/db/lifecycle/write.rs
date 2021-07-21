@@ -219,17 +219,18 @@ fn collect_checkpoints(
     // calculate checkpoint
     let mut checkpoint_builder = PersistCheckpointBuilder::new(partition_checkpoint);
 
-    // collect checkpoints of all other partitions
-    if let Ok(table) = catalog.table(table_name) {
-        for partition in table.partitions() {
-            let partition = partition.read();
-            if partition.key() == partition_key.as_ref() {
-                continue;
-            }
+    // collect checkpoints of all other partitions of all tables
+    for partition in catalog.partitions() {
+        let partition = partition.read();
+        if (partition.table_name() == table_name.as_ref())
+            && (partition.key() == partition_key.as_ref())
+        {
+            // same partition as the one that we're currently persisting => skip
+            continue;
+        }
 
-            if let Some(partition_checkpoint) = partition.partition_checkpoint() {
-                checkpoint_builder.register_other_partition(&partition_checkpoint);
-            }
+        if let Some(partition_checkpoint) = partition.partition_checkpoint() {
+            checkpoint_builder.register_other_partition(&partition_checkpoint);
         }
     }
 
