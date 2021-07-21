@@ -121,7 +121,7 @@ use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputPro
 ///
 /// **Important: When changing this structure, consider bumping the
 ///   [catalog transaction version](crate::catalog::TRANSACTION_VERSION)!**
-pub const METADATA_VERSION: u32 = 2;
+pub const METADATA_VERSION: u32 = 3;
 
 /// File-level metadata key to store the IOx-specific data.
 ///
@@ -339,11 +339,18 @@ impl IoxMetadata {
                 .context(IoxMetadataFieldMissing {
                     field: "database_checkpoint",
                 })?;
-        let min_sequencer_numbers = proto_database_checkpoint
-            .min_sequencer_numbers
+        let sequencer_numbers = proto_database_checkpoint
+            .sequencer_numbers
             .into_iter()
-            .collect();
-        let database_checkpoint = DatabaseCheckpoint::new(min_sequencer_numbers);
+            .map(|(sequencer_id, min_max)| {
+                if min_max.min <= min_max.max {
+                    Ok((sequencer_id, MinMaxSequence::new(min_max.min, min_max.max)))
+                } else {
+                    Err(Error::IoxMetadataMinMax)
+                }
+            })
+            .collect::<Result<BTreeMap<u32, MinMaxSequence>>>()?;
+        let database_checkpoint = DatabaseCheckpoint::new(sequencer_numbers);
 
         Ok(Self {
             creation_timestamp,
@@ -377,9 +384,18 @@ impl IoxMetadata {
         };
 
         let proto_database_checkpoint = proto::DatabaseCheckpoint {
-            min_sequencer_numbers: self
+            sequencer_numbers: self
                 .database_checkpoint
-                .min_sequencer_number_iter()
+                .sequencer_numbers_iter()
+                .map(|(sequencer_id, min_max)| {
+                    (
+                        sequencer_id,
+                        proto::MinMaxSequence {
+                            min: min_max.min(),
+                            max: min_max.max(),
+                        },
+                    )
+                })
                 .collect(),
         };
 

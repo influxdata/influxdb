@@ -235,7 +235,7 @@ pub struct PartitionCheckpoint {
     /// Partition key.
     partition_key: Arc<str>,
 
-    /// Maps sequencer_id to the minimum and maximum sequence numbers seen.
+    /// Maps `sequencer_id` to the minimum and maximum sequence numbers seen.
     sequencer_numbers: BTreeMap<u32, MinMaxSequence>,
 
     /// Minimum unpersisted timestamp.
@@ -299,8 +299,8 @@ impl PartitionCheckpoint {
 /// This effectively contains the minimum sequence numbers over the whole database that are the starting point for replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DatabaseCheckpoint {
-    /// Maps `sequencer_id` to the minimum sequence numbers seen.
-    min_sequencer_numbers: BTreeMap<u32, u64>,
+    /// Maps `sequencer_id` to the minimum and maximum sequence numbers seen.
+    sequencer_numbers: BTreeMap<u32, MinMaxSequence>,
 }
 
 impl DatabaseCheckpoint {
@@ -308,33 +308,31 @@ impl DatabaseCheckpoint {
     ///
     /// **This should only rarely be be used directly. Consider using [`PersistCheckpointBuilder`] to collect
     /// database-wide checkpoints!**
-    pub fn new(min_sequencer_numbers: BTreeMap<u32, u64>) -> Self {
-        Self {
-            min_sequencer_numbers,
-        }
+    pub fn new(sequencer_numbers: BTreeMap<u32, MinMaxSequence>) -> Self {
+        Self { sequencer_numbers }
     }
 
-    /// Get minimum sequence number that should be used during replay of the given sequencer.
+    /// Get sequence number range that should be used during replay of the given sequencer.
     ///
     /// This will return `None` for unknown sequencer. This might have multiple reasons, e.g. in case of Apache Kafka it
     /// might be that a partition has not delivered any data yet (for a quite young database) or that the partitioning
     /// was wrongly reconfigured (to more partitions in which case the ordering would be wrong). The latter case MUST be
     /// detected by another layer, e.g. using persisted database rules. The reaction to `None` in this layer should be
     /// "no replay required for this sequencer, just continue with normal playback".
-    pub fn min_sequencer_number(&self, sequencer_id: u32) -> Option<u64> {
-        self.min_sequencer_numbers.get(&sequencer_id).copied()
+    pub fn sequencer_number(&self, sequencer_id: u32) -> Option<MinMaxSequence> {
+        self.sequencer_numbers.get(&sequencer_id).copied()
     }
 
     /// Sorted list of sequencer IDs that are included in this checkpoint.
     pub fn sequencer_ids(&self) -> Vec<u32> {
-        self.min_sequencer_numbers.keys().copied().collect()
+        self.sequencer_numbers.keys().copied().collect()
     }
 
-    /// Iterate over minimum sequencer numbers
-    pub fn min_sequencer_number_iter(&self) -> impl Iterator<Item = (u32, u64)> + '_ {
-        self.min_sequencer_numbers
+    /// Iterate over sequencer numbers
+    pub fn sequencer_numbers_iter(&self) -> impl Iterator<Item = (u32, MinMaxSequence)> + '_ {
+        self.sequencer_numbers
             .iter()
-            .map(|(sequencer_id, min)| (*sequencer_id, *min))
+            .map(|(sequencer_id, min_max)| (*sequencer_id, *min_max))
     }
 }
 
@@ -356,7 +354,7 @@ impl PersistCheckpointBuilder {
     pub fn new(partition_checkpoint: PartitionCheckpoint) -> Self {
         // database-wide checkpoint also includes the to-be-persisted partition
         let database_checkpoint = DatabaseCheckpoint {
-            min_sequencer_numbers: Self::get_min_sequencer_numbers(&partition_checkpoint),
+            sequencer_numbers: partition_checkpoint.sequencer_numbers.clone(),
         };
 
         Self {
@@ -367,18 +365,21 @@ impl PersistCheckpointBuilder {
 
     /// Registers other partition and keeps track of the overall min sequence numbers.
     pub fn register_other_partition(&mut self, partition_checkpoint: &PartitionCheckpoint) {
-        for (sequencer_id, min) in Self::get_min_sequencer_numbers(partition_checkpoint) {
+        for (sequencer_id, min_max) in &partition_checkpoint.sequencer_numbers {
             match self
                 .database_checkpoint
-                .min_sequencer_numbers
-                .entry(sequencer_id)
+                .sequencer_numbers
+                .entry(*sequencer_id)
             {
                 Vacant(v) => {
-                    v.insert(min);
+                    v.insert(*min_max);
                 }
                 Occupied(mut o) => {
-                    let existing_min = o.get_mut();
-                    *existing_min = (*existing_min).min(min);
+                    let existing_min_max = o.get_mut();
+                    *existing_min_max = MinMaxSequence::new(
+                        existing_min_max.min().min(min_max.min()),
+                        existing_min_max.max().max(min_max.max()),
+                    );
                 }
             }
         }
@@ -392,15 +393,6 @@ impl PersistCheckpointBuilder {
         } = self;
         (partition_checkpoint, database_checkpoint)
     }
-
-    /// Extract minimum seen sequence numbers from partition.
-    fn get_min_sequencer_numbers(partition_checkpoint: &PartitionCheckpoint) -> BTreeMap<u32, u64> {
-        partition_checkpoint
-            .sequencer_numbers
-            .iter()
-            .map(|(sequencer_id, min_max)| (*sequencer_id, min_max.min()))
-            .collect()
-    }
 }
 
 /// Plan your sequencer replays after server restarts.
@@ -411,7 +403,7 @@ impl PersistCheckpointBuilder {
 #[derive(Debug)]
 pub struct ReplayPlanner {
     /// Range (inclusive minimum, inclusive maximum) of sequence number to be replayed for each sequencer.
-    replay_ranges: BTreeMap<u32, (Option<u64>, Option<u64>)>,
+    replay_ranges: BTreeMap<u32, (Option<u64>, u64)>,
 
     /// Last known partition checkpoint, mapped via table name and partition key.
     last_partition_checkpoints: BTreeMap<(Arc<str>, Arc<str>), PartitionCheckpoint>,
@@ -432,16 +424,15 @@ impl ReplayPlanner {
             match self.replay_ranges.entry(*sequencer_id) {
                 Vacant(v) => {
                     // unknown sequencer => just store max value for now
-                    v.insert((None, Some(min_max.max())));
+                    v.insert((None, min_max.max()));
                 }
                 Occupied(mut o) => {
-                    // known sequencer => fold in max value (we take the max of all maximums!)
-                    let min_max2 = o.get_mut();
-                    min_max2.1 = Some(
-                        min_max2
-                            .1
-                            .map_or(min_max.max(), |max| max.max(min_max.max())),
-                    );
+                    // known sequencer => fold in:
+                    // - max value (we take the max of all maximums!)
+                    //
+                    // We are NOT folding in the min value here since other partitions might not be that far yet.
+                    let existing_min_max = o.get_mut();
+                    existing_min_max.1 = existing_min_max.1.max(min_max.max());
                 }
             }
         }
@@ -467,16 +458,24 @@ impl ReplayPlanner {
 
     /// Register a database checkpoint that was found in the catalog.
     pub fn register_database_checkpoint(&mut self, database_checkpoint: &DatabaseCheckpoint) {
-        for (sequencer_id, min) in &database_checkpoint.min_sequencer_numbers {
+        for (sequencer_id, min_max) in &database_checkpoint.sequencer_numbers {
             match self.replay_ranges.entry(*sequencer_id) {
                 Vacant(v) => {
-                    // unknown sequencer => just store the min value for now
-                    v.insert((Some(*min), None));
+                    // unknown sequencer => store min value (we keep the latest value for that one) and max value (in
+                    // case when we don't find another partition checkpoint for this sequencer, so we have a fallback)
+                    v.insert((Some(min_max.min()), min_max.max()));
                 }
                 Occupied(mut o) => {
-                    // known sequencer => fold in min value (we take the max of all mins!)
-                    let min_max = o.get_mut();
-                    min_max.0 = Some(min_max.0.map_or(*min, |min2| min2.max(*min)));
+                    // known sequencer => fold in:
+                    // - min value (we take the max of all mins!)
+                    // - max value (we take the max of all max!)
+                    let existing_min_max = o.get_mut();
+                    existing_min_max.0 = Some(
+                        existing_min_max
+                            .0
+                            .map_or(min_max.min(), |min2| min2.max(min_max.min())),
+                    );
+                    existing_min_max.1 = existing_min_max.1.max(min_max.max());
                 }
             }
         }
@@ -487,23 +486,16 @@ impl ReplayPlanner {
         let mut replay_ranges = BTreeMap::new();
         for (sequencer_id, min_max) in self.replay_ranges {
             match min_max {
-                (Some(min), Some(max)) => {
+                (Some(min), max) => {
                     replay_ranges.insert(sequencer_id, MinMaxSequence::new(min, max));
                 }
-                (None, Some(_max)) => {
+                (None, _max) => {
                     // We've got data for this sequencer via a PartitionCheckpoint but did not see corresponding data in
                     // any of the DatabaseCheckpoints. This is clearly a data error, because for the PartitionCheckpoint
                     // in question we should have persisted (and read back) a DatabaseCheckpoint in the very same
                     // Parquet file that contains a value for that sequencer.
-                    return Err(Error::NoDatabaseCheckpointFound{sequencer_id})
+                    return Err(Error::NoDatabaseCheckpointFound { sequencer_id });
                 }
-                (Some(_min), None) => {
-                    // In this case we recorded that we have start to read from a sequencer (via a DatabaseCheckpoint)
-                    // but never persisted anything for it (i.e. no corresponding data in any of the
-                    // PartitionCheckpoints). This if fine. We just NOT include this sequencer in the output since no
-                    // replay is required.
-                }
-                (None, None) => unreachable!("insertions always set one of the two values and updates never downgrade Some(...) to None, so how did we end up here?")
             }
         }
 
@@ -603,13 +595,13 @@ mod tests {
 
     /// Create [`DatabaseCheckpoint`].
     macro_rules! db_ckpt {
-        ({$($sequencer_number:expr => $min:expr),*}) => {
+        ({$($sequencer_number:expr => ($min:expr, $max:expr)),*}) => {
             {
-                let mut min_sequencer_numbers = BTreeMap::new();
+                let mut sequencer_numbers = BTreeMap::new();
                 $(
-                    min_sequencer_numbers.insert($sequencer_number, $min);
+                    sequencer_numbers.insert($sequencer_number, MinMaxSequence::new($min, $max));
                 )*
-                DatabaseCheckpoint{min_sequencer_numbers}
+                DatabaseCheckpoint{sequencer_numbers}
             }
         };
     }
@@ -639,14 +631,20 @@ mod tests {
 
     #[test]
     fn test_database_checkpoint() {
-        let dckpt = db_ckpt!({1 => 10, 2 => 5});
+        let dckpt = db_ckpt!({1 => (10, 20), 2 => (5, 15)});
 
-        assert_eq!(dckpt.min_sequencer_number(1).unwrap(), 10);
-        assert_eq!(dckpt.min_sequencer_number(2).unwrap(), 5);
-        assert!(dckpt.min_sequencer_number(3).is_none());
+        assert_eq!(
+            dckpt.sequencer_number(1).unwrap(),
+            MinMaxSequence::new(10, 20)
+        );
+        assert_eq!(
+            dckpt.sequencer_number(2).unwrap(),
+            MinMaxSequence::new(5, 15)
+        );
+        assert!(dckpt.sequencer_number(3).is_none());
         assert_eq!(dckpt.sequencer_ids(), vec![1, 2]);
 
-        assert_eq!(dckpt, db_ckpt!({1 => 10, 2 => 5}));
+        assert_eq!(dckpt, db_ckpt!({1 => (10, 20), 2 => (5, 15)}));
     }
 
     #[test]
@@ -657,23 +655,26 @@ mod tests {
         let (pckpt, dckpt) = builder.build();
 
         assert_eq!(pckpt, pckpt_orig);
-        assert_eq!(dckpt, db_ckpt!({1 => 10, 2 => 5}));
+        assert_eq!(dckpt, db_ckpt!({1 => (10, 20), 2 => (5, 15)}));
     }
 
     #[test]
     fn test_persist_checkpoint_builder_others() {
         let pckpt_orig =
-            part_ckpt!("table_1", "partition_1", {1 => (10, 20), 2 => (5, 15), 3 => (15, 25)});
+            part_ckpt!("table_1", "partition_1", {1 => (10, 20), 2 => (5, 15), 3 => (15, 26)});
         let mut builder = PersistCheckpointBuilder::new(pckpt_orig.clone());
 
         builder.register_other_partition(
-            &part_ckpt!("table_1", "partition_2", {2 => (2, 15), 3 => (20, 25), 4 => (13, 14)}),
+            &part_ckpt!("table_1", "partition_2", {2 => (2, 16), 3 => (20, 25), 4 => (13, 14)}),
         );
 
         let (pckpt, dckpt) = builder.build();
 
         assert_eq!(pckpt, pckpt_orig);
-        assert_eq!(dckpt, db_ckpt!({1 => 10, 2 => 2, 3 => 15, 4 => 13}));
+        assert_eq!(
+            dckpt,
+            db_ckpt!({1 => (10, 20), 2 => (2, 16), 3 => (15, 26), 4 => (13, 14)})
+        );
     }
 
     #[test]
@@ -697,20 +698,22 @@ mod tests {
         planner.register_partition_checkpoint(
             &part_ckpt!("table_1", "partition_1", {1 => (15, 19), 2 => (21, 28)}),
         );
-        planner.register_database_checkpoint(&db_ckpt!({1 => 10, 2 => 20}));
+        planner.register_database_checkpoint(&db_ckpt!({1 => (10, 19), 2 => (20, 27)}));
 
         planner.register_partition_checkpoint(
             &part_ckpt!("table_1", "partition_2", {2 => (22, 27), 3 => (35, 39)}),
         );
-        planner.register_database_checkpoint(&db_ckpt!({1 => 11, 3 => 30, 4 => 40}));
+        planner
+            .register_database_checkpoint(&db_ckpt!({1 => (11, 20), 3 => (30, 40), 4 => (40, 50)}));
 
         let plan = planner.build().unwrap();
 
-        assert_eq!(plan.sequencer_ids(), vec![1, 2, 3]);
-        assert_eq!(plan.replay_range(1).unwrap(), MinMaxSequence::new(11, 19));
+        assert_eq!(plan.sequencer_ids(), vec![1, 2, 3, 4]);
+        assert_eq!(plan.replay_range(1).unwrap(), MinMaxSequence::new(11, 20));
         assert_eq!(plan.replay_range(2).unwrap(), MinMaxSequence::new(20, 28));
-        assert_eq!(plan.replay_range(3).unwrap(), MinMaxSequence::new(30, 39));
-        assert!(plan.replay_range(4).is_none());
+        assert_eq!(plan.replay_range(3).unwrap(), MinMaxSequence::new(30, 40));
+        assert_eq!(plan.replay_range(4).unwrap(), MinMaxSequence::new(40, 50));
+        assert!(plan.replay_range(5).is_none());
 
         assert_eq!(
             plan.partitions(),
@@ -741,7 +744,7 @@ mod tests {
         planner.register_partition_checkpoint(
             &part_ckpt!("table_1", "partition_1", {1 => (11, 12), 2 => (21, 22)}),
         );
-        planner.register_database_checkpoint(&db_ckpt!({1 => 10, 3 => 30}));
+        planner.register_database_checkpoint(&db_ckpt!({1 => (10, 20), 3 => (30, 40)}));
 
         let err = planner.build().unwrap_err();
         assert!(matches!(err, Error::NoDatabaseCheckpointFound { .. }));
@@ -753,7 +756,7 @@ mod tests {
 
         planner
             .register_partition_checkpoint(&part_ckpt!("table_1", "partition_1", {1 => (10, 12)}));
-        planner.register_database_checkpoint(&db_ckpt!({1 => 11}));
+        planner.register_database_checkpoint(&db_ckpt!({1 => (11, 20)}));
 
         let err = planner.build().unwrap_err();
         assert!(matches!(
