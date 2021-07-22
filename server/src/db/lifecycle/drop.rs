@@ -31,10 +31,7 @@ pub fn drop_chunk(
     let chunk_id = guard.id();
 
     let (tracker, registration) = db.jobs.register(Job::DropChunk {
-        db_name: partition.db_name().to_string(),
-        partition_key: partition_key.clone(),
-        table_name: table_name.clone(),
-        chunk_id,
+        chunk: guard.addr().clone(),
     });
 
     guard.set_dropping(&registration)?;

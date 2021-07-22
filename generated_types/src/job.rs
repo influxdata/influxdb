@@ -1,70 +1,54 @@
 use crate::google::{longrunning, protobuf::Any, FieldViolation, FieldViolationExt};
 use crate::influxdata::iox::management::v1 as management;
 use crate::protobuf_type_url_eq;
+use data_types::chunk_metadata::ChunkAddr;
 use data_types::job::{Job, OperationStatus};
+use data_types::partition_metadata::PartitionAddr;
 use std::convert::TryFrom;
+use std::sync::Arc;
 
 impl From<Job> for management::operation_metadata::Job {
     fn from(job: Job) -> Self {
         match job {
             Job::Dummy { nanos } => Self::Dummy(management::Dummy { nanos }),
-            Job::CloseChunk {
-                db_name,
-                partition_key,
-                table_name,
-                chunk_id,
-            } => Self::CloseChunk(management::CloseChunk {
-                db_name,
-                partition_key,
-                table_name,
-                chunk_id,
+            Job::CompactChunk { chunk } => Self::CloseChunk(management::CloseChunk {
+                db_name: chunk.db_name.to_string(),
+                partition_key: chunk.partition_key.to_string(),
+                table_name: chunk.table_name.to_string(),
+                chunk_id: chunk.chunk_id,
             }),
-            Job::WriteChunk {
-                db_name,
-                partition_key,
-                table_name,
-                chunk_id,
-            } => Self::WriteChunk(management::WriteChunk {
-                db_name,
-                partition_key,
-                table_name,
-                chunk_id,
+            Job::WriteChunk { chunk } => Self::WriteChunk(management::WriteChunk {
+                db_name: chunk.db_name.to_string(),
+                partition_key: chunk.partition_key.to_string(),
+                table_name: chunk.table_name.to_string(),
+                chunk_id: chunk.chunk_id,
             }),
             Job::WipePreservedCatalog { db_name } => {
-                Self::WipePreservedCatalog(management::WipePreservedCatalog { db_name })
+                Self::WipePreservedCatalog(management::WipePreservedCatalog {
+                    db_name: db_name.to_string(),
+                })
             }
-            Job::CompactChunks {
-                db_name,
-                partition_key,
-                table_name,
-                chunks,
-            } => Self::CompactChunks(management::CompactChunks {
-                db_name,
-                partition_key,
-                table_name,
-                chunks,
-            }),
-            Job::PersistChunks {
-                db_name,
-                partition_key,
-                table_name,
-                chunks,
-            } => Self::PersistChunks(management::PersistChunks {
-                db_name,
-                partition_key,
-                table_name,
-                chunks,
-            }),
-            Job::DropChunk {
-                db_name,
-                partition_key,
-                table_name,
-                chunk_id,
-            } => Self::DropChunk(management::DropChunk {
-                db_name,
-                partition_key,
-                table_name,
-                chunk_id,
+            Job::CompactChunks { partition, chunks } => {
+                Self::CompactChunks(management::CompactChunks {
+                    db_name: partition.db_name.to_string(),
+                    partition_key: partition.partition_key.to_string(),
+                    table_name: partition.table_name.to_string(),
+                    chunks,
+                })
+            }
+            Job::PersistChunks { partition, chunks } => {
+                Self::PersistChunks(management::PersistChunks {
+                    db_name: partition.db_name.to_string(),
+                    partition_key: partition.partition_key.to_string(),
+                    table_name: partition.table_name.to_string(),
+                    chunks,
+                })
+            }
+            Job::DropChunk { chunk } => Self::DropChunk(management::DropChunk {
+                db_name: chunk.db_name.to_string(),
+                partition_key: chunk.partition_key.to_string(),
+                table_name: chunk.table_name.to_string(),
+                chunk_id: chunk.chunk_id,
             }),
         }
     }
@@ -80,11 +64,13 @@ impl From<management::operation_metadata::Job> for Job {
                 partition_key,
                 table_name,
                 chunk_id,
-            }) => Self::CloseChunk {
-                db_name,
-                partition_key,
-                table_name,
-                chunk_id,
+            }) => Self::CompactChunk {
+                chunk: ChunkAddr {
+                    db_name: Arc::from(db_name.as_str()),
+                    table_name: Arc::from(table_name.as_str()),
+                    partition_key: Arc::from(partition_key.as_str()),
+                    chunk_id,
+                },
             },
             Job::WriteChunk(management::WriteChunk {
                 db_name,
@@ -92,13 +78,17 @@ impl From<management::operation_metadata::Job> for Job {
                 table_name,
                 chunk_id,
             }) => Self::WriteChunk {
-                db_name,
-                partition_key,
-                table_name,
-                chunk_id,
+                chunk: ChunkAddr {
+                    db_name: Arc::from(db_name.as_str()),
+                    table_name: Arc::from(table_name.as_str()),
+                    partition_key: Arc::from(partition_key.as_str()),
+                    chunk_id,
+                },
             },
             Job::WipePreservedCatalog(management::WipePreservedCatalog { db_name }) => {
-                Self::WipePreservedCatalog { db_name }
+                Self::WipePreservedCatalog {
+                    db_name: Arc::from(db_name.as_str()),
+                }
             }
             Job::CompactChunks(management::CompactChunks {
                 db_name,
@@ -106,9 +96,11 @@ impl From<management::operation_metadata::Job> for Job {
                 table_name,
                 chunks,
             }) => Self::CompactChunks {
-                db_name,
-                partition_key,
-                table_name,
+                partition: PartitionAddr {
+                    db_name: Arc::from(db_name.as_str()),
+                    table_name: Arc::from(table_name.as_str()),
+                    partition_key: Arc::from(partition_key.as_str()),
+                },
                 chunks,
             },
             Job::PersistChunks(management::PersistChunks {
@@ -117,9 +109,11 @@ impl From<management::operation_metadata::Job> for Job {
                 table_name,
                 chunks,
             }) => Self::PersistChunks {
-                db_name,
-                partition_key,
-                table_name,
+                partition: PartitionAddr {
+                    db_name: Arc::from(db_name.as_str()),
+                    table_name: Arc::from(table_name.as_str()),
+                    partition_key: Arc::from(partition_key.as_str()),
+                },
                 chunks,
             },
             Job::DropChunk(management::DropChunk {
@@ -128,10 +122,12 @@ impl From<management::operation_metadata::Job> for Job {
                 table_name,
                 chunk_id,
             }) => Self::DropChunk {
-                db_name,
-                partition_key,
-                table_name,
-                chunk_id,
+                chunk: ChunkAddr {
+                    db_name: Arc::from(db_name.as_str()),
+                    table_name: Arc::from(table_name.as_str()),
+                    partition_key: Arc::from(partition_key.as_str()),
+                    chunk_id,
+                },
             },
         }
     }

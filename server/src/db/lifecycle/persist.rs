@@ -43,9 +43,7 @@ pub fn persist_chunks(
     let flush_timestamp = max_persistable_timestamp.timestamp_nanos();
 
     let (tracker, registration) = db.jobs.register(Job::PersistChunks {
-        db_name: partition.db_name().to_string(),
-        partition_key: partition.key().to_string(),
-        table_name: table_name.clone(),
+        partition: partition.addr().clone(),
         chunks: chunk_ids.clone(),
     });
 

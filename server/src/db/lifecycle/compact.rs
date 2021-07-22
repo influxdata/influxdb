@@ -37,9 +37,7 @@ pub(crate) fn compact_chunks(
     let chunk_ids: Vec<_> = chunks.iter().map(|x| x.id()).collect();
 
     let (tracker, registration) = db.jobs.register(Job::CompactChunks {
-        db_name: partition.db_name().to_string(),
-        partition_key: partition.key().to_string(),
-        table_name: table_name.clone(),
+        partition: partition.addr().clone(),
         chunks: chunk_ids.clone(),
     });
 
