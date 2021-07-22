@@ -311,14 +311,10 @@ impl IoxMetadata {
             .sequencer_numbers
             .into_iter()
             .map(|(sequencer_id, min_max)| {
-                let min = match min_max.min {
-                    u64::MAX => None,
-                    min => Some(min),
-                };
-                let max = min_max.max;
+                let min = min_max.min.as_ref().map(|min| min.value);
 
-                if min.map(|min| min <= max).unwrap_or(true) {
-                    Ok((sequencer_id, OptionalMinMaxSequence::new(min, max)))
+                if min.map(|min| min <= min_max.max).unwrap_or(true) {
+                    Ok((sequencer_id, OptionalMinMaxSequence::new(min, min_max.max)))
                 } else {
                     Err(Error::IoxMetadataMinMax)
                 }
@@ -349,14 +345,10 @@ impl IoxMetadata {
             .sequencer_numbers
             .into_iter()
             .map(|(sequencer_id, min_max)| {
-                let min = match min_max.min {
-                    u64::MAX => None,
-                    min => Some(min),
-                };
-                let max = min_max.max;
+                let min = min_max.min.as_ref().map(|min| min.value);
 
-                if min.map(|min| min <= max).unwrap_or(true) {
-                    Ok((sequencer_id, OptionalMinMaxSequence::new(min, max)))
+                if min.map(|min| min <= min_max.max).unwrap_or(true) {
+                    Ok((sequencer_id, OptionalMinMaxSequence::new(min, min_max.max)))
                 } else {
                     Err(Error::IoxMetadataMinMax)
                 }
@@ -383,8 +375,10 @@ impl IoxMetadata {
                 .map(|(sequencer_id, min_max)| {
                     (
                         sequencer_id,
-                        proto::MinMaxSequence {
-                            min: min_max.min().unwrap_or(u64::MAX),
+                        proto::OptionalMinMaxSequence {
+                            min: min_max
+                                .min()
+                                .map(|min| proto::OptionalUint64 { value: min }),
                             max: min_max.max(),
                         },
                     )
@@ -402,8 +396,10 @@ impl IoxMetadata {
                 .map(|(sequencer_id, min_max)| {
                     (
                         sequencer_id,
-                        proto::MinMaxSequence {
-                            min: min_max.min().unwrap_or(u64::MAX),
+                        proto::OptionalMinMaxSequence {
+                            min: min_max
+                                .min()
+                                .map(|min| proto::OptionalUint64 { value: min }),
                             max: min_max.max(),
                         },
                     )

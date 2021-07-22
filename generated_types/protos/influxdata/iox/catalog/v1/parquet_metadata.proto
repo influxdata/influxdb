@@ -39,8 +39,8 @@ message IoxMetadata {
 // checkpoint is usually serialized as part of `IoxMetadata`, the partition information is NOT repeated as part of this
 // message.
 message PartitionCheckpoint {
-  // Maps sequencer_id to the minimum and maximum sequence numbers seen.
-  map<uint32, MinMaxSequence> sequencer_numbers = 1;
+  // Maps `sequencer_id` to the to-be-persisted minimum and seen maximum sequence numbers.
+  map<uint32, OptionalMinMaxSequence> sequencer_numbers = 1;
 
   // Minimum unpersisted timestamp.
   FixedSizeTimestamp min_unpersisted_timestamp = 2;
@@ -54,12 +54,19 @@ message DatabaseCheckpoint {
   // was `min_sequence_numbers`
   reserved 1;
 
-  // Maps sequencer_id to the minimum and maximum sequence numbers seen.
-  map<uint32, MinMaxSequence> sequencer_numbers = 2;
+  // Maps `sequencer_id` to the to-be-persisted minimum and seen maximum sequence numbers.
+  map<uint32, OptionalMinMaxSequence> sequencer_numbers = 2;
 }
 
-// The minimum and maximum sequence numbers seen for a given sequencer.
-message MinMaxSequence {
-  uint64 min = 1;
+// An optional uint64.
+message OptionalUint64 {
+  uint64 value = 1;
+}
+
+// The optional to-be-replayed minimum and seen maximum sequence numbers for a given sequencer.
+//
+// If the minimum value is missing, no replay is required for this sequencer.
+message OptionalMinMaxSequence {
+  OptionalUint64 min = 1;
   uint64 max = 2;
 }
