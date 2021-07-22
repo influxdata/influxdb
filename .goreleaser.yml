@@ -58,6 +58,7 @@ builds:
 
 nfpms:
   - id: influx-cli
+    package_name: influx-cli
     builds: [influx]
     formats:
       - deb
@@ -78,7 +79,8 @@ nfpms:
         # prior to 2.0.8. This is as good as we can do for rpm; there's no equivalent to deb's "replaces" metadata.
         conflicts:
           - influxdb2 < 2.0.8
-  - id: influxdb2
+  - id: influxdb-server
+    package_name: influxdb2
     builds: [influxd]
     formats:
       - deb
@@ -109,9 +111,9 @@ nfpms:
           amd64: x86_64
           arm64: aarch64
           armhf: armv7hl
-        file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}"
+        file_name_template: "influxdb2-server-{{ .Version }}.{{ .Arch }}"
       deb:
-        file_name_template: "influxdb2-{{ .Version }}-{{ .Arch }}"
+        file_name_template: "influxdb2-server-{{ .Version }}-{{ .Arch }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
