@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/subscriber"
 	"io"
 	"net"
 	nethttp "net/http"
@@ -140,6 +141,7 @@ type Launcher struct {
 	reg                *prom.Registry
 
 	apibackend *http.APIBackend
+	subscriber *subscriber.Service
 }
 
 type stoppingScheduler interface {
@@ -207,6 +209,12 @@ func (m *Launcher) Shutdown(ctx context.Context) error {
 	m.log.Info("Stopping", zap.String("service", "storage-engine"))
 	if err := m.engine.Close(); err != nil {
 		m.log.Error("Failed to close engine", zap.Error(err))
+		errs = append(errs, err.Error())
+	}
+
+	m.log.Info("Stopping", zap.String("service", "subscriber"))
+	if err := m.subscriber.Close(); err != nil {
+		m.log.Error("Failed to close subscriber", zap.Error(err))
 		errs = append(errs, err.Error())
 	}
 
@@ -439,6 +447,10 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			opts.StorageConfig,
 			storage.WithMetaClient(metaClient),
 		)
+		//TODO: configure properly
+		m.subscriber = subscriber.NewService(subscriber.NewConfig())
+		m.subscriber.Open()
+		m.engine.WithSubscriber(m.subscriber)
 	}
 	m.engine.WithLogger(m.log)
 	if err := m.engine.Open(ctx); err != nil {

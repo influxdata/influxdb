@@ -4,119 +4,65 @@ package subscriber // import "github.com/influxdata/influxdb/services/subscriber
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/models"
+	"go.uber.org/zap"
 	"net/url"
 	"sync"
 	"sync/atomic"
-	"time"
-	"unsafe"
-
-	"github.com/influxdata/influxdb/coordinator"
-	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/monitor"
-	"github.com/influxdata/influxdb/services/meta"
-	"go.uber.org/zap"
-)
-
-// Statistics for the Subscriber service.
-const (
-	statCreateFailures = "createFailures"
-	statPointsWritten  = "pointsWritten"
-	statWriteFailures  = "writeFailures"
 )
 
 // WriteRequest is a parsed write request.
 type WriteRequest struct {
-	Database        string
-	RetentionPolicy string
 	// lineProtocol must be valid newline-separated line protocol.
 	lineProtocol []byte
-	// pointOffsets gives the starting index within lineProtocol of each point,
-	// for splitting batches if required.
-	pointOffsets []int
+	numPoints int
 }
 
-func NewWriteRequest(r *coordinator.WritePointsRequest, log *zap.Logger) (wr WriteRequest, numInvalid int64) {
-	log = log.With(zap.String("database", r.Database), zap.String("retention_policy", r.RetentionPolicy))
+func NewWriteRequest(points []models.Point)  WriteRequest {
 	// Pre-allocate at least smallPointSize bytes per point.
 	const smallPointSize = 10
 	writeReq := WriteRequest{
-		Database:        r.Database,
-		RetentionPolicy: r.RetentionPolicy,
-		pointOffsets:    make([]int, 0, len(r.Points)),
-		lineProtocol:    make([]byte, 0, len(r.Points)*smallPointSize),
+		lineProtocol:    make([]byte, 0, len(points)*smallPointSize),
 	}
-	numInvalid = 0
-	for _, p := range r.Points {
-		if err := models.ValidPointStrings(p); err != nil {
-			log.Debug("discarding point", zap.Error(err))
-			numInvalid++
-			continue
-		}
-		// We are about to append a point of line protocol, so the new point's start index
-		// is the current length.
-		writeReq.pointOffsets = append(writeReq.pointOffsets, len(writeReq.lineProtocol))
+	for _, p := range points {
+		// TODO: validate points (at least 1.x does that here)
 		// Append the new point and a newline
 		writeReq.lineProtocol = p.AppendString(writeReq.lineProtocol)
 		writeReq.lineProtocol = append(writeReq.lineProtocol, byte('\n'))
+		writeReq.numPoints++
 	}
-	return writeReq, numInvalid
-}
-
-// pointAt uses pointOffsets to slice the lineProtocol buffer and retrieve the i_th point in the request.
-// It includes the trailing newline.
-func (w *WriteRequest) PointAt(i int) []byte {
-	start := w.pointOffsets[i]
-	// The end of the last point is the length of the buffer
-	end := len(w.lineProtocol)
-	// For points that are not the last point, the end is the start of the next point
-	if i+1 < len(w.pointOffsets) {
-		end = w.pointOffsets[i+1]
-	}
-	return w.lineProtocol[start:end]
+	return writeReq
 }
 
 func (w *WriteRequest) Length() int {
-	return len(w.pointOffsets)
+	return w.numPoints
 }
 
 func (w *WriteRequest) SizeOf() int {
-	const intSize = unsafe.Sizeof(w.pointOffsets[0])
-	return len(w.lineProtocol) + len(w.pointOffsets)*int(intSize) + len(w.Database) + len(w.RetentionPolicy)
+	return len(w.lineProtocol)
 }
 
 // PointsWriter is an interface for writing points to a subscription destination.
 // Only WritePoints() needs to be satisfied.  PointsWriter implementations
 // must be goroutine safe.
 type PointsWriter interface {
-	WritePointsContext(ctx context.Context, request WriteRequest) error
-}
-
-// subEntry is a unique set that identifies a given subscription.
-type subEntry struct {
-	db   string
-	rp   string
-	name string
+	WritePointsContext(ctx context.Context, lineProtocol []byte) error
 }
 
 // Service manages forking the incoming data from InfluxDB
 // to defined third party destinations.
 // Subscriptions are defined per database and retention policy.
 type Service struct {
-	MetaClient interface {
-		Databases() []meta.DatabaseInfo
-		WaitForDataChanged() chan struct{}
-	}
-	NewPointsWriter func(u url.URL) (PointsWriter, error)
+	NewPointsWriter func(dest Destination) (PointsWriter, error)
 	Logger          *zap.Logger
 	stats           *Statistics
 	wg              sync.WaitGroup
 	closing         chan struct{}
 	mu              sync.Mutex
 	conf            Config
-	subs            map[subEntry]*chanWriter
+	subs            map[SubEntry]*chanWriter
 
 	// subscriptionRouter is not locked by mu
 	router *subscriptionRouter
@@ -144,9 +90,13 @@ func (s *Service) Open() error {
 	err := func() error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		// TODO:
+		/*
 		if s.MetaClient == nil {
 			return errors.New("no meta store")
 		}
+
+		 */
 
 		s.closing = make(chan struct{})
 
@@ -171,6 +121,9 @@ func (s *Service) Open() error {
 // Close terminates the subscription service.
 // It will return an error if Open was not called first.
 func (s *Service) Close() error {
+	if s == nil {
+		return nil
+	}
 	// stop receiving new input
 	s.router.Close()
 
@@ -219,6 +172,7 @@ func (s *Service) WithLogger(log *zap.Logger) {
 	s.router.Logger = s.Logger
 }
 
+// TODO: hook to prometheus metrics?
 // Statistics maintains the statistics for the subscriber service.
 type Statistics struct {
 	CreateFailures int64
@@ -226,83 +180,53 @@ type Statistics struct {
 	WriteFailures  int64
 }
 
-// Statistics returns statistics for periodic monitoring.
-func (s *Service) Statistics(tags map[string]string) []models.Statistic {
-	statistics := []models.Statistic{{
-		Name: "subscriber",
-		Tags: tags,
-		Values: map[string]interface{}{
-			statCreateFailures: atomic.LoadInt64(&s.stats.CreateFailures),
-			statPointsWritten:  atomic.LoadInt64(&s.stats.PointsWritten),
-			statWriteFailures:  atomic.LoadInt64(&s.stats.WriteFailures),
-		},
-	}}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, cw := range s.subs {
-		statistics = append(statistics, cw.Statistics(tags)...)
-	}
-
-	return statistics
-}
-
 func (s *Service) waitForMetaUpdates() {
-	ch := s.MetaClient.WaitForDataChanged()
+	//TODO:
+	//ch := s.MetaClient.WaitForDataChanged()
 	for {
 		select {
-		case <-ch:
+		/*case <-ch:
 			// ch is closed on changes, so fetch the new channel to wait on to ensure we don't miss a new
 			// change while updating
 			ch = s.MetaClient.WaitForDataChanged()
 			s.updateSubs()
+			*/
 		case <-s.closing:
 			return
 		}
 	}
 }
 
-func (s *Service) createSubscription(se subEntry, mode string, destinations []string) (PointsWriter, error) {
-	var bm BalanceMode
-	switch mode {
-	case "ALL":
-		bm = ALL
-	case "ANY":
-		bm = ANY
-	default:
-		return nil, fmt.Errorf("unknown balance mode %q", mode)
+func (s *Service) createSubscription(dest Destination) (PointsWriter, error) {
+	w, err := s.NewPointsWriter(dest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create writer for destination: %s", dest.String())
 	}
-	writers := make([]PointsWriter, 0, len(destinations))
-	stats := make([]writerStats, 0, len(destinations))
-	// add only valid destinations
-	for _, dest := range destinations {
-		u, err := url.Parse(dest)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse destination: %s", dest)
-		}
-		w, err := s.NewPointsWriter(*u)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create writer for destination: %s", dest)
-		}
-		writers = append(writers, w)
-		stats = append(stats, writerStats{dest: dest})
-	}
-
-	return &balancewriter{
-		bm:      bm,
-		writers: writers,
-		stats:   stats,
-		defaultTags: models.StatisticTags{
-			"database":         se.db,
-			"retention_policy": se.rp,
-			"name":             se.name,
-			"mode":             mode,
-		},
-	}, nil
+	return w, nil
 }
 
-func (s *Service) Send(request *coordinator.WritePointsRequest) {
-	s.router.Send(request)
+func (s *Service) WritePoints(bucketID platform.ID, points []models.Point) error {
+	s.router.Send(bucketID, points)
+	return nil
+}
+
+type Destination struct {
+	Org platform.ID
+	Bucket platform.ID
+	Token string
+	Url string
+}
+
+func (d Destination) String() string {
+	// TODO: is this ok?
+	return fmt.Sprintf("%#v", d)
+}
+
+type SubEntry struct {
+	Name string
+	ID platform.ID
+	SourceBucket platform.ID
+	Destination Destination
 }
 
 func (s *Service) updateSubs() {
@@ -317,44 +241,48 @@ func (s *Service) updateSubs() {
 	}
 
 	if s.subs == nil {
-		s.subs = make(map[subEntry]*chanWriter)
+		s.subs = make(map[SubEntry]*chanWriter)
 	}
 
-	dbis := s.MetaClient.Databases()
-	allEntries := make(map[subEntry]bool)
+	// TODO: replace with metastore query - note subscription ID's must be unique
+	// like dbis := s.MetaClient.Databases()
+	desiredEntries := []SubEntry{
+		{
+			Name:         "sub1",
+			ID:           1, // TODO: figure out how updating a destination works with the disk queue (which is keyed on ID)
+			SourceBucket: 0x8d181582a47c6144,
+			Destination: Destination{
+				Org:    5,
+				Bucket: 8,
+				Token:  "foo",
+				Url:    "http://localhost:2000",
+			},
+		},
+	}
+	allEntries := make(map[SubEntry]bool)
 	createdNew := false
 	// Add in new subscriptions
-	for _, dbi := range dbis {
-		for _, rpi := range dbi.RetentionPolicies {
-			for _, si := range rpi.Subscriptions {
-				se := subEntry{
-					db:   dbi.Name,
-					rp:   rpi.Name,
-					name: si.Name,
-				}
-				allEntries[se] = true
-				if _, ok := s.subs[se]; ok {
-					continue
-				}
-				createdNew = true
-				s.Logger.Info("Adding new subscription",
-					logger.Database(se.db),
-					logger.RetentionPolicy(se.rp))
-				sub, err := s.createSubscription(se, si.Mode, si.Destinations)
-				if err != nil {
-					atomic.AddInt64(&s.stats.CreateFailures, 1)
-					s.Logger.Info("Subscription creation failed", zap.String("name", si.Name), zap.Error(err))
-					continue
-				}
-				s.subs[se] = newChanWriter(s, sub)
-				s.Logger.Info("Added new subscription",
-					logger.Database(se.db),
-					logger.RetentionPolicy(se.rp))
-			}
+	for _, se := range desiredEntries {
+
+		allEntries[se] = true
+		if _, ok := s.subs[se]; ok {
+			continue
 		}
+		createdNew = true
+		// TODO: re-examine data to put in logs
+		s.Logger.Info("Adding new subscription", zap.String("bucket", se.SourceBucket.String()))
+		sub, err := s.createSubscription(se.Destination)
+		if err != nil {
+			atomic.AddInt64(&s.stats.CreateFailures, 1)
+			s.Logger.Info("Subscription creation failed", zap.String("name", se.Name), zap.Error(err))
+			continue
+		}
+		s.subs[se] = newChanWriter(s, sub)
+		s.Logger.Info("Added new subscription",zap.String("bucket", se.SourceBucket.String()))
+
 	}
 
-	toClose := make(map[subEntry]*chanWriter)
+	toClose := make(map[SubEntry]*chanWriter)
 	for se, cw := range s.subs {
 		if !allEntries[se] {
 			toClose[se] = cw
@@ -375,30 +303,27 @@ func (s *Service) updateSubs() {
 	}
 
 	for se, cw := range toClose {
-		s.Logger.Info("Deleting old subscription",
-			logger.Database(se.db),
-			logger.RetentionPolicy(se.rp))
+		s.Logger.Info("Deleting old subscription", zap.String("bucket", se.SourceBucket.String()))
 
 		cw.CancelAndClose()
 
-		s.Logger.Info("Deleted old subscription",
-			logger.Database(se.db),
-			logger.RetentionPolicy(se.rp))
+		s.Logger.Info("Deleted old subscription", zap.String("bucket", se.SourceBucket.String()))
 	}
 }
 
 // newPointsWriter returns a new PointsWriter from the given URL.
-func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
+func (s *Service) newPointsWriter(dest Destination) (PointsWriter, error) {
+	// add only valid destinations
+	u, err := url.Parse(dest.Url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse destination: %s", dest)
+	}
+	// TODO: support HTTPS & timeouts properly
 	switch u.Scheme {
-	case "udp":
-		return NewUDP(u.Host), nil
 	case "http":
-		return NewHTTP(u.String(), time.Duration(s.conf.HTTPTimeout))
+		return NewHTTP(u.String(), dest.Token, dest.Org.String(), dest.Bucket.String())
 	case "https":
-		if s.conf.InsecureSkipVerify {
-			s.Logger.Warn("'insecure-skip-verify' is true. This will skip all certificate verifications.")
-		}
-		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), s.conf.InsecureSkipVerify, s.conf.CaCerts, s.conf.TLS)
+		panic("Does not support https yet")
 	default:
 		return nil, fmt.Errorf("unknown destination scheme %s", u.Scheme)
 	}
@@ -482,17 +407,19 @@ func (c *chanWriter) Close() {
 
 func (c *chanWriter) Run() {
 	for wr := range c.writeRequests {
-		err := c.pw.WritePointsContext(c.ctx, wr)
+		err := c.pw.WritePointsContext(c.ctx, wr.lineProtocol)
 		if err != nil {
 			c.logger.Info(err.Error())
 			atomic.AddInt64(c.failures, 1)
 		} else {
-			atomic.AddInt64(c.pointsWritten, int64(len(wr.pointOffsets)))
+			atomic.AddInt64(c.pointsWritten, int64(wr.Length()))
 		}
 		atomic.AddInt64(&c.queueSize, -int64(wr.SizeOf()))
 	}
 }
 
+// TODO: statistics reporting?
+/*
 // Statistics returns statistics for periodic monitoring.
 func (c *chanWriter) Statistics(tags map[string]string) []models.Statistic {
 	if m, ok := c.pw.(monitor.Reporter); ok {
@@ -501,83 +428,14 @@ func (c *chanWriter) Statistics(tags map[string]string) []models.Statistic {
 	return []models.Statistic{}
 }
 
-// BalanceMode specifies what balance mode to use on a subscription.
-type BalanceMode int
-
-const (
-	// ALL indicates to send writes to all subscriber destinations.
-	ALL BalanceMode = iota
-
-	// ANY indicates to send writes to a single subscriber destination, round robin.
-	ANY
-)
-
-type writerStats struct {
-	dest          string
-	failures      int64
-	pointsWritten int64
-}
-
-// balances writes across PointsWriters according to BalanceMode
-type balancewriter struct {
-	bm          BalanceMode
-	writers     []PointsWriter
-	stats       []writerStats
-	defaultTags models.StatisticTags
-	i           int
-}
-
-func (b *balancewriter) WritePointsContext(ctx context.Context, request WriteRequest) error {
-	var lastErr error
-	for range b.writers {
-		// round robin through destinations.
-		i := b.i
-		w := b.writers[i]
-		b.i = (b.i + 1) % len(b.writers)
-
-		// write points to destination.
-		err := w.WritePointsContext(ctx, request)
-		if err != nil {
-			lastErr = err
-			atomic.AddInt64(&b.stats[i].failures, 1)
-		} else {
-			atomic.AddInt64(&b.stats[i].pointsWritten, int64(len(request.pointOffsets)))
-			if b.bm == ANY {
-				break
-			}
-		}
-	}
-	return lastErr
-}
-
-// Statistics returns statistics for periodic monitoring.
-func (b *balancewriter) Statistics(tags map[string]string) []models.Statistic {
-	statistics := make([]models.Statistic, len(b.stats))
-	for i := range b.stats {
-		subTags := b.defaultTags.Merge(tags)
-		subTags["destination"] = b.stats[i].dest
-		statistics[i] = models.Statistic{
-			Name: "subscriber",
-			Tags: subTags,
-			Values: map[string]interface{}{
-				statPointsWritten: atomic.LoadInt64(&b.stats[i].pointsWritten),
-				statWriteFailures: atomic.LoadInt64(&b.stats[i].failures),
-			},
-		}
-	}
-	return statistics
-}
-
-type dbrp struct {
-	db string
-	rp string
-}
+ */
 
 // subscriptionRouter has a mutex lock on the hot path for database writes - make sure that the lock is very tight.
 type subscriptionRouter struct {
 	mu            sync.RWMutex
 	ready         bool
-	m             map[dbrp][]*chanWriter
+	// m is a map from bucket to list of subscriber chanWriters
+	m             map[platform.ID][]*chanWriter
 	writeFailures *int64
 	Logger        *zap.Logger
 }
@@ -596,40 +454,32 @@ func (s *subscriptionRouter) Close() {
 	s.ready = false
 }
 
-func (s *subscriptionRouter) Send(request *coordinator.WritePointsRequest) {
+func (s *subscriptionRouter) Send(bucketID platform.ID, points []models.Point) {
 	// serialize points and put on writer
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if !s.ready {
 		return
 	}
-	writers := s.m[dbrp{
-		db: request.Database,
-		rp: request.RetentionPolicy,
-	}]
+	writers := s.m[bucketID]
 	if len(writers) == 0 {
 		return
 	}
-	writeReq, numInvalid := NewWriteRequest(request, s.Logger)
-	atomic.AddInt64(s.writeFailures, numInvalid)
+	writeReq := NewWriteRequest(points)
 	for _, w := range writers {
 		w.Write(writeReq)
 	}
 }
 
-func (s *subscriptionRouter) Update(cws map[subEntry]*chanWriter, memoryLimit int64) {
+func (s *subscriptionRouter) Update(cws map[SubEntry]*chanWriter, memoryLimit int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.ready {
 		panic("must be created with NewServer before calling update, must not call update after close")
 	}
-	s.m = make(map[dbrp][]*chanWriter)
+	s.m = make(map[platform.ID][]*chanWriter)
 	for se, cw := range cws {
 		cw.limitTo(memoryLimit)
-		key := dbrp{
-			db: se.db,
-			rp: se.rp,
-		}
-		s.m[key] = append(s.m[key], cw)
+		s.m[se.SourceBucket] = append(s.m[se.SourceBucket], cw)
 	}
 }

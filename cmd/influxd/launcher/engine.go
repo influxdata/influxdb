@@ -39,6 +39,7 @@ type Engine interface {
 	WithLogger(log *zap.Logger)
 	Open(context.Context) error
 	Close() error
+	WithSubscriber(service storage.BucketWriter)
 }
 
 var _ Engine = (*TemporaryEngine)(nil)
@@ -60,6 +61,9 @@ type TemporaryEngine struct {
 	log *zap.Logger
 }
 
+func (t *TemporaryEngine) WithSubscriber(storage.BucketWriter) {
+	panic("temporary engine does not implement subscriber")
+}
 // NewTemporaryEngine creates a new engine that places the storage engine files into
 // a temporary directory; used for testing.
 func NewTemporaryEngine(c storage.Config, options ...storage.Option) *TemporaryEngine {

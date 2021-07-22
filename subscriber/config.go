@@ -8,8 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/influxdata/influxdb/monitor/diagnostics"
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/influxdb/v2/toml"
 )
 
 const (
@@ -94,18 +93,3 @@ func fileExists(fileName string) bool {
 	return err == nil && !info.IsDir()
 }
 
-// Diagnostics returns a diagnostics representation of a subset of the Config.
-func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
-	if !c.Enabled {
-		return diagnostics.RowFromMap(map[string]interface{}{
-			"enabled": false,
-		}), nil
-	}
-
-	return diagnostics.RowFromMap(map[string]interface{}{
-		"enabled":           true,
-		"http-timeout":      c.HTTPTimeout,
-		"write-concurrency": c.WriteConcurrency,
-		"write-buffer-size": c.WriteBufferSize,
-	}), nil
-}

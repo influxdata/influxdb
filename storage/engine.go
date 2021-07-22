@@ -38,6 +38,12 @@ var (
 	ErrNotImplemented = errors.New("not implemented")
 )
 
+type pointsWriter interface {
+	WritePoints(ctx context.Context, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
+	Close() error
+	WithLogger(logger *zap.Logger)
+}
+
 type Engine struct {
 	config Config
 	path   string
@@ -46,10 +52,8 @@ type Engine struct {
 	closing      chan struct{} // closing returns the zero value when the engine is shutting down.
 	tsdbStore    *tsdb.Store
 	metaClient   MetaClient
-	pointsWriter interface {
-		WritePoints(ctx context.Context, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
-		Close() error
-	}
+	pointsWriter pointsWriter
+	subscriber   BucketWriter
 
 	retentionService  *retention.Service
 	precreatorService *precreator.Service
@@ -59,6 +63,10 @@ type Engine struct {
 	writePointsValidationEnabled bool
 
 	logger *zap.Logger
+}
+
+func (e *Engine) WithSubscriber(service BucketWriter) {
+	e.subscriber = service
 }
 
 // Option provides a set
@@ -145,9 +153,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	e.logger = log.With(zap.String("service", "storage-engine"))
 
 	e.tsdbStore.WithLogger(e.logger)
-	if pw, ok := e.pointsWriter.(*coordinator.PointsWriter); ok {
-		pw.WithLogger(e.logger)
-	}
+	e.pointsWriter.WithLogger(e.logger)
 
 	if e.retentionService != nil {
 		e.retentionService.WithLogger(log)
@@ -244,7 +250,6 @@ func (e *Engine) Close() error {
 // The Engine expects all points to have been correctly validated by the caller.
 // However, WritePoints will determine if any tag key-pairs are missing, or if
 // there are any field type conflicts.
-// Rosalie was here lockdown 2020
 //
 // Appropriate errors are returned in those cases.
 func (e *Engine) WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error {
@@ -258,6 +263,14 @@ func (e *Engine) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 
 	if e.closing == nil {
 		return ErrEngineClosed
+	}
+
+	// TODO: write in parallel
+	// TODO: clarify desired error handling if subscriber fails - does it depend if disk queue is enabled?
+	if e.subscriber != nil {
+		if err := e.subscriber.WritePoints(bucketID, points); err != nil {
+			return err
+		}
 	}
 
 	return e.pointsWriter.WritePoints(ctx, bucketID.String(), meta.DefaultRetentionPolicyName, models.ConsistencyLevelAll, &meta.UserInfo{}, points)

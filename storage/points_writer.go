@@ -16,6 +16,11 @@ type PointsWriter interface {
 	WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error
 }
 
+// BucketWriter describes the ability to write points into a storage engine bucket
+type BucketWriter interface {
+	WritePoints(bucketID platform.ID, points []models.Point) error
+}
+
 // LoggingPointsWriter wraps an underlying points writer but writes logs to
 // another bucket when an error occurs.
 type LoggingPointsWriter struct {
