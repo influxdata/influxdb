@@ -36,7 +36,7 @@ pub async fn test() {
 
     assert_eq!(
         lines, expected_read_data,
-        "Actual:\n{:#?}\nExpected:\n{:#?}",
+        "Actual:\n\n{:#?}\nExpected:\n\n{:#?}",
         lines, expected_read_data
     );
 }

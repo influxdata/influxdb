@@ -1091,7 +1091,7 @@ where
         };
 
         let (tracker, registration) = self.jobs.register(Job::WipePreservedCatalog {
-            db_name: db_name.to_string(),
+            db_name: Arc::from(db_name.as_str()),
         });
 
         let state = Arc::clone(&self.stage);
@@ -1341,6 +1341,7 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use async_trait::async_trait;
     use bytes::Bytes;
+    use data_types::chunk_metadata::ChunkAddr;
     use data_types::database_rules::{
         HashRing, LifecycleRules, PartitionTemplate, ShardConfig, TemplatePart, NO_SHARD_CONFIG,
     };
@@ -1626,11 +1627,11 @@ mod tests {
         let batches = run_query(db, "select * from cpu").await;
 
         let expected = vec![
-            "+-----+-------------------------------+",
-            "| bar | time                          |",
-            "+-----+-------------------------------+",
-            "| 1   | 1970-01-01 00:00:00.000000010 |",
-            "+-----+-------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 1   | 1970-01-01T00:00:00.000000010Z |",
+            "+-----+--------------------------------+",
         ];
         assert_batches_eq!(expected, &batches);
     }
@@ -1671,11 +1672,11 @@ mod tests {
 
         let batches = run_query(db, "select * from cpu").await;
         let expected = vec![
-            "+-----+-------------------------------+",
-            "| bar | time                          |",
-            "+-----+-------------------------------+",
-            "| 1   | 1970-01-01 00:00:00.000000010 |",
-            "+-----+-------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 1   | 1970-01-01T00:00:00.000000010Z |",
+            "+-----+--------------------------------+",
         ];
         assert_batches_eq!(expected, &batches);
 
@@ -1827,19 +1828,24 @@ mod tests {
             .unwrap();
 
         // start the close (note this is not an async)
-        let partition_key = "";
-        let table_name = "cpu";
-        let db_name_string = db_name.to_string();
+        let chunk_addr = ChunkAddr {
+            db_name: Arc::from(db_name.as_str()),
+            table_name: Arc::from("cpu"),
+            partition_key: Arc::from(""),
+            chunk_id: 0,
+        };
         let tracker = server
-            .close_chunk(db_name, table_name, partition_key, 0)
+            .close_chunk(
+                db_name,
+                chunk_addr.table_name.as_ref(),
+                chunk_addr.partition_key.as_ref(),
+                chunk_addr.chunk_id,
+            )
             .unwrap();
 
         let metadata = tracker.metadata();
-        let expected_metadata = Job::CloseChunk {
-            db_name: db_name_string,
-            partition_key: partition_key.to_string(),
-            table_name: table_name.to_string(),
-            chunk_id: 0,
+        let expected_metadata = Job::CompactChunk {
+            chunk: chunk_addr.clone(),
         };
         assert_eq!(metadata, &expected_metadata);
 
@@ -2275,7 +2281,7 @@ mod tests {
             .unwrap();
         let metadata = tracker.metadata();
         let expected_metadata = Job::WipePreservedCatalog {
-            db_name: db_name_non_existing.to_string(),
+            db_name: Arc::from(db_name_non_existing.as_str()),
         };
         assert_eq!(metadata, &expected_metadata);
         tracker.join().await;
@@ -2296,7 +2302,7 @@ mod tests {
             .unwrap();
         let metadata = tracker.metadata();
         let expected_metadata = Job::WipePreservedCatalog {
-            db_name: db_name_rules_broken.to_string(),
+            db_name: Arc::from(db_name_rules_broken.as_str()),
         };
         assert_eq!(metadata, &expected_metadata);
         tracker.join().await;
@@ -2317,7 +2323,7 @@ mod tests {
             .unwrap();
         let metadata = tracker.metadata();
         let expected_metadata = Job::WipePreservedCatalog {
-            db_name: db_name_catalog_broken.to_string(),
+            db_name: Arc::from(db_name_catalog_broken.as_str()),
         };
         assert_eq!(metadata, &expected_metadata);
         tracker.join().await;

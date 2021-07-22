@@ -4,6 +4,7 @@ mod parse;
 mod setup;
 
 use arrow::record_batch::RecordBatch;
+use arrow_util::display::pretty_format_batches;
 use query::{
     exec::{Executor, ExecutorType},
     frontend::sql::SqlQueryPlanner,
@@ -282,7 +283,7 @@ impl<W: Write> Runner<W> {
                 .await
                 .expect("Running plan");
 
-            let current_results = arrow::util::pretty::pretty_format_batches(&results)
+            let current_results = pretty_format_batches(&results)
                 .unwrap()
                 .trim()
                 .lines()
@@ -352,11 +353,11 @@ SELECT * from disk;
 
     const EXPECTED_OUTPUT: &str = r#"-- Test Setup: TwoMeasurements
 -- SQL: SELECT * from disk;
-+-------+--------+-------------------------------+
-| bytes | region | time                          |
-+-------+--------+-------------------------------+
-| 99    | east   | 1970-01-01 00:00:00.000000200 |
-+-------+--------+-------------------------------+
++-------+--------+--------------------------------+
+| bytes | region | time                           |
++-------+--------+--------------------------------+
+| 99    | east   | 1970-01-01T00:00:00.000000200Z |
++-------+--------+--------------------------------+
 "#;
 
     #[tokio::test]

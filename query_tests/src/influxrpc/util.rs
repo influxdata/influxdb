@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use arrow::util::pretty::pretty_format_batches;
+use arrow_util::display::pretty_format_batches;
 use query::{
     exec::{
         field::FieldIndexes,

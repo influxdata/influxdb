@@ -109,11 +109,11 @@ async fn test_sql_use_database() {
     create_two_partition_database(&db_name, fixture.grpc_channel()).await;
 
     let expected_output = r#"
-+------+---------+----------+---------------------+-------+
-| host | running | sleeping | time                | total |
-+------+---------+----------+---------------------+-------+
-| foo  | 4       | 514      | 2020-06-23 06:38:30 | 519   |
-+------+---------+----------+---------------------+-------+
++------+---------+----------+----------------------+-------+
+| host | running | sleeping | time                 | total |
++------+---------+----------+----------------------+-------+
+| foo  | 4       | 514      | 2020-06-23T06:38:30Z | 519   |
++------+---------+----------+----------------------+-------+
 "#
     .trim();
 
@@ -321,24 +321,24 @@ async fn test_sql_observer_operations() {
         .expect("failed to wait operation");
 
     let expected_output = r#"
-+---------------+----------+-----------------------------+
-| partition_key | chunk_id | description                 |
-+---------------+----------+-----------------------------+
-| cpu           | 0        | Loading chunk to ReadBuffer |
-+---------------+----------+-----------------------------+
++------------+---------------+-----------+--------------------------------+
+| table_name | partition_key | chunk_ids | description                    |
++------------+---------------+-----------+--------------------------------+
+| cpu        | cpu           | 0         | Compacting chunk to ReadBuffer |
++------------+---------------+-----------+--------------------------------+
 "#
     .trim();
 
     let query = format!(
         r#"
 select
-  partition_key, chunk_id, description
+  table_name, partition_key, chunk_ids, description
 from
   operations
 where
   database_name = '{}'
 order by
-  partition_key, chunk_id, description
+  table_name, partition_key, chunk_ids, description
 "#,
         db_name
     );

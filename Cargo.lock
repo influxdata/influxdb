@@ -171,8 +171,10 @@ version = "0.1.0"
 dependencies = [
  "ahash 0.7.4",
  "arrow",
+ "chrono",
  "hashbrown",
  "num-traits",
+ "prettytable-rs",
  "rand 0.8.4",
  "snafu",
 ]
@@ -1691,6 +1693,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow-flight",
+ "arrow_util",
  "futures-util",
  "generated_types",
  "http",

@@ -126,7 +126,7 @@ impl QueryOutputFormat {
 }
 
 fn batches_to_pretty(batches: &[RecordBatch]) -> Result<String> {
-    arrow::util::pretty::pretty_format_batches(batches).map_err(Error::PrettyArrow)
+    arrow_util::display::pretty_format_batches(batches).map_err(Error::PrettyArrow)
 }
 
 fn batches_to_csv(batches: &[RecordBatch]) -> Result<String> {

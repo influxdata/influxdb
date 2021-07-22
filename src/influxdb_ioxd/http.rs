@@ -954,11 +954,11 @@ mod tests {
 
         let batches = run_query(test_db, "select * from h2o_temperature").await;
         let expected = vec![
-            "+----------------+--------------+-------+-----------------+---------------------+",
-            "| bottom_degrees | location     | state | surface_degrees | time                |",
-            "+----------------+--------------+-------+-----------------+---------------------+",
-            "| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01 14:10:24 |",
-            "+----------------+--------------+-------+-----------------+---------------------+",
+            "+----------------+--------------+-------+-----------------+----------------------+",
+            "| bottom_degrees | location     | state | surface_degrees | time                 |",
+            "+----------------+--------------+-------+-----------------+----------------------+",
+            "| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01T14:10:24Z |",
+            "+----------------+--------------+-------+-----------------+----------------------+",
         ];
         assert_batches_eq!(expected, &batches);
     }
@@ -1102,14 +1102,14 @@ mod tests {
 
         assert_eq!(get_content_type(&response), "text/plain");
 
-        let res =
-            "+----------------+--------------+-------+-----------------+---------------------+\n\
-| bottom_degrees | location     | state | surface_degrees | time                |\n\
-+----------------+--------------+-------+-----------------+---------------------+\n\
-| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01 14:10:24 |\n\
-+----------------+--------------+-------+-----------------+---------------------+\n";
+        let expected = r#"+----------------+--------------+-------+-----------------+----------------------+
+| bottom_degrees | location     | state | surface_degrees | time                 |
++----------------+--------------+-------+-----------------+----------------------+
+| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01T14:10:24Z |
++----------------+--------------+-------+-----------------+----------------------+
+"#;
 
-        check_response("query", response, StatusCode::OK, Some(res)).await;
+        check_response("query", response, StatusCode::OK, Some(expected)).await;
 
         // same response is expected if we explicitly request 'format=pretty'
         let response = client
@@ -1121,7 +1121,7 @@ mod tests {
             .await;
         assert_eq!(get_content_type(&response), "text/plain");
 
-        check_response("query", response, StatusCode::OK, Some(res)).await;
+        check_response("query", response, StatusCode::OK, Some(expected)).await;
     }
 
     #[tokio::test]
@@ -1220,11 +1220,11 @@ mod tests {
         let batches = run_query(test_db, "select * from h2o_temperature").await;
 
         let expected = vec![
-            "+----------------+--------------+-------+-----------------+---------------------+",
-            "| bottom_degrees | location     | state | surface_degrees | time                |",
-            "+----------------+--------------+-------+-----------------+---------------------+",
-            "| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01 14:10:24 |",
-            "+----------------+--------------+-------+-----------------+---------------------+",
+            "+----------------+--------------+-------+-----------------+----------------------+",
+            "| bottom_degrees | location     | state | surface_degrees | time                 |",
+            "+----------------+--------------+-------+-----------------+----------------------+",
+            "| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01T14:10:24Z |",
+            "+----------------+--------------+-------+-----------------+----------------------+",
         ];
         assert_batches_eq!(expected, &batches);
     }

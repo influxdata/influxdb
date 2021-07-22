@@ -1,9 +1,13 @@
+use std::sync::Arc;
+
 use assert_cmd::Command;
+use predicates::prelude::*;
+
+use data_types::chunk_metadata::ChunkAddr;
 use data_types::{
     chunk_metadata::ChunkStorage,
     job::{Job, Operation},
 };
-use predicates::prelude::*;
 use test_helpers::make_temp_file;
 
 use crate::{
@@ -571,11 +575,13 @@ async fn test_close_partition_chunk() {
     )
     .expect("Expected JSON output");
 
-    let expected_job = Job::CloseChunk {
-        db_name,
-        partition_key: "cpu".into(),
-        table_name: "cpu".into(),
-        chunk_id: 0,
+    let expected_job = Job::CompactChunk {
+        chunk: ChunkAddr {
+            db_name: Arc::from(db_name.as_str()),
+            table_name: Arc::from("cpu"),
+            partition_key: Arc::from("cpu"),
+            chunk_id: 0,
+        },
     };
 
     assert_eq!(
@@ -630,7 +636,9 @@ async fn test_wipe_persisted_catalog() {
     )
     .expect("Expected JSON output");
 
-    let expected_job = Job::WipePreservedCatalog { db_name };
+    let expected_job = Job::WipePreservedCatalog {
+        db_name: Arc::from(db_name.as_str()),
+    };
 
     assert_eq!(
         Some(expected_job),

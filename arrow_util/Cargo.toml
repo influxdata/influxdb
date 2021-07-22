@@ -12,6 +12,9 @@ ahash = "0.7.2"
 num-traits = "0.2"
 snafu = "0.6"
 hashbrown = "0.11"
+# used by arrow anyway (needed for printing workaround)
+chrono = "0.4"
+prettytable-rs = "0.8"
 
 [dev-dependencies]
 rand = "0.8.3"
