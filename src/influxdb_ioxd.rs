@@ -463,11 +463,9 @@ mod tests {
         let config = Config::from_iter_safe(&["server"]).unwrap();
 
         let object_store = ObjectStore::try_from(&config).unwrap();
+        let ObjectStore { integration, .. } = object_store;
 
-        assert!(matches!(
-            object_store,
-            ObjectStore(ObjectStoreIntegration::InMemory(_))
-        ));
+        assert!(matches!(integration, ObjectStoreIntegration::InMemory(_)));
     }
 
     #[test]
@@ -475,11 +473,9 @@ mod tests {
         let config = Config::from_iter_safe(&["server", "--object-store", "memory"]).unwrap();
 
         let object_store = ObjectStore::try_from(&config).unwrap();
+        let ObjectStore { integration, .. } = object_store;
 
-        assert!(matches!(
-            object_store,
-            ObjectStore(ObjectStoreIntegration::InMemory(_))
-        ));
+        assert!(matches!(integration, ObjectStoreIntegration::InMemory(_)));
     }
 
     #[test]
@@ -499,11 +495,9 @@ mod tests {
         .unwrap();
 
         let object_store = ObjectStore::try_from(&config).unwrap();
+        let ObjectStore { integration, .. } = object_store;
 
-        assert!(matches!(
-            object_store,
-            ObjectStore(ObjectStoreIntegration::AmazonS3(_))
-        ));
+        assert!(matches!(integration, ObjectStoreIntegration::AmazonS3(_)));
     }
 
     #[test]
@@ -533,10 +527,11 @@ mod tests {
         .unwrap();
 
         let object_store = ObjectStore::try_from(&config).unwrap();
+        let ObjectStore { integration, .. } = object_store;
 
         assert!(matches!(
-            object_store,
-            ObjectStore(ObjectStoreIntegration::GoogleCloudStorage(_))
+            integration,
+            ObjectStoreIntegration::GoogleCloudStorage(_)
         ));
     }
 
@@ -570,10 +565,11 @@ mod tests {
         .unwrap();
 
         let object_store = ObjectStore::try_from(&config).unwrap();
+        let ObjectStore { integration, .. } = object_store;
 
         assert!(matches!(
-            object_store,
-            ObjectStore(ObjectStoreIntegration::MicrosoftAzure(_))
+            integration,
+            ObjectStoreIntegration::MicrosoftAzure(_)
         ));
     }
 
@@ -604,11 +600,9 @@ mod tests {
         .unwrap();
 
         let object_store = ObjectStore::try_from(&config).unwrap();
+        let ObjectStore { integration, .. } = object_store;
 
-        assert!(matches!(
-            object_store,
-            ObjectStore(ObjectStoreIntegration::File(_))
-        ));
+        assert!(matches!(integration, ObjectStoreIntegration::File(_)));
     }
 
     #[test]
