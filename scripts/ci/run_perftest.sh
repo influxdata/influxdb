@@ -42,7 +42,7 @@ cat << EOF > /etc/telegraf/telegraf.conf
   json_time_key = "time"
   json_time_format = "unix"
   tag_keys = [
-    "i_type"
+    "i_type",
     "query_format"
   ]
 EOF
@@ -117,7 +117,7 @@ for scale in 50 100 500; do
     # run ingest tests
     cat ${DATASET_DIR}/$data_fname | $GOPATH/bin/bulk_load_influx $load_opts | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\"}" > $working_dir/test-ingest-$scale_string-batchsize-$batch-workers-$workers.json
 
-    bucket_id=$(influx bucket list --host http://${NGINX_HOST}:8086 -n ${db_name} -o $TEST_ORG --token $TEST_TOKEN | head -2 | tail -1 | cut -d '	' -f1)
+    bucket_id=$(curl -H "Authorization: Token $TEST_TOKEN" "http://${NGINX_HOST}:8086/api/v2/buckets?org=$TEST_ORG" | jq -r ".buckets[] | select(.name | contains(\"$db_name\")).id")
     sleep 1
     # stop daemon and force compaction
     systemctl stop influxdb
@@ -135,11 +135,15 @@ for scale in 50 100 500; do
     # run influxql and flux query tests
     for query_file in $query_files; do
       format=$(echo $query_file | cut -d '-' -f7)
-      cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://localhost:8086 --debug=0 --print-interval=0 --workers=$workers --json=true | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-$scale_string-format-$format-workers-$workers.json
+      cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://localhost:8086 --debug=0 --print-interval=0 --workers=$workers --json=true --organization=$TEST_ORG --token=$TEST_TOKEN | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-$scale_string-format-$format-workers-$workers.json
     done
 
     # delete db to start anew
-    influx bucket delete -o $TEST_ORG -t $TEST_TOKEN -n $db_name
+    delete_response=$(curl -s -o /dev/null -X DELETE -H "Authorization: Token $TEST_TOKEN" "http://${NGINX_HOST}:8086/api/v2/buckets/$bucket_id?org=$TEST_ORG" -w %{http_code})
+    if [ $delete_response != "204" ]; then
+      echo "bucket not deleted!"
+      exit 1
+    fi
   done
 done
 
