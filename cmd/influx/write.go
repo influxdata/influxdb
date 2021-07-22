@@ -15,11 +15,11 @@ import (
 	"strings"
 
 	"github.com/fujiwara/shapeio"
+	"github.com/influxdata/influx-cli/v2/pkg/csv2lp"
 	platform "github.com/influxdata/influxdb/v2"
 	ihttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/signals"
 	"github.com/influxdata/influxdb/v2/models"
-	"github.com/influxdata/influxdb/v2/pkg/csv2lp"
 	"github.com/influxdata/influxdb/v2/write"
 	"github.com/spf13/cobra"
 )
