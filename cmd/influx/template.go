@@ -18,15 +18,14 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/influxdata/influx-cli/v2/pkg/stdio"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
-	internal2 "github.com/influxdata/influxdb/v2/cmd/internal"
 	ierror "github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
-	input "github.com/tcnksm/go-input"
 )
 
 type templateSVCsFn func() (pkger.SVC, influxdb.OrganizationService, error)
@@ -212,7 +211,10 @@ func (b *cmdTemplateBuilder) applyRunEFn(cmd *cobra.Command, args []string) erro
 	if !isTTY {
 		for _, envRef := range missingValKeys(providedEnvRefs) {
 			prompt := "Please provide environment reference value for key " + envRef
-			providedEnvRefs[envRef] = b.getInput(prompt, "")
+			providedEnvRefs[envRef], err = stdio.TerminalStdio.GetStringInput(prompt, "")
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -242,11 +244,13 @@ func (b *cmdTemplateBuilder) applyRunEFn(cmd *cobra.Command, args []string) erro
 
 	providedSecrets := mapKeys(dryRunImpact.Summary.MissingSecrets, b.applyOpts.secrets)
 	if !isTTY {
-		const skipDefault = "$$skip-this-key$$"
 		for _, secretKey := range missingValKeys(providedSecrets) {
 			prompt := "Please provide secret value for key " + secretKey + " (optional, press enter to skip)"
-			secretVal := b.getInput(prompt, skipDefault)
-			if secretVal != "" && secretVal != skipDefault {
+			secretVal, err := stdio.TerminalStdio.GetSecret(prompt, 0)
+			if err != nil {
+				return err
+			}
+			if secretVal != "" {
 				providedSecrets[secretKey] = secretVal
 			}
 		}
@@ -258,8 +262,7 @@ func (b *cmdTemplateBuilder) applyRunEFn(cmd *cobra.Command, args []string) erro
 
 	isForced, _ := strconv.ParseBool(b.applyOpts.force)
 	if !isTTY && !isForced && b.applyOpts.force != "conflict" {
-		confirm := b.getInput("Confirm application of the above resources (y/n)", "n")
-		if strings.ToLower(confirm) != "y" {
+		if !stdio.TerminalStdio.GetConfirm("Confirm application of the above resources") {
 			fmt.Fprintln(b.w, "aborted application of template")
 			return nil
 		}
@@ -814,8 +817,7 @@ func (b *cmdTemplateBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string
 
 		if !b.force {
 			msg := fmt.Sprintf("Confirm removal of the stack[%s] and all associated resources (y/n)", stack.ID)
-			confirm := b.getInput(msg, "n")
-			if confirm != "y" {
+			if !stdio.TerminalStdio.GetConfirm(msg) {
 				continue
 			}
 		}
@@ -949,12 +951,8 @@ func (b *cmdTemplateBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string
 		const msg = `
 Your stack now differs from your template. Applying an outdated template will revert
 these updates. Export a new template with these updates to prevent accidental changes? (y/n)`
-		for range make([]struct{}, 3) {
-			if in := b.getInput(msg, "n"); in == "y" {
-				break
-			} else if in == "n" {
-				return nil
-			}
+		if !stdio.TerminalStdio.GetConfirm(msg) {
+			return nil
 		}
 	}
 
@@ -1122,14 +1120,6 @@ func (b *cmdTemplateBuilder) readLines(r io.Reader) ([]string, error) {
 		stdinInput = append(stdinInput, string(trimmed))
 	}
 	return stdinInput, nil
-}
-
-func (b *cmdTemplateBuilder) getInput(msg, defaultVal string) string {
-	ui := &input.UI{
-		Writer: b.w,
-		Reader: b.in,
-	}
-	return internal2.GetInput(ui, msg, defaultVal)
 }
 
 func (b *cmdTemplateBuilder) convertURLEncoding(url string) pkger.Encoding {

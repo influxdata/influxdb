@@ -9,13 +9,13 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/influxdata/influx-cli/v2/clients"
+	"github.com/influxdata/influx-cli/v2/pkg/stdio"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tcnksm/go-input"
 )
 
 func TestCmdUser(t *testing.T) {
@@ -43,7 +43,7 @@ func TestCmdUser(t *testing.T) {
 		userSVC influxdb.UserService,
 		passSVC influxdb.PasswordsService,
 		urmSVC influxdb.UserResourceMappingService,
-		getPassFn func(*input.UI, bool) string,
+		getPassFn func(io stdio.StdIO) (string, error),
 	) cmdUserDeps {
 		return cmdUserDeps{
 			userSVC: userSVC,
@@ -105,7 +105,7 @@ func TestCmdUser(t *testing.T) {
 					orgNameFlag,
 				},
 				expected: userResult{
-					err: internal.ErrPasswordIsTooShort,
+					err: clients.ErrPasswordIsTooShort,
 				},
 			},
 			{
@@ -484,8 +484,8 @@ func TestCmdUser(t *testing.T) {
 				return nil
 			}
 
-			getPassFn := func(*input.UI, bool) string {
-				return expected
+			getPassFn := func(stdio.StdIO) (string, error) {
+				return expected, nil
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {

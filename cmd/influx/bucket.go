@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/influxdata/influx-cli/v2/pkg/duration"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 )
@@ -92,12 +92,12 @@ func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
-	dur, err := internal.RawDurationToTimeDuration(b.retention)
+	dur, err := duration.RawDurationToTimeDuration(b.retention)
 	if err != nil {
 		return err
 	}
 
-	shardGroupDuration, err := internal.RawDurationToTimeDuration(b.shardGroupDuration)
+	shardGroupDuration, err := duration.RawDurationToTimeDuration(b.shardGroupDuration)
 	if err != nil {
 		return err
 	}
@@ -286,7 +286,7 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 	}
 
 	if b.retention != "" {
-		dur, err := internal.RawDurationToTimeDuration(b.retention)
+		dur, err := duration.RawDurationToTimeDuration(b.retention)
 		if err != nil {
 			return err
 		}
@@ -294,7 +294,7 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 	}
 
 	if b.shardGroupDuration != "" {
-		sgDur, err := internal.RawDurationToTimeDuration(b.shardGroupDuration)
+		sgDur, err := duration.RawDurationToTimeDuration(b.shardGroupDuration)
 		if err != nil {
 			return err
 		}

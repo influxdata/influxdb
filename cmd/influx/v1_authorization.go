@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/influxdata/influx-cli/v2/pkg/stdio"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
-	cinternal "github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/v1/authorization"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/tcnksm/go-input"
 )
 
 type v1Token struct {
@@ -123,12 +122,10 @@ func makeV1AuthorizationCreateE(opt genericCLIOpts) func(*cobra.Command, []strin
 
 		password := v1AuthCreateFlags.password
 		if password == "" && !v1AuthCreateFlags.noPassword {
-			ui := &input.UI{
-				Writer: opt.w,
-				Reader: opt.in,
+			password, err = stdio.TerminalStdio.GetPassword("Please type your password")
+			if err != nil {
+				return err
 			}
-
-			password = cinternal.GetPassword(ui, false)
 		}
 
 		bucketPerms := []struct {
@@ -633,11 +630,10 @@ func makeV1AuthorizationSetPasswordF(opt genericCLIOpts) func(*cobra.Command, []
 
 		password := v1AuthSetPasswordFlags.password
 		if password == "" {
-			ui := &input.UI{
-				Writer: opt.w,
-				Reader: opt.in,
+			password, err = stdio.TerminalStdio.GetPassword("Please type your password")
+			if err != nil {
+				return err
 			}
-			password = cinternal.GetPassword(ui, false)
 		}
 
 		if err := s.SetPassword(context.Background(), auth.ID, password); err != nil {

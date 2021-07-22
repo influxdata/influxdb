@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/influxdata/influx-cli/v2/clients"
+	"github.com/influxdata/influx-cli/v2/pkg/stdio"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/http"
 	ilogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
-	"github.com/tcnksm/go-input"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -22,7 +22,7 @@ type cmdUserDeps struct {
 	orgSvc    influxdb.OrganizationService
 	passSVC   influxdb.PasswordsService
 	urmSVC    influxdb.UserResourceMappingService
-	getPassFn func(*input.UI, bool) string
+	getPassFn func(stdio.StdIO) (string, error)
 }
 
 func cmdUser(f *globalFlags, opt genericCLIOpts) *cobra.Command {
@@ -97,11 +97,10 @@ func (b *cmdUserBuilder) cmdPasswordRunEFn(cmd *cobra.Command, args []string) er
 	if err != nil {
 		return err
 	}
-	ui := &input.UI{
-		Writer: b.genericCLIOpts.w,
-		Reader: b.genericCLIOpts.in,
+	password, err := dep.getPassFn(stdio.TerminalStdio)
+	if err != nil {
+		return err
 	}
-	password := dep.getPassFn(ui, true)
 
 	if err = dep.passSVC.SetPassword(ctx, u.ID, password); err != nil {
 		return err
@@ -174,8 +173,8 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
-	if b.password != "" && len(b.password) < internal.MinPasswordLen {
-		return internal.ErrPasswordIsTooShort
+	if b.password != "" && len(b.password) < stdio.MinPasswordLen {
+		return clients.ErrPasswordIsTooShort
 	}
 
 	conf := &ilogger.Config{
@@ -383,7 +382,9 @@ func newUserSVC() (cmdUserDeps, error) {
 	orgSvc := &tenant.OrgClientService{Client: httpClient}
 	passSvc := &tenant.PasswordClientService{Client: httpClient}
 	urmSvc := &tenant.UserResourceMappingClient{Client: httpClient}
-	getPassFn := internal.GetPassword
+	getPassFn := func(io stdio.StdIO) (string, error) {
+		return io.GetPassword("Please type your new password")
+	}
 
 	return cmdUserDeps{
 		userSVC:   userSvc,

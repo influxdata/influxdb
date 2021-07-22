@@ -7,19 +7,19 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/influxdata/influx-cli/v2/pkg/stdio"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	input "github.com/tcnksm/go-input"
 )
 
 func TestCmdSecret(t *testing.T) {
 	orgID := influxdb.ID(9000)
 
-	fakeSVCFn := func(svc influxdb.SecretService, fn func(*input.UI) string) secretSVCsFn {
-		return func() (influxdb.SecretService, influxdb.OrganizationService, func(*input.UI) string, error) {
+	fakeSVCFn := func(svc influxdb.SecretService, fn func(stdio.StdIO) (string, error)) secretSVCsFn {
+		return func() (influxdb.SecretService, influxdb.OrganizationService, func(stdio.StdIO) (string, error), error) {
 			return svc, &mock.OrganizationService{
 				FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 					return &influxdb.Organization{ID: orgID, Name: "influxdata"}, nil
@@ -212,8 +212,8 @@ func TestCmdSecret(t *testing.T) {
 				return nil
 			}
 
-			getSctFn := func(*input.UI) string {
-				return "ss"
+			getSctFn := func(stdio.StdIO) (string, error) {
+				return "ss", nil
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {

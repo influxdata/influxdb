@@ -4,18 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"path/filepath"
-	"strconv"
-	"time"
 
+	"github.com/influxdata/influx-cli/v2/clients"
+	"github.com/influxdata/influx-cli/v2/clients/setup"
+	"github.com/influxdata/influx-cli/v2/pkg/stdio"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
-	internal2 "github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
-	"github.com/tcnksm/go-input"
 )
 
 var setupFlags struct {
@@ -88,8 +86,8 @@ func setupUserF(cmd *cobra.Command, args []string) error {
 		Client: client,
 	}
 
-	ui := input.UI{Reader: cmd.InOrStdin(), Writer: cmd.OutOrStdout()}
-	req, err := onboardingRequest(&ui)
+	w := stdio.TerminalStdio
+	req, err := onboardingRequest(w)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve data to setup instance: %v", err)
 	}
@@ -99,7 +97,6 @@ func setupUserF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to setup instance: %v", err)
 	}
 
-	w := ui.Writer
 	if setupFlags.json {
 		return writeJSON(w, map[string]interface{}{
 			"user":         result.User.Name,
@@ -152,8 +149,8 @@ func setupF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ui := input.UI{Reader: cmd.InOrStdin(), Writer: cmd.OutOrStdout()}
-	req, err := onboardingRequest(&ui)
+	w := stdio.TerminalStdio
+	req, err := onboardingRequest(w)
 	if err != nil {
 		return fmt.Errorf("failed to setup instance: %v", err)
 	}
@@ -176,10 +173,7 @@ func setupF(cmd *cobra.Command, args []string) error {
 	if _, err = localConfigSVC.CreateConfig(p); err != nil {
 		return fmt.Errorf("failed to write config to path %q: %v", dPath, err)
 	}
-
-	w := ui.Writer
-	fmt.Fprintln(w,
-		string(internal2.PromptWithColor(fmt.Sprintf("Config %s has been stored in %s.", p.Name, dPath), internal2.ColorCyan)))
+	_ = w.Banner(fmt.Sprintf("Config %s has been stored in %s.", p.Name, dPath))
 
 	if setupFlags.json {
 		return writeJSON(w, map[string]interface{}{
@@ -227,79 +221,33 @@ func validateNoNameCollision(localConfigSvc config.Service, configName string) e
 	return nil
 }
 
-func onboardingRequest(ui *input.UI) (*influxdb.OnboardingRequest, error) {
-	if (setupFlags.force || len(setupFlags.password) > 0) && len(setupFlags.password) < internal2.MinPasswordLen {
-		return nil, internal2.ErrPasswordIsTooShort
+func onboardingRequest(stdio stdio.StdIO) (*influxdb.OnboardingRequest, error) {
+	setupClient := setup.Client{CLI: clients.CLI{StdIO: stdio}}
+	cliReq, err := setupClient.OnboardingRequest(&setup.Params{
+		Username:  setupFlags.username,
+		Password:  setupFlags.password,
+		AuthToken: setupFlags.token,
+		Org:       setupFlags.org,
+		Bucket:    setupFlags.bucket,
+		Retention: setupFlags.retention,
+		Force:     setupFlags.force,
+	})
+	if err != nil {
+		return nil, err
 	}
-
-	req := &influxdb.OnboardingRequest{
-		User:                   setupFlags.username,
-		Password:               setupFlags.password,
-		Org:                    setupFlags.org,
-		Bucket:                 setupFlags.bucket,
-		RetentionPeriodSeconds: influxdb.InfiniteRetention,
-		Token:                  setupFlags.token,
+	req := influxdb.OnboardingRequest{
+		User:   cliReq.Username,
+		Org:    cliReq.Org,
+		Bucket: cliReq.Bucket,
 	}
-
-	if setupFlags.retention != "" {
-		dur, err := internal2.RawDurationToTimeDuration(setupFlags.retention)
-		if err != nil {
-			return nil, err
-		}
-		secs, nanos := math.Modf(dur.Seconds())
-		if nanos > 0 {
-			return nil, fmt.Errorf("retention policy %q is too precise, must be divisible by 1s", setupFlags.retention)
-		}
-		req.RetentionPeriodSeconds = int64(secs)
+	if cliReq.Password != nil {
+		req.Password = *cliReq.Password
 	}
-
-	if setupFlags.force {
-		return req, nil
+	if cliReq.RetentionPeriodSeconds != nil {
+		req.RetentionPeriodSeconds = *cliReq.RetentionPeriodSeconds
 	}
-
-	fmt.Fprintln(ui.Writer, string(internal2.PromptWithColor("Welcome to InfluxDB 2.0!", internal2.ColorYellow)))
-	if req.User == "" {
-		req.User = internal2.GetInput(ui, "Please type your primary username", "")
+	if cliReq.Token != nil {
+		req.Token = *cliReq.Token
 	}
-	if req.Password == "" {
-		req.Password = internal2.GetPassword(ui, false)
-	}
-	if req.Org == "" {
-		req.Org = internal2.GetInput(ui, "Please type your primary organization name", "")
-	}
-	if req.Bucket == "" {
-		req.Bucket = internal2.GetInput(ui, "Please type your primary bucket name", "")
-	}
-
-	// Check the initial opts instead of the req to distinguish not-set from explicit 0 over the CLI.
-	if setupFlags.retention == "" {
-		infiniteStr := strconv.Itoa(influxdb.InfiniteRetention)
-		for {
-			rpStr := internal2.GetInput(ui,
-				"Please type your retention period in hours.\nOr press ENTER for infinite", infiniteStr)
-			rp, err := strconv.Atoi(rpStr)
-			if rp >= 0 && err == nil {
-				req.RetentionPeriodSeconds = int64((time.Duration(rp) * time.Hour).Seconds())
-				break
-			}
-		}
-	}
-
-	if confirmed := internal2.GetConfirm(ui, func() string {
-		rp := "infinite"
-		if req.RetentionPeriodSeconds > 0 {
-			rp = (time.Duration(req.RetentionPeriodSeconds) * time.Second).String()
-		}
-		return fmt.Sprintf(`
-You have entered:
-  Username:          %s
-  Organization:      %s
-  Bucket:            %s
-  Retention Period:  %s
-`, req.User, req.Org, req.Bucket, rp)
-	}); !confirmed {
-		return nil, errors.New("setup was canceled")
-	}
-
-	return req, nil
+	return &req, nil
 }

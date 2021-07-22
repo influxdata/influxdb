@@ -4,15 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/influxdata/influx-cli/v2/pkg/stdio"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/cmd/internal"
 	isecret "github.com/influxdata/influxdb/v2/secret"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
-	"github.com/tcnksm/go-input"
 )
 
-type secretSVCsFn func() (influxdb.SecretService, influxdb.OrganizationService, func(*input.UI) string, error)
+type secretSVCsFn func() (influxdb.SecretService, influxdb.OrganizationService, func(io stdio.StdIO) (string, error), error)
 
 func cmdSecret(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	builder := newCmdSecretBuilder(newSecretSVCs, f, opt)
@@ -77,15 +76,14 @@ func (b *cmdSecretBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 
 	ctx := context.Background()
 
-	ui := &input.UI{
-		Writer: b.genericCLIOpts.w,
-		Reader: b.genericCLIOpts.in,
-	}
 	var secretVal string
 	if b.value != "" {
 		secretVal = b.value
 	} else {
-		secretVal = getSecretFn(ui)
+		secretVal, err = getSecretFn(stdio.TerminalStdio)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = scrSVC.PatchSecrets(ctx, orgID, map[string]string{
@@ -240,7 +238,7 @@ type (
 	}
 )
 
-func newSecretSVCs() (influxdb.SecretService, influxdb.OrganizationService, func(*input.UI) string, error) {
+func newSecretSVCs() (influxdb.SecretService, influxdb.OrganizationService, func(io stdio.StdIO) (string, error), error) {
 	httpClient, err := newHTTPClient()
 	if err != nil {
 		return nil, nil, nil, err
@@ -248,5 +246,7 @@ func newSecretSVCs() (influxdb.SecretService, influxdb.OrganizationService, func
 
 	orgSvc := &tenant.OrgClientService{Client: httpClient}
 
-	return &isecret.Client{Client: httpClient}, orgSvc, internal.GetSecret, nil
+	return &isecret.Client{Client: httpClient}, orgSvc, func(io stdio.StdIO) (string, error) {
+		return io.GetSecret("Please type your secret", 1)
+	}, nil
 }
