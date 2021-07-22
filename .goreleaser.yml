@@ -79,6 +79,7 @@ nfpms:
         # prior to 2.0.8. This is as good as we can do for rpm; there's no equivalent to deb's "replaces" metadata.
         conflicts:
           - influxdb2 < 2.0.8
+        file_name_template: "influxdb2-client-{{ .Version }}.{{ .Arch }}"
   - id: influxdb-server
     package_name: influxdb2
     builds: [influxd]
