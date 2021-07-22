@@ -19,8 +19,8 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/parser"
+	"github.com/influxdata/influx-cli/v2/pkg/jsonnet"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"github.com/influxdata/influxdb/v2/task/options"
 	"gopkg.in/yaml.v3"
 )
