@@ -22,6 +22,7 @@ Because of the version bump to `go`, the macOS build for this release requires a
 1. [21864](https://github.com/influxdata/influxdb/pull/21864): Systemd unit should block on startup until http endpoint is ready
 1. [21839](https://github.com/influxdata/influxdb/pull/21839): Fix display and parsing of `influxd upgrade` CLI prompts in PowerShell.
 1. [21898](https://github.com/influxdata/influxdb/pull/21898): Removed unused `chronograf-migator` package & chronograf API service, and updated various "chronograf" references.
+1. [21919](https://github.com/influxdata/influxdb/pull/21919): Fix display and parsing of interactive `influx` CLI prompts in PowerShell.
 
 ## v2.0.7 [2021-06-04]
 ----------------------
