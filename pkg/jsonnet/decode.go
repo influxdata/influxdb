@@ -8,7 +8,7 @@ import (
 	"github.com/google/go-jsonnet"
 )
 
-// Decoder type can decode a jsonnet stream into the given output.
+// Decoder type can decoce a jsonnet stream into the given output.
 type Decoder struct {
 	r io.Reader
 }
@@ -26,7 +26,7 @@ func (d *Decoder) Decode(v interface{}) error {
 	}
 
 	vm := jsonnet.MakeVM()
-	jsonStr, err := vm.EvaluateAnonymousSnippet("memory", string(b))
+	jsonStr, err := vm.EvaluateSnippet("memory", string(b))
 	if err != nil {
 		return err
 	}

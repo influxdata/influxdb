@@ -110,7 +110,7 @@ func (p *Pipeline) MustNewClient(org, bucket influxdb.ID, token string) *Client 
 		DocumentsNamespace: DefaultDocumentsNamespace,
 		Token:              token,
 	}
-	svc, err := NewClient(p.Launcher.URL().String(), config)
+	svc, err := NewClient(p.Launcher.URL(), config)
 	if err != nil {
 		panic(err)
 	}
@@ -126,7 +126,7 @@ func (p *Pipeline) NewBrowserClient(org, bucket influxdb.ID, session *influxdb.S
 		DocumentsNamespace: DefaultDocumentsNamespace,
 		Session:            session,
 	}
-	return NewClient(p.Launcher.URL().String(), config)
+	return NewClient(p.Launcher.URL(), config)
 }
 
 // BrowserFor will create a user, session, and browser client.

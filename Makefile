@@ -64,6 +64,7 @@ SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -
 
 # List of binary cmds to build
 CMDS := \
+	bin/$(GOOS)/influx \
 	bin/$(GOOS)/influxd
 
 all: generate $(CMDS)
@@ -74,7 +75,13 @@ all: generate $(CMDS)
 bin/$(GOOS)/influxd: $(SOURCES)
 	$(GO_BUILD) -o $@ ./cmd/$(shell basename "$@")
 
+bin/$(GOOS)/influx: $(SOURCES)
+	$(GO_BUILD_SM) -o $@ ./cmd/$(shell basename "$@")
+
+# Ease of use build for just the go binary
 influxd: bin/$(GOOS)/influxd
+
+influx: bin/$(GOOS)/influx
 
 static/data/build: scripts/fetch-ui-assets.sh
 	./scripts/fetch-ui-assets.sh
