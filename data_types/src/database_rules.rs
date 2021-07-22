@@ -287,9 +287,9 @@ pub struct StrftimeColumn {
 
 /// A routing config defines the destination where to route all data plane operations
 /// for a given database.
-#[derive(Debug, Eq, PartialEq, Clone, Default)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct RoutingConfig {
-    pub target: NodeGroup,
+    pub sink: Sink,
 }
 
 /// ShardId maps to a nodegroup that holds the the shard.

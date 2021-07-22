@@ -790,16 +790,15 @@ where
                     &*rules,
                 )
                 .context(LineConversion)?;
-                Some((routing_config.target.clone(), sharded_entries))
+                Some((routing_config.sink.clone(), sharded_entries))
             } else {
                 None
             }
         };
 
-        if let Some((target, sharded_entries)) = routing_config_target {
+        if let Some((sink, sharded_entries)) = routing_config_target {
             for i in sharded_entries {
-                self.write_entry_downstream(&db_name, &target, i.entry)
-                    .await?;
+                self.write_entry_sink(&db_name, &sink, i.entry).await?;
             }
             return Ok(());
         }
@@ -814,7 +813,7 @@ where
             let rules = db.rules();
 
             let shard_config = rules.routing_rules.as_ref().map(|cfg| match cfg {
-                RoutingRules::RoutingConfig(_) => todo!("routing config"),
+                RoutingRules::RoutingConfig(_) => unreachable!("routing config handled above"),
                 RoutingRules::ShardConfig(shard_config) => shard_config,
             });
 
@@ -853,13 +852,9 @@ where
     ) -> Result<()> {
         match sharded_entry.shard_id {
             Some(shard_id) => {
-                let shard = shards.get(&shard_id).context(ShardNotFound { shard_id })?;
-                match shard {
-                    Sink::Iox(node_group) => {
-                        self.write_entry_downstream(db_name, node_group, sharded_entry.entry)
-                            .await?
-                    }
-                }
+                let sink = shards.get(&shard_id).context(ShardNotFound { shard_id })?;
+                self.write_entry_sink(db_name, sink, sharded_entry.entry)
+                    .await?
             }
             None => {
                 self.write_entry_local(&db_name, db, sharded_entry.entry)
@@ -867,6 +862,15 @@ where
             }
         }
         Ok(())
+    }
+
+    async fn write_entry_sink(&self, db_name: &str, sink: &Sink, entry: Entry) -> Result<()> {
+        match sink {
+            Sink::Iox(node_group) => {
+                self.write_entry_downstream(db_name, node_group, entry)
+                    .await
+            }
+        }
     }
 
     async fn write_entry_downstream(
