@@ -1,4 +1,4 @@
-use crate::db::catalog::metrics::MemoryMetrics;
+use crate::db::catalog::metrics::StorageGauge;
 use chrono::{DateTime, Utc};
 use data_types::instant::to_approximate_datetime;
 use data_types::{
@@ -228,7 +228,14 @@ macro_rules! unexpected_state {
 pub struct ChunkMetrics {
     pub(super) state: Counter,
     pub(super) immutable_chunk_size: Histogram,
-    pub(super) memory_metrics: MemoryMetrics,
+    /// Chunk storage metrics
+    pub(super) chunk_storage: StorageGauge,
+
+    /// Chunk row count metrics
+    pub(super) row_count: StorageGauge,
+
+    /// Catalog memory metrics
+    pub(super) memory_metrics: StorageGauge,
 }
 
 impl ChunkMetrics {
@@ -240,7 +247,9 @@ impl ChunkMetrics {
         Self {
             state: Counter::new_unregistered(),
             immutable_chunk_size: Histogram::new_unregistered(),
-            memory_metrics: MemoryMetrics::new_unregistered(),
+            chunk_storage: StorageGauge::new_unregistered(),
+            row_count: StorageGauge::new_unregistered(),
+            memory_metrics: StorageGauge::new_unregistered(),
         }
     }
 }
@@ -275,7 +284,7 @@ impl CatalogChunk {
             time_of_last_write: Some(last_write),
             time_closed: None,
         };
-        chunk.update_memory_metrics();
+        chunk.update_metrics();
         chunk
     }
 
@@ -312,7 +321,7 @@ impl CatalogChunk {
             time_of_last_write: None,
             time_closed: None,
         };
-        chunk.update_memory_metrics();
+        chunk.update_metrics();
         chunk
     }
 
@@ -347,7 +356,7 @@ impl CatalogChunk {
             time_of_last_write: None,
             time_closed: None,
         };
-        chunk.update_memory_metrics();
+        chunk.update_metrics();
         chunk
     }
 
@@ -398,42 +407,49 @@ impl CatalogChunk {
         self.time_closed
     }
 
-    /// Updates `self.memory_metrics` to match the contents of `self.stage`
-    fn update_memory_metrics(&mut self) {
+    /// Updates `self.metrics` to match the contents of `self.stage`
+    fn update_metrics(&mut self) {
         match &self.stage {
             ChunkStage::Open { mb_chunk } => {
-                self.metrics
-                    .memory_metrics
-                    .mutable_buffer
-                    .set(mb_chunk.size());
-                self.metrics.memory_metrics.read_buffer.set(0);
-                self.metrics.memory_metrics.parquet.set(0);
+                self.metrics.memory_metrics.set_mub_only(mb_chunk.size());
+                self.metrics.row_count.set_mub_only(mb_chunk.rows());
+                self.metrics.chunk_storage.set_mub_only(1);
             }
             ChunkStage::Frozen { representation, .. } => match representation {
                 ChunkStageFrozenRepr::MutableBufferSnapshot(snapshot) => {
-                    self.metrics
-                        .memory_metrics
-                        .mutable_buffer
-                        .set(snapshot.size());
-                    self.metrics.memory_metrics.read_buffer.set(0);
-                    self.metrics.memory_metrics.parquet.set(0);
+                    self.metrics.memory_metrics.set_mub_only(snapshot.size());
+                    self.metrics.row_count.set_mub_only(snapshot.rows());
+                    self.metrics.chunk_storage.set_mub_only(1);
                 }
                 ChunkStageFrozenRepr::ReadBuffer(rb_chunk) => {
-                    self.metrics.memory_metrics.mutable_buffer.set(0);
-                    self.metrics.memory_metrics.read_buffer.set(rb_chunk.size());
-                    self.metrics.memory_metrics.parquet.set(0);
+                    self.metrics.memory_metrics.set_rub_only(rb_chunk.size());
+                    self.metrics
+                        .row_count
+                        .set_rub_only(rb_chunk.rows() as usize);
+                    self.metrics.chunk_storage.set_rub_only(1);
                 }
             },
             ChunkStage::Persisted {
                 parquet,
-                read_buffer,
+                read_buffer: Some(read_buffer),
                 ..
             } => {
-                let rub_size = read_buffer.as_ref().map(|x| x.size()).unwrap_or(0);
-
-                self.metrics.memory_metrics.mutable_buffer.set(0);
-                self.metrics.memory_metrics.read_buffer.set(rub_size);
-                self.metrics.memory_metrics.parquet.set(parquet.size());
+                self.metrics
+                    .memory_metrics
+                    .set_rub_and_object_store_only(read_buffer.size(), parquet.size());
+                self.metrics
+                    .row_count
+                    .set_rub_and_object_store_only(read_buffer.rows() as usize, parquet.rows());
+                self.metrics
+                    .chunk_storage
+                    .set_rub_and_object_store_only(1, 1);
+            }
+            ChunkStage::Persisted { parquet, .. } => {
+                self.metrics
+                    .memory_metrics
+                    .set_object_store_only(parquet.size());
+                self.metrics.row_count.set_object_store_only(parquet.rows());
+                self.metrics.chunk_storage.set_object_store_only(1);
             }
         }
     }
@@ -446,7 +462,7 @@ impl CatalogChunk {
             self.time_of_first_write = Some(now);
         }
         self.time_of_last_write = Some(now);
-        self.update_memory_metrics();
+        self.update_metrics();
     }
 
     /// Returns the storage and the number of rows
@@ -622,7 +638,7 @@ impl CatalogChunk {
                     representation: ChunkStageFrozenRepr::MutableBufferSnapshot(Arc::clone(&s)),
                     meta: Arc::new(metadata),
                 };
-                self.update_memory_metrics();
+                self.update_metrics();
 
                 Ok(())
             }
@@ -717,7 +733,7 @@ impl CatalogChunk {
                             &[KeyValue::new("state", "moved")],
                         );
                         *representation = ChunkStageFrozenRepr::ReadBuffer(chunk);
-                        self.update_memory_metrics();
+                        self.update_metrics();
                         self.finish_lifecycle_action(ChunkLifecycleAction::Moving)?;
                         Ok(())
                     }
@@ -796,7 +812,7 @@ impl CatalogChunk {
                             parquet: chunk,
                             read_buffer: Some(db),
                         };
-                        self.update_memory_metrics();
+                        self.update_metrics();
                         Ok(())
                     }
                 }
@@ -829,7 +845,7 @@ impl CatalogChunk {
                         &[KeyValue::new("state", "os")],
                     );
 
-                    self.update_memory_metrics();
+                    self.update_metrics();
 
                     Ok(rub_chunk)
                 } else {
@@ -857,7 +873,7 @@ impl CatalogChunk {
         // set memory metrics to 0 to stop accounting for this chunk within the catalog
         self.metrics.memory_metrics.mutable_buffer.set(0);
         self.metrics.memory_metrics.read_buffer.set(0);
-        self.metrics.memory_metrics.parquet.set(0);
+        self.metrics.memory_metrics.object_store.set(0);
 
         Ok(())
     }
@@ -915,7 +931,7 @@ impl CatalogChunk {
             // actions correctly. When clearing out that action, we need to restore the pre-action state. The easiest
             // (and stateless) way to to do that is just to call the update method. Since clearing lifecycle actions
             // should be a rather rare event, the cost of this is negligible.
-            self.update_memory_metrics();
+            self.update_metrics();
         }
         Ok(())
     }
