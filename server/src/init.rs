@@ -80,6 +80,9 @@ pub enum Error {
         db_name
     ))]
     DbPartiallyInitialized { db_name: String },
+
+    #[snafu(display("Cannot replay: {}", source))]
+    ReplayError { source: Box<crate::db::Error> },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -319,7 +322,13 @@ async fn try_advance_database_init_process(
             let db = handle
                 .db_any_state()
                 .expect("DB should be available in this state");
-            db.perform_replay().await;
+            let replay_plan = handle
+                .replay_plan()
+                .expect("replay plan should exist in this state");
+            db.perform_replay(&replay_plan)
+                .await
+                .map_err(Box::new)
+                .context(ReplayError)?;
 
             handle
                 .advance_init()
