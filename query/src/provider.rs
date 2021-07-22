@@ -348,6 +348,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         let mut plans = vec![];
         if self.no_duplicates() {
             // Neither overlaps nor duplicates, no deduplicating needed
+            trace!("All chunks in the scan neither overlap nor duplicates. The scan is simply an IOxReaderFilterNode");
             let plan = Self::build_plans_for_non_duplicates_chunk(
                 Arc::clone(&table_name),
                 Arc::clone(&output_schema),
@@ -356,6 +357,11 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             );
             plans.push(plan);
         } else {
+            trace!(overlapped_chunks=?self.overlapped_chunks_set.len(),
+                in_chunk_duplicates=?self.in_chunk_duplicates_chunks.len(),
+                no_duplicates_chunks=?self.no_duplicates_chunks.len(),
+                "Chunks after classifying: ");
+
             // Go over overlapped set, build deduplicate plan for each vector of overlapped chunks
             for overlapped_chunks in self.overlapped_chunks_set.to_vec() {
                 plans.push(Self::build_deduplicate_plan_for_overlapped_chunks(

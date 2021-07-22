@@ -297,6 +297,7 @@ mod test {
                 .with_tag_column_with_stats("tag1", Some("UT"), Some("WA"))
                 .with_i64_field_column("field_int")
                 .with_i64_field_column("field_int2")
+                .with_may_contain_pk_duplicates(true)
                 .with_four_rows_of_data(),
         );
 
@@ -337,6 +338,8 @@ mod test {
 
     #[tokio::test]
     async fn test_compact_plan() {
+        test_helpers::maybe_start_logging();
+
         let (schema, chunks) = get_test_chunks().await;
 
         let mut sort_key = SortKey::with_capacity(2);
@@ -380,7 +383,6 @@ mod test {
             "| field_int | field_int2 | tag1 | time                          |",
             "+-----------+------------+------+-------------------------------+",
             "| 1000      | 1000       | WA   | 1970-01-01 00:00:00.000028    |",
-            "| 10        | 10         | VT   | 1970-01-01 00:00:00.000210    |",   // BUG:  This row should be deduplicated
             "| 50        | 50         | VT   | 1970-01-01 00:00:00.000210    |",
             "| 70        | 70         | UT   | 1970-01-01 00:00:00.000220    |",
             "| 1000      |            | MT   | 1970-01-01 00:00:00.000001    |",
@@ -458,7 +460,6 @@ mod test {
             "| 5         |            | MT   | 1970-01-01 00:00:00.000005 |",
             "| 10        |            | MT   | 1970-01-01 00:00:00.000007 |",
             "| 1000      | 1000       | WA   | 1970-01-01 00:00:00.000028 |",
-            "| 10        | 10         | VT   | 1970-01-01 00:00:00.000210 |",  // BUG: this row should be dedupplicated
             "| 50        | 50         | VT   | 1970-01-01 00:00:00.000210 |",
             "| 70        | 70         | UT   | 1970-01-01 00:00:00.000220 |",
             "+-----------+------------+------+----------------------------+",
