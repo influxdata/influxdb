@@ -10,9 +10,11 @@ User=influxdb
 Group=influxdb
 LimitNOFILE=65536
 EnvironmentFile=-/etc/default/influxdb
-ExecStart=/usr/bin/influxd -config /etc/influxdb/influxdb.conf $INFLUXD_OPTS
+ExecStart=/usr/lib/influxdb/scripts/influxd-systemd-start.sh
 KillMode=control-group
 Restart=on-failure
+Type=forking
+PIDFile=/var/lib/influxdb/influxd.pid
 
 [Install]
 WantedBy=multi-user.target

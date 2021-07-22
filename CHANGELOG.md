@@ -19,6 +19,7 @@ v1.9.3 [unreleased]
 -	[#21776](https://github.com/influxdata/influxdb/pull/21776): fix: convert arm arch names for rpms during builds via docker
 -	[#21809](https://github.com/influxdata/influxdb/pull/21809): fix: error instead of panic for statement rewrite failure
 -	[#21807](https://github.com/influxdata/influxdb/pull/21807): fix: show shards gives empty expiry time for inf duration shards
+-	[#21897](https://github.com/influxdata/influxdb/pull/21897): fix: systemd unit should block on startup until http endpoint is ready
 
 v1.9.2 [unreleased]
 
