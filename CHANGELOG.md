@@ -9,6 +9,10 @@ This release upgrades the project to `go` version 1.16.
 
 Because of the version bump to `go`, the macOS build for this release requires at least version 10.12 Sierra to run.
 
+### Features
+
+1. [21922](https://github.com/influxdata/influxdb/pull/21922): Add `--ui-disabled` option to `influxd` to allow for running with the UI disabled.
+
 ### Bug Fixes
 
 1. [21748](https://github.com/influxdata/influxdb/pull/21748): Rename arm rpms with yum-compatible names.
@@ -22,7 +26,6 @@ Because of the version bump to `go`, the macOS build for this release requires a
 1. [21864](https://github.com/influxdata/influxdb/pull/21864): Systemd unit should block on startup until http endpoint is ready
 1. [21839](https://github.com/influxdata/influxdb/pull/21839): Fix display and parsing of `influxd upgrade` CLI prompts in PowerShell.
 1. [21898](https://github.com/influxdata/influxdb/pull/21898): Removed unused `chronograf-migator` package & chronograf API service, and updated various "chronograf" references.
-1. [XXXXX](https://github.com/influxdata/influxdb/pull/XXXXX): Added `--ui-disabled` option to `influxd` to allow for running with the UI disabled.
 
 ## v2.0.7 [2021-06-04]
 ----------------------
