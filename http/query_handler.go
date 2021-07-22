@@ -517,12 +517,14 @@ func (s FluxQueryService) Check(ctx context.Context) check.Response {
 }
 
 // GetQueryResponse runs a flux query with common parameters and returns the response from the query service.
-func GetQueryResponse(qr *QueryRequest, addr *url.URL, org, token string, headers ...string) (*http.Response, error) {
+func GetQueryResponse(qr *QueryRequest, addr, org, token string, headers ...string) (*http.Response, error) {
 	if len(headers)%2 != 0 {
 		return nil, fmt.Errorf("headers must be key value pairs")
 	}
-	u := *addr
-	u.Path = prefixQuery
+	u, err := NewURL(addr, prefixQuery)
+	if err != nil {
+		return nil, err
+	}
 	params := url.Values{}
 	params.Set(Org, org)
 	u.RawQuery = params.Encode()
@@ -563,7 +565,7 @@ func GetQueryResponseBody(res *http.Response) ([]byte, error) {
 }
 
 // SimpleQuery runs a flux query with common parameters and returns CSV results.
-func SimpleQuery(addr *url.URL, flux, org, token string, headers ...string) ([]byte, error) {
+func SimpleQuery(addr, flux, org, token string, headers ...string) ([]byte, error) {
 	header := true
 	qr := &QueryRequest{
 		Type:  "flux",

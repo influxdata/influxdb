@@ -20,6 +20,8 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/editorconfig-checker/editorconfig-checker v0.0.0-20190819115812-1474bdeaf2a2
 	github.com/elazarl/go-bindata-assetfs v1.0.0
+	github.com/fatih/color v1.9.0
+	github.com/fujiwara/shapeio v1.0.0
 	github.com/getkin/kin-openapi v0.53.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
@@ -33,7 +35,6 @@ require (
 	github.com/golang/snappy v0.0.1
 	github.com/google/btree v1.0.0
 	github.com/google/go-cmp v0.5.5
-	github.com/google/go-jsonnet v0.17.0
 	github.com/google/martian v2.1.1-0.20190517191504-25dcb96d9e51+incompatible // indirect
 	github.com/hashicorp/go-msgpack v0.0.0-20150518234257-fa3f63826f7c // indirect
 	github.com/hashicorp/go-retryablehttp v0.6.4 // indirect
@@ -43,12 +44,13 @@ require (
 	github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe
 	github.com/influxdata/flux v0.117.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
-	github.com/influxdata/influx-cli/v2 v2.0.0-20210716211743-ef4bdcb9b1e4
+	github.com/influxdata/influx-cli/v2 v2.1.0-rc1.0.20210721210341-bfd929f4449e
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/pkg-config v0.2.7
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
 	github.com/kevinburke/go-bindata v3.11.0+incompatible
+	github.com/lib/pq v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.13
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
 	github.com/mileusna/useragent v0.0.0-20190129205925-3e331f0949a5
@@ -60,6 +62,7 @@ require (
 	github.com/nats-io/nats-streaming-server v0.11.2
 	github.com/nats-io/nkeys v0.0.2 // indirect
 	github.com/nats-io/nuid v1.0.0 // indirect
+	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo v1.11.0 // indirect
 	github.com/onsi/gomega v1.8.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0

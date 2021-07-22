@@ -42,6 +42,7 @@ type Service struct {
 	Token              string
 	InsecureSkipVerify bool
 
+	*BackupService
 	*TaskService
 	*NotificationRuleService
 	*VariableService
@@ -67,8 +68,12 @@ type Service struct {
 // in the behavior of the returned service.
 func NewService(httpClient *httpc.Client, addr, token string) (*Service, error) {
 	return &Service{
-		Addr:                    addr,
-		Token:                   token,
+		Addr:  addr,
+		Token: token,
+		BackupService: &BackupService{
+			Addr:  addr,
+			Token: token,
+		},
 		TaskService:             &TaskService{Client: httpClient},
 		NotificationRuleService: &NotificationRuleService{Client: httpClient},
 		VariableService:         &VariableService{Client: httpClient},

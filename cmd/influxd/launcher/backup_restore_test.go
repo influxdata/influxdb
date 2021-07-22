@@ -6,10 +6,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/influxdata/influx-cli/v2/clients/backup"
-	"github.com/influxdata/influx-cli/v2/clients/restore"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/backup"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
+	"github.com/influxdata/influxdb/v2/restore"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -29,7 +29,7 @@ func TestBackupRestore_Full(t *testing.T) {
 		o.LogLevel = zap.InfoLevel
 	})
 	l1.WritePointsOrFail(t, "m,k=v1 f=100i 946684800000000000\nm,k=v2 f=200i 946684800000000001")
-	l1.BackupOrFail(t, ctx, backup.Params{Path: backupDir})
+	l1.BackupOrFail(t, ctx, backup.Request{Path: backupDir})
 
 	// Create a new bucket, write data into it (+ the old bucket), and take another backup.
 	b1 := influxdb.Bucket{OrgID: l1.Org.ID, Name: "bucket2"}
@@ -40,7 +40,7 @@ func TestBackupRestore_Full(t *testing.T) {
 		Auth:   l1.Auth,
 	}, "m,k=v1 f=100i 946684800000000005\nm,k=v2 f=200i 946684800000000006")
 	l1.WritePointsOrFail(t, "m,k=v1 f=100i 946684800000000002\nm,k=v2 f=200i 946684800000000003")
-	l1.BackupOrFail(t, ctx, backup.Params{Path: backupDir})
+	l1.BackupOrFail(t, ctx, backup.Request{Path: backupDir})
 
 	// Shut down the server.
 	l1.ShutdownOrFail(t, ctx)
@@ -76,7 +76,7 @@ func TestBackupRestore_Full(t *testing.T) {
 	}, "m,k=v5 f=100i 946684800000000005\nm,k=v7 f=200i 946684800000000006")
 
 	// Perform a full restore from the previous backups.
-	l2.RestoreOrFail(t, ctx, restore.Params{Path: backupDir, Full: true})
+	l2.RestoreOrFail(t, ctx, restore.Request{Path: backupDir, Full: true})
 
 	// Check that orgs and buckets were reset to match the original server's metadata.
 	_, err = l2.OrgService(t).FindOrganizationByID(ctx, l2.Org.ID)
@@ -123,7 +123,7 @@ func TestBackupRestore_Partial(t *testing.T) {
 		o.LogLevel = zap.InfoLevel
 	})
 	l1.WritePointsOrFail(t, "m,k=v1 f=100i 946684800000000000\nm,k=v2 f=200i 946684800000000001")
-	l1.BackupOrFail(t, ctx, backup.Params{Path: backupDir})
+	l1.BackupOrFail(t, ctx, backup.Request{Path: backupDir})
 
 	// Create a new bucket, write data into it (+ the old bucket), and take another backup.
 	b1 := influxdb.Bucket{OrgID: l1.Org.ID, Name: "bucket2"}
@@ -134,7 +134,7 @@ func TestBackupRestore_Partial(t *testing.T) {
 		Auth:   l1.Auth,
 	}, "m,k=v1 f=100i 946684800000000005\nm,k=v2 f=200i 946684800000000006")
 	l1.WritePointsOrFail(t, "m,k=v1 f=100i 946684800000000002\nm,k=v2 f=200i 946684800000000003")
-	l1.BackupOrFail(t, ctx, backup.Params{Path: backupDir})
+	l1.BackupOrFail(t, ctx, backup.Request{Path: backupDir})
 
 	// Shut down the server.
 	l1.ShutdownOrFail(t, ctx)
@@ -169,7 +169,7 @@ func TestBackupRestore_Partial(t *testing.T) {
 	}, "m,k=v5 f=100i 946684800000000005\nm,k=v7 f=200i 946684800000000006")
 
 	// Perform a partial restore from the previous backups.
-	l2.RestoreOrFail(t, ctx, restore.Params{Path: backupDir})
+	l2.RestoreOrFail(t, ctx, restore.Request{Path: backupDir})
 
 	// Check that buckets from the 1st launcher were restored to the new server.
 	rbkt1, err := l2.BucketService(t).FindBucket(ctx, influxdb.BucketFilter{Org: &l1.Org.Name, Name: &l1.Bucket.Name})
