@@ -266,7 +266,8 @@ func (e *Engine) WritePoints(ctx context.Context, orgID platform.ID, bucketID pl
 	}
 
 	// TODO: write in parallel
-	// TODO: clarify desired error handling if subscriber fails - does it depend if disk queue is enabled?
+	// TODO: clarify desired error handling if subscriber fails. Do we want an in-mem async option?
+	// TODO: rename from subscriber to mirroring (or another name if that is better)
 	if e.subscriber != nil {
 		if err := e.subscriber.WritePoints(bucketID, points); err != nil {
 			return err

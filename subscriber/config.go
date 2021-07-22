@@ -20,7 +20,12 @@ const (
 
 	// DefaultWriteBufferSize is the default write buffer size for a Config.
 	DefaultWriteBufferSize = 1000
+
+	// DefaultMaxQueueSize is default max queue size (in bytes)
+	DefaultMaxQueueSize = 1e9
 )
+
+// TODO: other config for disk queue?
 
 // Config represents a configuration of the subscriber service.
 type Config struct {
@@ -43,12 +48,16 @@ type Config struct {
 	// The number of in-flight writes buffered in the write channel.
 	WriteBufferSize int `toml:"write-buffer-size"`
 
+	MaxQueueSize int `toml:"queue-max-size"`
+
 	// TotalBufferBytes is the total size in bytes allocated to buffering across all subscriptions.
 	// Each named subscription will receive an even division of the total.
 	TotalBufferBytes int `toml:"total-buffer-bytes"`
 
 	// TLS is a base tls config to use for https clients.
 	TLS *tls.Config `toml:"-"`
+
+	Dir string `toml:"dir"`
 }
 
 // NewConfig returns a new instance of a subscriber config.
@@ -60,6 +69,7 @@ func NewConfig() Config {
 		CaCerts:            "",
 		WriteConcurrency:   DefaultWriteConcurrency,
 		WriteBufferSize:    DefaultWriteBufferSize,
+		MaxQueueSize: DefaultMaxQueueSize,
 	}
 }
 
@@ -83,6 +93,10 @@ func (c Config) Validate() error {
 
 	if c.WriteConcurrency <= 0 {
 		return errors.New("write-concurrency must be greater than 0")
+	}
+
+	if c.MaxQueueSize <= 0 {
+		return errors.New("queue-max-size must be greater than 0")
 	}
 
 	return nil

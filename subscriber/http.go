@@ -3,10 +3,9 @@ package subscriber
 import (
 	"context"
 	"github.com/influxdata/influxdb-client-go/v2/api"
+	apihttp "github.com/influxdata/influxdb-client-go/v2/api/http"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	"net/http"
-
-	apihttp "github.com/influxdata/influxdb-client-go/v2/api/http"
 )
 
 // HTTP supports writing points over HTTP using the line protocol.
@@ -21,6 +20,7 @@ var _ PointsWriter = &HTTP{}
 func NewHTTP(addr string, token string, org string, bucket string) (*HTTP, error) {
 	// TODO: deal with TLS options / timeouts / other config
 	// TODO: connection pooling?
+	// TODO: balanced writes like 1.x subscriptions?
 	service := apihttp.NewService(addr, "Token " + token, apihttp.DefaultOptions().SetHTTPClient(http.DefaultClient))
 	writer := api.NewWriteAPIBlocking(org, bucket, service, write.DefaultOptions())
 	return &HTTP{

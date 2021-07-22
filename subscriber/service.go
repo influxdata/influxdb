@@ -7,10 +7,16 @@ import (
 	"fmt"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/subscriber/durablequeue"
 	"go.uber.org/zap"
+	"io"
+	"math"
 	"net/url"
+	"os"
+	"path"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // WriteRequest is a parsed write request.
@@ -18,13 +24,25 @@ type WriteRequest struct {
 	// lineProtocol must be valid newline-separated line protocol.
 	lineProtocol []byte
 	numPoints int
+
+	errchan chan error
 }
 
-func NewWriteRequest(points []models.Point)  WriteRequest {
+// Finished signals that a write request is done for a single subscription.
+func (w *WriteRequest) Finished(err error) {
+	select {
+		case w.errchan <- err:
+	default:
+		panic("Assertion failure - more subscriptions finished than started")
+	}
+}
+
+func NewWriteRequest(points []models.Point, numSubs int)  WriteRequest {
 	// Pre-allocate at least smallPointSize bytes per point.
 	const smallPointSize = 10
 	writeReq := WriteRequest{
 		lineProtocol:    make([]byte, 0, len(points)*smallPointSize),
+		errchan: make(chan error, numSubs),
 	}
 	for _, p := range points {
 		// TODO: validate points (at least 1.x does that here)
@@ -69,10 +87,10 @@ type Service struct {
 }
 
 // NewService returns a subscriber service with given settings
-func NewService(c Config) *Service {
+func NewService(c Config, logger *zap.Logger) *Service {
 	stats := &Statistics{}
 	s := &Service{
-		Logger: zap.NewNop(),
+		Logger: logger,
 		stats:  stats,
 		conf:   c,
 		router: newSubscriptionRouter(stats),
@@ -200,14 +218,13 @@ func (s *Service) waitForMetaUpdates() {
 func (s *Service) createSubscription(dest Destination) (PointsWriter, error) {
 	w, err := s.NewPointsWriter(dest)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create writer for destination: %s", dest.String())
+		return nil, fmt.Errorf("failed to create writer for destination: %s, err: %w", dest.String(), err)
 	}
 	return w, nil
 }
 
 func (s *Service) WritePoints(bucketID platform.ID, points []models.Point) error {
-	s.router.Send(bucketID, points)
-	return nil
+	return s.router.Send(bucketID, points)
 }
 
 type Destination struct {
@@ -277,7 +294,26 @@ func (s *Service) updateSubs() {
 			s.Logger.Info("Subscription creation failed", zap.String("name", se.Name), zap.Error(err))
 			continue
 		}
-		s.subs[se] = newChanWriter(s, sub)
+		// TODO: extract queue creation to function
+		queueDir := path.Join(s.conf.Dir, se.ID.String())
+		if err := os.MkdirAll(queueDir, 0777); err != nil {
+			atomic.AddInt64(&s.stats.CreateFailures, 1)
+			s.Logger.Error("Subscription queue dir open failed", zap.String("dir", queueDir), zap.String("name", se.Name),zap.String("id", se.ID.String()), zap.Error(err))
+			continue
+		}
+		queue, err := durablequeue.NewQueue(queueDir, int64(s.conf.MaxQueueSize), &durablequeue.SharedCount{}, math.MaxInt64, func(b []byte) error { _, err := unmarshalWrite(b); return err })
+		if err != nil {
+			atomic.AddInt64(&s.stats.CreateFailures, 1)
+			s.Logger.Error("Subscription queue creation failed", zap.String("name", se.Name), zap.String("id", se.ID.String()), zap.Error(err))
+			continue
+		}
+		err = queue.Open()
+		if err != nil {
+			atomic.AddInt64(&s.stats.CreateFailures, 1)
+			s.Logger.Error("Subscription queue creation failed", zap.String("name", se.Name), zap.String("id", se.ID.String()), zap.Error(err))
+			continue
+		}
+		s.subs[se] = newChanWriter(s, sub, queue)
 		s.Logger.Info("Added new subscription",zap.String("bucket", se.SourceBucket.String()))
 
 	}
@@ -329,6 +365,12 @@ func (s *Service) newPointsWriter(dest Destination) (PointsWriter, error) {
 	}
 }
 
+type RetryConfig struct {
+	RetryInterval time.Duration
+	PurgeInterval time.Duration
+	MaxAge time.Duration
+}
+
 // chanWriter sends WritePointsRequest to a PointsWriter received over a channel.
 type chanWriter struct {
 	writeRequests chan WriteRequest
@@ -341,9 +383,12 @@ type chanWriter struct {
 	queueSize     int64
 	queueLimit    int64
 	wg            sync.WaitGroup
+	queue *durablequeue.Queue
+	durableQueueDone chan struct{}
+	retry RetryConfig
 }
 
-func newChanWriter(s *Service, sub PointsWriter) *chanWriter {
+func newChanWriter(s *Service, sub PointsWriter, queue *durablequeue.Queue) *chanWriter {
 	ctx, cancel := context.WithCancel(context.Background())
 	cw := &chanWriter{
 		writeRequests: make(chan WriteRequest, s.conf.WriteBufferSize),
@@ -353,6 +398,14 @@ func newChanWriter(s *Service, sub PointsWriter) *chanWriter {
 		pointsWritten: &s.stats.PointsWritten,
 		failures:      &s.stats.WriteFailures,
 		logger:        s.Logger,
+		// TODO: config?
+		retry : RetryConfig{
+			RetryInterval: 1*time.Minute,
+			PurgeInterval: 30*time.Minute,
+			MaxAge:        math.MaxInt64,
+		},
+		durableQueueDone: make(chan struct{}),
+		queue: queue,
 	}
 	for i := 0; i < s.conf.WriteConcurrency; i++ {
 		cw.wg.Add(1)
@@ -361,6 +414,8 @@ func newChanWriter(s *Service, sub PointsWriter) *chanWriter {
 			cw.Run()
 		}()
 	}
+	cw.wg.Add(1)
+	go cw.ProcessQueue()
 	return cw
 }
 
@@ -402,21 +457,89 @@ func (c *chanWriter) CancelAndClose() {
 // Close closes the chanWriter. It blocks until all the in-flight write requests are finished.
 func (c *chanWriter) Close() {
 	close(c.writeRequests)
+	close(c.durableQueueDone)
 	c.wg.Wait()
+	c.queue.Close()
 }
 
 func (c *chanWriter) Run() {
 	for wr := range c.writeRequests {
-		err := c.pw.WritePointsContext(c.ctx, wr.lineProtocol)
-		if err != nil {
-			c.logger.Info(err.Error())
-			atomic.AddInt64(c.failures, 1)
-		} else {
-			atomic.AddInt64(c.pointsWritten, int64(wr.Length()))
-		}
-		atomic.AddInt64(&c.queueSize, -int64(wr.SizeOf()))
+		var err error
+		func () {
+			defer atomic.AddInt64(&c.queueSize, -int64(wr.SizeOf()))
+			ctx, cancel := context.WithTimeout(c.ctx, 1*time.Second) // TODO: configuration parameter
+			defer cancel()
+			err = c.pw.WritePointsContext(ctx, wr.lineProtocol)
+			// TODO: check for droppable error (e.g. field conflict)
+			if err != nil {
+				c.logger.Info(err.Error())
+				atomic.AddInt64(c.failures, 1)
+				err = c.queue.Append(wr.lineProtocol)
+			} else {
+				atomic.AddInt64(c.pointsWritten, int64(wr.Length()))
+			}
+			wr.Finished(err)
+		}()
 	}
 }
+
+func (c chanWriter) ProcessQueue() {
+	defer c.wg.Done()
+	purgeTimer := time.NewTicker(c.retry.PurgeInterval)
+	defer purgeTimer.Stop()
+	retryTimer := time.NewTicker(c.retry.RetryInterval)
+	defer retryTimer.Stop()
+
+	for {
+		select {
+		case <-c.durableQueueDone:
+			return
+		case <-purgeTimer.C:
+			if err := c.queue.PurgeOlderThan(time.Now().Add(-c.retry.MaxAge)); err != nil {
+				//TODO: add logging: c.Logger.Info("Failed to purge", zap.Uint64("node_id", n.nodeID), zap.Error(err))
+			}
+		case <-retryTimer.C:
+			for {
+				err := c.SendWrite()
+				if err != nil {
+					if err == io.EOF {
+						// No more data.
+					}
+					break
+				}
+				//TODO: add rate limits
+			}
+		}
+	}
+}
+
+func (c chanWriter) SendWrite() error {
+	scan, err := c.queue.NewScanner()
+	if err != nil {
+		return err
+	}
+	for scan.Next() {
+		nextWrite := scan.Bytes()
+		if err != nil {
+			// TODO: log skipped write
+			continue
+		}
+		// TODO: timeouts
+		err = c.pw.WritePointsContext(context.Background(), nextWrite)
+		// TODO: skip droppable errors (e.g. field write conflicts)
+		if err != nil {
+			return fmt.Errorf("error writing from disk queue: %w", err)
+		}
+	}
+	if scan.Err() != nil {
+		// TODO: log segment read error
+	}
+	if _, err := scan.Advance(); err != nil {
+		return err
+	}
+	return nil
+}
+
 
 // TODO: statistics reporting?
 /*
@@ -454,21 +577,30 @@ func (s *subscriptionRouter) Close() {
 	s.ready = false
 }
 
-func (s *subscriptionRouter) Send(bucketID platform.ID, points []models.Point) {
+func (s *subscriptionRouter) Send(bucketID platform.ID, points []models.Point) error {
 	// serialize points and put on writer
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if !s.ready {
-		return
+		return fmt.Errorf("subscriptions not opened")
 	}
 	writers := s.m[bucketID]
 	if len(writers) == 0 {
-		return
+		return nil
 	}
-	writeReq := NewWriteRequest(points)
+	writeReq := NewWriteRequest(points, len(writers))
 	for _, w := range writers {
 		w.Write(writeReq)
 	}
+	// TODO: should we block here or elsewhere to inform the write request of failure?
+	for range writers {
+		// TODO: timeouts
+		singleErr := <-writeReq.errchan
+		if singleErr != nil {
+			return singleErr
+		}
+	}
+	return nil
 }
 
 func (s *subscriptionRouter) Update(cws map[SubEntry]*chanWriter, memoryLimit int64) {
@@ -482,4 +614,8 @@ func (s *subscriptionRouter) Update(cws map[SubEntry]*chanWriter, memoryLimit in
 		cw.limitTo(memoryLimit)
 		s.m[se.SourceBucket] = append(s.m[se.SourceBucket], cw)
 	}
+}
+
+func unmarshalWrite(b []byte) ([]models.Point, error) {
+	return models.ParsePointsWithPrecision(b, time.Time{}, "n")
 }

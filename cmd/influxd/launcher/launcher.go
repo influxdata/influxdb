@@ -448,7 +448,9 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			storage.WithMetaClient(metaClient),
 		)
 		//TODO: configure properly
-		m.subscriber = subscriber.NewService(subscriber.NewConfig())
+		subConf := subscriber.NewConfig()
+		subConf.Dir = "/Users/sarnold/.influxdbv2/engine/pushqueue"
+		m.subscriber = subscriber.NewService(subConf, m.log)
 		m.subscriber.Open()
 		m.engine.WithSubscriber(m.subscriber)
 	}
