@@ -1,4 +1,4 @@
-use crate::google::{FieldViolation, FromField};
+use crate::google::{FieldViolation, FromFieldOpt};
 use crate::influxdata::iox::management::v1 as management;
 use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage, ChunkSummary};
 use std::convert::{TryFrom, TryInto};
@@ -16,39 +16,25 @@ impl From<ChunkSummary> for management::Chunk {
             memory_bytes,
             object_store_bytes,
             row_count,
+            time_of_last_access,
             time_of_first_write,
             time_of_last_write,
             time_closed,
         } = summary;
 
-        let storage: management::ChunkStorage = storage.into();
-        let storage = storage.into(); // convert to i32
-        let lifecycle_action: management::ChunkLifecycleAction = lifecycle_action.into();
-        let lifecycle_action = lifecycle_action.into(); // convert to i32
-
-        let memory_bytes = memory_bytes as u64;
-        let object_store_bytes = object_store_bytes as u64;
-        let row_count = row_count as u64;
-
-        let partition_key = partition_key.to_string();
-        let table_name = table_name.to_string();
-
-        let time_of_first_write = time_of_first_write.map(|t| t.into());
-        let time_of_last_write = time_of_last_write.map(|t| t.into());
-        let time_closed = time_closed.map(|t| t.into());
-
         Self {
-            partition_key,
-            table_name,
+            partition_key: partition_key.to_string(),
+            table_name: table_name.to_string(),
             id,
-            storage,
-            lifecycle_action,
-            memory_bytes,
-            object_store_bytes,
-            row_count,
-            time_of_first_write,
-            time_of_last_write,
-            time_closed,
+            storage: management::ChunkStorage::from(storage).into(),
+            lifecycle_action: management::ChunkLifecycleAction::from(lifecycle_action).into(),
+            memory_bytes: memory_bytes as u64,
+            object_store_bytes: object_store_bytes as u64,
+            row_count: row_count as u64,
+            time_of_last_access: time_of_last_access.map(Into::into),
+            time_of_first_write: time_of_first_write.map(Into::into),
+            time_of_last_write: time_of_last_write.map(Into::into),
+            time_closed: time_closed.map(Into::into),
         }
     }
 }
@@ -82,54 +68,18 @@ impl TryFrom<management::Chunk> for ChunkSummary {
     type Error = FieldViolation;
 
     fn try_from(proto: management::Chunk) -> Result<Self, Self::Error> {
-        // Use prost enum conversion
-        let storage = proto.storage().scope("storage")?;
-        let lifecycle_action = proto.lifecycle_action().scope("lifecycle_action")?;
-
-        let time_of_first_write = proto
-            .time_of_first_write
-            .map(TryInto::try_into)
-            .transpose()
-            .map_err(|_| FieldViolation {
-                field: "time_of_first_write".to_string(),
+        let convert_timestamp = |t: google_types::protobuf::Timestamp, field: &'static str| {
+            t.try_into().map_err(|_| FieldViolation {
+                field: field.to_string(),
                 description: "Timestamp must be positive".to_string(),
-            })?;
+            })
+        };
 
-        let time_of_last_write = proto
-            .time_of_last_write
-            .map(TryInto::try_into)
-            .transpose()
-            .map_err(|_| FieldViolation {
-                field: "time_of_last_write".to_string(),
-                description: "Timestamp must be positive".to_string(),
-            })?;
-
-        let time_closed = proto
-            .time_closed
-            .map(TryInto::try_into)
-            .transpose()
-            .map_err(|_| FieldViolation {
-                field: "time_closed".to_string(),
-                description: "Timestamp must be positive".to_string(),
-            })?;
+        let timestamp = |t: Option<google_types::protobuf::Timestamp>, field: &'static str| {
+            t.map(|t| convert_timestamp(t, field)).transpose()
+        };
 
         let management::Chunk {
-            partition_key,
-            table_name,
-            id,
-            memory_bytes,
-            object_store_bytes,
-            row_count,
-            ..
-        } = proto;
-
-        let memory_bytes = memory_bytes as usize;
-        let object_store_bytes = object_store_bytes as usize;
-        let row_count = row_count as usize;
-        let partition_key = Arc::from(partition_key.as_str());
-        let table_name = Arc::from(table_name.as_str());
-
-        Ok(Self {
             partition_key,
             table_name,
             id,
@@ -138,9 +88,26 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             memory_bytes,
             object_store_bytes,
             row_count,
+            time_of_last_access,
             time_of_first_write,
             time_of_last_write,
             time_closed,
+        } = proto;
+
+        Ok(Self {
+            partition_key: Arc::from(partition_key.as_str()),
+            table_name: Arc::from(table_name.as_str()),
+            id,
+            storage: management::ChunkStorage::from_i32(storage).required("storage")?,
+            lifecycle_action: management::ChunkLifecycleAction::from_i32(lifecycle_action)
+                .required("lifecycle_action")?,
+            memory_bytes: memory_bytes as usize,
+            object_store_bytes: object_store_bytes as usize,
+            row_count: row_count as usize,
+            time_of_last_access: timestamp(time_of_last_access, "time_of_last_access")?,
+            time_of_first_write: timestamp(time_of_first_write, "time_of_first_write")?,
+            time_of_last_write: timestamp(time_of_last_write, "time_of_last_write")?,
+            time_closed: timestamp(time_closed, "time_closed")?,
         })
     }
 }
@@ -183,6 +150,7 @@ impl TryFrom<management::ChunkLifecycleAction> for Option<ChunkLifecycleAction> 
 #[cfg(test)]
 mod test {
     use super::*;
+    use chrono::{TimeZone, Utc};
 
     #[test]
     fn valid_proto_to_summary() {
@@ -193,11 +161,16 @@ mod test {
             memory_bytes: 1234,
             object_store_bytes: 567,
             row_count: 321,
+
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
             lifecycle_action: management::ChunkLifecycleAction::Moving.into(),
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
+            time_of_last_access: Some(google_types::protobuf::Timestamp {
+                seconds: 50,
+                nanos: 7,
+            }),
         };
 
         let summary = ChunkSummary::try_from(proto).expect("conversion successful");
@@ -213,6 +186,7 @@ mod test {
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
+            time_of_last_access: Some(Utc.timestamp_nanos(50_000_000_007)),
         };
 
         assert_eq!(
@@ -236,6 +210,7 @@ mod test {
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
+            time_of_last_access: Some(Utc.timestamp_nanos(12_000_100_007)),
         };
 
         let proto = management::Chunk::try_from(summary).expect("conversion successful");
@@ -252,6 +227,10 @@ mod test {
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
+            time_of_last_access: Some(google_types::protobuf::Timestamp {
+                seconds: 12,
+                nanos: 100_007,
+            }),
         };
 
         assert_eq!(

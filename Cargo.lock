@@ -1277,6 +1277,7 @@ name = "generated_types"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "chrono",
  "data_types",
  "futures",
  "google_types",

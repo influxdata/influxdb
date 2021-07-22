@@ -47,7 +47,7 @@ enum ChunkLifecycleAction {
 // `Chunk` represents part of a partition of data in a database.
 // A chunk can contain one or more tables.
 message Chunk {
-  // The partitition key of this chunk
+  // The partition key of this chunk
   string partition_key = 1;
 
   // The table of this chunk
@@ -71,17 +71,21 @@ message Chunk {
   // The number of rows in this chunk
   uint64 row_count = 9;
 
-  // Time at which the first data was written into this chunk. Note
-  // this is not the same as the timestamps on the data itself
+  // The time at which the chunk data was accessed, by a query or a write
+  google.protobuf.Timestamp time_of_last_access = 12;
+
+  // The earliest time at which data contained within this chunk was written
+  // into IOx. Note due to the compaction, etc... this may not be the chunk
+  // that data was originally written into
   google.protobuf.Timestamp time_of_first_write = 5;
 
-  // Most recent time at which data write was initiated into this
-  // chunk. Note this is not the same as the timestamps on the data
-  // itself
+  // The latest time at which data contained within this chunk was written
+  // into IOx. Note due to the compaction, etc... this may not be the chunk
+  // that data was originally written into
   google.protobuf.Timestamp time_of_last_write = 6;
 
-  /// Time at which this chunk was marked as closed. Note this is not
-  /// the same as the timestamps on the data itself
+  // Time at which this chunk was marked as closed. Note this is not
+  // the same as the timestamps on the data itself
   google.protobuf.Timestamp time_closed = 7;
 
 }

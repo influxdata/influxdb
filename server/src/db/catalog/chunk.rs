@@ -1,5 +1,6 @@
 use crate::db::catalog::metrics::MemoryMetrics;
 use chrono::{DateTime, Utc};
+use data_types::instant::to_approximate_datetime;
 use data_types::{
     chunk_metadata::{
         ChunkAddr, ChunkColumnSummary, ChunkLifecycleAction, ChunkStorage, ChunkSummary,
@@ -7,6 +8,7 @@ use data_types::{
     },
     partition_metadata::TableSummary,
 };
+use internal_types::access::AccessRecorder;
 use internal_types::schema::Schema;
 use metrics::{Counter, Histogram, KeyValue};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
@@ -192,13 +194,17 @@ pub struct CatalogChunk {
     /// The metrics for this chunk
     metrics: ChunkMetrics,
 
-    /// Time at which the first data was written into this chunk. Note
-    /// this is not the same as the timestamps on the data itself
+    /// Record access to this chunk's data by queries and writes
+    access_recorder: AccessRecorder,
+
+    /// The earliest time at which data contained within this chunk was written
+    /// into IOx. Note due to the compaction, etc... this may not be the chunk
+    /// that data was originally written into
     time_of_first_write: Option<DateTime<Utc>>,
 
-    /// Most recent time at which data write was initiated into this
-    /// chunk. Note this is not the same as the timestamps on the data
-    /// itself
+    /// The latest time at which data contained within this chunk was written
+    /// into IOx. Note due to the compaction, etc... this may not be the chunk
+    /// that data was originally written into
     time_of_last_write: Option<DateTime<Utc>>,
 
     /// Time at which this chunk was marked as closed. Note this is
@@ -264,6 +270,7 @@ impl CatalogChunk {
             stage,
             lifecycle_action: None,
             metrics,
+            access_recorder: Default::default(),
             time_of_first_write: Some(first_write),
             time_of_last_write: Some(last_write),
             time_closed: None,
@@ -300,6 +307,7 @@ impl CatalogChunk {
             stage,
             lifecycle_action: None,
             metrics,
+            access_recorder: Default::default(),
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
@@ -334,6 +342,7 @@ impl CatalogChunk {
             stage,
             lifecycle_action: None,
             metrics,
+            access_recorder: Default::default(),
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
@@ -360,6 +369,11 @@ impl CatalogChunk {
 
     pub fn stage(&self) -> &ChunkStage {
         &self.stage
+    }
+
+    /// Returns the AccessRecorder used to record access to this chunk's data by queries
+    pub fn access_recorder(&self) -> &AccessRecorder {
+        &self.access_recorder
     }
 
     pub fn lifecycle_action(&self) -> Option<&TaskTracker<ChunkLifecycleAction>> {
@@ -424,9 +438,10 @@ impl CatalogChunk {
         }
     }
 
-    /// Update the metrics for this chunk
+    /// Record a write of row data to this chunk
     pub fn record_write(&mut self) {
         let now = Utc::now();
+        self.access_recorder.record_access_now();
         if self.time_of_first_write.is_none() {
             self.time_of_first_write = Some(now);
         }
@@ -471,6 +486,12 @@ impl CatalogChunk {
             .as_ref()
             .map(|tracker| *tracker.metadata());
 
+        let time_of_last_access = self
+            .access_recorder
+            .get_metrics()
+            .last_access()
+            .map(to_approximate_datetime);
+
         ChunkSummary {
             partition_key: Arc::clone(&self.addr.partition_key),
             table_name: Arc::clone(&self.addr.table_name),
@@ -480,6 +501,7 @@ impl CatalogChunk {
             memory_bytes: self.memory_bytes(),
             object_store_bytes: self.object_store_bytes(),
             row_count,
+            time_of_last_access,
             time_of_first_write: self.time_of_first_write,
             time_of_last_write: self.time_of_last_write,
             time_closed: self.time_closed,
