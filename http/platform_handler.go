@@ -35,6 +35,10 @@ func NewPlatformHandler(b *APIBackend, opts ...APIHandlerOptFn) *PlatformHandler
 	h.RegisterNoAuthRoute("GET", "/api/v2/swagger.json")
 
 	assetHandler := static.NewAssetHandler(b.AssetsPath)
+	if b.UIDisabled {
+		b.Logger.Debug("http server running with UI disabled")
+		assetHandler = http.NotFoundHandler()
+	}
 
 	wrappedHandler := kithttp.SetCORS(h)
 	wrappedHandler = kithttp.SkipOptions(wrappedHandler)

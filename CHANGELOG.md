@@ -9,6 +9,10 @@ This release upgrades the project to `go` version 1.16.
 
 Because of the version bump to `go`, the macOS build for this release requires at least version 10.12 Sierra to run.
 
+### Features
+
+1. [21922](https://github.com/influxdata/influxdb/pull/21922): Add `--ui-disabled` option to `influxd` to allow for running with the UI disabled.
+
 ### Bug Fixes
 
 1. [21748](https://github.com/influxdata/influxdb/pull/21748): Rename arm rpms with yum-compatible names.
