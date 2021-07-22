@@ -6,7 +6,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 )
