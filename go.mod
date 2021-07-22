@@ -10,9 +10,9 @@ require (
 	github.com/boltdb/bolt v1.3.1
 	github.com/cespare/xxhash v1.1.0
 	github.com/davecgh/go-spew v1.1.1
-	github.com/dgrijalva/jwt-go/v4 v4.0.0-preview1
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
 	github.com/gogo/protobuf v1.3.1
+	github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/golang/snappy v0.0.1
 	github.com/google/go-cmp v0.5.0
 	github.com/influxdata/flux v0.65.0

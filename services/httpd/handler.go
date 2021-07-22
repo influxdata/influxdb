@@ -23,8 +23,8 @@ import (
 	httppprof "net/http/pprof"
 
 	"github.com/bmizerany/pat"
-	"github.com/dgrijalva/jwt-go/v4"
 	"github.com/gogo/protobuf/proto"
+	"github.com/golang-jwt/jwt"
 	"github.com/golang/snappy"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
