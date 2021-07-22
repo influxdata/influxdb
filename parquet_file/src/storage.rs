@@ -11,7 +11,6 @@ use datafusion::{
 };
 use internal_types::selection::Selection;
 use object_store::{
-    cache::Cache,
     path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
@@ -281,8 +280,6 @@ impl Storage {
 
         // todo(paul): Here is where I'd get the cache from object store. If it has
         //  one, I'd do the `fs_path_or_cache`. Otherwise, do the temp file like below.
-        let c = store.cache();
-        let _ = c.as_ref().map(|c| c.size());
 
         // read parquet file to local file
         let mut temp_file = tempfile::Builder::new()
