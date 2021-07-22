@@ -189,6 +189,23 @@ impl DbSetup for NoData {
     }
 }
 
+/// a measurement with timestamps in 2021
+#[derive(Debug)]
+pub struct OneMeasurementRealisticTimes {}
+#[async_trait]
+impl DbSetup for OneMeasurementRealisticTimes {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2021-07-20T19";
+
+        let lp_lines = vec![
+            "cpu,region=west user=23.2 1626809330000000000",
+            "cpu,region=west user=21.0 1626809430000000000",
+        ];
+
+        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
+    }
+}
+
 /// Two measurements data in a single mutable buffer chunk
 #[derive(Debug)]
 pub struct TwoMeasurementsMubScenario {}

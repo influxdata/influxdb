@@ -52,6 +52,55 @@ async fn sql_select_from_cpu() {
 }
 
 #[tokio::test]
+async fn sql_select_from_cpu_2021() {
+    let expected = vec![
+        "+--------+----------------------+------+",
+        "| region | time                 | user |",
+        "+--------+----------------------+------+",
+        "| west   | 2021-07-20T19:28:50Z | 23.2 |",
+        "| west   | 2021-07-20T19:30:30Z | 21   |",
+        "+--------+----------------------+------+",
+    ];
+    run_sql_test_case!(
+        OneMeasurementRealisticTimes {},
+        "SELECT * from cpu",
+        &expected
+    );
+}
+
+#[tokio::test]
+async fn sql_select_from_cpu_with_timestamp_predicate_explicit_utc() {
+    let expected = vec![
+        "+--------+----------------------+------+",
+        "| region | time                 | user |",
+        "+--------+----------------------+------+",
+        "| west   | 2021-07-20T19:30:30Z | 21   |",
+        "+--------+----------------------+------+",
+    ];
+
+    run_sql_test_case!(
+        OneMeasurementRealisticTimes {},
+        "SELECT * FROM cpu WHERE time  > to_timestamp('2021-07-20 19:28:50+00:00')",
+        &expected
+    );
+
+    // Use RCF3339 format
+    run_sql_test_case!(
+        OneMeasurementRealisticTimes {},
+        "SELECT * FROM cpu WHERE time  > to_timestamp('2021-07-20T19:28:50Z')",
+        &expected
+    );
+
+    // use cast workaround
+    run_sql_test_case!(
+        OneMeasurementRealisticTimes {},
+        "SELECT * FROM cpu WHERE \
+         CAST(time AS BIGINT) > CAST(to_timestamp('2021-07-20T19:28:50Z') AS BIGINT)",
+        &expected
+    );
+}
+
+#[tokio::test]
 async fn sql_select_from_cpu_with_projection() {
     // expect that to get a subset of the columns and in the order specified
     let expected = vec![
