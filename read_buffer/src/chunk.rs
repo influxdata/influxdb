@@ -6,7 +6,10 @@ use crate::{
 };
 use arrow::record_batch::RecordBatch;
 use chrono::{DateTime, Utc};
-use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummaryAndTimes};
+use data_types::{
+    chunk_metadata::ChunkColumnSummary,
+    partition_metadata::{TableSummary, TableSummaryAndTimes},
+};
 use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
 use metrics::{Gauge, KeyValue};
 use observability_deps::tracing::info;
@@ -46,6 +49,15 @@ pub struct Chunk {
 
     // The table associated with the chunk.
     pub(crate) table: Table,
+
+    /// Time at which the first data was written into this table. Note
+    /// this is not the same as the timestamps on the data itself
+    time_of_first_write: DateTime<Utc>,
+
+    /// Most recent time at which data write was initiated into this
+    /// chunk. Note this is not the same as the timestamps on the data
+    /// itself
+    time_of_last_write: DateTime<Utc>,
 }
 
 impl Chunk {
@@ -61,16 +73,16 @@ impl Chunk {
         let row_group = record_batch_to_row_group_with_logging(&table_name, table_data);
         let storage_statistics = row_group.column_storage_statistics();
 
-        let table = Table::with_row_group(
-            table_name,
-            row_group,
-            time_of_first_write,
-            time_of_last_write,
-        );
+        let table = Table::with_row_group(table_name, row_group);
 
         metrics.update_column_storage_statistics(&storage_statistics);
 
-        Self { metrics, table }
+        Self {
+            metrics,
+            table,
+            time_of_first_write,
+            time_of_last_write,
+        }
     }
 
     // Only used in tests and benchmarks
@@ -82,7 +94,9 @@ impl Chunk {
         let now = Utc::now();
         Self {
             metrics,
-            table: Table::with_row_group(table_name, row_group, now, now),
+            table: Table::with_row_group(table_name, row_group),
+            time_of_first_write: now,
+            time_of_last_write: now,
         }
     }
 
@@ -127,6 +141,9 @@ impl Chunk {
         let storage_statistics = row_group.column_storage_statistics();
 
         self.table.add_row_group(row_group);
+
+        // update last write time
+        self.time_of_last_write = Utc::now();
 
         // update column metrics associated with column storage
         self.metrics
@@ -204,7 +221,13 @@ impl Chunk {
     /// TODO(edd): consider deprecating or changing to return information about
     /// the physical layout of the data in the chunk.
     pub fn table_summary(&self) -> TableSummaryAndTimes {
-        self.table.table_summary()
+        let TableSummary { name, columns } = self.table.table_summary();
+        TableSummaryAndTimes {
+            name,
+            columns,
+            time_of_first_write: self.time_of_first_write,
+            time_of_last_write: self.time_of_last_write,
+        }
     }
 
     /// Returns a schema object for a `read_filter` operation using the provided
