@@ -907,8 +907,8 @@ func (e *Engine) IsIdle() (state bool, reason string) {
 
 	if cacheSize := e.Cache.Size(); cacheSize > 0 {
 		return false, "not idle because cache size is nonzero"
-	} else if !e.CompactionPlan.FullyCompacted() {
-		return false, "not idle because shard is not fully compacted"
+	} else if c, r := e.CompactionPlan.FullyCompacted(); !c {
+		return false, r
 	} else {
 		return true, ""
 	}
@@ -1913,7 +1913,7 @@ func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, closedFiles []string, s
 	}()
 
 	// write the new snapshot files
-	newFiles, err := e.Compactor.WriteSnapshot(snapshot)
+	newFiles, err := e.Compactor.WriteSnapshot(snapshot, e.logger)
 	if err != nil {
 		log.Info("Error writing snapshot from compactor", zap.Error(err))
 		return err
@@ -2184,11 +2184,10 @@ func (s *compactionStrategy) compactGroup() {
 		err   error
 		files []string
 	)
-
 	if s.fast {
-		files, err = s.compactor.CompactFast(group)
+		files, err = s.compactor.CompactFast(group, log)
 	} else {
-		files, err = s.compactor.CompactFull(group)
+		files, err = s.compactor.CompactFull(group, log)
 	}
 
 	if err != nil {
