@@ -430,7 +430,7 @@ func (s *Store) loadShards() error {
 	// Enable all shards
 	for _, sh := range s.shards {
 		sh.SetEnabled(true)
-		if sh.IsIdle() {
+		if isIdle, _ := sh.IsIdle(); isIdle {
 			if err := sh.Free(); err != nil {
 				return err
 			}
@@ -555,7 +555,8 @@ func (s *Store) ShardDigest(id uint64) (io.ReadCloser, int64, error) {
 		return nil, 0, ErrShardNotFound
 	}
 
-	return sh.Digest()
+	readCloser, size, _, err := sh.Digest()
+	return readCloser, size, err
 }
 
 // CreateShard creates a shard with the given id and retention policy on a database.
@@ -1437,7 +1438,7 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 
 	// Ensure snapshot compactions are enabled since the shard might have been cold
 	// and disabled by the monitor.
-	if sh.IsIdle() {
+	if isIdle, _ := sh.IsIdle(); isIdle {
 		sh.SetCompactionsEnabled(true)
 	}
 
@@ -1974,7 +1975,7 @@ func (s *Store) monitorShards() {
 		case <-t.C:
 			s.mu.RLock()
 			for _, sh := range s.shards {
-				if sh.IsIdle() {
+				if isIdle, _ := sh.IsIdle(); isIdle {
 					if err := sh.Free(); err != nil {
 						s.Logger.Warn("Error while freeing cold shard resources",
 							zap.Error(err),
