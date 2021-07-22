@@ -154,7 +154,7 @@ commands:
           command: |
             mkdir -p ${HOME}/.tools
             GO_VERSION=1.16.5
-            GO_VERSION_HASH=b12c23023b68de22f74c0524f10b753e7b08b1504cb7e417eccebdd3fae49062
+            GO_VERSION_HASH=b12c23023b68de22f74c0524f10b753e7b08b1504cb7e417eccebdd3fae49061
             wget https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz
             echo "${GO_VERSION_HASH}  go${GO_VERSION}.linux-amd64.tar.gz" | sha256sum --check --
             tar -C ${HOME}/.tools -xzf go${GO_VERSION}.linux-amd64.tar.gz
