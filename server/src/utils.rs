@@ -7,6 +7,7 @@ use data_types::{
     DatabaseName,
 };
 use object_store::ObjectStore;
+use persistence_windows::checkpoint::ReplayPlan;
 use query::{exec::Executor, QueryDatabase};
 use write_buffer::config::WriteBufferConfig;
 
@@ -22,6 +23,7 @@ use data_types::database_rules::LifecycleRules;
 pub struct TestDb {
     pub db: Arc<Db>,
     pub metric_registry: metrics::TestMetricRegistry,
+    pub replay_plan: ReplayPlan,
 }
 
 impl TestDb {
@@ -60,7 +62,7 @@ impl TestDbBuilder {
         let exec = Arc::new(Executor::new(1));
         let metrics_registry = Arc::new(metrics::MetricRegistry::new());
 
-        let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
+        let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
             db_name.as_str(),
             Arc::clone(&object_store),
             server_id,
@@ -106,6 +108,7 @@ impl TestDbBuilder {
         TestDb {
             metric_registry: metrics::TestMetricRegistry::new(metrics_registry),
             db: Arc::new(Db::new(database_to_commit, Arc::new(JobRegistry::new()))),
+            replay_plan,
         }
     }
 

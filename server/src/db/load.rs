@@ -11,11 +11,36 @@ use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
 };
-use snafu::ResultExt;
+use persistence_windows::checkpoint::{ReplayPlan, ReplayPlanner};
+use snafu::{ResultExt, Snafu};
 
 use crate::db::catalog::{chunk::ChunkStage, table::TableSchemaUpsertHandle};
 
 use super::catalog::Catalog;
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("Cannot build replay plan: {}", source))]
+    CannotBuildReplayPlan {
+        source: persistence_windows::checkpoint::Error,
+    },
+
+    #[snafu(display("Cannot create new empty preserved catalog: {}", source))]
+    CannotCreateCatalog {
+        source: parquet_file::catalog::Error,
+    },
+
+    #[snafu(display("Cannot load preserved catalog: {}", source))]
+    CannotLoadCatalog {
+        source: parquet_file::catalog::Error,
+    },
+
+    #[snafu(display("Cannot wipe preserved catalog: {}", source))]
+    CannotWipeCatalog {
+        source: parquet_file::catalog::Error,
+    },
+}
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Load preserved catalog state from store.
 ///
@@ -29,20 +54,22 @@ pub async fn load_or_create_preserved_catalog(
     server_id: ServerId,
     metrics_registry: Arc<MetricRegistry>,
     wipe_on_error: bool,
-) -> std::result::Result<(PreservedCatalog, Catalog), parquet_file::catalog::Error> {
+) -> Result<(PreservedCatalog, Catalog, ReplayPlan)> {
     // first try to load existing catalogs
     match PreservedCatalog::load(
         Arc::clone(&object_store),
         server_id,
         db_name.to_string(),
-        CatalogEmptyInput::new(db_name, server_id, Arc::clone(&metrics_registry)),
+        LoaderEmptyInput::new(db_name, server_id, Arc::clone(&metrics_registry)),
     )
     .await
     {
-        Ok(Some(catalog)) => {
+        Ok(Some((preserved_catalog, loader))) => {
             // successfull load
             info!("Found existing catalog for DB {}", db_name);
-            Ok(catalog)
+            let Loader { catalog, planner } = loader;
+            let plan = planner.build().context(CannotBuildReplayPlan)?;
+            Ok((preserved_catalog, catalog, plan))
         }
         Ok(None) => {
             // no catalog yet => create one
@@ -65,7 +92,9 @@ pub async fn load_or_create_preserved_catalog(
                 // broken => wipe for now (at least during early iterations)
                 error!("cannot load catalog, so wipe it: {}", e);
 
-                PreservedCatalog::wipe(&object_store, server_id, db_name).await?;
+                PreservedCatalog::wipe(&object_store, server_id, db_name)
+                    .await
+                    .context(CannotWipeCatalog)?;
 
                 create_preserved_catalog(
                     db_name,
@@ -75,7 +104,7 @@ pub async fn load_or_create_preserved_catalog(
                 )
                 .await
             } else {
-                Err(e)
+                Err(Error::CannotLoadCatalog { source: e })
             }
         }
     }
@@ -89,25 +118,30 @@ pub async fn create_preserved_catalog(
     object_store: Arc<ObjectStore>,
     server_id: ServerId,
     metrics_registry: Arc<MetricRegistry>,
-) -> std::result::Result<(PreservedCatalog, Catalog), parquet_file::catalog::Error> {
-    PreservedCatalog::new_empty(
+) -> Result<(PreservedCatalog, Catalog, ReplayPlan)> {
+    let (preserved_catalog, loader) = PreservedCatalog::new_empty(
         Arc::clone(&object_store),
         server_id,
         db_name.to_string(),
-        CatalogEmptyInput::new(db_name, server_id, Arc::clone(&metrics_registry)),
+        LoaderEmptyInput::new(db_name, server_id, Arc::clone(&metrics_registry)),
     )
     .await
+    .context(CannotCreateCatalog)?;
+
+    let Loader { catalog, planner } = loader;
+    let plan = planner.build().context(CannotBuildReplayPlan)?;
+    Ok((preserved_catalog, catalog, plan))
 }
 
-/// All input required to create an empty [`Catalog`](crate::db::catalog::Catalog).
+/// All input required to create an empty [`Loader`]
 #[derive(Debug)]
-pub struct CatalogEmptyInput {
+pub struct LoaderEmptyInput {
     domain: ::metrics::Domain,
     metrics_registry: Arc<::metrics::MetricRegistry>,
     metric_labels: Vec<KeyValue>,
 }
 
-impl CatalogEmptyInput {
+impl LoaderEmptyInput {
     fn new(db_name: &str, server_id: ServerId, metrics_registry: Arc<MetricRegistry>) -> Self {
         let metric_labels = vec![
             KeyValue::new("db_name", db_name.to_string()),
@@ -123,16 +157,26 @@ impl CatalogEmptyInput {
     }
 }
 
-impl CatalogState for Catalog {
-    type EmptyInput = CatalogEmptyInput;
+/// Helper to track data during catalog loading.
+#[derive(Debug)]
+struct Loader {
+    catalog: Catalog,
+    planner: ReplayPlanner,
+}
+
+impl CatalogState for Loader {
+    type EmptyInput = LoaderEmptyInput;
 
     fn new_empty(db_name: &str, data: Self::EmptyInput) -> Self {
-        Self::new(
-            Arc::from(db_name),
-            data.domain,
-            data.metrics_registry,
-            data.metric_labels,
-        )
+        Self {
+            catalog: Catalog::new(
+                Arc::from(db_name),
+                data.domain,
+                data.metrics_registry,
+                data.metric_labels,
+            ),
+            planner: ReplayPlanner::new(),
+        }
     }
 
     fn add(
@@ -150,10 +194,15 @@ impl CatalogState for Catalog {
                 path: info.path.clone(),
             })?;
 
+        // remember file for replay
+        self.planner
+            .register_checkpoints(&iox_md.partition_checkpoint, &iox_md.database_checkpoint);
+
         // Create a parquet chunk for this chunk
         let metrics = self
+            .catalog
             .metrics_registry
-            .register_domain_with_labels("parquet", self.metric_labels.clone());
+            .register_domain_with_labels("parquet", self.catalog.metric_labels.clone());
 
         let metrics = ParquetChunkMetrics::new(&metrics);
         let parquet_chunk = ParquetChunk::new(
@@ -170,8 +219,9 @@ impl CatalogState for Catalog {
 
         // Get partition from the catalog
         // Note that the partition might not exist yet if the chunk is loaded from an existing preserved catalog.
-        let (partition, table_schema) =
-            self.get_or_create_partition(&iox_md.table_name, &iox_md.partition_key);
+        let (partition, table_schema) = self
+            .catalog
+            .get_or_create_partition(&iox_md.table_name, &iox_md.partition_key);
         let mut partition = partition.write();
         if partition.chunk(iox_md.chunk_id).is_some() {
             return Err(parquet_file::catalog::Error::ParquetFileAlreadyExists { path: info.path });
@@ -188,7 +238,7 @@ impl CatalogState for Catalog {
     fn remove(&mut self, path: DirsAndFileName) -> parquet_file::catalog::Result<()> {
         let mut removed_any = false;
 
-        for partition in self.partitions() {
+        for partition in self.catalog.partitions() {
             let mut partition = partition.write();
             let mut to_remove = vec![];
 
@@ -222,8 +272,9 @@ impl CatalogState for Catalog {
 mod tests {
     use std::convert::TryFrom;
 
-    use parquet_file::catalog::test_helpers::{
-        assert_catalog_state_implementation, TestCatalogState,
+    use parquet_file::catalog::{
+        test_helpers::{assert_catalog_state_implementation, TestCatalogState},
+        CheckpointData,
     };
 
     use crate::db::checkpoint_data_from_catalog;
@@ -253,18 +304,19 @@ mod tests {
             .unwrap();
     }
 
+    fn checkpoint_data_from_loader(loader: &Loader) -> CheckpointData {
+        checkpoint_data_from_catalog(&loader.catalog)
+    }
+
     #[tokio::test]
     async fn test_catalog_state() {
         let metrics_registry = Arc::new(::metrics::MetricRegistry::new());
-        let empty_input = CatalogEmptyInput {
+        let empty_input = LoaderEmptyInput {
             domain: metrics_registry.register_domain("catalog"),
             metrics_registry,
             metric_labels: vec![],
         };
-        assert_catalog_state_implementation::<Catalog, _>(
-            empty_input,
-            checkpoint_data_from_catalog,
-        )
-        .await;
+        assert_catalog_state_implementation::<Loader, _>(empty_input, checkpoint_data_from_loader)
+            .await;
     }
 }

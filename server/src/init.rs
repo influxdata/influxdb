@@ -286,7 +286,7 @@ async fn try_advance_database_init_process(
         }
         DatabaseStateCode::RulesLoaded => {
             // rules already loaded => continue with loading preserved catalog
-            let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
+            let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
                 &handle.db_name(),
                 handle.object_store(),
                 handle.server_id(),
@@ -308,7 +308,7 @@ async fn try_advance_database_init_process(
             info!(write_buffer_enabled=?write_buffer.is_some(), db_name=rules.db_name(), "write buffer config");
 
             handle
-                .advance_replay(preserved_catalog, catalog, write_buffer)
+                .advance_replay(preserved_catalog, catalog, replay_plan, write_buffer)
                 .map_err(Box::new)
                 .context(InitDbError)?;
 
