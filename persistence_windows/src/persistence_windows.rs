@@ -250,12 +250,10 @@ impl PersistenceWindows {
                     .filter_map(|window| window.sequencer_numbers.get(sequencer_id))
                     .next();
 
-                let min = if let Some(window) = window {
+                let min = window.map(|window| {
                     assert!(window.max() <= *max_sequence_number);
-                    Some(window.min())
-                } else {
-                    None
-                };
+                    window.min()
+                });
 
                 (
                     *sequencer_id,

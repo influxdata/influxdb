@@ -177,11 +177,14 @@
 //! let mut planner = ReplayPlanner::new();
 //!
 //! // scan preserved catalog
+//! // Important: Files MUST be scanned in order in which they were added to the catalog!
 //! // Note: While technically we only need to scan the last parquet file per partition,
 //! //       it is totally valid to scan the whole catalog.
 //! for file in catalog.files() {
-//!     planner.register_partition_checkpoint(&file.extract_partition_checkpoint());
-//!     planner.register_database_checkpoint(&file.extract_database_checkpoint());
+//!     planner.register_checkpoints(
+//!         &file.extract_partition_checkpoint(),
+//!         &file.extract_database_checkpoint(),
+//!     );
 //! }
 //!
 //! // create replay plan
@@ -355,8 +358,8 @@ impl DatabaseCheckpoint {
 
     /// Get sequence number range that should be used during replay of the given sequencer.
     ///
-    /// If the range only has the maximum but not the minimum set, then no replay is required but the sequencer must be
-    /// seeked to the maximum plus 1.
+    /// If the range only has the maximum but not the minimum set, then this partition in is fully persisted up to and
+    /// including that maximum. The caller must continue normal playback AFTER the maximum.
     ///
     /// This will return `None` for unknown sequencer. This might have multiple reasons, e.g. in case of Apache Kafka it
     /// might be that a partition has not delivered any data yet (for a quite young database) or that the partitioning
@@ -469,6 +472,8 @@ impl ReplayPlanner {
     }
 
     /// Register a partition and database checkpoint that was found in the catalog.
+    ///
+    /// **Note: The checkpoints MUST be added in the same order as they where written to the preserved catalog!**
     pub fn register_checkpoints(
         &mut self,
         partition_checkpoint: &PartitionCheckpoint,
@@ -483,12 +488,8 @@ impl ReplayPlanner {
                 v.insert(partition_checkpoint.clone());
             }
             Occupied(mut o) => {
-                // known partition => check which one is the newer checkpoint
-                if o.get().min_unpersisted_timestamp
-                    < partition_checkpoint.min_unpersisted_timestamp
-                {
-                    o.insert(partition_checkpoint.clone());
-                }
+                // known partition, but added afterwards => insert
+                o.insert(partition_checkpoint.clone());
             }
         }
 
@@ -500,18 +501,8 @@ impl ReplayPlanner {
                     v.insert(*min_max);
                 }
                 Occupied(mut o) => {
-                    // known sequencer => fold in:
-                    // - min value (we take the max of all mins!)
-                    // - max value (we take the max of all max!)
-                    let existing_min_max = o.get_mut();
-                    let min = match (existing_min_max.min(), min_max.min()) {
-                        (Some(a), Some(b)) => Some(a.max(b)),
-                        (Some(a), None) => Some(a),
-                        (None, Some(b)) => Some(b),
-                        (None, None) => None,
-                    };
-                    let max = existing_min_max.max().max(min_max.max());
-                    *existing_min_max = OptionalMinMaxSequence::new(min, max);
+                    // known sequencer => take the alter value
+                    o.insert(*min_max);
                 }
             }
         }
@@ -715,7 +706,9 @@ mod tests {
                 1 => (Some(10), 20),
                 2 => (Some(5), 15),
                 3 => (Some(15), 26),
-                5 => (None, 10)
+                5 => (None, 10),
+                7 => (None, 11),
+                8 => (Some(5), 10)
             }
         );
         let mut builder = PersistCheckpointBuilder::new(pckpt_orig.clone());
@@ -727,7 +720,9 @@ mod tests {
                 2 => (Some(2), 16),
                 3 => (Some(20), 25),
                 4 => (Some(13), 14),
-                6 => (None, 10)
+                6 => (None, 10),
+                7 => (Some(5), 10),
+                8 => (None, 11)
             }
         ));
 
@@ -742,7 +737,9 @@ mod tests {
                 3 => (Some(15), 26),
                 4 => (Some(13), 14),
                 5 => (None, 10),
-                6 => (None, 10)
+                6 => (None, 10),
+                7 => (Some(5), 11),
+                8 => (Some(5), 11)
             })
         );
     }
@@ -772,14 +769,24 @@ mod tests {
                 {
                     1 => (Some(15), 19),
                     2 => (Some(21), 27),
-                    5 => (None, 50)
+                    5 => (None, 50),
+                    7 => (None, 70),
+                    8 => (None, 80),
+                    9 => (None, 90),
+                    10 => (None, 100),
+                    11 => (None, 110)
                 }
             ),
             &db_ckpt!({
                 1 => (Some(10), 19),
                 2 => (Some(20), 28),
                 5 => (None, 51),
-                6 => (None, 60)
+                6 => (None, 60),
+                7 => (Some(69), 70),
+                8 => (Some(79), 80),
+                9 => (Some(88), 90),
+                10 => (None, 100),
+                11 => (None, 110)
             }),
         );
 
@@ -789,19 +796,30 @@ mod tests {
                 "partition_2",
                 {
                     2 => (Some(22), 26),
-                    3 => (Some(35), 39)
+                    3 => (Some(35), 39),
+                    8 => (None, 80),
+                    9 => (Some(89), 90),
+                    10 => (None, 101),
+                    11 => (Some(109), 111)
                 }
             ),
             &db_ckpt!({
                 1 => (Some(11), 20),
                 3 => (Some(30), 40),
-                4 => (Some(40), 50)
+                4 => (Some(40), 50),
+                8 => (None, 80),
+                9 => (Some(89), 90),
+                10 => (None, 101),
+                11 => (Some(109), 111)
             }),
         );
 
         let plan = planner.build().unwrap();
 
-        assert_eq!(plan.sequencer_ids(), vec![1, 2, 3, 4, 5, 6]);
+        assert_eq!(
+            plan.sequencer_ids(),
+            vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        );
         assert_eq!(
             plan.replay_range(1).unwrap(),
             OptionalMinMaxSequence::new(Some(11), 20)
@@ -826,7 +844,27 @@ mod tests {
             plan.replay_range(6).unwrap(),
             OptionalMinMaxSequence::new(None, 60)
         );
-        assert!(plan.replay_range(7).is_none());
+        assert_eq!(
+            plan.replay_range(7).unwrap(),
+            OptionalMinMaxSequence::new(Some(69), 70)
+        );
+        assert_eq!(
+            plan.replay_range(8).unwrap(),
+            OptionalMinMaxSequence::new(None, 80)
+        );
+        assert_eq!(
+            plan.replay_range(9).unwrap(),
+            OptionalMinMaxSequence::new(Some(89), 90)
+        );
+        assert_eq!(
+            plan.replay_range(10).unwrap(),
+            OptionalMinMaxSequence::new(None, 101)
+        );
+        assert_eq!(
+            plan.replay_range(11).unwrap(),
+            OptionalMinMaxSequence::new(Some(109), 111)
+        );
+        assert!(plan.replay_range(12).is_none());
 
         assert_eq!(
             plan.partitions(),
@@ -844,7 +882,12 @@ mod tests {
                 {
                     1 => (Some(15), 19),
                     2 => (Some(21), 27),
-                    5 => (None, 50)
+                    5 => (None, 50),
+                    7 => (None, 70),
+                    8 => (None, 80),
+                    9 => (None, 90),
+                    10 => (None, 100),
+                    11 => (None, 110)
                 }
             ),
         );
@@ -856,7 +899,11 @@ mod tests {
                 "partition_2",
                 {
                     2 => (Some(22), 26),
-                    3 => (Some(35), 39)
+                    3 => (Some(35), 39),
+                    8 => (None, 80),
+                    9 => (Some(89), 90),
+                    10 => (None, 101),
+                    11 => (Some(109), 111)
                 }
             ),
         );
