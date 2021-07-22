@@ -1698,13 +1698,13 @@ mod tests {
 
     fn catalog_chunk_size_bytes_metric_eq(
         reg: &metrics::TestMetricRegistry,
-        source: &'static str,
+        location: &'static str,
         v: u64,
     ) -> Result<(), metrics::Error> {
         reg.has_metric_family("catalog_chunks_mem_usage_bytes")
             .with_labels(&[
                 ("db_name", "placeholder"),
-                ("source", source),
+                ("location", location),
                 ("svr_id", "1"),
             ])
             .gauge()
@@ -1714,7 +1714,22 @@ mod tests {
     #[tokio::test]
     async fn metrics_during_rollover() {
         let test_db = make_db().await;
-        let db = test_db.db;
+        let db = Arc::clone(&test_db.db);
+
+        let assert_metric = |name: &'static str, location: &'static str, value: f64| {
+            test_db
+                .metric_registry
+                .has_metric_family(name)
+                .with_labels(&[
+                    ("db_name", "placeholder"),
+                    ("location", location),
+                    ("svr_id", "1"),
+                    ("table", "cpu"),
+                ])
+                .gauge()
+                .eq(value)
+                .unwrap();
+        };
 
         write_lp(db.as_ref(), "cpu bar=1 10").await;
 
@@ -1731,11 +1746,18 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
+        assert_metric("catalog_loaded_chunks", "mutable_buffer", 1.0);
+        assert_metric("catalog_loaded_chunks", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_chunks", "object_store", 0.0);
+        assert_metric("catalog_loaded_rows", "mutable_buffer", 1.0);
+        assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_rows", "object_store", 0.0);
+
         // verify chunk size updated
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 44).unwrap();
 
         // write into same chunk again.
-        write_lp(db.as_ref(), "cpu bar=2 10").await;
+        write_lp(db.as_ref(), "cpu bar=2 20").await;
 
         // verify chunk size updated
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 60).unwrap();
@@ -1753,6 +1775,13 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
+        assert_metric("catalog_loaded_chunks", "mutable_buffer", 1.0);
+        assert_metric("catalog_loaded_chunks", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_chunks", "object_store", 0.0);
+        assert_metric("catalog_loaded_rows", "mutable_buffer", 2.0);
+        assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_rows", "object_store", 0.0);
+
         db.rollover_partition("cpu", "1970-01-01T00").await.unwrap();
 
         // A chunk is now closed
@@ -1767,6 +1796,13 @@ mod tests {
             .counter()
             .eq(1.0)
             .unwrap();
+
+        assert_metric("catalog_loaded_chunks", "mutable_buffer", 1.0);
+        assert_metric("catalog_loaded_chunks", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_chunks", "object_store", 0.0);
+        assert_metric("catalog_loaded_rows", "mutable_buffer", 2.0);
+        assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_rows", "object_store", 0.0);
 
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1239)
             .unwrap();
@@ -1788,9 +1824,16 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
+        assert_metric("catalog_loaded_chunks", "mutable_buffer", 0.0);
+        assert_metric("catalog_loaded_chunks", "read_buffer", 1.0);
+        assert_metric("catalog_loaded_chunks", "object_store", 0.0);
+        assert_metric("catalog_loaded_rows", "mutable_buffer", 0.0);
+        assert_metric("catalog_loaded_rows", "read_buffer", 2.0);
+        assert_metric("catalog_loaded_rows", "object_store", 0.0);
+
         // verify chunk size updated (chunk moved from closing to moving to moved)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
-        let expected_read_buffer_size = 1611;
+        let expected_read_buffer_size = 1613;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -1829,10 +1872,17 @@ mod tests {
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
-            "parquet",
+            "object_store",
             expected_parquet_size,
         )
         .unwrap(); // TODO: #1311
+
+        assert_metric("catalog_loaded_chunks", "mutable_buffer", 0.0);
+        assert_metric("catalog_loaded_chunks", "read_buffer", 1.0);
+        assert_metric("catalog_loaded_chunks", "object_store", 1.0);
+        assert_metric("catalog_loaded_rows", "mutable_buffer", 0.0);
+        assert_metric("catalog_loaded_rows", "read_buffer", 2.0);
+        assert_metric("catalog_loaded_rows", "object_store", 2.0);
 
         db.unload_read_buffer("cpu", "1970-01-01T00", 1).unwrap();
 
@@ -1845,10 +1895,17 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
+        assert_metric("catalog_loaded_chunks", "mutable_buffer", 0.0);
+        assert_metric("catalog_loaded_chunks", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_chunks", "object_store", 1.0);
+        assert_metric("catalog_loaded_rows", "mutable_buffer", 0.0);
+        assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_rows", "object_store", 2.0);
+
         // verify chunk size not increased for OS (it was in OS before unload)
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
-            "parquet",
+            "object_store",
             expected_parquet_size,
         )
         .unwrap();
@@ -2845,7 +2902,7 @@ mod tests {
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2398 + 87);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2410);
-        assert_eq!(db.catalog.metrics().memory().parquet(), 826);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 826);
     }
 
     #[tokio::test]

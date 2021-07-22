@@ -23,12 +23,8 @@ pub fn move_chunk_to_read_buffer(
 )> {
     let db = Arc::clone(&guard.data().db);
     let addr = guard.addr().clone();
-    // TODO: Use ChunkAddr within Job
-    let (tracker, registration) = db.jobs.register(Job::CloseChunk {
-        db_name: addr.db_name.to_string(),
-        partition_key: addr.partition_key.to_string(),
-        table_name: addr.table_name.to_string(),
-        chunk_id: addr.chunk_id,
+    let (tracker, registration) = db.jobs.register(Job::CompactChunk {
+        chunk: addr.clone(),
     });
 
     // update the catalog to say we are processing this chunk and

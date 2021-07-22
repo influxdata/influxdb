@@ -17,6 +17,8 @@ use crate::{
     common::server_fixture::ServerFixture,
     end_to_end_cases::scenario::{wait_for_exact_chunk_states, DatabaseBuilder},
 };
+use chrono::{DateTime, Utc};
+use std::convert::TryInto;
 use std::time::Instant;
 use tonic::Code;
 
@@ -323,6 +325,7 @@ async fn test_chunk_get() {
             memory_bytes: 100,
             object_store_bytes: 0,
             row_count: 2,
+            time_of_last_access: None,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
@@ -336,6 +339,7 @@ async fn test_chunk_get() {
             memory_bytes: 82,
             object_store_bytes: 0,
             row_count: 1,
+            time_of_last_access: None,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
@@ -506,6 +510,7 @@ async fn test_list_partition_chunks() {
         memory_bytes: 100,
         object_store_bytes: 0,
         row_count: 2,
+        time_of_last_access: None,
         time_of_first_write: None,
         time_of_last_write: None,
         time_closed: None,
@@ -837,6 +842,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
                 storage,
                 lifecycle_action,
                 row_count,
+                time_of_last_access: None,
                 time_of_first_write: None,
                 time_of_last_write: None,
                 time_closed: None,
@@ -1034,4 +1040,65 @@ async fn test_unload_read_buffer() {
         ChunkStorage::ObjectStoreOnly.into();
     let storage: i32 = storage.into();
     assert_eq!(chunks[0].storage, storage);
+}
+
+#[tokio::test]
+async fn test_chunk_access_time() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut write_client = fixture.write_client();
+    let mut management_client = fixture.management_client();
+    let mut flight_client = fixture.flight_client();
+
+    let db_name = rand_name();
+    DatabaseBuilder::new(db_name.clone())
+        .build(fixture.grpc_channel())
+        .await;
+
+    write_client.write(&db_name, "cpu foo=1 10").await.unwrap();
+
+    let to_datetime = |a: Option<&generated_types::google::protobuf::Timestamp>| -> DateTime<Utc> {
+        a.unwrap().clone().try_into().unwrap()
+    };
+
+    let chunks = management_client.list_chunks(&db_name).await.unwrap();
+    assert_eq!(chunks.len(), 1);
+    assert!(chunks[0].time_of_last_access.is_none());
+
+    flight_client
+        .perform_query(&db_name, "select * from cpu;")
+        .await
+        .unwrap();
+
+    let chunks = management_client.list_chunks(&db_name).await.unwrap();
+    assert_eq!(chunks.len(), 1);
+    let t1 = to_datetime(chunks[0].time_of_last_access.as_ref());
+
+    flight_client
+        .perform_query(&db_name, "select * from cpu;")
+        .await
+        .unwrap();
+
+    let chunks = management_client.list_chunks(&db_name).await.unwrap();
+    assert_eq!(chunks.len(), 1);
+    let t2 = to_datetime(chunks[0].time_of_last_access.as_ref());
+
+    write_client.write(&db_name, "cpu foo=1 20").await.unwrap();
+
+    let chunks = management_client.list_chunks(&db_name).await.unwrap();
+    assert_eq!(chunks.len(), 1);
+    let t3 = to_datetime(chunks[0].time_of_last_access.as_ref());
+
+    // This chunk should be pruned out and therefore not accessed by the query
+    flight_client
+        .perform_query(&db_name, "select * from cpu where foo = 2;")
+        .await
+        .unwrap();
+
+    let chunks = management_client.list_chunks(&db_name).await.unwrap();
+    assert_eq!(chunks.len(), 1);
+    let t4 = to_datetime(chunks[0].time_of_last_access.as_ref());
+
+    assert!(t1 < t2, "{} {}", t1, t2);
+    assert!(t2 < t3, "{} {}", t2, t3);
+    assert_eq!(t3, t4)
 }
