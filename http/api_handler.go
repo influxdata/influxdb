@@ -34,6 +34,7 @@ type APIHandler struct {
 // an APIHandler.
 type APIBackend struct {
 	AssetsPath string // if empty then assets are served from bindata.
+	UIDisabled bool   // if true requests for the UI will return 404
 	Logger     *zap.Logger
 	errors.HTTPErrorHandler
 	SessionRenewDisabled bool

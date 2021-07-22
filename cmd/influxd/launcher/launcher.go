@@ -759,6 +759,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           opts.AssetsPath,
+		UIDisabled:           opts.UIDisabled,
 		HTTPErrorHandler:     kithttp.ErrorHandler(0),
 		Logger:               m.log,
 		SessionRenewDisabled: opts.SessionRenewDisabled,
