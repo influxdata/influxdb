@@ -1,22 +1,19 @@
+use crate::{
+    column,
+    row_group::{self, ColumnName, Predicate, RowGroup},
+    schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema},
+    value::{OwnedValue, Scalar, Value},
+};
+use arrow::record_batch::RecordBatch;
+use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
+use internal_types::selection::Selection;
+use parking_lot::RwLock;
+use snafu::{ensure, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
     convert::TryInto,
     fmt::Display,
     sync::Arc,
-};
-
-use parking_lot::RwLock;
-use snafu::{ensure, Snafu};
-
-use arrow::record_batch::RecordBatch;
-use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
-use internal_types::selection::Selection;
-
-use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
-use crate::value::{OwnedValue, Scalar, Value};
-use crate::{
-    column,
-    row_group::{self, ColumnName, Predicate, RowGroup},
 };
 
 #[derive(Debug, Snafu)]
@@ -49,6 +46,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// The total size of a table is tracked and can be increased or reduced by
 /// adding or removing row groups for that table.
+///
+/// Tables must contain at least one row group with at least one row.
 pub struct Table {
     name: String,
 
@@ -72,22 +71,14 @@ pub struct Table {
 }
 
 // Tie data and meta-data together so that they can be wrapped in RWLock.
-#[derive(Default)]
+// Does not implement `Default`; must contain at least one `RowGroup`.
 struct RowGroupData {
     meta: Arc<MetaData>,
     data: Vec<Arc<RowGroup>>,
 }
 
 impl Table {
-    /// Create a new empty table.
-    pub fn new(name: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            table_data: Default::default(),
-        }
-    }
-
-    /// Create a new table with the provided row_group.
+    /// Create a new table with the provided row_group. Creating an empty table is not possible.
     pub fn with_row_group(name: impl Into<String>, rg: RowGroup) -> Self {
         Self {
             name: name.into(),
@@ -126,7 +117,7 @@ impl Table {
         ensure!(row_groups.data.len() > 1, EmptyTableError);
 
         row_groups.data.remove(position); // removes row group data
-        row_groups.meta = Arc::new(MetaData::from(&row_groups.data)); // rebuild meta
+        row_groups.meta = Arc::new(MetaData::from(row_groups.data.as_ref())); // rebuild meta
 
         Ok(())
     }
@@ -550,7 +541,8 @@ impl Table {
 }
 
 // TODO(edd): reduce owned strings here by, e.g., using references as keys.
-#[derive(Clone, Default)]
+// Does not implement `Default`; must contain some data.
+#[derive(Clone)]
 pub struct MetaData {
     // The total size of all row-group data associated with the table in bytes.
     rgs_size: usize,
@@ -595,7 +587,7 @@ impl MetaData {
     pub fn update_with(mut this: Self, rg: &row_group::RowGroup) -> Self {
         let other_meta = rg.metadata();
 
-        // first row group added to the table.
+        // first non-empty row group added to the table.
         if this.columns.is_empty() {
             this.rgs_size = rg.size();
             this.rows = rg.rows() as u64;
@@ -768,10 +760,10 @@ impl MetaData {
     }
 }
 
-// Builds new table meta-data from a collection of row groups. Useful for
-// rebuilding state when a row group has been removed from the table.
-impl From<&Vec<Arc<RowGroup>>> for MetaData {
-    fn from(row_groups: &Vec<Arc<RowGroup>>) -> Self {
+// Builds new table meta-data from a collection of row groups. Useful
+// for rebuilding state when a row group has been removed from the table.
+impl From<&[Arc<RowGroup>]> for MetaData {
+    fn from(row_groups: &[Arc<RowGroup>]) -> Self {
         if row_groups.is_empty() {
             panic!("row groups required for meta data construction");
         }
@@ -1001,12 +993,12 @@ impl std::fmt::Display for DisplayReadAggregateResults<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    use crate::column::Column;
-    use crate::row_group::{BinaryExpr, ColumnType, ReadAggregateResult};
-    use crate::schema;
-    use crate::schema::LogicalDataType;
-    use crate::value::{AggregateVec, OwnedValue, Scalar};
+    use crate::{
+        column::Column,
+        row_group::{BinaryExpr, ColumnType, ReadAggregateResult},
+        schema::{self, LogicalDataType},
+        value::{AggregateVec, OwnedValue, Scalar},
+    };
 
     #[test]
     fn meta_data_update_with() {
@@ -1056,38 +1048,12 @@ mod test {
     }
 
     #[test]
-    fn meta_data_new_or_update_with_same_size() {
-        let columns = vec![
-            (
-                "time".to_string(),
-                ColumnType::create_time(&[100, 200, 300]),
-            ),
-            (
-                "region".to_string(),
-                ColumnType::create_tag(&["west", "west", "north"]),
-            ),
-        ];
-        let rg = RowGroup::new(3, columns);
-
-        let meta_new = MetaData::new(&rg);
-
-        let meta_default = MetaData::default();
-        let meta_default = MetaData::update_with(meta_default, &rg);
-
-        // The rgs_size field is the part that was failing
-        assert_eq!(meta_new.rgs_size, meta_default.rgs_size);
-        // The value from the size method should match too
-        assert_eq!(meta_new.size(), meta_default.size());
-    }
-
-    #[test]
     fn add_remove_row_groups() {
         let tc = ColumnType::Time(Column::from(&[0_i64, 2, 3][..]));
         let columns = vec![("time".to_string(), tc)];
 
         let rg = RowGroup::new(3, columns);
-        let mut table = Table::new("cpu".to_owned());
-        table.add_row_group(rg);
+        let mut table = Table::with_row_group("cpu", rg);
 
         assert_eq!(table.rows(), 3);
 
@@ -1129,8 +1095,7 @@ mod test {
         let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
         let columns = vec![("time".to_string(), tc), ("count".to_string(), fc)];
         let row_group = RowGroup::new(3, columns);
-        let mut table = Table::new("cpu");
-        table.add_row_group(row_group);
+        let mut table = Table::with_row_group("cpu", row_group);
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
@@ -1164,9 +1129,7 @@ mod test {
             ("count".to_string(), fc),
         ];
         let row_group = RowGroup::new(3, columns);
-
-        let mut table = Table::new("cpu");
-        table.add_row_group(row_group);
+        let mut table = Table::with_row_group("cpu", row_group);
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
@@ -1245,9 +1208,7 @@ mod test {
         ];
 
         let rg = RowGroup::new(6, columns);
-
-        let mut table = Table::new("cpu");
-        table.add_row_group(rg);
+        let mut table = Table::with_row_group("cpu", rg);
 
         let exp_col_types = vec![
             ("region", LogicalDataType::String),
@@ -1374,8 +1335,7 @@ mod test {
             ),
         ];
         let rg = RowGroup::new(3, columns);
-        let mut table = Table::new("cpu");
-        table.add_row_group(rg);
+        let mut table = Table::with_row_group("cpu", rg);
 
         // Build another row group.
         let columns = vec![
@@ -1517,8 +1477,7 @@ west,host-b,100
         let columns = vec![("time".to_string(), tc), ("region".to_string(), rc)];
 
         let rg = RowGroup::new(3, columns);
-        let mut table = Table::new("cpu".to_owned());
-        table.add_row_group(rg);
+        let mut table = Table::with_row_group("cpu", rg);
 
         // add another row group
         let tc = ColumnType::Time(Column::from(&[200_i64, 300, 400][..]));
@@ -1590,8 +1549,7 @@ west,host-b,100
         ];
 
         let rg = RowGroup::new(4, columns);
-        let mut table = Table::new("cpu".to_owned());
-        table.add_row_group(rg);
+        let table = Table::with_row_group("cpu", rg);
 
         assert_eq!(table.time_range().unwrap(), (-100, 3));
     }

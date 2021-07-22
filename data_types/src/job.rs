@@ -1,4 +1,9 @@
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
+
+use crate::chunk_metadata::ChunkAddr;
+use crate::partition_metadata::PartitionAddr;
 
 /// Metadata associated with a set of background tasks
 /// Used in combination with TrackerRegistry
@@ -11,87 +16,87 @@ pub enum Job {
     },
 
     /// Move a chunk from mutable buffer to read buffer
-    CloseChunk {
-        db_name: String,
-        partition_key: String,
-        table_name: String,
-        chunk_id: u32,
+    CompactChunk {
+        chunk: ChunkAddr,
     },
 
     /// Write a chunk from read buffer to object store
     WriteChunk {
-        db_name: String,
-        partition_key: String,
-        table_name: String,
-        chunk_id: u32,
+        chunk: ChunkAddr,
     },
 
     /// Compact a set of chunks
     CompactChunks {
-        db_name: String,
-        partition_key: String,
-        table_name: String,
+        partition: PartitionAddr,
         chunks: Vec<u32>,
     },
 
     /// Split and persist a set of chunks
     PersistChunks {
-        db_name: String,
-        partition_key: String,
-        table_name: String,
+        partition: PartitionAddr,
         chunks: Vec<u32>,
     },
 
     /// Drop chunk from memory and (if persisted) from object store.
     DropChunk {
-        db_name: String,
-        partition_key: String,
-        table_name: String,
-        chunk_id: u32,
+        chunk: ChunkAddr,
     },
 
     /// Wipe preserved catalog
     WipePreservedCatalog {
-        db_name: String,
+        db_name: Arc<str>,
     },
 }
 
 impl Job {
-    /// Returns the database name assocated with this job, if any
-    pub fn db_name(&self) -> Option<&str> {
+    /// Returns the database name associated with this job, if any
+    pub fn db_name(&self) -> Option<&Arc<str>> {
         match self {
             Self::Dummy { .. } => None,
-            Self::CloseChunk { db_name, .. } => Some(db_name),
-            Self::WriteChunk { db_name, .. } => Some(db_name),
-            Self::CompactChunks { db_name, .. } => Some(db_name),
-            Self::PersistChunks { db_name, .. } => Some(db_name),
-            Self::DropChunk { db_name, .. } => Some(db_name),
-            Self::WipePreservedCatalog { db_name, .. } => Some(db_name),
+            Self::CompactChunk { chunk, .. } => Some(&chunk.db_name),
+            Self::WriteChunk { chunk, .. } => Some(&chunk.db_name),
+            Self::CompactChunks { partition, .. } => Some(&partition.db_name),
+            Self::PersistChunks { partition, .. } => Some(&partition.db_name),
+            Self::DropChunk { chunk, .. } => Some(&chunk.db_name),
+            Self::WipePreservedCatalog { db_name, .. } => Some(&db_name),
         }
     }
 
-    /// Returns the partition name assocated with this job, if any
-    pub fn partition_key(&self) -> Option<&str> {
+    /// Returns the partition name associated with this job, if any
+    pub fn partition_key(&self) -> Option<&Arc<str>> {
         match self {
             Self::Dummy { .. } => None,
-            Self::CloseChunk { partition_key, .. } => Some(partition_key),
-            Self::WriteChunk { partition_key, .. } => Some(partition_key),
-            Self::CompactChunks { partition_key, .. } => Some(partition_key),
-            Self::PersistChunks { partition_key, .. } => Some(partition_key),
-            Self::DropChunk { partition_key, .. } => Some(partition_key),
+            Self::CompactChunk { chunk, .. } => Some(&chunk.partition_key),
+            Self::WriteChunk { chunk, .. } => Some(&chunk.partition_key),
+            Self::CompactChunks { partition, .. } => Some(&partition.partition_key),
+            Self::PersistChunks { partition, .. } => Some(&partition.partition_key),
+            Self::DropChunk { chunk, .. } => Some(&chunk.partition_key),
             Self::WipePreservedCatalog { .. } => None,
         }
     }
 
-    /// Returns the chunk_id associated with this job, if any
-    pub fn chunk_id(&self) -> Option<u32> {
+    /// Returns the table name associated with this job, if any
+    pub fn table_name(&self) -> Option<&Arc<str>> {
         match self {
             Self::Dummy { .. } => None,
-            Self::CloseChunk { chunk_id, .. } => Some(*chunk_id),
-            Self::WriteChunk { chunk_id, .. } => Some(*chunk_id),
-            Self::CompactChunks { .. } => None,
-            Self::PersistChunks { .. } => None,
-            Self::DropChunk { chunk_id, .. } => Some(*chunk_id),
+            Self::CompactChunk { chunk, .. } => Some(&chunk.table_name),
+            Self::WriteChunk { chunk, .. } => Some(&chunk.table_name),
+            Self::CompactChunks { partition, .. } => Some(&partition.table_name),
+            Self::PersistChunks { partition, .. } => Some(&partition.table_name),
+            Self::DropChunk { chunk, .. } => Some(&chunk.table_name),
+            Self::WipePreservedCatalog { .. } => None,
+        }
+    }
+
+    /// Returns the chunk_ids associated with this job, if any
+    pub fn chunk_ids(&self) -> Option<Vec<u32>> {
+        match self {
+            Self::Dummy { .. } => None,
+            Self::CompactChunk { chunk, .. } => Some(vec![chunk.chunk_id]),
+            Self::WriteChunk { chunk, .. } => Some(vec![chunk.chunk_id]),
+            Self::CompactChunks { chunks, .. } => Some(chunks.clone()),
+            Self::PersistChunks { chunks, .. } => Some(chunks.clone()),
+            Self::DropChunk { chunk, .. } => Some(vec![chunk.chunk_id]),
             Self::WipePreservedCatalog { .. } => None,
         }
     }
@@ -100,7 +105,7 @@ impl Job {
     pub fn description(&self) -> &str {
         match self {
             Self::Dummy { .. } => "Dummy Job, for testing",
-            Self::CloseChunk { .. } => "Loading chunk to ReadBuffer",
+            Self::CompactChunk { .. } => "Compacting chunk to ReadBuffer",
             Self::WriteChunk { .. } => "Writing chunk to Object Storage",
             Self::CompactChunks { .. } => "Compacting chunks to ReadBuffer",
             Self::PersistChunks { .. } => "Persisting chunks to object storage",

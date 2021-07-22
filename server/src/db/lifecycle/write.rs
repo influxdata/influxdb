@@ -54,12 +54,8 @@ pub(super) fn write_chunk_to_object_store(
     let db = Arc::clone(&chunk.data().db);
     let addr = chunk.addr().clone();
 
-    // TODO: Use ChunkAddr within Job
     let (tracker, registration) = db.jobs.register(Job::WriteChunk {
-        db_name: addr.db_name.to_string(),
-        partition_key: addr.partition_key.to_string(),
-        table_name: addr.table_name.to_string(),
-        chunk_id: addr.chunk_id,
+        chunk: addr.clone(),
     });
 
     // update the catalog to say we are processing this chunk and

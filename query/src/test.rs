@@ -571,7 +571,7 @@ impl TestChunk {
                     _ => Arc::new(StringArray::from(vec!["TX", "PR", "OR", "AL"])) as ArrayRef,
                 },
                 DataType::Timestamp(TimeUnit::Nanosecond, _) => Arc::new(
-                    TimestampNanosecondArray::from_vec(vec![8000, 10000, 20000, 10000], None),
+                    TimestampNanosecondArray::from_vec(vec![28000, 210000, 220000, 210000], None),
                 ) as ArrayRef,
                 DataType::Dictionary(key, value)
                     if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>

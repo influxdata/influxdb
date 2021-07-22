@@ -1281,10 +1281,10 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
-    use data_types::database_rules::LifecycleRules;
+    use chrono::DateTime;
     use data_types::{
         chunk_metadata::ChunkStorage,
-        database_rules::{PartitionTemplate, TemplatePart},
+        database_rules::{LifecycleRules, PartitionTemplate, TemplatePart},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     };
     use entry::{test_helpers::lp_to_entry, Sequence};
@@ -1385,11 +1385,11 @@ mod tests {
         let batches = run_query(db, "select * from cpu").await;
 
         let expected = vec![
-            "+-----+-------------------------------+",
-            "| bar | time                          |",
-            "+-----+-------------------------------+",
-            "| 1   | 1970-01-01 00:00:00.000000010 |",
-            "+-----+-------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 1   | 1970-01-01T00:00:00.000000010Z |",
+            "+-----+--------------------------------+",
         ];
         assert_batches_eq!(expected, &batches);
     }
@@ -1539,12 +1539,12 @@ mod tests {
         let batches = run_query(db, "select * from cpu order by time").await;
 
         let expected = vec![
-            "+-----+-------------------------------+",
-            "| bar | time                          |",
-            "+-----+-------------------------------+",
-            "| 2   | 1970-01-01 00:00:00.000000020 |",
-            "| 3   | 1970-01-01 00:00:00.000000030 |",
-            "+-----+-------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 2   | 1970-01-01T00:00:00.000000020Z |",
+            "| 3   | 1970-01-01T00:00:00.000000030Z |",
+            "+-----+--------------------------------+",
         ];
         assert_batches_eq!(expected, &batches);
     }
@@ -1626,11 +1626,11 @@ mod tests {
         let batches = run_query(db, "select * from cpu").await;
 
         let expected = vec![
-            "+-----+-------------------------------+",
-            "| bar | time                          |",
-            "+-----+-------------------------------+",
-            "| 1   | 1970-01-01 00:00:00.000000010 |",
-            "+-----+-------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 1   | 1970-01-01T00:00:00.000000010Z |",
+            "+-----+--------------------------------+",
         ];
         assert_batches_eq!(expected, &batches);
     }
@@ -1698,13 +1698,13 @@ mod tests {
 
     fn catalog_chunk_size_bytes_metric_eq(
         reg: &metrics::TestMetricRegistry,
-        source: &'static str,
+        location: &'static str,
         v: u64,
     ) -> Result<(), metrics::Error> {
         reg.has_metric_family("catalog_chunks_mem_usage_bytes")
             .with_labels(&[
                 ("db_name", "placeholder"),
-                ("source", source),
+                ("location", location),
                 ("svr_id", "1"),
             ])
             .gauge()
@@ -1714,7 +1714,22 @@ mod tests {
     #[tokio::test]
     async fn metrics_during_rollover() {
         let test_db = make_db().await;
-        let db = test_db.db;
+        let db = Arc::clone(&test_db.db);
+
+        let assert_metric = |name: &'static str, location: &'static str, value: f64| {
+            test_db
+                .metric_registry
+                .has_metric_family(name)
+                .with_labels(&[
+                    ("db_name", "placeholder"),
+                    ("location", location),
+                    ("svr_id", "1"),
+                    ("table", "cpu"),
+                ])
+                .gauge()
+                .eq(value)
+                .unwrap();
+        };
 
         write_lp(db.as_ref(), "cpu bar=1 10").await;
 
@@ -1731,11 +1746,18 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
+        assert_metric("catalog_loaded_chunks", "mutable_buffer", 1.0);
+        assert_metric("catalog_loaded_chunks", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_chunks", "object_store", 0.0);
+        assert_metric("catalog_loaded_rows", "mutable_buffer", 1.0);
+        assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_rows", "object_store", 0.0);
+
         // verify chunk size updated
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 44).unwrap();
 
         // write into same chunk again.
-        write_lp(db.as_ref(), "cpu bar=2 10").await;
+        write_lp(db.as_ref(), "cpu bar=2 20").await;
 
         // verify chunk size updated
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 60).unwrap();
@@ -1753,6 +1775,13 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
+        assert_metric("catalog_loaded_chunks", "mutable_buffer", 1.0);
+        assert_metric("catalog_loaded_chunks", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_chunks", "object_store", 0.0);
+        assert_metric("catalog_loaded_rows", "mutable_buffer", 2.0);
+        assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_rows", "object_store", 0.0);
+
         db.rollover_partition("cpu", "1970-01-01T00").await.unwrap();
 
         // A chunk is now closed
@@ -1768,7 +1797,14 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1239)
+        assert_metric("catalog_loaded_chunks", "mutable_buffer", 1.0);
+        assert_metric("catalog_loaded_chunks", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_chunks", "object_store", 0.0);
+        assert_metric("catalog_loaded_rows", "mutable_buffer", 2.0);
+        assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_rows", "object_store", 0.0);
+
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1287)
             .unwrap();
 
         db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
@@ -1788,9 +1824,16 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
+        assert_metric("catalog_loaded_chunks", "mutable_buffer", 0.0);
+        assert_metric("catalog_loaded_chunks", "read_buffer", 1.0);
+        assert_metric("catalog_loaded_chunks", "object_store", 0.0);
+        assert_metric("catalog_loaded_rows", "mutable_buffer", 0.0);
+        assert_metric("catalog_loaded_rows", "read_buffer", 2.0);
+        assert_metric("catalog_loaded_rows", "object_store", 0.0);
+
         // verify chunk size updated (chunk moved from closing to moving to moved)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
-        let expected_read_buffer_size = 1611;
+        let expected_read_buffer_size = 1637;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -1829,10 +1872,17 @@ mod tests {
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
-            "parquet",
+            "object_store",
             expected_parquet_size,
         )
         .unwrap(); // TODO: #1311
+
+        assert_metric("catalog_loaded_chunks", "mutable_buffer", 0.0);
+        assert_metric("catalog_loaded_chunks", "read_buffer", 1.0);
+        assert_metric("catalog_loaded_chunks", "object_store", 1.0);
+        assert_metric("catalog_loaded_rows", "mutable_buffer", 0.0);
+        assert_metric("catalog_loaded_rows", "read_buffer", 2.0);
+        assert_metric("catalog_loaded_rows", "object_store", 2.0);
 
         db.unload_read_buffer("cpu", "1970-01-01T00", 1).unwrap();
 
@@ -1845,10 +1895,17 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
+        assert_metric("catalog_loaded_chunks", "mutable_buffer", 0.0);
+        assert_metric("catalog_loaded_chunks", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_chunks", "object_store", 1.0);
+        assert_metric("catalog_loaded_rows", "mutable_buffer", 0.0);
+        assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
+        assert_metric("catalog_loaded_rows", "object_store", 2.0);
+
         // verify chunk size not increased for OS (it was in OS before unload)
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
-            "parquet",
+            "object_store",
             expected_parquet_size,
         )
         .unwrap();
@@ -1870,11 +1927,11 @@ mod tests {
         assert_eq!(mb_chunk.id(), 0);
 
         let expected = vec![
-            "+-----+-------------------------------+",
-            "| bar | time                          |",
-            "+-----+-------------------------------+",
-            "| 1   | 1970-01-01 00:00:00.000000010 |",
-            "+-----+-------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 1   | 1970-01-01T00:00:00.000000010Z |",
+            "+-----+--------------------------------+",
         ];
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_batches_sorted_eq!(expected, &batches);
@@ -1882,12 +1939,12 @@ mod tests {
         // add new data
         write_lp(db.as_ref(), "cpu bar=2 20").await;
         let expected = vec![
-            "+-----+-------------------------------+",
-            "| bar | time                          |",
-            "+-----+-------------------------------+",
-            "| 1   | 1970-01-01 00:00:00.000000010 |",
-            "| 2   | 1970-01-01 00:00:00.000000020 |",
-            "+-----+-------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 1   | 1970-01-01T00:00:00.000000010Z |",
+            "| 2   | 1970-01-01T00:00:00.000000020Z |",
+            "+-----+--------------------------------+",
         ];
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_batches_sorted_eq!(&expected, &batches);
@@ -1928,13 +1985,13 @@ mod tests {
         assert_eq!(mb_chunk.id(), 0);
 
         let expected = vec![
-            "+------+--------+-------------------------------+------+",
-            "| core | region | time                          | user |",
-            "+------+--------+-------------------------------+------+",
-            "|      | west   | 1970-01-01 00:00:00.000000010 | 23.2 |",
-            "|      |        | 1970-01-01 00:00:00.000000011 | 10   |",
-            "| one  |        | 1970-01-01 00:00:00.000000011 | 10   |",
-            "+------+--------+-------------------------------+------+",
+            "+------+--------+--------------------------------+------+",
+            "| core | region | time                           | user |",
+            "+------+--------+--------------------------------+------+",
+            "|      |        | 1970-01-01T00:00:00.000000011Z | 10   |",
+            "|      | west   | 1970-01-01T00:00:00.000000010Z | 23.2 |",
+            "| one  |        | 1970-01-01T00:00:00.000000011Z | 10   |",
+            "+------+--------+--------------------------------+------+",
         ];
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_batches_sorted_eq!(expected, &batches);
@@ -1969,12 +2026,12 @@ mod tests {
 
         // data should be readable
         let expected = vec![
-            "+-----+-------------------------------+",
-            "| bar | time                          |",
-            "+-----+-------------------------------+",
-            "| 1   | 1970-01-01 00:00:00.000000010 |",
-            "| 2   | 1970-01-01 00:00:00.000000020 |",
-            "+-----+-------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 1   | 1970-01-01T00:00:00.000000010Z |",
+            "| 2   | 1970-01-01T00:00:00.000000020Z |",
+            "+-----+--------------------------------+",
         ];
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_batches_eq!(&expected, &batches);
@@ -1993,7 +2050,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated (chunk moved from moved to writing to written)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1613).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1637).unwrap();
 
         // drop, the chunk from the read buffer
         db.drop_chunk("cpu", partition_key, mb_chunk.id())
@@ -2024,7 +2081,9 @@ mod tests {
         let test_db = make_db().await;
         let db = Arc::new(test_db.db);
 
+        let time0 = Utc::now();
         write_lp(db.as_ref(), "cpu bar=1 10").await;
+        let time1 = Utc::now();
 
         let partition_key = "1970-01-01T00";
         let mb_chunk = db
@@ -2037,8 +2096,16 @@ mod tests {
             .await
             .unwrap();
 
+        let first_old_rb_write = old_rb_chunk.time_of_first_write();
+        let last_old_rb_write = old_rb_chunk.time_of_last_write();
+        assert!(time0 < first_old_rb_write);
+        assert_eq!(first_old_rb_write, last_old_rb_write);
+        assert!(first_old_rb_write < time1);
+
         // Put new data into the mutable buffer
+        let time2 = Utc::now();
         write_lp(db.as_ref(), "cpu bar=2 20").await;
+        let time3 = Utc::now();
 
         // now, compact it
         let compacted_rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
@@ -2050,14 +2117,23 @@ mod tests {
         );
         assert_ne!(old_rb_chunk.id(), compacted_rb_chunk.id());
 
+        // Compacted first/last write times should be the min of the first writes and the max
+        // of the last writes of the compacted chunks
+        let first_compacted_write = compacted_rb_chunk.time_of_first_write();
+        let last_compacted_write = compacted_rb_chunk.time_of_last_write();
+        assert_eq!(first_old_rb_write, first_compacted_write);
+        assert_ne!(last_old_rb_write, last_compacted_write);
+        assert!(time2 < last_compacted_write);
+        assert!(last_compacted_write < time3);
+
         // data should be readable
         let expected = vec![
-            "+-----+-------------------------------+",
-            "| bar | time                          |",
-            "+-----+-------------------------------+",
-            "| 1   | 1970-01-01 00:00:00.000000010 |",
-            "| 2   | 1970-01-01 00:00:00.000000020 |",
-            "+-----+-------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 1   | 1970-01-01T00:00:00.000000010Z |",
+            "| 2   | 1970-01-01T00:00:00.000000020Z |",
+            "+-----+--------------------------------+",
         ];
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_batches_eq!(&expected, &batches);
@@ -2124,7 +2200,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3191.0)
+            .sample_sum_eq(3215.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk).await;
@@ -2133,32 +2209,32 @@ mod tests {
 
         assert_batches_eq!(
             &[
-                "+-----+----------+------+-------------------------------+",
-                "| bar | tag1     | tag2 | time                          |",
-                "+-----+----------+------+-------------------------------+",
-                "| 1   | cupcakes |      | 1970-01-01 00:00:00.000000010 |",
-                "| 2   | asfd     | foo  | 1970-01-01 00:00:00.000000020 |",
-                "| 2   | bingo    | foo  | 1970-01-01 00:00:00.000000010 |",
-                "| 2   | bongo    | a    | 1970-01-01 00:00:00.000000020 |",
-                "| 2   | bongo    | a    | 1970-01-01 00:00:00.000000010 |",
-                "| 3   |          | a    | 1970-01-01 00:00:00.000000005 |",
-                "+-----+----------+------+-------------------------------+",
+                "+-----+----------+------+--------------------------------+",
+                "| bar | tag1     | tag2 | time                           |",
+                "+-----+----------+------+--------------------------------+",
+                "| 1   | cupcakes |      | 1970-01-01T00:00:00.000000010Z |",
+                "| 2   | asfd     | foo  | 1970-01-01T00:00:00.000000020Z |",
+                "| 2   | bingo    | foo  | 1970-01-01T00:00:00.000000010Z |",
+                "| 2   | bongo    | a    | 1970-01-01T00:00:00.000000020Z |",
+                "| 2   | bongo    | a    | 1970-01-01T00:00:00.000000010Z |",
+                "| 3   |          | a    | 1970-01-01T00:00:00.000000005Z |",
+                "+-----+----------+------+--------------------------------+",
             ],
             &mb
         );
 
         assert_batches_eq!(
             &[
-                "+-----+----------+------+-------------------------------+",
-                "| bar | tag1     | tag2 | time                          |",
-                "+-----+----------+------+-------------------------------+",
-                "| 1   | cupcakes |      | 1970-01-01 00:00:00.000000010 |",
-                "| 3   |          | a    | 1970-01-01 00:00:00.000000005 |",
-                "| 2   | bongo    | a    | 1970-01-01 00:00:00.000000010 |",
-                "| 2   | bongo    | a    | 1970-01-01 00:00:00.000000020 |",
-                "| 2   | asfd     | foo  | 1970-01-01 00:00:00.000000020 |",
-                "| 2   | bingo    | foo  | 1970-01-01 00:00:00.000000010 |",
-                "+-----+----------+------+-------------------------------+",
+                "+-----+----------+------+--------------------------------+",
+                "| bar | tag1     | tag2 | time                           |",
+                "+-----+----------+------+--------------------------------+",
+                "| 1   | cupcakes |      | 1970-01-01T00:00:00.000000010Z |",
+                "| 3   |          | a    | 1970-01-01T00:00:00.000000005Z |",
+                "| 2   | bongo    | a    | 1970-01-01T00:00:00.000000010Z |",
+                "| 2   | bongo    | a    | 1970-01-01T00:00:00.000000020Z |",
+                "| 2   | asfd     | foo  | 1970-01-01T00:00:00.000000020Z |",
+                "| 2   | bingo    | foo  | 1970-01-01T00:00:00.000000010Z |",
+                "+-----+----------+------+--------------------------------+",
             ],
             &rb
         );
@@ -2234,7 +2310,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2260.0)
+            .sample_sum_eq(2284.0)
             .unwrap();
 
         // while MB and RB chunk are identical, the PQ chunk is a new one (split off)
@@ -2270,12 +2346,12 @@ mod tests {
             read_data_from_parquet_data(Arc::clone(&schema.as_arrow()), parquet_data);
 
         let expected = vec![
-            "+-----+-------------------------------+",
-            "| bar | time                          |",
-            "+-----+-------------------------------+",
-            "| 1   | 1970-01-01 00:00:00.000000010 |",
-            "| 2   | 1970-01-01 00:00:00.000000020 |",
-            "+-----+-------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 1   | 1970-01-01T00:00:00.000000010Z |",
+            "| 2   | 1970-01-01T00:00:00.000000020Z |",
+            "+-----+--------------------------------+",
         ];
         assert_batches_eq!(expected, &record_batches);
     }
@@ -2354,7 +2430,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2260.0)
+            .sample_sum_eq(2284.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -2412,12 +2488,12 @@ mod tests {
             read_data_from_parquet_data(Arc::clone(&schema.as_arrow()), parquet_data);
 
         let expected = vec![
-            "+-----+-------------------------------+",
-            "| bar | time                          |",
-            "+-----+-------------------------------+",
-            "| 1   | 1970-01-01 00:00:00.000000010 |",
-            "| 2   | 1970-01-01 00:00:00.000000020 |",
-            "+-----+-------------------------------+",
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 1   | 1970-01-01T00:00:00.000000010Z |",
+            "| 2   | 1970-01-01T00:00:00.000000020Z |",
+            "+-----+--------------------------------+",
         ];
         assert_batches_eq!(expected, &record_batches);
     }
@@ -2768,24 +2844,137 @@ mod tests {
         );
     }
 
+    fn assert_first_last_times_eq(chunk_summary: &ChunkSummary) {
+        let first_write = chunk_summary.time_of_first_write.unwrap();
+        let last_write = chunk_summary.time_of_last_write.unwrap();
+
+        assert_eq!(first_write, last_write);
+    }
+
+    fn assert_first_last_times_between(
+        chunk_summary: &ChunkSummary,
+        before: DateTime<Utc>,
+        after: DateTime<Utc>,
+    ) {
+        let first_write = chunk_summary.time_of_first_write.unwrap();
+        let last_write = chunk_summary.time_of_last_write.unwrap();
+
+        assert!(before < first_write);
+        assert!(before < last_write);
+        assert!(first_write < after);
+        assert!(last_write < after);
+    }
+
+    fn assert_chunks_times_ordered(before: &ChunkSummary, after: &ChunkSummary) {
+        let before_last_write = before.time_of_last_write.unwrap();
+        let after_first_write = after.time_of_first_write.unwrap();
+
+        assert!(before_last_write < after_first_write);
+    }
+
+    fn assert_chunks_times_eq(a: &ChunkSummary, b: &ChunkSummary) {
+        assert_chunks_first_times_eq(a, b);
+        assert_chunks_last_times_eq(a, b);
+    }
+
+    fn assert_chunks_first_times_eq(a: &ChunkSummary, b: &ChunkSummary) {
+        let a_first_write = a.time_of_first_write.unwrap();
+        let b_first_write = b.time_of_first_write.unwrap();
+        assert_eq!(a_first_write, b_first_write);
+    }
+
+    fn assert_chunks_last_times_eq(a: &ChunkSummary, b: &ChunkSummary) {
+        let a_last_write = a.time_of_last_write.unwrap();
+        let b_last_write = b.time_of_last_write.unwrap();
+        assert_eq!(a_last_write, b_last_write);
+    }
+
     #[tokio::test]
     async fn chunk_summaries() {
         // Test that chunk id listing is hooked up
         let db = make_db().await.db;
 
         // get three chunks: one open, one closed in mb and one close in rb
+        // TIME 0 ---------------------------------------------------------------------------------
+        let time0 = Utc::now();
+        // In open chunk, will end up in rb/os
         write_lp(&db, "cpu bar=1 1").await;
+        // TIME 1 ---------------------------------------------------------------------------------
+        let time1 = Utc::now();
+        // Move open chunk to closed
         db.rollover_partition("cpu", "1970-01-01T00").await.unwrap();
-
+        // TIME 2 ---------------------------------------------------------------------------------
+        let time2 = Utc::now();
+        // New open chunk in mb
+        // This point will end up in rb/os
         write_lp(&db, "cpu bar=1,baz=2 2").await;
+        // TIME 3 ---------------------------------------------------------------------------------
+        let time3 = Utc::now();
+
+        // Check first/last write times on the chunks at this point
+        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        chunk_summaries.sort_unstable();
+        assert_eq!(chunk_summaries.len(), 2);
+        // Each chunk has one write, so both chunks should have first write == last write
+        let closed_mb_t3 = chunk_summaries[0].clone();
+        assert_eq!(closed_mb_t3.storage, ChunkStorage::ClosedMutableBuffer);
+        assert_first_last_times_eq(&closed_mb_t3);
+        assert_first_last_times_between(&closed_mb_t3, time0, time1);
+        let open_mb_t3 = chunk_summaries[1].clone();
+        assert_eq!(open_mb_t3.storage, ChunkStorage::OpenMutableBuffer);
+        assert_first_last_times_eq(&open_mb_t3);
+        assert_first_last_times_between(&open_mb_t3, time2, time3);
+        assert_chunks_times_ordered(&closed_mb_t3, &open_mb_t3);
+
+        // This point makes a new open mb chunk and will end up in the closed mb chunk
         write_lp(&db, "cpu bar=1,baz=2,frob=3 400000000000000").await;
+        // TIME 4 ---------------------------------------------------------------------------------
+        // we don't need to check this value with anything because no timestamps
+        // should be between time3 and time4
 
-        print!("Partitions: {:?}", db.partition_keys().unwrap());
+        // Check first/last write times on the chunks at this point
+        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        chunk_summaries.sort_unstable();
+        assert_eq!(chunk_summaries.len(), 3);
+        // The closed chunk's times should be the same
+        let closed_mb_t4 = chunk_summaries[0].clone();
+        assert_eq!(closed_mb_t4.storage, ChunkStorage::ClosedMutableBuffer);
+        assert_chunks_times_eq(&closed_mb_t4, &closed_mb_t3);
+        // The first open chunk's times should be the same
+        let open_mb_t4 = chunk_summaries[1].clone();
+        assert_eq!(open_mb_t4.storage, ChunkStorage::OpenMutableBuffer);
+        assert_chunks_times_eq(&open_mb_t4, &open_mb_t3);
+        // The second open chunk's times should be later than the first open chunk's times
+        let other_open_mb_t4 = chunk_summaries[2].clone();
+        assert_eq!(other_open_mb_t4.storage, ChunkStorage::OpenMutableBuffer);
+        assert_chunks_times_ordered(&open_mb_t4, &other_open_mb_t4);
 
+        // Move closed mb chunk to rb
         db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
             .await
             .unwrap();
+        // TIME 5 ---------------------------------------------------------------------------------
+        // we don't need to check this value with anything because no timestamps
+        // should be between time4 and time5
 
+        // Check first/last write times on the chunks at this point
+        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        chunk_summaries.sort_unstable();
+        assert_eq!(chunk_summaries.len(), 3);
+        // The rb chunk's times should be the same as they were when this was the closed mb chunk
+        let rb_t5 = chunk_summaries[0].clone();
+        assert_eq!(rb_t5.storage, ChunkStorage::ReadBuffer);
+        assert_chunks_times_eq(&rb_t5, &closed_mb_t4);
+        // The first open chunk's times should be the same
+        let open_mb_t5 = chunk_summaries[1].clone();
+        assert_eq!(open_mb_t5.storage, ChunkStorage::OpenMutableBuffer);
+        assert_chunks_times_eq(&open_mb_t5, &open_mb_t4);
+        // The second open chunk's times should be the same
+        let other_open_mb_t5 = chunk_summaries[2].clone();
+        assert_eq!(other_open_mb_t5.storage, ChunkStorage::OpenMutableBuffer);
+        assert_chunks_times_eq(&other_open_mb_t5, &other_open_mb_t4);
+
+        // Persist rb to parquet os
         db.persist_partition(
             "cpu",
             "1970-01-01T00",
@@ -2793,13 +2982,71 @@ mod tests {
         )
         .await
         .unwrap();
+        // TIME 6 ---------------------------------------------------------------------------------
+        // we don't need to check this value with anything because no timestamps
+        // should be between time5 and time6
 
-        print!("Partitions2: {:?}", db.partition_keys().unwrap());
+        // Check first/last write times on the chunks at this point
+        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        chunk_summaries.sort_unstable();
+        // Persisting compacts chunks, so now there's only 2
+        assert_eq!(chunk_summaries.len(), 2);
+        // The rb chunk's times should be the first write of the rb chunk and the last write
+        // of the first open chunk that got compacted together
+        let rb_t6 = chunk_summaries[0].clone();
+        assert_eq!(rb_t6.storage, ChunkStorage::ReadBufferAndObjectStore);
+        assert_chunks_first_times_eq(&rb_t6, &rb_t5);
+        assert_chunks_last_times_eq(&rb_t6, &open_mb_t5);
+        // The first open chunk had all its points moved into the persisted chunk.
+        // The remaining open chunk is the other open chunk that did not contain any points
+        // for the first partition
+        let open_mb_t6 = chunk_summaries[1].clone();
+        assert_eq!(open_mb_t6.storage, ChunkStorage::OpenMutableBuffer);
+        assert_chunks_times_eq(&open_mb_t6, &other_open_mb_t5);
 
+        // Move open chunk to closed
         db.rollover_partition("cpu", "1970-01-05T15").await.unwrap();
-        write_lp(&db, "cpu bar=1,baz=3,blargh=3 400000000000000").await;
+        // TIME 7 ---------------------------------------------------------------------------------
+        let time7 = Utc::now();
 
-        let chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        // Check first/last write times on the chunks at this point
+        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        chunk_summaries.sort_unstable();
+        assert_eq!(chunk_summaries.len(), 2);
+        // The rb chunk's times should still be the same
+        let rb_t7 = chunk_summaries[0].clone();
+        assert_eq!(rb_t7.storage, ChunkStorage::ReadBufferAndObjectStore);
+        assert_chunks_times_eq(&rb_t7, &rb_t6);
+        // The open chunk should now be closed but the times should be the same
+        let closed_mb_t7 = chunk_summaries[1].clone();
+        assert_eq!(closed_mb_t7.storage, ChunkStorage::ClosedMutableBuffer);
+        assert_chunks_times_eq(&closed_mb_t7, &open_mb_t6);
+
+        // New open chunk in mb
+        // This point will stay in this open mb chunk
+        write_lp(&db, "cpu bar=1,baz=3,blargh=3 400000000000000").await;
+        // TIME 8 ---------------------------------------------------------------------------------
+        let time8 = Utc::now();
+
+        // Check first/last write times on the chunks at this point
+        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        chunk_summaries.sort_unstable();
+        assert_eq!(chunk_summaries.len(), 3);
+        // The rb chunk's times should still be the same
+        let rb_t8 = chunk_summaries[0].clone();
+        assert_eq!(rb_t8.storage, ChunkStorage::ReadBufferAndObjectStore);
+        assert_chunks_times_eq(&rb_t8, &rb_t7);
+        // The closed chunk's times should still be the same
+        let closed_mb_t8 = chunk_summaries[1].clone();
+        assert_eq!(closed_mb_t8.storage, ChunkStorage::ClosedMutableBuffer);
+        assert_chunks_times_eq(&closed_mb_t8, &closed_mb_t7);
+        // The open chunk had one write, so its times should be between t7 and t8 and first/last
+        // times should be the same
+        let open_mb_t8 = chunk_summaries[2].clone();
+        assert_eq!(open_mb_t8.storage, ChunkStorage::OpenMutableBuffer);
+        assert_first_last_times_eq(&open_mb_t8);
+        assert_first_last_times_between(&open_mb_t8, time7, time8);
+
         let chunk_summaries = ChunkSummary::normalize_summaries(chunk_summaries);
 
         let lifecycle_action = None;
@@ -2811,8 +3058,8 @@ mod tests {
                 2,
                 ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                3236,
-                1479,
+                3260, // size of RB and OS chunks
+                1479, // size of parquet file
                 2,
             ),
             ChunkSummary::new_without_timestamps(
@@ -2821,7 +3068,7 @@ mod tests {
                 0,
                 ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
-                2398,
+                2446,
                 0, // no OS chunks
                 1,
             ),
@@ -2837,15 +3084,17 @@ mod tests {
             ),
         ];
 
-        assert_eq!(
-            expected, chunk_summaries,
-            "\n\nexpected:\n{:#?}\n\nactual:{:#?}\n\n",
-            expected, chunk_summaries
-        );
+        for (expected_summary, actual_summary) in expected.iter().zip(chunk_summaries.iter()) {
+            assert_eq!(
+                expected_summary, actual_summary,
+                "\n\nexpected:\n{:#?}\n\nactual:\n{:#?}\n\n",
+                expected_summary, actual_summary
+            );
+        }
 
-        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2398 + 87);
-        assert_eq!(db.catalog.metrics().memory().read_buffer(), 2410);
-        assert_eq!(db.catalog.metrics().memory().parquet(), 826);
+        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2446 + 87);
+        assert_eq!(db.catalog.metrics().memory().read_buffer(), 2434);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 826);
     }
 
     #[tokio::test]

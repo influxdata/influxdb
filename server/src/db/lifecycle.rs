@@ -328,30 +328,49 @@ impl LifecycleChunk for CatalogChunk {
     }
 }
 
-/// Creates a new RUB chunk
-fn new_rub_chunk(db: &Db, table_name: &str) -> read_buffer::RBChunk {
-    // create a new read buffer chunk with memory tracking
+/// Executes a plan and collects the results into a read buffer chunk
+// This is an async function but has been desugared manually because it's hitting
+// https://github.com/rust-lang/rust/issues/63033
+fn collect_rub(
+    stream: SendableRecordBatchStream,
+    db: &Db,
+    table_name: &str,
+    time_of_first_write: DateTime<Utc>,
+    time_of_last_write: DateTime<Utc>,
+) -> impl futures::Future<Output = Result<Option<read_buffer::RBChunk>>> {
+    use futures::{future, StreamExt, TryStreamExt};
+
+    let table_name = table_name.to_string();
     let metrics = db
         .metrics_registry
         .register_domain_with_labels("read_buffer", db.metric_labels.clone());
+    let chunk_metrics = read_buffer::ChunkMetrics::new(&metrics);
 
-    read_buffer::RBChunk::new(table_name, read_buffer::ChunkMetrics::new(&metrics))
-}
+    async move {
+        let mut adapted_stream = stream.try_filter(|batch| future::ready(batch.num_rows() > 0));
 
-/// Executes a plan and collects the results into a read buffer chunk
-async fn collect_rub(
-    mut stream: SendableRecordBatchStream,
-    chunk: &mut read_buffer::RBChunk,
-) -> Result<()> {
-    use futures::StreamExt;
+        let first_batch = match adapted_stream.next().await {
+            Some(rb_result) => rb_result?,
+            // At least one RecordBatch is required to create a read_buffer::Chunk
+            None => return Ok(None),
+        };
+        let mut chunk = read_buffer::RBChunk::new(
+            table_name,
+            first_batch,
+            chunk_metrics,
+            time_of_first_write,
+            time_of_last_write,
+        );
 
-    while let Some(batch) = stream.next().await {
-        let batch = batch?;
-        if batch.num_rows() > 0 {
-            chunk.upsert_table(batch)
-        }
+        adapted_stream
+            .try_for_each(|batch| {
+                chunk.upsert_table(batch);
+                future::ready(Ok(()))
+            })
+            .await?;
+
+        Ok(Some(chunk))
     }
-    Ok(())
 }
 
 /// Return the merged schema for the chunks that are being

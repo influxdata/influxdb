@@ -28,7 +28,7 @@ use parquet::{
 };
 use persistence_windows::{
     checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder},
-    min_max_sequence::MinMaxSequence,
+    min_max_sequence::OptionalMinMaxSequence,
 };
 
 use crate::{
@@ -758,8 +758,8 @@ pub fn create_partition_and_database_checkpoint(
 ) -> (PartitionCheckpoint, DatabaseCheckpoint) {
     // create first partition checkpoint
     let mut sequencer_numbers = BTreeMap::new();
-    sequencer_numbers.insert(1, MinMaxSequence::new(15, 18));
-    sequencer_numbers.insert(2, MinMaxSequence::new(25, 28));
+    sequencer_numbers.insert(1, OptionalMinMaxSequence::new(None, 18));
+    sequencer_numbers.insert(2, OptionalMinMaxSequence::new(Some(25), 28));
     let min_unpersisted_timestamp = Utc.timestamp(10, 20);
     let partition_checkpoint_1 = PartitionCheckpoint::new(
         Arc::clone(&table_name),
@@ -770,8 +770,8 @@ pub fn create_partition_and_database_checkpoint(
 
     // create second partition checkpoint
     let mut sequencer_numbers = BTreeMap::new();
-    sequencer_numbers.insert(2, MinMaxSequence::new(24, 29));
-    sequencer_numbers.insert(3, MinMaxSequence::new(35, 38));
+    sequencer_numbers.insert(2, OptionalMinMaxSequence::new(Some(24), 29));
+    sequencer_numbers.insert(3, OptionalMinMaxSequence::new(Some(35), 38));
     let min_unpersisted_timestamp = Utc.timestamp(20, 30);
     let partition_checkpoint_2 = PartitionCheckpoint::new(
         table_name,

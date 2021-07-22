@@ -1,14 +1,11 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+use super::{
+    catalog::chunk::ChunkMetadata, pred::to_read_buffer_predicate, streams::ReadFilterResultsStream,
 };
-
+use chrono::{DateTime, Utc};
 use data_types::partition_metadata;
-use partition_metadata::TableSummary;
-use snafu::{OptionExt, ResultExt, Snafu};
-
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
+use internal_types::access::AccessRecorder;
 use internal_types::{
     schema::{sort::SortKey, Schema},
     selection::Selection,
@@ -17,15 +14,17 @@ use mutable_buffer::chunk::snapshot::ChunkSnapshot;
 use object_store::path::Path;
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
+use partition_metadata::TableSummary;
 use query::{
     exec::stringset::StringSet,
     predicate::{Predicate, PredicateMatch},
     QueryChunk, QueryChunkMeta,
 };
 use read_buffer::RBChunk;
-
-use super::{
-    catalog::chunk::ChunkMetadata, pred::to_read_buffer_predicate, streams::ReadFilterResultsStream,
+use snafu::{OptionExt, ResultExt, Snafu};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
 };
 
 #[derive(Debug, Snafu)]
@@ -80,6 +79,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct DbChunk {
     id: u32,
     table_name: Arc<str>,
+    access_recorder: AccessRecorder,
     state: State,
     meta: Arc<ChunkMetadata>,
 }
@@ -156,6 +156,7 @@ impl DbChunk {
         Arc::new(Self {
             id: chunk.id(),
             table_name: chunk.table_name(),
+            access_recorder: chunk.access_recorder().clone(),
             state,
             meta,
         })
@@ -184,6 +185,7 @@ impl DbChunk {
             table_name: chunk.table_name(),
             meta,
             state,
+            access_recorder: chunk.access_recorder().clone(),
         })
     }
 
@@ -199,6 +201,22 @@ impl DbChunk {
     /// Return the name of the table in this chunk
     pub fn table_name(&self) -> Arc<str> {
         Arc::clone(&self.table_name)
+    }
+
+    pub fn time_of_first_write(&self) -> DateTime<Utc> {
+        match &self.state {
+            State::MutableBuffer { chunk } => chunk.table_summary().time_of_first_write,
+            State::ReadBuffer { chunk, .. } => chunk.table_summary().time_of_first_write,
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn time_of_last_write(&self) -> DateTime<Utc> {
+        match &self.state {
+            State::MutableBuffer { chunk } => chunk.table_summary().time_of_last_write,
+            State::ReadBuffer { chunk, .. } => chunk.table_summary().time_of_last_write,
+            _ => unimplemented!(),
+        }
     }
 }
 
@@ -300,6 +318,7 @@ impl QueryChunk for DbChunk {
         // when possible for performance gain
 
         debug!(?predicate, "Input Predicate to read_filter");
+        self.access_recorder.record_access_now();
 
         match &self.state {
             State::MutableBuffer { chunk, .. } => {
@@ -351,6 +370,7 @@ impl QueryChunk for DbChunk {
                     // TODO: Support predicates
                     return Ok(None);
                 }
+                self.access_recorder.record_access_now();
                 Ok(chunk.column_names(columns))
             }
             State::ReadBuffer { chunk, .. } => {
@@ -362,6 +382,7 @@ impl QueryChunk for DbChunk {
                     }
                 };
 
+                self.access_recorder.record_access_now();
                 Ok(Some(
                     chunk
                         .column_names(rb_predicate, columns, BTreeSet::new())
@@ -375,6 +396,7 @@ impl QueryChunk for DbChunk {
                     // TODO: Support predicates when MB supports it
                     return Ok(None);
                 }
+                self.access_recorder.record_access_now();
                 Ok(chunk.column_names(columns))
             }
         }
@@ -400,6 +422,7 @@ impl QueryChunk for DbChunk {
                     }
                 };
 
+                self.access_recorder.record_access_now();
                 let mut values = chunk
                     .column_values(
                         rb_predicate,
@@ -465,5 +488,126 @@ impl QueryChunkMeta for DbChunk {
 
     fn schema(&self) -> Arc<Schema> {
         Arc::clone(&self.meta.schema)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, Instant};
+
+    use data_types::chunk_metadata::ChunkStorage;
+
+    use crate::db::catalog::chunk::CatalogChunk;
+    use crate::db::test_helpers::write_lp;
+    use crate::utils::make_db;
+
+    use super::*;
+
+    async fn test_chunk_access(chunk: &CatalogChunk) {
+        let t1 = chunk.access_recorder().get_metrics();
+        let snapshot = DbChunk::snapshot(chunk);
+        let t2 = chunk.access_recorder().get_metrics();
+
+        snapshot
+            .read_filter(&Default::default(), Selection::All)
+            .unwrap();
+        let t3 = chunk.access_recorder().get_metrics();
+
+        let column_names = snapshot
+            .column_names(&Default::default(), Selection::All)
+            .unwrap()
+            .is_some();
+        let t4 = chunk.access_recorder().get_metrics();
+
+        let column_values = snapshot
+            .column_values("tag", &Default::default())
+            .unwrap()
+            .is_some();
+        let t5 = chunk.access_recorder().get_metrics();
+
+        // Snapshot shouldn't count as an access
+        assert_eq!(t1, t2);
+
+        // Query should count as an access
+        assert_eq!(t2.count + 1, t3.count);
+        assert!(t2.last_instant < t3.last_instant);
+
+        // If column names successful should record access
+        match column_names {
+            true => {
+                assert_eq!(t3.count + 1, t4.count);
+                assert!(t3.last_instant < t4.last_instant);
+            }
+            false => {
+                assert_eq!(t3, t4);
+            }
+        }
+
+        // If column values successful should record access
+        match column_values {
+            true => {
+                assert_eq!(t4.count + 1, t5.count);
+                assert!(t4.last_instant < t5.last_instant);
+            }
+            false => {
+                assert_eq!(t4, t5);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn mub_records_access() {
+        let db = make_db().await.db;
+
+        write_lp(&db, "cpu,tag=1 bar=1 1").await;
+
+        let chunks = db.catalog.chunks();
+        assert_eq!(chunks.len(), 1);
+        let chunk = chunks.into_iter().next().unwrap();
+        let chunk = chunk.read();
+        assert_eq!(chunk.storage().1, ChunkStorage::OpenMutableBuffer);
+
+        test_chunk_access(&chunk).await;
+    }
+
+    #[tokio::test]
+    async fn rub_records_access() {
+        let db = make_db().await.db;
+
+        write_lp(&db, "cpu,tag=1 bar=1 1").await;
+        db.compact_partition("cpu", "1970-01-01T00").await.unwrap();
+
+        let chunks = db.catalog.chunks();
+        assert_eq!(chunks.len(), 1);
+        let chunk = chunks.into_iter().next().unwrap();
+        let chunk = chunk.read();
+        assert_eq!(chunk.storage().1, ChunkStorage::ReadBuffer);
+
+        test_chunk_access(&chunk).await
+    }
+
+    #[tokio::test]
+    async fn parquet_records_access() {
+        let db = make_db().await.db;
+
+        write_lp(&db, "cpu,tag=1 bar=1 1").await;
+        let id = db
+            .persist_partition(
+                "cpu",
+                "1970-01-01T00",
+                Instant::now() + Duration::from_secs(10000),
+            )
+            .await
+            .unwrap()
+            .id;
+        db.unload_read_buffer("cpu", "1970-01-01T00", id).unwrap();
+
+        let chunks = db.catalog.chunks();
+        assert_eq!(chunks.len(), 1);
+        let chunk = chunks.into_iter().next().unwrap();
+        let chunk = chunk.read();
+        assert_eq!(chunk.storage().1, ChunkStorage::ObjectStoreOnly);
+
+        test_chunk_access(&chunk).await
     }
 }

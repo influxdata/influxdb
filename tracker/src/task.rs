@@ -131,6 +131,18 @@ pub enum TaskResult {
     Error,
 }
 
+impl TaskResult {
+    /// return a human readable name for this result
+    pub fn name(&self) -> &'static str {
+        match self {
+            TaskResult::Success => "Success",
+            TaskResult::Cancelled => "Cancelled",
+            TaskResult::Dropped => "Dropped",
+            TaskResult::Error => "Error",
+        }
+    }
+}
+
 /// The status of the tracked task
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TaskStatus {

@@ -135,13 +135,17 @@ pub struct ChunkSummary {
     /// The total number of rows in this chunk
     pub row_count: usize,
 
-    /// Time at which the first data was written into this chunk. Note
-    /// this is not the same as the timestamps on the data itself
+    /// The time at which the chunk data was accessed, by a query or a write
+    pub time_of_last_access: Option<DateTime<Utc>>,
+
+    /// The earliest time at which data contained within this chunk was written
+    /// into IOx. Note due to the compaction, etc... this may not be the chunk
+    /// that data was originally written into
     pub time_of_first_write: Option<DateTime<Utc>>,
 
-    /// Most recent time at which data write was initiated into this
-    /// chunk. Note this is not the same as the timestamps on the data
-    /// itself
+    /// The latest time at which data contained within this chunk was written
+    /// into IOx. Note due to the compaction, etc... this may not be the chunk
+    /// that data was originally written into
     pub time_of_last_write: Option<DateTime<Utc>>,
 
     /// Time at which this chunk was marked as closed. Note this is
@@ -191,6 +195,7 @@ impl ChunkSummary {
             memory_bytes,
             object_store_bytes,
             row_count,
+            time_of_last_access: None,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,

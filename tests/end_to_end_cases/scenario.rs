@@ -212,7 +212,7 @@ impl Scenario {
         ])
         .unwrap();
 
-        arrow::util::pretty::pretty_format_batches(&[batch])
+        arrow_util::display::pretty_format_batches(&[batch])
             .unwrap()
             .trim()
             .split('\n')

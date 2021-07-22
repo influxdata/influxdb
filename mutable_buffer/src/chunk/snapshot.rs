@@ -1,19 +1,16 @@
-use std::collections::BTreeSet;
-use std::sync::Arc;
-
+use super::MBChunk;
 use arrow::record_batch::RecordBatch;
-use snafu::{ResultExt, Snafu};
-
-use data_types::partition_metadata::TableSummary;
-use data_types::timestamp::TimestampRange;
 use data_types::{
     error::ErrorLogger,
-    partition_metadata::{ColumnSummary, Statistics},
+    partition_metadata::{Statistics, TableSummaryAndTimes},
+    timestamp::TimestampRange,
 };
-use internal_types::schema::{Schema, TIME_COLUMN_NAME};
-use internal_types::selection::Selection;
-
-use super::MBChunk;
+use internal_types::{
+    schema::{Schema, TIME_COLUMN_NAME},
+    selection::Selection,
+};
+use snafu::{ResultExt, Snafu};
+use std::{collections::BTreeSet, sync::Arc};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -34,7 +31,7 @@ pub struct ChunkSnapshot {
     schema: Arc<Schema>,
     batch: RecordBatch,
     table_name: Arc<str>,
-    stats: Vec<ColumnSummary>,
+    summary: TableSummaryAndTimes,
 }
 
 impl ChunkSnapshot {
@@ -55,7 +52,7 @@ impl ChunkSnapshot {
             schema: Arc::new(schema),
             batch,
             table_name: Arc::clone(&chunk.table_name),
-            stats: summary.columns,
+            summary,
         }
     }
 
@@ -102,19 +99,16 @@ impl ChunkSnapshot {
         })
     }
 
-    /// Returns a vec of the summary statistics of the tables in this chunk
-    pub fn table_summary(&self) -> TableSummary {
-        TableSummary {
-            name: self.table_name.to_string(),
-            columns: self.stats.clone(),
-        }
+    /// Returns a table summary for this chunk
+    pub fn table_summary(&self) -> &TableSummaryAndTimes {
+        &self.summary
     }
 
     /// Return the approximate memory size of the chunk, in bytes including the
     /// dictionary, tables, statistics and their rows.
     pub fn size(&self) -> usize {
         let columns = self.column_sizes().map(|(_, size)| size).sum::<usize>();
-        let stats = self.stats.iter().map(|c| c.size()).sum::<usize>();
+        let stats = self.summary.columns.iter().map(|c| c.size()).sum::<usize>();
         columns + stats + std::mem::size_of::<Self>()
     }
 
@@ -126,7 +120,7 @@ impl ChunkSnapshot {
         self.batch
             .columns()
             .iter()
-            .zip(self.stats.iter())
+            .zip(self.summary.columns.iter())
             .map(move |(array, summary)| {
                 let size = array.get_array_memory_size() + array.get_buffer_memory_size();
                 (summary.name.as_str(), size)
@@ -146,7 +140,7 @@ impl ChunkSnapshot {
 
         self.schema
             .find_index_of(TIME_COLUMN_NAME)
-            .and_then(|idx| match &self.stats[idx].stats {
+            .and_then(|idx| match &self.summary.columns[idx].stats {
                 Statistics::I64(stats) => Some(
                     !TimestampRange::new(stats.min? as _, stats.max? as _)
                         .disjoint(timestamp_range),

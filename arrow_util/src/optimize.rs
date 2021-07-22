@@ -97,6 +97,7 @@ fn optimize_dict_col(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate as arrow_util;
     use crate::assert_batches_eq;
     use arrow::array::{ArrayDataBuilder, DictionaryArray, Float64Array, Int32Array, StringArray};
     use arrow::compute::concat;

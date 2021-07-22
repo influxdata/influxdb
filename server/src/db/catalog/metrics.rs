@@ -1,5 +1,5 @@
 use crate::db::catalog::chunk::ChunkMetrics;
-use metrics::{Counter, GaugeValue, Histogram, KeyValue};
+use metrics::{Counter, Gauge, GaugeValue, Histogram, KeyValue};
 use std::sync::Arc;
 use tracker::{LockTracker, RwLock};
 
@@ -9,19 +9,25 @@ pub struct CatalogMetrics {
     metrics_domain: Arc<metrics::Domain>,
 
     /// Catalog memory metrics
-    memory_metrics: MemoryMetrics,
+    memory_metrics: StorageGauge,
 }
 
 impl CatalogMetrics {
     pub fn new(metrics_domain: metrics::Domain) -> Self {
+        let chunks_mem_usage = metrics_domain.register_gauge_metric(
+            "chunks_mem_usage",
+            Some("bytes"),
+            "Memory usage by catalog chunks",
+        );
+
         Self {
-            memory_metrics: MemoryMetrics::new(&metrics_domain),
+            memory_metrics: StorageGauge::new(&chunks_mem_usage),
             metrics_domain: Arc::new(metrics_domain),
         }
     }
 
     /// Returns the memory metrics for the catalog
-    pub fn memory(&self) -> &MemoryMetrics {
+    pub fn memory(&self) -> &StorageGauge {
         &self.memory_metrics
     }
 
@@ -56,8 +62,24 @@ impl CatalogMetrics {
             &chunk_lock_tracker,
         );
 
+        let storage_gauge = self.metrics_domain.register_gauge_metric_with_labels(
+            "loaded",
+            Some("chunks"),
+            "The number of chunks loaded in a each chunk storage location",
+            &[KeyValue::new("table", table_name.to_string())],
+        );
+
+        let row_gauge = self.metrics_domain.register_gauge_metric_with_labels(
+            "loaded",
+            Some("rows"),
+            "The number of rows loaded in each chunk storage location",
+            &[KeyValue::new("table", table_name.to_string())],
+        );
+
         TableMetrics {
             metrics_domain: Arc::clone(&self.metrics_domain),
+            chunk_storage: StorageGauge::new(&storage_gauge),
+            row_count: StorageGauge::new(&row_gauge),
             memory_metrics: self.memory_metrics.clone_empty(),
             table_lock_tracker,
             partition_lock_tracker,
@@ -71,8 +93,14 @@ pub struct TableMetrics {
     /// Metrics domain
     metrics_domain: Arc<metrics::Domain>,
 
+    /// Chunk storage metrics
+    chunk_storage: StorageGauge,
+
+    /// Chunk row count metrics
+    row_count: StorageGauge,
+
     /// Catalog memory metrics
-    memory_metrics: MemoryMetrics,
+    memory_metrics: StorageGauge,
 
     /// Lock tracker for table-level locks
     table_lock_tracker: LockTracker,
@@ -96,6 +124,8 @@ impl TableMetrics {
     pub(super) fn new_partition_metrics(&self) -> PartitionMetrics {
         // Lock tracker for chunk-level locks
         PartitionMetrics {
+            chunk_storage: self.chunk_storage.clone_empty(),
+            row_count: self.row_count.clone_empty(),
             memory_metrics: self.memory_metrics.clone_empty(),
             chunk_state: self.metrics_domain.register_counter_metric_with_labels(
                 "chunks",
@@ -119,8 +149,14 @@ impl TableMetrics {
 
 #[derive(Debug)]
 pub struct PartitionMetrics {
+    /// Chunk storage metrics
+    chunk_storage: StorageGauge,
+
+    /// Chunk row count metrics
+    row_count: StorageGauge,
+
     /// Catalog memory metrics
-    memory_metrics: MemoryMetrics,
+    memory_metrics: StorageGauge,
 
     chunk_state: Counter,
 
@@ -139,65 +175,92 @@ impl PartitionMetrics {
         ChunkMetrics {
             state: self.chunk_state.clone(),
             immutable_chunk_size: self.immutable_chunk_size.clone(),
+            chunk_storage: self.chunk_storage.clone_empty(),
+            row_count: self.row_count.clone_empty(),
             memory_metrics: self.memory_metrics.clone_empty(),
         }
     }
 }
 
+/// Created from a `metrics::Gauge` and extracts a `GaugeValue` for each chunk storage
+///
+/// This can then be used within each `CatalogChunk` to record its observations for
+/// the different storages
 #[derive(Debug)]
-pub struct MemoryMetrics {
+pub struct StorageGauge {
     pub(super) mutable_buffer: GaugeValue,
     pub(super) read_buffer: GaugeValue,
-    pub(super) parquet: GaugeValue,
+    pub(super) object_store: GaugeValue,
 }
 
-impl MemoryMetrics {
-    pub fn new_unregistered() -> Self {
+impl StorageGauge {
+    pub(super) fn new_unregistered() -> Self {
         Self {
             mutable_buffer: GaugeValue::new_unregistered(),
             read_buffer: GaugeValue::new_unregistered(),
-            parquet: GaugeValue::new_unregistered(),
+            object_store: GaugeValue::new_unregistered(),
         }
     }
 
-    pub fn new(metrics_domain: &metrics::Domain) -> Self {
-        let gauge = metrics_domain.register_gauge_metric(
-            "chunks_mem_usage",
-            Some("bytes"),
-            "Memory usage by catalog chunks",
-        );
-
+    pub(super) fn new(gauge: &Gauge) -> Self {
         Self {
-            mutable_buffer: gauge.gauge_value(&[KeyValue::new("source", "mutable_buffer")]),
-            read_buffer: gauge.gauge_value(&[KeyValue::new("source", "read_buffer")]),
-            parquet: gauge.gauge_value(&[KeyValue::new("source", "parquet")]),
+            mutable_buffer: gauge.gauge_value(&[KeyValue::new("location", "mutable_buffer")]),
+            read_buffer: gauge.gauge_value(&[KeyValue::new("location", "read_buffer")]),
+            object_store: gauge.gauge_value(&[KeyValue::new("location", "object_store")]),
         }
+    }
+
+    pub(super) fn set_mub_only(&mut self, value: usize) {
+        self.mutable_buffer.set(value);
+        self.read_buffer.set(0);
+        self.object_store.set(0);
+    }
+
+    pub(super) fn set_rub_only(&mut self, value: usize) {
+        self.mutable_buffer.set(0);
+        self.read_buffer.set(value);
+        self.object_store.set(0);
+    }
+
+    pub(super) fn set_rub_and_object_store_only(&mut self, rub: usize, parquet: usize) {
+        self.mutable_buffer.set(0);
+        self.read_buffer.set(rub);
+        self.object_store.set(parquet);
+    }
+
+    pub(super) fn set_object_store_only(&mut self, value: usize) {
+        self.mutable_buffer.set(0);
+        self.read_buffer.set(0);
+        self.object_store.set(value);
     }
 
     fn clone_empty(&self) -> Self {
         Self {
             mutable_buffer: self.mutable_buffer.clone_empty(),
             read_buffer: self.read_buffer.clone_empty(),
-            parquet: self.parquet.clone_empty(),
+            object_store: self.object_store.clone_empty(),
         }
     }
-    /// Returns the size of the mutable buffer
+
+    /// Returns the total for the mutable buffer
     pub fn mutable_buffer(&self) -> usize {
         self.mutable_buffer.get_total()
     }
 
-    /// Returns the size of the mutable buffer
+    /// Returns the total for the read buffer
     pub fn read_buffer(&self) -> usize {
         self.read_buffer.get_total()
     }
 
-    /// Returns the amount of data in parquet
-    pub fn parquet(&self) -> usize {
-        self.parquet.get_total()
+    /// Returns the total for object storage
+    pub fn object_store(&self) -> usize {
+        self.object_store.get_total()
     }
 
-    /// Total bytes over all registries.
+    /// Returns the total over all storages
     pub fn total(&self) -> usize {
-        self.mutable_buffer.get_total() + self.read_buffer.get_total() + self.parquet.get_total()
+        self.mutable_buffer.get_total()
+            + self.read_buffer.get_total()
+            + self.object_store.get_total()
     }
 }
