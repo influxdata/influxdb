@@ -3,7 +3,7 @@ use crate::scenarios::*;
 
 use server::{db::test_helpers::write_lp, utils::make_db};
 
-use arrow::util::pretty::pretty_format_batches;
+use arrow_util::display::pretty_format_batches;
 use async_trait::async_trait;
 use datafusion::prelude::*;
 use query::{
@@ -62,7 +62,7 @@ macro_rules! run_read_window_aggregate_test_case {
 
             assert_eq!(
                 expected_results, string_results,
-                "Error in  scenario '{}'\n\nexpected:\n{:#?}\nactual:\n{:#?}",
+                "Error in  scenario '{}'\n\nexpected:\n{:#?}\n\nactual:\n{:#?}\n",
                 scenario_name, expected_results, string_results
             );
         }
@@ -131,16 +131,16 @@ async fn test_read_window_aggregate_nanoseconds() {
 
     // note the name of the field is "temp" even though it is the average
     let expected_results = vec![
-        "+--------+-------+-------------------------------+------+",
-        "| city   | state | time                          | temp |",
-        "+--------+-------+-------------------------------+------+",
-        "| Boston | MA    | 1970-01-01 00:00:00.000000200 | 70   |",
-        "| Boston | MA    | 1970-01-01 00:00:00.000000400 | 71.5 |",
-        "| Boston | MA    | 1970-01-01 00:00:00.000000600 | 73   |",
-        "| LA     | CA    | 1970-01-01 00:00:00.000000200 | 90   |",
-        "| LA     | CA    | 1970-01-01 00:00:00.000000400 | 91.5 |",
-        "| LA     | CA    | 1970-01-01 00:00:00.000000600 | 93   |",
-        "+--------+-------+-------------------------------+------+",
+        "+--------+-------+--------------------------------+------+",
+        "| city   | state | time                           | temp |",
+        "+--------+-------+--------------------------------+------+",
+        "| Boston | MA    | 1970-01-01T00:00:00.000000200Z | 70   |",
+        "| Boston | MA    | 1970-01-01T00:00:00.000000400Z | 71.5 |",
+        "| Boston | MA    | 1970-01-01T00:00:00.000000600Z | 73   |",
+        "| LA     | CA    | 1970-01-01T00:00:00.000000200Z | 90   |",
+        "| LA     | CA    | 1970-01-01T00:00:00.000000400Z | 91.5 |",
+        "| LA     | CA    | 1970-01-01T00:00:00.000000600Z | 93   |",
+        "+--------+-------+--------------------------------+------+",
     ];
 
     run_read_window_aggregate_test_case!(
@@ -217,12 +217,12 @@ async fn test_read_window_aggregate_months() {
 
     // note the name of the field is "temp" even though it is the average
     let expected_results = vec![
-        "+--------+-------+---------------------+------+",
-        "| city   | state | time                | temp |",
-        "+--------+-------+---------------------+------+",
-        "| Boston | MA    | 2020-04-01 00:00:00 | 70.5 |",
-        "| Boston | MA    | 2020-05-01 00:00:00 | 72.5 |",
-        "+--------+-------+---------------------+------+",
+        "+--------+-------+----------------------+------+",
+        "| city   | state | time                 | temp |",
+        "+--------+-------+----------------------+------+",
+        "| Boston | MA    | 2020-04-01T00:00:00Z | 70.5 |",
+        "| Boston | MA    | 2020-05-01T00:00:00Z | 72.5 |",
+        "+--------+-------+----------------------+------+",
     ];
 
     run_read_window_aggregate_test_case!(

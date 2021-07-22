@@ -1693,6 +1693,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow-flight",
+ "arrow_util",
  "futures-util",
  "generated_types",
  "http",
