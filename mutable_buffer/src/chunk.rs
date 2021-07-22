@@ -227,7 +227,7 @@ impl MBChunk {
         RecordBatch::try_new(schema.into(), columns).context(ArrowError {})
     }
 
-    /// Returns a vec of the summary statistics of the tables in this chunk
+    /// Returns a table summary for this chunk
     pub fn table_summary(&self) -> TableSummaryAndTimes {
         let mut columns: Vec<_> = self
             .columns

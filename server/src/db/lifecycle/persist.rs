@@ -1,24 +1,19 @@
 //! This module contains the code that splits and persist chunks
 
-use std::future::Future;
-use std::sync::Arc;
-
+use super::{LockableCatalogChunk, LockableCatalogPartition, Result};
+use crate::db::{
+    catalog::{chunk::CatalogChunk, partition::Partition},
+    lifecycle::{collect_rub, merge_schemas, write::write_chunk_to_object_store},
+    DbChunk,
+};
+use chrono::{DateTime, Utc};
 use data_types::job::Job;
 use lifecycle::{LifecycleWriteGuard, LockableChunk, LockablePartition};
 use observability_deps::tracing::info;
 use persistence_windows::persistence_windows::FlushHandle;
-use query::exec::ExecutorType;
-use query::frontend::reorg::ReorgPlanner;
-use query::{compute_sort_key, QueryChunkMeta};
+use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
+use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
-
-use crate::db::catalog::chunk::CatalogChunk;
-use crate::db::catalog::partition::Partition;
-use crate::db::lifecycle::write::write_chunk_to_object_store;
-use crate::db::lifecycle::{collect_rub, merge_schemas, new_rub_chunk};
-use crate::db::DbChunk;
-
-use super::{LockableCatalogChunk, LockableCatalogPartition, Result};
 
 /// Split and then persist the provided chunks
 ///
@@ -49,6 +44,8 @@ pub fn persist_chunks(
 
     // Mark and snapshot chunks, then drop locks
     let mut input_rows = 0;
+    let mut time_of_first_write: Option<DateTime<Utc>> = None;
+    let mut time_of_last_write: Option<DateTime<Utc>> = None;
     let mut query_chunks = vec![];
     for mut chunk in chunks {
         // Sanity-check
@@ -56,14 +53,28 @@ pub fn persist_chunks(
         assert_eq!(chunk.table_name().as_ref(), table_name.as_str());
 
         input_rows += chunk.table_summary().count();
+
+        time_of_first_write = match (time_of_first_write, chunk.time_of_first_write()) {
+            (Some(prev_first), Some(candidate_first)) => Some(prev_first.min(candidate_first)),
+            (Some(only), None) | (None, Some(only)) => Some(only),
+            (None, None) => None,
+        };
+
+        time_of_last_write = match (time_of_last_write, chunk.time_of_last_write()) {
+            (Some(prev_last), Some(candidate_last)) => Some(prev_last.max(candidate_last)),
+            (Some(only), None) | (None, Some(only)) => Some(only),
+            (None, None) => None,
+        };
+
         chunk.set_writing_to_object_store(&registration)?;
         query_chunks.push(DbChunk::snapshot(&*chunk));
     }
 
     // drop partition lock guard
     let partition = partition.into_data().partition;
-    let mut to_persist = new_rub_chunk(db.as_ref(), &table_name);
-    let mut remainder = new_rub_chunk(db.as_ref(), &table_name);
+
+    let time_of_first_write = time_of_first_write.expect("Should have had a first write somewhere");
+    let time_of_last_write = time_of_last_write.expect("Should have had a last write somewhere");
 
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
@@ -92,14 +103,26 @@ pub fn persist_chunks(
         let to_persist_stream = ctx.execute_partition(Arc::clone(&physical_plan), 0).await?;
         let remainder_stream = ctx.execute_partition(physical_plan, 1).await?;
 
-        futures::future::try_join(
-            collect_rub(to_persist_stream, &mut to_persist),
-            collect_rub(remainder_stream, &mut remainder),
+        let (to_persist, remainder) = futures::future::try_join(
+            collect_rub(
+                to_persist_stream,
+                db.as_ref(),
+                &table_name,
+                time_of_first_write,
+                time_of_last_write,
+            ),
+            collect_rub(
+                remainder_stream,
+                db.as_ref(),
+                &table_name,
+                time_of_first_write,
+                time_of_last_write,
+            ),
         )
         .await?;
 
-        let persisted_rows = to_persist.rows();
-        let remainder_rows = remainder.rows();
+        let persisted_rows = to_persist.as_ref().map(|p| p.rows()).unwrap_or(0);
+        let remainder_rows = remainder.as_ref().map(|r| r.rows()).unwrap_or(0);
 
         let persist_fut = {
             let partition = LockableCatalogPartition::new(Arc::clone(&db), partition);
@@ -109,11 +132,11 @@ pub fn persist_chunks(
             }
 
             // Upsert remainder to catalog
-            if remainder.rows() > 0 {
+            if let Some(remainder) = remainder {
                 partition_write.create_rub_chunk(remainder, Arc::clone(&schema));
             }
 
-            assert!(to_persist.rows() > 0);
+            let to_persist = to_persist.expect("should be rows to persist");
 
             let to_persist = LockableCatalogChunk {
                 db,

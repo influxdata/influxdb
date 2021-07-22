@@ -1,24 +1,18 @@
 //! This module contains the code to compact chunks together
 
-use std::future::Future;
-use std::sync::Arc;
-
+use super::{error::Result, merge_schemas, LockableCatalogChunk, LockableCatalogPartition};
+use crate::db::{
+    catalog::{chunk::CatalogChunk, partition::Partition},
+    lifecycle::collect_rub,
+    DbChunk,
+};
+use chrono::{DateTime, Utc};
 use data_types::job::Job;
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
-use query::exec::ExecutorType;
-use query::frontend::reorg::ReorgPlanner;
-use query::{compute_sort_key, QueryChunkMeta};
-use read_buffer::{ChunkMetrics, RBChunk};
+use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
+use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
-
-use crate::db::catalog::chunk::CatalogChunk;
-use crate::db::catalog::partition::Partition;
-use crate::db::DbChunk;
-
-use super::merge_schemas;
-use super::{error::Result, LockableCatalogChunk, LockableCatalogPartition};
-use crate::db::lifecycle::collect_rub;
 
 /// Compact the provided chunks into a single chunk,
 /// returning the newly created chunk
@@ -43,6 +37,8 @@ pub(crate) fn compact_chunks(
 
     // Mark and snapshot chunks, then drop locks
     let mut input_rows = 0;
+    let mut time_of_first_write: Option<DateTime<Utc>> = None;
+    let mut time_of_last_write: Option<DateTime<Utc>> = None;
     let query_chunks = chunks
         .into_iter()
         .map(|mut chunk| {
@@ -51,6 +47,19 @@ pub(crate) fn compact_chunks(
             assert_eq!(chunk.table_name().as_ref(), table_name.as_str());
 
             input_rows += chunk.table_summary().count();
+
+            time_of_first_write = match (time_of_first_write, chunk.time_of_first_write()) {
+                (Some(prev_first), Some(candidate_first)) => Some(prev_first.min(candidate_first)),
+                (Some(only), None) | (None, Some(only)) => Some(only),
+                (None, None) => None,
+            };
+
+            time_of_last_write = match (time_of_last_write, chunk.time_of_last_write()) {
+                (Some(prev_last), Some(candidate_last)) => Some(prev_last.max(candidate_last)),
+                (Some(only), None) | (None, Some(only)) => Some(only),
+                (None, None) => None,
+            };
+
             chunk.set_compacting(&registration)?;
             Ok(DbChunk::snapshot(&*chunk))
         })
@@ -59,12 +68,8 @@ pub(crate) fn compact_chunks(
     // drop partition lock
     let partition = partition.into_data().partition;
 
-    // create a new read buffer chunk with memory tracking
-    let metrics = db
-        .metrics_registry
-        .register_domain_with_labels("read_buffer", db.metric_labels.clone());
-
-    let mut rb_chunk = RBChunk::new(&table_name, ChunkMetrics::new(&metrics));
+    let time_of_first_write = time_of_first_write.expect("Should have had a first write somewhere");
+    let time_of_last_write = time_of_last_write.expect("Should have had a last write somewhere");
 
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
@@ -87,7 +92,15 @@ pub(crate) fn compact_chunks(
 
         let physical_plan = ctx.prepare_plan(&plan)?;
         let stream = ctx.execute(physical_plan).await?;
-        collect_rub(stream, &mut rb_chunk).await?;
+        let rb_chunk = collect_rub(
+            stream,
+            &db,
+            &table_name,
+            time_of_first_write,
+            time_of_last_write,
+        )
+        .await?
+        .expect("chunk has zero rows");
         let rb_row_groups = rb_chunk.row_groups();
 
         let new_chunk = {
@@ -107,7 +120,7 @@ pub(crate) fn compact_chunks(
 
         info!(input_chunks=query_chunks.len(), rub_row_groups=rb_row_groups,
                 input_rows=input_rows, output_rows=guard.table_summary().count(),
-                sort_key=%key_str, compaction_took = ?elapsed, fut_execution_duration= ?fut_now.elapsed(), 
+                sort_key=%key_str, compaction_took = ?elapsed, fut_execution_duration= ?fut_now.elapsed(),
                 rows_per_sec=?throughput,  "chunk(s) compacted");
 
         Ok(DbChunk::snapshot(&guard))
@@ -119,8 +132,7 @@ pub(crate) fn compact_chunks(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::test_helpers::write_lp;
-    use crate::utils::make_db;
+    use crate::{db::test_helpers::write_lp, utils::make_db};
     use data_types::chunk_metadata::ChunkStorage;
     use lifecycle::{LockableChunk, LockablePartition};
     use query::QueryDatabase;
@@ -130,11 +142,15 @@ mod tests {
         let test_db = make_db().await;
         let db = test_db.db;
 
+        let time0 = Utc::now();
+
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
         write_lp(db.as_ref(), "cpu,tag1=asfd,tag2=foo bar=2 20").await;
         write_lp(db.as_ref(), "cpu,tag1=bingo,tag2=foo bar=2 10").await;
         write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 20").await;
         write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 10").await;
+
+        let time1 = Utc::now();
 
         let partition_keys = db.partition_keys().unwrap();
         assert_eq!(partition_keys.len(), 1);
@@ -150,12 +166,31 @@ mod tests {
 
         let (_, fut) = compact_chunks(partition.upgrade(), vec![chunk.upgrade()]).unwrap();
         // NB: perform the write before spawning the background task that performs the compaction
+        let time2 = Utc::now();
         write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 40").await;
+        let time3 = Utc::now();
         tokio::spawn(fut).await.unwrap().unwrap().unwrap();
 
-        let summaries: Vec<_> = db_partition
-            .read()
-            .chunk_summaries()
+        let mut chunk_summaries: Vec<_> = db_partition.read().chunk_summaries().collect();
+
+        chunk_summaries.sort_unstable();
+
+        let mub_summary = &chunk_summaries[0];
+        let first_mub_write = mub_summary.time_of_first_write.unwrap();
+        let last_mub_write = mub_summary.time_of_last_write.unwrap();
+        assert!(time2 < first_mub_write);
+        assert_eq!(first_mub_write, last_mub_write);
+        assert!(first_mub_write < time3);
+
+        let rub_summary = &chunk_summaries[1];
+        let first_rub_write = rub_summary.time_of_first_write.unwrap();
+        let last_rub_write = rub_summary.time_of_last_write.unwrap();
+        assert!(time0 < first_rub_write);
+        assert!(first_rub_write < last_rub_write);
+        assert!(last_rub_write < time1);
+
+        let summaries: Vec<_> = chunk_summaries
+            .iter()
             .map(|summary| (summary.storage, summary.row_count))
             .collect();
 

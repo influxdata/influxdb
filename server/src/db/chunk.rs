@@ -1,10 +1,7 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+use super::{
+    catalog::chunk::ChunkMetadata, pred::to_read_buffer_predicate, streams::ReadFilterResultsStream,
 };
-
-use snafu::{OptionExt, ResultExt, Snafu};
-
+use chrono::{DateTime, Utc};
 use data_types::partition_metadata;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
@@ -24,9 +21,10 @@ use query::{
     QueryChunk, QueryChunkMeta,
 };
 use read_buffer::RBChunk;
-
-use super::{
-    catalog::chunk::ChunkMetadata, pred::to_read_buffer_predicate, streams::ReadFilterResultsStream,
+use snafu::{OptionExt, ResultExt, Snafu};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
 };
 
 #[derive(Debug, Snafu)]
@@ -203,6 +201,22 @@ impl DbChunk {
     /// Return the name of the table in this chunk
     pub fn table_name(&self) -> Arc<str> {
         Arc::clone(&self.table_name)
+    }
+
+    pub fn time_of_first_write(&self) -> DateTime<Utc> {
+        match &self.state {
+            State::MutableBuffer { chunk } => chunk.table_summary().time_of_first_write,
+            State::ReadBuffer { chunk, .. } => chunk.table_summary().time_of_first_write,
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn time_of_last_write(&self) -> DateTime<Utc> {
+        match &self.state {
+            State::MutableBuffer { chunk } => chunk.table_summary().time_of_last_write,
+            State::ReadBuffer { chunk, .. } => chunk.table_summary().time_of_last_write,
+            _ => unimplemented!(),
+        }
     }
 }
 

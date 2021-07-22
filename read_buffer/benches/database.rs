@@ -1,21 +1,20 @@
-use std::sync::Arc;
-
-use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
-
 use arrow::{
     array::{ArrayRef, Int64Array, StringArray},
     record_batch::RecordBatch,
 };
+use chrono::Utc;
+use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use internal_types::schema::builder::SchemaBuilder;
 use read_buffer::{BinaryExpr, ChunkMetrics, Predicate, RBChunk};
+use std::sync::Arc;
 
 const BASE_TIME: i64 = 1351700038292387000_i64;
 const ONE_MS: i64 = 1_000_000;
 
 fn satisfies_predicate(c: &mut Criterion) {
     let rb = generate_row_group(500_000);
-    let mut chunk = RBChunk::new("table_a", ChunkMetrics::new_unregistered());
-    chunk.upsert_table(rb);
+    let now = Utc::now();
+    let chunk = RBChunk::new("table_a", rb, ChunkMetrics::new_unregistered(), now, now);
 
     // no predicate
     benchmark_satisfies_predicate(

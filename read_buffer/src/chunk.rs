@@ -1,21 +1,23 @@
+use crate::{
+    column::Statistics,
+    row_group::{ColumnName, Predicate, RowGroup},
+    schema::{AggregateType, ResultSchema},
+    table::{self, Table},
+};
+use arrow::record_batch::RecordBatch;
+use chrono::{DateTime, Utc};
+use data_types::{
+    chunk_metadata::ChunkColumnSummary,
+    partition_metadata::{TableSummary, TableSummaryAndTimes},
+};
+use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
+use metrics::{Gauge, KeyValue};
+use observability_deps::tracing::info;
+use snafu::{ResultExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
     convert::TryFrom,
 };
-
-use metrics::{Gauge, KeyValue};
-use snafu::{ResultExt, Snafu};
-
-use arrow::record_batch::RecordBatch;
-use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
-use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
-use observability_deps::tracing::info;
-
-use crate::row_group::{ColumnName, Predicate};
-use crate::schema::{AggregateType, ResultSchema};
-use crate::table;
-use crate::table::Table;
-use crate::{column::Statistics, row_group::RowGroup};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -47,14 +49,54 @@ pub struct Chunk {
 
     // The table associated with the chunk.
     pub(crate) table: Table,
+
+    /// Time at which the first data was written into this table. Note
+    /// this is not the same as the timestamps on the data itself
+    time_of_first_write: DateTime<Utc>,
+
+    /// Most recent time at which data write was initiated into this
+    /// chunk. Note this is not the same as the timestamps on the data
+    /// itself
+    time_of_last_write: DateTime<Utc>,
 }
 
 impl Chunk {
-    /// Initialises a new `Chunk` with the associated chunk ID.
-    pub fn new(table_name: impl Into<String>, metrics: ChunkMetrics) -> Self {
+    /// Start a new Chunk from the given record batch.
+    pub fn new(
+        table_name: impl Into<String>,
+        table_data: RecordBatch,
+        mut metrics: ChunkMetrics,
+        time_of_first_write: DateTime<Utc>,
+        time_of_last_write: DateTime<Utc>,
+    ) -> Self {
+        let table_name = table_name.into();
+        let row_group = record_batch_to_row_group_with_logging(&table_name, table_data);
+        let storage_statistics = row_group.column_storage_statistics();
+
+        let table = Table::with_row_group(table_name, row_group);
+
+        metrics.update_column_storage_statistics(&storage_statistics);
+
         Self {
             metrics,
-            table: Table::new(table_name.into()),
+            table,
+            time_of_first_write,
+            time_of_last_write,
+        }
+    }
+
+    // Only used in tests and benchmarks
+    pub(crate) fn new_from_row_group(
+        table_name: impl Into<String>,
+        row_group: RowGroup,
+        metrics: ChunkMetrics,
+    ) -> Self {
+        let now = Utc::now();
+        Self {
+            metrics,
+            table: Table::with_row_group(table_name, row_group),
+            time_of_first_write: now,
+            time_of_last_write: now,
         }
     }
 
@@ -100,6 +142,9 @@ impl Chunk {
 
         self.table.add_row_group(row_group);
 
+        // update last write time
+        self.time_of_last_write = Utc::now();
+
         // update column metrics associated with column storage
         self.metrics
             .update_column_storage_statistics(&storage_statistics);
@@ -111,53 +156,7 @@ impl Chunk {
     /// caller does not need to be concerned about the size of the update.
     pub fn upsert_table(&mut self, table_data: RecordBatch) {
         let table_name = self.table.name();
-        // TEMPORARY: print record batch information
-        for (column, field) in table_data
-            .columns()
-            .iter()
-            .zip(table_data.schema().fields())
-        {
-            info!(%table_name, column = %field.name(), rows=column.len(), data_type=%field.data_type(), buffer_size=column.get_buffer_memory_size(), array_size=column.get_array_memory_size(), "column");
-            for (idx, buffer) in column.data().buffers().iter().enumerate() {
-                info!(%table_name, column = %field.name(), len=buffer.len(), capacity=buffer.capacity(), idx, "column data");
-            }
-
-            for (parent_idx, data) in column.data().child_data().iter().enumerate() {
-                for (child_idx, buffer) in data.buffers().iter().enumerate() {
-                    info!(%table_name, column = %field.name(), len=buffer.len(), capacity=buffer.capacity(), parent_idx, child_idx, "column child data");
-                }
-            }
-        }
-
-        // Approximate heap size of record batch.
-        let mub_rb_size = table_data
-            .columns()
-            .iter()
-            .map(|c| c.get_buffer_memory_size())
-            .sum::<usize>();
-        let columns = table_data.num_columns();
-
-        // This call is expensive. Complete it before locking.
-        let now = std::time::Instant::now();
-        let row_group = RowGroup::from(table_data);
-        let compressing_took = now.elapsed();
-
-        let rows = row_group.rows();
-        let rg_size = row_group.size();
-        let mub_rb_comp = format!(
-            "{:.2}%",
-            (1.0 - (rg_size as f64 / mub_rb_size as f64)) * 100.0
-        );
-
-        let raw_size_null = row_group.size_raw(true);
-        let raw_size_no_null = row_group.size_raw(false);
-        let raw_rb_comp = format!(
-            "{:.2}%",
-            (1.0 - (rg_size as f64 / raw_size_null as f64)) * 100.0
-        );
-        let table_name = self.table.name();
-
-        info!(%rows, %columns, rg_size, mub_rb_size, %mub_rb_comp, raw_size_null, raw_size_no_null, %raw_rb_comp, ?table_name, ?compressing_took, "row group added");
+        let row_group = record_batch_to_row_group_with_logging(&table_name, table_data);
 
         self.upsert_table_with_row_group(row_group)
     }
@@ -221,8 +220,14 @@ impl Chunk {
     ///
     /// TODO(edd): consider deprecating or changing to return information about
     /// the physical layout of the data in the chunk.
-    pub fn table_summary(&self) -> TableSummary {
-        self.table.table_summary()
+    pub fn table_summary(&self) -> TableSummaryAndTimes {
+        let TableSummary { name, columns } = self.table.table_summary();
+        TableSummaryAndTimes {
+            name,
+            columns,
+            time_of_first_write: self.time_of_first_write,
+            time_of_last_write: self.time_of_last_write,
+        }
     }
 
     /// Returns a schema object for a `read_filter` operation using the provided
@@ -311,6 +316,57 @@ impl Chunk {
             .column_values(&predicate, columns, dst)
             .context(TableError)
     }
+}
+
+// TEMPORARY: print record batch information
+fn record_batch_to_row_group_with_logging(table_name: &str, table_data: RecordBatch) -> RowGroup {
+    for (column, field) in table_data
+        .columns()
+        .iter()
+        .zip(table_data.schema().fields())
+    {
+        info!(%table_name, column = %field.name(), rows=column.len(), data_type=%field.data_type(), buffer_size=column.get_buffer_memory_size(), array_size=column.get_array_memory_size(), "column");
+        for (idx, buffer) in column.data().buffers().iter().enumerate() {
+            info!(%table_name, column = %field.name(), len=buffer.len(), capacity=buffer.capacity(), idx, "column data");
+        }
+
+        for (parent_idx, data) in column.data().child_data().iter().enumerate() {
+            for (child_idx, buffer) in data.buffers().iter().enumerate() {
+                info!(%table_name, column = %field.name(), len=buffer.len(), capacity=buffer.capacity(), parent_idx, child_idx, "column child data");
+            }
+        }
+    }
+
+    // Approximate heap size of record batch.
+    let mub_rb_size = table_data
+        .columns()
+        .iter()
+        .map(|c| c.get_buffer_memory_size())
+        .sum::<usize>();
+    let columns = table_data.num_columns();
+
+    // This call is expensive. Complete it before locking.
+    let now = std::time::Instant::now();
+    let row_group = RowGroup::from(table_data);
+    let compressing_took = now.elapsed();
+
+    let rows = row_group.rows();
+    let rg_size = row_group.size();
+    let mub_rb_comp = format!(
+        "{:.2}%",
+        (1.0 - (rg_size as f64 / mub_rb_size as f64)) * 100.0
+    );
+
+    let raw_size_null = row_group.size_raw(true);
+    let raw_size_no_null = row_group.size_raw(false);
+    let raw_rb_comp = format!(
+        "{:.2}%",
+        (1.0 - (rg_size as f64 / raw_size_null as f64)) * 100.0
+    );
+
+    info!(%rows, %columns, rg_size, mub_rb_size, %mub_rb_comp, raw_size_null, raw_size_no_null, %raw_rb_comp, ?table_name, ?compressing_took, "row group added");
+
+    row_group
 }
 
 impl std::fmt::Debug for Chunk {
@@ -435,27 +491,25 @@ impl ChunkMetrics {
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
-
-    use arrow::{
-        array::{
-            ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray,
-            TimestampNanosecondArray, UInt64Array,
-        },
-        datatypes::DataType::{Boolean, Float64, Int64, UInt64, Utf8},
-    };
-    use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
-    use internal_types::schema::builder::SchemaBuilder;
-
     use super::*;
-    use crate::BinaryExpr;
     use crate::{
         row_group::{ColumnType, RowGroup},
         value::Values,
+        BinaryExpr,
     };
-    use arrow::array::DictionaryArray;
-    use arrow::datatypes::Int32Type;
-    use std::num::NonZeroU64;
+    use arrow::{
+        array::{
+            ArrayRef, BinaryArray, BooleanArray, DictionaryArray, Float64Array, Int64Array,
+            StringArray, TimestampNanosecondArray, UInt64Array,
+        },
+        datatypes::{
+            DataType::{Boolean, Float64, Int64, UInt64, Utf8},
+            Int32Type,
+        },
+    };
+    use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
+    use internal_types::schema::builder::SchemaBuilder;
+    use std::{num::NonZeroU64, sync::Arc};
 
     // helper to make the `add_remove_tables` test simpler to read.
     fn gen_recordbatch() -> RecordBatch {
@@ -617,6 +671,50 @@ mod test {
         }
     }
 
+    #[derive(Debug, Default)]
+    struct ChunkBuilder {
+        name: Option<String>,
+        record_batch: Option<RecordBatch>,
+        metrics: Option<ChunkMetrics>,
+        time_of_first_write: Option<DateTime<Utc>>,
+        time_of_last_write: Option<DateTime<Utc>>,
+    }
+
+    impl ChunkBuilder {
+        fn name(mut self, name: impl Into<String>) -> Self {
+            self.name = Some(name.into());
+            self
+        }
+
+        fn record_batch(mut self, record_batch: RecordBatch) -> Self {
+            self.record_batch = Some(record_batch);
+            self
+        }
+
+        fn metrics(mut self, metrics: ChunkMetrics) -> Self {
+            self.metrics = Some(metrics);
+            self
+        }
+
+        fn times(mut self, first_write: DateTime<Utc>, last_write: DateTime<Utc>) -> Self {
+            self.time_of_first_write = Some(first_write);
+            self.time_of_last_write = Some(last_write);
+            self
+        }
+
+        fn build(self) -> Chunk {
+            let now = Utc::now();
+
+            Chunk::new(
+                self.name.unwrap_or_else(|| String::from("a_table")),
+                self.record_batch.unwrap_or_else(gen_recordbatch),
+                self.metrics.unwrap_or_else(ChunkMetrics::new_unregistered),
+                self.time_of_first_write.unwrap_or(now),
+                self.time_of_last_write.unwrap_or(now),
+            )
+        }
+    }
+
     #[test]
     fn add_remove_tables() {
         let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
@@ -624,26 +722,40 @@ mod test {
         let domain =
             registry.register_domain_with_labels("read_buffer", vec![KeyValue::new("db", "mydb")]);
 
-        let mut chunk = Chunk::new("a_table", ChunkMetrics::new(&domain));
-
-        // Add a new table to the chunk.
-        chunk.upsert_table(gen_recordbatch());
+        let before_creation = Utc::now();
+        let mut chunk = ChunkBuilder::default()
+            .metrics(ChunkMetrics::new(&domain))
+            .build();
+        let after_creation = Utc::now();
 
         assert_eq!(chunk.rows(), 3);
         assert_eq!(chunk.row_groups(), 1);
         assert!(chunk.size() > 0);
+        let first_write = chunk.table_summary().time_of_first_write;
+        assert_eq!(first_write, chunk.table_summary().time_of_last_write);
+        assert!(before_creation < first_write);
+        assert!(first_write < after_creation);
 
         // Add a row group to the same table in the Chunk.
         let last_chunk_size = chunk.size();
         chunk.upsert_table(gen_recordbatch());
+        let after_upsert = Utc::now();
 
         assert_eq!(chunk.rows(), 6);
         assert_eq!(chunk.row_groups(), 2);
         assert!(chunk.size() > last_chunk_size);
+        assert_ne!(
+            chunk.table_summary().time_of_first_write,
+            chunk.table_summary().time_of_last_write
+        );
+        assert_eq!(chunk.table_summary().time_of_first_write, first_write);
+        assert!(after_creation < chunk.table_summary().time_of_last_write);
+        assert!(chunk.table_summary().time_of_last_write < after_upsert);
 
-        assert_eq!(
-            String::from_utf8(reg.registry().metrics_as_text()).unwrap(),
-            vec![
+        let actual = String::from_utf8(reg.registry().metrics_as_text()).unwrap();
+        let actual_lines = actual.lines();
+
+        let expected_lines = vec![
                 "# HELP read_buffer_column_bytes The number of bytes used by all columns in the Read Buffer",
         "# TYPE read_buffer_column_bytes gauge",
         r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 72"#,
@@ -683,9 +795,11 @@ mod test {
         r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 6"#,
         r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
         "",
-            ]
-            .join("\n")
-        );
+            ];
+
+        for (actual_line, &expected_line) in actual_lines.zip(expected_lines.iter()) {
+            assert_eq!(actual_line, expected_line);
+        }
 
         // when the chunk is dropped the metrics are all correctly decreased
         std::mem::drop(chunk);
@@ -738,10 +852,7 @@ mod test {
 
     #[test]
     fn read_filter_table_schema() {
-        let mut chunk = Chunk::new("a_table", ChunkMetrics::new_unregistered());
-
-        // Add a new table to the chunk.
-        chunk.upsert_table(gen_recordbatch());
+        let chunk = ChunkBuilder::default().build();
         let schema = chunk.read_filter_table_schema(Selection::All).unwrap();
 
         let exp_schema: Arc<Schema> = SchemaBuilder::new()
@@ -777,8 +888,6 @@ mod test {
 
     #[test]
     fn table_summaries() {
-        let mut chunk = Chunk::new("a_table", ChunkMetrics::new_unregistered());
-
         let schema = SchemaBuilder::new()
             .non_null_tag("env")
             .non_null_field("temp", Float64)
@@ -810,7 +919,10 @@ mod test {
         // Add a record batch to a single partition
         let rb = RecordBatch::try_new(schema.into(), data).unwrap();
         // The row group gets added to the same chunk each time.
-        chunk.upsert_table(rb);
+        let chunk = ChunkBuilder::default()
+            .name("a_table")
+            .record_batch(rb)
+            .build();
 
         let summary = chunk.table_summary();
         assert_eq!("a_table", summary.name);
@@ -873,7 +985,7 @@ mod test {
 
     #[test]
     fn read_filter() {
-        let mut chunk = Chunk::new("Coolverine", ChunkMetrics::new_unregistered());
+        let mut chunk: Option<Chunk> = None;
 
         // Add a bunch of row groups to a single table in a single chunk
         for &i in &[100, 200, 300] {
@@ -915,8 +1027,23 @@ mod test {
 
             // Add a record batch to a single partition
             let rb = RecordBatch::try_new(schema.into(), data).unwrap();
-            chunk.upsert_table(rb);
+
+            // First time through the loop, create a new Chunk. Other times, upsert into the chunk.
+            match chunk {
+                Some(ref mut c) => c.upsert_table(rb),
+                None => {
+                    chunk = Some(
+                        ChunkBuilder::default()
+                            .name("Coolverine")
+                            .record_batch(rb)
+                            .build(),
+                    );
+                }
+            }
         }
+
+        // Chunk should be initialized now.
+        let chunk = chunk.unwrap();
 
         // Build the operation equivalent to the following query:
         //
@@ -967,10 +1094,7 @@ mod test {
 
     #[test]
     fn could_pass_predicate() {
-        let mut chunk = Chunk::new("a_table", ChunkMetrics::new_unregistered());
-
-        // Add table data to the chunk.
-        chunk.upsert_table(gen_recordbatch());
+        let chunk = ChunkBuilder::default().build();
 
         assert!(
             chunk.could_pass_predicate(Predicate::new(vec![BinaryExpr::from((
@@ -993,8 +1117,7 @@ mod test {
         ];
         let rg = RowGroup::new(6, columns);
 
-        let mut chunk = Chunk::new("table_1", ChunkMetrics::new_unregistered());
-        chunk.table.add_row_group(rg);
+        let chunk = Chunk::new_from_row_group("table_1", rg, ChunkMetrics::new_unregistered());
 
         // No predicate so at least one row matches
         assert!(chunk.satisfies_predicate(&Predicate::default()));
@@ -1020,8 +1143,6 @@ mod test {
 
     #[test]
     fn column_names() {
-        let mut chunk = Chunk::new("Utopia", ChunkMetrics::new_unregistered());
-
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
             .non_null_field("counter", Float64)
@@ -1045,9 +1166,12 @@ mod test {
             Arc::new(Float64Array::from(vec![Some(11.0), None, Some(12.0)])),
         ];
 
-        // Add the above table to the chunk
+        // Create the chunk with the above table
         let rb = RecordBatch::try_new(schema, data).unwrap();
-        chunk.upsert_table(rb);
+        let chunk = ChunkBuilder::default()
+            .name("Utopia")
+            .record_batch(rb)
+            .build();
 
         let result = chunk
             .column_names(Predicate::default(), Selection::All, BTreeSet::new())
@@ -1088,8 +1212,6 @@ mod test {
 
     #[test]
     fn column_values() {
-        let mut chunk = Chunk::new("my_table", ChunkMetrics::new_unregistered());
-
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
             .non_null_tag("env")
@@ -1115,9 +1237,12 @@ mod test {
             )),
         ];
 
-        // Add the above table to a chunk and partition
+        // Create the chunk with the above table
         let rb = RecordBatch::try_new(schema, data).unwrap();
-        chunk.upsert_table(rb);
+        let chunk = ChunkBuilder::default()
+            .name("my_table")
+            .record_batch(rb)
+            .build();
 
         let result = chunk
             .column_values(
