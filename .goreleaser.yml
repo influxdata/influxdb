@@ -165,9 +165,6 @@ checksum:
 dockers:
   - goos: linux
     goarch: amd64
-    binaries:
-      - influxd
-      - influx
     image_templates:
       - "quay.io/influxdb/influxdb-amd64:{{ .Tag }}"
     dockerfile: docker/influxd/Dockerfile
@@ -178,9 +175,6 @@ dockers:
     use_buildx: true
   - goos: linux
     goarch: arm64
-    binaries:
-      - influxd
-      - influx
     image_templates:
       - "quay.io/influxdb/influxdb-arm64v8:{{ .Tag }}"
     dockerfile: docker/influxd/Dockerfile
