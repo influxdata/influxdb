@@ -1,6 +1,15 @@
 ## v2.0.8 [unreleased]
 ----------------------
 
+### Linux packaging
+
+Linux packages for this release (`.deb` and `.rpm`) have been modified as follows:
+
+* A new `influx-cli` package contains only the `influx` CLI binary.
+* The `influxdb2` package no longer contains the `influx` binary. Instead, it declares a recommended dependency on `influx-cli`.
+
+These changes were made to enable standalone installation of the `influx` CLI for users of InfluxDB Cloud.
+
 ### Go Version
 
 This release upgrades the project to `go` version 1.16.
