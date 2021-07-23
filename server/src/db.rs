@@ -4271,7 +4271,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn replay() {
+    async fn replay_ok_two_partitions_persist_second() {
         ReplayTest {
             n_sequencers: 1,
             sequencers_entries_start: vec![
@@ -4312,7 +4312,10 @@ mod tests {
         }
         .run()
         .await;
+    }
 
+    #[tokio::test]
+    async fn replay_ok_two_partitions_persist_first() {
         ReplayTest {
             n_sequencers: 1,
             sequencers_entries_start: vec![
@@ -4353,7 +4356,10 @@ mod tests {
         }
         .run()
         .await;
+    }
 
+    #[tokio::test]
+    async fn replay_ok_nothing_to_replay() {
         ReplayTest {
             n_sequencers: 1,
             sequencers_entries_start: vec![],
@@ -4368,7 +4374,19 @@ mod tests {
         }
         .run()
         .await;
+    }
 
+    #[tokio::test]
+    async fn replay_ok_different_sequencer_situations() {
+        // three sequencers:
+        //   0: no data at all
+        //   1: replay required, additional incoming data during downtime
+        //   2: replay required, no new data
+        //
+        // three partitions:
+        //   table 1, partition a: comes from sequencer 1 and 2, gets persisted
+        //   table 1, partition b: part of the new data in sequencer 1
+        //   table 2: partition a: from sequencer 1, not persisted but recovered during replay
         ReplayTest {
             n_sequencers: 3,
             sequencers_entries_start: vec![
