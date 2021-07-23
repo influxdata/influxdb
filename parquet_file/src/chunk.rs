@@ -1,6 +1,3 @@
-use snafu::{ResultExt, Snafu};
-use std::{collections::BTreeSet, sync::Arc};
-
 use crate::{metadata::IoxParquetMetaData, storage::Storage};
 use data_types::{
     partition_metadata::{Statistics, TableSummary},
@@ -13,8 +10,8 @@ use internal_types::{
 };
 use object_store::{path::Path, ObjectStore};
 use query::predicate::Predicate;
-
-use std::mem;
+use snafu::{ResultExt, Snafu};
+use std::{collections::BTreeSet, mem, sync::Arc};
 
 #[derive(Debug, Snafu)]
 pub enum Error {

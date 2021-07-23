@@ -1,5 +1,8 @@
-use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
-
+use crate::{
+    chunk::{self, ChunkMetrics, ParquetChunk},
+    metadata::{IoxMetadata, IoxParquetMetaData},
+    storage::Storage,
+};
 use arrow::{
     array::{
         Array, ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray,
@@ -9,12 +12,12 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use chrono::{TimeZone, Utc};
-use datafusion::physical_plan::SendableRecordBatchStream;
-
 use data_types::{
+    chunk_metadata::ChunkAddr,
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     server_id::ServerId,
 };
+use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
 use futures::TryStreamExt;
 use internal_types::{
@@ -30,17 +33,8 @@ use persistence_windows::{
     checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder},
     min_max_sequence::OptionalMinMaxSequence,
 };
-
-use crate::{
-    chunk::ChunkMetrics,
-    metadata::{IoxMetadata, IoxParquetMetaData},
-};
-use crate::{
-    chunk::{self, ParquetChunk},
-    storage::Storage,
-};
-use data_types::chunk_metadata::ChunkAddr;
 use snafu::{ResultExt, Snafu};
+use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
 
 #[derive(Debug, Snafu)]
 pub enum Error {

@@ -86,8 +86,6 @@
 //! [Apache Parquet]: https://parquet.apache.org/
 //! [Apache Thrift]: https://thrift.apache.org/
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
-use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
-
 use chrono::{DateTime, NaiveDateTime, Utc};
 use data_types::partition_metadata::{
     ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
@@ -113,6 +111,7 @@ use persistence_windows::{
 };
 use prost::Message;
 use snafu::{OptionExt, ResultExt, Snafu};
+use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
 
 /// Current version for serialized metadata.

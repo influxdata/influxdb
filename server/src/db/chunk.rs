@@ -493,15 +493,13 @@ impl QueryChunkMeta for DbChunk {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
-
-    use data_types::chunk_metadata::ChunkStorage;
-
-    use crate::db::catalog::chunk::CatalogChunk;
-    use crate::db::test_helpers::write_lp;
-    use crate::utils::make_db;
-
     use super::*;
+    use crate::{
+        db::{catalog::chunk::CatalogChunk, test_helpers::write_lp},
+        utils::make_db,
+    };
+    use data_types::chunk_metadata::ChunkStorage;
+    use std::time::{Duration, Instant};
 
     async fn test_chunk_access(chunk: &CatalogChunk) {
         let t1 = chunk.access_recorder().get_metrics();
