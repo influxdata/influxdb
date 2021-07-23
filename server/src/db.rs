@@ -773,6 +773,9 @@ impl Db {
     /// Perform sequencer-driven replay for this DB.
     pub async fn perform_replay(&self, replay_plan: &ReplayPlan) -> Result<()> {
         if let Some(WriteBufferConfig::Reading(write_buffer)) = &self.write_buffer {
+            let db_name = self.rules.read().db_name().to_string();
+            info!(%db_name, "starting replay");
+
             let mut write_buffer = write_buffer
                 .try_lock()
                 .expect("no streams should exist at this point");
@@ -805,6 +808,7 @@ impl Db {
             // seek write buffer according to the plan
             for (sequencer_id, min_max) in &replay_ranges {
                 if let Some(min) = min_max.min() {
+                    info!(%db_name, sequencer_id, sequence_number=min, "seek sequencer in preperation for replay");
                     write_buffer
                         .seek(*sequencer_id, min)
                         .await
@@ -821,6 +825,13 @@ impl Db {
                         // no replay required
                         continue;
                     }
+                    info!(
+                        %db_name,
+                        sequencer_id,
+                        sequence_number_min=min_max.min().expect("checked above"),
+                        sequence_number_max=min_max.max(),
+                        "replay sequencer",
+                    );
 
                     while let Some(entry) = stream
                         .stream
@@ -854,8 +865,10 @@ impl Db {
             for (sequencer_id, min_max) in &replay_ranges {
                 // only seek when this was not already done during replay
                 if min_max.min().is_none() {
+                    let sequence_number = min_max.max() + 1;
+                    info!(%db_name, sequencer_id, sequence_number, "seek sequencer that did not require replay");
                     write_buffer
-                        .seek(*sequencer_id, min_max.max() + 1)
+                        .seek(*sequencer_id, sequence_number)
                         .await
                         .context(ReplaySeekError {
                             sequencer_id: *sequencer_id,
