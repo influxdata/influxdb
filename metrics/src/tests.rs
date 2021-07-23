@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{env, fmt, sync::Arc};
 
 use snafu::{ensure, OptionExt, Snafu};
 
@@ -7,6 +7,36 @@ use prometheus::proto::{
 };
 
 use crate::MetricRegistry;
+
+pub struct OptInString(String);
+
+impl fmt::Display for OptInString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
+impl fmt::Debug for OptInString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if env::var_os("METRICS_DETAILED_OUTPUT").is_some() {
+            fmt::Display::fmt(&self.0, f)
+        } else {
+            "Output disabled; set the METRICS_DETAILED_OUTPUT environment variable to see it".fmt(f)
+        }
+    }
+}
+
+impl From<String> for OptInString {
+    fn from(other: String) -> Self {
+        Self(other)
+    }
+}
+
+impl From<&String> for OptInString {
+    fn from(other: &String) -> Self {
+        Self(other.clone())
+    }
+}
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -17,21 +47,21 @@ pub enum Error {
     NoMatchingLabelsError {
         labels: Vec<(String, String)>,
         name: String,
-        metrics: String,
+        metrics: OptInString,
     },
 
     #[snafu(display("bucket {:?} is not in metric family: {}\n{}", bound, name, metrics))]
     HistogramBucketNotFoundError {
         bound: f64,
         name: String,
-        metrics: String,
+        metrics: OptInString,
     },
 
     #[snafu(display("metric '{}' failed assertion: '{}'\n{}", name, msg, metrics))]
     FailedMetricAssertionError {
         name: String,
         msg: String,
-        metrics: String,
+        metrics: OptInString,
     },
 }
 
