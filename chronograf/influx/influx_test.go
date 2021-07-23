@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	gojwt "github.com/dgrijalva/jwt-go"
+	gojwt "github.com/golang-jwt/jwt"
 	"github.com/influxdata/influxdb/v2/chronograf"
 	"github.com/influxdata/influxdb/v2/chronograf/influx"
 	"github.com/influxdata/influxdb/v2/chronograf/mocks"
