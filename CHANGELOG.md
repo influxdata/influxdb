@@ -18,6 +18,7 @@
 -	[#21843](https://github.com/influxdata/influxdb/pull/21843): fix: hard limit on field size while parsing line protocol
 -	[#21895](https://github.com/influxdata/influxdb/pull/21895): fix: systemd unit should block on startup until http endpoint is ready
 -	[#21863](https://github.com/influxdata/influxdb/pull/21863): fix: export example and fix adjacent shards
+-	[#21934](https://github.com/influxdata/influxdb/pull/21934): chore: use community maintained golang-jwt
 
 v1.9.2 [unreleased]
 -	[#21631](https://github.com/influxdata/influxdb/pull/21631): fix: group by returns multiple results per group in some circumstances
