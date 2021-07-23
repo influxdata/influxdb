@@ -57,8 +57,32 @@ builds:
       pre: make generate-web-assets
 
 nfpms:
-  - id: "influxdb2"
-    builds: ["influx", "influxd"]
+  - id: influx-cli
+    package_name: influx-cli
+    builds: [influx]
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    conflicts:
+      - influxdb
+    overrides:
+      deb:
+        # Tells the deb system that it's ok for this package to overwrite files from versions of the `influxdb2`
+        # package prior to 2.0.8. Needed to support installing `influx-cli` next to `influxdb` without upgrading
+        # the server.
+        replaces:
+          - influxdb2 (<< 2.0.8)
+        file_name_template: "influxdb2-client-{{ .Version }}-{{ .Arch }}"
+      rpm:
+        # Tells the rpm system that this package can't be installed alongside versions of the `influxdb2` package
+        # prior to 2.0.8. This is as good as we can do for rpm; there's no equivalent to deb's "replaces" metadata.
+        conflicts:
+          - influxdb2 < 2.0.8
+        file_name_template: "influxdb2-client-{{ .Version }}.{{ .Arch }}"
+  - id: influxdb-server
+    package_name: influxdb2
+    builds: [influxd]
     formats:
       - deb
       - rpm
@@ -75,20 +99,22 @@ nfpms:
       - src: scripts/influxd-systemd-start.sh
         dst: /usr/lib/influxdb/scripts/influxd-systemd-start.sh
     scripts:
-      preinstall:  "scripts/pre-install.sh"
-      postinstall: "scripts/post-install.sh"
-      postremove: "scripts/post-uninstall.sh"
+      preinstall:  scripts/pre-install.sh
+      postinstall: scripts/post-install.sh
+      postremove: scripts/post-uninstall.sh
     conflicts:
       - influxdb
+    recommends:
+      - influx-cli
     overrides:
       rpm:
         replacements:
           amd64: x86_64
           arm64: aarch64
           armhf: armv7hl
-        file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}"
+        file_name_template: "influxdb2-server-{{ .Version }}.{{ .Arch }}"
       deb:
-        file_name_template: "influxdb2-{{ .Version }}-{{ .Arch }}"
+        file_name_template: "influxdb2-server-{{ .Version }}-{{ .Arch }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
@@ -97,13 +123,24 @@ nfpms:
 
 archives:
   - id: influx_only
-    builds: ["influx"]
+    builds: [influx]
     format: tar.gz
     format_overrides:
       - goos: windows
         format: zip
     wrap_in_directory: true
     name_template: "influxdb2-client-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+  - id: influxd_only
+    builds: [influxd]
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    wrap_in_directory: true
+    name_template: "influxdb2-server-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
     files:
       - LICENSE
       - README.md
@@ -131,9 +168,6 @@ checksum:
 dockers:
   - goos: linux
     goarch: amd64
-    binaries:
-      - influxd
-      - influx
     image_templates:
       - "quay.io/influxdb/influxdb-amd64:{{ .Tag }}"
     dockerfile: docker/influxd/Dockerfile
@@ -144,9 +178,6 @@ dockers:
     use_buildx: true
   - goos: linux
     goarch: arm64
-    binaries:
-      - influxd
-      - influx
     image_templates:
       - "quay.io/influxdb/influxdb-arm64v8:{{ .Tag }}"
     dockerfile: docker/influxd/Dockerfile
