@@ -336,6 +336,7 @@ pub struct ShardConfig {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Sink {
     Iox(NodeGroup),
+    Kafka(KafkaProducer),
 }
 
 struct LineHasher<'a, 'b, 'c> {
@@ -390,6 +391,9 @@ pub struct MatcherToShard {
 
 /// A collection of IOx nodes
 pub type NodeGroup = Vec<ServerId>;
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct KafkaProducer {}
 
 /// HashRing is a rule for creating a hash key for a row and mapping that to
 /// an individual node on a ring.

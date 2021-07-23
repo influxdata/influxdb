@@ -219,28 +219,7 @@ mod tests {
         assert!(back.routing_rules.is_none());
 
         #[allow(deprecated)]
-        let routing_config = management::RoutingConfig {
-            target: Some(management::NodeGroup {
-                nodes: vec![management::node_group::Node { id: 1234 }],
-            }),
-            sink: None,
-        };
-
-        let protobuf = management::DatabaseRules {
-            name: "database".to_string(),
-            routing_rules: Some(management::database_rules::RoutingRules::RoutingConfig(
-                routing_config,
-            )),
-            ..Default::default()
-        };
-
-        let rules: DatabaseRules = protobuf.try_into().unwrap();
-        let back: management::DatabaseRules = rules.into();
-
-        assert!(back.routing_rules.is_some());
-
-        #[allow(deprecated)]
-        let routing_config = management::RoutingConfig {
+        let routing_config_sink = management::RoutingConfig {
             target: None,
             sink: Some(management::Sink {
                 sink: Some(management::sink::Sink::Iox(management::NodeGroup {
@@ -252,7 +231,7 @@ mod tests {
         let protobuf = management::DatabaseRules {
             name: "database".to_string(),
             routing_rules: Some(management::database_rules::RoutingRules::RoutingConfig(
-                routing_config,
+                routing_config_sink.clone(),
             )),
             ..Default::default()
         };
@@ -260,6 +239,37 @@ mod tests {
         let rules: DatabaseRules = protobuf.try_into().unwrap();
         let back: management::DatabaseRules = rules.into();
 
-        assert!(back.routing_rules.is_some());
+        assert_eq!(
+            back.routing_rules,
+            Some(management::database_rules::RoutingRules::RoutingConfig(
+                routing_config_sink.clone()
+            ))
+        );
+
+        #[allow(deprecated)]
+        let routing_config_target = management::RoutingConfig {
+            target: Some(management::NodeGroup {
+                nodes: vec![management::node_group::Node { id: 1234 }],
+            }),
+            sink: None,
+        };
+
+        let protobuf = management::DatabaseRules {
+            name: "database".to_string(),
+            routing_rules: Some(management::database_rules::RoutingRules::RoutingConfig(
+                routing_config_target,
+            )),
+            ..Default::default()
+        };
+
+        let rules: DatabaseRules = protobuf.try_into().unwrap();
+        let back: management::DatabaseRules = rules.into();
+
+        assert_eq!(
+            back.routing_rules,
+            Some(management::database_rules::RoutingRules::RoutingConfig(
+                routing_config_sink
+            ))
+        );
     }
 }

@@ -870,6 +870,9 @@ where
                 self.write_entry_downstream(db_name, node_group, entry)
                     .await
             }
+            Sink::Kafka(_) => {
+                todo!("write to write buffer")
+            }
         }
     }
 
