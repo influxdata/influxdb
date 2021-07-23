@@ -12,6 +12,7 @@ use data_types::job::Job;
 use data_types::partition_metadata::Statistics;
 use data_types::DatabaseName;
 use datafusion::physical_plan::SendableRecordBatchStream;
+use internal_types::access::AccessMetrics;
 use internal_types::schema::merge::SchemaMerger;
 use internal_types::schema::{Schema, TIME_COLUMN_NAME};
 use lifecycle::{
@@ -19,6 +20,7 @@ use lifecycle::{
     LockablePartition,
 };
 use observability_deps::tracing::{info, trace};
+use persistence_windows::persistence_windows::FlushHandle;
 use query::QueryChunkMeta;
 use tracker::{RwLock, TaskTracker};
 
@@ -31,7 +33,6 @@ pub(crate) use drop::drop_chunk;
 pub(crate) use error::{Error, Result};
 pub(crate) use move_chunk::move_chunk_to_read_buffer;
 pub(crate) use persist::persist_chunks;
-use persistence_windows::persistence_windows::FlushHandle;
 pub(crate) use unload::unload_read_buffer_chunk;
 
 use super::DbChunk;
@@ -291,8 +292,24 @@ impl LifecycleChunk for CatalogChunk {
             .expect("failed to clear lifecycle action")
     }
 
-    fn time_of_first_write(&self) -> Option<DateTime<Utc>> {
-        self.time_of_first_write()
+    fn min_timestamp(&self) -> DateTime<Utc> {
+        let table_summary = self.table_summary();
+        let col = table_summary
+            .columns
+            .iter()
+            .find(|x| x.name == TIME_COLUMN_NAME)
+            .expect("time column expected");
+
+        let min = match &col.stats {
+            Statistics::I64(stats) => stats.min.expect("time column cannot be empty"),
+            _ => panic!("unexpected time column type"),
+        };
+
+        Utc.timestamp_nanos(min)
+    }
+
+    fn access_metrics(&self) -> AccessMetrics {
+        self.access_recorder().get_metrics()
     }
 
     fn time_of_last_write(&self) -> Option<DateTime<Utc>> {
@@ -309,22 +326,6 @@ impl LifecycleChunk for CatalogChunk {
 
     fn row_count(&self) -> usize {
         self.storage().0
-    }
-
-    fn min_timestamp(&self) -> DateTime<Utc> {
-        let table_summary = self.table_summary();
-        let col = table_summary
-            .columns
-            .iter()
-            .find(|x| x.name == TIME_COLUMN_NAME)
-            .expect("time column expected");
-
-        let min = match &col.stats {
-            Statistics::I64(stats) => stats.min.expect("time column cannot be empty"),
-            _ => panic!("unexpected time column type"),
-        };
-
-        Utc.timestamp_nanos(min)
     }
 }
 

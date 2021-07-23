@@ -14,6 +14,7 @@ use data_types::chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkStorage};
 use data_types::database_rules::LifecycleRules;
 use data_types::DatabaseName;
 pub use guard::*;
+use internal_types::access::AccessMetrics;
 pub use policy::*;
 use std::time::Instant;
 use tracker::TaskTracker;
@@ -173,7 +174,8 @@ pub trait LifecycleChunk {
     /// Returns the min timestamp contained within this chunk
     fn min_timestamp(&self) -> DateTime<Utc>;
 
-    fn time_of_first_write(&self) -> Option<DateTime<Utc>>;
+    /// Returns the access metrics for this chunk
+    fn access_metrics(&self) -> AccessMetrics;
 
     fn time_of_last_write(&self) -> Option<DateTime<Utc>>;
 

@@ -10,6 +10,7 @@ chrono = "0.4"
 data_types = { path = "../data_types" }
 futures = "0.3"
 hashbrown = "0.11"
+internal_types = { path = "../internal_types" }
 observability_deps = { path = "../observability_deps" }
 tokio = { version = "1.0", features = ["macros", "time"] }
 tracker = { path = "../tracker" }

@@ -1889,6 +1889,7 @@ dependencies = [
  "data_types",
  "futures",
  "hashbrown",
+ "internal_types",
  "observability_deps",
  "tokio",
  "tracker",
