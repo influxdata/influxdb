@@ -492,6 +492,24 @@ impl<'a> MetricObserverBuilder<'a> {
         )
     }
 
+    /// Register a histogram bucket
+    pub fn register_histogram_bucket<F>(
+        &self,
+        name: &str,
+        unit: Option<&str>,
+        description: impl Into<String>,
+        callback: F,
+    ) where
+        F: Fn(TaggedObserverResult<'_, u64>) + Send + Sync + 'static,
+    {
+        self.domain.observers.u64_sum_observer(
+            self.domain
+                .build_metric_name(name, self.subname, unit, Some("bucket")),
+            description,
+            TaggedObserverResult::with_callback(self.labels.to_owned(), callback),
+        )
+    }
+
     /// Register a f64 counter
     pub fn register_counter_f64<F>(
         &self,

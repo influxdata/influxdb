@@ -15,7 +15,7 @@ use crate::{
 };
 use ::lifecycle::{LifecycleChunk, LockableChunk, LockablePartition};
 use async_trait::async_trait;
-use chrono::Utc;
+use chrono::{TimeZone, Utc};
 use data_types::{
     chunk_metadata::ChunkSummary,
     database_rules::DatabaseRules,
@@ -121,8 +121,11 @@ pub enum Error {
     #[snafu(display("background task cancelled: {}", source))]
     TaskCancelled { source: futures::future::Aborted },
 
-    #[snafu(display("error finding min/max time on table batch: {}", source))]
+    #[snafu(display("error computing time summary on table batch: {}", source))]
     TableBatchTimeError { source: entry::Error },
+
+    #[snafu(display("error batch had null times"))]
+    TableBatchMissingTimes {},
 
     #[snafu(display("Table batch has invalid schema: {}", source))]
     TableBatchSchemaExtractError {
@@ -1194,6 +1197,7 @@ impl Db {
                                 continue;
                             }
                         };
+
                     let schema_handle =
                         match TableSchemaUpsertHandle::new(&table_schema, &batch_schema)
                             .context(TableBatchSchemaMergeError)
@@ -1207,17 +1211,24 @@ impl Db {
                             }
                         };
 
+                    let timestamp_summary = table_batch
+                        .timestamp_summary()
+                        .context(TableBatchTimeError)?;
+
+                    // At this point this should not be possible
+                    ensure!(
+                        timestamp_summary.stats.count == row_count as u64,
+                        TableBatchMissingTimes {}
+                    );
+
                     let mut partition = partition.write();
 
                     let handle_chunk_write = |chunk: &mut CatalogChunk| {
-                        chunk.record_write(time_of_write);
+                        chunk.record_write(time_of_write, &timestamp_summary);
                         if chunk.storage().0 >= mub_row_threshold.get() {
                             chunk.freeze().expect("freeze mub chunk");
                         }
                     };
-
-                    let (min_time, max_time) =
-                        table_batch.min_max_time().context(TableBatchTimeError)?;
 
                     match partition.open_chunk() {
                         Some(chunk) => {
@@ -1275,6 +1286,10 @@ impl Db {
                     partition.update_last_write_at();
 
                     schema_handle.commit();
+
+                    // TODO: PersistenceWindows use TimestampSummary
+                    let min_time = Utc.timestamp_nanos(timestamp_summary.stats.min.unwrap());
+                    let max_time = Utc.timestamp_nanos(timestamp_summary.stats.max.unwrap());
 
                     match partition.persistence_windows_mut() {
                         Some(windows) => {
@@ -1446,6 +1461,7 @@ mod tests {
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
     use chrono::DateTime;
+    use data_types::write_summary::TimestampSummary;
     use data_types::{
         chunk_metadata::ChunkStorage,
         database_rules::{LifecycleRules, PartitionTemplate, Partitioner, TemplatePart},
@@ -2081,6 +2097,39 @@ mod tests {
         .unwrap();
         // verify chunk size for RB has decreased
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 0).unwrap();
+    }
+
+    #[tokio::test]
+    async fn write_metrics() {
+        let test_db = make_db().await;
+        let db = Arc::clone(&test_db.db);
+
+        write_lp(db.as_ref(), "cpu foo=1 100000000000").await;
+        write_lp(db.as_ref(), "cpu foo=2 180000000000").await;
+        write_lp(db.as_ref(), "cpu foo=3 650000000000").await;
+        write_lp(db.as_ref(), "cpu foo=3 650000000010").await;
+
+        let mut summary = TimestampSummary::default();
+        summary.record(Utc.timestamp_nanos(100000000000));
+        summary.record(Utc.timestamp_nanos(180000000000));
+        summary.record(Utc.timestamp_nanos(650000000000));
+        summary.record(Utc.timestamp_nanos(650000000010));
+
+        for (minute, count) in summary.cumulative_counts() {
+            let minute = (minute * 60).to_string();
+            test_db
+                .metric_registry
+                .has_metric_family("catalog_row_time_seconds_bucket")
+                .with_labels(&[
+                    ("svr_id", "1"),
+                    ("db_name", "placeholder"),
+                    ("table", "cpu"),
+                    ("le", minute.as_str()),
+                ])
+                .counter()
+                .eq(count as _)
+                .unwrap();
+        }
     }
 
     #[tokio::test]

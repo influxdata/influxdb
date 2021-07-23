@@ -1,6 +1,7 @@
-use crate::db::catalog::metrics::StorageGauge;
+use crate::db::catalog::metrics::{StorageGauge, TimestampHistogram};
 use chrono::{DateTime, Utc};
 use data_types::instant::to_approximate_datetime;
+use data_types::write_summary::TimestampSummary;
 use data_types::{
     chunk_metadata::{
         ChunkAddr, ChunkColumnSummary, ChunkLifecycleAction, ChunkStorage, ChunkSummary,
@@ -236,6 +237,9 @@ pub struct ChunkMetrics {
 
     /// Catalog memory metrics
     pub(super) memory_metrics: StorageGauge,
+
+    /// Track ingested timestamps
+    pub(super) timestamp_histogram: TimestampHistogram,
 }
 
 impl ChunkMetrics {
@@ -250,6 +254,7 @@ impl ChunkMetrics {
             chunk_storage: StorageGauge::new_unregistered(),
             row_count: StorageGauge::new_unregistered(),
             memory_metrics: StorageGauge::new_unregistered(),
+            timestamp_histogram: Default::default(),
         }
     }
 }
@@ -457,7 +462,11 @@ impl CatalogChunk {
     }
 
     /// Record a write of row data to this chunk
-    pub fn record_write(&mut self, time_of_write: DateTime<Utc>) {
+    ///
+    /// `time_of_write` is the wall clock time of the write
+    /// `timestamps` is a summary of the row timestamps contained in the write
+    pub fn record_write(&mut self, time_of_write: DateTime<Utc>, timestamps: &TimestampSummary) {
+        self.metrics.timestamp_histogram.add(timestamps);
         self.access_recorder.record_access_now();
 
         if let Some(t) = self.time_of_first_write {
