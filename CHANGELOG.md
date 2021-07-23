@@ -1,5 +1,19 @@
 ## unreleased
 
+### `influx` CLI moved to separate repository
+
+The `influx` CLI has been moved to its [own GitHub repository](https://github.com/influxdata/influx-cli/). Release artifacts
+produced by `influxdb` are impacted as follows:
+
+* Release archives (`.tar.gz` and `.zip`) no longer contain the `influx` binary.
+* The `influxdb2` package (`.deb` and `.rpm`) no longer contains the `influx` binary. Instead, it declares a recommended
+  dependency on the new `influx-cli` package.
+* The `quay.io/influxdb/influxdb` image no longer contains the `influx` binary. Users are recommended to migrate to the
+  `influxdb` image hosted in DockerHub.
+
+With this change, versions of the `influx` CLI and `influxd` server are not guaranteed to exactly match. Please use
+`influxd version` or `curl <your-server-url>/health` when checking the version of the installed/running server.
+
 ### Go Version
 
 This release upgrades the project to `go` version 1.16.
