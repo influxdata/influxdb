@@ -44,7 +44,7 @@ done
 trap "aws --region us-west-2 ec2 terminate-instances --instance-ids $ec2_instance_id" KILL
 
 # push binary and script to instance
-debname=$(find /tmp/workspace/artifacts/influxdb*amd64.deb)
+debname=$(find /tmp/workspace/artifacts/influxdb2-server*amd64.deb)
 base_debname=$(basename $debname)
 source_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
