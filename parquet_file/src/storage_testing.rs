@@ -48,7 +48,7 @@ mod tests {
         ////////////////////
         // Now let read it back
         //
-        let (_read_table, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(&store))
+        let parquet_data = load_parquet_from_store(&chunk, Arc::clone(&store))
             .await
             .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
@@ -62,10 +62,8 @@ mod tests {
         );
 
         // 2. Check statistics
-        let table_summary_actual = parquet_metadata
-            .read_statistics(&schema_actual, &table)
-            .unwrap();
-        assert_eq!(table_summary_actual, table_summary);
+        let table_summary_actual = parquet_metadata.read_statistics(&schema_actual).unwrap();
+        assert_eq!(table_summary_actual, table_summary.columns);
 
         // 3. Check data
         // Note that the read_data_from_parquet_data function fixes the row-group/batches' level metadata bug in arrow

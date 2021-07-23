@@ -1594,10 +1594,8 @@ pub mod test_helpers {
             let schema_expected = md_expected.read_schema().unwrap();
             assert_eq!(schema_actual, schema_expected);
 
-            let stats_actual = md_actual.read_statistics(&schema_actual, "foo").unwrap();
-            let stats_expected = md_expected
-                .read_statistics(&schema_expected, "foo")
-                .unwrap();
+            let stats_actual = md_actual.read_statistics(&schema_actual).unwrap();
+            let stats_expected = md_expected.read_statistics(&schema_expected).unwrap();
             assert_eq!(stats_actual, stats_expected);
         }
     }
@@ -2635,10 +2633,8 @@ mod tests {
 
             // NOTE: the actual table name is not important here as long as it is the same for both calls, since it is
             // only used to generate out statistics struct (not to read / dispatch anything).
-            let actual_stats = actual_md.read_statistics(&actual_schema, "foo").unwrap();
-            let expected_stats = expected_md
-                .read_statistics(&expected_schema, "foo")
-                .unwrap();
+            let actual_stats = actual_md.read_statistics(&actual_schema).unwrap();
+            let expected_stats = expected_md.read_statistics(&expected_schema).unwrap();
             assert_eq!(actual_stats, expected_stats);
         }
     }

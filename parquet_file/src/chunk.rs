@@ -125,11 +125,16 @@ impl ParquetChunk {
         let schema = parquet_metadata.read_schema().context(SchemaReadFailed {
             path: &file_location,
         })?;
-        let table_summary = parquet_metadata
-            .read_statistics(&schema, &iox_md.table_name)
+        let columns = parquet_metadata
+            .read_statistics(&schema)
             .context(StatisticsReadFailed {
                 path: &file_location,
             })?;
+
+        let table_summary = TableSummary {
+            name: iox_md.table_name.to_string(),
+            columns,
+        };
 
         Ok(Self::new_from_parts(
             iox_md.partition_key,

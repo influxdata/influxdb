@@ -49,25 +49,21 @@ pub enum Error {
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Load parquet from store and return table name and parquet bytes.
+/// Load parquet from store and return parquet bytes.
 // This function is for test only
 pub async fn load_parquet_from_store(
     chunk: &ParquetChunk,
     store: Arc<ObjectStore>,
-) -> Result<(String, Vec<u8>)> {
+) -> Result<Vec<u8>> {
     load_parquet_from_store_for_chunk(chunk, store).await
 }
 
 pub async fn load_parquet_from_store_for_chunk(
     chunk: &ParquetChunk,
     store: Arc<ObjectStore>,
-) -> Result<(String, Vec<u8>)> {
+) -> Result<Vec<u8>> {
     let path = chunk.path();
-    let table_name = chunk.table_name().to_string();
-    Ok((
-        table_name,
-        load_parquet_from_store_for_path(&path, store).await?,
-    ))
+    Ok(load_parquet_from_store_for_path(&path, store).await?)
 }
 
 pub async fn load_parquet_from_store_for_path(
@@ -736,7 +732,7 @@ pub async fn make_metadata(
     addr: ChunkAddr,
 ) -> (Path, IoxParquetMetaData) {
     let chunk = make_chunk(Arc::clone(object_store), column_prefix, addr).await;
-    let (_, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(object_store))
+    let parquet_data = load_parquet_from_store(&chunk, Arc::clone(object_store))
         .await
         .unwrap();
     (
