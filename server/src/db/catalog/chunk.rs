@@ -863,7 +863,7 @@ impl CatalogChunk {
                 }
             }
             _ => {
-                unexpected_state!(self, "setting unload", "WrittenToObjectStore", &self.stage)
+                unexpected_state!(self, "setting unload", "Persisted", &self.stage)
             }
         }
     }

@@ -164,7 +164,7 @@ impl DbChunk {
 
     /// Return the snapshot of the chunk with type ParquetFile
     /// This function should be only invoked when you know your chunk
-    /// is ParquetFile type whose state is  WrittenToObjectStore. The
+    /// is ParquetFile type whose state is Persisted. The
     /// reason we have this function is because the above snapshot
     /// function always returns the read buffer one for the same state
     pub fn parquet_file_snapshot(chunk: &super::catalog::chunk::CatalogChunk) -> Arc<Self> {
