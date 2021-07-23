@@ -815,6 +815,15 @@ impl Db {
                         .context(ReplaySeekError {
                             sequencer_id: *sequencer_id,
                         })?;
+                } else {
+                    let sequence_number = min_max.max() + 1;
+                    info!(%db_name, sequencer_id, sequence_number, "seek sequencer that did not require replay");
+                    write_buffer
+                        .seek(*sequencer_id, sequence_number)
+                        .await
+                        .context(ReplaySeekError {
+                            sequencer_id: *sequencer_id,
+                        })?;
                 }
             }
 
@@ -858,21 +867,6 @@ impl Db {
                             break;
                         }
                     }
-                }
-            }
-
-            // seek write buffer according to the plan
-            for (sequencer_id, min_max) in &replay_ranges {
-                // only seek when this was not already done during replay
-                if min_max.min().is_none() {
-                    let sequence_number = min_max.max() + 1;
-                    info!(%db_name, sequencer_id, sequence_number, "seek sequencer that did not require replay");
-                    write_buffer
-                        .seek(*sequencer_id, sequence_number)
-                        .await
-                        .context(ReplaySeekError {
-                            sequencer_id: *sequencer_id,
-                        })?;
                 }
             }
         }
