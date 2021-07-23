@@ -30,8 +30,8 @@ builds:
       pre: make generate-web-assets
 
 nfpms:
-  - id: "influxdb2"
-    builds: ["influxd"]
+  - id: influxdb-server
+    package_name: influxdb2
     formats:
       - deb
       - rpm
@@ -48,9 +48,9 @@ nfpms:
       - src: scripts/influxd-systemd-start.sh
         dst: /usr/lib/influxdb/scripts/influxd-systemd-start.sh
     scripts:
-      preinstall:  "scripts/pre-install.sh"
-      postinstall: "scripts/post-install.sh"
-      postremove: "scripts/post-uninstall.sh"
+      preinstall:  scripts/pre-install.sh
+      postinstall: scripts/post-install.sh
+      postremove: scripts/post-uninstall.sh
     conflicts:
       - influxdb
     recommends:
@@ -71,13 +71,13 @@ nfpms:
     license: MIT
 
 archives:
-  - id: influxd
+  - id: influxd_only
     format: tar.gz
     format_overrides:
       - goos: windows
         format: zip
     wrap_in_directory: true
-    name_template: "influxdb2-nightly-{{ .Os }}-{{ .Arch }}"
+    name_template: "influxdb2-server-nightly-{{ .Os }}-{{ .Arch }}"
     files:
       - LICENSE
       - README.md
