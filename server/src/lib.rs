@@ -635,7 +635,7 @@ where
         db_reservation.advance_rules_loaded(rules.clone())?;
 
         // load preserved catalog
-        let (preserved_catalog, catalog) = create_preserved_catalog(
+        let (preserved_catalog, catalog, replay_plan) = create_preserved_catalog(
             rules.db_name(),
             Arc::clone(&self.store),
             config.server_id(),
@@ -652,7 +652,7 @@ where
                 source: e,
             })?;
         info!(write_buffer_enabled=?write_buffer.is_some(), db_name=rules.db_name(), "write buffer config");
-        db_reservation.advance_replay(preserved_catalog, catalog, write_buffer)?;
+        db_reservation.advance_replay(preserved_catalog, catalog, replay_plan, write_buffer)?;
 
         // no actual replay required
         db_reservation.advance_init()?;

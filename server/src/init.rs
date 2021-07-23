@@ -80,6 +80,9 @@ pub enum Error {
         db_name
     ))]
     DbPartiallyInitialized { db_name: String },
+
+    #[snafu(display("Cannot replay: {}", source))]
+    ReplayError { source: Box<crate::db::Error> },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -286,7 +289,7 @@ async fn try_advance_database_init_process(
         }
         DatabaseStateCode::RulesLoaded => {
             // rules already loaded => continue with loading preserved catalog
-            let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
+            let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
                 &handle.db_name(),
                 handle.object_store(),
                 handle.server_id(),
@@ -308,7 +311,7 @@ async fn try_advance_database_init_process(
             info!(write_buffer_enabled=?write_buffer.is_some(), db_name=rules.db_name(), "write buffer config");
 
             handle
-                .advance_replay(preserved_catalog, catalog, write_buffer)
+                .advance_replay(preserved_catalog, catalog, replay_plan, write_buffer)
                 .map_err(Box::new)
                 .context(InitDbError)?;
 
@@ -319,7 +322,13 @@ async fn try_advance_database_init_process(
             let db = handle
                 .db_any_state()
                 .expect("DB should be available in this state");
-            db.perform_replay().await;
+            let replay_plan = handle
+                .replay_plan()
+                .expect("replay plan should exist in this state");
+            db.perform_replay(&replay_plan)
+                .await
+                .map_err(Box::new)
+                .context(ReplayError)?;
 
             handle
                 .advance_init()

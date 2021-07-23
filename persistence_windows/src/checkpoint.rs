@@ -564,7 +564,7 @@ impl Default for ReplayPlanner {
 }
 
 /// Plan that contains all necessary information to orchastrate a replay.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ReplayPlan {
     /// Replay range (inclusive minimum sequence number, inclusive maximum sequence number) for every sequencer.
     ///

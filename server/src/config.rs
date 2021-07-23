@@ -10,6 +10,7 @@ use data_types::{
 use metrics::MetricRegistry;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use parquet_file::catalog::PreservedCatalog;
+use persistence_windows::checkpoint::ReplayPlan;
 use query::exec::Executor;
 use write_buffer::config::WriteBufferConfig;
 
@@ -393,7 +394,10 @@ enum DatabaseState {
     RulesLoaded { rules: Arc<DatabaseRules> },
 
     /// Catalog is loaded but data from sequencers / write buffers is not yet replayed.
-    Replay { db: Arc<Db> },
+    Replay {
+        db: Arc<Db>,
+        replay_plan: ReplayPlan,
+    },
 
     /// Fully initialized database.
     Initialized {
@@ -454,6 +458,15 @@ impl DatabaseState {
             DatabaseState::RulesLoaded { rules, .. } => Some(Arc::clone(&rules)),
             DatabaseState::Replay { db, .. } => Some(db.rules()),
             DatabaseState::Initialized { db, .. } => Some(db.rules()),
+        }
+    }
+
+    fn replay_plan(&self) -> Option<ReplayPlan> {
+        match self {
+            DatabaseState::Known { .. } => None,
+            DatabaseState::RulesLoaded { .. } => None,
+            DatabaseState::Replay { replay_plan, .. } => Some(replay_plan.clone()),
+            DatabaseState::Initialized { .. } => None,
         }
     }
 }
@@ -538,6 +551,11 @@ impl<'a> DatabaseHandle<'a> {
         self.state().db_any_state()
     }
 
+    /// Get replay plan, if any.
+    pub fn replay_plan(&self) -> Option<ReplayPlan> {
+        self.state().replay_plan()
+    }
+
     /// Commit modification done to this handle to config.
     ///
     /// After commiting a new handle for the same database can be created.
@@ -585,6 +603,7 @@ impl<'a> DatabaseHandle<'a> {
         &mut self,
         preserved_catalog: PreservedCatalog,
         catalog: Catalog,
+        replay_plan: ReplayPlan,
         write_buffer: Option<WriteBufferConfig>,
     ) -> Result<()> {
         match self.state().as_ref() {
@@ -600,7 +619,7 @@ impl<'a> DatabaseHandle<'a> {
                 };
                 let db = Arc::new(Db::new(database_to_commit, Arc::clone(&self.config.jobs)));
 
-                self.state = Some(Arc::new(DatabaseState::Replay { db }));
+                self.state = Some(Arc::new(DatabaseState::Replay { db, replay_plan }));
 
                 Ok(())
             }
@@ -615,7 +634,7 @@ impl<'a> DatabaseHandle<'a> {
     /// Advance database state to [`Initialized`](DatabaseStateCode::Initialized).
     pub fn advance_init(&mut self) -> Result<()> {
         match self.state().as_ref() {
-            DatabaseState::Replay { db } => {
+            DatabaseState::Replay { db, .. } => {
                 if self.config.shutdown.is_cancelled() {
                     error!("server is shutting down");
                     return ServerShuttingDown.fail();
@@ -750,7 +769,7 @@ mod test {
 
             db_reservation.advance_rules_loaded(rules).unwrap();
 
-            let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
+            let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
                 &name,
                 config.object_store(),
                 config.server_id(),
@@ -760,7 +779,7 @@ mod test {
             .await
             .unwrap();
             db_reservation
-                .advance_replay(preserved_catalog, catalog, None)
+                .advance_replay(preserved_catalog, catalog, replay_plan, None)
                 .unwrap();
 
             db_reservation.advance_init().unwrap();
@@ -835,14 +854,16 @@ mod test {
             assert_eq!(db_reservation.db_name(), name);
             assert_eq!(db_reservation.server_id(), config.server_id());
             assert!(db_reservation.rules().is_none());
+            assert!(db_reservation.replay_plan().is_none());
 
             db_reservation.advance_rules_loaded(rules).unwrap();
             assert_eq!(db_reservation.state_code(), DatabaseStateCode::RulesLoaded);
             assert_eq!(db_reservation.db_name(), name);
             assert_eq!(db_reservation.server_id(), config.server_id());
             assert!(db_reservation.rules().is_some());
+            assert!(db_reservation.replay_plan().is_none());
 
-            let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
+            let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
                 &name,
                 config.object_store(),
                 config.server_id(),
@@ -852,18 +873,20 @@ mod test {
             .await
             .unwrap();
             db_reservation
-                .advance_replay(preserved_catalog, catalog, None)
+                .advance_replay(preserved_catalog, catalog, replay_plan, None)
                 .unwrap();
             assert_eq!(db_reservation.state_code(), DatabaseStateCode::Replay);
             assert_eq!(db_reservation.db_name(), name);
             assert_eq!(db_reservation.server_id(), config.server_id());
             assert!(db_reservation.rules().is_some());
+            assert!(db_reservation.replay_plan().is_some());
 
             db_reservation.advance_init().unwrap();
             assert_eq!(db_reservation.state_code(), DatabaseStateCode::Initialized);
             assert_eq!(db_reservation.db_name(), name);
             assert_eq!(db_reservation.server_id(), config.server_id());
             assert!(db_reservation.rules().is_some());
+            assert!(db_reservation.replay_plan().is_none());
 
             db_reservation.commit();
         }
@@ -922,7 +945,7 @@ mod test {
         let name = DatabaseName::new("foo").unwrap();
         let config = make_config(None);
         let rules = DatabaseRules::new(name.clone());
-        let (preserved_catalog, catalog) = load_or_create_preserved_catalog(
+        let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
             &name,
             config.object_store(),
             config.server_id(),
@@ -936,7 +959,7 @@ mod test {
         let mut db_reservation = config.create_db(name.clone()).unwrap();
         db_reservation.advance_rules_loaded(rules).unwrap();
         db_reservation
-            .advance_replay(preserved_catalog, catalog, None)
+            .advance_replay(preserved_catalog, catalog, replay_plan, None)
             .unwrap();
         db_reservation.advance_init().unwrap();
         db_reservation.commit();

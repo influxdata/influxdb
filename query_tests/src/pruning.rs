@@ -57,6 +57,7 @@ async fn chunk_pruning_sql() {
     let TestDb {
         db,
         metric_registry,
+        ..
     } = setup().await;
 
     let expected = vec![
@@ -112,6 +113,7 @@ async fn chunk_pruning_influxrpc() {
     let TestDb {
         db,
         metric_registry,
+        ..
     } = setup().await;
 
     let predicate = PredicateBuilder::new()
