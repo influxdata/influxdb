@@ -342,3 +342,74 @@ func TestSecretService_handleDeleteSecrets(t *testing.T) {
 		})
 	}
 }
+
+func TestSecretService_handleDeleteSecret(t *testing.T) {
+	type fields struct {
+		SecretService influxdb.SecretService
+	}
+	type args struct {
+		orgID    platform.ID
+		secretID string
+	}
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "delete secret",
+			fields: fields{
+				&mock.SecretService{
+					DeleteSecretFn: func(ctx context.Context, orgID platform.ID, s ...string) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				orgID:    1,
+				secretID: "abc",
+			},
+			wants: wants{
+				statusCode: http.StatusNoContent,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewHandler(zaptest.NewLogger(t), "id", tt.fields.SecretService)
+			router := chi.NewRouter()
+			router.Mount("/api/v2/orgs/{id}/secrets", h)
+
+			u := fmt.Sprintf("http://any.url/api/v2/orgs/%s/secrets/%s", tt.args.orgID, tt.args.secretID)
+			r := httptest.NewRequest("DELETE", u, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, r)
+
+			res := w.Result()
+			content := res.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(res.Body)
+
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("handleDeleteSecrets() = %v, want %v", res.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("handleDeleteSecrets() = %v, want %v", content, tt.wants.contentType)
+			}
+			if tt.wants.body != "" {
+				if string(body) != tt.wants.body {
+					t.Errorf("%q. handleDeleteSecrets() invalid body", tt.name)
+				}
+			}
+
+		})
+	}
+}
