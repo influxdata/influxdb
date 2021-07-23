@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/errlist"
-
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/format/binary"
 	"github.com/influxdata/influxdb/cmd/influx_tools/server"
 	"github.com/influxdata/influxdb/services/meta"

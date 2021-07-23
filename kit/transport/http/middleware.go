@@ -8,10 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb/kit/platform"
 	"github.com/influxdata/influxdb/kit/platform/errors"
-
-	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb/kit/tracing"
 	ua "github.com/mileusna/useragent"
 	"github.com/prometheus/client_golang/prometheus"

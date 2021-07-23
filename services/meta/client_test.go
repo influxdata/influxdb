@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
 )
