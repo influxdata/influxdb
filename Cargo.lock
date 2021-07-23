@@ -3819,6 +3819,7 @@ name = "server_benchmarks"
 version = "0.1.0"
 dependencies = [
  "arrow_util",
+ "chrono",
  "criterion",
  "data_types",
  "datafusion 0.1.0",

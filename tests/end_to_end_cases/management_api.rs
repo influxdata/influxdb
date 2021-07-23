@@ -1062,7 +1062,7 @@ async fn test_chunk_access_time() {
 
     let chunks = management_client.list_chunks(&db_name).await.unwrap();
     assert_eq!(chunks.len(), 1);
-    assert!(chunks[0].time_of_last_access.is_none());
+    let t0 = to_datetime(chunks[0].time_of_last_access.as_ref());
 
     flight_client
         .perform_query(&db_name, "select * from cpu;")
@@ -1098,6 +1098,7 @@ async fn test_chunk_access_time() {
     assert_eq!(chunks.len(), 1);
     let t4 = to_datetime(chunks[0].time_of_last_access.as_ref());
 
+    assert!(t0 < t1, "{} {}", t0, t1);
     assert!(t1 < t2, "{} {}", t1, t2);
     assert!(t2 < t3, "{} {}", t2, t3);
     assert_eq!(t3, t4)

@@ -102,18 +102,17 @@ impl MBChunk {
         metrics: ChunkMetrics,
         sequence: Option<&Sequence>,
         batch: TableBatch<'_>,
+        time_of_write: DateTime<Utc>,
     ) -> Result<Self> {
         let table_name = Arc::from(batch.name());
-
-        let now = Utc::now();
 
         let mut chunk = Self {
             table_name,
             columns: Default::default(),
             metrics,
             snapshot: Mutex::new(None),
-            time_of_first_write: now,
-            time_of_last_write: now,
+            time_of_first_write: time_of_write,
+            time_of_last_write: time_of_write,
         };
 
         let columns = batch.columns();
@@ -129,6 +128,7 @@ impl MBChunk {
         &mut self,
         sequence: Option<&Sequence>,
         batch: TableBatch<'_>,
+        time_of_write: DateTime<Utc>,
     ) -> Result<()> {
         let table_name = batch.name();
         assert_eq!(
@@ -146,7 +146,9 @@ impl MBChunk {
             .try_lock()
             .expect("concurrent readers/writers to MBChunk") = None;
 
-        self.time_of_last_write = Utc::now();
+        // DateTime<Utc> is not necessarily monotonic
+        self.time_of_first_write = self.time_of_first_write.min(time_of_write);
+        self.time_of_last_write = self.time_of_last_write.max(time_of_write);
 
         Ok(())
     }
@@ -360,6 +362,7 @@ pub mod test_helpers {
     /// server id of 1.
     pub fn write_lp_to_chunk(lp: &str, chunk: &mut MBChunk) -> Result<()> {
         let entry = lp_to_entry(lp);
+        let time_of_write = Utc::now();
 
         for w in entry.partition_writes().unwrap() {
             let table_batches = w.table_batches();
@@ -375,7 +378,7 @@ pub mod test_helpers {
 
             for batch in table_batches {
                 let seq = Some(Sequence::new(1, 5));
-                chunk.write_table_batch(seq.as_ref(), batch)?;
+                chunk.write_table_batch(seq.as_ref(), batch, time_of_write)?;
             }
         }
 
@@ -384,6 +387,7 @@ pub mod test_helpers {
 
     pub fn write_lp_to_new_chunk(lp: &str) -> Result<MBChunk> {
         let entry = lp_to_entry(lp);
+        let time_of_write = Utc::now();
         let mut chunk: Option<MBChunk> = None;
 
         for w in entry.partition_writes().unwrap() {
@@ -402,12 +406,13 @@ pub mod test_helpers {
                 let seq = Some(Sequence::new(1, 5));
 
                 match chunk {
-                    Some(ref mut c) => c.write_table_batch(seq.as_ref(), batch)?,
+                    Some(ref mut c) => c.write_table_batch(seq.as_ref(), batch, time_of_write)?,
                     None => {
                         chunk = Some(MBChunk::new(
                             ChunkMetrics::new_unregistered(),
                             seq.as_ref(),
                             batch,
+                            time_of_write,
                         )?);
                     }
                 }

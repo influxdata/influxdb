@@ -1151,11 +1151,17 @@ impl Db {
         if immutable {
             return DatabaseNotWriteable {}.fail();
         }
+
         if let Some(hard_limit) = buffer_size_hard {
             if self.catalog.metrics().memory().total() > hard_limit.get() {
                 return HardLimitReached {}.fail();
             }
         }
+
+        // Note: as this is taken before any synchronisation writes may arrive to a chunk
+        // out of order w.r.t this timestamp. As DateTime<Utc> isn't monotonic anyway
+        // this isn't an issue
+        let time_of_write = Utc::now();
 
         if let Some(partitioned_writes) = sequenced_entry.partition_writes() {
             let sequence = sequenced_entry.as_ref().sequence();
@@ -1203,6 +1209,13 @@ impl Db {
 
                     let mut partition = partition.write();
 
+                    let handle_chunk_write = |chunk: &mut CatalogChunk| {
+                        chunk.record_write(time_of_write);
+                        if chunk.storage().0 >= mub_row_threshold.get() {
+                            chunk.freeze().expect("freeze mub chunk");
+                        }
+                    };
+
                     let (min_time, max_time) =
                         table_batch.min_max_time().context(TableBatchTimeError)?;
 
@@ -1215,7 +1228,7 @@ impl Db {
                                 chunk.mutable_buffer().expect("cannot mutate open chunk");
 
                             if let Err(e) = mb_chunk
-                                .write_table_batch(sequence, table_batch)
+                                .write_table_batch(sequence, table_batch, time_of_write)
                                 .context(WriteEntry {
                                     partition_key,
                                     chunk_id,
@@ -1226,13 +1239,7 @@ impl Db {
                                 }
                                 continue;
                             };
-
-                            let should_freeze = mb_chunk.rows() >= mub_row_threshold.get();
-
-                            chunk.record_write();
-                            if should_freeze {
-                                chunk.freeze().expect("freeze mub chunk");
-                            }
+                            handle_chunk_write(&mut *chunk)
                         }
                         None => {
                             let metrics = self.metrics_registry.register_domain_with_labels(
@@ -1243,16 +1250,17 @@ impl Db {
                                 MutableBufferChunkMetrics::new(&metrics),
                                 sequence,
                                 table_batch,
+                                time_of_write,
                             )
                             .context(WriteEntryInitial { partition_key });
 
                             match chunk_result {
                                 Ok(mb_chunk) => {
-                                    let should_freeze = mb_chunk.rows() >= mub_row_threshold.get();
                                     let chunk = partition.create_open_chunk(mb_chunk);
-                                    if should_freeze {
-                                        chunk.write().freeze().expect("freeze mub chunk");
-                                    }
+                                    let mut chunk = chunk
+                                        .try_write()
+                                        .expect("partition lock should prevent contention");
+                                    handle_chunk_write(&mut *chunk)
                                 }
                                 Err(e) => {
                                     if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
@@ -1263,6 +1271,7 @@ impl Db {
                             }
                         }
                     };
+
                     partition.update_last_write_at();
 
                     schema_handle.commit();
@@ -3615,7 +3624,7 @@ mod tests {
                 ("access", "exclusive"),
             ])
             .counter()
-            .eq(1.)
+            .eq(2.)
             .unwrap();
 
         test_db

@@ -20,6 +20,7 @@ fn chunk(count: usize) -> MBChunk {
     let mut lp = String::new();
     gz.read_to_string(&mut lp).unwrap();
 
+    let time_of_write = chrono::Utc::now();
     let sequence = Some(Sequence::new(1, 5));
     for _ in 0..count {
         for entry in lp_to_entries(&lp, &hour_partitioner()) {
@@ -27,7 +28,8 @@ fn chunk(count: usize) -> MBChunk {
                 for batch in write.table_batches() {
                     match chunk {
                         Some(ref mut c) => {
-                            c.write_table_batch(sequence.as_ref(), batch).unwrap();
+                            c.write_table_batch(sequence.as_ref(), batch, time_of_write)
+                                .unwrap();
                         }
                         None => {
                             chunk = Some(
@@ -35,6 +37,7 @@ fn chunk(count: usize) -> MBChunk {
                                     ChunkMetrics::new_unregistered(),
                                     sequence.as_ref(),
                                     batch,
+                                    time_of_write,
                                 )
                                 .unwrap(),
                             );

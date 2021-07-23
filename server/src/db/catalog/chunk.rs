@@ -457,13 +457,22 @@ impl CatalogChunk {
     }
 
     /// Record a write of row data to this chunk
-    pub fn record_write(&mut self) {
-        let now = Utc::now();
+    pub fn record_write(&mut self, time_of_write: DateTime<Utc>) {
         self.access_recorder.record_access_now();
-        if self.time_of_first_write.is_none() {
-            self.time_of_first_write = Some(now);
+
+        if let Some(t) = self.time_of_first_write {
+            self.time_of_first_write = Some(t.min(time_of_write))
+        } else {
+            self.time_of_first_write = Some(time_of_write)
         }
-        self.time_of_last_write = Some(now);
+
+        // DateTime<Utc> isn't necessarily monotonic
+        if let Some(t) = self.time_of_last_write {
+            self.time_of_last_write = Some(t.max(time_of_write))
+        } else {
+            self.time_of_last_write = Some(time_of_write)
+        }
+
         self.update_metrics();
     }
 
@@ -1114,11 +1123,18 @@ mod tests {
 
     fn make_mb_chunk(table_name: &str, sequencer_id: u32) -> MBChunk {
         let entry = lp_to_entry(&format!("{} bar=1 10", table_name));
+        let time_of_write = Utc::now();
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
         let sequence = Some(Sequence::new(sequencer_id, 1));
 
-        MBChunk::new(MBChunkMetrics::new_unregistered(), sequence.as_ref(), batch).unwrap()
+        MBChunk::new(
+            MBChunkMetrics::new_unregistered(),
+            sequence.as_ref(),
+            batch,
+            time_of_write,
+        )
+        .unwrap()
     }
 
     async fn make_parquet_chunk(addr: ChunkAddr) -> ParquetChunk {
