@@ -1074,8 +1074,6 @@ func (f *LogFile) seriesSketches() (sketch, tSketch estimator.Sketch, err error)
 }
 
 func (f *LogFile) ExecEntries(entries []LogEntry) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
 	for i := range entries {
 		entry := &entries[i]
 		if err := f.appendEntry(entry); err != nil {
@@ -1087,6 +1085,9 @@ func (f *LogFile) ExecEntries(entries []LogEntry) error {
 }
 
 func (f *LogFile) Writes(entries []LogEntry) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if err := f.ExecEntries(entries); err != nil {
 		return err
 	}
