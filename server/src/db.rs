@@ -1239,7 +1239,7 @@ impl Db {
                                 chunk.mutable_buffer().expect("cannot mutate open chunk");
 
                             if let Err(e) = mb_chunk
-                                .write_table_batch(sequence, table_batch, time_of_write)
+                                .write_table_batch(table_batch, time_of_write)
                                 .context(WriteEntry {
                                     partition_key,
                                     chunk_id,
@@ -1259,7 +1259,6 @@ impl Db {
                             );
                             let chunk_result = MBChunk::new(
                                 MutableBufferChunkMetrics::new(&metrics),
-                                sequence,
                                 table_batch,
                                 time_of_write,
                             )

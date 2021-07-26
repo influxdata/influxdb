@@ -959,7 +959,7 @@ impl CatalogChunk {
 
 #[cfg(test)]
 mod tests {
-    use entry::{test_helpers::lp_to_entry, Sequence};
+    use entry::test_helpers::lp_to_entry;
     use mutable_buffer::chunk::{ChunkMetrics as MBChunkMetrics, MBChunk};
     use parquet_file::{
         chunk::ParquetChunk,
@@ -970,11 +970,10 @@ mod tests {
 
     #[test]
     fn test_new_open() {
-        let sequencer_id = 1;
         let addr = chunk_addr();
 
         // works with non-empty MBChunk
-        let mb_chunk = make_mb_chunk(&addr.table_name, sequencer_id);
+        let mb_chunk = make_mb_chunk(&addr.table_name);
         let chunk = CatalogChunk::new_open(addr, mb_chunk, ChunkMetrics::new_unregistered());
         assert!(matches!(chunk.stage(), &ChunkStage::Open { .. }));
         assert!(chunk.time_of_first_write.is_some());
@@ -1130,20 +1129,13 @@ mod tests {
         chunk.clear_lifecycle_action().unwrap();
     }
 
-    fn make_mb_chunk(table_name: &str, sequencer_id: u32) -> MBChunk {
+    fn make_mb_chunk(table_name: &str) -> MBChunk {
         let entry = lp_to_entry(&format!("{} bar=1 10", table_name));
         let time_of_write = Utc::now();
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
-        let sequence = Some(Sequence::new(sequencer_id, 1));
 
-        MBChunk::new(
-            MBChunkMetrics::new_unregistered(),
-            sequence.as_ref(),
-            batch,
-            time_of_write,
-        )
-        .unwrap()
+        MBChunk::new(MBChunkMetrics::new_unregistered(), batch, time_of_write).unwrap()
     }
 
     async fn make_parquet_chunk(addr: ChunkAddr) -> ParquetChunk {
@@ -1161,11 +1153,10 @@ mod tests {
     }
 
     fn make_open_chunk() -> CatalogChunk {
-        let sequencer_id = 1;
         let addr = chunk_addr();
 
         // assemble MBChunk
-        let mb_chunk = make_mb_chunk(&addr.table_name, sequencer_id);
+        let mb_chunk = make_mb_chunk(&addr.table_name);
 
         CatalogChunk::new_open(addr, mb_chunk, ChunkMetrics::new_unregistered())
     }
