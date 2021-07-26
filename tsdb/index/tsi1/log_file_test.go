@@ -14,10 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/pkg/slices"
-
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bloom"
+	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )

@@ -1,9 +1,6 @@
 package main
 
 import (
-	"collectd.org/api"
-	"collectd.org/network"
-
 	"context"
 	"flag"
 	"fmt"
@@ -11,6 +8,9 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"collectd.org/api"
+	"collectd.org/network"
 )
 
 var nMeasurments = flag.Int("m", 1, "Number of measurements")

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/kit/platform"
-
 	"github.com/influxdata/influxdb/pkg/testttp"
 	"github.com/stretchr/testify/assert"
 )
