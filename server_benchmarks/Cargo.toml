@@ -14,6 +14,7 @@ description = "Server related bechmarks, grouped into their own crate to minimiz
 arrow_util = { path = "../arrow_util" }
 entry = { path = "../entry" }
 criterion = { version = "0.3.4", features = ["async_tokio"] }
+chrono = { version = "0.4", features = ["serde"] }
 datafusion = { path = "../datafusion" }
 data_types = { path = "../data_types" }
 flate2 = "1.0.20"

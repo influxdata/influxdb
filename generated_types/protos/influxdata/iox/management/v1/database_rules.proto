@@ -118,5 +118,5 @@ message DatabaseRules {
 }
 
 message RoutingConfig {
-  NodeGroup target = 1;
+  Sink sink = 2;
 }

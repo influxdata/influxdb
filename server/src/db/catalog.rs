@@ -327,22 +327,23 @@ impl Catalog {
 
 #[cfg(test)]
 mod tests {
-    use entry::{test_helpers::lp_to_entry, Sequence};
+    use entry::test_helpers::lp_to_entry;
 
     use super::*;
+    use chrono::Utc;
 
     fn create_open_chunk(partition: &Arc<RwLock<Partition>>) {
         let mut partition = partition.write();
         let table = partition.table_name();
         let entry = lp_to_entry(&format!("{} bar=1 10", table));
+        let time_of_write = Utc::now();
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
 
-        let sequence = Some(Sequence::new(1, 5));
         let mb_chunk = mutable_buffer::chunk::MBChunk::new(
             mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
-            sequence.as_ref(),
             batch,
+            time_of_write,
         )
         .unwrap();
 

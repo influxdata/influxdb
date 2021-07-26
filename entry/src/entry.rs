@@ -20,6 +20,7 @@ use internal_types::schema::{
 };
 
 use crate::entry_fb;
+use data_types::write_summary::TimestampSummary;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -844,7 +845,7 @@ impl<'a> TableBatch<'a> {
         }
     }
 
-    pub fn min_max_time(&self) -> Result<(DateTime<Utc>, DateTime<Utc>)> {
+    fn timestamps(&self) -> Result<flatbuffers::Vector<'_, i64>> {
         match self
             .fb
             .columns()
@@ -862,14 +863,27 @@ impl<'a> TableBatch<'a> {
                     .context(TimeColumnWrongType)?
                     .values()
                     .expect("invalid flatbuffers: time column values must be present");
-
-                let min = vals.iter().min().context(TimeValueMissing)?;
-                let max = vals.iter().max().context(TimeValueMissing)?;
-
-                Ok((Utc.timestamp_nanos(min), Utc.timestamp_nanos(max)))
+                Ok(vals)
             }
             None => TimeColumnMissing.fail(),
         }
+    }
+
+    pub fn timestamp_summary(&self) -> Result<TimestampSummary> {
+        let timestamps = self.timestamps()?;
+        let mut summary = TimestampSummary::default();
+        for t in &timestamps {
+            summary.record(Utc.timestamp_nanos(t))
+        }
+        Ok(summary)
+    }
+
+    pub fn min_max_time(&self) -> Result<(DateTime<Utc>, DateTime<Utc>)> {
+        let timestamps = self.timestamps()?;
+        let min = timestamps.iter().min().context(TimeValueMissing)?;
+        let max = timestamps.iter().max().context(TimeValueMissing)?;
+
+        Ok((Utc.timestamp_nanos(min), Utc.timestamp_nanos(max)))
     }
 
     pub fn row_count(&self) -> usize {
@@ -929,6 +943,7 @@ impl<'a> TableBatch<'a> {
 #[derive(Debug)]
 pub struct Column<'a> {
     fb: entry_fb::Column<'a>,
+    /// Total number of rows, including null values
     pub row_count: usize,
 }
 
@@ -2528,6 +2543,40 @@ mod tests {
             .unwrap();
         assert_eq!(min, ts);
         assert_eq!(max, Utc.timestamp(12, 3));
+    }
+
+    #[test]
+    fn timestamp_summary() {
+        let entries = lp_to_entries(
+            r#"
+        m foo=1 0
+        m foo=2 60000000000
+        m foo=3 120000000000
+        m foo=4 121000000000
+        m foo=5 3540000000000
+        m foo=6 3900000000000"#,
+            &partitioner(1),
+        );
+        assert_eq!(entries.len(), 1);
+        let entry = &entries[0];
+
+        let writes = &entry.partition_writes().unwrap();
+        assert_eq!(writes.len(), 1);
+        let batches = &writes[0].table_batches();
+        assert_eq!(batches.len(), 1);
+        let batch = &batches[0];
+
+        assert_eq!(batch.row_count(), 6);
+        let summary = batch.timestamp_summary().unwrap();
+
+        let mut expected = [0_u32; 60];
+        expected[0] = 1;
+        expected[1] = 1;
+        expected[2] = 2;
+        expected[5] = 1;
+        expected[59] = 1;
+
+        assert_eq!(expected, summary.counts)
     }
 
     #[test]

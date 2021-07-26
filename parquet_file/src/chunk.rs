@@ -1,9 +1,9 @@
-use snafu::{ResultExt, Snafu};
-use std::{collections::BTreeSet, sync::Arc};
-
-use crate::{metadata::IoxParquetMetaData, storage::Storage};
+use crate::{
+    metadata::{IoxMetadata, IoxParquetMetaData},
+    storage::Storage,
+};
 use data_types::{
-    partition_metadata::{Statistics, TableSummary},
+    partition_metadata::{Statistics, TableSummaryAndTimes},
     timestamp::TimestampRange,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -13,8 +13,8 @@ use internal_types::{
 };
 use object_store::{path::Path, ObjectStore};
 use query::predicate::Predicate;
-
-use std::mem;
+use snafu::{ResultExt, Snafu};
+use std::{collections::BTreeSet, mem, sync::Arc};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -85,7 +85,7 @@ pub struct ParquetChunk {
     partition_key: Arc<str>,
 
     /// Meta data of the table
-    table_summary: Arc<TableSummary>,
+    table_summary: Arc<TableSummaryAndTimes>,
 
     /// Schema that goes with this table's parquet file
     schema: Arc<Schema>,
@@ -125,17 +125,32 @@ impl ParquetChunk {
             .context(IoxMetadataReadFailed {
                 path: &file_location,
             })?;
+
+        let IoxMetadata {
+            table_name,
+            time_of_first_write,
+            time_of_last_write,
+            partition_key,
+            ..
+        } = iox_md;
+
         let schema = parquet_metadata.read_schema().context(SchemaReadFailed {
             path: &file_location,
         })?;
-        let table_summary = parquet_metadata
-            .read_statistics(&schema, &iox_md.table_name)
+        let columns = parquet_metadata
+            .read_statistics(&schema)
             .context(StatisticsReadFailed {
                 path: &file_location,
             })?;
+        let table_summary = TableSummaryAndTimes {
+            name: table_name.to_string(),
+            columns,
+            time_of_first_write,
+            time_of_last_write,
+        };
 
         Ok(Self::new_from_parts(
-            iox_md.partition_key,
+            partition_key,
             Arc::new(table_summary),
             schema,
             file_location,
@@ -146,11 +161,12 @@ impl ParquetChunk {
         ))
     }
 
-    /// Creates a new chunk from given parts w/o parsing anything from the provided parquet metadata.
+    /// Creates a new chunk from given parts w/o parsing anything from the provided parquet
+    /// metadata.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_from_parts(
         partition_key: Arc<str>,
-        table_summary: Arc<TableSummary>,
+        table_summary: Arc<TableSummaryAndTimes>,
         schema: Arc<Schema>,
         file_location: Path,
         store: Arc<ObjectStore>,
@@ -184,7 +200,7 @@ impl ParquetChunk {
     }
 
     /// Returns the summary statistics for this chunk
-    pub fn table_summary(&self) -> &Arc<TableSummary> {
+    pub fn table_summary(&self) -> &Arc<TableSummaryAndTimes> {
         &self.table_summary
     }
 
@@ -219,8 +235,7 @@ impl ParquetChunk {
         }
     }
 
-    // Return the columns names that belong to the given column
-    // selection
+    // Return the columns names that belong to the given column selection
     pub fn column_names(&self, selection: Selection<'_>) -> Option<BTreeSet<String>> {
         let fields = self.schema.inner().fields().iter();
 
@@ -271,7 +286,7 @@ impl ParquetChunk {
 }
 
 /// Extracts min/max values of the timestamp column, from the TableSummary, if possible
-fn extract_range(table_summary: &TableSummary) -> Option<TimestampRange> {
+fn extract_range(table_summary: &TableSummaryAndTimes) -> Option<TimestampRange> {
     table_summary
         .column(TIME_COLUMN_NAME)
         .map(|c| {

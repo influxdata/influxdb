@@ -15,7 +15,7 @@ use crate::{
 };
 use ::lifecycle::{LifecycleChunk, LockableChunk, LockablePartition};
 use async_trait::async_trait;
-use chrono::Utc;
+use chrono::{TimeZone, Utc};
 use data_types::{
     chunk_metadata::ChunkSummary,
     database_rules::DatabaseRules,
@@ -121,8 +121,11 @@ pub enum Error {
     #[snafu(display("background task cancelled: {}", source))]
     TaskCancelled { source: futures::future::Aborted },
 
-    #[snafu(display("error finding min/max time on table batch: {}", source))]
+    #[snafu(display("error computing time summary on table batch: {}", source))]
     TableBatchTimeError { source: entry::Error },
+
+    #[snafu(display("error batch had null times"))]
+    TableBatchMissingTimes {},
 
     #[snafu(display("Table batch has invalid schema: {}", source))]
     TableBatchSchemaExtractError {
@@ -1151,11 +1154,17 @@ impl Db {
         if immutable {
             return DatabaseNotWriteable {}.fail();
         }
+
         if let Some(hard_limit) = buffer_size_hard {
             if self.catalog.metrics().memory().total() > hard_limit.get() {
                 return HardLimitReached {}.fail();
             }
         }
+
+        // Note: as this is taken before any synchronisation writes may arrive to a chunk
+        // out of order w.r.t this timestamp. As DateTime<Utc> isn't monotonic anyway
+        // this isn't an issue
+        let time_of_write = Utc::now();
 
         if let Some(partitioned_writes) = sequenced_entry.partition_writes() {
             let sequence = sequenced_entry.as_ref().sequence();
@@ -1188,6 +1197,7 @@ impl Db {
                                 continue;
                             }
                         };
+
                     let schema_handle =
                         match TableSchemaUpsertHandle::new(&table_schema, &batch_schema)
                             .context(TableBatchSchemaMergeError)
@@ -1201,10 +1211,24 @@ impl Db {
                             }
                         };
 
+                    let timestamp_summary = table_batch
+                        .timestamp_summary()
+                        .context(TableBatchTimeError)?;
+
+                    // At this point this should not be possible
+                    ensure!(
+                        timestamp_summary.stats.total_count == row_count as u64,
+                        TableBatchMissingTimes {}
+                    );
+
                     let mut partition = partition.write();
 
-                    let (min_time, max_time) =
-                        table_batch.min_max_time().context(TableBatchTimeError)?;
+                    let handle_chunk_write = |chunk: &mut CatalogChunk| {
+                        chunk.record_write(time_of_write, &timestamp_summary);
+                        if chunk.storage().0 >= mub_row_threshold.get() {
+                            chunk.freeze().expect("freeze mub chunk");
+                        }
+                    };
 
                     match partition.open_chunk() {
                         Some(chunk) => {
@@ -1215,7 +1239,7 @@ impl Db {
                                 chunk.mutable_buffer().expect("cannot mutate open chunk");
 
                             if let Err(e) = mb_chunk
-                                .write_table_batch(sequence, table_batch)
+                                .write_table_batch(table_batch, time_of_write)
                                 .context(WriteEntry {
                                     partition_key,
                                     chunk_id,
@@ -1226,13 +1250,7 @@ impl Db {
                                 }
                                 continue;
                             };
-
-                            let should_freeze = mb_chunk.rows() >= mub_row_threshold.get();
-
-                            chunk.record_write();
-                            if should_freeze {
-                                chunk.freeze().expect("freeze mub chunk");
-                            }
+                            handle_chunk_write(&mut *chunk)
                         }
                         None => {
                             let metrics = self.metrics_registry.register_domain_with_labels(
@@ -1241,18 +1259,18 @@ impl Db {
                             );
                             let chunk_result = MBChunk::new(
                                 MutableBufferChunkMetrics::new(&metrics),
-                                sequence,
                                 table_batch,
+                                time_of_write,
                             )
                             .context(WriteEntryInitial { partition_key });
 
                             match chunk_result {
                                 Ok(mb_chunk) => {
-                                    let should_freeze = mb_chunk.rows() >= mub_row_threshold.get();
                                     let chunk = partition.create_open_chunk(mb_chunk);
-                                    if should_freeze {
-                                        chunk.write().freeze().expect("freeze mub chunk");
-                                    }
+                                    let mut chunk = chunk
+                                        .try_write()
+                                        .expect("partition lock should prevent contention");
+                                    handle_chunk_write(&mut *chunk)
                                 }
                                 Err(e) => {
                                     if errors.len() < MAX_ERRORS_PER_SEQUENCED_ENTRY {
@@ -1263,9 +1281,14 @@ impl Db {
                             }
                         }
                     };
+
                     partition.update_last_write_at();
 
                     schema_handle.commit();
+
+                    // TODO: PersistenceWindows use TimestampSummary
+                    let min_time = Utc.timestamp_nanos(timestamp_summary.stats.min.unwrap());
+                    let max_time = Utc.timestamp_nanos(timestamp_summary.stats.max.unwrap());
 
                     match partition.persistence_windows_mut() {
                         Some(windows) => {
@@ -1437,6 +1460,7 @@ mod tests {
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
     use chrono::DateTime;
+    use data_types::write_summary::TimestampSummary;
     use data_types::{
         chunk_metadata::ChunkStorage,
         database_rules::{LifecycleRules, PartitionTemplate, Partitioner, TemplatePart},
@@ -1965,7 +1989,7 @@ mod tests {
         assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
         assert_metric("catalog_loaded_rows", "object_store", 0.0);
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1287)
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1319)
             .unwrap();
 
         db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
@@ -2023,7 +2047,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 647;
+        let expected_parquet_size = 703;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -2072,6 +2096,39 @@ mod tests {
         .unwrap();
         // verify chunk size for RB has decreased
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 0).unwrap();
+    }
+
+    #[tokio::test]
+    async fn write_metrics() {
+        let test_db = make_db().await;
+        let db = Arc::clone(&test_db.db);
+
+        write_lp(db.as_ref(), "cpu foo=1 100000000000").await;
+        write_lp(db.as_ref(), "cpu foo=2 180000000000").await;
+        write_lp(db.as_ref(), "cpu foo=3 650000000000").await;
+        write_lp(db.as_ref(), "cpu foo=3 650000000010").await;
+
+        let mut summary = TimestampSummary::default();
+        summary.record(Utc.timestamp_nanos(100000000000));
+        summary.record(Utc.timestamp_nanos(180000000000));
+        summary.record(Utc.timestamp_nanos(650000000000));
+        summary.record(Utc.timestamp_nanos(650000000010));
+
+        for (minute, count) in summary.cumulative_counts() {
+            let minute = (minute * 60).to_string();
+            test_db
+                .metric_registry
+                .has_metric_family("catalog_row_time_seconds_bucket")
+                .with_labels(&[
+                    ("svr_id", "1"),
+                    ("db_name", "placeholder"),
+                    ("table", "cpu"),
+                    ("le", minute.as_str()),
+                ])
+                .counter()
+                .eq(count as _)
+                .unwrap();
+        }
     }
 
     #[tokio::test]
@@ -2471,7 +2528,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2284.0)
+            .sample_sum_eq(2340.0)
             .unwrap();
 
         // while MB and RB chunk are identical, the PQ chunk is a new one (split off)
@@ -2591,7 +2648,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2284.0)
+            .sample_sum_eq(2340.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -2621,7 +2678,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(647.0)
+            .sample_sum_eq(703.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -2763,7 +2820,7 @@ mod tests {
         // validate it has data
         let table_summary = partition.summary().table;
         assert_eq!(&table_summary.name, "cpu");
-        assert_eq!(table_summary.count(), 2);
+        assert_eq!(table_summary.total_count(), 2);
         let windows = partition.persistence_windows().unwrap();
         let open_min = windows.minimum_unpersisted_timestamp().unwrap();
         let open_max = windows.maximum_unpersisted_timestamp().unwrap();
@@ -3219,8 +3276,8 @@ mod tests {
                 2,
                 ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                3260, // size of RB and OS chunks
-                1479, // size of parquet file
+                3332, // size of RB and OS chunks
+                1523, // size of parquet file
                 2,
             ),
             ChunkSummary::new_without_timestamps(
@@ -3229,7 +3286,7 @@ mod tests {
                 0,
                 ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
-                2446,
+                2510,
                 0, // no OS chunks
                 1,
             ),
@@ -3248,14 +3305,15 @@ mod tests {
         for (expected_summary, actual_summary) in expected.iter().zip(chunk_summaries.iter()) {
             assert_eq!(
                 expected_summary, actual_summary,
-                "\n\nexpected:\n{:#?}\n\nactual:\n{:#?}\n\n",
-                expected_summary, actual_summary
+                "\n\nexpected item:\n{:#?}\n\nactual item:\n{:#?}\n\n\
+                     all expected:\n{:#?}\n\nall actual:\n{:#?}",
+                expected_summary, actual_summary, expected, chunk_summaries
             );
         }
 
-        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2446 + 87);
+        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2510 + 87);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2434);
-        assert_eq!(db.catalog.metrics().memory().object_store(), 826);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 898);
     }
 
     #[tokio::test]
@@ -3309,17 +3367,17 @@ mod tests {
                         ColumnSummary {
                             name: "bar".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(2.0), 2)),
+                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(2.0), 2, 0)),
                         },
                         ColumnSummary {
                             name: "baz".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(3.0), Some(3.0), 2)),
+                            stats: Statistics::F64(StatValues::new(Some(3.0), Some(3.0), 2, 1)),
                         },
                         ColumnSummary {
                             name: "time".into(),
                             influxdb_type: Some(InfluxDbType::Timestamp),
-                            stats: Statistics::I64(StatValues::new(Some(1), Some(2), 2)),
+                            stats: Statistics::I64(StatValues::new(Some(1), Some(2), 2, 0)),
                         },
                     ],
                 },
@@ -3332,12 +3390,12 @@ mod tests {
                         ColumnSummary {
                             name: "foo".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(1.0), 1)),
+                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(1.0), 1, 0)),
                         },
                         ColumnSummary {
                             name: "time".into(),
                             influxdb_type: Some(InfluxDbType::Timestamp),
-                            stats: Statistics::I64(StatValues::new(Some(1), Some(1), 1)),
+                            stats: Statistics::I64(StatValues::new(Some(1), Some(1), 1, 0)),
                         },
                     ],
                 },
@@ -3350,7 +3408,7 @@ mod tests {
                         ColumnSummary {
                             name: "bar".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(1.0), 1)),
+                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(1.0), 1, 0)),
                         },
                         ColumnSummary {
                             name: "time".into(),
@@ -3359,6 +3417,7 @@ mod tests {
                                 Some(400000000000000),
                                 Some(400000000000000),
                                 1,
+                                0,
                             )),
                         },
                     ],
@@ -3372,7 +3431,7 @@ mod tests {
                         ColumnSummary {
                             name: "frob".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(3.0), Some(3.0), 1)),
+                            stats: Statistics::F64(StatValues::new(Some(3.0), Some(3.0), 1, 0)),
                         },
                         ColumnSummary {
                             name: "time".into(),
@@ -3381,6 +3440,7 @@ mod tests {
                                 Some(400000000000001),
                                 Some(400000000000001),
                                 1,
+                                0,
                             )),
                         },
                     ],
@@ -3615,7 +3675,7 @@ mod tests {
                 ("access", "exclusive"),
             ])
             .counter()
-            .eq(1.)
+            .eq(2.)
             .unwrap();
 
         test_db

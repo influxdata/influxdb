@@ -1,5 +1,8 @@
-use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
-
+use crate::{
+    chunk::{self, ChunkMetrics, ParquetChunk},
+    metadata::{IoxMetadata, IoxParquetMetaData},
+    storage::Storage,
+};
 use arrow::{
     array::{
         Array, ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray,
@@ -9,12 +12,14 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use chrono::{TimeZone, Utc};
-use datafusion::physical_plan::SendableRecordBatchStream;
-
 use data_types::{
-    partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
+    chunk_metadata::ChunkAddr,
+    partition_metadata::{
+        ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummaryAndTimes,
+    },
     server_id::ServerId,
 };
+use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
 use futures::TryStreamExt;
 use internal_types::{
@@ -30,17 +35,8 @@ use persistence_windows::{
     checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder},
     min_max_sequence::OptionalMinMaxSequence,
 };
-
-use crate::{
-    chunk::ChunkMetrics,
-    metadata::{IoxMetadata, IoxParquetMetaData},
-};
-use crate::{
-    chunk::{self, ParquetChunk},
-    storage::Storage,
-};
-use data_types::chunk_metadata::ChunkAddr;
 use snafu::{ResultExt, Snafu};
+use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -55,25 +51,21 @@ pub enum Error {
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Load parquet from store and return table name and parquet bytes.
+/// Load parquet from store and return parquet bytes.
 // This function is for test only
 pub async fn load_parquet_from_store(
     chunk: &ParquetChunk,
     store: Arc<ObjectStore>,
-) -> Result<(String, Vec<u8>)> {
+) -> Result<Vec<u8>> {
     load_parquet_from_store_for_chunk(chunk, store).await
 }
 
 pub async fn load_parquet_from_store_for_chunk(
     chunk: &ParquetChunk,
     store: Arc<ObjectStore>,
-) -> Result<(String, Vec<u8>)> {
+) -> Result<Vec<u8>> {
     let path = chunk.path();
-    let table_name = chunk.table_name().to_string();
-    Ok((
-        table_name,
-        load_parquet_from_store_for_path(&path, store).await?,
-    ))
+    Ok(load_parquet_from_store_for_path(&path, store).await?)
 }
 
 pub async fn load_parquet_from_store_for_path(
@@ -140,8 +132,12 @@ pub async fn make_chunk_given_record_batch(
     let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
     let storage = Storage::new(Arc::clone(&store), server_id);
 
-    let mut table_summary = TableSummary::new(addr.table_name.to_string());
-    table_summary.columns = column_summaries;
+    let table_summary = TableSummaryAndTimes {
+        name: addr.table_name.to_string(),
+        columns: column_summaries,
+        time_of_first_write: Utc.timestamp(30, 40),
+        time_of_last_write: Utc.timestamp(50, 60),
+    };
     let stream: SendableRecordBatchStream = if record_batches.is_empty() {
         Box::pin(MemoryStream::new_with_schema(
             record_batches,
@@ -161,6 +157,8 @@ pub async fn make_chunk_given_record_batch(
         chunk_id: addr.chunk_id,
         partition_checkpoint,
         database_checkpoint,
+        time_of_first_write: Utc.timestamp(30, 40),
+        time_of_last_write: Utc.timestamp(50, 60),
     };
     let (path, file_size_bytes, parquet_metadata) = storage
         .write_to_object_store(addr.clone(), stream, metadata)
@@ -194,6 +192,9 @@ fn create_column_tag(
         arrow_cols_sub.push((name.to_string(), Arc::clone(&array), true));
     }
 
+    let total_count = data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64;
+    let null_count = data.iter().flatten().filter(|x| x.is_none()).count() as u64;
+
     summaries.push(ColumnSummary {
         name: name.to_string(),
         influxdb_type: Some(InfluxDbType::Tag),
@@ -210,7 +211,8 @@ fn create_column_tag(
                 .filter_map(|x| x.as_ref())
                 .max()
                 .map(|x| x.to_string()),
-            count: data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64,
+            total_count,
+            null_count,
             distinct_count: None,
         }),
     });
@@ -234,14 +236,16 @@ fn create_column_field_string(
         |StatValues {
              min,
              max,
-             count,
+             total_count,
+             null_count,
              distinct_count,
          }| {
             Statistics::String(StatValues {
                 min: min.map(|x| x.to_string()),
                 max: max.map(|x| x.to_string()),
+                total_count,
+                null_count,
                 distinct_count,
-                count,
             })
         },
     )
@@ -297,6 +301,9 @@ fn create_column_field_f64(
         array_data_type = Some(array.data_type().clone());
     }
 
+    let total_count = data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64;
+    let null_count = data.iter().flatten().filter(|x| x.is_none()).count() as u64;
+
     summaries.push(ColumnSummary {
         name: name.to_string(),
         influxdb_type: Some(InfluxDbType::Field),
@@ -315,7 +322,8 @@ fn create_column_field_f64(
                 .filter(|x| !x.is_nan())
                 .max_by(|a, b| a.partial_cmp(b).unwrap())
                 .cloned(),
-            count: data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64,
+            total_count,
+            null_count,
             distinct_count: None,
         }),
     });
@@ -362,6 +370,9 @@ fn create_column_field_generic<A, T, F>(
         array_data_type = Some(array.data_type().clone());
     }
 
+    let total_count = data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64;
+    let null_count = data.iter().flatten().filter(|x| x.is_none()).count() as u64;
+
     summaries.push(ColumnSummary {
         name: name.to_string(),
         influxdb_type: Some(InfluxDbType::Field),
@@ -378,7 +389,8 @@ fn create_column_field_generic<A, T, F>(
                 .filter_map(|x| x.as_ref())
                 .max()
                 .cloned(),
-            count: data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64,
+            total_count,
+            null_count,
             distinct_count: None,
         }),
     });
@@ -403,13 +415,17 @@ fn create_column_timestamp(
     let min = data.iter().flatten().min().cloned();
     let max = data.iter().flatten().max().cloned();
 
+    let total_count = data.iter().map(Vec::len).sum::<usize>() as u64;
+    let null_count = 0; // no nulls in timestamp
+
     summaries.push(ColumnSummary {
         name: TIME_COLUMN_NAME.to_string(),
         influxdb_type: Some(InfluxDbType::Timestamp),
         stats: Statistics::I64(StatValues {
             min,
             max,
-            count: data.iter().map(Vec::len).sum::<usize>() as u64,
+            total_count,
+            null_count,
             distinct_count: None,
         }),
     });
@@ -742,7 +758,7 @@ pub async fn make_metadata(
     addr: ChunkAddr,
 ) -> (Path, IoxParquetMetaData) {
     let chunk = make_chunk(Arc::clone(object_store), column_prefix, addr).await;
-    let (_, parquet_data) = load_parquet_from_store(&chunk, Arc::clone(object_store))
+    let parquet_data = load_parquet_from_store(&chunk, Arc::clone(object_store))
         .await
         .unwrap();
     (

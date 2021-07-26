@@ -5,7 +5,7 @@ use crate::{
 use arrow::record_batch::RecordBatch;
 use chrono::{DateTime, Utc};
 use data_types::partition_metadata::{ColumnSummary, InfluxDbType, TableSummaryAndTimes};
-use entry::{Sequence, TableBatch};
+use entry::TableBatch;
 use hashbrown::HashMap;
 use internal_types::{
     schema::{builder::SchemaBuilder, InfluxColumnType, Schema},
@@ -100,24 +100,22 @@ impl MBChunk {
     /// shouldn't exist without some data.
     pub fn new(
         metrics: ChunkMetrics,
-        sequence: Option<&Sequence>,
         batch: TableBatch<'_>,
+        time_of_write: DateTime<Utc>,
     ) -> Result<Self> {
         let table_name = Arc::from(batch.name());
-
-        let now = Utc::now();
 
         let mut chunk = Self {
             table_name,
             columns: Default::default(),
             metrics,
             snapshot: Mutex::new(None),
-            time_of_first_write: now,
-            time_of_last_write: now,
+            time_of_first_write: time_of_write,
+            time_of_last_write: time_of_write,
         };
 
         let columns = batch.columns();
-        chunk.write_columns(sequence, columns)?;
+        chunk.write_columns(columns)?;
 
         Ok(chunk)
     }
@@ -127,8 +125,8 @@ impl MBChunk {
     /// Panics if the batch specifies a different name for the table in this Chunk
     pub fn write_table_batch(
         &mut self,
-        sequence: Option<&Sequence>,
         batch: TableBatch<'_>,
+        time_of_write: DateTime<Utc>,
     ) -> Result<()> {
         let table_name = batch.name();
         assert_eq!(
@@ -137,8 +135,7 @@ impl MBChunk {
             "can only insert table batch for a single table to chunk"
         );
 
-        let columns = batch.columns();
-        self.write_columns(sequence, columns)?;
+        self.write_columns(batch.columns())?;
 
         // Invalidate chunk snapshot
         *self
@@ -146,7 +143,9 @@ impl MBChunk {
             .try_lock()
             .expect("concurrent readers/writers to MBChunk") = None;
 
-        self.time_of_last_write = Utc::now();
+        // DateTime<Utc> is not necessarily monotonic
+        self.time_of_first_write = self.time_of_first_write.min(time_of_write);
+        self.time_of_last_write = self.time_of_last_write.max(time_of_write);
 
         Ok(())
     }
@@ -291,11 +290,7 @@ impl MBChunk {
 
     /// Validates the schema of the passed in columns, then adds their values to
     /// the associated columns in the table and updates summary statistics.
-    fn write_columns(
-        &mut self,
-        _sequence: Option<&Sequence>,
-        columns: Vec<entry::Column<'_>>,
-    ) -> Result<()> {
+    fn write_columns(&mut self, columns: Vec<entry::Column<'_>>) -> Result<()> {
         let row_count_before_insert = self.rows();
         let additional_rows = columns.first().map(|x| x.row_count).unwrap_or_default();
         let final_row_count = row_count_before_insert + additional_rows;
@@ -360,6 +355,7 @@ pub mod test_helpers {
     /// server id of 1.
     pub fn write_lp_to_chunk(lp: &str, chunk: &mut MBChunk) -> Result<()> {
         let entry = lp_to_entry(lp);
+        let time_of_write = Utc::now();
 
         for w in entry.partition_writes().unwrap() {
             let table_batches = w.table_batches();
@@ -374,8 +370,7 @@ pub mod test_helpers {
             );
 
             for batch in table_batches {
-                let seq = Some(Sequence::new(1, 5));
-                chunk.write_table_batch(seq.as_ref(), batch)?;
+                chunk.write_table_batch(batch, time_of_write)?;
             }
         }
 
@@ -384,6 +379,7 @@ pub mod test_helpers {
 
     pub fn write_lp_to_new_chunk(lp: &str) -> Result<MBChunk> {
         let entry = lp_to_entry(lp);
+        let time_of_write = Utc::now();
         let mut chunk: Option<MBChunk> = None;
 
         for w in entry.partition_writes().unwrap() {
@@ -399,15 +395,13 @@ pub mod test_helpers {
             );
 
             for batch in table_batches {
-                let seq = Some(Sequence::new(1, 5));
-
                 match chunk {
-                    Some(ref mut c) => c.write_table_batch(seq.as_ref(), batch)?,
+                    Some(ref mut c) => c.write_table_batch(batch, time_of_write)?,
                     None => {
                         chunk = Some(MBChunk::new(
                             ChunkMetrics::new_unregistered(),
-                            seq.as_ref(),
                             batch,
+                            time_of_write,
                         )?);
                     }
                 }
@@ -426,7 +420,9 @@ mod tests {
     };
     use arrow::datatypes::DataType as ArrowDataType;
     use arrow_util::assert_batches_eq;
-    use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
+    use data_types::partition_metadata::{
+        ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
+    };
     use entry::test_helpers::lp_to_entry;
     use internal_types::schema::{InfluxColumnType, InfluxFieldType};
     use std::num::NonZeroU64;
@@ -520,7 +516,8 @@ mod tests {
                 stats: Statistics::String(StatValues {
                     min: Some("prod".to_string()),
                     max: Some("stage".to_string()),
-                    count: 3,
+                    total_count: 4,
+                    null_count: 1,
                     distinct_count: Some(NonZeroU64::new(3).unwrap()),
                 }),
             },
@@ -530,7 +527,8 @@ mod tests {
                 stats: Statistics::String(StatValues {
                     min: Some("a".to_string()),
                     max: Some("c".to_string()),
-                    count: 4,
+                    total_count: 4,
+                    null_count: 0,
                     distinct_count: Some(NonZeroU64::new(3).unwrap()),
                 }),
             },
@@ -540,7 +538,8 @@ mod tests {
                 stats: Statistics::I64(StatValues {
                     min: Some(1),
                     max: Some(2),
-                    count: 4,
+                    total_count: 4,
+                    null_count: 0,
                     distinct_count: None,
                 }),
             },
@@ -550,12 +549,245 @@ mod tests {
                 stats: Statistics::F64(StatValues {
                     min: Some(2.),
                     max: Some(23.),
-                    count: 4,
+                    total_count: 4,
+                    null_count: 0,
                     distinct_count: None,
                 }),
             },
         ];
-        assert_eq!(summary.columns, expected_column_summaries);
+        assert_eq!(
+            summary.columns, expected_column_summaries,
+            "\n\nactual:\n{:#?}\n\nexpected:\n{:#?}\n\n",
+            summary.columns, expected_column_summaries
+        );
+    }
+
+    // test statistics generation for each type as at time of writing the codepaths were slightly different
+    macro_rules! assert_summary_eq {
+        ($EXPECTED:expr, $CHUNK:expr, $COL_NAME:expr) => {
+            let table_summary: TableSummary = $CHUNK.table_summary().into();
+            let col_summary = table_summary.column($COL_NAME).expect("cound find column");
+
+            assert_eq!(
+                col_summary, &$EXPECTED,
+                "\n\nactual:\n{:#?}\n\nexpected:\n{:#?}\n\n",
+                col_summary, $EXPECTED
+            );
+        };
+    }
+
+    #[test]
+    fn test_tag_stats() {
+        let lp = r#"
+            cpu,host=a  v=1 10
+            cpu,host=b  v=1 20
+            cpu,host=a  v=1 30
+            cpu,host2=a v=1 40
+            cpu,host=c  v=1 50
+        "#;
+        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let expected = ColumnSummary {
+            name: "host".into(),
+            influxdb_type: Some(InfluxDbType::Tag),
+            stats: Statistics::String(StatValues {
+                min: Some("a".into()),
+                max: Some("c".into()),
+                total_count: 5,
+                null_count: 1,
+                // 4 distinct values, including null
+                distinct_count: Some(NonZeroU64::new(4).unwrap()),
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "host");
+    }
+
+    #[test]
+    fn test_bool_field_stats() {
+        let lp = r#"
+            cpu,host=a val=true 10
+            cpu,host=b val=false 20
+            cpu,host=c other_val=2 30
+            cpu,host=a val=false 40
+            cpu,host=c other_val=2 50
+        "#;
+        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let expected = ColumnSummary {
+            name: "val".into(),
+            influxdb_type: Some(InfluxDbType::Field),
+            stats: Statistics::Bool(StatValues {
+                min: Some(false),
+                max: Some(true),
+                total_count: 5,
+                null_count: 2,
+                distinct_count: None,
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "val");
+    }
+
+    #[test]
+    fn test_u64_field_stats() {
+        let lp = r#"
+            cpu,host=a val=5u 10
+            cpu,host=b val=2u 20
+            cpu,host=c other_val=2 30
+            cpu,host=a val=1u 40
+            cpu,host=c other_val=2 50
+        "#;
+        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let expected = ColumnSummary {
+            name: "val".into(),
+            influxdb_type: Some(InfluxDbType::Field),
+            stats: Statistics::U64(StatValues {
+                min: Some(1),
+                max: Some(5),
+                total_count: 5,
+                null_count: 2,
+                distinct_count: None,
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "val");
+    }
+
+    #[test]
+    fn test_f64_field_stats() {
+        let lp = r#"
+            cpu,host=a val=5.0 10
+            cpu,host=b val=2.0 20
+            cpu,host=c other_val=2 30
+            cpu,host=a val=1.0 40
+            cpu,host=c other_val=2.0 50
+        "#;
+        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let expected = ColumnSummary {
+            name: "val".into(),
+            influxdb_type: Some(InfluxDbType::Field),
+            stats: Statistics::F64(StatValues {
+                min: Some(1.0),
+                max: Some(5.0),
+                total_count: 5,
+                null_count: 2,
+                distinct_count: None,
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "val");
+    }
+
+    #[test]
+    fn test_i64_field_stats() {
+        let lp = r#"
+            cpu,host=a val=5i 10
+            cpu,host=b val=2i 20
+            cpu,host=c other_val=2 30
+            cpu,host=a val=1i 40
+            cpu,host=c other_val=2.0 50
+        "#;
+        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let expected = ColumnSummary {
+            name: "val".into(),
+            influxdb_type: Some(InfluxDbType::Field),
+            stats: Statistics::I64(StatValues {
+                min: Some(1),
+                max: Some(5),
+                total_count: 5,
+                null_count: 2,
+                distinct_count: None,
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "val");
+    }
+
+    #[test]
+    fn test_string_field_stats() {
+        let lp = r#"
+            cpu,host=a val="v1" 10
+            cpu,host=b val="v2" 20
+            cpu,host=c other_val=2 30
+            cpu,host=a val="v3" 40
+            cpu,host=c other_val=2.0 50
+        "#;
+        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let expected = ColumnSummary {
+            name: "val".into(),
+            influxdb_type: Some(InfluxDbType::Field),
+            stats: Statistics::String(StatValues {
+                min: Some("v1".into()),
+                max: Some("v3".into()),
+                total_count: 5,
+                null_count: 2,
+                distinct_count: None,
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "val");
+    }
+
+    #[test]
+    fn test_time_stats() {
+        let lp = r#"
+            cpu,host=a val=1 10
+            cpu,host=b val=2 20
+            cpu,host=c other_val=3 11
+            cpu,host=a val=4 2
+            cpu,host=c val=25 12
+        "#;
+        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let expected = ColumnSummary {
+            name: "time".into(),
+            influxdb_type: Some(InfluxDbType::Timestamp),
+            stats: Statistics::I64(StatValues {
+                min: Some(2),
+                max: Some(20),
+                total_count: 5,
+                null_count: 0,
+                distinct_count: None,
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "time");
+    }
+
+    #[test]
+    fn test_tag_stats_multi_write() {
+        // write in two chunks, second write creates new host2 tag so existing stats need to be backfilled
+        let lp1 = r#"
+            cpu,host=a  v=1 10
+            cpu,host=b  v=1 20
+            cpu,host=a  v=1 30
+        "#;
+        let mut chunk = write_lp_to_new_chunk(lp1).unwrap();
+
+        let lp2 = r#"
+            cpu,host2=z v=1 40
+            cpu,host=c  v=1 5
+        "#;
+        write_lp_to_chunk(&lp2, &mut chunk).unwrap();
+
+        let expected = ColumnSummary {
+            name: "host".into(),
+            influxdb_type: Some(InfluxDbType::Tag),
+            stats: Statistics::String(StatValues {
+                min: Some("a".into()),
+                max: Some("c".into()),
+                total_count: 5,
+                null_count: 1,
+                // 4 distinct values, including null
+                distinct_count: Some(NonZeroU64::new(4).unwrap()),
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "host");
+
+        let expected = ColumnSummary {
+            name: "host2".into(),
+            influxdb_type: Some(InfluxDbType::Tag),
+            stats: Statistics::String(StatValues {
+                min: Some("z".into()),
+                max: Some("z".into()),
+                total_count: 5, // same total_count as above
+                null_count: 4,
+                // 2 distinct values ("z" and null)
+                distinct_count: Some(NonZeroU64::new(2).unwrap()),
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "host2");
     }
 
     #[test]
@@ -647,10 +879,6 @@ mod tests {
 
     #[test]
     fn write_columns_validates_schema() {
-        let sequencer_id = 1;
-        let sequence_number = 5;
-        let sequence = Some(Sequence::new(sequencer_id, sequence_number));
-
         let lp = "foo,t1=asdf iv=1i,uv=1u,fv=1.0,bv=true,sv=\"hi\" 1";
         let mut table = write_lp_to_new_chunk(lp).unwrap();
 
@@ -658,7 +886,6 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -690,7 +917,6 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -722,7 +948,6 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -754,7 +979,6 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -786,7 +1010,6 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -818,7 +1041,6 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()

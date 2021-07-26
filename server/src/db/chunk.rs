@@ -164,7 +164,7 @@ impl DbChunk {
 
     /// Return the snapshot of the chunk with type ParquetFile
     /// This function should be only invoked when you know your chunk
-    /// is ParquetFile type whose state is  WrittenToObjectStore. The
+    /// is ParquetFile type whose state is Persisted. The
     /// reason we have this function is because the above snapshot
     /// function always returns the read buffer one for the same state
     pub fn parquet_file_snapshot(chunk: &super::catalog::chunk::CatalogChunk) -> Arc<Self> {
@@ -207,7 +207,7 @@ impl DbChunk {
         match &self.state {
             State::MutableBuffer { chunk } => chunk.table_summary().time_of_first_write,
             State::ReadBuffer { chunk, .. } => chunk.table_summary().time_of_first_write,
-            _ => unimplemented!(),
+            State::ParquetFile { chunk } => chunk.table_summary().time_of_first_write,
         }
     }
 
@@ -215,7 +215,7 @@ impl DbChunk {
         match &self.state {
             State::MutableBuffer { chunk } => chunk.table_summary().time_of_last_write,
             State::ReadBuffer { chunk, .. } => chunk.table_summary().time_of_last_write,
-            _ => unimplemented!(),
+            State::ParquetFile { chunk } => chunk.table_summary().time_of_last_write,
         }
     }
 }
@@ -493,15 +493,16 @@ impl QueryChunkMeta for DbChunk {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
-
-    use data_types::chunk_metadata::ChunkStorage;
-
-    use crate::db::catalog::chunk::CatalogChunk;
-    use crate::db::test_helpers::write_lp;
-    use crate::utils::make_db;
-
     use super::*;
+    use crate::{
+        db::{
+            catalog::chunk::{CatalogChunk, ChunkStage},
+            test_helpers::write_lp,
+        },
+        utils::make_db,
+    };
+    use data_types::chunk_metadata::ChunkStorage;
+    use std::time::{Duration, Instant};
 
     async fn test_chunk_access(chunk: &CatalogChunk) {
         let t1 = chunk.access_recorder().get_metrics();
@@ -590,7 +591,10 @@ mod tests {
     async fn parquet_records_access() {
         let db = make_db().await.db;
 
+        let before_creation = Utc::now();
         write_lp(&db, "cpu,tag=1 bar=1 1").await;
+        let after_creation = Utc::now();
+
         let id = db
             .persist_partition(
                 "cpu",
@@ -600,6 +604,7 @@ mod tests {
             .await
             .unwrap()
             .id;
+
         db.unload_read_buffer("cpu", "1970-01-01T00", id).unwrap();
 
         let chunks = db.catalog.chunks();
@@ -607,7 +612,45 @@ mod tests {
         let chunk = chunks.into_iter().next().unwrap();
         let chunk = chunk.read();
         assert_eq!(chunk.storage().1, ChunkStorage::ObjectStoreOnly);
+        let first_write = chunk.time_of_first_write().unwrap();
+        let last_write = chunk.time_of_last_write().unwrap();
+        assert_eq!(first_write, last_write);
+        assert!(before_creation < first_write);
+        assert!(last_write < after_creation);
 
         test_chunk_access(&chunk).await
+    }
+
+    #[tokio::test]
+    async fn parquet_snapshot() {
+        let db = make_db().await.db;
+
+        let before_creation = Utc::now();
+        write_lp(&db, "cpu,tag=1 bar=1 1").await;
+        let after_creation = Utc::now();
+        write_lp(&db, "cpu,tag=2 bar=2 2").await;
+        let after_write = Utc::now();
+
+        db.persist_partition(
+            "cpu",
+            "1970-01-01T00",
+            Instant::now() + Duration::from_secs(10000),
+        )
+        .await
+        .unwrap();
+
+        let chunks = db.catalog.chunks();
+        assert_eq!(chunks.len(), 1);
+        let chunk = chunks.into_iter().next().unwrap();
+        let chunk = chunk.read();
+        assert!(matches!(chunk.stage(), ChunkStage::Persisted { .. }));
+        let snapshot = DbChunk::parquet_file_snapshot(&chunk);
+
+        let first_write = snapshot.time_of_first_write();
+        let last_write = snapshot.time_of_last_write();
+        assert!(before_creation < first_write);
+        assert!(first_write < after_creation);
+        assert!(first_write < last_write);
+        assert!(last_write < after_write);
     }
 }
