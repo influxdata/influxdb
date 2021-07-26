@@ -118,7 +118,7 @@ use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputPro
 ///
 /// **Important: When changing this structure, consider bumping the
 ///   [catalog transaction version](crate::catalog::TRANSACTION_VERSION)!**
-pub const METADATA_VERSION: u32 = 4;
+pub const METADATA_VERSION: u32 = 5;
 
 /// File-level metadata key to store the IOx-specific data.
 ///
@@ -252,7 +252,7 @@ pub struct IoxMetadata {
     /// Timestamp when this file was created.
     pub creation_timestamp: DateTime<Utc>,
 
-    pub time_of_first_write: DateTime<Utc>, // TODO: METADATA_VERSION?
+    pub time_of_first_write: DateTime<Utc>,
     pub time_of_last_write: DateTime<Utc>,
 
     /// Table that holds this parquet file.
