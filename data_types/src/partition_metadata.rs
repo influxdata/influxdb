@@ -2,6 +2,7 @@
 //! including schema, summary statistics, and file locations in storage.
 
 use chrono::{DateTime, Utc};
+use observability_deps::tracing::warn;
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::{Borrow, Cow},
@@ -153,15 +154,12 @@ impl TableSummary {
 
         // Validate that the counts are consistent across columns
         for c in &self.columns {
-            assert_eq!(
-                c.total_count(),
-                count,
-                "Mismatch counts in table {} column {}, expected {} got {}",
-                self.name,
-                c.name,
-                count,
-                c.total_count()
-            )
+            // Restore to assert when https://github.com/influxdata/influxdb_iox/issues/2124 is fixed
+            if c.total_count() != count {
+                warn!(table_name=%self.name, column_name=%c.name,
+                      column_count=c.total_count(), previous_count=count,
+                      "Mismatch in statistics count, see #2124");
+            }
         }
         count
     }
