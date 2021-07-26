@@ -243,7 +243,7 @@ mod tests {
 
     /// Action or check for replay test.
     #[derive(Debug)]
-    enum ActionOrCheck {
+    enum Step {
         /// Ingest new entries into the write buffer.
         Ingest(Vec<TestSequencedEntry>),
 
@@ -275,18 +275,18 @@ mod tests {
         /// What to do in which order.
         ///
         /// # Serialization
-        /// The execution of the entire test is purely serial with the exception of [`Await`](ActionOrCheck::Await) (see
+        /// The execution of the entire test is purely serial with the exception of [`Await`](Step::Await) (see
         /// next section). That means that nothing happens concurrently during each step. Every step is finished and
-        /// checked for errors before the next is started (e.g. [`Replay`](ActionOrCheck::Replay) is fully executed and
-        /// it is ensured that there were no errors before a subsequent [`Assert`](ActionOrCheck::Assert) is evaluated).
-        /// The database background worker is NOT active during any non-[`Await`](ActionOrCheck::Await)
+        /// checked for errors before the next is started (e.g. [`Replay`](Step::Replay) is fully executed and
+        /// it is ensured that there were no errors before a subsequent [`Assert`](Step::Assert) is evaluated).
+        /// The database background worker is NOT active during any non-[`Await`](Step::Await)
         ///
         /// # Await
         /// Sometimes the background worker is needed to perform something, e.g. to consume some data from the write
-        /// buffer. In that case [`Await`](ActionOrCheck::Await) can be used. During this check (and only during this
-        /// check) the background worker is active and the checks passed to [`Await`](ActionOrCheck::Await) are
+        /// buffer. In that case [`Await`](Step::Await) can be used. During this check (and only during this
+        /// check) the background worker is active and the checks passed to [`Await`](Step::Await) are
         /// evaluated until they succeed. The background worker is stopped before the next test step is evaluated.
-        steps: Vec<ActionOrCheck>,
+        steps: Vec<Step>,
     }
 
     impl ReplayTest {
@@ -318,12 +318,12 @@ mod tests {
                 println!("===== step {} =====\n{:?}", step + 1, action_or_check);
 
                 match action_or_check {
-                    ActionOrCheck::Ingest(entries) => {
+                    Step::Ingest(entries) => {
                         for se in entries {
                             write_buffer_state.push_entry(se.build(&partition_template));
                         }
                     }
-                    ActionOrCheck::Restart => {
+                    Step::Restart => {
                         // first drop old DB
                         #[allow(unused_assignments)]
                         {
@@ -342,7 +342,7 @@ mod tests {
                             .await,
                         );
                     }
-                    ActionOrCheck::Replay => {
+                    Step::Replay => {
                         let test_db = test_db.as_ref().unwrap();
 
                         test_db
@@ -351,7 +351,7 @@ mod tests {
                             .await
                             .unwrap();
                     }
-                    ActionOrCheck::Persist(partitions) => {
+                    Step::Persist(partitions) => {
                         let test_db = test_db.as_ref().unwrap();
                         let db = &test_db.db;
 
@@ -380,11 +380,11 @@ mod tests {
                             .unwrap();
                         }
                     }
-                    ActionOrCheck::Assert(checks) => {
+                    Step::Assert(checks) => {
                         let test_db = test_db.as_ref().unwrap();
                         Self::eval_checks(&checks, true, test_db).await;
                     }
-                    ActionOrCheck::Await(checks) => {
+                    Step::Await(checks) => {
                         let test_db = test_db.as_ref().unwrap();
                         let db = &test_db.db;
 
@@ -545,9 +545,9 @@ mod tests {
             n_sequencers: 1,
             steps: vec![
                 // that passes
-                ActionOrCheck::Assert(vec![Check::Partitions(vec![])]),
+                Step::Assert(vec![Check::Partitions(vec![])]),
                 // that fails
-                ActionOrCheck::Assert(vec![Check::Partitions(vec![(
+                Step::Assert(vec![Check::Partitions(vec![(
                     "table_2",
                     "tag_partition_by_a",
                 )])]),
@@ -564,17 +564,17 @@ mod tests {
         ReplayTest {
             n_sequencers: 1,
             steps: vec![
-                ActionOrCheck::Ingest(vec![TestSequencedEntry {
+                Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 0,
                     lp: "table_1,tag_partition_by=a bar=1 0",
                 }]),
-                ActionOrCheck::Await(vec![Check::Partitions(vec![(
+                Step::Await(vec![Check::Partitions(vec![(
                     "table_1",
                     "tag_partition_by_a",
                 )])]),
                 // that fails
-                ActionOrCheck::Assert(vec![Check::Query(
+                Step::Assert(vec![Check::Query(
                     "select * from table_1",
                     vec![
                         "+-----+------------------+----------------------+",
@@ -595,7 +595,7 @@ mod tests {
         ReplayTest {
             n_sequencers: 1,
             steps: vec![
-                ActionOrCheck::Ingest(vec![
+                Step::Ingest(vec![
                     TestSequencedEntry {
                         sequencer_id: 0,
                         sequence_number: 0,
@@ -607,17 +607,17 @@ mod tests {
                         lp: "table_2,tag_partition_by=a bar=20 0",
                     },
                 ]),
-                ActionOrCheck::Await(vec![Check::Partitions(vec![
+                Step::Await(vec![Check::Partitions(vec![
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
-                ActionOrCheck::Persist(vec![("table_2", "tag_partition_by_a")]),
-                ActionOrCheck::Restart,
-                ActionOrCheck::Assert(vec![Check::Partitions(vec![(
+                Step::Persist(vec![("table_2", "tag_partition_by_a")]),
+                Step::Restart,
+                Step::Assert(vec![Check::Partitions(vec![(
                     "table_2",
                     "tag_partition_by_a",
                 )])]),
-                ActionOrCheck::Ingest(vec![
+                Step::Ingest(vec![
                     TestSequencedEntry {
                         sequencer_id: 0,
                         sequence_number: 2,
@@ -629,8 +629,8 @@ mod tests {
                         lp: "table_2,tag_partition_by=b bar=21 10",
                     },
                 ]),
-                ActionOrCheck::Replay,
-                ActionOrCheck::Assert(vec![
+                Step::Replay,
+                Step::Assert(vec![
                     Check::Partitions(vec![
                         ("table_1", "tag_partition_by_a"),
                         ("table_2", "tag_partition_by_a"),
@@ -656,13 +656,13 @@ mod tests {
                         ],
                     ),
                 ]),
-                ActionOrCheck::Await(vec![Check::Partitions(vec![
+                Step::Await(vec![Check::Partitions(vec![
                     ("table_1", "tag_partition_by_a"),
                     ("table_1", "tag_partition_by_b"),
                     ("table_2", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_b"),
                 ])]),
-                ActionOrCheck::Assert(vec![
+                Step::Assert(vec![
                     Check::Query(
                         "select * from table_1 order by time",
                         vec![
@@ -697,7 +697,7 @@ mod tests {
         ReplayTest {
             n_sequencers: 1,
             steps: vec![
-                ActionOrCheck::Ingest(vec![
+                Step::Ingest(vec![
                     TestSequencedEntry {
                         sequencer_id: 0,
                         sequence_number: 0,
@@ -709,17 +709,17 @@ mod tests {
                         lp: "table_2,tag_partition_by=a bar=20 0",
                     },
                 ]),
-                ActionOrCheck::Await(vec![Check::Partitions(vec![
+                Step::Await(vec![Check::Partitions(vec![
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
-                ActionOrCheck::Persist(vec![("table_1", "tag_partition_by_a")]),
-                ActionOrCheck::Restart,
-                ActionOrCheck::Assert(vec![Check::Partitions(vec![(
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                Step::Restart,
+                Step::Assert(vec![Check::Partitions(vec![(
                     "table_1",
                     "tag_partition_by_a",
                 )])]),
-                ActionOrCheck::Ingest(vec![
+                Step::Ingest(vec![
                     TestSequencedEntry {
                         sequencer_id: 0,
                         sequence_number: 2,
@@ -731,8 +731,8 @@ mod tests {
                         lp: "table_2,tag_partition_by=b bar=21 10",
                     },
                 ]),
-                ActionOrCheck::Replay,
-                ActionOrCheck::Assert(vec![
+                Step::Replay,
+                Step::Assert(vec![
                     Check::Partitions(vec![
                         ("table_1", "tag_partition_by_a"),
                         ("table_2", "tag_partition_by_a"),
@@ -758,13 +758,13 @@ mod tests {
                         ],
                     ),
                 ]),
-                ActionOrCheck::Await(vec![Check::Partitions(vec![
+                Step::Await(vec![Check::Partitions(vec![
                     ("table_1", "tag_partition_by_a"),
                     ("table_1", "tag_partition_by_b"),
                     ("table_2", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_b"),
                 ])]),
-                ActionOrCheck::Assert(vec![
+                Step::Assert(vec![
                     Check::Query(
                         "select * from table_1 order by time",
                         vec![
@@ -799,20 +799,20 @@ mod tests {
         ReplayTest {
             n_sequencers: 1,
             steps: vec![
-                ActionOrCheck::Restart,
-                ActionOrCheck::Assert(vec![Check::Partitions(vec![])]),
-                ActionOrCheck::Ingest(vec![TestSequencedEntry {
+                Step::Restart,
+                Step::Assert(vec![Check::Partitions(vec![])]),
+                Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 2,
                     lp: "table_1,tag_partition_by=a bar=1 0",
                 }]),
-                ActionOrCheck::Replay,
-                ActionOrCheck::Assert(vec![Check::Partitions(vec![])]),
-                ActionOrCheck::Await(vec![Check::Partitions(vec![(
+                Step::Replay,
+                Step::Assert(vec![Check::Partitions(vec![])]),
+                Step::Await(vec![Check::Partitions(vec![(
                     "table_1",
                     "tag_partition_by_a",
                 )])]),
-                ActionOrCheck::Assert(vec![Check::Query(
+                Step::Assert(vec![Check::Query(
                     "select * from table_1 order by time",
                     vec![
                         "+-----+------------------+----------------------+",
@@ -842,7 +842,7 @@ mod tests {
         ReplayTest {
             n_sequencers: 3,
             steps: vec![
-                ActionOrCheck::Ingest(vec![
+                Step::Ingest(vec![
                     TestSequencedEntry {
                         sequencer_id: 1,
                         sequence_number: 0,
@@ -859,23 +859,23 @@ mod tests {
                         lp: "table_2,tag_partition_by=a bar=20 0",
                     },
                 ]),
-                ActionOrCheck::Await(vec![Check::Partitions(vec![
+                Step::Await(vec![Check::Partitions(vec![
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
-                ActionOrCheck::Persist(vec![("table_1", "tag_partition_by_a")]),
-                ActionOrCheck::Restart,
-                ActionOrCheck::Assert(vec![Check::Partitions(vec![(
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                Step::Restart,
+                Step::Assert(vec![Check::Partitions(vec![(
                     "table_1",
                     "tag_partition_by_a",
                 )])]),
-                ActionOrCheck::Ingest(vec![TestSequencedEntry {
+                Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 1,
                     lp: "table_1,tag_partition_by=b bar=12 20",
                 }]),
-                ActionOrCheck::Replay,
-                ActionOrCheck::Assert(vec![
+                Step::Replay,
+                Step::Assert(vec![
                     Check::Partitions(vec![
                         ("table_1", "tag_partition_by_a"),
                         ("table_2", "tag_partition_by_a"),
@@ -902,12 +902,12 @@ mod tests {
                         ],
                     ),
                 ]),
-                ActionOrCheck::Await(vec![Check::Partitions(vec![
+                Step::Await(vec![Check::Partitions(vec![
                     ("table_1", "tag_partition_by_a"),
                     ("table_1", "tag_partition_by_b"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
-                ActionOrCheck::Assert(vec![
+                Step::Assert(vec![
                     Check::Query(
                         "select * from table_1 order by time",
                         vec![
