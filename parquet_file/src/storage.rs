@@ -473,6 +473,8 @@ mod tests {
             chunk_id: 1337,
             partition_checkpoint,
             database_checkpoint,
+            time_of_first_write: Utc::now(),
+            time_of_last_write: Utc::now(),
         };
 
         // create parquet file
@@ -545,6 +547,8 @@ mod tests {
             chunk_id,
             partition_checkpoint,
             database_checkpoint,
+            time_of_first_write: Utc::now(),
+            time_of_last_write: Utc::now(),
         };
 
         let (path, _file_size_bytes, _metadata) = storage

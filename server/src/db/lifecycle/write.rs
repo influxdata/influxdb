@@ -62,6 +62,9 @@ pub(super) fn write_chunk_to_object_store(
     chunk.set_writing_to_object_store(&registration)?;
     let db_chunk = DbChunk::snapshot(&*chunk);
 
+    let time_of_first_write = db_chunk.time_of_first_write();
+    let time_of_last_write = db_chunk.time_of_last_write();
+
     debug!(chunk=%chunk.addr(), "chunk marked WRITING , loading tables into object store");
 
     // Drop locks
@@ -118,6 +121,8 @@ pub(super) fn write_chunk_to_object_store(
                 chunk_id: addr.chunk_id,
                 partition_checkpoint,
                 database_checkpoint,
+                time_of_first_write,
+                time_of_last_write,
             };
             let (path, file_size_bytes, parquet_metadata) = storage
                 .write_to_object_store(addr, stream, metadata)

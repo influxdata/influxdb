@@ -86,12 +86,8 @@
 //! [Apache Parquet]: https://parquet.apache.org/
 //! [Apache Thrift]: https://thrift.apache.org/
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
-use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
-
 use chrono::{DateTime, NaiveDateTime, Utc};
-use data_types::partition_metadata::{
-    ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
-};
+use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
 use generated_types::influxdata::iox::catalog::v1 as proto;
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
 use parquet::{
@@ -112,7 +108,8 @@ use persistence_windows::{
     min_max_sequence::OptionalMinMaxSequence,
 };
 use prost::Message;
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
 
 /// Current version for serialized metadata.
@@ -121,7 +118,7 @@ use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputPro
 ///
 /// **Important: When changing this structure, consider bumping the
 ///   [catalog transaction version](crate::catalog::TRANSACTION_VERSION)!**
-pub const METADATA_VERSION: u32 = 4;
+pub const METADATA_VERSION: u32 = 5;
 
 /// File-level metadata key to store the IOx-specific data.
 ///
@@ -255,6 +252,9 @@ pub struct IoxMetadata {
     /// Timestamp when this file was created.
     pub creation_timestamp: DateTime<Utc>,
 
+    pub time_of_first_write: DateTime<Utc>,
+    pub time_of_last_write: DateTime<Utc>,
+
     /// Table that holds this parquet file.
     pub table_name: Arc<str>,
 
@@ -288,13 +288,14 @@ impl IoxMetadata {
         }
 
         // extract creation timestamp
-        let creation_timestamp: DateTime<Utc> = decode_timestamp(
-            proto_msg
-                .creation_timestamp
-                .context(IoxMetadataFieldMissing {
-                    field: "creation_timestamp",
-                })?,
-        )?;
+        let creation_timestamp =
+            decode_timestamp_from_field(proto_msg.creation_timestamp, "creation_timestamp")?;
+        // extract time of first write
+        let time_of_first_write =
+            decode_timestamp_from_field(proto_msg.time_of_first_write, "time_of_first_write")?;
+        // extract time of last write
+        let time_of_last_write =
+            decode_timestamp_from_field(proto_msg.time_of_last_write, "time_of_last_write")?;
 
         // extract strings
         let table_name = Arc::from(proto_msg.table_name.as_ref());
@@ -320,12 +321,9 @@ impl IoxMetadata {
                 }
             })
             .collect::<Result<BTreeMap<u32, OptionalMinMaxSequence>>>()?;
-        let min_unpersisted_timestamp = decode_timestamp(
-            proto_partition_checkpoint
-                .min_unpersisted_timestamp
-                .context(IoxMetadataFieldMissing {
-                    field: "partition_checkpoint.min_unpersisted_timestamp",
-                })?,
+        let min_unpersisted_timestamp = decode_timestamp_from_field(
+            proto_partition_checkpoint.min_unpersisted_timestamp,
+            "partition_checkpoint.min_unpersisted_timestamp",
         )?;
         let partition_checkpoint = PartitionCheckpoint::new(
             Arc::clone(&table_name),
@@ -358,6 +356,8 @@ impl IoxMetadata {
 
         Ok(Self {
             creation_timestamp,
+            time_of_first_write,
+            time_of_last_write,
             table_name,
             partition_key,
             chunk_id: proto_msg.chunk_id,
@@ -410,6 +410,8 @@ impl IoxMetadata {
         let proto_msg = proto::IoxMetadata {
             version: METADATA_VERSION,
             creation_timestamp: Some(encode_timestamp(self.creation_timestamp)),
+            time_of_first_write: Some(encode_timestamp(self.time_of_first_write)),
+            time_of_last_write: Some(encode_timestamp(self.time_of_last_write)),
             table_name: self.table_name.to_string(),
             partition_key: self.partition_key.to_string(),
             chunk_id: self.chunk_id,
@@ -440,6 +442,13 @@ fn decode_timestamp(ts: proto::FixedSizeTimestamp) -> Result<DateTime<Utc>> {
             .context(IoxMetadataBroken)?,
     );
     Ok(chrono::DateTime::<Utc>::from_utc(dt, Utc))
+}
+
+fn decode_timestamp_from_field(
+    value: Option<proto::FixedSizeTimestamp>,
+    field: &'static str,
+) -> Result<DateTime<Utc>> {
+    decode_timestamp(value.context(IoxMetadataFieldMissing { field })?)
 }
 
 /// Parquet metadata with IOx-specific wrapper.
@@ -505,24 +514,19 @@ impl IoxParquetMetaData {
     }
 
     /// Read IOx statistics (including timestamp range) from parquet metadata.
-    pub fn read_statistics(&self, schema: &Schema, table_name: &str) -> Result<TableSummary> {
-        let mut table_summary_agg: Option<TableSummary> = None;
+    pub fn read_statistics(&self, schema: &Schema) -> Result<Vec<ColumnSummary>> {
+        ensure!(!self.md.row_groups().is_empty(), NoRowGroup);
+
+        let mut column_summaries = Vec::with_capacity(schema.len());
 
         for (row_group_idx, row_group) in self.md.row_groups().iter().enumerate() {
-            let table_summary = read_statistics_from_parquet_row_group(
-                row_group,
-                row_group_idx,
-                schema,
-                table_name,
-            )?;
+            let row_group_column_summaries =
+                read_statistics_from_parquet_row_group(row_group, row_group_idx, schema)?;
 
-            match table_summary_agg.as_mut() {
-                Some(existing) => existing.update_from(&table_summary),
-                None => table_summary_agg = Some(table_summary),
-            }
+            combine_column_summaries(&mut column_summaries, row_group_column_summaries);
         }
 
-        table_summary_agg.context(NoRowGroup)
+        Ok(column_summaries)
     }
 
     /// Encode [Apache Parquet] metadata as freestanding [Apache Thrift]-encoded bytes.
@@ -623,9 +627,8 @@ fn read_statistics_from_parquet_row_group(
     row_group: &ParquetRowGroupMetaData,
     row_group_idx: usize,
     schema: &Schema,
-    table_name: &str,
-) -> Result<TableSummary> {
-    let mut column_summaries = vec![];
+) -> Result<Vec<ColumnSummary>> {
+    let mut column_summaries = Vec::with_capacity(schema.len());
 
     for ((iox_type, field), column_chunk_metadata) in schema.iter().zip(row_group.columns()) {
         if let Some(iox_type) = iox_type {
@@ -669,12 +672,21 @@ fn read_statistics_from_parquet_row_group(
         }
     }
 
-    let table_summary = TableSummary {
-        name: table_name.to_string(),
-        columns: column_summaries,
-    };
+    Ok(column_summaries)
+}
 
-    Ok(table_summary)
+fn combine_column_summaries(total: &mut Vec<ColumnSummary>, other: Vec<ColumnSummary>) {
+    for col in total.iter_mut() {
+        if let Some(other_col) = other.iter().find(|c| c.name == col.name) {
+            col.update_from(other_col);
+        }
+    }
+
+    for other_col in other.into_iter() {
+        if !total.iter().any(|c| c.name == other_col.name) {
+            total.push(other_col);
+        }
+    }
 }
 
 /// Extract IOx statistics from parquet statistics.
@@ -799,7 +811,7 @@ mod tests {
         // setup: preserve chunk to object store
         let store = make_object_store();
         let chunk = make_chunk(Arc::clone(&store), "foo", chunk_addr(1)).await;
-        let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
+        let parquet_data = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
 
         // step 1: read back schema
@@ -808,11 +820,14 @@ mod tests {
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: read back statistics
-        let table_summary_actual = parquet_metadata
-            .read_statistics(&schema_actual, &table)
-            .unwrap();
-        let table_summary_expected = chunk.table_summary().as_ref();
-        assert_eq!(&table_summary_actual, table_summary_expected);
+        let table_summary_actual = parquet_metadata.read_statistics(&schema_actual).unwrap();
+        let table_summary_expected = chunk.table_summary();
+        for (actual_column, expected_column) in table_summary_actual
+            .iter()
+            .zip(table_summary_expected.columns.iter())
+        {
+            assert_eq!(actual_column, expected_column);
+        }
     }
 
     #[tokio::test]
@@ -820,7 +835,7 @@ mod tests {
         // setup: write chunk to object store and only keep thrift-encoded metadata
         let store = make_object_store();
         let chunk = make_chunk(Arc::clone(&store), "foo", chunk_addr(1)).await;
-        let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
+        let parquet_data = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
         let data = parquet_metadata.to_thrift().unwrap();
         let parquet_metadata = IoxParquetMetaData::from_thrift(&data).unwrap();
@@ -831,11 +846,9 @@ mod tests {
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: read back statistics
-        let table_summary_actual = parquet_metadata
-            .read_statistics(&schema_actual, &table)
-            .unwrap();
-        let table_summary_expected = chunk.table_summary().as_ref();
-        assert_eq!(&table_summary_actual, table_summary_expected);
+        let table_summary_actual = parquet_metadata.read_statistics(&schema_actual).unwrap();
+        let table_summary_expected = chunk.table_summary();
+        assert_eq!(table_summary_actual, table_summary_expected.columns);
     }
 
     #[tokio::test]
@@ -843,7 +856,7 @@ mod tests {
         // setup: preserve chunk to object store
         let store = make_object_store();
         let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo", chunk_addr(1)).await;
-        let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
+        let parquet_data = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
 
         // step 1: read back schema
@@ -852,7 +865,7 @@ mod tests {
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: reading back statistics fails
-        let res = parquet_metadata.read_statistics(&schema_actual, &table);
+        let res = parquet_metadata.read_statistics(&schema_actual);
         assert_eq!(
             res.unwrap_err().to_string(),
             "No row group found, cannot recover statistics"
@@ -864,7 +877,7 @@ mod tests {
         // setup: write chunk to object store and only keep thrift-encoded metadata
         let store = make_object_store();
         let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo", chunk_addr(1)).await;
-        let (table, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
+        let parquet_data = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
         let data = parquet_metadata.to_thrift().unwrap();
         let parquet_metadata = IoxParquetMetaData::from_thrift(&data).unwrap();
@@ -875,7 +888,7 @@ mod tests {
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: reading back statistics fails
-        let res = parquet_metadata.read_statistics(&schema_actual, &table);
+        let res = parquet_metadata.read_statistics(&schema_actual);
         assert_eq!(
             res.unwrap_err().to_string(),
             "No row group found, cannot recover statistics"
@@ -886,7 +899,7 @@ mod tests {
     async fn test_make_chunk() {
         let store = make_object_store();
         let chunk = make_chunk(Arc::clone(&store), "foo", chunk_addr(1)).await;
-        let (_, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
+        let parquet_data = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
 
         assert!(parquet_metadata.md.num_row_groups() > 1);
@@ -926,7 +939,7 @@ mod tests {
     async fn test_make_chunk_no_row_group() {
         let store = make_object_store();
         let chunk = make_chunk_no_row_group(Arc::clone(&store), "foo", chunk_addr(1)).await;
-        let (_, parquet_data) = load_parquet_from_store(&chunk, store).await.unwrap();
+        let parquet_data = load_parquet_from_store(&chunk, store).await.unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
 
         assert_eq!(parquet_metadata.md.num_row_groups(), 0);
@@ -971,6 +984,8 @@ mod tests {
             chunk_id: 1337,
             partition_checkpoint,
             database_checkpoint,
+            time_of_first_write: Utc::now(),
+            time_of_last_write: Utc::now(),
         };
 
         let proto_bytes = metadata.to_protobuf().unwrap();
@@ -1019,10 +1034,12 @@ mod tests {
                 chunk_id: 1337,
                 partition_checkpoint,
                 database_checkpoint,
+                time_of_first_write: Utc::now(),
+                time_of_last_write: Utc::now(),
             };
 
             let proto_bytes = metadata.to_protobuf().unwrap();
-            assert_eq!(proto_bytes.len(), 56);
+            assert_eq!(proto_bytes.len(), 88);
         }
     }
 }

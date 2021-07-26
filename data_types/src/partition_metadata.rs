@@ -108,6 +108,23 @@ impl From<TableSummaryAndTimes> for TableSummary {
     }
 }
 
+impl TableSummaryAndTimes {
+    pub fn size(&self) -> usize {
+        // Total size of all ColumnSummaries that belong to this table which include
+        // column names and their stats
+        let size: usize = self.columns.iter().map(|c| c.size()).sum();
+        size
+            + self.name.len() // Add size of the table name
+            + mem::size_of::<Self>() // Add size of this struct that points to
+                                     // table, ColumnSummary, and times
+    }
+
+    /// Get the column summary by name.
+    pub fn column(&self, name: &str) -> Option<&ColumnSummary> {
+        self.columns.iter().find(|c| c.name == name)
+    }
+}
+
 /// Metadata and statistics information for a table. This can be
 /// either for the portion of a Table stored within a single chunk or
 /// aggregated across chunks.
