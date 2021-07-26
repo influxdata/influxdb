@@ -17,23 +17,17 @@ fn chunk(count: usize) -> MBChunk {
     let mut lp = String::new();
     gz.read_to_string(&mut lp).unwrap();
 
-    let time_of_write = chrono::Utc::now();
     for _ in 0..count {
         for entry in lp_to_entries(&lp, &hour_partitioner()) {
             for write in entry.partition_writes().iter().flatten() {
                 for batch in write.table_batches() {
                     match chunk {
                         Some(ref mut c) => {
-                            c.write_table_batch(batch, time_of_write).unwrap();
+                            c.write_table_batch(batch).unwrap();
                         }
                         None => {
                             chunk = Some(
-                                MBChunk::new(
-                                    ChunkMetrics::new_unregistered(),
-                                    batch,
-                                    time_of_write,
-                                )
-                                .unwrap(),
+                                MBChunk::new(ChunkMetrics::new_unregistered(), batch).unwrap(),
                             );
                         }
                     }

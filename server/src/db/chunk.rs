@@ -114,7 +114,7 @@ impl DbChunk {
                     chunk: Arc::clone(&snapshot),
                 };
                 let meta = ChunkMetadata {
-                    table_summary: Arc::new(mb_chunk.table_summary().into()),
+                    table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: snapshot.full_schema(),
                 };
                 (state, Arc::new(meta))

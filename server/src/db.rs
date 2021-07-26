@@ -1111,9 +1111,8 @@ impl Db {
                             let mb_chunk =
                                 chunk.mutable_buffer().expect("cannot mutate open chunk");
 
-                            if let Err(e) = mb_chunk
-                                .write_table_batch(table_batch, time_of_write)
-                                .context(WriteEntry {
+                            if let Err(e) =
+                                mb_chunk.write_table_batch(table_batch).context(WriteEntry {
                                     partition_key,
                                     chunk_id,
                                 })
@@ -1882,7 +1881,7 @@ mod tests {
         assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
         assert_metric("catalog_loaded_rows", "object_store", 0.0);
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1319)
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1295)
             .unwrap();
 
         db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
@@ -3194,7 +3193,7 @@ mod tests {
                 id: 0,
                 storage: ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
-                memory_bytes: 2510,
+                memory_bytes: 2486,
                 object_store_bytes: 0, // no OS chunks
                 row_count: 1,
                 time_of_last_access: None,
@@ -3230,7 +3229,7 @@ mod tests {
             );
         }
 
-        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2510 + 87);
+        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 87);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2434);
         assert_eq!(db.catalog.metrics().memory().object_store(), 898);
     }

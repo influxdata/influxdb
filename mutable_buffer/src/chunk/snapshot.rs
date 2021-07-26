@@ -2,7 +2,7 @@ use super::MBChunk;
 use arrow::record_batch::RecordBatch;
 use data_types::{
     error::ErrorLogger,
-    partition_metadata::{Statistics, TableSummaryAndTimes},
+    partition_metadata::{Statistics, TableSummary},
     timestamp::TimestampRange,
 };
 use internal_types::{
@@ -31,7 +31,7 @@ pub struct ChunkSnapshot {
     schema: Arc<Schema>,
     batch: RecordBatch,
     table_name: Arc<str>,
-    summary: TableSummaryAndTimes,
+    summary: TableSummary,
 }
 
 impl ChunkSnapshot {
@@ -100,7 +100,7 @@ impl ChunkSnapshot {
     }
 
     /// Returns a table summary for this chunk
-    pub fn table_summary(&self) -> &TableSummaryAndTimes {
+    pub fn table_summary(&self) -> &TableSummary {
         &self.summary
     }
 

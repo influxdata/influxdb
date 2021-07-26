@@ -277,14 +277,9 @@ impl CatalogChunk {
         time_of_write: DateTime<Utc>,
         metrics: ChunkMetrics,
     ) -> Result<Self> {
-        let chunk =
-            MBChunk::new(mb_chunk_metrics, batch, time_of_write).context(CreateOpenChunk)?;
+        let chunk = MBChunk::new(mb_chunk_metrics, batch).context(CreateOpenChunk)?;
 
         assert_eq!(chunk.table_name(), &addr.table_name);
-
-        let summary = chunk.table_summary();
-        let time_of_first_write = summary.time_of_first_write;
-        let time_of_last_write = summary.time_of_last_write;
 
         let stage = ChunkStage::Open { mb_chunk: chunk };
 
@@ -298,8 +293,8 @@ impl CatalogChunk {
             lifecycle_action: None,
             metrics,
             access_recorder: Default::default(),
-            time_of_first_write,
-            time_of_last_write,
+            time_of_first_write: time_of_write,
+            time_of_last_write: time_of_write,
             time_closed: None,
         };
         chunk.update_metrics();
@@ -596,7 +591,7 @@ impl CatalogChunk {
         match &self.stage {
             ChunkStage::Open { mb_chunk, .. } => {
                 // The stats for open chunks change so can't be cached
-                Arc::new(mb_chunk.table_summary().into())
+                Arc::new(mb_chunk.table_summary())
             }
             ChunkStage::Frozen { meta, .. } => Arc::clone(&meta.table_summary),
             ChunkStage::Persisted { meta, .. } => Arc::clone(&meta.table_summary),
@@ -665,7 +660,7 @@ impl CatalogChunk {
 
                 // Cache table summary + schema
                 let metadata = ChunkMetadata {
-                    table_summary: Arc::new(mb_chunk.table_summary().into()),
+                    table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: s.full_schema(),
                 };
 
