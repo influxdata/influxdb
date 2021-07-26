@@ -246,6 +246,9 @@ jobs:
       - rust_components
       - cache_restore
       - run:
+          name: Print rustc target CPU options
+          command: cargo build --release --features="aws,gcp,azure" --bin print_cpus
+      - run:
           name: Cargo release build with target arch set for CRoaring
           command: ROARING_ARCH=x86-64 cargo build --release --features="aws,gcp,azure"
       - run: |
