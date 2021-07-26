@@ -7,12 +7,14 @@ use data_types::{
     chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkSummary},
     partition_metadata::{PartitionAddr, PartitionSummary},
 };
+use entry::TableBatch;
 use internal_types::schema::Schema;
+use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::info;
 use persistence_windows::{
     checkpoint::PartitionCheckpoint, persistence_windows::PersistenceWindows,
 };
-use snafu::Snafu;
+use snafu::{ResultExt, Snafu};
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     fmt::Display,
@@ -33,6 +35,11 @@ pub enum Error {
     LifecycleInProgress {
         chunk: ChunkAddr,
         action: ChunkLifecycleAction,
+    },
+
+    #[snafu(display("creating new mutable buffer chunk failed: {}", source))]
+    CreateOpenChunk {
+        source: mutable_buffer::chunk::Error,
     },
 }
 
@@ -126,8 +133,11 @@ impl Partition {
     /// Returns an error if the chunk is empty.
     pub fn create_open_chunk(
         &mut self,
-        chunk: mutable_buffer::chunk::MBChunk,
-    ) -> Arc<RwLock<CatalogChunk>> {
+        metrics: MutableBufferChunkMetrics,
+        batch: TableBatch<'_>,
+        time_of_write: DateTime<Utc>,
+    ) -> Result<Arc<RwLock<CatalogChunk>>> {
+        let chunk = MBChunk::new(metrics, batch, time_of_write).context(CreateOpenChunk)?;
         assert_eq!(chunk.table_name().as_ref(), self.table_name());
 
         let chunk_id = self.next_chunk_id;
@@ -144,7 +154,7 @@ impl Partition {
             panic!("chunk already existed with id {}", chunk_id)
         }
 
-        chunk
+        Ok(chunk)
     }
 
     /// Create a new read buffer chunk

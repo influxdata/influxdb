@@ -29,7 +29,7 @@ use entry::{Entry, SequencedEntry};
 use futures::{stream::BoxStream, StreamExt};
 use internal_types::schema::Schema;
 use metrics::KeyValue;
-use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
+use mutable_buffer::chunk::ChunkMetrics as MutableBufferChunkMetrics;
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
@@ -104,10 +104,10 @@ pub enum Error {
         source: mutable_buffer::chunk::Error,
     },
 
-    #[snafu(display("Can not write entry to new MUB chunk {} : {}", partition_key, source))]
+    #[snafu(display("Cannot write entry to new open chunk {}: {}", partition_key, source))]
     WriteEntryInitial {
         partition_key: String,
-        source: mutable_buffer::chunk::Error,
+        source: catalog::partition::Error,
     },
 
     #[snafu(display(
@@ -1130,17 +1130,17 @@ impl Db {
                                 "mutable_buffer",
                                 self.metric_labels.clone(),
                             );
-                            let chunk_result = MBChunk::new(
-                                MutableBufferChunkMetrics::new(&metrics),
-                                table_batch,
-                                time_of_write,
-                            )
-                            .context(WriteEntryInitial { partition_key });
+                            let chunk_result = partition
+                                .create_open_chunk(
+                                    MutableBufferChunkMetrics::new(&metrics),
+                                    table_batch,
+                                    time_of_write,
+                                )
+                                .context(WriteEntryInitial { partition_key });
 
                             match chunk_result {
                                 Ok(mb_chunk) => {
-                                    let chunk = partition.create_open_chunk(mb_chunk);
-                                    let mut chunk = chunk
+                                    let mut chunk = mb_chunk
                                         .try_write()
                                         .expect("partition lock should prevent contention");
                                     handle_chunk_write(&mut *chunk)
