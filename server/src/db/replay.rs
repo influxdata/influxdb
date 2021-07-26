@@ -302,16 +302,14 @@ mod tests {
             };
             let write_buffer_state =
                 MockBufferSharedState::empty_with_n_sequencers(self.n_sequencers);
-            let mut test_db = Some(
-                Self::create_test_db(
-                    Arc::clone(&object_store),
-                    write_buffer_state.clone(),
-                    server_id,
-                    db_name,
-                    partition_template.clone(),
-                )
-                .await,
-            );
+            let mut test_db = Self::create_test_db(
+                Arc::clone(&object_store),
+                write_buffer_state.clone(),
+                server_id,
+                db_name,
+                partition_template.clone(),
+            )
+            .await;
 
             // ==================== do: main loop ====================
             for (step, action_or_check) in self.steps.into_iter().enumerate() {
@@ -325,26 +323,19 @@ mod tests {
                     }
                     Step::Restart => {
                         // first drop old DB
-                        #[allow(unused_assignments)]
-                        {
-                            test_db = None;
-                        }
+                        drop(test_db);
 
                         // then create new one
-                        test_db = Some(
-                            Self::create_test_db(
-                                Arc::clone(&object_store),
-                                write_buffer_state.clone(),
-                                server_id,
-                                db_name,
-                                partition_template.clone(),
-                            )
-                            .await,
-                        );
+                        test_db = Self::create_test_db(
+                            Arc::clone(&object_store),
+                            write_buffer_state.clone(),
+                            server_id,
+                            db_name,
+                            partition_template.clone(),
+                        )
+                        .await;
                     }
                     Step::Replay => {
-                        let test_db = test_db.as_ref().unwrap();
-
                         test_db
                             .db
                             .perform_replay(&test_db.replay_plan)
@@ -352,7 +343,6 @@ mod tests {
                             .unwrap();
                     }
                     Step::Persist(partitions) => {
-                        let test_db = test_db.as_ref().unwrap();
                         let db = &test_db.db;
 
                         for (table_name, partition_key) in partitions {
@@ -381,11 +371,9 @@ mod tests {
                         }
                     }
                     Step::Assert(checks) => {
-                        let test_db = test_db.as_ref().unwrap();
-                        Self::eval_checks(&checks, true, test_db).await;
+                        Self::eval_checks(&checks, true, &test_db).await;
                     }
                     Step::Await(checks) => {
-                        let test_db = test_db.as_ref().unwrap();
                         let db = &test_db.db;
 
                         // start background worker
@@ -400,14 +388,14 @@ mod tests {
                         let t_0 = Instant::now();
                         loop {
                             println!("Try checks...");
-                            if Self::eval_checks(&checks, false, test_db).await {
+                            if Self::eval_checks(&checks, false, &test_db).await {
                                 break;
                             }
 
                             if t_0.elapsed() >= Duration::from_secs(10) {
                                 println!("Running into timeout...");
                                 // try to produce nice assertion message
-                                Self::eval_checks(&checks, true, test_db).await;
+                                Self::eval_checks(&checks, true, &test_db).await;
                                 println!("being lucky, assertion passed on last try.");
                                 break;
                             }
