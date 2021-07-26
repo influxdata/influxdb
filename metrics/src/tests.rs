@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{env, fmt, sync::Arc};
 
 use snafu::{ensure, OptionExt, Snafu};
 
@@ -8,31 +8,70 @@ use prometheus::proto::{
 
 use crate::MetricRegistry;
 
+struct OptInString(String);
+
+impl fmt::Display for OptInString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
+impl fmt::Debug for OptInString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if env::var_os("METRICS_DETAILED_OUTPUT").is_some() {
+            fmt::Display::fmt(&self.0, f)
+        } else {
+            "Output disabled; set the METRICS_DETAILED_OUTPUT environment variable to see it".fmt(f)
+        }
+    }
+}
+
+impl From<String> for OptInString {
+    fn from(other: String) -> Self {
+        Self(other)
+    }
+}
+
+impl From<&String> for OptInString {
+    fn from(other: &String) -> Self {
+        Self(other.clone())
+    }
+}
+
 #[derive(Debug, Snafu)]
-pub enum Error {
+enum InnerError {
     #[snafu(display("no metric family with name: {}\n{}", name, metrics))]
-    MetricFamilyNotFoundError { name: String, metrics: String },
+    MetricFamilyNotFound { name: String, metrics: String },
 
     #[snafu(display("labels {:?} do not match metric: {}\n{}", labels, name, metrics))]
-    NoMatchingLabelsError {
+    NoMatchingLabels {
         labels: Vec<(String, String)>,
         name: String,
-        metrics: String,
+        metrics: OptInString,
     },
 
     #[snafu(display("bucket {:?} is not in metric family: {}\n{}", bound, name, metrics))]
-    HistogramBucketNotFoundError {
+    HistogramBucketNotFound {
         bound: f64,
         name: String,
-        metrics: String,
+        metrics: OptInString,
     },
 
     #[snafu(display("metric '{}' failed assertion: '{}'\n{}", name, msg, metrics))]
-    FailedMetricAssertionError {
+    FailedMetricAssertion {
         name: String,
         msg: String,
-        metrics: String,
+        metrics: OptInString,
     },
+}
+
+#[derive(Snafu)]
+pub struct Error(InnerError);
+
+impl fmt::Debug for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:#?}", self.0)
+    }
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -74,7 +113,7 @@ impl TestMetricRegistry {
         let family = metric_families
             .into_iter()
             .find(|fam| fam.get_name() == name)
-            .context(MetricFamilyNotFoundError {
+            .context(MetricFamilyNotFound {
                 name,
                 metrics: self.registry.metrics_as_str(),
             })?;
@@ -141,12 +180,13 @@ impl<'a> AssertionBuilder<'a> {
         // Can't find metric matching labels
         if metric.is_none() {
             return CounterAssertion {
-                c: NoMatchingLabelsError {
+                c: NoMatchingLabels {
                     name: self.family.get_name().to_owned(),
                     labels: self.labels.clone(),
                     metrics: self.registry.metrics_as_str(),
                 }
-                .fail(),
+                .fail()
+                .map_err(Into::into),
                 family_name: "".to_string(),
                 metric_dump: "".to_string(),
             };
@@ -155,12 +195,13 @@ impl<'a> AssertionBuilder<'a> {
 
         if !metric.has_counter() {
             return CounterAssertion {
-                c: FailedMetricAssertionError {
+                c: FailedMetricAssertion {
                     name: self.family.get_name().to_owned(),
                     msg: "metric not a counter".to_owned(),
                     metrics: self.registry.metrics_as_str(),
                 }
-                .fail(),
+                .fail()
+                .map_err(Into::into),
                 family_name: "".to_string(),
                 metric_dump: "".to_string(),
             };
@@ -197,12 +238,13 @@ impl<'a> AssertionBuilder<'a> {
         // Can't find metric matching labels
         if metric.is_none() {
             return GaugeAssertion {
-                c: NoMatchingLabelsError {
+                c: NoMatchingLabels {
                     name: self.family.get_name().to_owned(),
                     labels: self.labels.clone(),
                     metrics: self.registry.metrics_as_str(),
                 }
-                .fail(),
+                .fail()
+                .map_err(Into::into),
                 family_name: "".to_string(),
                 metric_dump: "".to_string(),
             };
@@ -211,12 +253,13 @@ impl<'a> AssertionBuilder<'a> {
 
         if !metric.has_gauge() {
             return GaugeAssertion {
-                c: FailedMetricAssertionError {
+                c: FailedMetricAssertion {
                     name: self.family.get_name().to_owned(),
                     msg: "metric not a gauge".to_owned(),
                     metrics: self.registry.metrics_as_str(),
                 }
-                .fail(),
+                .fail()
+                .map_err(Into::into),
                 family_name: "".to_string(),
                 metric_dump: "".to_string(),
             };
@@ -255,12 +298,13 @@ impl<'a> AssertionBuilder<'a> {
             Some(metric) => metric,
             None => {
                 return Histogram {
-                    c: NoMatchingLabelsError {
+                    c: NoMatchingLabels {
                         name: self.family.get_name(),
                         labels: self.labels.clone(), // Maybe `labels: &self.labels`
                         metrics: self.registry.metrics_as_str(),
                     }
-                    .fail(),
+                    .fail()
+                    .map_err(Into::into),
                     family_name: "".to_string(),
                     metric_dump: "".to_string(),
                 };
@@ -269,12 +313,13 @@ impl<'a> AssertionBuilder<'a> {
 
         if !metric.has_histogram() {
             return Histogram {
-                c: FailedMetricAssertionError {
+                c: FailedMetricAssertion {
                     name: self.family.get_name().to_owned(),
                     msg: "metric not a counter".to_owned(),
                     metrics: self.registry.metrics_as_str(),
                 }
-                .fail(),
+                .fail()
+                .map_err(Into::into),
                 family_name: "".to_string(),
                 metric_dump: "".to_string(),
             };
@@ -304,7 +349,7 @@ impl<'a> CounterAssertion<'a> {
 
         ensure!(
             v == c.get_value(),
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} == {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
@@ -318,7 +363,7 @@ impl<'a> CounterAssertion<'a> {
 
         ensure!(
             c.get_value() >= v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} >= {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
@@ -332,7 +377,7 @@ impl<'a> CounterAssertion<'a> {
 
         ensure!(
             c.get_value() > v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} > {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
@@ -346,7 +391,7 @@ impl<'a> CounterAssertion<'a> {
 
         ensure!(
             c.get_value() <= v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} <= {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
@@ -360,7 +405,7 @@ impl<'a> CounterAssertion<'a> {
 
         ensure!(
             c.get_value() < v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} < {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
@@ -386,7 +431,7 @@ impl<'a> GaugeAssertion<'a> {
 
         ensure!(
             v == c.get_value(),
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} == {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
@@ -400,7 +445,7 @@ impl<'a> GaugeAssertion<'a> {
 
         ensure!(
             c.get_value() >= v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} >= {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
@@ -414,7 +459,7 @@ impl<'a> GaugeAssertion<'a> {
 
         ensure!(
             c.get_value() > v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} > {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
@@ -428,7 +473,7 @@ impl<'a> GaugeAssertion<'a> {
 
         ensure!(
             c.get_value() <= v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} <= {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
@@ -442,7 +487,7 @@ impl<'a> GaugeAssertion<'a> {
 
         ensure!(
             c.get_value() < v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} < {:?} failed", c.get_value(), v),
                 metrics: self.metric_dump,
@@ -470,7 +515,7 @@ impl<'a> Histogram<'a> {
             .get_bucket()
             .iter()
             .find(|bucket| bucket.get_upper_bound() == bound)
-            .context(HistogramBucketNotFoundError {
+            .context(HistogramBucketNotFound {
                 bound,
                 name: &self.family_name,
                 metrics: &self.metric_dump,
@@ -478,7 +523,7 @@ impl<'a> Histogram<'a> {
 
         ensure!(
             count == bucket.get_cumulative_count(),
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: &self.family_name,
                 msg: format!("{:?} == {:?} failed", bucket.get_cumulative_count(), count),
                 metrics: self.metric_dump,
@@ -493,7 +538,7 @@ impl<'a> Histogram<'a> {
 
         ensure!(
             v == c.get_sample_sum(),
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} == {:?} failed", c.get_sample_sum(), v),
                 metrics: self.metric_dump,
@@ -507,7 +552,7 @@ impl<'a> Histogram<'a> {
 
         ensure!(
             c.get_sample_sum() >= v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} >= {:?} failed", c.get_sample_sum(), v),
                 metrics: self.metric_dump,
@@ -521,7 +566,7 @@ impl<'a> Histogram<'a> {
 
         ensure!(
             c.get_sample_sum() > v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} > {:?} failed", c.get_sample_sum(), v),
                 metrics: self.metric_dump,
@@ -535,7 +580,7 @@ impl<'a> Histogram<'a> {
 
         ensure!(
             c.get_sample_sum() <= v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} <= {:?} failed", c.get_sample_sum(), v),
                 metrics: self.metric_dump,
@@ -549,7 +594,7 @@ impl<'a> Histogram<'a> {
 
         ensure!(
             c.get_sample_sum() < v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} < {:?} failed", c.get_sample_sum(), v),
                 metrics: self.metric_dump,
@@ -563,7 +608,7 @@ impl<'a> Histogram<'a> {
 
         ensure!(
             c.get_sample_count() == v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} == {:?} failed", c.get_sample_count(), v),
                 metrics: self.metric_dump,
@@ -577,7 +622,7 @@ impl<'a> Histogram<'a> {
 
         ensure!(
             c.get_sample_count() >= v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} >= {:?} failed", c.get_sample_count(), v),
                 metrics: self.metric_dump,
@@ -591,7 +636,7 @@ impl<'a> Histogram<'a> {
 
         ensure!(
             c.get_sample_count() > v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} > {:?} failed", c.get_sample_count(), v),
                 metrics: self.metric_dump,
@@ -605,7 +650,7 @@ impl<'a> Histogram<'a> {
 
         ensure!(
             c.get_sample_count() <= v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} <= {:?} failed", c.get_sample_count(), v),
                 metrics: self.metric_dump,
@@ -619,7 +664,7 @@ impl<'a> Histogram<'a> {
 
         ensure!(
             c.get_sample_count() < v,
-            FailedMetricAssertionError {
+            FailedMetricAssertion {
                 name: self.family_name,
                 msg: format!("{:?} < {:?} failed", c.get_sample_count(), v),
                 metrics: self.metric_dump,
