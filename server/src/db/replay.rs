@@ -241,7 +241,7 @@ mod tests {
         Query(&'static str, Vec<&'static str>),
     }
 
-    /// Action cor check for replay test.
+    /// Action or check for replay test.
     #[derive(Debug)]
     enum ReplayTestAOC {
         /// Ingest new entries into the write buffer.
