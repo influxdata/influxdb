@@ -10,7 +10,6 @@ import (
 	"net/http"
 
 	"github.com/influxdata/influxdb/kit/platform/errors"
-
 	"go.uber.org/zap"
 )
 

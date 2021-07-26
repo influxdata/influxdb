@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/kit/platform/errors"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 

@@ -1,14 +1,13 @@
 package snapshotter
 
 import (
+	"archive/tar"
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-
-	"archive/tar"
 	"io/ioutil"
 	"path/filepath"
 	"strconv"
