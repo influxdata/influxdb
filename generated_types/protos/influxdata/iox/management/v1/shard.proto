@@ -33,7 +33,7 @@ message ShardConfig {
 
   /// Mapping between shard IDs and node groups. Other sharding rules use
   /// ShardId as targets.
-  map<uint32, Shard> shards = 4;
+  map<uint32, Sink> shards = 4;
 }
 
 // Maps a matcher with specific shard. If the line/row matches
@@ -52,10 +52,11 @@ message Matcher {
   string predicate = 2;
 }
 
-// Configuration for a specific shard
-message Shard {
+// Configuration for a specific sink
+message Sink {
   oneof sink {
     NodeGroup iox = 1;
+    KafkaProducer kafka = 2;
   }
 }
 
@@ -65,6 +66,11 @@ message NodeGroup {
     uint32 id = 1;
   }
   repeated Node nodes = 1;
+}
+
+// Kafka producer configuration
+message KafkaProducer {
+
 }
 
 // HashRing is a rule for creating a hash key for a row and mapping that to

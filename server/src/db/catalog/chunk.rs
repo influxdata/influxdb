@@ -1,6 +1,7 @@
-use crate::db::catalog::metrics::StorageGauge;
+use crate::db::catalog::metrics::{StorageGauge, TimestampHistogram};
 use chrono::{DateTime, Utc};
 use data_types::instant::to_approximate_datetime;
+use data_types::write_summary::TimestampSummary;
 use data_types::{
     chunk_metadata::{
         ChunkAddr, ChunkColumnSummary, ChunkLifecycleAction, ChunkStorage, ChunkSummary,
@@ -236,6 +237,9 @@ pub struct ChunkMetrics {
 
     /// Catalog memory metrics
     pub(super) memory_metrics: StorageGauge,
+
+    /// Track ingested timestamps
+    pub(super) timestamp_histogram: TimestampHistogram,
 }
 
 impl ChunkMetrics {
@@ -250,6 +254,7 @@ impl ChunkMetrics {
             chunk_storage: StorageGauge::new_unregistered(),
             row_count: StorageGauge::new_unregistered(),
             memory_metrics: StorageGauge::new_unregistered(),
+            timestamp_histogram: Default::default(),
         }
     }
 }
@@ -467,13 +472,26 @@ impl CatalogChunk {
     }
 
     /// Record a write of row data to this chunk
-    pub fn record_write(&mut self) {
-        let now = Utc::now();
+    ///
+    /// `time_of_write` is the wall clock time of the write
+    /// `timestamps` is a summary of the row timestamps contained in the write
+    pub fn record_write(&mut self, time_of_write: DateTime<Utc>, timestamps: &TimestampSummary) {
+        self.metrics.timestamp_histogram.add(timestamps);
         self.access_recorder.record_access_now();
-        if self.time_of_first_write.is_none() {
-            self.time_of_first_write = Some(now);
+
+        if let Some(t) = self.time_of_first_write {
+            self.time_of_first_write = Some(t.min(time_of_write))
+        } else {
+            self.time_of_first_write = Some(time_of_write)
         }
-        self.time_of_last_write = Some(now);
+
+        // DateTime<Utc> isn't necessarily monotonic
+        if let Some(t) = self.time_of_last_write {
+            self.time_of_last_write = Some(t.max(time_of_write))
+        } else {
+            self.time_of_last_write = Some(time_of_write)
+        }
+
         self.update_metrics();
     }
 
@@ -951,7 +969,7 @@ impl CatalogChunk {
 
 #[cfg(test)]
 mod tests {
-    use entry::{test_helpers::lp_to_entry, Sequence};
+    use entry::test_helpers::lp_to_entry;
     use mutable_buffer::chunk::{ChunkMetrics as MBChunkMetrics, MBChunk};
     use parquet_file::{
         chunk::ParquetChunk,
@@ -962,11 +980,10 @@ mod tests {
 
     #[test]
     fn test_new_open() {
-        let sequencer_id = 1;
         let addr = chunk_addr();
 
         // works with non-empty MBChunk
-        let mb_chunk = make_mb_chunk(&addr.table_name, sequencer_id);
+        let mb_chunk = make_mb_chunk(&addr.table_name);
         let chunk = CatalogChunk::new_open(addr, mb_chunk, ChunkMetrics::new_unregistered());
         assert!(matches!(chunk.stage(), &ChunkStage::Open { .. }));
         assert!(chunk.time_of_first_write.is_some());
@@ -1122,13 +1139,13 @@ mod tests {
         chunk.clear_lifecycle_action().unwrap();
     }
 
-    fn make_mb_chunk(table_name: &str, sequencer_id: u32) -> MBChunk {
+    fn make_mb_chunk(table_name: &str) -> MBChunk {
         let entry = lp_to_entry(&format!("{} bar=1 10", table_name));
+        let time_of_write = Utc::now();
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
-        let sequence = Some(Sequence::new(sequencer_id, 1));
 
-        MBChunk::new(MBChunkMetrics::new_unregistered(), sequence.as_ref(), batch).unwrap()
+        MBChunk::new(MBChunkMetrics::new_unregistered(), batch, time_of_write).unwrap()
     }
 
     async fn make_parquet_chunk(addr: ChunkAddr) -> ParquetChunk {
@@ -1146,11 +1163,10 @@ mod tests {
     }
 
     fn make_open_chunk() -> CatalogChunk {
-        let sequencer_id = 1;
         let addr = chunk_addr();
 
         // assemble MBChunk
-        let mb_chunk = make_mb_chunk(&addr.table_name, sequencer_id);
+        let mb_chunk = make_mb_chunk(&addr.table_name);
 
         CatalogChunk::new_open(addr, mb_chunk, ChunkMetrics::new_unregistered())
     }

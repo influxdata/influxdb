@@ -5,7 +5,7 @@ use crate::{
 use arrow::record_batch::RecordBatch;
 use chrono::{DateTime, Utc};
 use data_types::partition_metadata::{ColumnSummary, InfluxDbType, TableSummaryAndTimes};
-use entry::{Sequence, TableBatch};
+use entry::TableBatch;
 use hashbrown::HashMap;
 use internal_types::{
     schema::{builder::SchemaBuilder, InfluxColumnType, Schema},
@@ -100,24 +100,22 @@ impl MBChunk {
     /// shouldn't exist without some data.
     pub fn new(
         metrics: ChunkMetrics,
-        sequence: Option<&Sequence>,
         batch: TableBatch<'_>,
+        time_of_write: DateTime<Utc>,
     ) -> Result<Self> {
         let table_name = Arc::from(batch.name());
-
-        let now = Utc::now();
 
         let mut chunk = Self {
             table_name,
             columns: Default::default(),
             metrics,
             snapshot: Mutex::new(None),
-            time_of_first_write: now,
-            time_of_last_write: now,
+            time_of_first_write: time_of_write,
+            time_of_last_write: time_of_write,
         };
 
         let columns = batch.columns();
-        chunk.write_columns(sequence, columns)?;
+        chunk.write_columns(columns)?;
 
         Ok(chunk)
     }
@@ -127,8 +125,8 @@ impl MBChunk {
     /// Panics if the batch specifies a different name for the table in this Chunk
     pub fn write_table_batch(
         &mut self,
-        sequence: Option<&Sequence>,
         batch: TableBatch<'_>,
+        time_of_write: DateTime<Utc>,
     ) -> Result<()> {
         let table_name = batch.name();
         assert_eq!(
@@ -137,8 +135,7 @@ impl MBChunk {
             "can only insert table batch for a single table to chunk"
         );
 
-        let columns = batch.columns();
-        self.write_columns(sequence, columns)?;
+        self.write_columns(batch.columns())?;
 
         // Invalidate chunk snapshot
         *self
@@ -146,7 +143,9 @@ impl MBChunk {
             .try_lock()
             .expect("concurrent readers/writers to MBChunk") = None;
 
-        self.time_of_last_write = Utc::now();
+        // DateTime<Utc> is not necessarily monotonic
+        self.time_of_first_write = self.time_of_first_write.min(time_of_write);
+        self.time_of_last_write = self.time_of_last_write.max(time_of_write);
 
         Ok(())
     }
@@ -291,11 +290,7 @@ impl MBChunk {
 
     /// Validates the schema of the passed in columns, then adds their values to
     /// the associated columns in the table and updates summary statistics.
-    fn write_columns(
-        &mut self,
-        _sequence: Option<&Sequence>,
-        columns: Vec<entry::Column<'_>>,
-    ) -> Result<()> {
+    fn write_columns(&mut self, columns: Vec<entry::Column<'_>>) -> Result<()> {
         let row_count_before_insert = self.rows();
         let additional_rows = columns.first().map(|x| x.row_count).unwrap_or_default();
         let final_row_count = row_count_before_insert + additional_rows;
@@ -360,6 +355,7 @@ pub mod test_helpers {
     /// server id of 1.
     pub fn write_lp_to_chunk(lp: &str, chunk: &mut MBChunk) -> Result<()> {
         let entry = lp_to_entry(lp);
+        let time_of_write = Utc::now();
 
         for w in entry.partition_writes().unwrap() {
             let table_batches = w.table_batches();
@@ -374,8 +370,7 @@ pub mod test_helpers {
             );
 
             for batch in table_batches {
-                let seq = Some(Sequence::new(1, 5));
-                chunk.write_table_batch(seq.as_ref(), batch)?;
+                chunk.write_table_batch(batch, time_of_write)?;
             }
         }
 
@@ -384,6 +379,7 @@ pub mod test_helpers {
 
     pub fn write_lp_to_new_chunk(lp: &str) -> Result<MBChunk> {
         let entry = lp_to_entry(lp);
+        let time_of_write = Utc::now();
         let mut chunk: Option<MBChunk> = None;
 
         for w in entry.partition_writes().unwrap() {
@@ -399,15 +395,13 @@ pub mod test_helpers {
             );
 
             for batch in table_batches {
-                let seq = Some(Sequence::new(1, 5));
-
                 match chunk {
-                    Some(ref mut c) => c.write_table_batch(seq.as_ref(), batch)?,
+                    Some(ref mut c) => c.write_table_batch(batch, time_of_write)?,
                     None => {
                         chunk = Some(MBChunk::new(
                             ChunkMetrics::new_unregistered(),
-                            seq.as_ref(),
                             batch,
+                            time_of_write,
                         )?);
                     }
                 }
@@ -647,10 +641,6 @@ mod tests {
 
     #[test]
     fn write_columns_validates_schema() {
-        let sequencer_id = 1;
-        let sequence_number = 5;
-        let sequence = Some(Sequence::new(sequencer_id, sequence_number));
-
         let lp = "foo,t1=asdf iv=1i,uv=1u,fv=1.0,bv=true,sv=\"hi\" 1";
         let mut table = write_lp_to_new_chunk(lp).unwrap();
 
@@ -658,7 +648,6 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -690,7 +679,6 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -722,7 +710,6 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -754,7 +741,6 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -786,7 +772,6 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()
@@ -818,7 +803,6 @@ mod tests {
         let entry = lp_to_entry(&lp);
         let response = table
             .write_columns(
-                sequence.as_ref(),
                 entry
                     .partition_writes()
                     .unwrap()

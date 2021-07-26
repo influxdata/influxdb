@@ -369,7 +369,7 @@ impl Statistics {
 }
 
 /// Summary statistics for a column.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, Eq, PartialEq)]
 pub struct StatValues<T> {
     /// minimum (non-NaN, non-NULL) value, if any
     pub min: Option<T>,

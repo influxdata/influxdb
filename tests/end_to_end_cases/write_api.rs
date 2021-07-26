@@ -11,8 +11,8 @@ use entry::{
 };
 use generated_types::influxdata::iox::management::v1::database_rules::RoutingRules;
 use generated_types::influxdata::iox::management::v1::{
-    node_group::Node, shard, HashRing, Matcher, MatcherToShard, NodeGroup, RoutingConfig, Shard,
-    ShardConfig,
+    node_group::Node, sink, HashRing, Matcher, MatcherToShard, NodeGroup, RoutingConfig,
+    ShardConfig, Sink,
 };
 use influxdb_line_protocol::parse_lines;
 use std::collections::HashMap;
@@ -225,8 +225,8 @@ async fn test_write_routed() {
         shards: vec![
             (
                 TEST_SHARD_ID_1,
-                Shard {
-                    sink: Some(shard::Sink::Iox(NodeGroup {
+                Sink {
+                    sink: Some(sink::Sink::Iox(NodeGroup {
                         nodes: vec![Node {
                             id: TEST_REMOTE_ID_1,
                         }],
@@ -235,8 +235,8 @@ async fn test_write_routed() {
             ),
             (
                 TEST_SHARD_ID_2,
-                Shard {
-                    sink: Some(shard::Sink::Iox(NodeGroup {
+                Sink {
+                    sink: Some(sink::Sink::Iox(NodeGroup {
                         nodes: vec![Node {
                             id: TEST_REMOTE_ID_2,
                         }],
@@ -245,8 +245,8 @@ async fn test_write_routed() {
             ),
             (
                 TEST_SHARD_ID_3,
-                Shard {
-                    sink: Some(shard::Sink::Iox(NodeGroup {
+                Sink {
+                    sink: Some(sink::Sink::Iox(NodeGroup {
                         nodes: vec![Node {
                             id: TEST_REMOTE_ID_3,
                         }],
@@ -398,8 +398,8 @@ async fn test_write_routed_errors() {
         }],
         shards: vec![(
             TEST_SHARD_ID,
-            Shard {
-                sink: Some(shard::Sink::Iox(NodeGroup {
+            Sink {
+                sink: Some(sink::Sink::Iox(NodeGroup {
                     nodes: vec![Node { id: TEST_REMOTE_ID }],
                 })),
             },
@@ -513,9 +513,13 @@ async fn test_write_routed_no_shard() {
             .get_database(db_name)
             .await
             .expect("cannot get database on router");
+        #[allow(deprecated)]
         let routing_config = RoutingConfig {
-            target: Some(NodeGroup {
-                nodes: vec![Node { id: *remote_id }],
+            target: None,
+            sink: Some(Sink {
+                sink: Some(sink::Sink::Iox(NodeGroup {
+                    nodes: vec![Node { id: *remote_id }],
+                })),
             }),
         };
         router_db_rules.routing_rules = Some(RoutingRules::RoutingConfig(routing_config));

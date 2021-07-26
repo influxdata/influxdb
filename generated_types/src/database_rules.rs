@@ -4,7 +4,7 @@ use std::time::Duration;
 use thiserror::Error;
 
 use data_types::database_rules::{
-    DatabaseRules, RoutingConfig, RoutingRules, WriteBufferConnection,
+    DatabaseRules, RoutingConfig, RoutingRules, Sink, WriteBufferConnection,
 };
 use data_types::DatabaseName;
 
@@ -14,6 +14,7 @@ use crate::influxdata::iox::management::v1 as management;
 mod lifecycle;
 mod partition;
 mod shard;
+mod sink;
 
 impl From<DatabaseRules> for management::DatabaseRules {
     fn from(rules: DatabaseRules) -> Self {
@@ -100,8 +101,10 @@ impl TryFrom<management::database_rules::RoutingRules> for RoutingRules {
 
 impl From<RoutingConfig> for management::RoutingConfig {
     fn from(routing_config: RoutingConfig) -> Self {
+        #[allow(deprecated)]
         Self {
-            target: Some(routing_config.target.into()),
+            target: None,
+            sink: Some(routing_config.sink.into()),
         }
     }
 }
@@ -110,8 +113,13 @@ impl TryFrom<management::RoutingConfig> for RoutingConfig {
     type Error = FieldViolation;
 
     fn try_from(proto: management::RoutingConfig) -> Result<Self, Self::Error> {
+        #[allow(deprecated)]
         Ok(Self {
-            target: proto.target.required("target")?,
+            sink: if proto.target.is_some() {
+                Sink::Iox(proto.target.required("target")?)
+            } else {
+                proto.sink.required("sink")?
+            },
         })
     }
 }
@@ -195,5 +203,73 @@ mod tests {
 
         // These should be none as preserved on non-protobuf DatabaseRules
         assert!(back.routing_rules.is_none());
+    }
+
+    #[test]
+    fn test_routing_rules_conversion() {
+        let protobuf = management::DatabaseRules {
+            name: "database".to_string(),
+            routing_rules: None,
+            ..Default::default()
+        };
+
+        let rules: DatabaseRules = protobuf.try_into().unwrap();
+        let back: management::DatabaseRules = rules.into();
+
+        assert!(back.routing_rules.is_none());
+
+        #[allow(deprecated)]
+        let routing_config_sink = management::RoutingConfig {
+            target: None,
+            sink: Some(management::Sink {
+                sink: Some(management::sink::Sink::Iox(management::NodeGroup {
+                    nodes: vec![management::node_group::Node { id: 1234 }],
+                })),
+            }),
+        };
+
+        let protobuf = management::DatabaseRules {
+            name: "database".to_string(),
+            routing_rules: Some(management::database_rules::RoutingRules::RoutingConfig(
+                routing_config_sink.clone(),
+            )),
+            ..Default::default()
+        };
+
+        let rules: DatabaseRules = protobuf.try_into().unwrap();
+        let back: management::DatabaseRules = rules.into();
+
+        assert_eq!(
+            back.routing_rules,
+            Some(management::database_rules::RoutingRules::RoutingConfig(
+                routing_config_sink.clone()
+            ))
+        );
+
+        #[allow(deprecated)]
+        let routing_config_target = management::RoutingConfig {
+            target: Some(management::NodeGroup {
+                nodes: vec![management::node_group::Node { id: 1234 }],
+            }),
+            sink: None,
+        };
+
+        let protobuf = management::DatabaseRules {
+            name: "database".to_string(),
+            routing_rules: Some(management::database_rules::RoutingRules::RoutingConfig(
+                routing_config_target,
+            )),
+            ..Default::default()
+        };
+
+        let rules: DatabaseRules = protobuf.try_into().unwrap();
+        let back: management::DatabaseRules = rules.into();
+
+        assert_eq!(
+            back.routing_rules,
+            Some(management::database_rules::RoutingRules::RoutingConfig(
+                routing_config_sink
+            ))
+        );
     }
 }

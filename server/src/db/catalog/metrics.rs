@@ -1,5 +1,7 @@
 use crate::db::catalog::chunk::ChunkMetrics;
-use metrics::{Counter, Gauge, GaugeValue, Histogram, KeyValue};
+use data_types::write_summary::TimestampSummary;
+use metrics::{Counter, Gauge, GaugeValue, Histogram, KeyValue, MetricObserverBuilder};
+use parking_lot::Mutex;
 use std::sync::Arc;
 use tracker::{LockTracker, RwLock};
 
@@ -76,6 +78,13 @@ impl CatalogMetrics {
             &[KeyValue::new("table", table_name.to_string())],
         );
 
+        let timestamp_histogram = Default::default();
+        self.metrics_domain.register_observer(
+            None,
+            &[KeyValue::new("table", table_name.to_string())],
+            &timestamp_histogram,
+        );
+
         TableMetrics {
             metrics_domain: Arc::clone(&self.metrics_domain),
             chunk_storage: StorageGauge::new(&storage_gauge),
@@ -84,6 +93,7 @@ impl CatalogMetrics {
             table_lock_tracker,
             partition_lock_tracker,
             chunk_lock_tracker,
+            timestamp_histogram,
         }
     }
 }
@@ -110,6 +120,9 @@ pub struct TableMetrics {
 
     /// Lock tracker for chunk-level locks
     chunk_lock_tracker: LockTracker,
+
+    /// Track ingested timestamps
+    timestamp_histogram: TimestampHistogram,
 }
 
 impl TableMetrics {
@@ -143,6 +156,7 @@ impl TableMetrics {
                 )
                 .init(),
             chunk_lock_tracker: self.chunk_lock_tracker.clone(),
+            timestamp_histogram: self.timestamp_histogram.clone(),
         }
     }
 }
@@ -164,6 +178,9 @@ pub struct PartitionMetrics {
 
     /// Lock Tracker for chunk-level locks
     chunk_lock_tracker: LockTracker,
+
+    /// Track ingested timestamps
+    timestamp_histogram: TimestampHistogram,
 }
 
 impl PartitionMetrics {
@@ -173,6 +190,7 @@ impl PartitionMetrics {
 
     pub(super) fn new_chunk_metrics(&self) -> ChunkMetrics {
         ChunkMetrics {
+            timestamp_histogram: self.timestamp_histogram.clone(),
             state: self.chunk_state.clone(),
             immutable_chunk_size: self.immutable_chunk_size.clone(),
             chunk_storage: self.chunk_storage.clone_empty(),
@@ -262,5 +280,40 @@ impl StorageGauge {
         self.mutable_buffer.get_total()
             + self.read_buffer.get_total()
             + self.object_store.get_total()
+    }
+}
+
+/// A Histogram-inspired metric for reporting `TimestampSummary`
+///
+/// This is partly to workaround limitations defining custom Histogram bucketing in OTEL
+/// and also because it can be implemented more efficiently as the set of values is fixed
+///
+/// Like `TimestampSummary`, this is bucketed based on minute within the hour
+/// It will therefore wrap around on the hour
+#[derive(Debug, Clone, Default)]
+pub(super) struct TimestampHistogram {
+    inner: Arc<Mutex<TimestampSummary>>,
+}
+
+impl TimestampHistogram {
+    pub(super) fn add(&self, summary: &TimestampSummary) {
+        self.inner.lock().merge(&summary)
+    }
+}
+
+impl metrics::MetricObserver for &TimestampHistogram {
+    fn register(self, builder: MetricObserverBuilder<'_>) {
+        let inner = Arc::clone(&self.inner);
+        builder.register_histogram_bucket(
+            "row_time",
+            Some("seconds"),
+            "The cumulative distribution of the ingested row timestamps",
+            move |result| {
+                let inner = inner.lock();
+                for (min, total) in inner.cumulative_counts() {
+                    result.observe(total, &[KeyValue::new("le", (min * 60).to_string())])
+                }
+            },
+        )
     }
 }
