@@ -1,6 +1,6 @@
 //! The catalog representation of a Partition
 
-use super::chunk::{CatalogChunk, ChunkStage};
+use super::chunk::{CatalogChunk, ChunkStage, Error as ChunkError};
 use crate::db::catalog::metrics::PartitionMetrics;
 use chrono::{DateTime, Utc};
 use data_types::{
@@ -9,7 +9,7 @@ use data_types::{
 };
 use entry::TableBatch;
 use internal_types::schema::Schema;
-use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
+use mutable_buffer::chunk::ChunkMetrics as MutableBufferChunkMetrics;
 use observability_deps::tracing::info;
 use persistence_windows::{
     checkpoint::PartitionCheckpoint, persistence_windows::PersistenceWindows,
@@ -38,9 +38,7 @@ pub enum Error {
     },
 
     #[snafu(display("creating new mutable buffer chunk failed: {}", source))]
-    CreateOpenChunk {
-        source: mutable_buffer::chunk::Error,
-    },
+    CreateOpenChunk { source: ChunkError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -137,8 +135,7 @@ impl Partition {
         batch: TableBatch<'_>,
         time_of_write: DateTime<Utc>,
     ) -> Result<Arc<RwLock<CatalogChunk>>> {
-        let chunk = MBChunk::new(metrics, batch, time_of_write).context(CreateOpenChunk)?;
-        assert_eq!(chunk.table_name().as_ref(), self.table_name());
+        assert_eq!(batch.name(), self.table_name());
 
         let chunk_id = self.next_chunk_id;
         assert_ne!(self.next_chunk_id, u32::MAX, "Chunk ID Overflow");
@@ -146,7 +143,14 @@ impl Partition {
 
         let addr = ChunkAddr::new(&self.addr, chunk_id);
 
-        let chunk = CatalogChunk::new_open(addr, chunk, self.metrics.new_chunk_metrics());
+        let chunk = CatalogChunk::new_open(
+            addr,
+            metrics,
+            batch,
+            time_of_write,
+            self.metrics.new_chunk_metrics(),
+        )
+        .context(CreateOpenChunk)?;
         let chunk = Arc::new(self.metrics.new_chunk_lock(chunk));
 
         if self.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
