@@ -607,7 +607,7 @@ const (
 )
 
 func curryState(state int, f func(t *testing.T, state int)) func(t *testing.T) {
-	return func(t *testing.T){
+	return func(t *testing.T) {
 		f(t, state)
 	}
 }
@@ -655,7 +655,7 @@ func (idx *Index) RunStateAware(t *testing.T, fn func(t *testing.T, state int)) 
 
 // Run is the same is RunStateAware but for tests that do not depend on compaction state
 func (idx *Index) Run(t *testing.T, fn func(t *testing.T)) {
-	idx.RunStateAware(t, func(t *testing.T, _ int){
+	idx.RunStateAware(t, func(t *testing.T, _ int) {
 		fn(t)
 	})
 }

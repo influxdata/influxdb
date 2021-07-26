@@ -904,12 +904,17 @@ func (p *Partition) runPeriodicCompaction() {
 	// kick off an initial compaction at startup without the optimization check
 	p.Compact()
 
+	// Avoid a race when using Reopen in tests
+	p.mu.RLock()
+	closing := p.closing
+	p.mu.RUnlock()
+
 	// check for compactions once an hour (usually not necessary but a nice safety check)
-	t := time.NewTicker(p.MaxLogFileAge)
+	t := time.NewTicker(1 * time.Hour)
 	defer t.Stop()
 	for {
 		select {
-		case <-p.closing:
+		case <-closing:
 			return
 		case <-t.C:
 			if p.NeedsCompaction() {
@@ -932,7 +937,7 @@ func (p *Partition) NeedsCompaction() bool {
 	// If we have 2 log files (level 0), or if we have 2 files at the same level, we should do a compaction.
 	for _, f := range p.fileSet.files {
 		level := f.Level()
-		levelCount[level] = levelCount[level] + 1
+		levelCount[level]++
 		if level <= maxLevel && levelCount[level] > 1 && !p.levelCompacting[level] {
 			return true
 		}
@@ -941,6 +946,8 @@ func (p *Partition) NeedsCompaction() bool {
 }
 
 // compact compacts continguous groups of files that are not currently compacting.
+//
+// compact requires that mu is write-locked.
 func (p *Partition) compact() {
 	if p.isClosing() {
 		return
