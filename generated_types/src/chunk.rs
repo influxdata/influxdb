@@ -1,8 +1,12 @@
-use crate::google::{FieldViolation, FromFieldOpt};
-use crate::influxdata::iox::management::v1 as management;
+use crate::{
+    google::{FieldViolation, FromFieldOpt},
+    influxdata::iox::management::v1 as management,
+};
 use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage, ChunkSummary};
-use std::convert::{TryFrom, TryInto};
-use std::sync::Arc;
+use std::{
+    convert::{TryFrom, TryInto},
+    sync::Arc,
+};
 
 /// Conversion code to management API chunk structure
 impl From<ChunkSummary> for management::Chunk {

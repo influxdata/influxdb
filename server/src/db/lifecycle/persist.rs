@@ -168,19 +168,16 @@ pub fn persist_chunks(
 
 #[cfg(test)]
 mod tests {
-    use std::num::{NonZeroU32, NonZeroU64};
-    use std::time::Instant;
-
+    use super::*;
+    use crate::{db::test_helpers::write_lp, utils::TestDb};
     use chrono::{TimeZone, Utc};
-
     use data_types::database_rules::LifecycleRules;
     use lifecycle::{LockableChunk, LockablePartition};
     use query::QueryDatabase;
-
-    use crate::db::test_helpers::write_lp;
-    use crate::utils::TestDb;
-
-    use super::*;
+    use std::{
+        num::{NonZeroU32, NonZeroU64},
+        time::Instant,
+    };
 
     #[tokio::test]
     async fn test_flush_overlapping() {

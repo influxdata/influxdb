@@ -1,21 +1,22 @@
-use std::convert::TryInto;
-use std::fmt::Debug;
-use std::time::{Duration, Instant};
-
-use chrono::{DateTime, Utc};
-use data_types::DatabaseName;
-use futures::future::BoxFuture;
-
-use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage};
-use data_types::database_rules::LifecycleRules;
-use observability_deps::tracing::{debug, info, trace, warn};
-use tracker::TaskTracker;
-
 use crate::{
     LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk, LockablePartition,
     PersistHandle,
 };
+use chrono::{DateTime, Utc};
+use data_types::{
+    chunk_metadata::{ChunkLifecycleAction, ChunkStorage},
+    database_rules::LifecycleRules,
+    DatabaseName,
+};
+use futures::future::BoxFuture;
 use internal_types::access::AccessMetrics;
+use observability_deps::tracing::{debug, info, trace, warn};
+use std::{
+    convert::TryInto,
+    fmt::Debug,
+    time::{Duration, Instant},
+};
+use tracker::TaskTracker;
 
 /// Number of seconds to wait before retying a failed lifecycle action
 pub const LIFECYCLE_ACTION_BACKOFF: Duration = Duration::from_secs(10);
@@ -654,21 +655,20 @@ fn sort_free_candidates<P>(candidates: &mut Vec<FreeCandidate<'_, P>>) {
 
 #[cfg(test)]
 mod tests {
-    use std::cmp::max;
-    use std::collections::BTreeMap;
-    use std::convert::Infallible;
-    use std::num::{NonZeroU32, NonZeroUsize};
-    use std::sync::Arc;
-
-    use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
-    use tracker::{RwLock, TaskId, TaskRegistration, TaskRegistry};
-
+    use super::*;
     use crate::{
         ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
         LockablePartition, PersistHandle,
     };
-
-    use super::*;
+    use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
+    use std::{
+        cmp::max,
+        collections::BTreeMap,
+        convert::Infallible,
+        num::{NonZeroU32, NonZeroUsize},
+        sync::Arc,
+    };
+    use tracker::{RwLock, TaskId, TaskRegistration, TaskRegistry};
 
     #[derive(Debug, Eq, PartialEq)]
     enum MoverEvents {

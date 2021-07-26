@@ -1,16 +1,15 @@
 use crate::db::catalog::metrics::{StorageGauge, TimestampHistogram};
 use chrono::{DateTime, Utc};
-use data_types::instant::to_approximate_datetime;
-use data_types::write_summary::TimestampSummary;
 use data_types::{
     chunk_metadata::{
         ChunkAddr, ChunkColumnSummary, ChunkLifecycleAction, ChunkStorage, ChunkSummary,
         DetailedChunkSummary,
     },
+    instant::to_approximate_datetime,
     partition_metadata::TableSummary,
+    write_summary::TimestampSummary,
 };
-use internal_types::access::AccessRecorder;
-use internal_types::schema::Schema;
+use internal_types::{access::AccessRecorder, schema::Schema};
 use metrics::{Counter, Histogram, KeyValue};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use observability_deps::tracing::debug;
@@ -969,14 +968,13 @@ impl CatalogChunk {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use entry::test_helpers::lp_to_entry;
     use mutable_buffer::chunk::{ChunkMetrics as MBChunkMetrics, MBChunk};
     use parquet_file::{
         chunk::ParquetChunk,
         test_utils::{make_chunk as make_parquet_chunk_with_store, make_object_store},
     };
-
-    use super::*;
 
     #[test]
     fn test_new_open() {

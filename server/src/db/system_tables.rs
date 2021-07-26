@@ -7,26 +7,21 @@
 //!
 //! For example `SELECT * FROM system.chunks`
 
-use std::any::Any;
-use std::sync::Arc;
-
+use super::catalog::Catalog;
+use crate::JobRegistry;
 use arrow::{
     datatypes::{Field, Schema, SchemaRef},
     error::Result,
     record_batch::RecordBatch,
 };
 use chrono::{DateTime, Utc};
-
 use datafusion::{
     catalog::schema::SchemaProvider,
     datasource::{datasource::Statistics, TableProvider},
     error::{DataFusionError, Result as DataFusionResult},
     physical_plan::{memory::MemoryExec, ExecutionPlan},
 };
-
-use crate::JobRegistry;
-
-use super::catalog::Catalog;
+use std::{any::Any, sync::Arc};
 
 mod chunks;
 mod columns;
@@ -205,10 +200,9 @@ fn scan_batch(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use arrow::array::{ArrayRef, UInt64Array};
     use arrow_util::assert_batches_eq;
-
-    use super::*;
 
     fn seq_array(start: u64, end: u64) -> ArrayRef {
         Arc::new(UInt64Array::from_iter_values(start..end))

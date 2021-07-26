@@ -1,15 +1,17 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
-use crate::db::catalog::chunk::ChunkStage;
-use crate::db::catalog::table::TableSchemaUpsertHandle;
 pub(crate) use crate::db::chunk::DbChunk;
-use crate::db::lifecycle::ArcDb;
 use crate::{
     db::{
         access::QueryCatalogAccess,
-        catalog::{chunk::CatalogChunk, partition::Partition, Catalog, TableNameFilter},
-        lifecycle::{LockableCatalogChunk, LockableCatalogPartition},
+        catalog::{
+            chunk::{CatalogChunk, ChunkStage},
+            partition::Partition,
+            table::TableSchemaUpsertHandle,
+            Catalog, TableNameFilter,
+        },
+        lifecycle::{ArcDb, LockableCatalogChunk, LockableCatalogPartition},
     },
     JobRegistry,
 };
@@ -31,13 +33,11 @@ use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
-use parquet_file::catalog::CatalogParquetInfo;
 use parquet_file::{
-    catalog::{CheckpointData, PreservedCatalog},
+    catalog::{CatalogParquetInfo, CheckpointData, PreservedCatalog},
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
 };
-use persistence_windows::checkpoint::ReplayPlan;
-use persistence_windows::persistence_windows::PersistenceWindows;
+use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
 use query::{exec::Executor, predicate::Predicate, QueryDatabase};
 use rand_distr::{Distribution, Poisson};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -50,8 +50,10 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use write_buffer::config::WriteBufferConfig;
-use write_buffer::core::{FetchHighWatermark, WriteBufferError};
+use write_buffer::{
+    config::WriteBufferConfig,
+    core::{FetchHighWatermark, WriteBufferError},
+};
 
 pub mod access;
 pub mod catalog;
@@ -1331,11 +1333,11 @@ mod tests {
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
     use chrono::DateTime;
-    use data_types::write_summary::TimestampSummary;
     use data_types::{
         chunk_metadata::ChunkStorage,
         database_rules::{LifecycleRules, PartitionTemplate, TemplatePart},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
+        write_summary::TimestampSummary,
     };
     use entry::{test_helpers::lp_to_entry, Sequence};
     use futures::{stream, StreamExt, TryStreamExt};

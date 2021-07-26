@@ -5,8 +5,8 @@ use chrono::{DateTime, Utc};
 use data_types::partition_metadata;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
-use internal_types::access::AccessRecorder;
 use internal_types::{
+    access::AccessRecorder,
     schema::{sort::SortKey, Schema},
     selection::Selection,
 };

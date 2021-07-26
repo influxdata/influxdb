@@ -1,9 +1,8 @@
 //! Module contains a representation of chunk metadata
-use std::sync::Arc;
-
 use crate::partition_metadata::PartitionAddr;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// Address of the chunk within the catalog
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

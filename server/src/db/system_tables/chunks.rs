@@ -1,15 +1,15 @@
+use crate::db::{
+    catalog::Catalog,
+    system_tables::{time_to_ts, IoxSystemTable},
+};
+use arrow::{
+    array::{StringArray, TimestampNanosecondArray, UInt32Array, UInt64Array},
+    datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit},
+    error::Result,
+    record_batch::RecordBatch,
+};
+use data_types::{chunk_metadata::ChunkSummary, error::ErrorLogger};
 use std::sync::Arc;
-
-use arrow::array::{StringArray, TimestampNanosecondArray, UInt32Array, UInt64Array};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
-use arrow::error::Result;
-use arrow::record_batch::RecordBatch;
-
-use data_types::chunk_metadata::ChunkSummary;
-use data_types::error::ErrorLogger;
-
-use crate::db::catalog::Catalog;
-use crate::db::system_tables::{time_to_ts, IoxSystemTable};
 
 /// Implementation of system.chunks table
 #[derive(Debug)]
@@ -128,12 +128,10 @@ fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<
 
 #[cfg(test)]
 mod tests {
-    use chrono::{TimeZone, Utc};
-
-    use arrow_util::assert_batches_eq;
-    use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage};
-
     use super::*;
+    use arrow_util::assert_batches_eq;
+    use chrono::{TimeZone, Utc};
+    use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage};
 
     #[test]
     fn test_from_chunk_summaries() {
