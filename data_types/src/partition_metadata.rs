@@ -146,10 +146,24 @@ impl TableSummary {
     }
 
     /// Returns the total number of rows in the columns of this summary
-    pub fn count(&self) -> u64 {
+    pub fn total_count(&self) -> u64 {
         // Assumes that all tables have the same number of rows, so
         // pick the first one
-        self.columns.get(0).map(|c| c.count()).unwrap_or(0)
+        let count = self.columns.get(0).map(|c| c.total_count()).unwrap_or(0);
+
+        // Validate that the counts are consistent across columns
+        for c in &self.columns {
+            assert_eq!(
+                c.total_count(),
+                count,
+                "Mismatch counts in table {} column {}, expected {} got {}",
+                self.name,
+                c.name,
+                count,
+                c.total_count()
+            )
+        }
+        count
     }
 
     pub fn size(&self) -> usize {
@@ -223,9 +237,14 @@ pub struct ColumnSummary {
 }
 
 impl ColumnSummary {
-    /// Returns the total number of rows in this column
-    pub fn count(&self) -> u64 {
-        self.stats.count()
+    /// Returns the total number of rows (including nulls) in this column
+    pub fn total_count(&self) -> u64 {
+        self.stats.total_count()
+    }
+
+    /// Returns the number of null values in this column
+    pub fn null_count(&self) -> u64 {
+        self.stats.null_count()
     }
 
     /// Return a human interprertable string for this column's IOx
@@ -277,8 +296,13 @@ pub struct Column {
 
 impl Column {
     /// Returns the total number of rows in this column
-    pub fn count(&self) -> u64 {
-        self.stats.count()
+    pub fn total_count(&self) -> u64 {
+        self.stats.total_count()
+    }
+
+    /// Returns the number of nulls in this column
+    pub fn null_count(&self) -> u64 {
+        self.stats.null_count()
     }
 }
 
@@ -294,13 +318,24 @@ pub enum Statistics {
 
 impl Statistics {
     /// Returns the total number of rows in this column
-    pub fn count(&self) -> u64 {
+    pub fn total_count(&self) -> u64 {
         match self {
-            Self::I64(s) => s.count,
-            Self::U64(s) => s.count,
-            Self::F64(s) => s.count,
-            Self::Bool(s) => s.count,
-            Self::String(s) => s.count,
+            Self::I64(s) => s.total_count,
+            Self::U64(s) => s.total_count,
+            Self::F64(s) => s.total_count,
+            Self::Bool(s) => s.total_count,
+            Self::String(s) => s.total_count,
+        }
+    }
+
+    /// Returns the number of null rows in this column
+    pub fn null_count(&self) -> u64 {
+        match self {
+            Self::I64(s) => s.null_count,
+            Self::U64(s) => s.null_count,
+            Self::F64(s) => s.null_count,
+            Self::Bool(s) => s.null_count,
+            Self::String(s) => s.null_count,
         }
     }
 
@@ -377,8 +412,11 @@ pub struct StatValues<T> {
     /// maximum (non-NaN, non-NULL) value, if any
     pub max: Option<T>,
 
-    /// number of non-nil values in this column
-    pub count: u64,
+    /// total number of values in this column, including null values
+    pub total_count: u64,
+
+    /// number of null values in this column
+    pub null_count: u64,
 
     /// number of distinct values in this column if known
     ///
@@ -391,7 +429,8 @@ impl<T> Default for StatValues<T> {
         Self {
             min: None,
             max: None,
-            count: 0,
+            total_count: 0,
+            null_count: 0,
             distinct_count: None,
         }
     }
@@ -411,12 +450,14 @@ where
         Self {
             min: starting_value.clone(),
             max: starting_value,
-            count: 1,
+            total_count: 1,
+            null_count: 0,
             distinct_count: None,
         }
     }
 
-    pub fn new(min: Option<T>, max: Option<T>, count: u64) -> Self {
+    /// Create new statitics with the specified count and null count
+    pub fn new(min: Option<T>, max: Option<T>, total_count: u64, null_count: u64) -> Self {
         if let Some(min) = &min {
             assert!(!min.is_nan());
         }
@@ -430,13 +471,29 @@ where
         Self {
             min,
             max,
-            count,
+            total_count,
+            null_count,
             distinct_count: None,
         }
     }
 
+    /// Create statistics for a column with zero nulls
+    pub fn new_non_null(min: Option<T>, max: Option<T>, total_count: u64) -> Self {
+        let null_count = 0;
+        Self::new(min, max, total_count, null_count)
+    }
+
+    /// Create statistics for a column that only has nulls up to now
+    pub fn new_all_null(total_count: u64) -> Self {
+        let min = None;
+        let max = None;
+        let null_count = total_count;
+        Self::new(min, max, total_count, null_count)
+    }
+
     pub fn update_from(&mut self, other: &Self) {
-        self.count += other.count;
+        self.total_count += other.total_count;
+        self.null_count += other.null_count;
 
         // No way to accurately aggregate counts
         self.distinct_count = None;
@@ -477,7 +534,7 @@ impl<T> StatValues<T> {
         T: Borrow<U>,
         U: ToOwned<Owned = T> + PartialOrd + IsNan,
     {
-        self.count += 1;
+        self.total_count += 1;
 
         if !other.is_nan() {
             match &self.min {
@@ -500,6 +557,12 @@ impl<T> StatValues<T> {
                 }
             }
         }
+    }
+
+    /// Update the statistics values to account for `num_nulls` additional null values
+    pub fn update_for_nulls(&mut self, num_nulls: u64) {
+        self.total_count += num_nulls;
+        self.null_count += num_nulls;
     }
 }
 
@@ -592,22 +655,22 @@ mod tests {
         let mut stat = StatValues::new_with_value(23);
         assert_eq!(stat.min, Some(23));
         assert_eq!(stat.max, Some(23));
-        assert_eq!(stat.count, 1);
+        assert_eq!(stat.total_count, 1);
 
         stat.update(&55);
         assert_eq!(stat.min, Some(23));
         assert_eq!(stat.max, Some(55));
-        assert_eq!(stat.count, 2);
+        assert_eq!(stat.total_count, 2);
 
         stat.update(&6);
         assert_eq!(stat.min, Some(6));
         assert_eq!(stat.max, Some(55));
-        assert_eq!(stat.count, 3);
+        assert_eq!(stat.total_count, 3);
 
         stat.update(&30);
         assert_eq!(stat.min, Some(6));
         assert_eq!(stat.max, Some(55));
-        assert_eq!(stat.count, 4);
+        assert_eq!(stat.total_count, 4);
     }
 
     #[test]
@@ -615,27 +678,27 @@ mod tests {
         let mut stat = StatValues::default();
         assert_eq!(stat.min, None);
         assert_eq!(stat.max, None);
-        assert_eq!(stat.count, 0);
+        assert_eq!(stat.total_count, 0);
 
         stat.update(&55);
         assert_eq!(stat.min, Some(55));
         assert_eq!(stat.max, Some(55));
-        assert_eq!(stat.count, 1);
+        assert_eq!(stat.total_count, 1);
 
         let mut stat = StatValues::<String>::default();
         assert_eq!(stat.min, None);
         assert_eq!(stat.max, None);
-        assert_eq!(stat.count, 0);
+        assert_eq!(stat.total_count, 0);
 
         stat.update("cupcakes");
         assert_eq!(stat.min, Some("cupcakes".to_string()));
         assert_eq!(stat.max, Some("cupcakes".to_string()));
-        assert_eq!(stat.count, 1);
+        assert_eq!(stat.total_count, 1);
 
         stat.update("woo");
         assert_eq!(stat.min, Some("cupcakes".to_string()));
         assert_eq!(stat.max, Some("woo".to_string()));
-        assert_eq!(stat.count, 2);
+        assert_eq!(stat.total_count, 2);
     }
 
     #[test]
@@ -753,83 +816,83 @@ mod tests {
         let mut stat = StatValues::new_with_value("bbb".to_string());
         assert_eq!(stat.min, Some("bbb".to_string()));
         assert_eq!(stat.max, Some("bbb".to_string()));
-        assert_eq!(stat.count, 1);
+        assert_eq!(stat.total_count, 1);
 
         stat.update("aaa");
         assert_eq!(stat.min, Some("aaa".to_string()));
         assert_eq!(stat.max, Some("bbb".to_string()));
-        assert_eq!(stat.count, 2);
+        assert_eq!(stat.total_count, 2);
 
         stat.update("z");
         assert_eq!(stat.min, Some("aaa".to_string()));
         assert_eq!(stat.max, Some("z".to_string()));
-        assert_eq!(stat.count, 3);
+        assert_eq!(stat.total_count, 3);
 
         stat.update("p");
         assert_eq!(stat.min, Some("aaa".to_string()));
         assert_eq!(stat.max, Some("z".to_string()));
-        assert_eq!(stat.count, 4);
+        assert_eq!(stat.total_count, 4);
     }
 
     #[test]
     fn stats_is_none() {
-        let stat = Statistics::I64(StatValues::new(Some(-1), Some(100), 1));
+        let stat = Statistics::I64(StatValues::new_non_null(Some(-1), Some(100), 1));
         assert!(!stat.is_none());
 
-        let stat = Statistics::I64(StatValues::new(None, Some(100), 1));
+        let stat = Statistics::I64(StatValues::new_non_null(None, Some(100), 1));
         assert!(!stat.is_none());
 
-        let stat = Statistics::I64(StatValues::new(None, None, 0));
+        let stat = Statistics::I64(StatValues::new_non_null(None, None, 0));
         assert!(stat.is_none());
     }
 
     #[test]
     fn stats_as_str_i64() {
-        let stat = Statistics::I64(StatValues::new(Some(-1), Some(100), 1));
+        let stat = Statistics::I64(StatValues::new_non_null(Some(-1), Some(100), 1));
         assert_eq!(stat.min_as_str(), Some("-1".into()));
         assert_eq!(stat.max_as_str(), Some("100".into()));
 
-        let stat = Statistics::I64(StatValues::new(None, None, 1));
+        let stat = Statistics::I64(StatValues::new_non_null(None, None, 1));
         assert_eq!(stat.min_as_str(), None);
         assert_eq!(stat.max_as_str(), None);
     }
 
     #[test]
     fn stats_as_str_u64() {
-        let stat = Statistics::U64(StatValues::new(Some(1), Some(100), 1));
+        let stat = Statistics::U64(StatValues::new_non_null(Some(1), Some(100), 1));
         assert_eq!(stat.min_as_str(), Some("1".into()));
         assert_eq!(stat.max_as_str(), Some("100".into()));
 
-        let stat = Statistics::U64(StatValues::new(None, None, 1));
+        let stat = Statistics::U64(StatValues::new_non_null(None, None, 1));
         assert_eq!(stat.min_as_str(), None);
         assert_eq!(stat.max_as_str(), None);
     }
 
     #[test]
     fn stats_as_str_f64() {
-        let stat = Statistics::F64(StatValues::new(Some(99.0), Some(101.0), 1));
+        let stat = Statistics::F64(StatValues::new_non_null(Some(99.0), Some(101.0), 1));
         assert_eq!(stat.min_as_str(), Some("99".into()));
         assert_eq!(stat.max_as_str(), Some("101".into()));
 
-        let stat = Statistics::F64(StatValues::new(None, None, 1));
+        let stat = Statistics::F64(StatValues::new_non_null(None, None, 1));
         assert_eq!(stat.min_as_str(), None);
         assert_eq!(stat.max_as_str(), None);
     }
 
     #[test]
     fn stats_as_str_bool() {
-        let stat = Statistics::Bool(StatValues::new(Some(false), Some(true), 1));
+        let stat = Statistics::Bool(StatValues::new_non_null(Some(false), Some(true), 1));
         assert_eq!(stat.min_as_str(), Some("false".into()));
         assert_eq!(stat.max_as_str(), Some("true".into()));
 
-        let stat = Statistics::Bool(StatValues::new(None, None, 1));
+        let stat = Statistics::Bool(StatValues::new_non_null(None, None, 1));
         assert_eq!(stat.min_as_str(), None);
         assert_eq!(stat.max_as_str(), None);
     }
 
     #[test]
     fn stats_as_str_str() {
-        let stat = Statistics::String(StatValues::new(
+        let stat = Statistics::String(StatValues::new_non_null(
             Some("a".to_string()),
             Some("zz".to_string()),
             1,
@@ -837,7 +900,7 @@ mod tests {
         assert_eq!(stat.min_as_str(), Some("a".into()));
         assert_eq!(stat.max_as_str(), Some("zz".into()));
 
-        let stat = Statistics::String(StatValues::new(None, None, 1));
+        let stat = Statistics::String(StatValues::new_non_null(None, None, 1));
         assert_eq!(stat.min_as_str(), None);
         assert_eq!(stat.max_as_str(), None);
     }
@@ -901,7 +964,7 @@ mod tests {
         let col = table_a.column("string").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::String(StatValues::new(
+            Statistics::String(StatValues::new_non_null(
                 Some("aaa".to_string()),
                 Some("zzz".to_string()),
                 4,
@@ -911,20 +974,20 @@ mod tests {
         let col = table_a.column("int").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::I64(StatValues::new(Some(1), Some(9), 4))
+            Statistics::I64(StatValues::new_non_null(Some(1), Some(9), 4))
         );
 
         let col = table_a.column("float").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::F64(StatValues::new(Some(1.3), Some(9.1), 2))
+            Statistics::F64(StatValues::new_non_null(Some(1.3), Some(9.1), 2))
         );
 
         table_b.update_from(&table_c);
         let col = table_b.column("string").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::String(StatValues::new(
+            Statistics::String(StatValues::new_non_null(
                 Some("aaa".to_string()),
                 Some("zzz".to_string()),
                 4,
@@ -934,13 +997,13 @@ mod tests {
         let col = table_b.column("int").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::I64(StatValues::new(Some(1), Some(9), 4))
+            Statistics::I64(StatValues::new_non_null(Some(1), Some(9), 4))
         );
 
         let col = table_b.column("float").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::F64(StatValues::new(Some(1.3), Some(9.1), 2))
+            Statistics::F64(StatValues::new_non_null(Some(1.3), Some(9.1), 2))
         );
     }
 
@@ -981,7 +1044,7 @@ mod tests {
         let col = t.column("string").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::String(StatValues::new(
+            Statistics::String(StatValues::new_non_null(
                 Some("bar".to_string()),
                 Some("foo".to_string()),
                 2,
@@ -990,7 +1053,7 @@ mod tests {
         let col = t.column("int").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::I64(StatValues::new(Some(1), Some(10), 3))
+            Statistics::I64(StatValues::new_non_null(Some(1), Some(10), 3))
         );
     }
 
@@ -999,15 +1062,15 @@ mod tests {
         let bool_false = ColumnSummary {
             name: "b".to_string(),
             influxdb_type: None,
-            stats: Statistics::Bool(StatValues::new(Some(false), Some(false), 1)),
+            stats: Statistics::Bool(StatValues::new(Some(false), Some(false), 1, 1)),
         };
         let bool_true = ColumnSummary {
             name: "b".to_string(),
             influxdb_type: None,
-            stats: Statistics::Bool(StatValues::new(Some(true), Some(true), 1)),
+            stats: Statistics::Bool(StatValues::new(Some(true), Some(true), 1, 2)),
         };
 
-        let expected_stats = Statistics::Bool(StatValues::new(Some(false), Some(true), 2));
+        let expected_stats = Statistics::Bool(StatValues::new(Some(false), Some(true), 2, 3));
 
         let mut b = bool_false.clone();
         b.update_from(&bool_true);
@@ -1023,18 +1086,18 @@ mod tests {
         let mut min = ColumnSummary {
             name: "foo".to_string(),
             influxdb_type: None,
-            stats: Statistics::U64(StatValues::new(Some(5), Some(23), 1)),
+            stats: Statistics::U64(StatValues::new(Some(5), Some(23), 1, 1)),
         };
 
         let max = ColumnSummary {
             name: "foo".to_string(),
             influxdb_type: None,
-            stats: Statistics::U64(StatValues::new(Some(6), Some(506), 43)),
+            stats: Statistics::U64(StatValues::new(Some(6), Some(506), 43, 2)),
         };
 
         min.update_from(&max);
 
-        let expected = Statistics::U64(StatValues::new(Some(5), Some(506), 44));
+        let expected = Statistics::U64(StatValues::new(Some(5), Some(506), 44, 3));
         assert_eq!(min.stats, expected);
     }
 
@@ -1043,32 +1106,32 @@ mod tests {
         let mut stat = StatValues::default();
         assert_eq!(stat.min, None);
         assert_eq!(stat.max, None);
-        assert_eq!(stat.count, 0);
+        assert_eq!(stat.total_count, 0);
 
         stat.update(&f64::NAN);
         assert_eq!(stat.min, None);
         assert_eq!(stat.max, None);
-        assert_eq!(stat.count, 1);
+        assert_eq!(stat.total_count, 1);
 
         stat.update(&1.0);
         assert_eq!(stat.min, Some(1.0));
         assert_eq!(stat.max, Some(1.0));
-        assert_eq!(stat.count, 2);
+        assert_eq!(stat.total_count, 2);
 
         stat.update(&2.0);
         assert_eq!(stat.min, Some(1.0));
         assert_eq!(stat.max, Some(2.0));
-        assert_eq!(stat.count, 3);
+        assert_eq!(stat.total_count, 3);
 
         stat.update(&f64::INFINITY);
         assert_eq!(stat.min, Some(1.0));
         assert_eq!(stat.max, Some(f64::INFINITY));
-        assert_eq!(stat.count, 4);
+        assert_eq!(stat.total_count, 4);
 
         stat.update(&-1.0);
         assert_eq!(stat.min, Some(-1.0));
         assert_eq!(stat.max, Some(f64::INFINITY));
-        assert_eq!(stat.count, 5);
+        assert_eq!(stat.total_count, 5);
 
         // ===========
 
@@ -1076,12 +1139,12 @@ mod tests {
         stat.update(&f64::INFINITY);
         assert_eq!(stat.min, Some(2.0));
         assert_eq!(stat.max, Some(f64::INFINITY));
-        assert_eq!(stat.count, 2);
+        assert_eq!(stat.total_count, 2);
 
         stat.update(&f64::NAN);
         assert_eq!(stat.min, Some(2.0));
         assert_eq!(stat.max, Some(f64::INFINITY));
-        assert_eq!(stat.count, 3);
+        assert_eq!(stat.total_count, 3);
 
         // ===========
 
@@ -1089,7 +1152,7 @@ mod tests {
         stat2.update_from(&stat);
         assert_eq!(stat2.min, Some(1.0));
         assert_eq!(stat.max, Some(f64::INFINITY));
-        assert_eq!(stat2.count, 4);
+        assert_eq!(stat2.total_count, 4);
 
         // ===========
 
@@ -1097,13 +1160,13 @@ mod tests {
         stat.update_from(&stat2);
         assert_eq!(stat.min, Some(1.0));
         assert_eq!(stat.max, Some(f64::INFINITY));
-        assert_eq!(stat.count, 4);
+        assert_eq!(stat.total_count, 4);
 
         // ===========
 
         let stat = StatValues::new_with_value(f64::NAN);
         assert_eq!(stat.min, None);
         assert_eq!(stat.max, None);
-        assert_eq!(stat.count, 1);
+        assert_eq!(stat.total_count, 1);
     }
 }

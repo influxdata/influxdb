@@ -52,7 +52,7 @@ pub fn persist_chunks(
         assert!(Arc::ptr_eq(&db, &chunk.data().db));
         assert_eq!(chunk.table_name().as_ref(), table_name.as_str());
 
-        input_rows += chunk.table_summary().count();
+        input_rows += chunk.table_summary().total_count();
 
         time_of_first_write = match (time_of_first_write, chunk.time_of_first_write()) {
             (Some(prev_first), Some(candidate_first)) => Some(prev_first.min(candidate_first)),

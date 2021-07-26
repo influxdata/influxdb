@@ -697,10 +697,12 @@ fn extract_iox_statistics(
     parquet_stats: &ParquetStatistics,
     min_max_set: bool,
     iox_type: InfluxColumnType,
-    count: u64,
+    total_count: u64,
     row_group_idx: usize,
     column_name: &str,
 ) -> Result<Statistics> {
+    let null_count = parquet_stats.null_count();
+
     match (parquet_stats, iox_type) {
         (ParquetStatistics::Boolean(stats), InfluxColumnType::Field(InfluxFieldType::Boolean)) => {
             Ok(Statistics::Bool(StatValues {
@@ -709,7 +711,8 @@ fn extract_iox_statistics(
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
-                count,
+                null_count,
+                total_count,
             }))
         }
         (ParquetStatistics::Int64(stats), InfluxColumnType::Field(InfluxFieldType::Integer)) => {
@@ -719,7 +722,8 @@ fn extract_iox_statistics(
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
-                count,
+                null_count,
+                total_count,
             }))
         }
         (ParquetStatistics::Int64(stats), InfluxColumnType::Field(InfluxFieldType::UInteger)) => {
@@ -729,7 +733,8 @@ fn extract_iox_statistics(
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
-                count,
+                null_count,
+                total_count,
             }))
         }
         (ParquetStatistics::Double(stats), InfluxColumnType::Field(InfluxFieldType::Float)) => {
@@ -739,7 +744,8 @@ fn extract_iox_statistics(
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
-                count,
+                null_count,
+                total_count,
             }))
         }
         (ParquetStatistics::Int64(stats), InfluxColumnType::Timestamp) => {
@@ -749,7 +755,8 @@ fn extract_iox_statistics(
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
-                count,
+                null_count,
+                total_count,
             }))
         }
         (ParquetStatistics::ByteArray(stats), InfluxColumnType::Tag)
@@ -782,7 +789,8 @@ fn extract_iox_statistics(
                 distinct_count: parquet_stats
                     .distinct_count()
                     .and_then(|x| x.try_into().ok()),
-                count,
+                null_count,
+                total_count,
             }))
         }
         _ => Err(Error::StatisticsTypeMismatch {
@@ -926,7 +934,7 @@ mod tests {
         let n_rows = parquet_metadata.md.file_metadata().num_rows() as u64;
         assert!(n_rows >= parquet_metadata.md.num_row_groups() as u64);
         for summary in &chunk.table_summary().columns {
-            assert!(summary.count() <= n_rows);
+            assert!(summary.total_count() <= n_rows);
         }
 
         // check column names

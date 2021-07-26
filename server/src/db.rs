@@ -1217,7 +1217,7 @@ impl Db {
 
                     // At this point this should not be possible
                     ensure!(
-                        timestamp_summary.stats.count == row_count as u64,
+                        timestamp_summary.stats.total_count == row_count as u64,
                         TableBatchMissingTimes {}
                     );
 
@@ -1989,7 +1989,7 @@ mod tests {
         assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
         assert_metric("catalog_loaded_rows", "object_store", 0.0);
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1287)
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1319)
             .unwrap();
 
         db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
@@ -2047,7 +2047,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 671;
+        let expected_parquet_size = 703;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -2528,7 +2528,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2308.0)
+            .sample_sum_eq(2340.0)
             .unwrap();
 
         // while MB and RB chunk are identical, the PQ chunk is a new one (split off)
@@ -2648,7 +2648,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2308.0)
+            .sample_sum_eq(2340.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -2678,7 +2678,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(671.0)
+            .sample_sum_eq(703.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -2820,7 +2820,7 @@ mod tests {
         // validate it has data
         let table_summary = partition.summary().table;
         assert_eq!(&table_summary.name, "cpu");
-        assert_eq!(table_summary.count(), 2);
+        assert_eq!(table_summary.total_count(), 2);
         let windows = partition.persistence_windows().unwrap();
         let open_min = windows.minimum_unpersisted_timestamp().unwrap();
         let open_max = windows.maximum_unpersisted_timestamp().unwrap();
@@ -3276,7 +3276,7 @@ mod tests {
                 2,
                 ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                3284, // size of RB and OS chunks
+                3332, // size of RB and OS chunks
                 1523, // size of parquet file
                 2,
             ),
@@ -3286,7 +3286,7 @@ mod tests {
                 0,
                 ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
-                2446,
+                2510,
                 0, // no OS chunks
                 1,
             ),
@@ -3311,9 +3311,9 @@ mod tests {
             );
         }
 
-        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2446 + 87);
+        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2510 + 87);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2434);
-        assert_eq!(db.catalog.metrics().memory().object_store(), 850);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 898);
     }
 
     #[tokio::test]
@@ -3367,17 +3367,17 @@ mod tests {
                         ColumnSummary {
                             name: "bar".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(2.0), 2)),
+                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(2.0), 2, 0)),
                         },
                         ColumnSummary {
                             name: "baz".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(3.0), Some(3.0), 2)),
+                            stats: Statistics::F64(StatValues::new(Some(3.0), Some(3.0), 2, 1)),
                         },
                         ColumnSummary {
                             name: "time".into(),
                             influxdb_type: Some(InfluxDbType::Timestamp),
-                            stats: Statistics::I64(StatValues::new(Some(1), Some(2), 2)),
+                            stats: Statistics::I64(StatValues::new(Some(1), Some(2), 2, 0)),
                         },
                     ],
                 },
@@ -3390,12 +3390,12 @@ mod tests {
                         ColumnSummary {
                             name: "foo".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(1.0), 1)),
+                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(1.0), 1, 0)),
                         },
                         ColumnSummary {
                             name: "time".into(),
                             influxdb_type: Some(InfluxDbType::Timestamp),
-                            stats: Statistics::I64(StatValues::new(Some(1), Some(1), 1)),
+                            stats: Statistics::I64(StatValues::new(Some(1), Some(1), 1, 0)),
                         },
                     ],
                 },
@@ -3408,7 +3408,7 @@ mod tests {
                         ColumnSummary {
                             name: "bar".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(1.0), 1)),
+                            stats: Statistics::F64(StatValues::new(Some(1.0), Some(1.0), 1, 0)),
                         },
                         ColumnSummary {
                             name: "time".into(),
@@ -3417,6 +3417,7 @@ mod tests {
                                 Some(400000000000000),
                                 Some(400000000000000),
                                 1,
+                                0,
                             )),
                         },
                     ],
@@ -3430,7 +3431,7 @@ mod tests {
                         ColumnSummary {
                             name: "frob".into(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(3.0), Some(3.0), 1)),
+                            stats: Statistics::F64(StatValues::new(Some(3.0), Some(3.0), 1, 0)),
                         },
                         ColumnSummary {
                             name: "time".into(),
@@ -3439,6 +3440,7 @@ mod tests {
                                 Some(400000000000001),
                                 Some(400000000000001),
                                 1,
+                                0,
                             )),
                         },
                     ],

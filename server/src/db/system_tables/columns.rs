@@ -177,7 +177,7 @@ fn assemble_chunk_columns(
             table_name.append_value(&chunk_summary.inner.table_name)?;
             column_name.append_value(&column.name)?;
             storage.append_value(storage_value)?;
-            row_count.append_value(column.count())?;
+            row_count.append_value(column.total_count())?;
             if let Some(v) = column.stats.min_as_str() {
                 min_values.append_value(v)?;
             } else {
@@ -292,12 +292,13 @@ mod tests {
                                 Some("bar".to_string()),
                                 Some("foo".to_string()),
                                 55,
+                                0,
                             )),
                         },
                         ColumnSummary {
                             name: "c2".to_string(),
                             influxdb_type: Some(InfluxDbType::Field),
-                            stats: Statistics::F64(StatValues::new(Some(11.0), Some(43.0), 66)),
+                            stats: Statistics::F64(StatValues::new(Some(11.0), Some(43.0), 66, 0)),
                         },
                     ],
                 }),
@@ -334,7 +335,7 @@ mod tests {
                     columns: vec![ColumnSummary {
                         name: "c1".to_string(),
                         influxdb_type: Some(InfluxDbType::Field),
-                        stats: Statistics::F64(StatValues::new(Some(110.0), Some(430.0), 667)),
+                        stats: Statistics::F64(StatValues::new(Some(110.0), Some(430.0), 667, 0)),
                     }],
                 }),
                 DetailedChunkSummary {
@@ -364,7 +365,7 @@ mod tests {
                     columns: vec![ColumnSummary {
                         name: "c3".to_string(),
                         influxdb_type: Some(InfluxDbType::Field),
-                        stats: Statistics::F64(StatValues::new(Some(-1.0), Some(2.0), 4)),
+                        stats: Statistics::F64(StatValues::new(Some(-1.0), Some(2.0), 4, 0)),
                     }],
                 }),
                 DetailedChunkSummary {

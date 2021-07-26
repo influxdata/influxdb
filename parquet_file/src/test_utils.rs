@@ -192,6 +192,9 @@ fn create_column_tag(
         arrow_cols_sub.push((name.to_string(), Arc::clone(&array), true));
     }
 
+    let total_count = data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64;
+    let null_count = data.iter().flatten().filter(|x| x.is_none()).count() as u64;
+
     summaries.push(ColumnSummary {
         name: name.to_string(),
         influxdb_type: Some(InfluxDbType::Tag),
@@ -208,7 +211,8 @@ fn create_column_tag(
                 .filter_map(|x| x.as_ref())
                 .max()
                 .map(|x| x.to_string()),
-            count: data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64,
+            total_count,
+            null_count,
             distinct_count: None,
         }),
     });
@@ -232,14 +236,16 @@ fn create_column_field_string(
         |StatValues {
              min,
              max,
-             count,
+             total_count,
+             null_count,
              distinct_count,
          }| {
             Statistics::String(StatValues {
                 min: min.map(|x| x.to_string()),
                 max: max.map(|x| x.to_string()),
+                total_count,
+                null_count,
                 distinct_count,
-                count,
             })
         },
     )
@@ -295,6 +301,9 @@ fn create_column_field_f64(
         array_data_type = Some(array.data_type().clone());
     }
 
+    let total_count = data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64;
+    let null_count = data.iter().flatten().filter(|x| x.is_none()).count() as u64;
+
     summaries.push(ColumnSummary {
         name: name.to_string(),
         influxdb_type: Some(InfluxDbType::Field),
@@ -313,7 +322,8 @@ fn create_column_field_f64(
                 .filter(|x| !x.is_nan())
                 .max_by(|a, b| a.partial_cmp(b).unwrap())
                 .cloned(),
-            count: data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64,
+            total_count,
+            null_count,
             distinct_count: None,
         }),
     });
@@ -360,6 +370,9 @@ fn create_column_field_generic<A, T, F>(
         array_data_type = Some(array.data_type().clone());
     }
 
+    let total_count = data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64;
+    let null_count = data.iter().flatten().filter(|x| x.is_none()).count() as u64;
+
     summaries.push(ColumnSummary {
         name: name.to_string(),
         influxdb_type: Some(InfluxDbType::Field),
@@ -376,7 +389,8 @@ fn create_column_field_generic<A, T, F>(
                 .filter_map(|x| x.as_ref())
                 .max()
                 .cloned(),
-            count: data.iter().flatten().filter_map(|x| x.as_ref()).count() as u64,
+            total_count,
+            null_count,
             distinct_count: None,
         }),
     });
@@ -401,13 +415,17 @@ fn create_column_timestamp(
     let min = data.iter().flatten().min().cloned();
     let max = data.iter().flatten().max().cloned();
 
+    let total_count = data.iter().map(Vec::len).sum::<usize>() as u64;
+    let null_count = 0; // no nulls in timestamp
+
     summaries.push(ColumnSummary {
         name: TIME_COLUMN_NAME.to_string(),
         influxdb_type: Some(InfluxDbType::Timestamp),
         stats: Statistics::I64(StatValues {
             min,
             max,
-            count: data.iter().map(Vec::len).sum::<usize>() as u64,
+            total_count,
+            null_count,
             distinct_count: None,
         }),
     });
