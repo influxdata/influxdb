@@ -67,7 +67,10 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
 }
 
 pub mod test_utils {
+    use std::time::Duration;
+
     use async_trait::async_trait;
+    use chrono::{DateTime, TimeZone, Utc};
     use entry::{test_helpers::lp_to_entry, Entry};
     use futures::{StreamExt, TryStreamExt};
 
@@ -100,6 +103,7 @@ pub mod test_utils {
         test_multi_writer_multi_reader(&adapter).await;
         test_seek(&adapter).await;
         test_watermark(&adapter).await;
+        test_timestamp(&adapter).await;
     }
 
     async fn test_single_stream_io<T>(adapter: &T)
@@ -395,6 +399,39 @@ pub mod test_utils {
         assert_eq!((stream_2.fetch_high_watermark)().await.unwrap(), mark_2 + 1);
     }
 
+    async fn test_timestamp<T>(adapter: &T)
+    where
+        T: TestAdapter,
+    {
+        let context = adapter.new_context(1).await;
+
+        let entry = lp_to_entry("upc user=1 100");
+
+        let writer = context.writing();
+        let mut reader = context.reading().await;
+
+        let mut streams = reader.streams();
+        assert_eq!(streams.len(), 1);
+        let (sequencer_id, mut stream) = streams.pop().unwrap();
+
+        // ingest data
+        // NOTE: Pre- and post-timestamp can have sub-millisecond data but some writebuffer implementations (like Kafka)
+        //       only support milli-second precision. Floor and ceil timestamp accordingly.
+        let ts_pre = timestamp_floor_millis(Utc::now());
+        writer.store_entry(&entry, sequencer_id).await.unwrap();
+        let ts_post = timestamp_ceil_millis(Utc::now());
+
+        // wait a bit
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // check that the timestamp records the ingestion time, not the read time
+        let sequenced_entry = stream.stream.next().await.unwrap().unwrap();
+        let sequence = sequenced_entry.sequence().unwrap();
+        let ts_entry = sequence.ingest_timestamp;
+        assert!(ts_entry >= ts_pre, "{} >= {}", ts_entry, ts_pre);
+        assert!(ts_entry <= ts_post, "{} <= {}", ts_entry, ts_post);
+    }
+
     async fn assert_reader_content<R>(reader: &mut R, expected: &[(u32, &[&Entry])])
     where
         R: WriteBufferReading,
@@ -421,6 +458,28 @@ pub mod test_utils {
             });
             let actual_entries: Vec<_> = results.iter().map(|entry| entry.entry()).collect();
             assert_eq!(&&actual_entries[..], expected_entries);
+        }
+    }
+
+    /// Return largest "milliseconds only" timestamp less than or equal to the given timestamp.
+    ///
+    /// The result will not have micro- or nanoseconds attached.
+    fn timestamp_floor_millis(ts: DateTime<Utc>) -> DateTime<Utc> {
+        let millis = ts.timestamp_millis();
+        Utc.timestamp_millis(millis)
+    }
+
+    /// Return smallest "milliseconds only" timestamp greater than or equal to the given timestamp.
+    ///
+    /// The result will not have micro- or nanoseconds attached.
+    fn timestamp_ceil_millis(ts: DateTime<Utc>) -> DateTime<Utc> {
+        let millis = ts.timestamp_millis();
+        let ts2 = Utc.timestamp_millis(millis);
+        if ts2 != ts {
+            // ts has sub-milli precision, increase millis by 1 (ceiling)
+            Utc.timestamp_millis(millis + 1)
+        } else {
+            ts2
         }
     }
 }

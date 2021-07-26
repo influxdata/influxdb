@@ -8,10 +8,7 @@ use flatbuffers::{FlatBufferBuilder, Follow, ForwardsUOffset, Vector, VectorIter
 use ouroboros::self_referencing;
 use snafu::{OptionExt, ResultExt, Snafu};
 
-use data_types::{
-    database_rules::{Error as DataError, Partitioner, ShardId, Sharder},
-    server_id::ServerId,
-};
+use data_types::database_rules::{Error as DataError, Partitioner, ShardId, Sharder};
 use generated_types::influxdata::transfer::column::v1 as pb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 use internal_types::schema::{
@@ -1744,32 +1741,20 @@ pub struct SequencedEntry {
 pub struct Sequence {
     pub id: u32,
     pub number: u64,
+    pub ingest_timestamp: DateTime<Utc>,
 }
 
 impl Sequence {
-    pub fn new(sequencer_id: u32, sequence_number: u64) -> Self {
+    pub fn new(sequencer_id: u32, sequence_number: u64, ingest_timestamp: DateTime<Utc>) -> Self {
         Self {
             id: sequencer_id,
             number: sequence_number,
+            ingest_timestamp,
         }
     }
 }
 
 impl SequencedEntry {
-    pub fn new_from_process_clock(
-        process_clock: ClockValue,
-        server_id: ServerId,
-        entry: Entry,
-    ) -> Result<Self, SequencedEntryError> {
-        Ok(Self {
-            entry,
-            sequence: Some(Sequence {
-                id: server_id.get_u32(),
-                number: process_clock.get_u64(),
-            }),
-        })
-    }
-
     pub fn new_from_sequence(
         sequence: Sequence,
         entry: Entry,

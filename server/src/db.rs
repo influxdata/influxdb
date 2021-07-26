@@ -1469,12 +1469,15 @@ mod tests {
     async fn read_from_write_buffer_write_to_mutable_buffer() {
         let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
         write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(Sequence::new(0, 0), lp_to_entry("mem foo=1 10"))
-                .unwrap(),
+            SequencedEntry::new_from_sequence(
+                Sequence::new(0, 0, Utc::now()),
+                lp_to_entry("mem foo=1 10"),
+            )
+            .unwrap(),
         );
         write_buffer_state.push_entry(
             SequencedEntry::new_from_sequence(
-                Sequence::new(0, 7),
+                Sequence::new(0, 7, Utc::now()),
                 lp_to_entry("cpu bar=2 20\ncpu bar=3 30"),
             )
             .unwrap(),
@@ -2700,16 +2703,20 @@ mod tests {
 
         let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(2);
         write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(Sequence::new(0, 0), entry.clone()).unwrap(),
+            SequencedEntry::new_from_sequence(Sequence::new(0, 0, Utc::now()), entry.clone())
+                .unwrap(),
         );
         write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(Sequence::new(1, 0), entry.clone()).unwrap(),
+            SequencedEntry::new_from_sequence(Sequence::new(1, 0, Utc::now()), entry.clone())
+                .unwrap(),
         );
         write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(Sequence::new(1, 2), entry.clone()).unwrap(),
+            SequencedEntry::new_from_sequence(Sequence::new(1, 2, Utc::now()), entry.clone())
+                .unwrap(),
         );
-        write_buffer_state
-            .push_entry(SequencedEntry::new_from_sequence(Sequence::new(0, 1), entry).unwrap());
+        write_buffer_state.push_entry(
+            SequencedEntry::new_from_sequence(Sequence::new(0, 1, Utc::now()), entry).unwrap(),
+        );
         let write_buffer = MockBufferForReading::new(write_buffer_state);
 
         let db = TestDb::builder()

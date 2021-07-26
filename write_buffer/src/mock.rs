@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc, task::Poll};
 
 use async_trait::async_trait;
+use chrono::Utc;
 use entry::{Entry, Sequence, SequencedEntry};
 use futures::{stream, FutureExt, StreamExt};
 use parking_lot::Mutex;
@@ -128,6 +129,7 @@ impl WriteBufferWriting for MockBufferForWriting {
         let sequence = Sequence {
             id: sequencer_id,
             number: sequence_number,
+            ingest_timestamp: Utc::now(),
         };
         sequencer_entries.push(Ok(SequencedEntry::new_from_sequence(
             sequence,
@@ -362,7 +364,7 @@ mod tests {
     fn test_state_push_entry_panic_wrong_sequencer() {
         let state = MockBufferSharedState::empty_with_n_sequencers(2);
         let entry = lp_to_entry("upc,region=east user=1 100");
-        let sequence = Sequence::new(2, 0);
+        let sequence = Sequence::new(2, 0, Utc::now());
         state.push_entry(SequencedEntry::new_from_sequence(sequence, entry).unwrap());
     }
 
@@ -373,7 +375,7 @@ mod tests {
     fn test_state_push_entry_panic_wrong_sequence_number_equal() {
         let state = MockBufferSharedState::empty_with_n_sequencers(2);
         let entry = lp_to_entry("upc,region=east user=1 100");
-        let sequence = Sequence::new(1, 13);
+        let sequence = Sequence::new(1, 13, Utc::now());
         state.push_entry(SequencedEntry::new_from_sequence(sequence, entry.clone()).unwrap());
         state.push_entry(SequencedEntry::new_from_sequence(sequence, entry).unwrap());
     }
@@ -385,8 +387,8 @@ mod tests {
     fn test_state_push_entry_panic_wrong_sequence_number_less() {
         let state = MockBufferSharedState::empty_with_n_sequencers(2);
         let entry = lp_to_entry("upc,region=east user=1 100");
-        let sequence_1 = Sequence::new(1, 13);
-        let sequence_2 = Sequence::new(1, 12);
+        let sequence_1 = Sequence::new(1, 13, Utc::now());
+        let sequence_2 = Sequence::new(1, 12, Utc::now());
         state.push_entry(SequencedEntry::new_from_sequence(sequence_1, entry.clone()).unwrap());
         state.push_entry(SequencedEntry::new_from_sequence(sequence_2, entry).unwrap());
     }

@@ -543,21 +543,33 @@ mod tests {
         let start_time = Utc::now();
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                id: 1,
+                number: 2,
+                ingest_timestamp: Utc::now(),
+            }),
             1,
             start_time,
             Utc::now(),
             i,
         );
         w.add_range(
-            Some(&Sequence { id: 1, number: 4 }),
+            Some(&Sequence {
+                id: 1,
+                number: 4,
+                ingest_timestamp: Utc::now(),
+            }),
             2,
             Utc::now(),
             Utc::now(),
             Instant::now(),
         );
         w.add_range(
-            Some(&Sequence { id: 1, number: 10 }),
+            Some(&Sequence {
+                id: 1,
+                number: 10,
+                ingest_timestamp: Utc::now(),
+            }),
             1,
             Utc::now(),
             Utc::now(),
@@ -565,7 +577,11 @@ mod tests {
         );
         let last_time = Utc::now();
         w.add_range(
-            Some(&Sequence { id: 2, number: 23 }),
+            Some(&Sequence {
+                id: 2,
+                number: 23,
+                ingest_timestamp: Utc::now(),
+            }),
             10,
             Utc::now(),
             last_time,
@@ -597,14 +613,22 @@ mod tests {
         let last_time = Utc::now();
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                id: 1,
+                number: 2,
+                ingest_timestamp: Utc::now(),
+            }),
             1,
             start_time,
             start_time,
             created_at,
         );
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                id: 1,
+                number: 3,
+                ingest_timestamp: Utc::now(),
+            }),
             1,
             last_time,
             last_time,
@@ -615,7 +639,11 @@ mod tests {
             .unwrap();
         let open_time = Utc::now();
         w.add_range(
-            Some(&Sequence { id: 1, number: 6 }),
+            Some(&Sequence {
+                id: 1,
+                number: 6,
+                ingest_timestamp: Utc::now(),
+            }),
             2,
             last_time,
             open_time,
@@ -651,7 +679,11 @@ mod tests {
 
         let first_end = Utc::now();
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                id: 1,
+                number: 2,
+                ingest_timestamp: Utc::now(),
+            }),
             2,
             start_time,
             first_end,
@@ -663,7 +695,11 @@ mod tests {
             .unwrap();
         let second_end = Utc::now();
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                id: 1,
+                number: 3,
+                ingest_timestamp: Utc::now(),
+            }),
             3,
             first_end,
             second_end,
@@ -675,7 +711,11 @@ mod tests {
             .unwrap();
         let third_end = Utc::now();
         w.add_range(
-            Some(&Sequence { id: 1, number: 4 }),
+            Some(&Sequence {
+                id: 1,
+                number: 4,
+                ingest_timestamp: Utc::now(),
+            }),
             4,
             second_end,
             third_end,
@@ -707,7 +747,11 @@ mod tests {
             .unwrap();
         let fourth_end = Utc::now();
         w.add_range(
-            Some(&Sequence { id: 1, number: 5 }),
+            Some(&Sequence {
+                id: 1,
+                number: 5,
+                ingest_timestamp: Utc::now(),
+            }),
             1,
             fourth_end,
             fourth_end,
@@ -732,7 +776,11 @@ mod tests {
             .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD * 100)
             .unwrap();
         w.add_range(
-            Some(&Sequence { id: 1, number: 9 }),
+            Some(&Sequence {
+                id: 1,
+                number: 9,
+                ingest_timestamp: Utc::now(),
+            }),
             2,
             Utc::now(),
             Utc::now(),
@@ -773,21 +821,33 @@ mod tests {
         let third_end = third_start + chrono::Duration::seconds(1);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                id: 1,
+                number: 2,
+                ingest_timestamp: Utc::now(),
+            }),
             2,
             start_time,
             first_end,
             created_at,
         );
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                id: 1,
+                number: 3,
+                ingest_timestamp: Utc::now(),
+            }),
             3,
             second_start,
             second_end,
             second_created_at,
         );
         w.add_range(
-            Some(&Sequence { id: 1, number: 5 }),
+            Some(&Sequence {
+                id: 1,
+                number: 5,
+                ingest_timestamp: Utc::now(),
+            }),
             2,
             third_start,
             third_end,
@@ -852,21 +912,33 @@ mod tests {
         let third_end = third_start + chrono::Duration::seconds(1);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                id: 1,
+                number: 2,
+                ingest_timestamp: Utc::now(),
+            }),
             2,
             start_time,
             first_end,
             created_at,
         );
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                id: 1,
+                number: 3,
+                ingest_timestamp: Utc::now(),
+            }),
             3,
             second_start,
             second_end,
             second_created_at,
         );
         w.add_range(
-            Some(&Sequence { id: 1, number: 5 }),
+            Some(&Sequence {
+                id: 1,
+                number: 5,
+                ingest_timestamp: Utc::now(),
+            }),
             2,
             third_start,
             third_end,
@@ -931,21 +1003,33 @@ mod tests {
         let third_end = second_end + chrono::Duration::seconds(1);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                id: 1,
+                number: 2,
+                ingest_timestamp: Utc::now(),
+            }),
             2,
             start_time,
             first_end,
             created_at,
         );
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                id: 1,
+                number: 3,
+                ingest_timestamp: Utc::now(),
+            }),
             3,
             first_end,
             second_end,
             second_created_at,
         );
         w.add_range(
-            Some(&Sequence { id: 1, number: 5 }),
+            Some(&Sequence {
+                id: 1,
+                number: 5,
+                ingest_timestamp: Utc::now(),
+            }),
             2,
             third_start,
             third_end,
@@ -1017,21 +1101,33 @@ mod tests {
         let third_end = second_end + chrono::Duration::seconds(1);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                id: 1,
+                number: 2,
+                ingest_timestamp: Utc::now(),
+            }),
             2,
             start_time,
             first_end,
             created_at,
         );
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                id: 1,
+                number: 3,
+                ingest_timestamp: Utc::now(),
+            }),
             3,
             second_start,
             second_end,
             second_created_at,
         );
         w.add_range(
-            Some(&Sequence { id: 1, number: 5 }),
+            Some(&Sequence {
+                id: 1,
+                number: 5,
+                ingest_timestamp: Utc::now(),
+            }),
             2,
             third_start,
             third_end,
@@ -1085,7 +1181,11 @@ mod tests {
         let start = Utc::now();
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                id: 1,
+                number: 2,
+                ingest_timestamp: Utc::now(),
+            }),
             2,
             start,
             start + chrono::Duration::seconds(2),
@@ -1101,7 +1201,11 @@ mod tests {
         );
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 4 }),
+            Some(&Sequence {
+                id: 1,
+                number: 4,
+                ingest_timestamp: Utc::now(),
+            }),
             5,
             start,
             start + chrono::Duration::seconds(4),
@@ -1171,7 +1275,11 @@ mod tests {
         );
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 9 }),
+            Some(&Sequence {
+                id: 1,
+                number: 9,
+                ingest_timestamp: Utc::now(),
+            }),
             9,
             start,
             start + chrono::Duration::seconds(2),
@@ -1201,7 +1309,11 @@ mod tests {
         let start = Utc::now();
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                id: 1,
+                number: 2,
+                ingest_timestamp: Utc::now(),
+            }),
             2,
             start,
             start + chrono::Duration::seconds(2),
@@ -1209,7 +1321,11 @@ mod tests {
         );
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 6 }),
+            Some(&Sequence {
+                id: 1,
+                number: 6,
+                ingest_timestamp: Utc::now(),
+            }),
             5,
             start,
             start + chrono::Duration::seconds(4),
@@ -1217,7 +1333,11 @@ mod tests {
         );
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 9 }),
+            Some(&Sequence {
+                id: 1,
+                number: 9,
+                ingest_timestamp: Utc::now(),
+            }),
             9,
             start,
             start + chrono::Duration::seconds(2),
@@ -1225,7 +1345,11 @@ mod tests {
         );
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 10 }),
+            Some(&Sequence {
+                id: 1,
+                number: 10,
+                ingest_timestamp: Utc::now(),
+            }),
             17,
             start,
             start + chrono::Duration::seconds(2),
@@ -1251,7 +1375,11 @@ mod tests {
         assert_eq!(w.persistable.as_ref().unwrap().row_count, 2);
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 14 }),
+            Some(&Sequence {
+                id: 1,
+                number: 14,
+                ingest_timestamp: Utc::now(),
+            }),
             11,
             start,
             start + chrono::Duration::seconds(2),
@@ -1327,7 +1455,11 @@ mod tests {
 
         // Window 1
         w.add_range(
-            Some(&Sequence { id: 1, number: 1 }),
+            Some(&Sequence {
+                id: 1,
+                number: 1,
+                ingest_timestamp: Utc::now(),
+            }),
             11,
             Utc.timestamp_nanos(10),
             Utc.timestamp_nanos(11),
@@ -1335,7 +1467,11 @@ mod tests {
         );
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 2 }),
+            Some(&Sequence {
+                id: 1,
+                number: 2,
+                ingest_timestamp: Utc::now(),
+            }),
             4,
             Utc.timestamp_nanos(10),
             Utc.timestamp_nanos(340),
@@ -1343,7 +1479,11 @@ mod tests {
         );
 
         w.add_range(
-            Some(&Sequence { id: 1, number: 3 }),
+            Some(&Sequence {
+                id: 1,
+                number: 3,
+                ingest_timestamp: Utc::now(),
+            }),
             6,
             Utc.timestamp_nanos(1),
             Utc.timestamp_nanos(5),
@@ -1352,7 +1492,11 @@ mod tests {
 
         // More than DEFAULT_CLOSED_WINDOW_PERIOD after start of Window 1 => Window 2
         w.add_range(
-            Some(&Sequence { id: 1, number: 4 }),
+            Some(&Sequence {
+                id: 1,
+                number: 4,
+                ingest_timestamp: Utc::now(),
+            }),
             3,
             Utc.timestamp_nanos(89),
             Utc.timestamp_nanos(90),
@@ -1361,7 +1505,11 @@ mod tests {
 
         // More than DEFAULT_CLOSED_WINDOW_PERIOD after start of Window 2 => Window 3
         w.add_range(
-            Some(&Sequence { id: 1, number: 5 }),
+            Some(&Sequence {
+                id: 1,
+                number: 5,
+                ingest_timestamp: Utc::now(),
+            }),
             8,
             Utc.timestamp_nanos(3),
             Utc.timestamp_nanos(4),

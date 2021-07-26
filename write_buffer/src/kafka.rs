@@ -6,6 +6,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use chrono::{TimeZone, Utc};
 use data_types::server_id::ServerId;
 use entry::{Entry, Sequence, SequencedEntry};
 use futures::{FutureExt, StreamExt};
@@ -49,11 +50,14 @@ impl WriteBufferWriting for KafkaBufferProducer {
         sequencer_id: u32,
     ) -> Result<Sequence, WriteBufferError> {
         let partition = i32::try_from(sequencer_id)?;
+        let timestamp = Utc::now();
+
         // This type annotation is necessary because `FutureRecord` is generic over key type, but
         // key is optional and we're not setting a key. `String` is arbitrary.
         let record: FutureRecord<'_, String, _> = FutureRecord::to(&self.database_name)
             .payload(entry.data())
-            .partition(partition);
+            .partition(partition)
+            .timestamp(timestamp.timestamp_millis());
 
         debug!(db_name=%self.database_name, partition, size=entry.data().len(), "writing to kafka");
 
@@ -68,6 +72,7 @@ impl WriteBufferWriting for KafkaBufferProducer {
         Ok(Sequence {
             id: partition.try_into()?,
             number: offset.try_into()?,
+            ingest_timestamp: timestamp,
         })
     }
 }
@@ -128,9 +133,27 @@ impl WriteBufferReading for KafkaBufferConsumer {
                 .map(move |message| {
                     let message = message?;
                     let entry = Entry::try_from(message.payload().unwrap().to_vec())?;
+
+                    // Timestamps were added as part of
+                    // [KIP-32](https://cwiki.apache.org/confluence/display/KAFKA/KIP-32+-+Add+timestamps+to+Kafka+message).
+                    // The tracking issue [KAFKA-2511](https://issues.apache.org/jira/browse/KAFKA-2511) states that
+                    // this was completed with Kafka 0.10.0.0, for which the
+                    // [release page](https://kafka.apache.org/downloads#0.10.0.0) states a release date of 2016-05-22.
+                    // Also see https://stackoverflow.com/a/62936145 which also mentions that fact.
+                    //
+                    // So instead of making the timestamp optional throughout the stack, we just require an
+                    // up-to-date Kafka stack.
+                    let timestamp_millis = message.timestamp().to_millis().ok_or_else::<WriteBufferError, _>(|| {
+                        "The connected Kafka does not seem to support message timestamps (KIP-32). Please upgrade to >= 0.10.0.0".to_string().into()
+                    })?;
+                    let timestamp = Utc.timestamp_millis_opt(timestamp_millis).single().ok_or_else::<WriteBufferError, _>(|| {
+                        format!("Cannot parse timestamp for milliseconds: {}", timestamp_millis).into()
+                    })?;
+
                     let sequence = Sequence {
                         id: message.partition().try_into()?,
                         number: message.offset().try_into()?,
+                        ingest_timestamp: timestamp,
                     };
 
                     Ok(SequencedEntry::new_from_sequence(sequence, entry)?)
