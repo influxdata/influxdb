@@ -102,20 +102,8 @@ pub fn persist_chunks(
         let remainder_stream = ctx.execute_partition(physical_plan, 1).await?;
 
         let (to_persist, remainder) = futures::future::try_join(
-            collect_rub(
-                to_persist_stream,
-                db.as_ref(),
-                &table_name,
-                time_of_first_write,
-                time_of_last_write,
-            ),
-            collect_rub(
-                remainder_stream,
-                db.as_ref(),
-                &table_name,
-                time_of_first_write,
-                time_of_last_write,
-            ),
+            collect_rub(to_persist_stream, db.as_ref(), &table_name),
+            collect_rub(remainder_stream, db.as_ref(), &table_name),
         )
         .await?;
 
@@ -131,14 +119,24 @@ pub fn persist_chunks(
 
             // Upsert remainder to catalog
             if let Some(remainder) = remainder {
-                partition_write.create_rub_chunk(remainder, Arc::clone(&schema));
+                partition_write.create_rub_chunk(
+                    remainder,
+                    time_of_first_write,
+                    time_of_last_write,
+                    Arc::clone(&schema),
+                );
             }
 
             let to_persist = to_persist.expect("should be rows to persist");
 
             let to_persist = LockableCatalogChunk {
                 db,
-                chunk: partition_write.create_rub_chunk(to_persist, schema),
+                chunk: partition_write.create_rub_chunk(
+                    to_persist,
+                    time_of_first_write,
+                    time_of_last_write,
+                    schema,
+                ),
             };
             let to_persist = to_persist.write();
 

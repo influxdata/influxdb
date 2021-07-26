@@ -165,6 +165,8 @@ impl Partition {
     pub fn create_rub_chunk(
         &mut self,
         chunk: read_buffer::RBChunk,
+        time_of_first_write: DateTime<Utc>,
+        time_of_last_write: DateTime<Utc>,
         schema: Arc<Schema>,
     ) -> Arc<RwLock<CatalogChunk>> {
         let chunk_id = self.next_chunk_id;
@@ -177,6 +179,8 @@ impl Partition {
         let chunk = Arc::new(self.metrics.new_chunk_lock(CatalogChunk::new_rub_chunk(
             addr,
             chunk,
+            time_of_first_write,
+            time_of_last_write,
             schema,
             self.metrics.new_chunk_metrics(),
         )));

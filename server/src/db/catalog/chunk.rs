@@ -307,16 +307,14 @@ impl CatalogChunk {
     pub(super) fn new_rub_chunk(
         addr: ChunkAddr,
         chunk: read_buffer::RBChunk,
+        time_of_first_write: DateTime<Utc>,
+        time_of_last_write: DateTime<Utc>,
         schema: Arc<Schema>,
         metrics: ChunkMetrics,
     ) -> Self {
-        let summary = chunk.table_summary();
-        let time_of_first_write = summary.time_of_first_write;
-        let time_of_last_write = summary.time_of_last_write;
-
         let stage = ChunkStage::Frozen {
             meta: Arc::new(ChunkMetadata {
-                table_summary: Arc::new(summary.into()),
+                table_summary: Arc::new(chunk.table_summary()),
                 schema,
             }),
             representation: ChunkStageFrozenRepr::ReadBuffer(Arc::new(chunk)),
