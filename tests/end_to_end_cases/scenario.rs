@@ -432,7 +432,7 @@ pub async fn wait_for_exact_chunk_states(
     db_name: &str,
     mut desired_storages: Vec<ChunkStorage>,
     wait_time: std::time::Duration,
-) {
+) -> Vec<ChunkSummary> {
     // ensure consistent order
     desired_storages.sort();
 
@@ -452,7 +452,8 @@ async fn wait_for_state<P>(
     mut pred: P,
     fail_message: String,
     wait_time: std::time::Duration,
-) where
+) -> Vec<ChunkSummary>
+where
     P: FnMut(&[ChunkSummary]) -> bool,
 {
     let t_start = std::time::Instant::now();
@@ -461,7 +462,7 @@ async fn wait_for_state<P>(
         let chunks = list_chunks(fixture, db_name).await;
 
         if pred(&chunks) {
-            return;
+            return chunks;
         }
 
         // Log the current status of the chunks

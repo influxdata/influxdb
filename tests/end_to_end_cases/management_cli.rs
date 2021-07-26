@@ -722,13 +722,14 @@ async fn test_unload_partition_chunk() {
     let lp_data = vec!["cpu,region=west user=23.2 10"];
     load_lp(addr, &db_name, lp_data);
 
-    wait_for_exact_chunk_states(
+    let mut chunks = wait_for_exact_chunk_states(
         &fixture,
         &db_name,
         vec![ChunkStorage::ReadBufferAndObjectStore],
         std::time::Duration::from_secs(5),
     )
     .await;
+    let chunk = chunks.pop().unwrap();
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -738,7 +739,7 @@ async fn test_unload_partition_chunk() {
         .arg(&db_name)
         .arg("cpu")
         .arg("cpu")
-        .arg("1")
+        .arg(chunk.id.to_string())
         .arg("--host")
         .arg(addr)
         .assert()
