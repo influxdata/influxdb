@@ -178,7 +178,7 @@ pub trait LifecycleChunk {
     /// Returns the access metrics for this chunk
     fn access_metrics(&self) -> AccessMetrics;
 
-    fn time_of_last_write(&self) -> Option<DateTime<Utc>>;
+    fn time_of_last_write(&self) -> DateTime<Utc>;
 
     fn addr(&self) -> &ChunkAddr;
 

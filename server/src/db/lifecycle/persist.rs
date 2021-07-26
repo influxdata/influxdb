@@ -54,17 +54,15 @@ pub fn persist_chunks(
 
         input_rows += chunk.table_summary().total_count();
 
-        time_of_first_write = match (time_of_first_write, chunk.time_of_first_write()) {
-            (Some(prev_first), Some(candidate_first)) => Some(prev_first.min(candidate_first)),
-            (Some(only), None) | (None, Some(only)) => Some(only),
-            (None, None) => None,
-        };
+        let candidate_first = chunk.time_of_first_write();
+        time_of_first_write = time_of_first_write
+            .map(|prev_first| prev_first.min(candidate_first))
+            .or(Some(candidate_first));
 
-        time_of_last_write = match (time_of_last_write, chunk.time_of_last_write()) {
-            (Some(prev_last), Some(candidate_last)) => Some(prev_last.max(candidate_last)),
-            (Some(only), None) | (None, Some(only)) => Some(only),
-            (None, None) => None,
-        };
+        let candidate_last = chunk.time_of_last_write();
+        time_of_last_write = time_of_last_write
+            .map(|prev_last| prev_last.max(candidate_last))
+            .or(Some(candidate_last));
 
         chunk.set_writing_to_object_store(&registration)?;
         query_chunks.push(DbChunk::snapshot(&*chunk));

@@ -218,6 +218,7 @@ fn assemble_chunk_columns(
 mod tests {
     use super::*;
     use arrow_util::assert_batches_eq;
+    use chrono::{TimeZone, Utc};
     use data_types::{
         chunk_metadata::{ChunkColumnSummary, ChunkStorage, ChunkSummary},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
@@ -317,8 +318,8 @@ mod tests {
                         object_store_bytes: 0,
                         row_count: 11,
                         time_of_last_access: None,
-                        time_of_first_write: None,
-                        time_of_last_write: None,
+                        time_of_first_write: Utc.timestamp_nanos(1),
+                        time_of_last_write: Utc.timestamp_nanos(2),
                         time_closed: None,
                     },
                     columns: vec![
@@ -353,8 +354,8 @@ mod tests {
                         object_store_bytes: 0,
                         row_count: 11,
                         time_of_last_access: None,
-                        time_of_first_write: None,
-                        time_of_last_write: None,
+                        time_of_first_write: Utc.timestamp_nanos(1),
+                        time_of_last_write: Utc.timestamp_nanos(2),
                         time_closed: None,
                     },
                     columns: vec![ChunkColumnSummary {
@@ -383,8 +384,8 @@ mod tests {
                         object_store_bytes: 0,
                         row_count: 11,
                         time_of_last_access: None,
-                        time_of_first_write: None,
-                        time_of_last_write: None,
+                        time_of_first_write: Utc.timestamp_nanos(1),
+                        time_of_last_write: Utc.timestamp_nanos(2),
                         time_closed: None,
                     },
                     columns: vec![ChunkColumnSummary {
