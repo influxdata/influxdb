@@ -82,6 +82,8 @@ pub struct DbChunk {
     access_recorder: AccessRecorder,
     state: State,
     meta: Arc<ChunkMetadata>,
+    time_of_first_write: DateTime<Utc>,
+    time_of_last_write: DateTime<Utc>,
 }
 
 #[derive(Debug)]
@@ -159,6 +161,8 @@ impl DbChunk {
             access_recorder: chunk.access_recorder().clone(),
             state,
             meta,
+            time_of_first_write: chunk.time_of_first_write(),
+            time_of_last_write: chunk.time_of_last_write(),
         })
     }
 
@@ -186,6 +190,8 @@ impl DbChunk {
             meta,
             state,
             access_recorder: chunk.access_recorder().clone(),
+            time_of_first_write: chunk.time_of_first_write(),
+            time_of_last_write: chunk.time_of_last_write(),
         })
     }
 
@@ -204,19 +210,11 @@ impl DbChunk {
     }
 
     pub fn time_of_first_write(&self) -> DateTime<Utc> {
-        match &self.state {
-            State::MutableBuffer { chunk } => chunk.table_summary().time_of_first_write,
-            State::ReadBuffer { chunk, .. } => chunk.table_summary().time_of_first_write,
-            State::ParquetFile { chunk } => chunk.table_summary().time_of_first_write,
-        }
+        self.time_of_first_write
     }
 
     pub fn time_of_last_write(&self) -> DateTime<Utc> {
-        match &self.state {
-            State::MutableBuffer { chunk } => chunk.table_summary().time_of_last_write,
-            State::ReadBuffer { chunk, .. } => chunk.table_summary().time_of_last_write,
-            State::ParquetFile { chunk } => chunk.table_summary().time_of_last_write,
-        }
+        self.time_of_last_write
     }
 }
 
