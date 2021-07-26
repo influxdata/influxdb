@@ -539,7 +539,8 @@ mod tests {
 
     #[tokio::test]
     #[should_panic(expected = "assertion failed: ")]
-    async fn replay_metatest_fail_assert_partitions() {
+    async fn test_framework_fail_assert_partitions() {
+        // Test the test framework: checking the partitions should actually fail
         ReplayTest {
             n_sequencers: 1,
             steps: vec![
@@ -558,7 +559,8 @@ mod tests {
 
     #[tokio::test]
     #[should_panic(expected = "assertion failed: ")]
-    async fn replay_metatest_fail_assert_query() {
+    async fn test_framework_fail_assert_query() {
+        // Test the test framework: checking the query results should actually fail
         ReplayTest {
             n_sequencers: 1,
             steps: vec![
