@@ -118,7 +118,5 @@ message DatabaseRules {
 }
 
 message RoutingConfig {
-  NodeGroup target = 1 [deprecated = true];
-
   Sink sink = 2;
 }

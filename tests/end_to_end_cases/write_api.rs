@@ -513,9 +513,7 @@ async fn test_write_routed_no_shard() {
             .get_database(db_name)
             .await
             .expect("cannot get database on router");
-        #[allow(deprecated)]
         let routing_config = RoutingConfig {
-            target: None,
             sink: Some(Sink {
                 sink: Some(sink::Sink::Iox(NodeGroup {
                     nodes: vec![Node { id: *remote_id }],
