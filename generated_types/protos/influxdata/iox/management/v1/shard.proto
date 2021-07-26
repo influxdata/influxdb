@@ -57,6 +57,7 @@ message Sink {
   oneof sink {
     NodeGroup iox = 1;
     KafkaProducer kafka = 2;
+    DevNull dev_null = 3;
   }
 }
 
@@ -70,6 +71,11 @@ message NodeGroup {
 
 // Kafka producer configuration
 message KafkaProducer {
+
+}
+
+// Everything sent to /dev/null can eventually be retrieved from /dev/random, given sufficient time.
+message DevNull {
 
 }
 

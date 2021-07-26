@@ -873,6 +873,10 @@ where
             Sink::Kafka(_) => {
                 todo!("write to write buffer")
             }
+            Sink::DevNull => {
+                // write is silently ignored, as requested by the configuration.
+                Ok(())
+            }
         }
     }
 

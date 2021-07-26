@@ -337,6 +337,7 @@ pub struct ShardConfig {
 pub enum Sink {
     Iox(NodeGroup),
     Kafka(KafkaProducer),
+    DevNull,
 }
 
 struct LineHasher<'a, 'b, 'c> {
