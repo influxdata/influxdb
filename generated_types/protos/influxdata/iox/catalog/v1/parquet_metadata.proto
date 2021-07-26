@@ -32,10 +32,10 @@ message IoxMetadata {
   // Database checkpoint created at the time of the write.
   DatabaseCheckpoint database_checkpoint = 7;
 
-  // Timestamp when this file was first written.
+  // Wallclock timestamp of when the first data in this file was received by IOx.
   FixedSizeTimestamp time_of_first_write = 8;
 
-  // Timestamp when this file was last written.
+  // Wallclock timestamp of when the last data in this file was received by IOx.
   FixedSizeTimestamp time_of_last_write = 9;
 }
 
