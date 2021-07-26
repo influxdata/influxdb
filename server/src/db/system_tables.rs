@@ -14,7 +14,6 @@ use arrow::{
     error::Result,
     record_batch::RecordBatch,
 };
-use chrono::{DateTime, Utc};
 use datafusion::{
     catalog::schema::SchemaProvider,
     datasource::{datasource::Statistics, TableProvider},
@@ -151,11 +150,6 @@ where
     fn statistics(&self) -> Statistics {
         Statistics::default()
     }
-}
-
-// TODO: Use a custom proc macro or serde to reduce the boilerplate
-fn time_to_ts(time: Option<DateTime<Utc>>) -> Option<i64> {
-    time.map(|ts| ts.timestamp_nanos())
 }
 
 /// Creates a DataFusion ExecutionPlan node that scans a single batch

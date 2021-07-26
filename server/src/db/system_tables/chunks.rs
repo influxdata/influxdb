@@ -1,13 +1,11 @@
-use crate::db::{
-    catalog::Catalog,
-    system_tables::{time_to_ts, IoxSystemTable},
-};
+use crate::db::{catalog::Catalog, system_tables::IoxSystemTable};
 use arrow::{
     array::{StringArray, TimestampNanosecondArray, UInt32Array, UInt64Array},
     datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit},
     error::Result,
     record_batch::RecordBatch,
 };
+use chrono::{DateTime, Utc};
 use data_types::{chunk_metadata::ChunkSummary, error::ErrorLogger};
 use std::sync::Arc;
 
@@ -54,6 +52,11 @@ fn chunk_summaries_schema() -> SchemaRef {
         Field::new("time_of_last_write", ts.clone(), true),
         Field::new("time_closed", ts, true),
     ]))
+}
+
+// TODO: Use a custom proc macro or serde to reduce the boilerplate
+fn time_to_ts(time: Option<DateTime<Utc>>) -> Option<i64> {
+    time.map(|ts| ts.timestamp_nanos())
 }
 
 fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
