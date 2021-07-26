@@ -148,7 +148,6 @@ where
             .update_db_rules(&db_name, |_orig| Ok(rules))
             .await
             .map_err(UpdateError::from)?;
-
         Ok(Response::new(UpdateDatabaseResponse {
             rules: Some(updated_rules.as_ref().clone().into()),
         }))

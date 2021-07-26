@@ -287,9 +287,9 @@ pub struct StrftimeColumn {
 
 /// A routing config defines the destination where to route all data plane operations
 /// for a given database.
-#[derive(Debug, Eq, PartialEq, Clone, Default)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct RoutingConfig {
-    pub target: NodeGroup,
+    pub sink: Sink,
 }
 
 /// ShardId maps to a nodegroup that holds the the shard.
@@ -329,13 +329,14 @@ pub struct ShardConfig {
     pub ignore_errors: bool,
     /// Mapping between shard IDs and node groups. Other sharding rules use
     /// ShardId as targets.
-    pub shards: Arc<HashMap<ShardId, Shard>>,
+    pub shards: Arc<HashMap<ShardId, Sink>>,
 }
 
-/// Configuration for a specific IOx shard
+/// Configuration for a specific IOx sink
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Shard {
+pub enum Sink {
     Iox(NodeGroup),
+    Kafka(KafkaProducer),
 }
 
 struct LineHasher<'a, 'b, 'c> {
@@ -390,6 +391,9 @@ pub struct MatcherToShard {
 
 /// A collection of IOx nodes
 pub type NodeGroup = Vec<ServerId>;
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct KafkaProducer {}
 
 /// HashRing is a rule for creating a hash key for a row and mapping that to
 /// an individual node on a ring.
