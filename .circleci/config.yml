@@ -247,7 +247,7 @@ jobs:
       - cache_restore
       - run:
           name: Print rustc target CPU options
-          command: cargo build --release --features="aws,gcp,azure" --bin print_cpus
+          command: cargo build --release --features="aws,gcp,azure" --bin print_cpu
       - run:
           name: Cargo release build with target arch set for CRoaring
           command: ROARING_ARCH=haswell cargo build --release --features="aws,gcp,azure"
