@@ -191,7 +191,7 @@ mod tests {
         checkpoint::{PartitionCheckpoint, PersistCheckpointBuilder, ReplayPlanner},
         min_max_sequence::OptionalMinMaxSequence,
     };
-    use query::QueryChunk;
+    use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryChunk};
     use test_helpers::assert_contains;
     use tokio_util::sync::CancellationToken;
     use write_buffer::{
@@ -199,7 +199,7 @@ mod tests {
         mock::{MockBufferForReading, MockBufferSharedState},
     };
 
-    use crate::{db::test_helpers::run_query, utils::TestDb};
+    use crate::utils::TestDb;
 
     #[derive(Debug)]
     struct TestSequencedEntry {
@@ -477,18 +477,38 @@ mod tests {
                         )
                     }
                     Check::Query(query, expected) => {
-                        let batches = run_query(Arc::clone(&db), query).await;
+                        let db = Arc::clone(&db);
+                        let planner = SqlQueryPlanner::default();
+                        let executor = db.executor();
 
-                        // we are throwing away the record batches after the assert, so we don't care about interior
-                        // mutability
-                        let batches = std::panic::AssertUnwindSafe(batches);
+                        match planner.query(db, query, &executor) {
+                            Ok(physical_plan) => {
+                                match executor.collect(physical_plan, ExecutorType::Query).await {
+                                    Ok(batches) => {
+                                        // we are throwing away the record batches after the assert, so we don't care about interior
+                                        // mutability
+                                        let batches = std::panic::AssertUnwindSafe(batches);
 
-                        Self::eval_assert(
-                            || {
-                                assert_batches_eq!(expected, &batches);
-                            },
-                            use_assert,
-                        )
+                                        Self::eval_assert(
+                                            || {
+                                                assert_batches_eq!(expected, &batches);
+                                            },
+                                            use_assert,
+                                        )
+                                    }
+                                    err if use_assert => {
+                                        err.unwrap();
+                                        unreachable!()
+                                    }
+                                    _ => false,
+                                }
+                            }
+                            err if use_assert => {
+                                err.unwrap();
+                                unreachable!()
+                            }
+                            _ => false,
+                        }
                     }
                 };
 
