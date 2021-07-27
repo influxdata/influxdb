@@ -327,3 +327,45 @@ func TestLauncher_UpdateRetentionPolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestLauncher_OverlappingShards(t *testing.T) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	bkt := influxdb.Bucket{Name: "test", ShardGroupDuration: time.Hour, OrgID: l.Org.ID}
+	require.NoError(t, l.BucketService(t).CreateBucket(ctx, &bkt))
+
+	req := l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, bkt.ID),
+		"m,s=0 n=0 1626416520000000000\nm,s=0 n=1 1626420120000000000\n")
+	resp, err := nethttp.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	newDur := humanize.Day
+	_, err = l.BucketService(t).UpdateBucket(ctx, bkt.ID, influxdb.BucketUpdate{ShardGroupDuration: &newDur})
+	require.NoError(t, err)
+
+	req = l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, bkt.ID),
+		// NOTE: The 3rd point's timestamp is chronologically earlier than the other two points, but it
+		// must come after the others in the request to trigger the overlapping-shard bug. If it comes
+		// first in the request, the bug is avoided because:
+		//   1. The point-writer sees there is no shard for the earlier point, and creates a new 24h shard-group
+		//   2. The new 24 group covers the timestamps of the remaining 2 points, so the writer doesn't bother looking
+		//      for existing shards that also cover the timestamp
+		//   3. With only 1 shard mapped to the 3 points, there is no overlap to trigger the bug
+		"m,s=0 n=0 1626416520000000000\nm,s=0 n=1 1626420120000000000\nm,s=1 n=1 1626412920000000000\n")
+	resp, err = nethttp.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	query := `from(bucket:"test") |> range(start:2000-01-01T00:00:00Z,stop:2050-01-01T00:00:00Z)` +
+		` |> drop(columns:["_start","_stop"])`
+	exp := `,result,table,_time,_value,_field,_measurement,s` + "\r\n" +
+		`,_result,0,2021-07-16T06:22:00Z,0,n,m,0` + "\r\n" +
+		`,_result,0,2021-07-16T07:22:00Z,1,n,m,0` + "\r\n" +
+		`,_result,1,2021-07-16T05:22:00Z,1,n,m,1` + "\r\n\r\n"
+
+	buf, err := http.SimpleQuery(l.URL(), query, l.Org.Name, l.Auth.Token)
+	require.NoError(t, err)
+	require.Equal(t, exp, string(buf))
+}

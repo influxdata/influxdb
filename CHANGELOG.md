@@ -49,6 +49,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21888](https://github.com/influxdata/influxdb/pull/21888/): Ported the `influxd inspect dump-wal` command from 1.x.
 1. [21828](https://github.com/influxdata/influxdb/pull/21828): Added the command `influx inspect verify-wal`.
 1. [21814](https://github.com/influxdata/influxdb/pull/21814): Ported the `influxd inspect report-tsm` command from 1.x.
+1. [21936](https://github.com/influxdata/influxdb/pull/21936): Ported the `influxd inspect build-tsi` command from 1.x.
 1. [21910](https://github.com/influxdata/influxdb/pull/21910): Added `--ui-disabled` option to `influxd` to allow for running with the UI disabled.
 1. [21938](https://github.com/influxdata/influxdb/pull/21938): Added route to delete individual secret.
 
@@ -66,6 +67,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21839](https://github.com/influxdata/influxdb/pull/21839): Fix display and parsing of `influxd upgrade` CLI prompts in PowerShell.
 1. [21850](https://github.com/influxdata/influxdb/pull/21850): Systemd unit should block on startup until http endpoint is ready
 1. [21925](https://github.com/influxdata/influxdb/pull/21925): Upgrade to golang-jwt 3.2.1.
+1. [21946](https://github.com/influxdata/influxdb/pull/21946): Prevent silently dropped writes when there are overlapping shards.
 1. [21950](https://github.com/influxdata/influxdb/pull/21950): Invalid requests to /api/v2 subroutes now return 404 instead of a list of links.
 
 ## v2.0.7 [2021-06-04]
