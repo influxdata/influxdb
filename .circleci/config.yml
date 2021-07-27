@@ -384,9 +384,8 @@ jobs:
       - run: make checkgenerate
       - run: make vet
       - run: make checkfmt
-      - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
-      - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
-      - run: GO111MODULE=on ./env staticcheck ./...
+      - run: go install honnef.co/go/tools/cmd/staticcheck
+      - run: staticcheck ./...
 
   gotest:
     docker:
