@@ -13,50 +13,50 @@ import (
 
 func Test_DeleteTSM_EmptyFile(t *testing.T) {
 	dir, file := createTSMFile(t, tsmParams{})
+	defer os.RemoveAll(dir)
 
 	runCommand(t, testParams{
 		file:      file,
 		expectErr: true,
 		expectOut: "unable to read TSM file",
 	})
-	require.NoError(t, os.RemoveAll(dir))
 }
 
 func Test_DeleteTSM_WrongExt(t *testing.T) {
 	dir, file := createTSMFile(t, tsmParams{
 		improperExt: true,
 	})
+	defer os.RemoveAll(dir)
 
 	runCommand(t, testParams{
 		file:      file,
 		expectErr: true,
 		expectOut: "is not a TSM file",
 	})
-	require.NoError(t, os.RemoveAll(dir))
 }
 
 func Test_DeleteTSM_NotFile(t *testing.T) {
 	dir, _ := createTSMFile(t, tsmParams{})
+	defer os.RemoveAll(dir)
 
 	runCommand(t, testParams{
 		file:      dir,
 		expectErr: true,
 		expectOut: "is a directory",
 	})
-	require.NoError(t, os.RemoveAll(dir))
 }
 
 func Test_DeleteTSM_SingleEntry_Valid(t *testing.T) {
 	dir, file := createTSMFile(t, tsmParams{
 		keys: []string{"cpu"},
 	})
+	defer os.RemoveAll(dir)
 
 	runCommand(t, testParams{
 		file:            file,
 		shouldBeDeleted: true,
 		expectOut:       "deleting block: cpu",
 	})
-	require.NoError(t, os.RemoveAll(dir))
 }
 
 func Test_DeleteTSM_SingleEntry_Invalid(t *testing.T) {
@@ -64,25 +64,25 @@ func Test_DeleteTSM_SingleEntry_Invalid(t *testing.T) {
 		invalid: true,
 		keys:    []string{"cpu"},
 	})
+	defer os.RemoveAll(dir)
 
 	runCommand(t, testParams{
 		file:      file,
 		expectErr: true,
 		expectOut: "unable to read TSM file",
 	})
-	require.NoError(t, os.RemoveAll(dir))
 }
 
 func Test_DeleteTSM_ManyEntries_Valid(t *testing.T) {
 	dir, file := createTSMFile(t, tsmParams{
 		keys: []string{"cpu", "foobar", "mem"},
 	})
+	defer os.RemoveAll(dir)
 
 	runCommand(t, testParams{
 		file:      file,
 		expectOut: "deleting block: cpu",
 	})
-	require.NoError(t, os.RemoveAll(dir))
 }
 
 func Test_DeleteTSM_ManyEntries_Invalid(t *testing.T) {
@@ -90,13 +90,13 @@ func Test_DeleteTSM_ManyEntries_Invalid(t *testing.T) {
 		invalid: true,
 		keys:    []string{"cpu", "foobar", "mem"},
 	})
+	defer os.RemoveAll(dir)
 
 	runCommand(t, testParams{
 		file:      file,
 		expectErr: true,
 		expectOut: "unable to read TSM file",
 	})
-	require.NoError(t, os.RemoveAll(dir))
 }
 
 type testParams struct {
