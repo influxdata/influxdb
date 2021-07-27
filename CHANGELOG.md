@@ -66,6 +66,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21839](https://github.com/influxdata/influxdb/pull/21839): Fix display and parsing of `influxd upgrade` CLI prompts in PowerShell.
 1. [21850](https://github.com/influxdata/influxdb/pull/21850): Systemd unit should block on startup until http endpoint is ready
 1. [21925](https://github.com/influxdata/influxdb/pull/21925): Upgrade to golang-jwt 3.2.1.
+1. [XXXXX](https://github.com/influxdata/influxdb/pull/XXXXX): Invalid requests to /api/v2 subroutes now return 404 instead of a list of links.
 
 ## v2.0.7 [2021-06-04]
 
