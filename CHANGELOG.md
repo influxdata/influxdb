@@ -1,5 +1,19 @@
 ## unreleased
 
+### `influx` CLI moved to separate repository
+
+The `influx` CLI has been moved to its [own GitHub repository](https://github.com/influxdata/influx-cli/). Release artifacts
+produced by `influxdb` are impacted as follows:
+
+* Release archives (`.tar.gz` and `.zip`) no longer contain the `influx` binary.
+* The `influxdb2` package (`.deb` and `.rpm`) no longer contains the `influx` binary. Instead, it declares a recommended
+  dependency on the new `influx-cli` package.
+* The `quay.io/influxdb/influxdb` image no longer contains the `influx` binary. Users are recommended to migrate to the
+  `influxdb` image hosted in DockerHub.
+
+With this change, versions of the `influx` CLI and `influxd` server are not guaranteed to exactly match. Please use
+`influxd version` or `curl <your-server-url>/health` when checking the version of the installed/running server.
+
 ### Go Version
 
 This release upgrades the project to `go` version 1.16.
@@ -32,9 +46,12 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21784](https://github.com/influxdata/influxdb/pull/21784): Ported the `influxd inspect dumptsi` command from 1.x.
 1. [21786](https://github.com/influxdata/influxdb/pull/21786): Ported the `influxd inspect deletetsm` command from 1.x.
 1. [21802](https://github.com/influxdata/influxdb/pull/21802): Removed unused `chronograf-migator` package & chronograf API service, and updated various "chronograf" references.
+1. [21888](https://github.com/influxdata/influxdb/pull/21888/): Ported the `influxd inspect dump-wal` command from 1.x.
 1. [21828](https://github.com/influxdata/influxdb/pull/21828): Added the command `influx inspect verify-wal`.
 1. [21814](https://github.com/influxdata/influxdb/pull/21814): Ported the `influxd inspect report-tsm` command from 1.x.
 1. [21936](https://github.com/influxdata/influxdb/pull/21936): Ported the `influxd inspect build-tsi` command from 1.x.
+1. [21910](https://github.com/influxdata/influxdb/pull/21910): Added `--ui-disabled` option to `influxd` to allow for running with the UI disabled.
+1. [21938](https://github.com/influxdata/influxdb/pull/21938): Added route to delete individual secret.
 
 ### Bug Fixes
 
@@ -49,6 +66,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21849](https://github.com/influxdata/influxdb/pull/21849): Specify which fields are missing when rejecting an incomplete onboarding request.
 1. [21839](https://github.com/influxdata/influxdb/pull/21839): Fix display and parsing of `influxd upgrade` CLI prompts in PowerShell.
 1. [21850](https://github.com/influxdata/influxdb/pull/21850): Systemd unit should block on startup until http endpoint is ready
+1. [21925](https://github.com/influxdata/influxdb/pull/21925): Upgrade to golang-jwt 3.2.1.
 
 ## v2.0.7 [2021-06-04]
 

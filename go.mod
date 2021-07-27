@@ -15,7 +15,6 @@ require (
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
 	github.com/cespare/xxhash v1.1.0
 	github.com/davecgh/go-spew v1.1.1
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
 	github.com/docker/docker v1.13.1 // indirect
 	github.com/dustin/go-humanize v1.0.0
@@ -26,6 +25,7 @@ require (
 	github.com/go-chi/chi v4.1.0+incompatible
 	github.com/go-stack/stack v1.8.0
 	github.com/gogo/protobuf v1.3.2
+	github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/golang/gddo v0.0.0-20181116215533-9bd4a3295021
 	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.3.3

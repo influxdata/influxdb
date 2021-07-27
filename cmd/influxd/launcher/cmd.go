@@ -149,6 +149,7 @@ type InfluxdOpts struct {
 
 	ProfilingDisabled bool
 	MetricsDisabled   bool
+	UIDisabled        bool
 
 	NatsPort            int
 	NatsMaxPayloadBytes int
@@ -199,6 +200,7 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 
 		ProfilingDisabled: false,
 		MetricsDisabled:   false,
+		UIDisabled:        false,
 
 		StoreType:   DiskStore,
 		SecretStore: BoltStore,
@@ -579,6 +581,13 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Flag:    "metrics-disabled",
 			Desc:    "Don't expose metrics over HTTP at /metrics",
 			Default: o.MetricsDisabled,
+		},
+		// UI Config
+		{
+			DestP:   &o.UIDisabled,
+			Flag:    "ui-disabled",
+			Default: o.UIDisabled,
+			Desc:    "Disable the InfluxDB UI",
 		},
 	}
 }

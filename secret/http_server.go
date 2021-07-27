@@ -35,8 +35,8 @@ func NewHandler(log *zap.Logger, idLookupKey string, svc influxdb.SecretService)
 
 	r.Get("/", h.handleGetSecrets)
 	r.Patch("/", h.handlePatchSecrets)
-	// TODO: this shouldn't be a post to delete
-	r.Post("/delete", h.handleDeleteSecrets)
+	r.Delete("/{secretID}", h.handleDeleteSecret)
+	r.Post("/delete", h.handleDeleteSecrets) // deprecated
 	return r
 }
 
@@ -99,7 +99,8 @@ type secretsDeleteBody struct {
 	Secrets []string `json:"secrets"`
 }
 
-// handleDeleteSecrets is the HTTP handler for the DELETE /api/v2/orgs/:id/secrets route.
+// handleDeleteSecrets is the HTTP handler for the POST /api/v2/orgs/:id/secrets/delete route.
+// deprecated.
 func (h *handler) handleDeleteSecrets(w http.ResponseWriter, r *http.Request) {
 	orgID, err := h.decodeOrgID(r)
 	if err != nil {
@@ -114,6 +115,21 @@ func (h *handler) handleDeleteSecrets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.DeleteSecret(r.Context(), orgID, reqBody.Secrets...); err != nil {
+		h.api.Err(w, r, err)
+		return
+	}
+
+	h.api.Respond(w, r, http.StatusNoContent, nil)
+}
+
+// handleDeleteSecret is the HTTP handler for the DELETE /api/v2/orgs/:id/secrets/:id route.
+func (h *handler) handleDeleteSecret(w http.ResponseWriter, r *http.Request) {
+	orgID, err := h.decodeOrgID(r)
+	if err != nil {
+		h.api.Err(w, r, err)
+	}
+
+	if err := h.svc.DeleteSecret(r.Context(), orgID, chi.URLParam(r, "secretID")); err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
