@@ -104,7 +104,6 @@ type testParams struct {
 	sanitize        bool // if true, run with --sanitize flag. Else run with --measurement flag
 	expectOut       string
 	expectErr       bool
-	measurement     string
 	shouldBeDeleted bool
 }
 
