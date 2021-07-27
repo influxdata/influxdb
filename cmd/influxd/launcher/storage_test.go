@@ -346,6 +346,13 @@ func TestLauncher_OverlappingShards(t *testing.T) {
 	require.NoError(t, err)
 
 	req = l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, bkt.ID),
+		// NOTE: The 3rd point's timestamp is chronologically earlier than the other two points, but it
+		// must come after the others in the request to trigger the overlapping-shard bug. If it comes
+		// first in the request, the bug is avoided because:
+		//   1. The point-writer sees there is no shard for the earlier point, and creates a new 24h shard-group
+		//   2. The new 24 group covers the timestamps of the remaining 2 points, so the writer doesn't bother looking
+		//      for existing shards that also cover the timestamp
+		//   3. With only 1 shard mapped to the 3 points, there is no overlap to trigger the bug
 		"m,s=0 n=0 1626416520000000000\nm,s=0 n=1 1626420120000000000\nm,s=1 n=1 1626412920000000000\n")
 	resp, err = nethttp.DefaultClient.Do(req)
 	require.NoError(t, err)
