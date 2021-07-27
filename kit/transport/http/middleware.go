@@ -46,7 +46,7 @@ func Metrics(name string, reqMetric *prometheus.CounterVec, durMetric *prometheu
 
 			defer func(start time.Time) {
 				statusCode := statusW.Code()
-				// do not log metrics for invalid paths
+				// do not log metrics for invalid requests
 				if statusCode < 200 || statusCode > 299 {
 					return
 				}
