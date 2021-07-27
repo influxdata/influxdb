@@ -123,7 +123,10 @@ func (v *hasAnyTagKeys) Visit(node influxql.Node) influxql.Visitor {
 	}
 
 	if n, ok := node.(*influxql.VarRef); ok {
-		if n.Val != fieldKey && n.Val != measurementKey && n.Val != "$" {
+		// The influxql expression will have had references to "_measurement"
+		// remapped to "_name" at this point by reads.NodeToExpr, so be sure to
+		// check for the appropriate value here using the measurementRemap map.
+		if n.Val != fieldKey && n.Val != measurementRemap[measurementKey] && n.Val != "$" {
 			v.found = true
 			return nil
 		}
