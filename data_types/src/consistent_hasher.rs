@@ -1,6 +1,8 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
+use serde::{Deserialize, Serialize};
+
 /// A ConsistentHasher implements a simple consistent hashing mechanism
 /// that maps a point to the nearest "node" N.
 ///
@@ -11,7 +13,7 @@ use std::hash::{Hash, Hasher};
 ///
 /// e.g. you can use it find the ShardID in vector of ShardIds
 /// that is closest to a given hash value.
-#[derive(Debug, Eq, PartialEq, Clone, Default)]
+#[derive(Debug, Eq, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct ConsistentHasher<T>
 where
     T: Copy + Hash,
