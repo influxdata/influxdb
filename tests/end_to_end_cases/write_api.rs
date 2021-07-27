@@ -437,6 +437,72 @@ async fn test_write_routed_errors() {
 }
 
 #[tokio::test]
+async fn test_write_dev_null() {
+    const TEST_ROUTER_ID: u32 = 1;
+    const TEST_SHARD_ID: u32 = 42;
+
+    let router = ServerFixture::create_single_use().await;
+    let mut router_mgmt = router.management_client();
+    router_mgmt
+        .update_server_id(TEST_ROUTER_ID)
+        .await
+        .expect("set ID failed");
+    router.wait_server_initialized().await;
+
+    let db_name = rand_name();
+    create_readable_database(&db_name, router.grpc_channel()).await;
+
+    // Set sharding rules on the router:
+    let mut router_db_rules = router_mgmt
+        .get_database(&db_name)
+        .await
+        .expect("cannot get database on router");
+    let shard_config = ShardConfig {
+        specific_targets: vec![MatcherToShard {
+            matcher: Some(Matcher {
+                table_name_regex: "^cpu$".to_string(),
+                ..Default::default()
+            }),
+            shard: TEST_SHARD_ID,
+        }],
+        shards: vec![(
+            TEST_SHARD_ID,
+            Sink {
+                sink: Some(sink::Sink::DevNull(Default::default())),
+            },
+        )]
+        .into_iter()
+        .collect::<HashMap<_, _>>(),
+        ..Default::default()
+    };
+    router_db_rules.routing_rules = Some(RoutingRules::ShardConfig(shard_config));
+    router_mgmt
+        .update_database(router_db_rules)
+        .await
+        .expect("cannot update router db rules");
+
+    // Rows matching a shard directed to "/dev/null" are silently ignored
+    let mut write_client = router.write_client();
+    let lp_lines = vec!["cpu bar=1 100", "cpu bar=2 200"];
+    write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("dev null eats them all");
+
+    // Rows not matching that shard won't be send to "/dev/null".
+    let lp_lines = vec!["mem bar=1 1", "mem bar=2 2"];
+    let err = write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .unwrap_err();
+
+    assert_eq!(
+        err.to_string(),
+        "Unexpected server error: Internal error: Internal Error"
+    );
+}
+
+#[tokio::test]
 async fn test_write_routed_no_shard() {
     const TEST_ROUTER_ID: u32 = 1;
 
