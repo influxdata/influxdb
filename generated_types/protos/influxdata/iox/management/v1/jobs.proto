@@ -1,5 +1,6 @@
 syntax = "proto3";
 package influxdata.iox.management.v1;
+option go_package = "github.com/influxdata/iox/management/v1";
 
 message OperationMetadata {
   // How many nanoseconds of CPU time have been spent on this job so far?
