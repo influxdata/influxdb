@@ -2,14 +2,89 @@ package http
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"path"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestMetrics(t *testing.T) {
+	tests := []struct {
+		name          string
+		reqPath       string
+		wantCount     int
+		labelResponse string
+		labelStatus   string
+	}{
+		{
+			name:          "counter increments on success code",
+			reqPath:       "/",
+			wantCount:     1,
+			labelResponse: "200",
+			labelStatus:   "2XX",
+		},
+		{
+			name:          "counter does not increment on failure code",
+			reqPath:       "/badpath",
+			wantCount:     0,
+			labelResponse: "404",
+			labelStatus:   "4XX",
+		},
+	}
+
+	labels := []string{"handler", "method", "path", "status", "response_code", "user_agent"}
+
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			counter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "counter"}, labels)
+			hist := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "hist"}, labels)
+			reg := prom.NewRegistry(zaptest.NewLogger(t))
+			reg.MustRegister(counter, hist)
+
+			metricsMw := Metrics("testing", counter, hist)
+			svr := metricsMw(nextHandler)
+			r := httptest.NewRequest("GET", tt.reqPath, nil)
+			w := httptest.NewRecorder()
+			svr.ServeHTTP(w, r)
+
+			mfs := promtest.MustGather(t, reg)
+			m := promtest.FindMetric(mfs, "counter", map[string]string{
+				"handler":       "testing",
+				"method":        "GET",
+				"path":          "/",
+				"response_code": tt.labelResponse,
+				"status":        tt.labelStatus,
+				"user_agent":    "unknown",
+			})
+
+			if tt.wantCount == 0 {
+				require.Nil(t, m)
+				return
+			}
+
+			require.Equal(t, tt.wantCount, int(m.Counter.GetValue()))
+			t.Fatal("lol")
+		})
+	}
+}
 
 func Test_normalizePath(t *testing.T) {
 	tests := []struct {

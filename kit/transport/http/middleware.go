@@ -44,13 +44,21 @@ func Metrics(name string, reqMetric *prometheus.CounterVec, durMetric *prometheu
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			statusW := NewStatusResponseWriter(w)
 
+			fmt.Println(statusW.ResponseWriter.Header().Get("content-type"))
+
 			defer func(start time.Time) {
+				statusCode := statusW.Code()
+				// do not log metrics for invalid paths
+				if statusCode < 200 || statusCode > 299 {
+					return
+				}
+
 				label := prometheus.Labels{
 					"handler":       name,
 					"method":        r.Method,
 					"path":          normalizePath(r.URL.Path),
 					"status":        statusW.StatusCodeClass(),
-					"response_code": fmt.Sprintf("%d", statusW.Code()),
+					"response_code": fmt.Sprintf("%d", statusCode),
 					"user_agent":    UserAgent(r),
 				}
 				durMetric.With(label).Observe(time.Since(start).Seconds())
