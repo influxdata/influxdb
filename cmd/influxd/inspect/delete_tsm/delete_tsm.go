@@ -3,6 +3,7 @@ package delete_tsm
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/models"
@@ -59,6 +60,20 @@ func (a *args) process(cmd *cobra.Command, path string) error {
 	}
 	defer input.Close()
 
+	// Check if path is a directory
+	fi, err := input.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to read FileInfo of file %s: %w", path, err)
+	}
+	if fi.IsDir() {
+		return fmt.Errorf("%s is a directory", path)
+	}
+
+	// Check if file is a TSM file
+	if filepath.Ext(path) != "."+tsm1.TSMFileExtension {
+		return fmt.Errorf("%s is not a TSM file", path)
+	}
+
 	r, err := tsm1.NewTSMReader(input)
 	if err != nil {
 		return fmt.Errorf("unable to read TSM file %q: %w", path, err)
@@ -87,6 +102,7 @@ func (a *args) process(cmd *cobra.Command, path string) error {
 	defer w.Close()
 
 	// Iterate over the input blocks.
+	hasData := false
 	itr := r.BlockIterator()
 	for itr.Next() {
 		// Read key & time range.
@@ -113,18 +129,27 @@ func (a *args) process(cmd *cobra.Command, path string) error {
 		if err := w.WriteBlock(key, minTime, maxTime, block); err != nil {
 			return fmt.Errorf("failed to write block %q: %w", block, err)
 		}
+		hasData = true
 	}
 
 	// Write index & close.
-	if err := w.WriteIndex(); err != nil {
-		return fmt.Errorf("failed to write index to TSM file: %w", err)
-	} else if err := w.Close(); err != nil {
+	if hasData {
+		if err := w.WriteIndex(); err != nil {
+			return fmt.Errorf("failed to write index to TSM file: %w", err)
+		}
+	}
+	if err := w.Close(); err != nil {
 		return fmt.Errorf("failed to close TSM Writer: %w", err)
 	}
 
 	// Replace original file with new file.
 	if err := os.Rename(outputPath, path); err != nil {
 		return fmt.Errorf("failed to update TSM file %q: %w", path, err)
+	}
+	if !hasData {
+		if err := os.Remove(path); err != nil {
+			return fmt.Errorf("failed to remove empty TSM file %q: %w", path, err)
+		}
 	}
 	return nil
 }
