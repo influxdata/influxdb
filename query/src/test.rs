@@ -299,6 +299,7 @@ impl TestChunk {
         distinct_count: Option<NonZeroU64>,
     ) -> Self {
         let column_name = column_name.into();
+        let null_count = 0;
 
         // make a new schema with the specified column and
         // merge it in to any existing schema
@@ -308,7 +309,8 @@ impl TestChunk {
         let stats = Statistics::String(StatValues {
             min: min.map(ToString::to_string),
             max: max.map(ToString::to_string),
-            count,
+            total_count: count,
+            null_count,
             distinct_count,
         });
 
@@ -340,12 +342,14 @@ impl TestChunk {
         // make a new schema with the specified column and
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().timestamp().build().unwrap();
+        let null_count = 0;
 
         // Construct stats
         let stats = Statistics::I64(StatValues {
             min,
             max,
-            count,
+            total_count: count,
+            null_count,
             distinct_count,
         });
 

@@ -46,7 +46,7 @@ pub(crate) fn compact_chunks(
             assert!(Arc::ptr_eq(&db, &chunk.data().db));
             assert_eq!(chunk.table_name().as_ref(), table_name.as_str());
 
-            input_rows += chunk.table_summary().count();
+            input_rows += chunk.table_summary().total_count();
 
             time_of_first_write = match (time_of_first_write, chunk.time_of_first_write()) {
                 (Some(prev_first), Some(candidate_first)) => Some(prev_first.min(candidate_first)),
@@ -114,12 +114,15 @@ pub(crate) fn compact_chunks(
         let guard = new_chunk.read();
         let elapsed = now.elapsed();
 
-        assert!(guard.table_summary().count() > 0, "chunk has zero rows");
+        assert!(
+            guard.table_summary().total_count() > 0,
+            "chunk has zero rows"
+        );
         // input rows per second
         let throughput = (input_rows as u128 * 1_000_000_000) / elapsed.as_nanos();
 
         info!(input_chunks=query_chunks.len(), rub_row_groups=rb_row_groups,
-                input_rows=input_rows, output_rows=guard.table_summary().count(),
+                input_rows=input_rows, output_rows=guard.table_summary().total_count(),
                 sort_key=%key_str, compaction_took = ?elapsed, fut_execution_duration= ?fut_now.elapsed(),
                 rows_per_sec=?throughput,  "chunk(s) compacted");
 

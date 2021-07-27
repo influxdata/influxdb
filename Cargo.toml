@@ -6,6 +6,11 @@ edition = "2018"
 default-run = "influxdb_iox"
 readme = "README.md"
 
+
+[[bin]]
+name = "print_cpu"
+path = "src/print_cpu.rs"
+
 [workspace] # In alphabetical order
 members = [
     "arrow_util",

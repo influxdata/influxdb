@@ -943,6 +943,7 @@ impl<'a> TableBatch<'a> {
 #[derive(Debug)]
 pub struct Column<'a> {
     fb: entry_fb::Column<'a>,
+    /// Total number of rows, including null values
     pub row_count: usize,
 }
 
