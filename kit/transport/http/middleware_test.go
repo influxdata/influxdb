@@ -81,7 +81,6 @@ func TestMetrics(t *testing.T) {
 			}
 
 			require.Equal(t, tt.wantCount, int(m.Counter.GetValue()))
-			t.Fatal("lol")
 		})
 	}
 }

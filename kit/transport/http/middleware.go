@@ -44,8 +44,6 @@ func Metrics(name string, reqMetric *prometheus.CounterVec, durMetric *prometheu
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			statusW := NewStatusResponseWriter(w)
 
-			fmt.Println(statusW.ResponseWriter.Header().Get("content-type"))
-
 			defer func(start time.Time) {
 				statusCode := statusW.Code()
 				// do not log metrics for invalid paths

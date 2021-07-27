@@ -94,7 +94,9 @@ func swaggerHandler(fileOpener http.FileSystem) http.Handler {
 }
 
 // assetHandler returns a handler that either serves the file at that path, or
-// the default file if a file cannot be found at that path.
+// the default file if a file cannot be found at that path. If the default file
+// is served, the request path is re-written to the root path to simplify
+// metrics reporting.
 func assetHandler(fileOpener http.FileSystem) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
@@ -106,12 +108,20 @@ func assetHandler(fileOpener http.FileSystem) http.Handler {
 		// Try to open the file requested by name, falling back to the default file.
 		// If even the default file can't be found, the binary must not have been
 		// built with assets, so respond with not found.
-		f, err := openAsset(fileOpener, name)
+		f, fallback, err := openAsset(fileOpener, name)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		defer f.Close()
+
+		// If the default file will be served because the requested path didn't
+		// match any existing files, re-write the request path to the root path.
+		// This is to ensure that metrics do not get collected for an arbitrarily
+		// large range of incorrect paths.
+		if fallback {
+			r.URL.Path = "/"
+		}
 
 		staticFileHandler(f).ServeHTTP(w, r)
 	}
@@ -156,18 +166,21 @@ func staticFileHandler(f fs.File) http.Handler {
 // openAsset attempts to open the asset by name in the given directory, falling
 // back to the default file if the named asset can't be found. Returns an error
 // if even the default asset can't be opened.
-func openAsset(fileOpener http.FileSystem, name string) (fs.File, error) {
+func openAsset(fileOpener http.FileSystem, name string) (fs.File, bool, error) {
+	var fallback bool
+
 	f, err := fileOpener.Open(name)
 	if err != nil {
 		if os.IsNotExist(err) {
+			fallback = true
 			f, err = fileOpener.Open(defaultFile)
 		}
 		if err != nil {
-			return nil, err
+			return nil, fallback, err
 		}
 	}
 
-	return f, nil
+	return f, fallback, nil
 }
 
 // modTimeFromInfo gets the modification time from an fs.FileInfo. If this

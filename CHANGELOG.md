@@ -52,6 +52,8 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21936](https://github.com/influxdata/influxdb/pull/21936): Ported the `influxd inspect build-tsi` command from 1.x.
 1. [21910](https://github.com/influxdata/influxdb/pull/21910): Added `--ui-disabled` option to `influxd` to allow for running with the UI disabled.
 1. [21938](https://github.com/influxdata/influxdb/pull/21938): Added route to delete individual secret.
+1. [XXXXX](https://github.com/influxdata/influxdb/pull/XXXXX): Do not record telemetry data for invalid requests.
+1. [XXXXX](https://github.com/influxdata/influxdb/pull/XXXXX): Telemetry data for requests to the server root reported as root path if returning the default file regardless of the request path.
 
 ### Bug Fixes
 
