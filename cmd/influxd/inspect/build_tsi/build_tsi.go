@@ -3,8 +3,6 @@ package build_tsi
 import (
 	"errors"
 	"fmt"
-	"github.com/influxdata/influx-cli/v2/clients"
-	"github.com/influxdata/influx-cli/v2/pkg/stdio"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -12,6 +10,10 @@ import (
 	"strconv"
 	"sync/atomic"
 
+	"go.uber.org/zap/zapcore"
+
+	"github.com/influxdata/influx-cli/v2/clients"
+	"github.com/influxdata/influx-cli/v2/pkg/stdio"
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/file"
@@ -38,7 +40,7 @@ type buildTSI struct {
 	compactSeriesFile bool   // optional. Defaults to false
 	concurrency       int    // optional. Defaults to GOMAXPROCS(0)
 
-	verbose bool // optional. Defaults to false.
+	verbose bool // optional. Defaults to false
 	Logger  *zap.Logger
 }
 
@@ -80,6 +82,14 @@ memory usage.
 			}
 
 			config := logger.NewConfig()
+
+			// Set logger level based on verbose flag
+			if buildTSICmd.verbose {
+				config.Level = zapcore.DebugLevel
+			} else {
+				config.Level = zapcore.InfoLevel
+			}
+
 			newLogger, err := config.New(os.Stderr)
 			if err != nil {
 				return err
@@ -97,13 +107,13 @@ memory usage.
 	cmd.Flags().StringVar(&buildTSICmd.dataPath, "data-path", defaultDataPath, "Path to the TSM data directory.")
 	cmd.Flags().StringVar(&buildTSICmd.walPath, "wal-path", defaultWALPath, "Path to the WAL data directory.")
 	cmd.Flags().StringVar(&buildTSICmd.bucketID, "bucket-id", "", "Bucket ID")
-	cmd.Flags().StringVar(&buildTSICmd.shardID, "shard-id", "", "Shard ID, if this is specified, a bucket-id must also be specified")
+	cmd.Flags().StringVar(&buildTSICmd.shardID, "shard-id", "", "Shard ID, if this is specified a bucket-id must also be specified")
 	cmd.Flags().BoolVar(&buildTSICmd.compactSeriesFile, "compact-series-file", false, "Compact existing series file. Does not rebuilt index.")
 	cmd.Flags().IntVar(&buildTSICmd.concurrency, "concurrency", runtime.GOMAXPROCS(0), "Number of workers to dedicate to shard index building.")
 	cmd.Flags().Int64Var(&buildTSICmd.maxLogFileSize, "max-log-file-size", tsdb.DefaultMaxIndexLogFileSize, "Maximum log file size")
 	cmd.Flags().Uint64Var(&buildTSICmd.maxCacheSize, "max-cache-size", tsdb.DefaultCacheMaxMemorySize, "Maximum cache size")
+	cmd.Flags().BoolVar(&buildTSICmd.verbose, "v", false, "Verbose output, includes debug-level logs")
 	cmd.Flags().IntVar(&buildTSICmd.batchSize, "batch-size", defaultBatchSize, "Set the size of the batches we write to the index. Setting this can have adverse affects on performance and heap requirements")
-	cmd.Flags().BoolVar(&buildTSICmd.verbose, "v", false, "Verbose")
 
 	return cmd
 }
@@ -204,15 +214,14 @@ func (buildTSICmd *buildTSI) compactBucketSeriesFile(path string) error {
 		if err = compactor.Compact(partition); err != nil {
 			return err
 		}
-		fmt.Fprintln(os.Stdout, "compacted ", partition.Path())
+		buildTSICmd.Logger.Debug("Compacted", zap.String("path", partition.Path()))
 	}
 	return nil
 }
 
 func (buildTSICmd *buildTSI) compactSeriesFilePartition(path string) error {
 	const tmpExt = ".tmp"
-
-	fmt.Fprintf(os.Stdout, "processing partition for %q\n", path)
+	buildTSICmd.Logger.Info("Processing partition", zap.String("path", path))
 
 	// Open partition so index can recover from entries not in the snapshot.
 	partitionID, err := strconv.Atoi(filepath.Base(path))
@@ -229,7 +238,7 @@ func (buildTSICmd *buildTSI) compactSeriesFilePartition(path string) error {
 	indexPath := p.IndexPath()
 	var segmentPaths []string
 	for _, segment := range p.Segments() {
-		fmt.Fprintf(os.Stdout, "processing segment %q %d\n", segment.Path(), segment.ID())
+		buildTSICmd.Logger.Info("Processing segment", zap.String("path", segment.Path()), zap.Uint16("segment-id", segment.ID()))
 
 		if err := segment.CompactToPath(segment.Path()+tmpExt, p.Index()); err != nil {
 			return err
@@ -246,14 +255,15 @@ func (buildTSICmd *buildTSI) compactSeriesFilePartition(path string) error {
 	for _, dst := range segmentPaths {
 		src := dst + tmpExt
 
-		fmt.Fprintf(os.Stdout, "renaming new segment %q to %q\n", src, dst)
+		buildTSICmd.Logger.Info("Renaming new segment", zap.String("prev", src), zap.String("new", dst))
 		if err = file.RenameFile(src, dst); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("serious failure. Please rebuild index and series file: %w", err)
 		}
 	}
 
 	// Remove index file so it will be rebuilt when reopened.
-	fmt.Fprintln(os.Stdout, "removing index file", indexPath)
+	buildTSICmd.Logger.Info("Removing index file", zap.String("path", indexPath))
+
 	if err = os.Remove(indexPath); err != nil && !os.IsNotExist(err) { // index won't exist for low cardinality
 		return err
 	}
@@ -352,7 +362,7 @@ func (buildTSICmd *buildTSI) processRetentionPolicy(sfile *tsdb.SeriesFile, buck
 
 				id, name := shards[i].ID, shards[i].Path
 				log := buildTSICmd.Logger.With(logger.Database(bucketID), logger.RetentionPolicy(rpName), logger.Shard(id))
-				errC <- IndexShard(sfile, filepath.Join(dataDir, name), filepath.Join(walDir, name), buildTSICmd.maxLogFileSize, buildTSICmd.maxCacheSize, buildTSICmd.batchSize, log, buildTSICmd.verbose)
+				errC <- IndexShard(sfile, filepath.Join(dataDir, name), filepath.Join(walDir, name), buildTSICmd.maxLogFileSize, buildTSICmd.maxCacheSize, buildTSICmd.batchSize, log)
 			}
 		}()
 	}
@@ -366,22 +376,22 @@ func (buildTSICmd *buildTSI) processRetentionPolicy(sfile *tsdb.SeriesFile, buck
 	return nil
 }
 
-func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize int64, maxCacheSize uint64, batchSize int, log *zap.Logger, verboseLogging bool) error {
-	log.Info("Rebuilding shard")
+func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize int64, maxCacheSize uint64, batchSize int, log *zap.Logger) error {
+	log.Debug("Rebuilding shard")
 
 	// Check if shard already has a TSI index.
 	indexPath := filepath.Join(dataDir, "index")
-	log.Info("Checking index path", zap.String("path", indexPath))
+	log.Debug("Checking index path", zap.String("path", indexPath))
 	if _, err := os.Stat(indexPath); !os.IsNotExist(err) {
 		log.Warn("tsi1 index already exists, skipping", zap.String("path", indexPath))
 		return nil
 	}
 
-	log.Info("Opening shard")
+	log.Debug("Opening shard")
 
 	// Remove temporary index files if this is being re-run.
 	tmpPath := filepath.Join(dataDir, ".index")
-	log.Info("Cleaning up partial index from previous run, if any")
+	log.Debug("Cleaning up partial index from previous run, if any")
 	if err := os.RemoveAll(tmpPath); err != nil {
 		return err
 	}
@@ -398,7 +408,7 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 
 	tsiIndex.WithLogger(log)
 
-	log.Info("Opening tsi index in temporary location", zap.String("path", tmpPath))
+	log.Debug("Opening tsi index in temporary location", zap.String("path", tmpPath))
 	if err := tsiIndex.Open(); err != nil {
 		return err
 	}
@@ -411,21 +421,22 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 		return err
 	}
 
-	log.Info("Iterating over tsm files")
+	log.Debug("Iterating over tsm files")
 	for _, path := range tsmPaths {
-		log.Info("Processing tsm file", zap.String("path", path))
-		if err := IndexTSMFile(tsiIndex, path, batchSize, log, verboseLogging); err != nil {
+		log.Debug("Processing tsm file", zap.String("path", path))
+		if err := IndexTSMFile(tsiIndex, path, batchSize, log); err != nil {
 			return err
 		}
 	}
 
 	// Write out wal files.
-	walPaths, err := collectWALFiles(walDir); if err != nil {
+	walPaths, err := collectWALFiles(walDir)
+	if err != nil {
 		if !os.IsNotExist(err) {
-		return err
-	}
-	}else {
-		log.Info("Building cache from wal files")
+			return err
+		}
+	} else {
+		log.Debug("Building cache from wal files")
 		cache := tsm1.NewCache(maxCacheSize)
 		loader := tsm1.NewCacheLoader(walPaths)
 		loader.WithLogger(log)
@@ -433,7 +444,7 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 			return err
 		}
 
-		log.Info("Iterating over cache")
+		log.Debug("Iterating over cache")
 		keysBatch := make([][]byte, 0, batchSize)
 		namesBatch := make([][]byte, 0, batchSize)
 		tagsBatch := make([]models.Tags, 0, batchSize)
@@ -442,9 +453,7 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 			seriesKey, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
 			name, tags := models.ParseKeyBytes(seriesKey)
 
-			if verboseLogging {
-				log.Info("Series", zap.String("name", string(name)), zap.String("tags", tags.String()))
-			}
+			log.Debug("Series", zap.String("name", string(name)), zap.String("tags", tags.String()))
 
 			keysBatch = append(keysBatch, seriesKey)
 			namesBatch = append(namesBatch, name)
@@ -473,22 +482,22 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 	}
 
 	// Attempt to compact the index & wait for all compactions to complete.
-	log.Info("compacting index")
+	log.Debug("compacting index")
 	tsiIndex.Compact()
 	tsiIndex.Wait()
 
 	// Close TSI index.
-	log.Info("Closing tsi index")
+	log.Debug("Closing tsi index")
 	if err := tsiIndex.Close(); err != nil {
 		return err
 	}
 
 	// Rename TSI to standard path.
-	log.Info("Moving tsi to permanent location")
+	log.Debug("Moving tsi to permanent location")
 	return os.Rename(tmpPath, indexPath)
 }
 
-func IndexTSMFile(index *tsi1.Index, path string, batchSize int, log *zap.Logger, verboseLogging bool) error {
+func IndexTSMFile(index *tsi1.Index, path string, batchSize int, log *zap.Logger) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -512,9 +521,7 @@ func IndexTSMFile(index *tsi1.Index, path string, batchSize int, log *zap.Logger
 		var name []byte
 		name, tagsBatch[ti] = models.ParseKeyBytesWithTags(seriesKey, tagsBatch[ti])
 
-		if verboseLogging {
-			log.Info("Series", zap.String("name", string(name)), zap.String("tags", tagsBatch[ti].String()))
-		}
+		log.Debug("Series", zap.String("name", string(name)), zap.String("tags", tagsBatch[ti].String()))
 
 		keysBatch = append(keysBatch, seriesKey)
 		namesBatch = append(namesBatch, name)
