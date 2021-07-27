@@ -932,12 +932,12 @@ mod test {
             ColumnSummary {
                 name: "active".into(),
                 influxdb_type: Some(InfluxDbType::Field),
-                stats: Statistics::Bool(StatValues::new(Some(false), Some(true), 3)),
+                stats: Statistics::Bool(StatValues::new_non_null(Some(false), Some(true), 3)),
             },
             ColumnSummary {
                 name: "counter".into(),
                 influxdb_type: Some(InfluxDbType::Field),
-                stats: Statistics::U64(StatValues::new(Some(1000), Some(5000), 3)),
+                stats: Statistics::U64(StatValues::new_non_null(Some(1000), Some(5000), 3)),
             },
             ColumnSummary {
                 name: "env".into(),
@@ -945,14 +945,15 @@ mod test {
                 stats: Statistics::String(StatValues {
                     min: Some("dev".into()),
                     max: Some("prod".into()),
-                    count: 3,
+                    total_count: 3,
+                    null_count: 0,
                     distinct_count: Some(NonZeroU64::new(2).unwrap()),
                 }),
             },
             ColumnSummary {
                 name: "icounter".into(),
                 influxdb_type: Some(InfluxDbType::Field),
-                stats: Statistics::I64(StatValues::new(Some(-1000), Some(4000), 3)),
+                stats: Statistics::I64(StatValues::new_non_null(Some(-1000), Some(4000), 3)),
             },
             ColumnSummary {
                 name: "msg".into(),
@@ -960,19 +961,20 @@ mod test {
                 stats: Statistics::String(StatValues {
                     min: Some("msg a".into()),
                     max: Some("msg b".into()),
-                    count: 3,
+                    total_count: 3,
+                    null_count: 1,
                     distinct_count: Some(NonZeroU64::new(3).unwrap()),
                 }),
             },
             ColumnSummary {
                 name: "temp".into(),
                 influxdb_type: Some(InfluxDbType::Field),
-                stats: Statistics::F64(StatValues::new(Some(10.0), Some(30000.0), 3)),
+                stats: Statistics::F64(StatValues::new_non_null(Some(10.0), Some(30000.0), 3)),
             },
             ColumnSummary {
                 name: "time".into(),
                 influxdb_type: Some(InfluxDbType::Timestamp),
-                stats: Statistics::I64(StatValues::new(Some(3333), Some(11111111), 3)),
+                stats: Statistics::I64(StatValues::new_non_null(Some(3333), Some(11111111), 3)),
             },
         ];
 

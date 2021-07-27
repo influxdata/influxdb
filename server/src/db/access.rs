@@ -161,7 +161,7 @@ impl PruningObserver for ChunkAccess {
 
     fn was_pruned(&self, chunk: &Self::Observed) {
         let labels = vec![KeyValue::new("table_name", chunk.table_name().to_string())];
-        let num_rows = chunk.summary().count();
+        let num_rows = chunk.summary().total_count();
         self.access_metrics
             .pruned_chunks
             .add_with_labels(1, &labels);

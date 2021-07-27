@@ -64,35 +64,38 @@ impl Column {
         let mut valid = BitSet::new();
         valid.append_unset(row_count);
 
+        // Keep track of how many total rows there are
+        let total_count = row_count as u64;
+
         let data = match column_type {
             InfluxColumnType::IOx(IOxValueType::Boolean)
             | InfluxColumnType::Field(InfluxFieldType::Boolean) => {
                 let mut data = BitSet::new();
                 data.append_unset(row_count);
-                ColumnData::Bool(data, StatValues::default())
+                ColumnData::Bool(data, StatValues::new_all_null(total_count))
             }
             InfluxColumnType::IOx(IOxValueType::U64)
             | InfluxColumnType::Field(InfluxFieldType::UInteger) => {
-                ColumnData::U64(vec![0; row_count], StatValues::default())
+                ColumnData::U64(vec![0; row_count], StatValues::new_all_null(total_count))
             }
             InfluxColumnType::IOx(IOxValueType::F64)
             | InfluxColumnType::Field(InfluxFieldType::Float) => {
-                ColumnData::F64(vec![0.0; row_count], StatValues::default())
+                ColumnData::F64(vec![0.0; row_count], StatValues::new_all_null(total_count))
             }
             InfluxColumnType::IOx(IOxValueType::I64)
             | InfluxColumnType::Field(InfluxFieldType::Integer)
             | InfluxColumnType::Timestamp => {
-                ColumnData::I64(vec![0; row_count], StatValues::default())
+                ColumnData::I64(vec![0; row_count], StatValues::new_all_null(total_count))
             }
             InfluxColumnType::IOx(IOxValueType::String)
             | InfluxColumnType::Field(InfluxFieldType::String) => ColumnData::String(
                 PackedStringArray::new_empty(row_count),
-                StatValues::default(),
+                StatValues::new_all_null(total_count),
             ),
             InfluxColumnType::Tag => ColumnData::Tag(
                 vec![INVALID_DID; row_count],
                 Default::default(),
-                StatValues::default(),
+                StatValues::new_all_null(total_count),
             ),
             InfluxColumnType::IOx(IOxValueType::Bytes) => todo!(),
         };
@@ -144,7 +147,9 @@ impl Column {
                 let data_offset = col_data.len();
                 col_data.append_unset(row_count);
 
-                let initial_non_null_count = stats.count;
+                let initial_total_count = stats.total_count;
+                let to_add = entry_data.len();
+                let null_count = row_count - to_add;
 
                 for (idx, value) in iter_set_positions(&mask).zip(entry_data) {
                     stats.update(value);
@@ -153,9 +158,11 @@ impl Column {
                         col_data.set(data_offset + idx);
                     }
                 }
+                stats.update_for_nulls(null_count as u64);
+
                 assert_eq!(
-                    stats.count - initial_non_null_count,
-                    entry_data.len() as u64
+                    stats.total_count - initial_total_count - null_count as u64,
+                    to_add as u64
                 );
             }
             ColumnData::U64(col_data, stats) => {
@@ -200,8 +207,9 @@ impl Column {
                     .expect("invalid payload");
 
                 let data_offset = col_data.len();
-                let initial_non_null_count = stats.count;
+                let initial_total_count = stats.total_count;
                 let to_add = entry_data.len();
+                let null_count = row_count - to_add;
 
                 for (str, idx) in entry_data.iter().zip(iter_set_positions(&mask)) {
                     col_data.extend(data_offset + idx - col_data.len());
@@ -210,8 +218,12 @@ impl Column {
                 }
 
                 col_data.extend(data_offset + row_count - col_data.len());
+                stats.update_for_nulls(null_count as u64);
 
-                assert_eq!(stats.count - initial_non_null_count, to_add as u64);
+                assert_eq!(
+                    stats.total_count - initial_total_count - null_count as u64,
+                    to_add as u64
+                );
             }
             ColumnData::Tag(col_data, dictionary, stats) => {
                 let entry_data = entry
@@ -224,15 +236,20 @@ impl Column {
                 let data_offset = col_data.len();
                 col_data.resize(data_offset + row_count, INVALID_DID);
 
-                let initial_non_null_count = stats.count;
+                let initial_total_count = stats.total_count;
                 let to_add = entry_data.len();
+                let null_count = row_count - to_add;
 
                 for (idx, value) in iter_set_positions(&mask).zip(entry_data) {
                     stats.update(value);
                     col_data[data_offset + idx] = dictionary.lookup_value_or_insert(value);
                 }
+                stats.update_for_nulls(null_count as u64);
 
-                assert_eq!(stats.count - initial_non_null_count, to_add as u64);
+                assert_eq!(
+                    stats.total_count - initial_total_count - null_count as u64,
+                    to_add as u64
+                );
             }
         };
 
@@ -269,10 +286,9 @@ impl Column {
             ColumnData::U64(_, stats) => Statistics::U64(stats.clone()),
             ColumnData::Bool(_, stats) => Statistics::Bool(stats.clone()),
             ColumnData::String(_, stats) => Statistics::String(stats.clone()),
-            ColumnData::Tag(keys, dictionary, stats) => {
+            ColumnData::Tag(_, dictionary, stats) => {
                 let mut distinct_count = dictionary.values().len() as u64;
-                if keys.len() as u64 != stats.count {
-                    // Column contains NULLs
+                if stats.null_count > 0 {
                     distinct_count += 1;
                 }
 
@@ -407,13 +423,19 @@ fn handle_write<T, E>(
     let data_offset = col_data.len();
     col_data.resize(data_offset + row_count, Default::default());
 
-    let initial_non_null_count = stats.count;
+    let initial_total_count = stats.total_count;
     let to_add = entry_data.len();
+    let null_count = row_count - to_add;
 
     for (idx, value) in iter_set_positions(valid_mask).zip(entry_data) {
         stats.update(&value);
         col_data[data_offset + idx] = value;
     }
 
-    assert_eq!(stats.count - initial_non_null_count, to_add as u64);
+    stats.update_for_nulls(null_count as u64);
+
+    assert_eq!(
+        stats.total_count - initial_total_count - null_count as u64,
+        to_add as u64
+    );
 }

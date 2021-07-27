@@ -691,7 +691,8 @@ impl MetaData {
             .columns
             .iter()
             .map(|(name, column_meta)| {
-                let count = self.rows;
+                let total_count = self.rows;
+                let null_count = column_meta.null_count as u64;
                 let distinct_count = column_meta.distinct_count;
 
                 let stats = match &column_meta.range {
@@ -699,36 +700,41 @@ impl MetaData {
                         Statistics::String(StatValues {
                             min: Some(min.to_string()),
                             max: Some(max.to_string()),
+                            total_count,
+                            null_count,
                             distinct_count,
-                            count,
                         })
                     }
                     (OwnedValue::Boolean(min), OwnedValue::Boolean(max)) => {
                         Statistics::Bool(StatValues {
                             min: Some(*min),
                             max: Some(*max),
+                            total_count,
+                            null_count,
                             distinct_count,
-                            count,
                         })
                     }
                     (OwnedValue::Scalar(min), OwnedValue::Scalar(max)) => match (min, max) {
                         (Scalar::I64(min), Scalar::I64(max)) => Statistics::I64(StatValues {
                             min: Some(*min),
                             max: Some(*max),
+                            total_count,
+                            null_count,
                             distinct_count,
-                            count,
                         }),
                         (Scalar::U64(min), Scalar::U64(max)) => Statistics::U64(StatValues {
                             min: Some(*min),
                             max: Some(*max),
+                            total_count,
+                            null_count,
                             distinct_count,
-                            count,
                         }),
                         (Scalar::F64(min), Scalar::F64(max)) => Statistics::F64(StatValues {
                             min: Some(*min),
                             max: Some(*max),
+                            total_count,
+                            null_count,
                             distinct_count,
-                            count,
                         }),
                         _ => panic!(
                             "unsupported type scalar stats in read buffer: {:?}, {:?}",
