@@ -32,6 +32,11 @@ const (
 
 	// swaggerFile is the name of the swagger JSON.
 	swaggerFile = "swagger.json"
+
+	// fallbackPathSlug is the path to re-write on the request if the requested
+	// path does not match a file and the default file is served. For telemetry
+	// and metrics reporting purposes.
+	fallbackPathSlug = "/:fallback_path"
 )
 
 // NewAssetHandler returns an http.Handler to serve files from the provided
@@ -103,6 +108,7 @@ func assetHandler(fileOpener http.FileSystem) http.Handler {
 		// If the root directory is being requested, respond with the default file.
 		if name == "" {
 			name = defaultFile
+			r.URL.Path = "/" + defaultFile
 		}
 
 		// Try to open the file requested by name, falling back to the default file.
@@ -116,11 +122,11 @@ func assetHandler(fileOpener http.FileSystem) http.Handler {
 		defer f.Close()
 
 		// If the default file will be served because the requested path didn't
-		// match any existing files, re-write the request path to the root path.
+		// match any existing files, re-write the request path a placeholder value.
 		// This is to ensure that metrics do not get collected for an arbitrarily
 		// large range of incorrect paths.
 		if fallback {
-			r.URL.Path = "/"
+			r.URL.Path = fallbackPathSlug
 		}
 
 		staticFileHandler(f).ServeHTTP(w, r)

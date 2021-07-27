@@ -59,6 +59,7 @@ func Metrics(name string, reqMetric *prometheus.CounterVec, durMetric *prometheu
 					"response_code": fmt.Sprintf("%d", statusCode),
 					"user_agent":    UserAgent(r),
 				}
+
 				durMetric.With(label).Observe(time.Since(start).Seconds())
 				reqMetric.With(label).Inc()
 			}(time.Now())

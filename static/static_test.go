@@ -43,6 +43,12 @@ func TestAssetHandler(t *testing.T) {
 			wantData: defaultData,
 		},
 		{
+			name:     "root path",
+			reqPath:  "/",
+			newPath:  "/" + defaultFile,
+			wantData: defaultData,
+		},
+		{
 			name:     "path matches a file",
 			reqPath:  "/somethingElse.js",
 			newPath:  "/somethingElse.js",
@@ -51,7 +57,7 @@ func TestAssetHandler(t *testing.T) {
 		{
 			name:     "path matches nothing",
 			reqPath:  "/something_random",
-			newPath:  "/",
+			newPath:  fallbackPathSlug,
 			wantData: defaultData,
 		},
 	}
