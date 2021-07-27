@@ -15,7 +15,7 @@ var argsKeys = []string{"index", "blocks", "all", "filter-key"}
 
 func Test_DumpTSM_NoFile(t *testing.T) {
 	runCommand(t, cmdParams{
-		file: "",
+		file:      "",
 		expectOut: "TSM File not specified",
 	})
 }
