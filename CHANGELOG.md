@@ -68,6 +68,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21850](https://github.com/influxdata/influxdb/pull/21850): Systemd unit should block on startup until http endpoint is ready
 1. [21925](https://github.com/influxdata/influxdb/pull/21925): Upgrade to golang-jwt 3.2.1.
 1. [21946](https://github.com/influxdata/influxdb/pull/21946): Prevent silently dropped writes when there are overlapping shards.
+1. [21950](https://github.com/influxdata/influxdb/pull/21950): Invalid requests to /api/v2 subroutes now return 404 instead of a list of links.
 
 ## v2.0.7 [2021-06-04]
 

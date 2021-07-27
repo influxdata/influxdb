@@ -140,7 +140,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	b.UserResourceMappingService = authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
 
-	h.Mount("/api/v2", serveLinksHandler(b.HTTPErrorHandler))
+	h.Handle("/api/v2", serveLinksHandler(b.HTTPErrorHandler))
 
 	checkBackend := NewCheckBackend(b.Logger.With(zap.String("handler", "check")), b)
 	checkBackend.CheckService = authorizer.NewCheckService(b.CheckService,
