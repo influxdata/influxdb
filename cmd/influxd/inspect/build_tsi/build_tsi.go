@@ -1,13 +1,15 @@
 package build_tsi
 
 import (
+	"errors"
 	"fmt"
+	"github.com/influxdata/influx-cli/v2/clients"
+	"github.com/influxdata/influx-cli/v2/pkg/stdio"
 	"os"
 	"os/user"
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"sync/atomic"
 
 	"github.com/influxdata/influxdb/v2/logger"
@@ -16,10 +18,9 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
+	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
-
-	"github.com/spf13/cobra"
 )
 
 const defaultBatchSize = 10000
@@ -48,32 +49,34 @@ func NewBuildTSICommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "build-tsi",
 		Short: "Rebuilds the TSI index and (where necessary) the Series File.",
-		Long: `This command will rebuild the TSI index and if needed the Series
-		File. 
-		The index is built by reading all of the TSM indexes in the TSM data 
-		directory, and all of the WAL entries in the WAL data directory. If the 
-		Series File directory is missing, then the series file will be rebuilt.
-		If the TSI index directory already exists, then this tool will fail.
-		Performance of the tool can be tweaked by adjusting the max log file size,
-		max cache file size and the batch size.
+		Long: `This command will rebuild the TSI index and if needed the Series File.
+
+The index is built by reading all of the TSM indexes in the TSM data 
+directory, and all of the WAL entries in the WAL data directory. If the 
+Series File directory is missing, then the series file will be rebuilt.
+If the TSI index directory already exists, then this tool will fail.
+Performance of the tool can be tweaked by adjusting the max log file size,
+max cache file size and the batch size.
 		
-		max-log-file-size determines how big in-memory parts of the index have to
-			get before they're compacted into memory-mappable index files. 
-			Consider decreasing this from the default if you find the heap 
-			requirements of your TSI index are too much.
-		max-cache-size refers to the maximum cache size allowed. If there are WAL
-			files to index, then they need to be replayed into a tsm1.Cache first
-			by this tool. If the maximum cache size isn't large enough then there
-			will be an error and this tool will fail. Increase max-cache-size to
-			address this.
-		batch-size refers to the size of the batches written into the index. 
-			Increasing this can improve performance but can result in much more
-			memory usage.
+max-log-file-size determines how big in-memory parts of the index have to
+get before they're compacted into memory-mappable index files. 
+Consider decreasing this from the default if you find the heap 
+requirements of your TSI index are too much.
+
+max-cache-size refers to the maximum cache size allowed. If there are WAL
+files to index, then they need to be replayed into a tsm1.Cache first
+by this tool. If the maximum cache size isn't large enough then there
+will be an error and this tool will fail. Increase max-cache-size to
+address this.
+
+batch-size refers to the size of the batches written into the index. 
+Increasing this can improve performance but can result in much more
+memory usage.
 		`,
 		Args: cobra.MaximumNArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if buildTSICmd.shardID != "" && buildTSICmd.bucketID == "" {
-				return fmt.Errorf("if shard-id is specified, bucket-id must also be specified")
+				return errors.New("if shard-id is specified, bucket-id must also be specified")
 			}
 
 			config := logger.NewConfig()
@@ -109,20 +112,20 @@ func NewBuildTSICommand() *cobra.Command {
 func (buildTSICmd *buildTSI) runBuildTSI() error {
 	// Verify the user actually wants to run as root.
 	if isRoot() {
-		fmt.Println("You are currently running as root. This will build your")
-		fmt.Println("index files with root ownership and will be inaccessible")
-		fmt.Println("if you run influxd as a non-root user. You should run")
-		fmt.Println("build-tsi as the same user you are running influxd.")
-		fmt.Print("Are you sure you want to continue? (y/N): ")
-		var answer string
-		if fmt.Scanln(&answer); !strings.HasPrefix(strings.TrimSpace(strings.ToLower(answer)), "y") {
-			return fmt.Errorf("operation aborted")
+		cli := clients.CLI{StdIO: stdio.TerminalStdio}
+		if confirmed := cli.StdIO.GetConfirm(`
+You are currently running as root. This will build your
+index files with root ownership and will be inaccessible
+if you run influxd as a non-root user. You should run
+build-tsi as the same user you are running influxd.
+Are you sure you want to continue?`); !confirmed {
+			return errors.New("operation aborted")
 		}
 	}
 
 	if buildTSICmd.compactSeriesFile {
 		if buildTSICmd.shardID != "" {
-			return fmt.Errorf("cannot specify shard ID when compacting series file")
+			return errors.New("cannot specify shard ID when compacting series file")
 		}
 	}
 
@@ -189,7 +192,10 @@ func (buildTSICmd *buildTSI) compactBucketSeriesFile(path string) error {
 
 	// Build new series file indexes
 	sfile := tsdb.NewSeriesFile(sfilePath)
-	if err = sfile.Open(); err != nil {
+	err = sfile.Open()
+	defer sfile.Close()
+
+	if err != nil {
 		return err
 	}
 
@@ -215,7 +221,7 @@ func (buildTSICmd *buildTSI) compactSeriesFilePartition(path string) error {
 	}
 	p := tsdb.NewSeriesPartition(partitionID, path, nil)
 	if err := p.Open(); err != nil {
-		return fmt.Errorf("cannot open partition: path=%s err=%s", path, err)
+		return fmt.Errorf("cannot open partition: path=%s err=%w", path, err)
 	}
 	defer p.Close()
 
@@ -242,7 +248,7 @@ func (buildTSICmd *buildTSI) compactSeriesFilePartition(path string) error {
 
 		fmt.Fprintf(os.Stdout, "renaming new segment %q to %q\n", src, dst)
 		if err = file.RenameFile(src, dst); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("serious failure. Please rebuild index and series file: %v", err)
+			return fmt.Errorf("serious failure. Please rebuild index and series file: %w", err)
 		}
 	}
 
@@ -367,7 +373,7 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 	indexPath := filepath.Join(dataDir, "index")
 	log.Info("Checking index path", zap.String("path", indexPath))
 	if _, err := os.Stat(indexPath); !os.IsNotExist(err) {
-		log.Info("tsi1 index already exists, skipping", zap.String("path", indexPath))
+		log.Warn("tsi1 index already exists, skipping", zap.String("path", indexPath))
 		return nil
 	}
 
@@ -414,13 +420,11 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 	}
 
 	// Write out wal files.
-	walPaths, err := collectWALFiles(walDir)
-	if err != nil {
+	walPaths, err := collectWALFiles(walDir); if err != nil {
 		if !os.IsNotExist(err) {
-			return err
-		}
-
-	} else {
+		return err
+	}
+	}else {
 		log.Info("Building cache from wal files")
 		cache := tsm1.NewCache(maxCacheSize)
 		loader := tsm1.NewCacheLoader(walPaths)
@@ -449,7 +453,7 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 			// Flush batch?
 			if len(keysBatch) == batchSize {
 				if err := tsiIndex.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch); err != nil {
-					return fmt.Errorf("problem creating series: (%s)", err)
+					return fmt.Errorf("problem creating series: %w", err)
 				}
 				keysBatch = keysBatch[:0]
 				namesBatch = namesBatch[:0]
@@ -460,7 +464,7 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 		// Flush any remaining series in the batches
 		if len(keysBatch) > 0 {
 			if err := tsiIndex.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch); err != nil {
-				return fmt.Errorf("problem creating series: (%s)", err)
+				return fmt.Errorf("problem creating series: %w", err)
 			}
 			keysBatch = nil
 			namesBatch = nil
@@ -519,7 +523,7 @@ func IndexTSMFile(index *tsi1.Index, path string, batchSize int, log *zap.Logger
 		// Flush batch?
 		if len(keysBatch) == batchSize {
 			if err := index.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch[:ti]); err != nil {
-				return fmt.Errorf("problem creating series: (%s)", err)
+				return fmt.Errorf("problem creating series: %w", err)
 			}
 			keysBatch = keysBatch[:0]
 			namesBatch = namesBatch[:0]
@@ -530,7 +534,7 @@ func IndexTSMFile(index *tsi1.Index, path string, batchSize int, log *zap.Logger
 	// Flush any remaining series in the batches
 	if len(keysBatch) > 0 {
 		if err := index.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch[:ti]); err != nil {
-			return fmt.Errorf("problem creating series: (%s)", err)
+			return fmt.Errorf("problem creating series: %w", err)
 		}
 	}
 	return nil
