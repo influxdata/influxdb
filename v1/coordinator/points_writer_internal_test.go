@@ -14,18 +14,17 @@ func TestSgList_ShardGroupAt(t *testing.T) {
 		return base.Add(time.Duration(24*n) * time.Hour)
 	}
 
-	list := sgList{
-		items: meta.ShardGroupInfos{
-			{ID: 1, StartTime: day(0), EndTime: day(1)},
-			{ID: 2, StartTime: day(1), EndTime: day(2)},
-			{ID: 3, StartTime: day(2), EndTime: day(3)},
-			// SG day 3 to day 4 missing...
-			{ID: 4, StartTime: day(4), EndTime: day(5)},
-			{ID: 5, StartTime: day(5), EndTime: day(6)},
-		},
-		needsSort: true,
-		earliest:  day(0),
-		latest:    day(6),
+	items := meta.ShardGroupInfos{
+		{ID: 1, StartTime: day(0), EndTime: day(1)},
+		{ID: 2, StartTime: day(1), EndTime: day(2)},
+		{ID: 3, StartTime: day(2), EndTime: day(3)},
+		// SG day 3 to day 4 missing...
+		{ID: 4, StartTime: day(4), EndTime: day(5)},
+		{ID: 5, StartTime: day(5), EndTime: day(6)},
+	}
+	var list sgList
+	for _, i := range items {
+		list.Add(i)
 	}
 
 	examples := []struct {
@@ -62,16 +61,15 @@ func TestSgList_ShardGroupAtOverlapping(t *testing.T) {
 		return base.Add(time.Duration(24*n) * time.Hour)
 	}
 
-	list := sgList{
-		items: meta.ShardGroupInfos{
-			{ID: 1, StartTime: hour(5), EndTime: hour(6)},
-			{ID: 2, StartTime: hour(6), EndTime: hour(7)},
-			// Day-long shard overlaps with the two hour-long shards.
-			{ID: 3, StartTime: base, EndTime: day(1)},
-		},
-		needsSort: true,
-		earliest:  base,
-		latest:    day(1),
+	items := meta.ShardGroupInfos{
+		{ID: 1, StartTime: hour(5), EndTime: hour(6)},
+		{ID: 2, StartTime: hour(6), EndTime: hour(7)},
+		// Day-long shard overlaps with the two hour-long shards.
+		{ID: 3, StartTime: base, EndTime: day(1)},
+	}
+	var list sgList
+	for _, i := range items {
+		list.Add(i)
 	}
 
 	examples := []struct {
