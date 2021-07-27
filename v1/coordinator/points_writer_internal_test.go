@@ -3,6 +3,8 @@ package coordinator
 import (
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/v1/services/meta"
 )
 
 func TestSgList_ShardGroupAt(t *testing.T) {
@@ -12,12 +14,14 @@ func TestSgList_ShardGroupAt(t *testing.T) {
 	}
 
 	list := sgList{
-		{ID: 1, StartTime: day(0), EndTime: day(1)},
-		{ID: 2, StartTime: day(1), EndTime: day(2)},
-		{ID: 3, StartTime: day(2), EndTime: day(3)},
-		// SG day 3 to day 4 missing...
-		{ID: 4, StartTime: day(4), EndTime: day(5)},
-		{ID: 5, StartTime: day(5), EndTime: day(6)},
+		items: meta.ShardGroupInfos{
+			{ID: 1, StartTime: day(0), EndTime: day(1)},
+			{ID: 2, StartTime: day(1), EndTime: day(2)},
+			{ID: 3, StartTime: day(2), EndTime: day(3)},
+			// SG day 3 to day 4 missing...
+			{ID: 4, StartTime: day(4), EndTime: day(5)},
+			{ID: 5, StartTime: day(5), EndTime: day(6)},
+		},
 	}
 
 	examples := []struct {
