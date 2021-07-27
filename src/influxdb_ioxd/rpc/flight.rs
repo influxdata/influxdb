@@ -212,9 +212,15 @@ where
 
     async fn handshake(
         &self,
-        _request: Request<Streaming<HandshakeRequest>>,
+        request: Request<Streaming<HandshakeRequest>>,
     ) -> Result<Response<Self::HandshakeStream>, tonic::Status> {
-        Err(tonic::Status::unimplemented("Not yet implemented"))
+        let request = request.into_inner().message().await?.unwrap();
+        let response = HandshakeResponse {
+            protocol_version: request.protocol_version,
+            payload: request.payload,
+        };
+        let output = futures::stream::iter(std::iter::once(Ok(response)));
+        Ok(Response::new(Box::pin(output) as Self::HandshakeStream))
     }
 
     async fn list_flights(
