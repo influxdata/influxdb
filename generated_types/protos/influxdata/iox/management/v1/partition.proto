@@ -1,6 +1,6 @@
 syntax = "proto3";
 package influxdata.iox.management.v1;
-
+option go_package = "github.com/influxdata/iox/management/v1";
 
 // `Partition` is comprised of data in one or more chunks
 //

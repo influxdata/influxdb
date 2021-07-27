@@ -1,6 +1,6 @@
 syntax = "proto3";
 package influxdata.iox.management.v1;
-
+option go_package = "github.com/influxdata/iox/management/v1";
 
 import "google/longrunning/operations.proto";
 import "google/protobuf/field_mask.proto";
