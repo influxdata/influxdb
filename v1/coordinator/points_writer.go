@@ -301,7 +301,7 @@ func (l sgList) ShardGroupAt(t time.Time) *meta.ShardGroupInfo {
 
 		// Oh no, we've probably got overlapping shards. Perform a linear search.
 		for idx = 0; idx < l.items.Len(); idx++ {
-			if l.items[idx].EndTime.After(t) && !l.items[idx].StartTime.After(t) {
+			if l.items[idx].Contains(t) {
 				// Found it!
 				break
 			}
