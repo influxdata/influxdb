@@ -37,6 +37,7 @@ Because of the version bump to `go`, the macOS build for this release requires a
 1. [21898](https://github.com/influxdata/influxdb/pull/21898): Removed unused `chronograf-migator` package & chronograf API service, and updated various "chronograf" references.
 1. [21919](https://github.com/influxdata/influxdb/pull/21919): Fix display and parsing of interactive `influx` CLI prompts in PowerShell.
 1. [21941](https://github.com/influxdata/influxdb/pull/21941): Upgrade to golang-jwt 3.2.1.
+1. [XXXXX](https://github.com/influxdata/influxdb/pull/XXXXX): Invalid requests to /api/v2 subroutes now return 404 instead of a list of links.
 
 ## v2.0.7 [2021-06-04]
 ----------------------
