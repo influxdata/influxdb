@@ -201,6 +201,8 @@ impl Partition {
         &mut self,
         chunk_id: u32,
         chunk: Arc<parquet_file::chunk::ParquetChunk>,
+        time_of_first_write: DateTime<Utc>,
+        time_of_last_write: DateTime<Utc>,
     ) -> Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name(), self.table_name());
 
@@ -211,6 +213,8 @@ impl Partition {
                 .new_chunk_lock(CatalogChunk::new_object_store_only(
                     addr,
                     chunk,
+                    time_of_first_write,
+                    time_of_last_write,
                     self.metrics.new_chunk_metrics(),
                 )),
         );

@@ -343,23 +343,15 @@ impl CatalogChunk {
     pub(super) fn new_object_store_only(
         addr: ChunkAddr,
         chunk: Arc<parquet_file::chunk::ParquetChunk>,
+        time_of_first_write: DateTime<Utc>,
+        time_of_last_write: DateTime<Utc>,
         metrics: ChunkMetrics,
     ) -> Self {
         assert_eq!(chunk.table_name(), addr.table_name.as_ref());
 
-        let summary = chunk.table_summary();
-        let time_of_first_write = summary.time_of_first_write;
-        let time_of_last_write = summary.time_of_last_write;
-
-        // this is temporary
-        let table_summary = TableSummary {
-            name: summary.name.clone(),
-            columns: summary.columns.clone(),
-        };
-
         // Cache table summary + schema
         let meta = Arc::new(ChunkMetadata {
-            table_summary: Arc::new(table_summary),
+            table_summary: Arc::clone(chunk.table_summary()),
             schema: chunk.schema(),
         });
 
@@ -1163,12 +1155,16 @@ mod tests {
 
     async fn make_persisted_chunk() -> CatalogChunk {
         let addr = chunk_addr();
+        let now = Utc::now();
+
         // assemble ParquetChunk
         let parquet_chunk = make_parquet_chunk(addr.clone()).await;
 
         CatalogChunk::new_object_store_only(
             addr,
             Arc::new(parquet_chunk),
+            now,
+            now,
             ChunkMetrics::new_unregistered(),
         )
     }

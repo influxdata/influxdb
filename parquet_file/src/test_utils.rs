@@ -14,9 +14,7 @@ use arrow::{
 use chrono::{TimeZone, Utc};
 use data_types::{
     chunk_metadata::ChunkAddr,
-    partition_metadata::{
-        ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummaryAndTimes,
-    },
+    partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     server_id::ServerId,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -132,11 +130,9 @@ pub async fn make_chunk_given_record_batch(
     let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
     let storage = Storage::new(Arc::clone(&store), server_id);
 
-    let table_summary = TableSummaryAndTimes {
+    let table_summary = TableSummary {
         name: addr.table_name.to_string(),
         columns: column_summaries,
-        time_of_first_write: Utc.timestamp(30, 40),
-        time_of_last_write: Utc.timestamp(50, 60),
     };
     let stream: SendableRecordBatchStream = if record_batches.is_empty() {
         Box::pin(MemoryStream::new_with_schema(

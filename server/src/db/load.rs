@@ -229,7 +229,12 @@ impl CatalogState for Loader {
         let schema_handle = TableSchemaUpsertHandle::new(&table_schema, &parquet_chunk.schema())
             .map_err(|e| Box::new(e) as _)
             .context(SchemaError { path: info.path })?;
-        partition.insert_object_store_only_chunk(iox_md.chunk_id, parquet_chunk);
+        partition.insert_object_store_only_chunk(
+            iox_md.chunk_id,
+            parquet_chunk,
+            iox_md.time_of_first_write,
+            iox_md.time_of_last_write,
+        );
         schema_handle.commit();
 
         Ok(())

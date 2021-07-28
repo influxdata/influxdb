@@ -1939,7 +1939,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 703;
+        let expected_parquet_size = 679;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -2421,7 +2421,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2316.0)
+            .sample_sum_eq(2292.0)
             .unwrap();
 
         // while MB and RB chunk are identical, the PQ chunk is a new one (split off)
@@ -2541,7 +2541,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2316.0)
+            .sample_sum_eq(2292.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -2571,7 +2571,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(703.0)
+            .sample_sum_eq(679.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -3179,7 +3179,7 @@ mod tests {
                 id: 2,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                memory_bytes: 3308,       // size of RB and OS chunks
+                memory_bytes: 3284,       // size of RB and OS chunks
                 object_store_bytes: 1523, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
@@ -3231,7 +3231,7 @@ mod tests {
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 87);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2410);
-        assert_eq!(db.catalog.metrics().memory().object_store(), 898);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 874);
     }
 
     #[tokio::test]
