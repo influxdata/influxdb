@@ -430,7 +430,7 @@ pub mod test_utils {
         // 3. Wait a bit between step 2 and the restore operation so that we can be really sure that the restore
         //    operation must know the timestamp of the store operation and cannot just "guess" it.
         let ts_pre = timestamp_floor_millis(Utc::now());
-        writer.store_entry(&entry, sequencer_id).await.unwrap();
+        let reported_ts = writer.store_entry(&entry, sequencer_id).await.unwrap().1;
         let ts_post = timestamp_ceil_millis(Utc::now());
 
         // wait a bit
@@ -441,6 +441,7 @@ pub mod test_utils {
         let ts_entry = sequenced_entry.producer_wallclock_timestamp().unwrap();
         assert!(ts_entry >= ts_pre, "{} >= {}", ts_entry, ts_pre);
         assert!(ts_entry <= ts_post, "{} <= {}", ts_entry, ts_post);
+        assert_eq!(ts_entry, reported_ts);
     }
 
     async fn assert_reader_content<R>(reader: &mut R, expected: &[(u32, &[&Entry])])

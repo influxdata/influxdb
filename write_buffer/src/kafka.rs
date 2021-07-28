@@ -50,14 +50,17 @@ impl WriteBufferWriting for KafkaBufferProducer {
         sequencer_id: u32,
     ) -> Result<(Sequence, DateTime<Utc>), WriteBufferError> {
         let partition = i32::try_from(sequencer_id)?;
-        let timestamp = Utc::now();
+
+        // truncate milliseconds from timestamps because that's what Kafka supports
+        let timestamp_millis = Utc::now().timestamp_millis();
+        let timestamp = Utc.timestamp_millis(timestamp_millis);
 
         // This type annotation is necessary because `FutureRecord` is generic over key type, but
         // key is optional and we're not setting a key. `String` is arbitrary.
         let record: FutureRecord<'_, String, _> = FutureRecord::to(&self.database_name)
             .payload(entry.data())
             .partition(partition)
-            .timestamp(timestamp.timestamp_millis());
+            .timestamp(timestamp_millis);
 
         debug!(db_name=%self.database_name, partition, size=entry.data().len(), "writing to kafka");
 
