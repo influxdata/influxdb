@@ -230,7 +230,10 @@ impl PersistenceWindows {
     /// Returns the sequence number range of unpersisted writes described by this instance
     ///
     /// Can optionally skip the persistable window if any
-    fn sequence_numbers(&self, skip_persistable: bool) -> BTreeMap<u32, OptionalMinMaxSequence> {
+    pub fn sequencer_numbers(
+        &self,
+        skip_persistable: bool,
+    ) -> BTreeMap<u32, OptionalMinMaxSequence> {
         if self.is_empty() {
             Default::default()
         }
@@ -283,7 +286,7 @@ impl PersistenceWindows {
             closed_count: self.closed.len(),
             addr: self.addr.clone(),
             timestamp: self.persistable.as_ref()?.max_time,
-            sequencer_numbers: self.sequence_numbers(true),
+            sequencer_numbers: self.sequencer_numbers(true),
         })
     }
 
@@ -322,19 +325,6 @@ impl PersistenceWindows {
 
         // Drop any now empty windows
         self.closed.retain(|x| x.row_count > 0);
-    }
-
-    /// Returns a PartitionCheckpoint for the current state of this partition
-    ///
-    /// Returns None if this PersistenceWindows is empty
-    pub fn checkpoint(&self) -> Option<PartitionCheckpoint> {
-        let minimum_unpersisted_timestamp = self.minimum_unpersisted_timestamp()?;
-        Some(PartitionCheckpoint::new(
-            Arc::clone(&self.addr.table_name),
-            Arc::clone(&self.addr.partition_key),
-            self.sequence_numbers(false),
-            minimum_unpersisted_timestamp,
-        ))
     }
 
     /// Returns an iterator over the windows starting with the oldest
@@ -1138,22 +1128,24 @@ mod tests {
         );
         assert_eq!(flush_checkpoint.min_unpersisted_timestamp(), truncated_time);
 
-        // The checkpoint on the partition should include everything
-        let checkpoint = w.checkpoint().unwrap();
+        // The sequencer numbers on the partition should include everything
+        let sequencer_numbers = w.sequencer_numbers(false);
         assert_eq!(
-            checkpoint.sequencer_numbers(1).unwrap(),
-            OptionalMinMaxSequence::new(Some(2), 4)
+            sequencer_numbers.get(&1).unwrap(),
+            &OptionalMinMaxSequence::new(Some(2), 4)
         );
-        assert_eq!(checkpoint.min_unpersisted_timestamp(), start);
 
         // Flush persistable window
         w.flush(guard);
         assert!(w.persistable.is_none());
 
         // As there were no writes between creating the flush handle and the flush
-        // the new partition checkpoint should match the persisted one
-        let checkpoint = w.checkpoint().unwrap();
-        assert_eq!(flush_checkpoint, checkpoint);
+        // the new partition sequencer numbers should match the persisted one
+        let sequencer_numbers = w.sequencer_numbers(false);
+        assert_eq!(
+            &flush_checkpoint.sequencer_numbers(1).unwrap(),
+            sequencer_numbers.get(&1).unwrap()
+        );
 
         // This should rotate into persistable
         w.rotate(instant + Duration::from_secs(240));
@@ -1272,23 +1264,21 @@ mod tests {
         );
         assert_eq!(checkpoint.min_unpersisted_timestamp(), truncated_time);
 
-        // The checkpoint on the partition should include everything
-        let checkpoint = w.checkpoint().unwrap();
+        // The sequencer numbers of partition should include everything
+        let sequencer_numbers = w.sequencer_numbers(false);
         assert_eq!(
-            checkpoint.sequencer_numbers(1).unwrap(),
-            OptionalMinMaxSequence::new(Some(2), 14)
+            sequencer_numbers.get(&1).unwrap(),
+            &OptionalMinMaxSequence::new(Some(2), 14)
         );
-        assert_eq!(checkpoint.min_unpersisted_timestamp(), start);
 
         w.flush(flush);
 
-        // The checkpoint after the flush should include the new write
-        let checkpoint = w.checkpoint().unwrap();
+        // The sequencer numbers after the flush should include the new write
+        let sequencer_numbers = w.sequencer_numbers(false);
         assert_eq!(
-            checkpoint.sequencer_numbers(1).unwrap(),
-            OptionalMinMaxSequence::new(Some(6), 14)
+            sequencer_numbers.get(&1).unwrap(),
+            &OptionalMinMaxSequence::new(Some(6), 14)
         );
-        assert_eq!(checkpoint.min_unpersisted_timestamp(), start);
 
         // Windows from writes at
         //
