@@ -5,6 +5,7 @@ edition = "2018"
 
 [dependencies]
 async-trait = "0.1"
+chrono = "0.4"
 data_types = { path = "../data_types" }
 entry = { path = "../entry" }
 futures = "0.3"

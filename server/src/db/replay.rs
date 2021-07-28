@@ -221,9 +221,9 @@ mod tests {
 
             SequencedEntry::new_from_sequence(
                 Sequence::new(sequencer_id, sequence_number),
+                Utc::now(),
                 entries.pop().unwrap(),
             )
-            .unwrap()
         }
     }
 
