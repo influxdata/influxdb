@@ -1,15 +1,18 @@
 //! Implementation of statistics based pruning
 
 use arrow::array::ArrayRef;
-use data_types::partition_metadata::{ColumnSummary, Statistics, TableSummary};
+use data_types::partition_metadata::{ColumnSummary, TableSummary};
 use datafusion::{
     logical_plan::{Column, Expr},
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
-    scalar::ScalarValue,
 };
 use observability_deps::tracing::{debug, trace};
 
-use crate::{predicate::Predicate, QueryChunkMeta};
+use crate::{
+    predicate::Predicate,
+    statistics::{max_to_scalar, min_to_scalar},
+    QueryChunkMeta,
+};
 
 /// Something that cares to be notified when pruning of chunks occurs
 pub trait PruningObserver {
@@ -112,28 +115,6 @@ impl<'a> ChunkMetaStats<'a> {
     fn column_summary(&self, column: &str) -> Option<&ColumnSummary> {
         let summary = self.summary.columns.iter().find(|c| c.name == column);
         summary
-    }
-}
-
-/// Converts stats.min and an appropriate `ScalarValue`
-fn min_to_scalar(stats: &Statistics) -> Option<ScalarValue> {
-    match stats {
-        Statistics::I64(v) => v.min.map(ScalarValue::from),
-        Statistics::U64(v) => v.min.map(ScalarValue::from),
-        Statistics::F64(v) => v.min.map(ScalarValue::from),
-        Statistics::Bool(v) => v.min.map(ScalarValue::from),
-        Statistics::String(v) => v.min.as_deref().map(ScalarValue::from),
-    }
-}
-
-/// Converts stats.max to an appropriate `ScalarValue`
-fn max_to_scalar(stats: &Statistics) -> Option<ScalarValue> {
-    match stats {
-        Statistics::I64(v) => v.max.map(ScalarValue::from),
-        Statistics::U64(v) => v.max.map(ScalarValue::from),
-        Statistics::F64(v) => v.max.map(ScalarValue::from),
-        Statistics::Bool(v) => v.max.map(ScalarValue::from),
-        Statistics::String(v) => v.max.as_deref().map(ScalarValue::from),
     }
 }
 

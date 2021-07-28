@@ -247,10 +247,30 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
     }
 
     fn statistics(&self) -> Statistics {
-        // TODO translate IOx stats to DataFusion statistics
-        Statistics::default()
+        self.chunks
+            .iter()
+            .fold(None, |combined_summary, chunk| match combined_summary {
+                None => Some(chunk.summary().clone()),
+                Some(mut combined_summary) => {
+                    combined_summary.update_from(chunk.summary());
+                    Some(combined_summary)
+                }
+            })
+            .map(|combined_summary| {
+                crate::statistics::df_from_iox(self.iox_schema.as_ref(), &combined_summary)
+            })
+            .unwrap_or_default()
     }
 
+    /// Returns whether statistics provided are exact values or estimates
+    fn has_exact_statistics(&self) -> bool {
+        // TODO: we should acount for overlaps at this point -- if
+        // there is overlap across the chunks, we probably can't
+        // provide exact statistics without more work
+        true
+    }
+
+    /// Filter pushdown specificiation
     fn supports_filter_pushdown(
         &self,
         _filter: &Expr,
