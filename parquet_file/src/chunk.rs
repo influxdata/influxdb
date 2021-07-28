@@ -1,7 +1,4 @@
-use crate::{
-    metadata::{IoxMetadata, IoxParquetMetaData},
-    storage::Storage,
-};
+use crate::{metadata::IoxParquetMetaData, storage::Storage};
 use data_types::{
     partition_metadata::{Statistics, TableSummary},
     timestamp::TimestampRange,
@@ -118,20 +115,10 @@ impl ParquetChunk {
         store: Arc<ObjectStore>,
         file_size_bytes: usize,
         parquet_metadata: Arc<IoxParquetMetaData>,
+        table_name: Arc<str>,
+        partition_key: Arc<str>,
         metrics: ChunkMetrics,
     ) -> Result<Self> {
-        let iox_md = parquet_metadata
-            .read_iox_metadata()
-            .context(IoxMetadataReadFailed {
-                path: &file_location,
-            })?;
-
-        let IoxMetadata {
-            table_name,
-            partition_key,
-            ..
-        } = iox_md;
-
         let schema = parquet_metadata.read_schema().context(SchemaReadFailed {
             path: &file_location,
         })?;
