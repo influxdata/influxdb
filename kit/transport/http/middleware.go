@@ -46,8 +46,8 @@ func Metrics(name string, reqMetric *prometheus.CounterVec, durMetric *prometheu
 
 			defer func(start time.Time) {
 				statusCode := statusW.Code()
-				// do not log metrics for invalid requests
-				if statusCode < 200 || statusCode > 299 {
+				// only log metrics for 2XX or 5XX requests
+				if !reportFromCode(statusCode) {
 					return
 				}
 
@@ -245,4 +245,17 @@ func OrgIDFromContext(ctx context.Context) *platform.ID {
 	}
 	id := v.(platform.ID)
 	return &id
+}
+
+// reportFromCode is a helper function to determine if telemetry data should be
+// reported for this response.
+func reportFromCode(c int) bool {
+	switch {
+	case c >= 200 && c <= 299:
+		return true
+	case c >= 500 && c <= 599:
+		return true
+	default:
+		return false
+	}
 }

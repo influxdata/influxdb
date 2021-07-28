@@ -18,29 +18,6 @@ import (
 )
 
 func TestMetrics(t *testing.T) {
-	tests := []struct {
-		name          string
-		reqPath       string
-		wantCount     int
-		labelResponse string
-		labelStatus   string
-	}{
-		{
-			name:          "counter increments on success code",
-			reqPath:       "/",
-			wantCount:     1,
-			labelResponse: "200",
-			labelStatus:   "2XX",
-		},
-		{
-			name:          "counter does not increment on failure code",
-			reqPath:       "/badpath",
-			wantCount:     0,
-			labelResponse: "404",
-			labelStatus:   "4XX",
-		},
-	}
-
 	labels := []string{"handler", "method", "path", "status", "response_code", "user_agent"}
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,8 +26,55 @@ func TestMetrics(t *testing.T) {
 			return
 		}
 
+		if r.URL.Path == "/serverError" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		if r.URL.Path == "/redirect" {
+			w.WriteHeader(http.StatusPermanentRedirect)
+			return
+		}
+
 		w.WriteHeader(http.StatusNotFound)
 	})
+
+	tests := []struct {
+		name          string
+		reqPath       string
+		wantCount     int
+		labelResponse string
+		labelStatus   string
+	}{
+		{
+			name:          "counter increments on OK (2XX) ",
+			reqPath:       "/",
+			wantCount:     1,
+			labelResponse: "200",
+			labelStatus:   "2XX",
+		},
+		{
+			name:          "counter does not increment on not found (4XX)",
+			reqPath:       "/badpath",
+			wantCount:     0,
+			labelResponse: "404",
+			labelStatus:   "4XX",
+		},
+		{
+			name:          "counter increments on server error (5XX)",
+			reqPath:       "/serverError",
+			wantCount:     1,
+			labelResponse: "500",
+			labelStatus:   "5XX",
+		},
+		{
+			name:          "counter does not increment on redirect (3XX)",
+			reqPath:       "/redirect",
+			wantCount:     0,
+			labelResponse: "500",
+			labelStatus:   "5XX",
+		},
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -69,7 +93,7 @@ func TestMetrics(t *testing.T) {
 			m := promtest.FindMetric(mfs, "counter", map[string]string{
 				"handler":       "testing",
 				"method":        "GET",
-				"path":          "/",
+				"path":          tt.reqPath,
 				"response_code": tt.labelResponse,
 				"status":        tt.labelStatus,
 				"user_agent":    "unknown",
