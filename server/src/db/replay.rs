@@ -185,13 +185,16 @@ mod tests {
         database_rules::{PartitionTemplate, Partitioner, TemplatePart},
         server_id::ServerId,
     };
-    use entry::{test_helpers::lp_to_entries, Sequence, SequencedEntry};
+    use entry::{
+        test_helpers::{lp_to_entries, lp_to_entry},
+        Sequence, SequencedEntry,
+    };
     use object_store::ObjectStore;
     use persistence_windows::{
         checkpoint::{PartitionCheckpoint, PersistCheckpointBuilder, ReplayPlanner},
         min_max_sequence::OptionalMinMaxSequence,
     };
-    use query::QueryChunk;
+    use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryChunk};
     use test_helpers::assert_contains;
     use tokio_util::sync::CancellationToken;
     use write_buffer::{
@@ -199,7 +202,7 @@ mod tests {
         mock::{MockBufferForReading, MockBufferSharedState},
     };
 
-    use crate::{db::test_helpers::run_query, utils::TestDb};
+    use crate::utils::TestDb;
 
     #[derive(Debug)]
     struct TestSequencedEntry {
@@ -477,18 +480,38 @@ mod tests {
                         )
                     }
                     Check::Query(query, expected) => {
-                        let batches = run_query(Arc::clone(&db), query).await;
+                        let db = Arc::clone(&db);
+                        let planner = SqlQueryPlanner::default();
+                        let executor = db.executor();
 
-                        // we are throwing away the record batches after the assert, so we don't care about interior
-                        // mutability
-                        let batches = std::panic::AssertUnwindSafe(batches);
+                        match planner.query(db, query, &executor) {
+                            Ok(physical_plan) => {
+                                match executor.collect(physical_plan, ExecutorType::Query).await {
+                                    Ok(batches) => {
+                                        // we are throwing away the record batches after the assert, so we don't care about interior
+                                        // mutability
+                                        let batches = std::panic::AssertUnwindSafe(batches);
 
-                        Self::eval_assert(
-                            || {
-                                assert_batches_eq!(expected, &batches);
-                            },
-                            use_assert,
-                        )
+                                        Self::eval_assert(
+                                            || {
+                                                assert_batches_eq!(expected, &batches);
+                                            },
+                                            use_assert,
+                                        )
+                                    }
+                                    err if use_assert => {
+                                        err.unwrap();
+                                        unreachable!()
+                                    }
+                                    _ => false,
+                                }
+                            }
+                            err if use_assert => {
+                                err.unwrap();
+                                unreachable!()
+                            }
+                            _ => false,
+                        }
                     }
                 };
 
@@ -580,6 +603,9 @@ mod tests {
 
     #[tokio::test]
     async fn replay_ok_two_partitions_persist_second() {
+        // acts as regression test for the following PRs:
+        // - https://github.com/influxdata/influxdb_iox/pull/2079
+        // - https://github.com/influxdata/influxdb_iox/pull/2084
         ReplayTest {
             n_sequencers: 1,
             steps: vec![
@@ -682,6 +708,9 @@ mod tests {
 
     #[tokio::test]
     async fn replay_ok_two_partitions_persist_first() {
+        // acts as regression test for the following PRs:
+        // - https://github.com/influxdata/influxdb_iox/pull/2079
+        // - https://github.com/influxdata/influxdb_iox/pull/2084
         ReplayTest {
             n_sequencers: 1,
             steps: vec![
@@ -926,6 +955,245 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn replay_ok_interleaved_writes() {
+        ReplayTest {
+            n_sequencers: 1,
+            steps: vec![
+                // let's ingest some data for two partitions a and b
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 0,
+                        lp: "table_1,tag_partition_by=a bar=10 0",
+                    },
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 1,
+                        lp: "table_1,tag_partition_by=b bar=20 0",
+                    },
+                ]),
+                Step::Await(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+----------------------+",
+                        "| bar | tag_partition_by | time                 |",
+                        "+-----+------------------+----------------------+",
+                        "| 10  | a                | 1970-01-01T00:00:00Z |",
+                        "| 20  | b                | 1970-01-01T00:00:00Z |",
+                        "+-----+------------------+----------------------+",
+                    ],
+                )]),
+                // only persist partition a
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                // ================================================================================
+                // after restart the non-persisted partition (B) is gone
+                Step::Restart,
+                Step::Assert(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+----------------------+",
+                        "| bar | tag_partition_by | time                 |",
+                        "+-----+------------------+----------------------+",
+                        "| 10  | a                | 1970-01-01T00:00:00Z |",
+                        "+-----+------------------+----------------------+",
+                    ],
+                )]),
+                // ...but replay can bring the data back without ingesting more data
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 2,
+                        lp: "table_1,tag_partition_by=a bar=11 10",
+                    },
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 3,
+                        lp: "table_1,tag_partition_by=b bar=21 10",
+                    },
+                ]),
+                Step::Replay,
+                Step::Assert(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+----------------------+",
+                        "| bar | tag_partition_by | time                 |",
+                        "+-----+------------------+----------------------+",
+                        "| 10  | a                | 1970-01-01T00:00:00Z |",
+                        "| 20  | b                | 1970-01-01T00:00:00Z |",
+                        "+-----+------------------+----------------------+",
+                    ],
+                )]),
+                // now wait for all the to-be-ingested data
+                Step::Await(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 10  | a                | 1970-01-01T00:00:00Z           |",
+                        "| 11  | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "| 20  | b                | 1970-01-01T00:00:00Z           |",
+                        "| 21  | b                | 1970-01-01T00:00:00.000000010Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+                // ...and only persist partition a (a 2nd time)
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                // ================================================================================
+                // after restart partition b will be gone again
+                Step::Restart,
+                Step::Assert(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 10  | a                | 1970-01-01T00:00:00Z           |",
+                        "| 11  | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+                // ...but again replay can bring the data back without ingesting more data
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 4,
+                        lp: "table_1,tag_partition_by=b bar=22 20",
+                    },
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 5,
+                        lp: "table_1,tag_partition_by=a bar=12 20",
+                    },
+                ]),
+                Step::Replay,
+                Step::Assert(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 10  | a                | 1970-01-01T00:00:00Z           |",
+                        "| 11  | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "| 20  | b                | 1970-01-01T00:00:00Z           |",
+                        "| 21  | b                | 1970-01-01T00:00:00.000000010Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+                // now wait for all the to-be-ingested data
+                Step::Await(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 10  | a                | 1970-01-01T00:00:00Z           |",
+                        "| 11  | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "| 12  | a                | 1970-01-01T00:00:00.000000020Z |",
+                        "| 20  | b                | 1970-01-01T00:00:00Z           |",
+                        "| 21  | b                | 1970-01-01T00:00:00.000000010Z |",
+                        "| 22  | b                | 1970-01-01T00:00:00.000000020Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+                // this time only persist partition b
+                Step::Persist(vec![("table_1", "tag_partition_by_b")]),
+                // ================================================================================
+                // after restart partition b will be fully present but the latest data for partition a is gone
+                Step::Restart,
+                Step::Assert(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 10  | a                | 1970-01-01T00:00:00Z           |",
+                        "| 11  | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "| 20  | b                | 1970-01-01T00:00:00Z           |",
+                        "| 21  | b                | 1970-01-01T00:00:00.000000010Z |",
+                        "| 22  | b                | 1970-01-01T00:00:00.000000020Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+                // ...but again replay can bring the data back without ingesting more data
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 6,
+                        lp: "table_1,tag_partition_by=b bar=23 30",
+                    },
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 7,
+                        lp: "table_1,tag_partition_by=a bar=13 30",
+                    },
+                ]),
+                Step::Replay,
+                Step::Assert(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 10  | a                | 1970-01-01T00:00:00Z           |",
+                        "| 11  | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "| 12  | a                | 1970-01-01T00:00:00.000000020Z |",
+                        "| 20  | b                | 1970-01-01T00:00:00Z           |",
+                        "| 21  | b                | 1970-01-01T00:00:00.000000010Z |",
+                        "| 22  | b                | 1970-01-01T00:00:00.000000020Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+                // now wait for all the to-be-ingested data
+                Step::Await(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 10  | a                | 1970-01-01T00:00:00Z           |",
+                        "| 11  | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "| 12  | a                | 1970-01-01T00:00:00.000000020Z |",
+                        "| 13  | a                | 1970-01-01T00:00:00.000000030Z |",
+                        "| 20  | b                | 1970-01-01T00:00:00Z           |",
+                        "| 21  | b                | 1970-01-01T00:00:00.000000010Z |",
+                        "| 22  | b                | 1970-01-01T00:00:00.000000020Z |",
+                        "| 23  | b                | 1970-01-01T00:00:00.000000030Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+                // finally persist both partitions
+                Step::Persist(vec![
+                    ("table_1", "tag_partition_by_a"),
+                    ("table_1", "tag_partition_by_b"),
+                ]),
+                // ================================================================================
+                // and after this restart nothing is lost
+                Step::Restart,
+                Step::Assert(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 10  | a                | 1970-01-01T00:00:00Z           |",
+                        "| 11  | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "| 12  | a                | 1970-01-01T00:00:00.000000020Z |",
+                        "| 13  | a                | 1970-01-01T00:00:00.000000030Z |",
+                        "| 20  | b                | 1970-01-01T00:00:00Z           |",
+                        "| 21  | b                | 1970-01-01T00:00:00.000000010Z |",
+                        "| 22  | b                | 1970-01-01T00:00:00.000000020Z |",
+                        "| 23  | b                | 1970-01-01T00:00:00.000000030Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+            ],
+        }
+        .run()
+        .await;
+    }
+
+    #[tokio::test]
     async fn replay_fail_sequencers_change() {
         // create write buffer w/ sequencer 0 and 1
         let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(2);
@@ -961,6 +1229,54 @@ mod tests {
         assert_contains!(
             res.unwrap_err().to_string(),
             "Replay plan references unknown sequencer"
+        );
+    }
+
+    #[tokio::test]
+    async fn replay_fail_lost_entry() {
+        // create write buffer state with sequence number 0 and 2, 1 is missing
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 0),
+            Utc::now(),
+            lp_to_entry("cpu bar=1 0"),
+        ));
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 2),
+            Utc::now(),
+            lp_to_entry("cpu bar=1 10"),
+        ));
+        let write_buffer = MockBufferForReading::new(write_buffer_state);
+
+        // create DB
+        let db = TestDb::builder()
+            .write_buffer(WriteBufferConfig::Reading(Arc::new(
+                tokio::sync::Mutex::new(Box::new(write_buffer) as _),
+            )))
+            .build()
+            .await
+            .db;
+
+        // construct replay plan to replay sequence numbers 0 and 1
+        let mut sequencer_numbers = BTreeMap::new();
+        sequencer_numbers.insert(0, OptionalMinMaxSequence::new(Some(0), 1));
+        let partition_checkpoint = PartitionCheckpoint::new(
+            Arc::from("table"),
+            Arc::from("partition"),
+            sequencer_numbers,
+            Utc::now(),
+        );
+        let builder = PersistCheckpointBuilder::new(partition_checkpoint);
+        let (partition_checkpoint, database_checkpoint) = builder.build();
+        let mut replay_planner = ReplayPlanner::new();
+        replay_planner.register_checkpoints(&partition_checkpoint, &database_checkpoint);
+        let replay_plan = replay_planner.build().unwrap();
+
+        // replay fails
+        let res = db.perform_replay(&replay_plan).await;
+        assert_contains!(
+            res.unwrap_err().to_string(),
+            "Cannot replay: For sequencer 0 expected to find sequence 1 but replay jumped to 2"
         );
     }
 }

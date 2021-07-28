@@ -10,7 +10,7 @@ use data_types::{
 use internal_types::schema::Schema;
 use observability_deps::tracing::info;
 use persistence_windows::{
-    checkpoint::PartitionCheckpoint, persistence_windows::PersistenceWindows,
+    min_max_sequence::OptionalMinMaxSequence, persistence_windows::PersistenceWindows,
 };
 use snafu::Snafu;
 use std::{
@@ -293,12 +293,11 @@ impl Partition {
         self.persistence_windows = Some(windows);
     }
 
-    /// Construct partition checkpoint out of contained persistence window, if any.
-    pub fn partition_checkpoint(&self) -> Option<PartitionCheckpoint> {
+    /// Construct sequencer numbers out of contained persistence window, if any.
+    pub fn sequencer_numbers(&self) -> Option<BTreeMap<u32, OptionalMinMaxSequence>> {
         self.persistence_windows
             .as_ref()
-            .map(|persistence_windows| persistence_windows.checkpoint())
-            .flatten()
+            .map(|persistence_windows| persistence_windows.sequencer_numbers(false))
     }
 }
 

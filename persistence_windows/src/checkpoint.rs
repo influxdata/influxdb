@@ -16,7 +16,9 @@
 //! use persistence_windows::checkpoint::{PersistCheckpointBuilder, PartitionCheckpoint};
 //!
 //! # // mocking for the example below
+//! # use std::collections::BTreeMap;
 //! # use chrono::Utc;
+//! # use persistence_windows::min_max_sequence::OptionalMinMaxSequence;
 //! #
 //! # struct Partition {
 //! #     id: u32,
@@ -31,13 +33,8 @@
 //! #         FlushHandle {}
 //! #     }
 //! #
-//! #     fn get_checkpoint(&self) -> PartitionCheckpoint {
-//! #         PartitionCheckpoint::new(
-//! #             Arc::from("table"),
-//! #             Arc::from("part"),
-//! #             Default::default(),
-//! #             Utc::now(),
-//! #         )
+//! #     fn get_sequencer_numbers(&self) -> BTreeMap<u32, OptionalMinMaxSequence> {
+//! #         BTreeMap::new()
 //! #     }
 //! # }
 //! #
@@ -104,7 +101,7 @@
 //!     if read_guard.id() != id {
 //!         // this is another partition
 //!         // fold in checkpoint
-//!         builder.register_other_partition(&read_guard.get_checkpoint());
+//!         builder.register_other_partition(&read_guard.get_sequencer_numbers());
 //!     }
 //! }
 //!
@@ -413,8 +410,11 @@ impl PersistCheckpointBuilder {
     }
 
     /// Registers other partition and keeps track of the overall min sequence numbers.
-    pub fn register_other_partition(&mut self, partition_checkpoint: &PartitionCheckpoint) {
-        for (sequencer_id, min_max) in &partition_checkpoint.sequencer_numbers {
+    pub fn register_other_partition(
+        &mut self,
+        sequencer_numbers: &BTreeMap<u32, OptionalMinMaxSequence>,
+    ) {
+        for (sequencer_id, min_max) in sequencer_numbers {
             match self
                 .database_checkpoint
                 .sequencer_numbers
@@ -615,17 +615,25 @@ impl ReplayPlan {
 mod tests {
     use super::*;
 
-    /// Create [`PartitionCheckpoint`].
-    macro_rules! part_ckpt {
-        ($table_name:expr, $partition_key:expr, {$($sequencer_number:expr => ($min:expr, $max:expr)),*}) => {
+    /// Create sequence numbers map.
+    macro_rules! sequencer_numbers {
+        {$($sequencer_number:expr => ($min:expr, $max:expr)),*} => {
             {
                 let mut sequencer_numbers = BTreeMap::new();
                 $(
                     sequencer_numbers.insert($sequencer_number, OptionalMinMaxSequence::new($min, $max));
                 )*
+                sequencer_numbers
+            }
+        };
+    }
 
+    /// Create [`PartitionCheckpoint`].
+    macro_rules! part_ckpt {
+        ($table_name:expr, $partition_key:expr, {$($sequencer_number:expr => ($min:expr, $max:expr)),*}) => {
+            {
+                let sequencer_numbers = sequencer_numbers!{$($sequencer_number => ($min, $max)),*};
                 let min_unpersisted_timestamp = DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(0, 0), Utc);
-
                 PartitionCheckpoint::new(Arc::from($table_name), Arc::from($partition_key), sequencer_numbers, min_unpersisted_timestamp)
             }
         };
@@ -635,10 +643,7 @@ mod tests {
     macro_rules! db_ckpt {
         ({$($sequencer_number:expr => ($min:expr, $max:expr)),*}) => {
             {
-                let mut sequencer_numbers = BTreeMap::new();
-                $(
-                    sequencer_numbers.insert($sequencer_number, OptionalMinMaxSequence::new($min, $max));
-                )*
+                let sequencer_numbers = sequencer_numbers!{$($sequencer_number => ($min, $max)),*};
                 DatabaseCheckpoint{sequencer_numbers}
             }
         };
@@ -713,18 +718,14 @@ mod tests {
         );
         let mut builder = PersistCheckpointBuilder::new(pckpt_orig.clone());
 
-        builder.register_other_partition(&part_ckpt!(
-            "table_1",
-            "partition_2",
-            {
-                2 => (Some(2), 16),
-                3 => (Some(20), 25),
-                4 => (Some(13), 14),
-                6 => (None, 10),
-                7 => (Some(5), 10),
-                8 => (None, 11)
-            }
-        ));
+        builder.register_other_partition(&sequencer_numbers! {
+            2 => (Some(2), 16),
+            3 => (Some(20), 25),
+            4 => (Some(13), 14),
+            6 => (None, 10),
+            7 => (Some(5), 10),
+            8 => (None, 11)
+        });
 
         let (pckpt, dckpt) = builder.build();
 
