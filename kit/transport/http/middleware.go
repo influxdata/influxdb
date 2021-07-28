@@ -250,12 +250,5 @@ func OrgIDFromContext(ctx context.Context) *platform.ID {
 // reportFromCode is a helper function to determine if telemetry data should be
 // reported for this response.
 func reportFromCode(c int) bool {
-	switch {
-	case c >= 200 && c <= 299:
-		return true
-	case c >= 500 && c <= 599:
-		return true
-	default:
-		return false
-	}
+	return (c >= 200 && c <= 299) || (c >= 500 && c <= 599)
 }

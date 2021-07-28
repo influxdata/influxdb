@@ -9,12 +9,11 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap/zaptest"
-
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestMetrics(t *testing.T) {
@@ -54,11 +53,9 @@ func TestMetrics(t *testing.T) {
 			labelStatus:   "2XX",
 		},
 		{
-			name:          "counter does not increment on not found (4XX)",
-			reqPath:       "/badpath",
-			wantCount:     0,
-			labelResponse: "404",
-			labelStatus:   "4XX",
+			name:      "counter does not increment on not found (4XX)",
+			reqPath:   "/badpath",
+			wantCount: 0,
 		},
 		{
 			name:          "counter increments on server error (5XX)",
@@ -68,11 +65,9 @@ func TestMetrics(t *testing.T) {
 			labelStatus:   "5XX",
 		},
 		{
-			name:          "counter does not increment on redirect (3XX)",
-			reqPath:       "/redirect",
-			wantCount:     0,
-			labelResponse: "500",
-			labelStatus:   "5XX",
+			name:      "counter does not increment on redirect (3XX)",
+			reqPath:   "/redirect",
+			wantCount: 0,
 		},
 	}
 
