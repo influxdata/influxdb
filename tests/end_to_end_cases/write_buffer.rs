@@ -69,6 +69,60 @@ async fn writes_go_to_kafka() {
     assert_eq!(partition_writes.len(), 2);
 }
 
+#[tokio::test]
+async fn writes_go_to_kafka_whitelist() {
+    let kafka_connection = maybe_skip_kafka_integration!();
+
+    // set up a database with a write buffer pointing at kafka
+    let server = ServerFixture::create_shared().await;
+    let db_name = rand_name();
+    let write_buffer_connection = WriteBufferConnection::Writing(kafka_connection.to_string());
+
+    DatabaseBuilder::new(db_name.clone())
+        .write_buffer(write_buffer_connection)
+        .write_buffer_table_whitelist(vec!["cpu".to_string()])
+        .build(server.grpc_channel())
+        .await;
+
+    // write some points
+    let mut write_client = server.write_client();
+
+    let lp_lines = [
+        "cpu,region=west user=23.2 100",
+        "cpu,region=west user=21.0 150",
+        "disk,region=east bytes=99i 200",
+        "mem,region=east bytes=123 250",
+    ];
+
+    let num_lines_written = write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("cannot write");
+    assert_eq!(num_lines_written, 4);
+
+    // check the data is in kafka
+    let mut cfg = ClientConfig::new();
+    cfg.set("bootstrap.servers", kafka_connection);
+    cfg.set("session.timeout.ms", "6000");
+    cfg.set("enable.auto.commit", "false");
+    cfg.set("group.id", "placeholder");
+
+    let consumer: StreamConsumer = cfg.create().unwrap();
+    let mut topics = TopicPartitionList::new();
+    topics.add_partition(&db_name, 0);
+    topics
+        .set_partition_offset(&db_name, 0, Offset::Beginning)
+        .unwrap();
+    consumer.assign(&topics).unwrap();
+
+    let message = consumer.recv().await.unwrap();
+    assert_eq!(message.topic(), db_name);
+
+    let entry = Entry::try_from(message.payload().unwrap().to_vec()).unwrap();
+    let partition_writes = entry.partition_writes().unwrap();
+    assert_eq!(partition_writes.len(), 1);
+}
+
 async fn produce_to_kafka_directly(
     producer: &FutureProducer,
     lp: &str,

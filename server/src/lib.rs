@@ -80,7 +80,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 
 use data_types::{
     database_rules::{
-        DatabaseRules, NodeGroup, RoutingRules, ShardConfig, ShardId, Sink, WriteBufferConnection,
+        DatabaseRules, NodeGroup, RoutingRules, ShardId, Sink, WriteBufferConnection,
     },
     database_state::DatabaseStateCode,
     job::Job,
@@ -100,6 +100,7 @@ use write_buffer::config::WriteBufferConfig;
 pub use crate::config::RemoteTemplate;
 use crate::config::{object_store_path_for_database_config, Config, GRpcConnectionString};
 use cache_loader_async::cache_api::LoadingCache;
+use data_types::database_rules::ShardConfig;
 pub use db::Db;
 use generated_types::database_rules::encode_database_rules;
 use influxdb_iox_client::{connection::Builder, write};
@@ -798,7 +799,7 @@ where
 
         if let Some((sink, sharded_entries)) = routing_config_target {
             for i in sharded_entries {
-                self.write_entry_sink(&db_name, &sink, i.entry).await?;
+                self.write_entry_sink(&db_name, &db, &sink, i.entry).await?;
             }
             return Ok(());
         }
@@ -853,7 +854,7 @@ where
         match sharded_entry.shard_id {
             Some(shard_id) => {
                 let sink = shards.get(&shard_id).context(ShardNotFound { shard_id })?;
-                self.write_entry_sink(db_name, sink, sharded_entry.entry)
+                self.write_entry_sink(db_name, db, sink, sharded_entry.entry)
                     .await?
             }
             None => {
@@ -864,14 +865,23 @@ where
         Ok(())
     }
 
-    async fn write_entry_sink(&self, db_name: &str, sink: &Sink, entry: Entry) -> Result<()> {
+    async fn write_entry_sink(
+        &self,
+        db_name: &str,
+        db: &Db,
+        sink: &Sink,
+        entry: Entry,
+    ) -> Result<()> {
         match sink {
             Sink::Iox(node_group) => {
                 self.write_entry_downstream(db_name, node_group, entry)
                     .await
             }
             Sink::Kafka(_) => {
-                todo!("write to write buffer")
+                // The write buffer write path is currently implemented in "db", so confusingly we
+                // need to invoke write_entry_local.
+                // TODO(mkm): tracked in #2134
+                self.write_entry_local(db_name, db, entry).await
             }
             Sink::DevNull => {
                 // write is silently ignored, as requested by the configuration.
