@@ -5,8 +5,8 @@ use chrono::{DateTime, Utc};
 use data_types::partition_metadata;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
-use internal_types::access::AccessRecorder;
 use internal_types::{
+    access::AccessRecorder,
     schema::{sort::SortKey, Schema},
     selection::Selection,
 };
@@ -612,8 +612,8 @@ mod tests {
         let chunk = chunks.into_iter().next().unwrap();
         let chunk = chunk.read();
         assert_eq!(chunk.storage().1, ChunkStorage::ObjectStoreOnly);
-        let first_write = chunk.time_of_first_write().unwrap();
-        let last_write = chunk.time_of_last_write().unwrap();
+        let first_write = chunk.time_of_first_write();
+        let last_write = chunk.time_of_last_write();
         assert_eq!(first_write, last_write);
         assert!(before_creation < first_write);
         assert!(last_write < after_creation);
