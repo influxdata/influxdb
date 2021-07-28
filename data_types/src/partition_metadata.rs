@@ -1,7 +1,6 @@
 //! This module contains structs that describe the metadata for a partition
 //! including schema, summary statistics, and file locations in storage.
 
-use chrono::{DateTime, Utc};
 use observability_deps::tracing::warn;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -77,52 +76,6 @@ impl FromIterator<Self> for TableSummary {
             s.update_from(&other)
         }
         s
-    }
-}
-
-/// Temporary transition struct that has times of first/last write. Will eventually replace
-/// TableSummary entirely.
-#[derive(Debug)]
-pub struct TableSummaryAndTimes {
-    /// Table name
-    pub name: String,
-
-    /// Per column statistics
-    pub columns: Vec<ColumnSummary>,
-
-    /// Time at which the first data was written into this table. Note
-    /// this is not the same as the timestamps on the data itself
-    pub time_of_first_write: DateTime<Utc>,
-
-    /// Most recent time at which data write was initiated into this
-    /// chunk. Note this is not the same as the timestamps on the data
-    /// itself
-    pub time_of_last_write: DateTime<Utc>,
-}
-
-impl From<TableSummaryAndTimes> for TableSummary {
-    fn from(other: TableSummaryAndTimes) -> Self {
-        Self {
-            name: other.name,
-            columns: other.columns,
-        }
-    }
-}
-
-impl TableSummaryAndTimes {
-    pub fn size(&self) -> usize {
-        // Total size of all ColumnSummaries that belong to this table which include
-        // column names and their stats
-        let size: usize = self.columns.iter().map(|c| c.size()).sum();
-        size
-            + self.name.len() // Add size of the table name
-            + mem::size_of::<Self>() // Add size of this struct that points to
-                                     // table, ColumnSummary, and times
-    }
-
-    /// Get the column summary by name.
-    pub fn column(&self, name: &str) -> Option<&ColumnSummary> {
-        self.columns.iter().find(|c| c.name == name)
     }
 }
 
