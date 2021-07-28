@@ -1,15 +1,13 @@
+use crate::db::{catalog::Catalog, system_tables::IoxSystemTable};
+use arrow::{
+    array::{StringArray, TimestampNanosecondArray, UInt32Array, UInt64Array},
+    datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit},
+    error::Result,
+    record_batch::RecordBatch,
+};
+use chrono::{DateTime, Utc};
+use data_types::{chunk_metadata::ChunkSummary, error::ErrorLogger};
 use std::sync::Arc;
-
-use arrow::array::{StringArray, TimestampNanosecondArray, UInt32Array, UInt64Array};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
-use arrow::error::Result;
-use arrow::record_batch::RecordBatch;
-
-use data_types::chunk_metadata::ChunkSummary;
-use data_types::error::ErrorLogger;
-
-use crate::db::catalog::Catalog;
-use crate::db::system_tables::{time_to_ts, IoxSystemTable};
 
 /// Implementation of system.chunks table
 #[derive(Debug)]
@@ -50,10 +48,19 @@ fn chunk_summaries_schema() -> SchemaRef {
         Field::new("object_store_bytes", DataType::UInt64, false),
         Field::new("row_count", DataType::UInt64, false),
         Field::new("time_of_last_access", ts.clone(), true),
-        Field::new("time_of_first_write", ts.clone(), true),
-        Field::new("time_of_last_write", ts.clone(), true),
+        Field::new("time_of_first_write", ts.clone(), false),
+        Field::new("time_of_last_write", ts.clone(), false),
         Field::new("time_closed", ts, true),
     ]))
+}
+
+// TODO: Use a custom proc macro or serde to reduce the boilerplate
+fn optional_time_to_ts(time: Option<DateTime<Utc>>) -> Option<i64> {
+    time.and_then(time_to_ts)
+}
+
+fn time_to_ts(ts: DateTime<Utc>) -> Option<i64> {
+    Some(ts.timestamp_nanos())
 }
 
 fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
@@ -89,7 +96,7 @@ fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<
     let time_of_last_access = chunks
         .iter()
         .map(|c| c.time_of_last_access)
-        .map(time_to_ts)
+        .map(optional_time_to_ts)
         .collect::<TimestampNanosecondArray>();
     let time_of_first_write = chunks
         .iter()
@@ -104,7 +111,7 @@ fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<
     let time_closed = chunks
         .iter()
         .map(|c| c.time_closed)
-        .map(time_to_ts)
+        .map(optional_time_to_ts)
         .collect::<TimestampNanosecondArray>();
 
     RecordBatch::try_new(
@@ -128,12 +135,10 @@ fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<
 
 #[cfg(test)]
 mod tests {
-    use chrono::{TimeZone, Utc};
-
-    use arrow_util::assert_batches_eq;
-    use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage};
-
     use super::*;
+    use arrow_util::assert_batches_eq;
+    use chrono::{TimeZone, Utc};
+    use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage};
 
     #[test]
     fn test_from_chunk_summaries() {
@@ -148,8 +153,8 @@ mod tests {
                 object_store_bytes: 0,
                 row_count: 11,
                 time_of_last_access: None,
-                time_of_first_write: Some(Utc.timestamp_nanos(10_000_000_000)),
-                time_of_last_write: None,
+                time_of_first_write: Utc.timestamp_nanos(10_000_000_000),
+                time_of_last_write: Utc.timestamp_nanos(10_000_000_000),
                 time_closed: None,
             },
             ChunkSummary {
@@ -162,8 +167,8 @@ mod tests {
                 object_store_bytes: 0,
                 row_count: 22,
                 time_of_last_access: Some(Utc.timestamp_nanos(754_000_000_000)),
-                time_of_first_write: None,
-                time_of_last_write: Some(Utc.timestamp_nanos(80_000_000_000)),
+                time_of_first_write: Utc.timestamp_nanos(80_000_000_000),
+                time_of_last_write: Utc.timestamp_nanos(80_000_000_000),
                 time_closed: None,
             },
             ChunkSummary {
@@ -176,8 +181,8 @@ mod tests {
                 object_store_bytes: 5678,
                 row_count: 33,
                 time_of_last_access: Some(Utc.timestamp_nanos(5_000_000_000)),
-                time_of_first_write: Some(Utc.timestamp_nanos(100_000_000_000)),
-                time_of_last_write: Some(Utc.timestamp_nanos(200_000_000_000)),
+                time_of_first_write: Utc.timestamp_nanos(100_000_000_000),
+                time_of_last_write: Utc.timestamp_nanos(200_000_000_000),
                 time_closed: None,
             },
         ];
@@ -186,8 +191,8 @@ mod tests {
             "+----+---------------+------------+-------------------+------------------------------+--------------+--------------------+-----------+----------------------+----------------------+----------------------+-------------+",
             "| id | partition_key | table_name | storage           | lifecycle_action             | memory_bytes | object_store_bytes | row_count | time_of_last_access  | time_of_first_write  | time_of_last_write   | time_closed |",
             "+----+---------------+------------+-------------------+------------------------------+--------------+--------------------+-----------+----------------------+----------------------+----------------------+-------------+",
-            "| 0  | p1            | table1     | OpenMutableBuffer |                              | 23754        |                    | 11        |                      | 1970-01-01T00:00:10Z |                      |             |",
-            "| 1  | p1            | table1     | OpenMutableBuffer | Persisting to Object Storage | 23455        |                    | 22        | 1970-01-01T00:12:34Z |                      | 1970-01-01T00:01:20Z |             |",
+            "| 0  | p1            | table1     | OpenMutableBuffer |                              | 23754        |                    | 11        |                      | 1970-01-01T00:00:10Z | 1970-01-01T00:00:10Z |             |",
+            "| 1  | p1            | table1     | OpenMutableBuffer | Persisting to Object Storage | 23455        |                    | 22        | 1970-01-01T00:12:34Z | 1970-01-01T00:01:20Z | 1970-01-01T00:01:20Z |             |",
             "| 2  | p1            | table1     | ObjectStoreOnly   |                              | 1234         | 5678               | 33        | 1970-01-01T00:00:05Z | 1970-01-01T00:01:40Z | 1970-01-01T00:03:20Z |             |",
             "+----+---------------+------------+-------------------+------------------------------+--------------+--------------------+-----------+----------------------+----------------------+----------------------+-------------+",
         ];

@@ -1,17 +1,16 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use arrow::array::{ArrayRef, StringBuilder, UInt32Builder, UInt64Builder};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
-use arrow::error::Result;
-use arrow::record_batch::RecordBatch;
-
-use data_types::chunk_metadata::DetailedChunkSummary;
-use data_types::error::ErrorLogger;
-use data_types::partition_metadata::{PartitionSummary, TableSummary};
-
-use crate::db::catalog::Catalog;
-use crate::db::system_tables::IoxSystemTable;
+use crate::db::{catalog::Catalog, system_tables::IoxSystemTable};
+use arrow::{
+    array::{ArrayRef, StringBuilder, UInt32Builder, UInt64Builder},
+    datatypes::{DataType, Field, Schema, SchemaRef},
+    error::Result,
+    record_batch::RecordBatch,
+};
+use data_types::{
+    chunk_metadata::DetailedChunkSummary,
+    error::ErrorLogger,
+    partition_metadata::{PartitionSummary, TableSummary},
+};
+use std::{collections::HashMap, sync::Arc};
 
 /// Implementation of `system.columns` system table
 #[derive(Debug)]
@@ -217,11 +216,13 @@ fn assemble_chunk_columns(
 
 #[cfg(test)]
 mod tests {
-    use arrow_util::assert_batches_eq;
-    use data_types::chunk_metadata::{ChunkColumnSummary, ChunkStorage, ChunkSummary};
-    use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
-
     use super::*;
+    use arrow_util::assert_batches_eq;
+    use chrono::{TimeZone, Utc};
+    use data_types::{
+        chunk_metadata::{ChunkColumnSummary, ChunkStorage, ChunkSummary},
+        partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
+    };
 
     #[test]
     fn test_from_partition_summaries() {
@@ -317,8 +318,8 @@ mod tests {
                         object_store_bytes: 0,
                         row_count: 11,
                         time_of_last_access: None,
-                        time_of_first_write: None,
-                        time_of_last_write: None,
+                        time_of_first_write: Utc.timestamp_nanos(1),
+                        time_of_last_write: Utc.timestamp_nanos(2),
                         time_closed: None,
                     },
                     columns: vec![
@@ -353,8 +354,8 @@ mod tests {
                         object_store_bytes: 0,
                         row_count: 11,
                         time_of_last_access: None,
-                        time_of_first_write: None,
-                        time_of_last_write: None,
+                        time_of_first_write: Utc.timestamp_nanos(1),
+                        time_of_last_write: Utc.timestamp_nanos(2),
                         time_closed: None,
                     },
                     columns: vec![ChunkColumnSummary {
@@ -383,8 +384,8 @@ mod tests {
                         object_store_bytes: 0,
                         row_count: 11,
                         time_of_last_access: None,
-                        time_of_first_write: None,
-                        time_of_last_write: None,
+                        time_of_first_write: Utc.timestamp_nanos(1),
+                        time_of_last_write: Utc.timestamp_nanos(2),
                         time_closed: None,
                     },
                     columns: vec![ChunkColumnSummary {

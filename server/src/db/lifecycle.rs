@@ -1,20 +1,23 @@
-use std::fmt::Display;
-use std::sync::Arc;
-use std::time::Instant;
-
-use chrono::{DateTime, TimeZone, Utc};
-
+use super::DbChunk;
+use crate::{
+    db::catalog::{chunk::CatalogChunk, partition::Partition},
+    Db,
+};
 use ::lifecycle::LifecycleDb;
-use data_types::chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkStorage};
-use data_types::database_rules::LifecycleRules;
-use data_types::error::ErrorLogger;
-use data_types::job::Job;
-use data_types::partition_metadata::Statistics;
-use data_types::DatabaseName;
+use chrono::{DateTime, TimeZone, Utc};
+use data_types::{
+    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkStorage},
+    database_rules::LifecycleRules,
+    error::ErrorLogger,
+    job::Job,
+    partition_metadata::Statistics,
+    DatabaseName,
+};
 use datafusion::physical_plan::SendableRecordBatchStream;
-use internal_types::access::AccessMetrics;
-use internal_types::schema::merge::SchemaMerger;
-use internal_types::schema::{Schema, TIME_COLUMN_NAME};
+use internal_types::{
+    access::AccessMetrics,
+    schema::{merge::SchemaMerger, Schema, TIME_COLUMN_NAME},
+};
 use lifecycle::{
     LifecycleChunk, LifecyclePartition, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
     LockablePartition,
@@ -22,11 +25,8 @@ use lifecycle::{
 use observability_deps::tracing::{info, trace};
 use persistence_windows::persistence_windows::FlushHandle;
 use query::QueryChunkMeta;
+use std::{fmt::Display, sync::Arc, time::Instant};
 use tracker::{RwLock, TaskTracker};
-
-use crate::db::catalog::chunk::CatalogChunk;
-use crate::db::catalog::partition::Partition;
-use crate::Db;
 
 pub(crate) use compact::compact_chunks;
 pub(crate) use drop::drop_chunk;
@@ -34,8 +34,6 @@ pub(crate) use error::{Error, Result};
 pub(crate) use move_chunk::move_chunk_to_read_buffer;
 pub(crate) use persist::persist_chunks;
 pub(crate) use unload::unload_read_buffer_chunk;
-
-use super::DbChunk;
 
 mod compact;
 mod drop;
@@ -312,7 +310,7 @@ impl LifecycleChunk for CatalogChunk {
         self.access_recorder().get_metrics()
     }
 
-    fn time_of_last_write(&self) -> Option<DateTime<Utc>> {
+    fn time_of_last_write(&self) -> DateTime<Utc> {
         self.time_of_last_write()
     }
 

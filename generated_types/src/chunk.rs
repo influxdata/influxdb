@@ -1,8 +1,12 @@
-use crate::google::{FieldViolation, FromFieldOpt};
-use crate::influxdata::iox::management::v1 as management;
+use crate::{
+    google::{FieldViolation, FromFieldOpt},
+    influxdata::iox::management::v1 as management,
+};
 use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage, ChunkSummary};
-use std::convert::{TryFrom, TryInto};
-use std::sync::Arc;
+use std::{
+    convert::{TryFrom, TryInto},
+    sync::Arc,
+};
 
 /// Conversion code to management API chunk structure
 impl From<ChunkSummary> for management::Chunk {
@@ -32,8 +36,8 @@ impl From<ChunkSummary> for management::Chunk {
             object_store_bytes: object_store_bytes as u64,
             row_count: row_count as u64,
             time_of_last_access: time_of_last_access.map(Into::into),
-            time_of_first_write: time_of_first_write.map(Into::into),
-            time_of_last_write: time_of_last_write.map(Into::into),
+            time_of_first_write: Some(time_of_first_write.into()),
+            time_of_last_write: Some(time_of_last_write.into()),
             time_closed: time_closed.map(Into::into),
         }
     }
@@ -79,6 +83,15 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             t.map(|t| convert_timestamp(t, field)).transpose()
         };
 
+        let required_timestamp = |t: Option<google_types::protobuf::Timestamp>,
+                                  field: &'static str| {
+            t.ok_or_else(|| FieldViolation {
+                field: field.to_string(),
+                description: "Timestamp is required".to_string(),
+            })
+            .and_then(|t| convert_timestamp(t, field))
+        };
+
         let management::Chunk {
             partition_key,
             table_name,
@@ -105,8 +118,8 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             object_store_bytes: object_store_bytes as usize,
             row_count: row_count as usize,
             time_of_last_access: timestamp(time_of_last_access, "time_of_last_access")?,
-            time_of_first_write: timestamp(time_of_first_write, "time_of_first_write")?,
-            time_of_last_write: timestamp(time_of_last_write, "time_of_last_write")?,
+            time_of_first_write: required_timestamp(time_of_first_write, "time_of_first_write")?,
+            time_of_last_write: required_timestamp(time_of_last_write, "time_of_last_write")?,
             time_closed: timestamp(time_closed, "time_closed")?,
         })
     }
@@ -154,6 +167,7 @@ mod test {
 
     #[test]
     fn valid_proto_to_summary() {
+        let now = Utc::now();
         let proto = management::Chunk {
             partition_key: "foo".to_string(),
             table_name: "bar".to_string(),
@@ -164,8 +178,8 @@ mod test {
 
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
             lifecycle_action: management::ChunkLifecycleAction::Moving.into(),
-            time_of_first_write: None,
-            time_of_last_write: None,
+            time_of_first_write: Some(now.into()),
+            time_of_last_write: Some(now.into()),
             time_closed: None,
             time_of_last_access: Some(google_types::protobuf::Timestamp {
                 seconds: 50,
@@ -183,8 +197,8 @@ mod test {
             row_count: 321,
             storage: ChunkStorage::ObjectStoreOnly,
             lifecycle_action: Some(ChunkLifecycleAction::Moving),
-            time_of_first_write: None,
-            time_of_last_write: None,
+            time_of_first_write: now,
+            time_of_last_write: now,
             time_closed: None,
             time_of_last_access: Some(Utc.timestamp_nanos(50_000_000_007)),
         };
@@ -198,6 +212,7 @@ mod test {
 
     #[test]
     fn valid_summary_to_proto() {
+        let now = Utc::now();
         let summary = ChunkSummary {
             partition_key: Arc::from("foo"),
             table_name: Arc::from("bar"),
@@ -207,8 +222,8 @@ mod test {
             row_count: 321,
             storage: ChunkStorage::ObjectStoreOnly,
             lifecycle_action: Some(ChunkLifecycleAction::Persisting),
-            time_of_first_write: None,
-            time_of_last_write: None,
+            time_of_first_write: now,
+            time_of_last_write: now,
             time_closed: None,
             time_of_last_access: Some(Utc.timestamp_nanos(12_000_100_007)),
         };
@@ -224,8 +239,8 @@ mod test {
             row_count: 321,
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
             lifecycle_action: management::ChunkLifecycleAction::Persisting.into(),
-            time_of_first_write: None,
-            time_of_last_write: None,
+            time_of_first_write: Some(now.into()),
+            time_of_last_write: Some(now.into()),
             time_closed: None,
             time_of_last_access: Some(google_types::protobuf::Timestamp {
                 seconds: 12,
