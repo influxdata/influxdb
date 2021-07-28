@@ -185,7 +185,10 @@ mod tests {
         database_rules::{PartitionTemplate, Partitioner, TemplatePart},
         server_id::ServerId,
     };
-    use entry::{test_helpers::lp_to_entries, Sequence, SequencedEntry};
+    use entry::{
+        test_helpers::{lp_to_entries, lp_to_entry},
+        Sequence, SequencedEntry,
+    };
     use object_store::ObjectStore;
     use persistence_windows::{
         checkpoint::{PartitionCheckpoint, PersistCheckpointBuilder, ReplayPlanner},
@@ -1226,6 +1229,54 @@ mod tests {
         assert_contains!(
             res.unwrap_err().to_string(),
             "Replay plan references unknown sequencer"
+        );
+    }
+
+    #[tokio::test]
+    async fn replay_fail_lost_entry() {
+        // create write buffer state with sequence number 0 and 2, 1 is missing
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 0),
+            Utc::now(),
+            lp_to_entry("cpu bar=1 0"),
+        ));
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 2),
+            Utc::now(),
+            lp_to_entry("cpu bar=1 10"),
+        ));
+        let write_buffer = MockBufferForReading::new(write_buffer_state);
+
+        // create DB
+        let db = TestDb::builder()
+            .write_buffer(WriteBufferConfig::Reading(Arc::new(
+                tokio::sync::Mutex::new(Box::new(write_buffer) as _),
+            )))
+            .build()
+            .await
+            .db;
+
+        // construct replay plan to replay sequence numbers 0 and 1
+        let mut sequencer_numbers = BTreeMap::new();
+        sequencer_numbers.insert(0, OptionalMinMaxSequence::new(Some(0), 1));
+        let partition_checkpoint = PartitionCheckpoint::new(
+            Arc::from("table"),
+            Arc::from("partition"),
+            sequencer_numbers,
+            Utc::now(),
+        );
+        let builder = PersistCheckpointBuilder::new(partition_checkpoint);
+        let (partition_checkpoint, database_checkpoint) = builder.build();
+        let mut replay_planner = ReplayPlanner::new();
+        replay_planner.register_checkpoints(&partition_checkpoint, &database_checkpoint);
+        let replay_plan = replay_planner.build().unwrap();
+
+        // replay fails
+        let res = db.perform_replay(&replay_plan).await;
+        assert_contains!(
+            res.unwrap_err().to_string(),
+            "Cannot replay: For sequencer 0 expected to find sequence 1 but replay jumped to 2"
         );
     }
 }
