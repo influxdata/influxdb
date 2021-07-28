@@ -1,8 +1,9 @@
+use crate::google::FromFieldOpt;
 use std::convert::{TryFrom, TryInto};
 use std::num::{NonZeroU32, NonZeroU64, NonZeroUsize};
 
 use data_types::database_rules::{
-    LifecycleRules, DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
+    LifecycleRules, MaxActiveCompactions, DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
     DEFAULT_LATE_ARRIVE_WINDOW_SECONDS, DEFAULT_MUB_ROW_THRESHOLD,
     DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS, DEFAULT_PERSIST_ROW_THRESHOLD,
     DEFAULT_WORKER_BACKOFF_MILLIS,
@@ -13,7 +14,6 @@ use crate::influxdata::iox::management::v1 as management;
 
 impl From<LifecycleRules> for management::LifecycleRules {
     fn from(config: LifecycleRules) -> Self {
-        #[allow(deprecated)]
         Self {
             buffer_size_soft: config
                 .buffer_size_soft
@@ -27,7 +27,7 @@ impl From<LifecycleRules> for management::LifecycleRules {
             persist: config.persist,
             immutable: config.immutable,
             worker_backoff_millis: config.worker_backoff_millis.get(),
-            max_active_compactions: config.max_active_compactions.get(),
+            max_active_compactions_cfg: Some(config.max_active_compactions.into()),
             catalog_transactions_until_checkpoint: config
                 .catalog_transactions_until_checkpoint
                 .get(),
@@ -39,6 +39,17 @@ impl From<LifecycleRules> for management::LifecycleRules {
                 .parquet_cache_limit
                 .map(|v| v.get())
                 .unwrap_or_default(),
+        }
+    }
+}
+
+impl From<MaxActiveCompactions> for management::lifecycle_rules::MaxActiveCompactionsCfg {
+    fn from(max: MaxActiveCompactions) -> Self {
+        match max {
+            MaxActiveCompactions::MaxActiveCompactions(n) => Self::MaxActiveCompactions(n.get()),
+            MaxActiveCompactions::MaxActiveCompactionsCpuFraction { fraction, .. } => {
+                Self::MaxActiveCompactionsCpuFraction(fraction)
+            }
         }
     }
 }
@@ -55,8 +66,10 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
             immutable: proto.immutable,
             worker_backoff_millis: NonZeroU64::new(proto.worker_backoff_millis)
                 .unwrap_or_else(|| NonZeroU64::new(DEFAULT_WORKER_BACKOFF_MILLIS).unwrap()),
-            max_active_compactions: NonZeroU32::new(proto.max_active_compactions)
-                .unwrap_or_else(|| NonZeroU32::new(num_cpus::get() as u32).unwrap()), // default to num CPU threads
+            max_active_compactions: proto
+                .max_active_compactions_cfg
+                .optional("max_active_compactions")?
+                .unwrap_or_default(),
             catalog_transactions_until_checkpoint: NonZeroU64::new(
                 proto.catalog_transactions_until_checkpoint,
             )
@@ -78,13 +91,31 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
     }
 }
 
+impl TryFrom<management::lifecycle_rules::MaxActiveCompactionsCfg> for MaxActiveCompactions {
+    type Error = FieldViolation;
+
+    fn try_from(
+        value: management::lifecycle_rules::MaxActiveCompactionsCfg,
+    ) -> Result<Self, Self::Error> {
+        use management::lifecycle_rules::MaxActiveCompactionsCfg::*;
+        Ok(match value {
+            MaxActiveCompactions(n) => {
+                Self::MaxActiveCompactions(NonZeroU32::new(n).ok_or_else(|| FieldViolation {
+                    field: "max_active_compactions".to_string(),
+                    description: "must be non-zero".to_string(),
+                })?)
+            }
+            MaxActiveCompactionsCpuFraction(fraction) => Self::new(fraction),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn lifecycle_rules() {
-        #[allow(deprecated)]
         let protobuf = management::LifecycleRules {
             buffer_size_soft: 353,
             buffer_size_hard: 232,
@@ -92,7 +123,9 @@ mod tests {
             persist: true,
             immutable: true,
             worker_backoff_millis: 1000,
-            max_active_compactions: 8,
+            max_active_compactions_cfg: Some(
+                management::lifecycle_rules::MaxActiveCompactionsCfg::MaxActiveCompactions(8),
+            ),
             catalog_transactions_until_checkpoint: 10,
             late_arrive_window_seconds: 23,
             persist_row_threshold: 57,
@@ -120,7 +153,10 @@ mod tests {
         assert_eq!(back.drop_non_persisted, protobuf.drop_non_persisted);
         assert_eq!(back.immutable, protobuf.immutable);
         assert_eq!(back.worker_backoff_millis, protobuf.worker_backoff_millis);
-        assert_eq!(back.max_active_compactions, protobuf.max_active_compactions);
+        assert_eq!(
+            back.max_active_compactions_cfg,
+            protobuf.max_active_compactions_cfg
+        );
         assert_eq!(
             back.late_arrive_window_seconds,
             protobuf.late_arrive_window_seconds
@@ -143,5 +179,7 @@ mod tests {
         let protobuf = management::LifecycleRules::default();
         let config: LifecycleRules = protobuf.try_into().unwrap();
         assert_eq!(config, LifecycleRules::default());
+
+        assert_eq!(config.max_active_compactions.get(), num_cpus::get() as u32);
     }
 }

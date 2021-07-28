@@ -78,11 +78,14 @@ message LifecycleRules {
   // Maximum number of rows to buffer in a MUB chunk before compacting it
   uint64 mub_row_threshold = 15;
 
-  // The maximum number of concurrent active compactions that can run.
-  //
-  // If 0, compactions are limited to the default number.
-  // See data_types::database_rules::DEFAULT_MAX_ACTIVE_COMPACTIONS
-  uint32 max_active_compactions = 16;
+  oneof max_active_compactions_cfg {
+    // The maximum number of concurrent active compactions that can run.
+    uint32 max_active_compactions = 16;
+
+    // The maximum number of concurrent active compactions that can run
+    // expressed as a fraction of the available cpus (rounded to the next smallest non-zero integer).
+    float max_active_compactions_cpu_fraction = 18;
+  }
 
   // Use up to this amount of space in bytes for caching Parquet files.
   // A value of 0 disables Parquet caching
