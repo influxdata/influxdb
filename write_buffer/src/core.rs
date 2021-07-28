@@ -415,8 +415,17 @@ pub mod test_utils {
         let (sequencer_id, mut stream) = streams.pop().unwrap();
 
         // ingest data
-        // NOTE: Pre- and post-timestamp can have sub-millisecond data but some writebuffer implementations (like Kafka)
-        //       only support milli-second precision. Floor and ceil timestamp accordingly.
+        //
+        // We want to capture the time of `store_entry`. However for certain sequencers (like Kafka) the time is
+        // slightly imprecise in a way that it truncates the time to milliseconds. So the workaround in the test is:
+        //
+        // 1. Capture a `ts_pre` from which we know that it is close but less or equal to the store time. We use the
+        //    wallclock for that but truncate to milliseconds.
+        // 2. Capture a `ts_post` from which we know that it is close but greater or equal to the store time. We use
+        //    the wallclock but if it has a sub-millisecond part we use the next millisecond (it's like a ceil
+        //    operation).
+        // 3. Wait a bit between step 2 and the restore operation so that we can be really sure that the restore
+        //    operation must know the timestamp of the store operation and cannot just "guess" it.
         let ts_pre = timestamp_floor_millis(Utc::now());
         writer.store_entry(&entry, sequencer_id).await.unwrap();
         let ts_post = timestamp_ceil_millis(Utc::now());
