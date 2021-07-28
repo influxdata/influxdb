@@ -1967,13 +1967,14 @@ mod tests {
 
     #[tokio::test]
     async fn write_metrics() {
+        std::env::set_var("INFLUXDB_IOX_ROW_TIMESTAMP_METRICS", "write_metrics_test");
         let test_db = make_db().await;
         let db = Arc::clone(&test_db.db);
 
-        write_lp(db.as_ref(), "cpu foo=1 100000000000").await;
-        write_lp(db.as_ref(), "cpu foo=2 180000000000").await;
-        write_lp(db.as_ref(), "cpu foo=3 650000000000").await;
-        write_lp(db.as_ref(), "cpu foo=3 650000000010").await;
+        write_lp(db.as_ref(), "write_metrics_test foo=1 100000000000").await;
+        write_lp(db.as_ref(), "write_metrics_test foo=2 180000000000").await;
+        write_lp(db.as_ref(), "write_metrics_test foo=3 650000000000").await;
+        write_lp(db.as_ref(), "write_metrics_test foo=3 650000000010").await;
 
         let mut summary = TimestampSummary::default();
         summary.record(Utc.timestamp_nanos(100000000000));
@@ -1989,7 +1990,7 @@ mod tests {
                 .with_labels(&[
                     ("svr_id", "1"),
                     ("db_name", "placeholder"),
-                    ("table", "cpu"),
+                    ("table", "write_metrics_test"),
                     ("le", minute.as_str()),
                 ])
                 .counter()

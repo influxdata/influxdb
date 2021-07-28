@@ -106,7 +106,7 @@ impl ServerFixture {
             Some(server) => server,
             None => {
                 // if not, create one
-                let server = TestServer::new();
+                let server = TestServer::new(Default::default());
                 let server = Arc::new(server);
 
                 // ensure the server is ready
@@ -125,10 +125,17 @@ impl ServerFixture {
 
     /// Create a new server fixture and wait for it to be ready. This
     /// is called "create" rather than new because it is async and
-    /// waits.  The database is left unconfigured (no writer id) and
+    /// waits. The database is left unconfigured (no writer id) and
     /// is not shared with any other tests.
     pub async fn create_single_use() -> Self {
-        let server = TestServer::new();
+        Self::create_single_use_with_env(Default::default()).await
+    }
+
+    /// Create a new server fixture with the provided additional environment variables
+    /// and wait for it to be ready. The database is left unconfigured (no writer id)
+    /// and is not shared with any other tests.
+    pub async fn create_single_use_with_env(env: Vec<(String, String)>) -> Self {
+        let server = TestServer::new(env);
         let server = Arc::new(server);
 
         // ensure the server is ready
@@ -256,9 +263,12 @@ struct TestServer {
     /// Which ports this server should use
     addrs: BindAddresses,
 
-    // The temporary directory **must** be last so that it is
-    // dropped after the database closes.
+    /// The temporary directory **must** be last so that it is
+    /// dropped after the database closes.
     dir: TempDir,
+
+    /// Additional environment variables
+    env: Vec<(String, String)>,
 }
 
 struct Process {
@@ -267,19 +277,20 @@ struct Process {
 }
 
 impl TestServer {
-    fn new() -> Self {
+    fn new(env: Vec<(String, String)>) -> Self {
         let addrs = BindAddresses::default();
         let ready = Mutex::new(ServerState::Started);
 
         let dir = test_helpers::tmp_dir().unwrap();
 
-        let server_process = Mutex::new(Self::create_server_process(&addrs, &dir));
+        let server_process = Mutex::new(Self::create_server_process(&addrs, &dir, &env));
 
         Self {
             ready,
             server_process,
             addrs,
             dir,
+            env,
         }
     }
 
@@ -288,11 +299,15 @@ impl TestServer {
         let mut server_process = self.server_process.lock().await;
         server_process.child.kill().unwrap();
         server_process.child.wait().unwrap();
-        *server_process = Self::create_server_process(&self.addrs, &self.dir);
+        *server_process = Self::create_server_process(&self.addrs, &self.dir, &self.env);
         *ready_guard = ServerState::Started;
     }
 
-    fn create_server_process(addrs: &BindAddresses, dir: &TempDir) -> Process {
+    fn create_server_process(
+        addrs: &BindAddresses,
+        dir: &TempDir,
+        env: &[(String, String)],
+    ) -> Process {
         // Create a new file each time and keep it around to aid debugging
         let (log_file, log_path) = NamedTempFile::new()
             .expect("opening log file")
@@ -325,6 +340,7 @@ impl TestServer {
             .env("INFLUXDB_IOX_DB_DIR", dir.path())
             .env("INFLUXDB_IOX_BIND_ADDR", addrs.http_bind_addr())
             .env("INFLUXDB_IOX_GRPC_BIND_ADDR", addrs.grpc_bind_addr())
+            .envs(env.iter().map(|(a, b)| (a.as_str(), b.as_str())))
             // redirect output to log file
             .stdout(stdout_log_file)
             .stderr(stderr_log_file)
@@ -442,7 +458,7 @@ impl TestServer {
         };
     }
 
-    /// Create a connection channel for the gRPR endpoing
+    /// Create a connection channel for the gRPC endpoint
     async fn grpc_channel(
         &self,
     ) -> influxdb_iox_client::connection::Result<tonic::transport::Channel> {
