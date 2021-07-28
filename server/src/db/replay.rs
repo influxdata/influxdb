@@ -600,6 +600,9 @@ mod tests {
 
     #[tokio::test]
     async fn replay_ok_two_partitions_persist_second() {
+        // acts as regression test for the following PRs:
+        // - https://github.com/influxdata/influxdb_iox/pull/2079
+        // - https://github.com/influxdata/influxdb_iox/pull/2084
         ReplayTest {
             n_sequencers: 1,
             steps: vec![
@@ -702,6 +705,9 @@ mod tests {
 
     #[tokio::test]
     async fn replay_ok_two_partitions_persist_first() {
+        // acts as regression test for the following PRs:
+        // - https://github.com/influxdata/influxdb_iox/pull/2079
+        // - https://github.com/influxdata/influxdb_iox/pull/2084
         ReplayTest {
             n_sequencers: 1,
             steps: vec![
