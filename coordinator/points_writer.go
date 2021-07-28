@@ -197,7 +197,7 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 	}
 
 	// Holds all the shard groups and shards that are required for writes.
-	list := make(sgList, 0, 8)
+	list := sgList{items: make(meta.ShardGroupInfos, 0, 8)}
 	min := time.Unix(0, models.MinNanoTime)
 	if rp.Duration > 0 {
 		min = time.Now().Add(-rp.Duration)
@@ -220,7 +220,7 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 		if sg == nil {
 			return nil, errors.New("nil shard group")
 		}
-		list = list.Append(*sg)
+		list.Add(*sg)
 	}
 
 	mapping := NewShardMapping(len(wp.Points))
@@ -242,10 +242,21 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 
 // sgList is a wrapper around a meta.ShardGroupInfos where we can also check
 // if a given time is covered by any of the shard groups in the list.
-type sgList meta.ShardGroupInfos
+type sgList struct {
+	items meta.ShardGroupInfos
+
+	// needsSort indicates if items has been modified without a sort operation.
+	needsSort bool
+
+	// earliest is the last begin time of any item in items.
+	earliest time.Time
+
+	// latest is the greatest end time of any item in items.
+	latest time.Time
+}
 
 func (l sgList) Covers(t time.Time) bool {
-	if len(l) == 0 {
+	if len(l.items) == 0 {
 		return false
 	}
 	return l.ShardGroupAt(t) != nil
@@ -261,20 +272,61 @@ func (l sgList) Covers(t time.Time) bool {
 //  - a shard group with the earliest end time;
 //  - (assuming identical end times) the shard group with the earliest start time.
 func (l sgList) ShardGroupAt(t time.Time) *meta.ShardGroupInfo {
-	idx := sort.Search(len(l), func(i int) bool { return l[i].EndTime.After(t) })
-
-	// We couldn't find a shard group the point falls into.
-	if idx == len(l) || t.Before(l[idx].StartTime) {
+	if l.items.Len() == 0 {
 		return nil
 	}
-	return &l[idx]
+
+	// find the earliest shardgroup that could contain this point using binary search.
+	if l.needsSort {
+		sort.Sort(l.items)
+		l.needsSort = false
+	}
+	idx := sort.Search(l.items.Len(), func(i int) bool { return l.items[i].EndTime.After(t) })
+
+	// Check if sort.Search actually found the proper shard. It feels like we should also
+	// be checking l.items[idx].EndTime, but sort.Search was looking at that field for us.
+	if idx == l.items.Len() || t.Before(l.items[idx].StartTime) {
+		// This could mean we are looking for a time not in the list, or we have
+		// overlaping shards. Overlapping shards do not work with binary searches
+		// on 1d arrays. You have to use an interval tree, but that's a lot of
+		// work for what is hopefully a rare event. Instead, we'll check if t
+		// should be in l, and perform a linear search if it is. This way we'll
+		// do the correct thing, it may just take a little longer. If we don't
+		// do this, then we may non-silently drop writes we should have accepted.
+
+		if t.Before(l.earliest) || t.After(l.latest) {
+			// t is not in range, we can avoid going through the linear search.
+			return nil
+		}
+
+		// Oh no, we've probably got overlapping shards. Perform a linear search.
+		for idx = 0; idx < l.items.Len(); idx++ {
+			if l.items[idx].Contains(t) {
+				// Found it!
+				break
+			}
+		}
+		if idx == l.items.Len() {
+			// We did not find a shard which contained t. This is very strange.
+			return nil
+		}
+	}
+
+	return &l.items[idx]
 }
 
-// Append appends a shard group to the list, and returns a sorted list.
-func (l sgList) Append(sgi meta.ShardGroupInfo) sgList {
-	next := append(l, sgi)
-	sort.Sort(meta.ShardGroupInfos(next))
-	return next
+// Add appends a shard group to the list, updating the earliest/latest times of the list if needed.
+func (l *sgList) Add(sgi meta.ShardGroupInfo) {
+	l.items = append(l.items, sgi)
+	l.needsSort = true
+
+	// Update our earliest and latest times for l.items
+	if l.earliest.IsZero() || l.earliest.After(sgi.StartTime) {
+		l.earliest = sgi.StartTime
+	}
+	if l.latest.IsZero() || l.latest.Before(sgi.EndTime) {
+		l.latest = sgi.EndTime
+	}
 }
 
 // WritePointsInto is a copy of WritePoints that uses a tsdb structure instead of
