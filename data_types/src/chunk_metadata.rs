@@ -1,9 +1,8 @@
 //! Module contains a representation of chunk metadata
-use std::sync::Arc;
-
 use crate::partition_metadata::PartitionAddr;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// Address of the chunk within the catalog
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -141,12 +140,12 @@ pub struct ChunkSummary {
     /// The earliest time at which data contained within this chunk was written
     /// into IOx. Note due to the compaction, etc... this may not be the chunk
     /// that data was originally written into
-    pub time_of_first_write: Option<DateTime<Utc>>,
+    pub time_of_first_write: DateTime<Utc>,
 
     /// The latest time at which data contained within this chunk was written
     /// into IOx. Note due to the compaction, etc... this may not be the chunk
     /// that data was originally written into
-    pub time_of_last_write: Option<DateTime<Utc>>,
+    pub time_of_last_write: DateTime<Utc>,
 
     /// Time at which this chunk was marked as closed. Note this is
     /// not the same as the timestamps on the data itself
@@ -174,66 +173,14 @@ pub struct DetailedChunkSummary {
 }
 
 impl ChunkSummary {
-    /// Construct a ChunkSummary that has None for all timestamps
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_without_timestamps(
-        partition_key: Arc<str>,
-        table_name: Arc<str>,
-        id: u32,
-        storage: ChunkStorage,
-        lifecycle_action: Option<ChunkLifecycleAction>,
-        memory_bytes: usize,
-        object_store_bytes: usize,
-        row_count: usize,
-    ) -> Self {
-        Self {
-            partition_key,
-            table_name,
-            id,
-            storage,
-            lifecycle_action,
-            memory_bytes,
-            object_store_bytes,
-            row_count,
-            time_of_last_access: None,
-            time_of_first_write: None,
-            time_of_last_write: None,
-            time_closed: None,
-        }
-    }
-
-    /// Return a new ChunkSummary with None for all timestamps
-    pub fn normalize(self) -> Self {
-        let ChunkSummary {
-            partition_key,
-            table_name,
-            id,
-            storage,
-            lifecycle_action,
-            memory_bytes,
-            object_store_bytes,
-            row_count,
-            ..
-        } = self;
-        Self::new_without_timestamps(
-            partition_key,
-            table_name,
-            id,
-            storage,
-            lifecycle_action,
-            memory_bytes,
-            object_store_bytes,
-            row_count,
-        )
-    }
-
-    /// Normalizes a set of ChunkSummaries for comparison by removing timestamps
-    pub fn normalize_summaries(summaries: Vec<Self>) -> Vec<Self> {
-        let mut summaries = summaries
-            .into_iter()
-            .map(|summary| summary.normalize())
-            .collect::<Vec<_>>();
-        summaries.sort_unstable();
-        summaries
+    pub fn equal_without_timestamps(&self, other: &Self) -> bool {
+        self.partition_key == other.partition_key
+            && self.table_name == other.table_name
+            && self.id == other.id
+            && self.storage == other.storage
+            && self.lifecycle_action == other.lifecycle_action
+            && self.memory_bytes == other.memory_bytes
+            && self.object_store_bytes == other.object_store_bytes
+            && self.row_count == other.row_count
     }
 }

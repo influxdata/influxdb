@@ -3,6 +3,7 @@ mod freeze;
 mod http;
 mod management_api;
 mod management_cli;
+mod metrics;
 mod operations_api;
 mod operations_cli;
 mod persistence;

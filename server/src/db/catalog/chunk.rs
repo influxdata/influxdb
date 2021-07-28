@@ -1,16 +1,15 @@
 use crate::db::catalog::metrics::{StorageGauge, TimestampHistogram};
 use chrono::{DateTime, Utc};
-use data_types::instant::to_approximate_datetime;
-use data_types::write_summary::TimestampSummary;
 use data_types::{
     chunk_metadata::{
         ChunkAddr, ChunkColumnSummary, ChunkLifecycleAction, ChunkStorage, ChunkSummary,
         DetailedChunkSummary,
     },
+    instant::to_approximate_datetime,
     partition_metadata::TableSummary,
+    write_summary::TimestampSummary,
 };
-use internal_types::access::AccessRecorder;
-use internal_types::schema::Schema;
+use internal_types::{access::AccessRecorder, schema::Schema};
 use metrics::{Counter, Histogram, KeyValue};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use observability_deps::tracing::debug;
@@ -201,12 +200,12 @@ pub struct CatalogChunk {
     /// The earliest time at which data contained within this chunk was written
     /// into IOx. Note due to the compaction, etc... this may not be the chunk
     /// that data was originally written into
-    time_of_first_write: Option<DateTime<Utc>>,
+    time_of_first_write: DateTime<Utc>,
 
     /// The latest time at which data contained within this chunk was written
     /// into IOx. Note due to the compaction, etc... this may not be the chunk
     /// that data was originally written into
-    time_of_last_write: Option<DateTime<Utc>>,
+    time_of_last_write: DateTime<Utc>,
 
     /// Time at which this chunk was marked as closed. Note this is
     /// not the same as the timestamps on the data itself
@@ -270,8 +269,9 @@ impl CatalogChunk {
     ) -> Self {
         assert_eq!(chunk.table_name(), &addr.table_name);
 
-        let first_write = chunk.table_summary().time_of_first_write;
-        let last_write = chunk.table_summary().time_of_last_write;
+        let summary = chunk.table_summary();
+        let time_of_first_write = summary.time_of_first_write;
+        let time_of_last_write = summary.time_of_last_write;
 
         let stage = ChunkStage::Open { mb_chunk: chunk };
 
@@ -285,8 +285,8 @@ impl CatalogChunk {
             lifecycle_action: None,
             metrics,
             access_recorder: Default::default(),
-            time_of_first_write: Some(first_write),
-            time_of_last_write: Some(last_write),
+            time_of_first_write,
+            time_of_last_write,
             time_closed: None,
         };
         chunk.update_metrics();
@@ -303,8 +303,8 @@ impl CatalogChunk {
         metrics: ChunkMetrics,
     ) -> Self {
         let summary = chunk.table_summary();
-        let first_write = summary.time_of_first_write;
-        let last_write = summary.time_of_last_write;
+        let time_of_first_write = summary.time_of_first_write;
+        let time_of_last_write = summary.time_of_last_write;
 
         let stage = ChunkStage::Frozen {
             meta: Arc::new(ChunkMetadata {
@@ -324,8 +324,8 @@ impl CatalogChunk {
             lifecycle_action: None,
             metrics,
             access_recorder: Default::default(),
-            time_of_first_write: Some(first_write),
-            time_of_last_write: Some(last_write),
+            time_of_first_write,
+            time_of_last_write,
             time_closed: None,
         };
         chunk.update_metrics();
@@ -342,8 +342,8 @@ impl CatalogChunk {
         assert_eq!(chunk.table_name(), addr.table_name.as_ref());
 
         let summary = chunk.table_summary();
-        let first_write = summary.time_of_first_write;
-        let last_write = summary.time_of_last_write;
+        let time_of_first_write = summary.time_of_first_write;
+        let time_of_last_write = summary.time_of_last_write;
 
         // this is temporary
         let table_summary = TableSummary {
@@ -369,8 +369,8 @@ impl CatalogChunk {
             lifecycle_action: None,
             metrics,
             access_recorder: Default::default(),
-            time_of_first_write: Some(first_write),
-            time_of_last_write: Some(last_write),
+            time_of_first_write,
+            time_of_last_write,
             time_closed: None,
         };
         chunk.update_metrics();
@@ -412,11 +412,11 @@ impl CatalogChunk {
             .map_or(false, |action| action.metadata() == &lifecycle_action)
     }
 
-    pub fn time_of_first_write(&self) -> Option<DateTime<Utc>> {
+    pub fn time_of_first_write(&self) -> DateTime<Utc> {
         self.time_of_first_write
     }
 
-    pub fn time_of_last_write(&self) -> Option<DateTime<Utc>> {
+    pub fn time_of_last_write(&self) -> DateTime<Utc> {
         self.time_of_last_write
     }
 
@@ -479,18 +479,10 @@ impl CatalogChunk {
         self.metrics.timestamp_histogram.add(timestamps);
         self.access_recorder.record_access_now();
 
-        if let Some(t) = self.time_of_first_write {
-            self.time_of_first_write = Some(t.min(time_of_write))
-        } else {
-            self.time_of_first_write = Some(time_of_write)
-        }
+        self.time_of_first_write = self.time_of_first_write.min(time_of_write);
 
         // DateTime<Utc> isn't necessarily monotonic
-        if let Some(t) = self.time_of_last_write {
-            self.time_of_last_write = Some(t.max(time_of_write))
-        } else {
-            self.time_of_last_write = Some(time_of_write)
-        }
+        self.time_of_last_write = self.time_of_last_write.max(time_of_write);
 
         self.update_metrics();
     }
@@ -969,14 +961,13 @@ impl CatalogChunk {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use entry::test_helpers::lp_to_entry;
     use mutable_buffer::chunk::{ChunkMetrics as MBChunkMetrics, MBChunk};
     use parquet_file::{
         chunk::ParquetChunk,
         test_utils::{make_chunk as make_parquet_chunk_with_store, make_object_store},
     };
-
-    use super::*;
 
     #[test]
     fn test_new_open() {
@@ -986,8 +977,6 @@ mod tests {
         let mb_chunk = make_mb_chunk(&addr.table_name);
         let chunk = CatalogChunk::new_open(addr, mb_chunk, ChunkMetrics::new_unregistered());
         assert!(matches!(chunk.stage(), &ChunkStage::Open { .. }));
-        assert!(chunk.time_of_first_write.is_some());
-        assert!(chunk.time_of_last_write.is_some());
     }
 
     #[tokio::test]

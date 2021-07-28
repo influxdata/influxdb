@@ -241,16 +241,19 @@ jobs:
         # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
         CARGO_INCREMENTAL: "0"
         # We keep the debug symbols (Enabled in Cargo.toml as debug = true)
+        # workaround dynamic CPU detection bug in croaring
+        # https://github.com/influxdata/influxdb_iox/pull/2119
+        ROARING_ARCH: "haswell"
     steps:
       - checkout
       - rust_components
       - cache_restore
       - run:
           name: Print rustc target CPU options
-          command: cargo build --release --features="aws,gcp,azure" --bin print_cpu
+          command: cargo run --release --features="aws,gcp,azure" --bin print_cpu
       - run:
           name: Cargo release build with target arch set for CRoaring
-          command: ROARING_ARCH=haswell cargo build --release --features="aws,gcp,azure"
+          command: cargo build --release --features="aws,gcp,azure"
       - run: |
           echo sha256sum after build is
           sha256sum target/release/influxdb_iox

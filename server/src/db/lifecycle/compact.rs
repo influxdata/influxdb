@@ -48,17 +48,15 @@ pub(crate) fn compact_chunks(
 
             input_rows += chunk.table_summary().total_count();
 
-            time_of_first_write = match (time_of_first_write, chunk.time_of_first_write()) {
-                (Some(prev_first), Some(candidate_first)) => Some(prev_first.min(candidate_first)),
-                (Some(only), None) | (None, Some(only)) => Some(only),
-                (None, None) => None,
-            };
+            let candidate_first = chunk.time_of_first_write();
+            time_of_first_write = time_of_first_write
+                .map(|prev_first| prev_first.min(candidate_first))
+                .or(Some(candidate_first));
 
-            time_of_last_write = match (time_of_last_write, chunk.time_of_last_write()) {
-                (Some(prev_last), Some(candidate_last)) => Some(prev_last.max(candidate_last)),
-                (Some(only), None) | (None, Some(only)) => Some(only),
-                (None, None) => None,
-            };
+            let candidate_last = chunk.time_of_last_write();
+            time_of_last_write = time_of_last_write
+                .map(|prev_last| prev_last.max(candidate_last))
+                .or(Some(candidate_last));
 
             chunk.set_compacting(&registration)?;
             Ok(DbChunk::snapshot(&*chunk))
@@ -179,15 +177,15 @@ mod tests {
         chunk_summaries.sort_unstable();
 
         let mub_summary = &chunk_summaries[0];
-        let first_mub_write = mub_summary.time_of_first_write.unwrap();
-        let last_mub_write = mub_summary.time_of_last_write.unwrap();
+        let first_mub_write = mub_summary.time_of_first_write;
+        let last_mub_write = mub_summary.time_of_last_write;
         assert!(time2 < first_mub_write);
         assert_eq!(first_mub_write, last_mub_write);
         assert!(first_mub_write < time3);
 
         let rub_summary = &chunk_summaries[1];
-        let first_rub_write = rub_summary.time_of_first_write.unwrap();
-        let last_rub_write = rub_summary.time_of_last_write.unwrap();
+        let first_rub_write = rub_summary.time_of_first_write;
+        let last_rub_write = rub_summary.time_of_last_write;
         assert!(time0 < first_rub_write);
         assert!(first_rub_write < last_rub_write);
         assert!(last_rub_write < time1);

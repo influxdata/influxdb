@@ -7,26 +7,20 @@
 //!
 //! For example `SELECT * FROM system.chunks`
 
-use std::any::Any;
-use std::sync::Arc;
-
+use super::catalog::Catalog;
+use crate::JobRegistry;
 use arrow::{
     datatypes::{Field, Schema, SchemaRef},
     error::Result,
     record_batch::RecordBatch,
 };
-use chrono::{DateTime, Utc};
-
 use datafusion::{
     catalog::schema::SchemaProvider,
     datasource::{datasource::Statistics, TableProvider},
     error::{DataFusionError, Result as DataFusionResult},
     physical_plan::{memory::MemoryExec, ExecutionPlan},
 };
-
-use crate::JobRegistry;
-
-use super::catalog::Catalog;
+use std::{any::Any, sync::Arc};
 
 mod chunks;
 mod columns;
@@ -158,11 +152,6 @@ where
     }
 }
 
-// TODO: Use a custom proc macro or serde to reduce the boilerplate
-fn time_to_ts(time: Option<DateTime<Utc>>) -> Option<i64> {
-    time.map(|ts| ts.timestamp_nanos())
-}
-
 /// Creates a DataFusion ExecutionPlan node that scans a single batch
 /// of records.
 fn scan_batch(
@@ -205,10 +194,9 @@ fn scan_batch(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use arrow::array::{ArrayRef, UInt64Array};
     use arrow_util::assert_batches_eq;
-
-    use super::*;
 
     fn seq_array(start: u64, end: u64) -> ArrayRef {
         Arc::new(UInt64Array::from_iter_values(start..end))

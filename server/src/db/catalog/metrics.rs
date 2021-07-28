@@ -5,6 +5,14 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 use tracker::{LockTracker, RwLock};
 
+const TIMESTAMP_METRICS_ENABLE_ENV: &str = "INFLUXDB_IOX_ROW_TIMESTAMP_METRICS";
+fn report_timestamp_metrics(table_name: &str) -> bool {
+    std::env::var(TIMESTAMP_METRICS_ENABLE_ENV)
+        .ok()
+        .map(|x| x.split(',').any(|x| x == table_name))
+        .unwrap_or(false)
+}
+
 #[derive(Debug)]
 pub struct CatalogMetrics {
     /// Metrics domain
@@ -79,11 +87,13 @@ impl CatalogMetrics {
         );
 
         let timestamp_histogram = Default::default();
-        self.metrics_domain.register_observer(
-            None,
-            &[KeyValue::new("table", table_name.to_string())],
-            &timestamp_histogram,
-        );
+        if report_timestamp_metrics(table_name) {
+            self.metrics_domain.register_observer(
+                None,
+                &[KeyValue::new("table", table_name.to_string())],
+                &timestamp_histogram,
+            );
+        }
 
         TableMetrics {
             metrics_domain: Arc::clone(&self.metrics_domain),

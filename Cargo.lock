@@ -4968,6 +4968,7 @@ name = "write_buffer"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "data_types",
  "dotenv",
  "entry",

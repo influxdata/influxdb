@@ -8,10 +8,7 @@ use flatbuffers::{FlatBufferBuilder, Follow, ForwardsUOffset, Vector, VectorIter
 use ouroboros::self_referencing;
 use snafu::{OptionExt, ResultExt, Snafu};
 
-use data_types::{
-    database_rules::{Error as DataError, Partitioner, ShardId, Sharder},
-    server_id::ServerId,
-};
+use data_types::database_rules::{Error as DataError, Partitioner, ShardId, Sharder};
 use generated_types::influxdata::transfer::column::v1 as pb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 use internal_types::schema::{
@@ -1723,21 +1720,16 @@ enum InnerClockValueError {
     ValueMayNotBeZero,
 }
 
-#[derive(Debug, Snafu)]
-pub enum SequencedEntryError {
-    #[snafu(display("{}", source))]
-    InvalidFlatbuffer {
-        source: flatbuffers::InvalidFlatbuffer,
-    },
-}
-
 #[derive(Debug, Clone)]
 pub struct SequencedEntry {
     entry: Entry,
-    /// The (optional) sequence for this entry.  At the time of
-    /// writing, sequences will not be present when there is no
-    /// configured mechanism to define the order of all writes.
-    sequence: Option<Sequence>,
+
+    /// The (optional) sequence for this entry including the timestamp when the producer ingested it into the write
+    /// buffer.
+    ///
+    /// At the time of writing, sequences will not be present when there is no configured mechanism to define the order
+    /// of all writes.
+    sequence_and_producer_ts: Option<(Sequence, DateTime<Utc>)>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -1756,31 +1748,22 @@ impl Sequence {
 }
 
 impl SequencedEntry {
-    pub fn new_from_process_clock(
-        process_clock: ClockValue,
-        server_id: ServerId,
-        entry: Entry,
-    ) -> Result<Self, SequencedEntryError> {
-        Ok(Self {
-            entry,
-            sequence: Some(Sequence {
-                id: server_id.get_u32(),
-                number: process_clock.get_u64(),
-            }),
-        })
-    }
-
     pub fn new_from_sequence(
         sequence: Sequence,
+        producer_wallclock_timestamp: DateTime<Utc>,
         entry: Entry,
-    ) -> Result<Self, SequencedEntryError> {
-        let sequence = Some(sequence);
-        Ok(Self { entry, sequence })
+    ) -> Self {
+        Self {
+            entry,
+            sequence_and_producer_ts: Some((sequence, producer_wallclock_timestamp)),
+        }
     }
 
     pub fn new_unsequenced(entry: Entry) -> Self {
-        let sequence = None;
-        Self { entry, sequence }
+        Self {
+            entry,
+            sequence_and_producer_ts: None,
+        }
     }
 
     pub fn partition_writes(&self) -> Option<Vec<PartitionWrite<'_>>> {
@@ -1788,7 +1771,15 @@ impl SequencedEntry {
     }
 
     pub fn sequence(&self) -> Option<&Sequence> {
-        self.sequence.as_ref()
+        self.sequence_and_producer_ts
+            .as_ref()
+            .map(|(sequence, _ts)| sequence)
+    }
+
+    pub fn producer_wallclock_timestamp(&self) -> Option<DateTime<Utc>> {
+        self.sequence_and_producer_ts
+            .as_ref()
+            .map(|(_sequence, ts)| *ts)
     }
 
     pub fn entry(&self) -> &Entry {

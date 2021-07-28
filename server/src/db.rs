@@ -1,15 +1,17 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
-use crate::db::catalog::chunk::ChunkStage;
-use crate::db::catalog::table::TableSchemaUpsertHandle;
 pub(crate) use crate::db::chunk::DbChunk;
-use crate::db::lifecycle::ArcDb;
 use crate::{
     db::{
         access::QueryCatalogAccess,
-        catalog::{chunk::CatalogChunk, partition::Partition, Catalog, TableNameFilter},
-        lifecycle::{LockableCatalogChunk, LockableCatalogPartition},
+        catalog::{
+            chunk::{CatalogChunk, ChunkStage},
+            partition::Partition,
+            table::TableSchemaUpsertHandle,
+            Catalog, TableNameFilter,
+        },
+        lifecycle::{ArcDb, LockableCatalogChunk, LockableCatalogPartition},
     },
     JobRegistry,
 };
@@ -31,13 +33,11 @@ use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
-use parquet_file::catalog::CatalogParquetInfo;
 use parquet_file::{
-    catalog::{CheckpointData, PreservedCatalog},
+    catalog::{CatalogParquetInfo, CheckpointData, PreservedCatalog},
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
 };
-use persistence_windows::checkpoint::ReplayPlan;
-use persistence_windows::persistence_windows::PersistenceWindows;
+use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
 use query::{exec::Executor, predicate::Predicate, QueryDatabase};
 use rand_distr::{Distribution, Poisson};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -50,8 +50,10 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use write_buffer::config::WriteBufferConfig;
-use write_buffer::core::{FetchHighWatermark, WriteBufferError};
+use write_buffer::{
+    config::WriteBufferConfig,
+    core::{FetchHighWatermark, WriteBufferError},
+};
 
 pub mod access;
 pub mod catalog;
@@ -113,9 +115,6 @@ pub enum Error {
         errors.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
     ))]
     StoreSequencedEntryFailures { errors: Vec<Error> },
-
-    #[snafu(display("Error building sequenced entry: {}", source))]
-    SequencedEntryError { source: entry::SequencedEntryError },
 
     #[snafu(display("background task cancelled: {}", source))]
     TaskCancelled { source: futures::future::Aborted },
@@ -205,6 +204,12 @@ impl WriteBufferIngestMetrics {
             "Maximum timestamp of last write as unix timestamp in nanoseconds",
             &labels,
         );
+        let last_ingest_ts = self.domain.register_gauge_metric_with_labels(
+            "last_ingest_ts",
+            None,
+            "Last seen ingest timestamp as unix timestamp in nanoseconds",
+            &labels,
+        );
 
         SequencerMetrics {
             red,
@@ -213,6 +218,7 @@ impl WriteBufferIngestMetrics {
             sequence_number_lag,
             last_min_ts,
             last_max_ts,
+            last_ingest_ts,
         }
     }
 }
@@ -240,6 +246,9 @@ struct SequencerMetrics {
 
     /// Maximum timestamp of last write as unix timestamp in nanoseconds.
     last_max_ts: metrics::Gauge,
+
+    /// Last seen ingest timestamp as unix timestamp in nanoseconds.
+    last_ingest_ts: metrics::Gauge,
 }
 
 /// This is the main IOx Database object. It is the root object of any
@@ -869,9 +878,13 @@ impl Db {
             // - lag
             // - min ts
             // - max ts
+            // - ingest ts
             let sequence = sequenced_entry
                 .sequence()
                 .expect("entry from write buffer must be sequenced");
+            let producer_wallclock_timestamp = sequenced_entry
+                .producer_wallclock_timestamp()
+                .expect("entry from write buffer must have a producer wallclock time");
             let entry = sequenced_entry.entry();
             metrics.bytes_read.add(entry.data().len() as u64);
             metrics
@@ -923,6 +936,9 @@ impl Db {
                     .last_max_ts
                     .set(max_ts.timestamp_nanos() as usize, &[]);
             }
+            metrics
+                .last_ingest_ts
+                .set(producer_wallclock_timestamp.timestamp_nanos() as usize, &[]);
         }
     }
 
@@ -962,14 +978,15 @@ impl Db {
                 // buffer to return success before adding the entry to the mutable buffer.
 
                 // TODO: be smarter than always using sequencer 0
-                let sequence = write_buffer
+                let (sequence, producer_wallclock_timestamp) = write_buffer
                     .store_entry(&entry, 0)
                     .await
                     .context(WriteBufferWritingError)?;
-                let sequenced_entry = Arc::new(
-                    SequencedEntry::new_from_sequence(sequence, entry)
-                        .context(SequencedEntryError)?,
-                );
+                let sequenced_entry = Arc::new(SequencedEntry::new_from_sequence(
+                    sequence,
+                    producer_wallclock_timestamp,
+                    entry,
+                ));
 
                 self.store_sequenced_entry(sequenced_entry)
             }
@@ -1330,12 +1347,12 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
-    use chrono::DateTime;
-    use data_types::write_summary::TimestampSummary;
+    use chrono::{DateTime, TimeZone};
     use data_types::{
         chunk_metadata::ChunkStorage,
         database_rules::{LifecycleRules, PartitionTemplate, TemplatePart},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
+        write_summary::TimestampSummary,
     };
     use entry::{test_helpers::lp_to_entry, Sequence};
     use futures::{stream, StreamExt, TryStreamExt};
@@ -1468,17 +1485,18 @@ mod tests {
     #[tokio::test]
     async fn read_from_write_buffer_write_to_mutable_buffer() {
         let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
-        write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(Sequence::new(0, 0), lp_to_entry("mem foo=1 10"))
-                .unwrap(),
-        );
-        write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(
-                Sequence::new(0, 7),
-                lp_to_entry("cpu bar=2 20\ncpu bar=3 30"),
-            )
-            .unwrap(),
-        );
+        let ingest_ts1 = Utc.timestamp_millis(42);
+        let ingest_ts2 = Utc.timestamp_millis(1337);
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 0),
+            ingest_ts1,
+            lp_to_entry("mem foo=1 10"),
+        ));
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 7),
+            ingest_ts2,
+            lp_to_entry("cpu bar=2 20\ncpu bar=3 30"),
+        ));
         let write_buffer = MockBufferForReading::new(write_buffer_state);
 
         let test_db = TestDb::builder()
@@ -1579,6 +1597,16 @@ mod tests {
             ])
             .gauge()
             .eq(30.0)
+            .unwrap();
+        metrics
+            .has_metric_family("write_buffer_last_ingest_ts")
+            .with_labels(&[
+                ("db_name", "placeholder"),
+                ("svr_id", "1"),
+                ("sequencer_id", "0"),
+            ])
+            .gauge()
+            .eq(ingest_ts2.timestamp_nanos() as f64)
             .unwrap();
 
         // do: stop background task loop
@@ -1965,13 +1993,14 @@ mod tests {
 
     #[tokio::test]
     async fn write_metrics() {
+        std::env::set_var("INFLUXDB_IOX_ROW_TIMESTAMP_METRICS", "write_metrics_test");
         let test_db = make_db().await;
         let db = Arc::clone(&test_db.db);
 
-        write_lp(db.as_ref(), "cpu foo=1 100000000000").await;
-        write_lp(db.as_ref(), "cpu foo=2 180000000000").await;
-        write_lp(db.as_ref(), "cpu foo=3 650000000000").await;
-        write_lp(db.as_ref(), "cpu foo=3 650000000010").await;
+        write_lp(db.as_ref(), "write_metrics_test foo=1 100000000000").await;
+        write_lp(db.as_ref(), "write_metrics_test foo=2 180000000000").await;
+        write_lp(db.as_ref(), "write_metrics_test foo=3 650000000000").await;
+        write_lp(db.as_ref(), "write_metrics_test foo=3 650000000010").await;
 
         let mut summary = TimestampSummary::default();
         summary.record(Utc.timestamp_nanos(100000000000));
@@ -1987,7 +2016,7 @@ mod tests {
                 .with_labels(&[
                     ("svr_id", "1"),
                     ("db_name", "placeholder"),
-                    ("table", "cpu"),
+                    ("table", "write_metrics_test"),
                     ("le", minute.as_str()),
                 ])
                 .counter()
@@ -2627,10 +2656,7 @@ mod tests {
             let chunk = partition.open_chunk().unwrap();
             let chunk = chunk.read();
 
-            (
-                partition.last_write_at(),
-                chunk.time_of_last_write().unwrap(),
-            )
+            (partition.last_write_at(), chunk.time_of_last_write())
         };
 
         let entry = lp_to_entry("cpu bar=true 10");
@@ -2642,7 +2668,7 @@ mod tests {
             assert_eq!(last_write_prev, partition.last_write_at());
             let chunk = partition.open_chunk().unwrap();
             let chunk = chunk.read();
-            assert_eq!(chunk_last_write_prev, chunk.time_of_last_write().unwrap());
+            assert_eq!(chunk_last_write_prev, chunk.time_of_last_write());
         }
     }
 
@@ -2699,17 +2725,26 @@ mod tests {
         let partition_key = "1970-01-01T00";
 
         let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(2);
-        write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(Sequence::new(0, 0), entry.clone()).unwrap(),
-        );
-        write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(Sequence::new(1, 0), entry.clone()).unwrap(),
-        );
-        write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(Sequence::new(1, 2), entry.clone()).unwrap(),
-        );
-        write_buffer_state
-            .push_entry(SequencedEntry::new_from_sequence(Sequence::new(0, 1), entry).unwrap());
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 0),
+            Utc::now(),
+            entry.clone(),
+        ));
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(1, 0),
+            Utc::now(),
+            entry.clone(),
+        ));
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(1, 2),
+            Utc::now(),
+            entry.clone(),
+        ));
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 1),
+            Utc::now(),
+            entry,
+        ));
         let write_buffer = MockBufferForReading::new(write_buffer_state);
 
         let db = TestDb::builder()
@@ -2786,9 +2821,9 @@ mod tests {
         println!("Chunk: {:#?}", chunk);
 
         // then the chunk creation and rollover times are as expected
-        assert!(start < chunk.time_of_first_write().unwrap());
-        assert!(chunk.time_of_first_write().unwrap() < after_data_load);
-        assert!(chunk.time_of_first_write().unwrap() == chunk.time_of_last_write().unwrap());
+        assert!(start < chunk.time_of_first_write());
+        assert!(chunk.time_of_first_write() < after_data_load);
+        assert!(chunk.time_of_first_write() == chunk.time_of_last_write());
         assert!(after_data_load < chunk.time_closed().unwrap());
         assert!(chunk.time_closed().unwrap() < after_rollover);
     }
@@ -2848,18 +2883,21 @@ mod tests {
         print!("Partitions: {:?}", db.partition_keys().unwrap());
 
         let chunk_summaries = db.partition_chunk_summaries("1970-01-05T15");
-        let chunk_summaries = ChunkSummary::normalize_summaries(chunk_summaries);
 
-        let expected = vec![ChunkSummary::new_without_timestamps(
-            Arc::from("1970-01-05T15"),
-            Arc::from("cpu"),
-            0,
-            ChunkStorage::OpenMutableBuffer,
-            None,
-            70, // memory_size
-            0,  // os_size
-            1,
-        )];
+        let expected = vec![ChunkSummary {
+            partition_key: Arc::from("1970-01-05T15"),
+            table_name: Arc::from("cpu"),
+            id: 0,
+            storage: ChunkStorage::OpenMutableBuffer,
+            lifecycle_action: None,
+            memory_bytes: 70,      // memory_size
+            object_store_bytes: 0, // os_size
+            row_count: 1,
+            time_of_last_access: None,
+            time_of_first_write: Utc.timestamp_nanos(1),
+            time_of_last_write: Utc.timestamp_nanos(1),
+            time_closed: None,
+        }];
 
         let size: usize = db
             .chunk_summaries()
@@ -2870,11 +2908,14 @@ mod tests {
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), size);
 
-        assert_eq!(
-            expected, chunk_summaries,
-            "expected:\n{:#?}\n\nactual:{:#?}\n\n",
-            expected, chunk_summaries
-        );
+        for (expected_summary, actual_summary) in expected.iter().zip(chunk_summaries.iter()) {
+            assert!(
+                expected_summary.equal_without_timestamps(&actual_summary),
+                "expected:\n{:#?}\n\nactual:{:#?}\n\n",
+                expected_summary,
+                actual_summary
+            );
+        }
     }
 
     #[tokio::test]
@@ -2894,23 +2935,23 @@ mod tests {
         let summary = &chunk_summaries[0];
         assert_eq!(summary.id, 0, "summary; {:#?}", summary);
         assert!(
-            summary.time_of_first_write.unwrap() > start,
+            summary.time_of_first_write > start,
             "summary; {:#?}",
             summary
         );
         assert!(
-            summary.time_of_first_write.unwrap() < after_close,
+            summary.time_of_first_write < after_close,
             "summary; {:#?}",
             summary
         );
 
         assert!(
-            summary.time_of_last_write.unwrap() > after_first_write,
+            summary.time_of_last_write > after_first_write,
             "summary; {:#?}",
             summary
         );
         assert!(
-            summary.time_of_last_write.unwrap() < after_close,
+            summary.time_of_last_write < after_close,
             "summary; {:#?}",
             summary
         );
@@ -2928,8 +2969,8 @@ mod tests {
     }
 
     fn assert_first_last_times_eq(chunk_summary: &ChunkSummary) {
-        let first_write = chunk_summary.time_of_first_write.unwrap();
-        let last_write = chunk_summary.time_of_last_write.unwrap();
+        let first_write = chunk_summary.time_of_first_write;
+        let last_write = chunk_summary.time_of_last_write;
 
         assert_eq!(first_write, last_write);
     }
@@ -2939,8 +2980,8 @@ mod tests {
         before: DateTime<Utc>,
         after: DateTime<Utc>,
     ) {
-        let first_write = chunk_summary.time_of_first_write.unwrap();
-        let last_write = chunk_summary.time_of_last_write.unwrap();
+        let first_write = chunk_summary.time_of_first_write;
+        let last_write = chunk_summary.time_of_last_write;
 
         assert!(before < first_write);
         assert!(before < last_write);
@@ -2949,8 +2990,8 @@ mod tests {
     }
 
     fn assert_chunks_times_ordered(before: &ChunkSummary, after: &ChunkSummary) {
-        let before_last_write = before.time_of_last_write.unwrap();
-        let after_first_write = after.time_of_first_write.unwrap();
+        let before_last_write = before.time_of_last_write;
+        let after_first_write = after.time_of_first_write;
 
         assert!(before_last_write < after_first_write);
     }
@@ -2961,14 +3002,14 @@ mod tests {
     }
 
     fn assert_chunks_first_times_eq(a: &ChunkSummary, b: &ChunkSummary) {
-        let a_first_write = a.time_of_first_write.unwrap();
-        let b_first_write = b.time_of_first_write.unwrap();
+        let a_first_write = a.time_of_first_write;
+        let b_first_write = b.time_of_first_write;
         assert_eq!(a_first_write, b_first_write);
     }
 
     fn assert_chunks_last_times_eq(a: &ChunkSummary, b: &ChunkSummary) {
-        let a_last_write = a.time_of_last_write.unwrap();
-        let b_last_write = b.time_of_last_write.unwrap();
+        let a_last_write = a.time_of_last_write;
+        let b_last_write = b.time_of_last_write;
         assert_eq!(a_last_write, b_last_write);
     }
 
@@ -3130,49 +3171,62 @@ mod tests {
         assert_first_last_times_eq(&open_mb_t8);
         assert_first_last_times_between(&open_mb_t8, time7, time8);
 
-        let chunk_summaries = ChunkSummary::normalize_summaries(chunk_summaries);
-
         let lifecycle_action = None;
 
         let expected = vec![
-            ChunkSummary::new_without_timestamps(
-                Arc::from("1970-01-01T00"),
-                Arc::from("cpu"),
-                2,
-                ChunkStorage::ReadBufferAndObjectStore,
+            ChunkSummary {
+                partition_key: Arc::from("1970-01-01T00"),
+                table_name: Arc::from("cpu"),
+                id: 2,
+                storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                3332, // size of RB and OS chunks
-                1523, // size of parquet file
-                2,
-            ),
-            ChunkSummary::new_without_timestamps(
-                Arc::from("1970-01-05T15"),
-                Arc::from("cpu"),
-                0,
-                ChunkStorage::ClosedMutableBuffer,
+                memory_bytes: 3332,       // size of RB and OS chunks
+                object_store_bytes: 1523, // size of parquet file
+                row_count: 2,
+                time_of_last_access: None,
+                time_of_first_write: Utc.timestamp_nanos(1),
+                time_of_last_write: Utc.timestamp_nanos(1),
+                time_closed: None,
+            },
+            ChunkSummary {
+                partition_key: Arc::from("1970-01-05T15"),
+                table_name: Arc::from("cpu"),
+                id: 0,
+                storage: ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
-                2510,
-                0, // no OS chunks
-                1,
-            ),
-            ChunkSummary::new_without_timestamps(
-                Arc::from("1970-01-05T15"),
-                Arc::from("cpu"),
-                1,
-                ChunkStorage::OpenMutableBuffer,
+                memory_bytes: 2510,
+                object_store_bytes: 0, // no OS chunks
+                row_count: 1,
+                time_of_last_access: None,
+                time_of_first_write: Utc.timestamp_nanos(1),
+                time_of_last_write: Utc.timestamp_nanos(1),
+                time_closed: None,
+            },
+            ChunkSummary {
+                partition_key: Arc::from("1970-01-05T15"),
+                table_name: Arc::from("cpu"),
+                id: 1,
+                storage: ChunkStorage::OpenMutableBuffer,
                 lifecycle_action,
-                87,
-                0, // no OS chunks
-                1,
-            ),
+                memory_bytes: 87,
+                object_store_bytes: 0, // no OS chunks
+                row_count: 1,
+                time_of_last_access: None,
+                time_of_first_write: Utc.timestamp_nanos(1),
+                time_of_last_write: Utc.timestamp_nanos(1),
+                time_closed: None,
+            },
         ];
 
         for (expected_summary, actual_summary) in expected.iter().zip(chunk_summaries.iter()) {
-            assert_eq!(
-                expected_summary, actual_summary,
+            assert!(
+                expected_summary.equal_without_timestamps(&actual_summary),
                 "\n\nexpected item:\n{:#?}\n\nactual item:\n{:#?}\n\n\
                      all expected:\n{:#?}\n\nall actual:\n{:#?}",
-                expected_summary, actual_summary, expected, chunk_summaries
+                expected_summary,
+                actual_summary,
+                expected,
+                chunk_summaries
             );
         }
 
