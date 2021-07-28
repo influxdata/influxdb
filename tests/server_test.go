@@ -8154,28 +8154,34 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 
 func TestServer_Query_ShowTagValues(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig())
+	conf := NewConfig()
+	s := OpenServer(conf)
 	defer s.Close()
+	rps := []string{"rp0", "rp1", "rp2", "rp3"}
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0), true); err != nil {
-		t.Fatal(err)
+	writes := [][]string{
+		[]string{
+			fmt.Sprintf(`cpu,host=server01 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+			fmt.Sprintf(`cpu,host=server01,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+			fmt.Sprintf(`cpu,host=server01,region=uswest value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		},
+		[]string{
+			fmt.Sprintf(`cpu,host=server02,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+			fmt.Sprintf(`gpu,host=server02,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+			fmt.Sprintf(`gpu,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		},
+		[]string{
+			fmt.Sprintf(`disk,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+			fmt.Sprintf(`_,__name__=metric1 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+			fmt.Sprintf(`_,__name__=metric2 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		},
 	}
 
-	writes := []string{
-		fmt.Sprintf(`cpu,host=server01 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
-		fmt.Sprintf(`cpu,host=server01,region=uswest value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
-		fmt.Sprintf(`cpu,host=server01,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
-		fmt.Sprintf(`cpu,host=server02,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
-		fmt.Sprintf(`gpu,host=server02,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
-		fmt.Sprintf(`gpu,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
-		fmt.Sprintf(`disk,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
-		fmt.Sprintf(`_,__name__=metric1 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
-		fmt.Sprintf(`_,__name__=metric2 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
-	}
-
-	test := NewTest("db0", "rp0")
+	test := NewTest("db0", rps[0])
 	test.writes = Writes{
-		&Write{data: strings.Join(writes, "\n")},
+		&Write{db: test.database(), rp: rps[0], data: strings.Join(writes[0], "\n")},
+		&Write{db: test.database(), rp: rps[1], data: strings.Join(writes[1], "\n")},
+		&Write{db: test.database(), rp: rps[2], data: strings.Join(writes[2], "\n")},
 	}
 
 	test.addQueries([]*Query{
@@ -8336,6 +8342,30 @@ func TestServer_Query_ShowTagValues(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
+
+	// Retention policy filtration of tag values only works on TSI
+	if conf.Data.Index != tsdb.InmemIndexName {
+		test.addQueries([]*Query{
+			&Query{
+				name:    `show tag values from retention policy zero with key in and where does not match the regular expression`,
+				command: `SHOW TAG VALUES FROM ` + rps[0] + `.cpu WITH KEY IN (host, region) WHERE region = 'useast'`,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["key","value"],"values":[["host","server01"],["region","useast"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    `show tag values from retention policy one with key in and where does not match the regular expression`,
+				command: `SHOW TAG VALUES FROM ` + rps[1] + `.cpu WITH KEY IN (host, region) WHERE region = 'useast'`,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["key","value"],"values":[["host","server02"],["region","useast"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    `show tag values from retention policy with key and measurement matches regular expression`,
+				command: `SHOW TAG VALUES FROM ` + rps[1] + `./[cg]pu/ WITH KEY = host`,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["key","value"],"values":[["host","server02"]]},{"name":"gpu","columns":["key","value"],"values":[["host","server02"],["host","server03"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+		}...)
+	}
 
 	var once sync.Once
 	for _, query := range test.queries {

@@ -1039,10 +1039,25 @@ func (e *StatementExecutor) executeShowTagValues(ctx *query.ExecutionContext, q 
 		return err
 	}
 
-	// Get all shards for all retention policies.
+	// If measurements include retention policies
+	// only look at those policies
+	rps := make([]string, 0, len(di.RetentionPolicies))
+	// Collect retention policies if specified
+	for _, m := range q.Sources.Measurements() {
+		if len(m.RetentionPolicy) > 0 {
+			rps = append(rps, m.RetentionPolicy)
+		}
+	}
+	// If no retention policies specified, use
+	// all retention policies
+	if len(rps) == 0 {
+		for _, rp := range di.RetentionPolicies {
+			rps = append(rps, rp.Name)
+		}
+	}
 	var allGroups []meta.ShardGroupInfo
-	for _, rpi := range di.RetentionPolicies {
-		sgis, err := e.MetaClient.ShardGroupsByTimeRange(q.Database, rpi.Name, timeRange.MinTime(), timeRange.MaxTime())
+	for _, rp := range rps {
+		sgis, err := e.MetaClient.ShardGroupsByTimeRange(q.Database, rp, timeRange.MinTime(), timeRange.MaxTime())
 		if err != nil {
 			return err
 		}
@@ -1312,6 +1327,8 @@ func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, defaultD
 			case *influxql.DropSeriesStatement, *influxql.DeleteSeriesStatement:
 				// DB and RP not supported by these statements so don't rewrite into invalid
 				// statements
+			case *influxql.ShowTagValuesStatement:
+				// SHOW TAG VALUES should span multiple RPs if one is not specified.
 			default:
 				err = e.normalizeMeasurement(node, defaultDatabase, defaultRetentionPolicy)
 			}
