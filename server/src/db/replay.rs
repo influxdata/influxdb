@@ -220,10 +220,10 @@ mod tests {
             assert_eq!(entries.len(), 1);
 
             SequencedEntry::new_from_sequence(
-                Sequence::new(sequencer_id, sequence_number, Utc::now()),
+                Sequence::new(sequencer_id, sequence_number),
+                Utc::now(),
                 entries.pop().unwrap(),
             )
-            .unwrap()
         }
     }
 

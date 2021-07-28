@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc, task::Poll};
 
 use async_trait::async_trait;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use entry::{Entry, Sequence, SequencedEntry};
 use futures::{stream, FutureExt, StreamExt};
 use parking_lot::Mutex;
@@ -110,7 +110,7 @@ impl WriteBufferWriting for MockBufferForWriting {
         &self,
         entry: &Entry,
         sequencer_id: u32,
-    ) -> Result<Sequence, WriteBufferError> {
+    ) -> Result<(Sequence, DateTime<Utc>), WriteBufferError> {
         let mut entries = self.state.entries.lock();
         let sequencer_entries = entries.get_mut(&sequencer_id).unwrap();
 
@@ -129,15 +129,15 @@ impl WriteBufferWriting for MockBufferForWriting {
         let sequence = Sequence {
             id: sequencer_id,
             number: sequence_number,
-            ingest_timestamp: Utc::now(),
         };
+        let timestamp = Utc::now();
         sequencer_entries.push(Ok(SequencedEntry::new_from_sequence(
             sequence,
+            timestamp,
             entry.clone(),
-        )
-        .unwrap()));
+        )));
 
-        Ok(sequence)
+        Ok((sequence, timestamp))
     }
 }
 
@@ -150,7 +150,7 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
         &self,
         _entry: &Entry,
         _sequencer_id: u32,
-    ) -> Result<Sequence, WriteBufferError> {
+    ) -> Result<(Sequence, DateTime<Utc>), WriteBufferError> {
         Err(String::from(
             "Something bad happened on the way to writing an entry in the write buffer",
         )
@@ -364,8 +364,12 @@ mod tests {
     fn test_state_push_entry_panic_wrong_sequencer() {
         let state = MockBufferSharedState::empty_with_n_sequencers(2);
         let entry = lp_to_entry("upc,region=east user=1 100");
-        let sequence = Sequence::new(2, 0, Utc::now());
-        state.push_entry(SequencedEntry::new_from_sequence(sequence, entry).unwrap());
+        let sequence = Sequence::new(2, 0);
+        state.push_entry(SequencedEntry::new_from_sequence(
+            sequence,
+            Utc::now(),
+            entry,
+        ));
     }
 
     #[test]
@@ -375,9 +379,17 @@ mod tests {
     fn test_state_push_entry_panic_wrong_sequence_number_equal() {
         let state = MockBufferSharedState::empty_with_n_sequencers(2);
         let entry = lp_to_entry("upc,region=east user=1 100");
-        let sequence = Sequence::new(1, 13, Utc::now());
-        state.push_entry(SequencedEntry::new_from_sequence(sequence, entry.clone()).unwrap());
-        state.push_entry(SequencedEntry::new_from_sequence(sequence, entry).unwrap());
+        let sequence = Sequence::new(1, 13);
+        state.push_entry(SequencedEntry::new_from_sequence(
+            sequence,
+            Utc::now(),
+            entry.clone(),
+        ));
+        state.push_entry(SequencedEntry::new_from_sequence(
+            sequence,
+            Utc::now(),
+            entry,
+        ));
     }
 
     #[test]
@@ -387,10 +399,18 @@ mod tests {
     fn test_state_push_entry_panic_wrong_sequence_number_less() {
         let state = MockBufferSharedState::empty_with_n_sequencers(2);
         let entry = lp_to_entry("upc,region=east user=1 100");
-        let sequence_1 = Sequence::new(1, 13, Utc::now());
-        let sequence_2 = Sequence::new(1, 12, Utc::now());
-        state.push_entry(SequencedEntry::new_from_sequence(sequence_1, entry.clone()).unwrap());
-        state.push_entry(SequencedEntry::new_from_sequence(sequence_2, entry).unwrap());
+        let sequence_1 = Sequence::new(1, 13);
+        let sequence_2 = Sequence::new(1, 12);
+        state.push_entry(SequencedEntry::new_from_sequence(
+            sequence_1,
+            Utc::now(),
+            entry.clone(),
+        ));
+        state.push_entry(SequencedEntry::new_from_sequence(
+            sequence_2,
+            Utc::now(),
+            entry,
+        ));
     }
 
     #[test]

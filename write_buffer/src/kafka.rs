@@ -6,7 +6,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::{TimeZone, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use data_types::server_id::ServerId;
 use entry::{Entry, Sequence, SequencedEntry};
 use futures::{FutureExt, StreamExt};
@@ -48,7 +48,7 @@ impl WriteBufferWriting for KafkaBufferProducer {
         &self,
         entry: &Entry,
         sequencer_id: u32,
-    ) -> Result<Sequence, WriteBufferError> {
+    ) -> Result<(Sequence, DateTime<Utc>), WriteBufferError> {
         let partition = i32::try_from(sequencer_id)?;
         let timestamp = Utc::now();
 
@@ -69,11 +69,13 @@ impl WriteBufferWriting for KafkaBufferProducer {
 
         debug!(db_name=%self.database_name, %offset, %partition, size=entry.data().len(), "wrote to kafka");
 
-        Ok(Sequence {
-            id: partition.try_into()?,
-            number: offset.try_into()?,
-            ingest_timestamp: timestamp,
-        })
+        Ok((
+            Sequence {
+                id: partition.try_into()?,
+                number: offset.try_into()?,
+            },
+            timestamp,
+        ))
     }
 }
 
@@ -153,10 +155,9 @@ impl WriteBufferReading for KafkaBufferConsumer {
                     let sequence = Sequence {
                         id: message.partition().try_into()?,
                         number: message.offset().try_into()?,
-                        ingest_timestamp: timestamp,
                     };
 
-                    Ok(SequencedEntry::new_from_sequence(sequence, entry)?)
+                    Ok(SequencedEntry::new_from_sequence(sequence, timestamp, entry))
                 })
                 .boxed();
 

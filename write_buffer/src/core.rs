@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use entry::{Entry, Sequence, SequencedEntry};
 use futures::{future::BoxFuture, stream::BoxStream};
 
@@ -20,7 +21,7 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
         &self,
         entry: &Entry,
         sequencer_id: u32,
-    ) -> Result<Sequence, WriteBufferError>;
+    ) -> Result<(Sequence, DateTime<Utc>), WriteBufferError>;
 }
 
 pub type FetchHighWatermarkFut<'a> = BoxFuture<'a, Result<u64, WriteBufferError>>;
@@ -313,9 +314,9 @@ pub mod test_utils {
         let entry_west_1 = lp_to_entry("upc,region=west user=1 200");
 
         let writer = context.writing();
-        let _sequence_number_east_1 = writer.store_entry(&entry_east_1, 0).await.unwrap().number;
-        let sequence_number_east_2 = writer.store_entry(&entry_east_2, 0).await.unwrap().number;
-        let _sequence_number_west_1 = writer.store_entry(&entry_west_1, 1).await.unwrap().number;
+        let _sequence_number_east_1 = writer.store_entry(&entry_east_1, 0).await.unwrap().0.number;
+        let sequence_number_east_2 = writer.store_entry(&entry_east_2, 0).await.unwrap().0.number;
+        let _sequence_number_west_1 = writer.store_entry(&entry_west_1, 1).await.unwrap().0.number;
 
         let mut reader_1 = context.reading().await;
         let mut reader_2 = context.reading().await;
@@ -343,7 +344,7 @@ pub mod test_utils {
 
         // seek to far end and then at data
         reader_1.seek(0, 1_000_000).await.unwrap();
-        let _sequence_number_east_3 = writer.store_entry(&entry_east_3, 0).await.unwrap().number;
+        let _sequence_number_east_3 = writer.store_entry(&entry_east_3, 0).await.unwrap().0.number;
         let mut streams = reader_1.streams();
         assert_eq!(streams.len(), 2);
         let (_sequencer_id, mut stream_1) = streams.pop().unwrap();
@@ -389,11 +390,13 @@ pub mod test_utils {
             .store_entry(&entry_east_2, sequencer_id_1)
             .await
             .unwrap()
+            .0
             .number;
         let mark_2 = writer
             .store_entry(&entry_west_1, sequencer_id_2)
             .await
             .unwrap()
+            .0
             .number;
         assert_eq!((stream_1.fetch_high_watermark)().await.unwrap(), mark_1 + 1);
         assert_eq!((stream_2.fetch_high_watermark)().await.unwrap(), mark_2 + 1);
@@ -435,8 +438,7 @@ pub mod test_utils {
 
         // check that the timestamp records the ingestion time, not the read time
         let sequenced_entry = stream.stream.next().await.unwrap().unwrap();
-        let sequence = sequenced_entry.sequence().unwrap();
-        let ts_entry = sequence.ingest_timestamp;
+        let ts_entry = sequenced_entry.producer_wallclock_timestamp().unwrap();
         assert!(ts_entry >= ts_pre, "{} >= {}", ts_entry, ts_pre);
         assert!(ts_entry <= ts_post, "{} <= {}", ts_entry, ts_post);
     }

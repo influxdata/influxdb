@@ -114,9 +114,6 @@ pub enum Error {
     ))]
     StoreSequencedEntryFailures { errors: Vec<Error> },
 
-    #[snafu(display("Error building sequenced entry: {}", source))]
-    SequencedEntryError { source: entry::SequencedEntryError },
-
     #[snafu(display("background task cancelled: {}", source))]
     TaskCancelled { source: futures::future::Aborted },
 
@@ -883,6 +880,9 @@ impl Db {
             let sequence = sequenced_entry
                 .sequence()
                 .expect("entry from write buffer must be sequenced");
+            let producer_wallclock_timestamp = sequenced_entry
+                .producer_wallclock_timestamp()
+                .expect("entry from write buffer must have a producer wallclock time");
             let entry = sequenced_entry.entry();
             metrics.bytes_read.add(entry.data().len() as u64);
             metrics
@@ -936,7 +936,7 @@ impl Db {
             }
             metrics
                 .last_ingest_ts
-                .set(sequence.ingest_timestamp.timestamp_nanos() as usize, &[]);
+                .set(producer_wallclock_timestamp.timestamp_nanos() as usize, &[]);
         }
     }
 
@@ -976,14 +976,15 @@ impl Db {
                 // buffer to return success before adding the entry to the mutable buffer.
 
                 // TODO: be smarter than always using sequencer 0
-                let sequence = write_buffer
+                let (sequence, producer_wallclock_timestamp) = write_buffer
                     .store_entry(&entry, 0)
                     .await
                     .context(WriteBufferWritingError)?;
-                let sequenced_entry = Arc::new(
-                    SequencedEntry::new_from_sequence(sequence, entry)
-                        .context(SequencedEntryError)?,
-                );
+                let sequenced_entry = Arc::new(SequencedEntry::new_from_sequence(
+                    sequence,
+                    producer_wallclock_timestamp,
+                    entry,
+                ));
 
                 self.store_sequenced_entry(sequenced_entry)
             }
@@ -1484,20 +1485,16 @@ mod tests {
         let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
         let ingest_ts1 = Utc.timestamp_millis(42);
         let ingest_ts2 = Utc.timestamp_millis(1337);
-        write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(
-                Sequence::new(0, 0, ingest_ts1),
-                lp_to_entry("mem foo=1 10"),
-            )
-            .unwrap(),
-        );
-        write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(
-                Sequence::new(0, 7, ingest_ts2),
-                lp_to_entry("cpu bar=2 20\ncpu bar=3 30"),
-            )
-            .unwrap(),
-        );
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 0),
+            ingest_ts1,
+            lp_to_entry("mem foo=1 10"),
+        ));
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 7),
+            ingest_ts2,
+            lp_to_entry("cpu bar=2 20\ncpu bar=3 30"),
+        ));
         let write_buffer = MockBufferForReading::new(write_buffer_state);
 
         let test_db = TestDb::builder()
@@ -2728,21 +2725,26 @@ mod tests {
         let partition_key = "1970-01-01T00";
 
         let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(2);
-        write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(Sequence::new(0, 0, Utc::now()), entry.clone())
-                .unwrap(),
-        );
-        write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(Sequence::new(1, 0, Utc::now()), entry.clone())
-                .unwrap(),
-        );
-        write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(Sequence::new(1, 2, Utc::now()), entry.clone())
-                .unwrap(),
-        );
-        write_buffer_state.push_entry(
-            SequencedEntry::new_from_sequence(Sequence::new(0, 1, Utc::now()), entry).unwrap(),
-        );
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 0),
+            Utc::now(),
+            entry.clone(),
+        ));
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(1, 0),
+            Utc::now(),
+            entry.clone(),
+        ));
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(1, 2),
+            Utc::now(),
+            entry.clone(),
+        ));
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 1),
+            Utc::now(),
+            entry,
+        ));
         let write_buffer = MockBufferForReading::new(write_buffer_state);
 
         let db = TestDb::builder()
