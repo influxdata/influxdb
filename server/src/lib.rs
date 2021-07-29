@@ -419,15 +419,15 @@ impl ServerMetrics {
 #[derive(Debug)]
 pub struct Server<M: ConnectionManager> {
     connection_manager: Arc<M>,
-    pub store: Arc<ObjectStore>,
+    store: Arc<ObjectStore>,
     exec: Arc<Executor>,
     jobs: Arc<JobRegistry>,
-    pub metrics: Arc<ServerMetrics>,
+    metrics: Arc<ServerMetrics>,
 
     /// The metrics registry associated with the server. This is needed not for
     /// recording telemetry, but because the server hosts the /metric endpoint
     /// and populates the endpoint with this data.
-    pub registry: Arc<metrics::MetricRegistry>,
+    registry: Arc<metrics::MetricRegistry>,
 
     /// The state machine for server startup
     stage: Arc<RwLock<ServerStage>>,
@@ -549,6 +549,16 @@ where
             }
             _ => Err(Error::IdAlreadySet),
         }
+    }
+
+    /// Returns the metrics registry associated with this server
+    pub fn metrics_registry(&self) -> &Arc<MetricRegistry> {
+        &self.registry
+    }
+
+    /// Return the metrics associated with this server
+    pub fn metrics(&self) -> &Arc<ServerMetrics> {
+        &self.metrics
     }
 
     /// Check if server is loaded. Databases are loaded and server is ready to read/write.
