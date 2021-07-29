@@ -245,7 +245,7 @@ jobs:
         # https://github.com/influxdata/influxdb_iox/pull/2119
         ROARING_ARCH: "haswell"
         # Use avx512 instructions to take full advantage of the CPUs instruction set
-        RUSTFLAGS: "-C target-feature=+avx512"
+        RUSTFLAGS: "-C target-feature=+avx2"
     steps:
       - checkout
       - rust_components

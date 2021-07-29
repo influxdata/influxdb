@@ -37,8 +37,6 @@ pub fn move_chunk_to_read_buffer(
     // local operation that should only need to deal with the columns that are really present.
     let db_chunk = DbChunk::snapshot(&*guard);
     let schema = db_chunk.schema();
-    let time_of_first_write = db_chunk.time_of_first_write();
-    let time_of_last_write = db_chunk.time_of_last_write();
     let query_chunks = vec![db_chunk];
 
     // Drop locks
@@ -57,14 +55,7 @@ pub fn move_chunk_to_read_buffer(
 
         let physical_plan = ctx.prepare_plan(&plan)?;
         let stream = ctx.execute(physical_plan).await?;
-        let rb_chunk = collect_rub(
-            stream,
-            db.as_ref(),
-            &table_summary.name,
-            time_of_first_write,
-            time_of_last_write,
-        )
-        .await?;
+        let rb_chunk = collect_rub(stream, db.as_ref(), &table_summary.name).await?;
 
         // Can drop and re-acquire as lifecycle action prevents concurrent modification
         let mut guard = chunk.write();

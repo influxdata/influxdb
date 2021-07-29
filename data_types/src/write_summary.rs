@@ -4,7 +4,7 @@ use chrono::{DateTime, Timelike, Utc};
 /// A description of a set of writes
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct WriteSummary {
-    /// The wall clock timestamp of the last write in this summary
+    /// The wall clock timestamp of the first write in this summary
     pub time_of_first_write: DateTime<Utc>,
 
     /// The wall clock timestamp of the last write in this summary

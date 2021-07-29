@@ -104,7 +104,7 @@ where
             testing::make_server(),
             storage::make_server(
                 Arc::clone(&server),
-                Arc::clone(&server.registry),
+                Arc::clone(&server.metrics_registry()),
                 serving_gate.clone(),
             ),
             flight::make_server(Arc::clone(&server), serving_gate.clone()),

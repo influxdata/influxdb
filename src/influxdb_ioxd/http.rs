@@ -486,7 +486,7 @@ where
     let server = Arc::clone(&server);
 
     // TODO(edd): figure out best way of catching all errors in this observation.
-    let obs = server.metrics.http_requests.observation(); // instrument request
+    let obs = server.metrics().http_requests.observation(); // instrument request
 
     // TODO - metrics. Implement a macro/something that will catch all the
     // early returns.
@@ -538,16 +538,16 @@ where
             ];
 
             server
-                .metrics
+                .metrics()
                 .ingest_lines_total
                 .add_with_labels(num_lines as u64, labels);
 
             server
-                .metrics
+                .metrics()
                 .ingest_fields_total
                 .add_with_labels(num_fields as u64, labels);
 
-            server.metrics.ingest_points_bytes_total.add_with_labels(
+            server.metrics().ingest_points_bytes_total.add_with_labels(
                 body.len() as u64,
                 &[
                     metrics::KeyValue::new("status", "error"),
@@ -575,18 +575,18 @@ where
     ];
 
     server
-        .metrics
+        .metrics()
         .ingest_lines_total
         .add_with_labels(num_lines as u64, labels);
 
     server
-        .metrics
+        .metrics()
         .ingest_fields_total
         .add_with_labels(num_fields as u64, labels);
 
     // line protocol bytes successfully written
     server
-        .metrics
+        .metrics()
         .ingest_points_bytes_total
         .add_with_labels(body.len() as u64, labels);
 
@@ -617,7 +617,7 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     let server = Arc::clone(&req.data::<Server<M>>().expect("server state").app_server);
 
     // TODO(edd): figure out best way of catching all errors in this observation.
-    let obs = server.metrics.http_requests.observation(); // instrument request
+    let obs = server.metrics().http_requests.observation(); // instrument request
 
     let uri_query = req.uri().query().context(ExpectedQueryString {})?;
 
@@ -683,7 +683,7 @@ async fn health<M: ConnectionManager + Send + Sync + Debug + 'static>(
     let server = Arc::clone(&req.data::<Server<M>>().expect("server state").app_server);
     let path = req.uri().path().to_string();
     server
-        .metrics
+        .metrics()
         .http_requests
         .observation()
         .ok_with_labels(&[metrics::KeyValue::new("path", path)]);
@@ -699,11 +699,13 @@ async fn handle_metrics<M: ConnectionManager + Send + Sync + Debug + 'static>(
     let server = Arc::clone(&req.data::<Server<M>>().expect("server state").app_server);
     let path = req.uri().path().to_string();
     server
-        .metrics
+        .metrics()
         .http_requests
         .observation()
         .ok_with_labels(&[metrics::KeyValue::new("path", path)]);
-    Ok(Response::new(Body::from(server.registry.metrics_as_text())))
+    Ok(Response::new(Body::from(
+        server.metrics_registry().metrics_as_text(),
+    )))
 }
 
 #[derive(Deserialize, Debug)]
@@ -722,7 +724,7 @@ async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
     let server = Arc::clone(&req.data::<Server<M>>().expect("server state").app_server);
 
     // TODO - catch error conditions
-    let obs = server.metrics.http_requests.observation();
+    let obs = server.metrics().http_requests.observation();
     let query = req.uri().query().context(ExpectedQueryString {})?;
 
     let info: DatabaseInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {

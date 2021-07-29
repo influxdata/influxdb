@@ -68,7 +68,6 @@ impl Config {
         exec: Arc<Executor>,
         server_id: ServerId,
         metric_registry: Arc<MetricRegistry>,
-        remote_template: Option<RemoteTemplate>,
     ) -> Self {
         Self {
             jobs,
@@ -77,7 +76,7 @@ impl Config {
             server_id,
             metric_registry,
             shutdown: Default::default(),
-            state: RwLock::new(ConfigState::new(remote_template)),
+            state: Default::default(),
         }
     }
 
@@ -228,34 +227,6 @@ impl Config {
         db.update_rules(update).map_err(UpdateError::Closure)
     }
 
-    /// Get all registered remote servers.
-    pub(crate) fn remotes_sorted(&self) -> Vec<(ServerId, String)> {
-        let state = self.state.read().expect("mutex poisoned");
-        state.remotes.iter().map(|(&a, b)| (a, b.clone())).collect()
-    }
-
-    /// Update given remote server.
-    pub(crate) fn update_remote(&self, id: ServerId, addr: GRpcConnectionString) {
-        let mut state = self.state.write().expect("mutex poisoned");
-        state.remotes.insert(id, addr);
-    }
-
-    /// Delete remote server by ID.
-    pub(crate) fn delete_remote(&self, id: ServerId) -> Option<GRpcConnectionString> {
-        let mut state = self.state.write().expect("mutex poisoned");
-        state.remotes.remove(&id)
-    }
-
-    /// Get remote server by ID.
-    pub(crate) fn resolve_remote(&self, id: ServerId) -> Option<GRpcConnectionString> {
-        let state = self.state.read().expect("mutex poisoned");
-        state
-            .remotes
-            .get(&id)
-            .cloned()
-            .or_else(|| state.remote_template.as_ref().map(|t| t.get(&id)))
-    }
-
     /// Commit new or unchanged database state.
     fn commit_db(&self, db_state: Arc<DatabaseState>) {
         let mut state = self.state.write().expect("mutex poisoned");
@@ -336,9 +307,6 @@ pub fn object_store_path_for_database_config<P: ObjectStorePath>(
     path
 }
 
-/// A gRPC connection string.
-pub type GRpcConnectionString = String;
-
 /// Inner config state that is protected by a lock.
 #[derive(Default, Debug)]
 struct ConfigState {
@@ -347,40 +315,6 @@ struct ConfigState {
 
     /// Databases in different states.
     databases: BTreeMap<DatabaseName<'static>, Arc<DatabaseState>>,
-
-    /// Map between remote IOx server IDs and management API connection strings.
-    remotes: BTreeMap<ServerId, GRpcConnectionString>,
-
-    /// Static map between remote server IDs and hostnames based on a template
-    remote_template: Option<RemoteTemplate>,
-}
-
-impl ConfigState {
-    fn new(remote_template: Option<RemoteTemplate>) -> Self {
-        Self {
-            remote_template,
-            ..Default::default()
-        }
-    }
-}
-
-/// A RemoteTemplate string is a remote connection template string.
-/// Occurrences of the substring "{id}" in the template will be replaced
-/// by the server ID.
-#[derive(Debug)]
-pub struct RemoteTemplate {
-    template: String,
-}
-
-impl RemoteTemplate {
-    pub fn new(template: impl Into<String>) -> Self {
-        let template = template.into();
-        Self { template }
-    }
-
-    fn get(&self, id: &ServerId) -> GRpcConnectionString {
-        self.template.replace("{id}", &format!("{}", id.get_u32()))
-    }
 }
 
 /// Internal representation of the different database states.
@@ -703,9 +637,8 @@ mod test {
     use crate::db::load::load_or_create_preserved_catalog;
 
     use super::*;
-    use std::num::NonZeroU32;
 
-    fn make_config(remote_template: Option<RemoteTemplate>) -> Config {
+    fn make_config() -> Config {
         let store = Arc::new(ObjectStore::new_in_memory());
         let server_id = ServerId::try_from(1).unwrap();
         let metric_registry = Arc::new(metrics::MetricRegistry::new());
@@ -715,7 +648,6 @@ mod test {
             Arc::new(Executor::new(1)),
             server_id,
             Arc::clone(&metric_registry),
-            remote_template,
         )
     }
 
@@ -723,7 +655,7 @@ mod test {
     async fn create_db() {
         // setup
         let name = DatabaseName::new("foo").unwrap();
-        let config = make_config(None);
+        let config = make_config();
         let rules = DatabaseRules::new(name.clone());
 
         // getting handle while DB is reserved => fails
@@ -827,7 +759,7 @@ mod test {
     async fn recover_db() {
         // setup
         let name = DatabaseName::new("foo").unwrap();
-        let config = make_config(None);
+        let config = make_config();
         let rules = DatabaseRules::new(name.clone());
 
         // create DB but don't continue with rules loaded (e.g. because the rules file is broken)
@@ -914,7 +846,7 @@ mod test {
     async fn block_db() {
         // setup
         let name = DatabaseName::new("foo").unwrap();
-        let config = make_config(None);
+        let config = make_config();
 
         // block DB
         let handle = config.block_db(name.clone()).unwrap();
@@ -943,7 +875,7 @@ mod test {
     async fn test_db_drop() {
         // setup
         let name = DatabaseName::new("foo").unwrap();
-        let config = make_config(None);
+        let config = make_config();
         let rules = DatabaseRules::new(name.clone());
         let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
             &name,
@@ -999,24 +931,5 @@ mod test {
         expected_path.set_file_name("rules.pb");
 
         assert_eq!(rules_path, expected_path);
-    }
-
-    #[test]
-    fn resolve_remote() {
-        let config = make_config(Some(RemoteTemplate::new("http://iox-query-{id}:8082")));
-
-        let server_id = ServerId::new(NonZeroU32::new(42).unwrap());
-        let remote = config.resolve_remote(server_id);
-        assert_eq!(
-            remote,
-            Some(GRpcConnectionString::from("http://iox-query-42:8082"))
-        );
-
-        let server_id = ServerId::new(NonZeroU32::new(24).unwrap());
-        let remote = config.resolve_remote(server_id);
-        assert_eq!(
-            remote,
-            Some(GRpcConnectionString::from("http://iox-query-24:8082"))
-        );
     }
 }

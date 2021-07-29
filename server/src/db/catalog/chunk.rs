@@ -265,13 +265,10 @@ impl CatalogChunk {
     pub(super) fn new_open(
         addr: ChunkAddr,
         chunk: mutable_buffer::chunk::MBChunk,
+        time_of_write: DateTime<Utc>,
         metrics: ChunkMetrics,
     ) -> Self {
         assert_eq!(chunk.table_name(), &addr.table_name);
-
-        let summary = chunk.table_summary();
-        let time_of_first_write = summary.time_of_first_write;
-        let time_of_last_write = summary.time_of_last_write;
 
         let stage = ChunkStage::Open { mb_chunk: chunk };
 
@@ -285,8 +282,8 @@ impl CatalogChunk {
             lifecycle_action: None,
             metrics,
             access_recorder: Default::default(),
-            time_of_first_write,
-            time_of_last_write,
+            time_of_first_write: time_of_write,
+            time_of_last_write: time_of_write,
             time_closed: None,
         };
         chunk.update_metrics();
@@ -299,16 +296,14 @@ impl CatalogChunk {
     pub(super) fn new_rub_chunk(
         addr: ChunkAddr,
         chunk: read_buffer::RBChunk,
+        time_of_first_write: DateTime<Utc>,
+        time_of_last_write: DateTime<Utc>,
         schema: Arc<Schema>,
         metrics: ChunkMetrics,
     ) -> Self {
-        let summary = chunk.table_summary();
-        let time_of_first_write = summary.time_of_first_write;
-        let time_of_last_write = summary.time_of_last_write;
-
         let stage = ChunkStage::Frozen {
             meta: Arc::new(ChunkMetadata {
-                table_summary: Arc::new(summary.into()),
+                table_summary: Arc::new(chunk.table_summary()),
                 schema,
             }),
             representation: ChunkStageFrozenRepr::ReadBuffer(Arc::new(chunk)),
@@ -337,23 +332,15 @@ impl CatalogChunk {
     pub(super) fn new_object_store_only(
         addr: ChunkAddr,
         chunk: Arc<parquet_file::chunk::ParquetChunk>,
+        time_of_first_write: DateTime<Utc>,
+        time_of_last_write: DateTime<Utc>,
         metrics: ChunkMetrics,
     ) -> Self {
         assert_eq!(chunk.table_name(), addr.table_name.as_ref());
 
-        let summary = chunk.table_summary();
-        let time_of_first_write = summary.time_of_first_write;
-        let time_of_last_write = summary.time_of_last_write;
-
-        // this is temporary
-        let table_summary = TableSummary {
-            name: summary.name.clone(),
-            columns: summary.columns.clone(),
-        };
-
         // Cache table summary + schema
         let meta = Arc::new(ChunkMetadata {
-            table_summary: Arc::new(table_summary),
+            table_summary: Arc::clone(chunk.table_summary()),
             schema: chunk.schema(),
         });
 
@@ -583,7 +570,7 @@ impl CatalogChunk {
         match &self.stage {
             ChunkStage::Open { mb_chunk, .. } => {
                 // The stats for open chunks change so can't be cached
-                Arc::new(mb_chunk.table_summary().into())
+                Arc::new(mb_chunk.table_summary())
             }
             ChunkStage::Frozen { meta, .. } => Arc::clone(&meta.table_summary),
             ChunkStage::Persisted { meta, .. } => Arc::clone(&meta.table_summary),
@@ -652,7 +639,7 @@ impl CatalogChunk {
 
                 // Cache table summary + schema
                 let metadata = ChunkMetadata {
-                    table_summary: Arc::new(mb_chunk.table_summary().into()),
+                    table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: s.full_schema(),
                 };
 
@@ -963,7 +950,7 @@ impl CatalogChunk {
 mod tests {
     use super::*;
     use entry::test_helpers::lp_to_entry;
-    use mutable_buffer::chunk::{ChunkMetrics as MBChunkMetrics, MBChunk};
+    use mutable_buffer::chunk::ChunkMetrics as MBChunkMetrics;
     use parquet_file::{
         chunk::ParquetChunk,
         test_utils::{make_chunk as make_parquet_chunk_with_store, make_object_store},
@@ -971,11 +958,7 @@ mod tests {
 
     #[test]
     fn test_new_open() {
-        let addr = chunk_addr();
-
-        // works with non-empty MBChunk
-        let mb_chunk = make_mb_chunk(&addr.table_name);
-        let chunk = CatalogChunk::new_open(addr, mb_chunk, ChunkMetrics::new_unregistered());
+        let chunk = make_open_chunk();
         assert!(matches!(chunk.stage(), &ChunkStage::Open { .. }));
     }
 
@@ -1130,11 +1113,10 @@ mod tests {
 
     fn make_mb_chunk(table_name: &str) -> MBChunk {
         let entry = lp_to_entry(&format!("{} bar=1 10", table_name));
-        let time_of_write = Utc::now();
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
 
-        MBChunk::new(MBChunkMetrics::new_unregistered(), batch, time_of_write).unwrap()
+        MBChunk::new(MBChunkMetrics::new_unregistered(), batch).unwrap()
     }
 
     async fn make_parquet_chunk(addr: ChunkAddr) -> ParquetChunk {
@@ -1153,21 +1135,29 @@ mod tests {
 
     fn make_open_chunk() -> CatalogChunk {
         let addr = chunk_addr();
-
-        // assemble MBChunk
         let mb_chunk = make_mb_chunk(&addr.table_name);
+        let time_of_write = Utc::now();
 
-        CatalogChunk::new_open(addr, mb_chunk, ChunkMetrics::new_unregistered())
+        CatalogChunk::new_open(
+            addr,
+            mb_chunk,
+            time_of_write,
+            ChunkMetrics::new_unregistered(),
+        )
     }
 
     async fn make_persisted_chunk() -> CatalogChunk {
         let addr = chunk_addr();
+        let now = Utc::now();
+
         // assemble ParquetChunk
         let parquet_chunk = make_parquet_chunk(addr.clone()).await;
 
         CatalogChunk::new_object_store_only(
             addr,
             Arc::new(parquet_chunk),
+            now,
+            now,
             ChunkMetrics::new_unregistered(),
         )
     }

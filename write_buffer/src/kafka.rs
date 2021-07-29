@@ -96,6 +96,7 @@ impl KafkaBufferProducer {
         cfg.set("message.max.bytes", "31457280");
         cfg.set("queue.buffering.max.kbytes", "31457280");
         cfg.set("request.required.acks", "all"); // equivalent to acks=-1
+        cfg.set("compression.type", "snappy");
 
         let producer: FutureProducer = cfg.create()?;
 

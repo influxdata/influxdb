@@ -343,11 +343,10 @@ mod tests {
         let mb_chunk = mutable_buffer::chunk::MBChunk::new(
             mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
             batch,
-            time_of_write,
         )
         .unwrap();
 
-        partition.create_open_chunk(mb_chunk);
+        partition.create_open_chunk(mb_chunk, time_of_write);
     }
 
     #[test]

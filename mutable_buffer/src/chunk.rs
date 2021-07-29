@@ -3,8 +3,7 @@ use crate::{
     column::{self, Column},
 };
 use arrow::record_batch::RecordBatch;
-use chrono::{DateTime, Utc};
-use data_types::partition_metadata::{ColumnSummary, InfluxDbType, TableSummaryAndTimes};
+use data_types::partition_metadata::{ColumnSummary, InfluxDbType, TableSummary};
 use entry::TableBatch;
 use hashbrown::HashMap;
 use internal_types::{
@@ -84,25 +83,12 @@ pub struct MBChunk {
     /// Note: This is a mutex to allow mutation within
     /// `Chunk::snapshot()` which only takes an immutable borrow
     snapshot: Mutex<Option<Arc<ChunkSnapshot>>>,
-
-    /// Time at which the first data was written into this chunk. Note
-    /// this is not the same as the timestamps on the data itself
-    time_of_first_write: DateTime<Utc>,
-
-    /// Most recent time at which data write was initiated into this
-    /// chunk. Note this is not the same as the timestamps on the data
-    /// itself
-    time_of_last_write: DateTime<Utc>,
 }
 
 impl MBChunk {
     /// Create a new batch and write the contents of the [`TableBatch`] into it. Chunks
     /// shouldn't exist without some data.
-    pub fn new(
-        metrics: ChunkMetrics,
-        batch: TableBatch<'_>,
-        time_of_write: DateTime<Utc>,
-    ) -> Result<Self> {
+    pub fn new(metrics: ChunkMetrics, batch: TableBatch<'_>) -> Result<Self> {
         let table_name = Arc::from(batch.name());
 
         let mut chunk = Self {
@@ -110,8 +96,6 @@ impl MBChunk {
             columns: Default::default(),
             metrics,
             snapshot: Mutex::new(None),
-            time_of_first_write: time_of_write,
-            time_of_last_write: time_of_write,
         };
 
         let columns = batch.columns();
@@ -123,11 +107,7 @@ impl MBChunk {
     /// Write the contents of a [`TableBatch`] into this Chunk.
     ///
     /// Panics if the batch specifies a different name for the table in this Chunk
-    pub fn write_table_batch(
-        &mut self,
-        batch: TableBatch<'_>,
-        time_of_write: DateTime<Utc>,
-    ) -> Result<()> {
+    pub fn write_table_batch(&mut self, batch: TableBatch<'_>) -> Result<()> {
         let table_name = batch.name();
         assert_eq!(
             table_name,
@@ -142,10 +122,6 @@ impl MBChunk {
             .snapshot
             .try_lock()
             .expect("concurrent readers/writers to MBChunk") = None;
-
-        // DateTime<Utc> is not necessarily monotonic
-        self.time_of_first_write = self.time_of_first_write.min(time_of_write);
-        self.time_of_last_write = self.time_of_last_write.max(time_of_write);
 
         Ok(())
     }
@@ -227,7 +203,7 @@ impl MBChunk {
     }
 
     /// Returns a table summary for this chunk
-    pub fn table_summary(&self) -> TableSummaryAndTimes {
+    pub fn table_summary(&self) -> TableSummary {
         let mut columns: Vec<_> = self
             .columns
             .iter()
@@ -245,11 +221,9 @@ impl MBChunk {
 
         columns.sort_by(|a, b| a.name.cmp(&b.name));
 
-        TableSummaryAndTimes {
+        TableSummary {
             name: self.table_name.to_string(),
             columns,
-            time_of_first_write: self.time_of_first_write,
-            time_of_last_write: self.time_of_last_write,
         }
     }
 
@@ -355,7 +329,6 @@ pub mod test_helpers {
     /// server id of 1.
     pub fn write_lp_to_chunk(lp: &str, chunk: &mut MBChunk) -> Result<()> {
         let entry = lp_to_entry(lp);
-        let time_of_write = Utc::now();
 
         for w in entry.partition_writes().unwrap() {
             let table_batches = w.table_batches();
@@ -370,7 +343,7 @@ pub mod test_helpers {
             );
 
             for batch in table_batches {
-                chunk.write_table_batch(batch, time_of_write)?;
+                chunk.write_table_batch(batch)?;
             }
         }
 
@@ -379,7 +352,6 @@ pub mod test_helpers {
 
     pub fn write_lp_to_new_chunk(lp: &str) -> Result<MBChunk> {
         let entry = lp_to_entry(lp);
-        let time_of_write = Utc::now();
         let mut chunk: Option<MBChunk> = None;
 
         for w in entry.partition_writes().unwrap() {
@@ -396,13 +368,9 @@ pub mod test_helpers {
 
             for batch in table_batches {
                 match chunk {
-                    Some(ref mut c) => c.write_table_batch(batch, time_of_write)?,
+                    Some(ref mut c) => c.write_table_batch(batch)?,
                     None => {
-                        chunk = Some(MBChunk::new(
-                            ChunkMetrics::new_unregistered(),
-                            batch,
-                            time_of_write,
-                        )?);
+                        chunk = Some(MBChunk::new(ChunkMetrics::new_unregistered(), batch)?);
                     }
                 }
             }
@@ -446,29 +414,11 @@ mod tests {
 
     #[test]
     fn writes_table_3_batches() {
-        let before_creation = Utc::now();
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
         let mut chunk = write_lp_to_new_chunk(&lp).unwrap();
-        let after_creation = Utc::now();
-
-        // There was only one write so far, so first and last write times should be equal
-        let first_write = chunk.time_of_first_write;
-        assert_eq!(first_write, chunk.time_of_last_write);
-
-        assert!(before_creation < first_write);
-        assert!(first_write < after_creation);
 
         let lp = vec!["cpu,host=c val=11 1"].join("\n");
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
-        let after_write = Utc::now();
-
-        // Now the first and last times should be different
-        assert_ne!(chunk.time_of_first_write, chunk.time_of_last_write);
-        // The first write time should not have been updated
-        assert_eq!(chunk.time_of_first_write, first_write);
-        // The last write time should have been updated
-        assert!(after_creation < chunk.time_of_last_write);
-        assert!(chunk.time_of_last_write < after_write);
 
         let lp = vec!["cpu,host=a val=14 2"].join("\n");
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
@@ -489,8 +439,6 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let before_write = Utc::now();
-
         let lp = r#"
             cpu,host=a val=23 1
             cpu,host=b,env=prod val=2 1
@@ -498,14 +446,6 @@ mod tests {
             cpu,host=a,env=prod val=14 2
         "#;
         let chunk = write_lp_to_new_chunk(&lp).unwrap();
-
-        let after_write = Utc::now();
-
-        // There was only one write, so first and last write times should be equal
-        assert_eq!(chunk.time_of_first_write, chunk.time_of_last_write);
-
-        assert!(before_write < chunk.time_of_first_write);
-        assert!(chunk.time_of_first_write < after_write);
 
         let summary = chunk.table_summary();
         assert_eq!(summary.name, "cpu");

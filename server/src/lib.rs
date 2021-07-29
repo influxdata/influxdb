@@ -68,16 +68,14 @@
     clippy::future_not_send
 )]
 
+use std::collections::HashMap;
 use std::convert::{Infallible, TryInto};
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
-use db::load::create_preserved_catalog;
-use observability_deps::tracing::{debug, error, info, warn};
-use parking_lot::{Mutex, RwLockUpgradableReadGuard};
-use snafu::{OptionExt, ResultExt, Snafu};
-
+use config::{object_store_path_for_database_config, Config};
+use data_types::database_rules::ShardConfig;
 use data_types::{
     database_rules::{
         DatabaseRules, NodeGroup, RoutingRules, ShardId, Sink, WriteBufferConnection,
@@ -87,30 +85,32 @@ use data_types::{
     server_id::ServerId,
     {DatabaseName, DatabaseNameError},
 };
+use db::load::create_preserved_catalog;
 use entry::{lines_to_sharded_entries, pb_to_entry, Entry, ShardedEntry};
+use generated_types::database_rules::encode_database_rules;
 use generated_types::influxdata::transfer::column::v1 as pb;
 use influxdb_line_protocol::ParsedLine;
+use lifecycle::LockableChunk;
 use metrics::{KeyValue, MetricObserverBuilder, MetricRegistry};
 use object_store::{ObjectStore, ObjectStoreApi};
-use parking_lot::RwLock;
+use observability_deps::tracing::{error, info, warn};
+use parking_lot::{Mutex, RwLock, RwLockUpgradableReadGuard};
 use query::{exec::Executor, DatabaseStore};
+use rand::seq::SliceRandom;
+use resolver::Resolver;
+use snafu::{OptionExt, ResultExt, Snafu};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
 use write_buffer::config::WriteBufferConfig;
 
-pub use crate::config::RemoteTemplate;
-use crate::config::{object_store_path_for_database_config, Config, GRpcConnectionString};
-use cache_loader_async::cache_api::LoadingCache;
-use data_types::database_rules::ShardConfig;
+pub use connection::{ConnectionManager, ConnectionManagerImpl, RemoteServer};
 pub use db::Db;
-use generated_types::database_rules::encode_database_rules;
-use influxdb_iox_client::{connection::Builder, write};
-use lifecycle::LockableChunk;
-use rand::seq::SliceRandom;
-use std::collections::HashMap;
+pub use resolver::{GrpcConnectionString, RemoteTemplate};
 
 mod config;
+mod connection;
 pub mod db;
 mod init;
+mod resolver;
 
 /// Utility modules used by benchmarks and tests
 pub mod utils;
@@ -212,11 +212,13 @@ pub enum Error {
 
     #[snafu(display("all remotes failed connecting: {:?}", errors))]
     NoRemoteReachable {
-        errors: HashMap<GRpcConnectionString, ConnectionManagerError>,
+        errors: HashMap<GrpcConnectionString, connection::ConnectionManagerError>,
     },
 
     #[snafu(display("remote error: {}", source))]
-    RemoteError { source: ConnectionManagerError },
+    RemoteError {
+        source: connection::ConnectionManagerError,
+    },
 
     #[snafu(display("cannot create preserved catalog: {}", source))]
     CannotCreatePreservedCatalog { source: DatabaseError },
@@ -419,15 +421,18 @@ impl ServerMetrics {
 #[derive(Debug)]
 pub struct Server<M: ConnectionManager> {
     connection_manager: Arc<M>,
-    pub store: Arc<ObjectStore>,
+    store: Arc<ObjectStore>,
     exec: Arc<Executor>,
     jobs: Arc<JobRegistry>,
-    pub metrics: Arc<ServerMetrics>,
+    metrics: Arc<ServerMetrics>,
 
     /// The metrics registry associated with the server. This is needed not for
     /// recording telemetry, but because the server hosts the /metric endpoint
     /// and populates the endpoint with this data.
-    pub registry: Arc<metrics::MetricRegistry>,
+    registry: Arc<metrics::MetricRegistry>,
+
+    /// Resolver for mapping ServerId to gRPC connection strings
+    resolver: RwLock<Resolver>,
 
     /// The state machine for server startup
     stage: Arc<RwLock<ServerStage>>,
@@ -448,10 +453,7 @@ pub struct Server<M: ConnectionManager> {
 #[derive(Debug)]
 enum ServerStage {
     /// Server has started but doesn't have a server id yet
-    Startup {
-        remote_template: Option<RemoteTemplate>,
-        wipe_catalog_on_error: bool,
-    },
+    Startup { wipe_catalog_on_error: bool },
 
     /// Server can be initialized
     InitReady {
@@ -513,8 +515,8 @@ where
             jobs,
             metrics: Arc::new(ServerMetrics::new(Arc::clone(&metric_registry))),
             registry: Arc::clone(&metric_registry),
+            resolver: RwLock::new(Resolver::new(remote_template)),
             stage: Arc::new(RwLock::new(ServerStage::Startup {
-                remote_template,
                 wipe_catalog_on_error,
             })),
         }
@@ -528,11 +530,8 @@ where
         let mut stage = self.stage.write();
         match &mut *stage {
             ServerStage::Startup {
-                remote_template,
                 wipe_catalog_on_error,
             } => {
-                let remote_template = remote_template.take();
-
                 *stage = ServerStage::InitReady {
                     wipe_catalog_on_error: *wipe_catalog_on_error,
                     config: Arc::new(Config::new(
@@ -541,7 +540,6 @@ where
                         Arc::clone(&self.exec),
                         id,
                         Arc::clone(&self.registry),
-                        remote_template,
                     )),
                     last_error: None,
                 };
@@ -549,6 +547,16 @@ where
             }
             _ => Err(Error::IdAlreadySet),
         }
+    }
+
+    /// Returns the metrics registry associated with this server
+    pub fn metrics_registry(&self) -> &Arc<MetricRegistry> {
+        &self.registry
+    }
+
+    /// Return the metrics associated with this server
+    pub fn metrics(&self) -> &Arc<ServerMetrics> {
+        &self.metrics
     }
 
     /// Check if server is loaded. Databases are loaded and server is ready to read/write.
@@ -897,12 +905,16 @@ where
         entry: Entry,
     ) -> Result<()> {
         // Return an error if this server is not yet ready
-        let config = self.config()?;
+        self.require_initialized()?;
 
-        let addrs: Vec<_> = node_group
-            .iter()
-            .filter_map(|&node| config.resolve_remote(node))
-            .collect();
+        let addrs: Vec<_> = {
+            let resolver = self.resolver.read();
+            node_group
+                .iter()
+                .filter_map(|&node| resolver.resolve_remote(node))
+                .collect()
+        };
+
         if addrs.is_empty() {
             return NoRemoteConfigured { node_group }.fail();
         }
@@ -1008,23 +1020,16 @@ where
         Ok(rules)
     }
 
-    pub fn remotes_sorted(&self) -> Result<Vec<(ServerId, String)>> {
-        // TODO: Should these be on ConnectionManager and not Config
-        let config = self.config()?;
-        Ok(config.remotes_sorted())
+    pub fn remotes_sorted(&self) -> Vec<(ServerId, String)> {
+        self.resolver.read().remotes_sorted()
     }
 
-    pub fn update_remote(&self, id: ServerId, addr: GRpcConnectionString) -> Result<()> {
-        // TODO: Should these be on ConnectionManager and not Config
-        let config = self.config()?;
-        config.update_remote(id, addr);
-        Ok(())
+    pub fn update_remote(&self, id: ServerId, addr: GrpcConnectionString) {
+        self.resolver.write().update_remote(id, addr)
     }
 
-    pub fn delete_remote(&self, id: ServerId) -> Result<Option<GRpcConnectionString>> {
-        // TODO: Should these be on ConnectionManager and not Config
-        let config = self.config()?;
-        Ok(config.delete_remote(id))
+    pub fn delete_remote(&self, id: ServerId) -> Option<GrpcConnectionString> {
+        self.resolver.write().delete_remote(id)
     }
 
     pub fn spawn_dummy_job(&self, nanos: Vec<u64>) -> TaskTracker<Job> {
@@ -1242,141 +1247,9 @@ where
     }
 }
 
-type RemoteServerError = Box<dyn std::error::Error + Send + Sync + 'static>;
-
-#[derive(Debug, Snafu)]
-pub enum ConnectionManagerError {
-    #[snafu(display("cannot connect to remote: {}", source))]
-    RemoteServerConnectError { source: RemoteServerError },
-    #[snafu(display("cannot write to remote: {}", source))]
-    RemoteServerWriteError { source: write::WriteError },
-}
-
-/// The `Server` will ask the `ConnectionManager` for connections to a specific
-/// remote server. These connections can be used to communicate with other
-/// servers. This is implemented as a trait for dependency injection in testing.
-#[async_trait]
-pub trait ConnectionManager {
-    type RemoteServer: RemoteServer + Send + Sync + 'static;
-
-    async fn remote_server(
-        &self,
-        connect: &str,
-    ) -> Result<Arc<Self::RemoteServer>, ConnectionManagerError>;
-}
-
-/// The `RemoteServer` represents the API for replicating, subscribing, and
-/// querying other servers.
-#[async_trait]
-pub trait RemoteServer {
-    /// Sends an Entry to the remote server. An IOx server acting as a
-    /// router/sharder will call this method to send entries to remotes.
-    async fn write_entry(&self, db: &str, entry: Entry) -> Result<(), ConnectionManagerError>;
-}
-
-/// The connection manager maps a host identifier to a remote server.
-#[derive(Debug)]
-pub struct ConnectionManagerImpl {
-    cache: LoadingCache<String, Arc<RemoteServerImpl>, CacheFillError>,
-}
-
-// Error must be Clone because LoadingCache requires so.
-#[derive(Debug, Snafu, Clone)]
-pub enum CacheFillError {
-    #[snafu(display("gRPC error: {}", source))]
-    GrpcError {
-        source: Arc<dyn std::error::Error + Send + Sync + 'static>,
-    },
-}
-
-impl ConnectionManagerImpl {
-    pub fn new() -> Self {
-        let (cache, _) = LoadingCache::new(Self::cached_remote_server);
-        Self { cache }
-    }
-
-    async fn cached_remote_server(
-        connect: String,
-    ) -> Result<Arc<RemoteServerImpl>, CacheFillError> {
-        let connection = Builder::default()
-            .build(&connect)
-            .await
-            .map_err(|e| Arc::new(e) as _)
-            .context(GrpcError)?;
-        let client = write::Client::new(connection);
-        Ok(Arc::new(RemoteServerImpl { client }))
-    }
-}
-
-impl Default for ConnectionManagerImpl {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[async_trait]
-impl ConnectionManager for ConnectionManagerImpl {
-    type RemoteServer = RemoteServerImpl;
-
-    async fn remote_server(
-        &self,
-        connect: &str,
-    ) -> Result<Arc<Self::RemoteServer>, ConnectionManagerError> {
-        let ret = self
-            .cache
-            .get_with_meta(connect.to_string())
-            .await
-            .map_err(|e| Box::new(e) as _)
-            .context(RemoteServerConnectError)?;
-        debug!(was_cached=%ret.cached, %connect, "getting remote connection");
-        Ok(ret.result)
-    }
-}
-
-/// An implementation for communicating with other IOx servers. This should
-/// be moved into and implemented in an influxdb_iox_client create at a later
-/// date.
-#[derive(Debug)]
-pub struct RemoteServerImpl {
-    client: write::Client,
-}
-
-#[async_trait]
-impl RemoteServer for RemoteServerImpl {
-    /// Sends an Entry to the remote server. An IOx server acting as a
-    /// router/sharder will call this method to send entries to remotes.
-    async fn write_entry(&self, db_name: &str, entry: Entry) -> Result<(), ConnectionManagerError> {
-        self.client
-            .clone() // cheap, see https://docs.rs/tonic/0.4.2/tonic/client/index.html#concurrent-usage
-            .write_entry(db_name, entry)
-            .await
-            .context(RemoteServerWriteError)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::utils::TestDb;
-    use arrow::record_batch::RecordBatch;
-    use arrow_util::assert_batches_eq;
-    use async_trait::async_trait;
-    use bytes::Bytes;
-    use data_types::chunk_metadata::ChunkAddr;
-    use data_types::database_rules::{
-        HashRing, LifecycleRules, PartitionTemplate, ShardConfig, TemplatePart, NO_SHARD_CONFIG,
-    };
-    use entry::test_helpers::lp_to_entry;
-    use futures::TryStreamExt;
-    use generated_types::database_rules::decode_database_rules;
-    use influxdb_line_protocol::parse_lines;
-    use metrics::MetricRegistry;
-    use object_store::path::ObjectStorePath;
-    use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
-    use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryDatabase};
-    use snafu::Snafu;
     use std::{
-        collections::BTreeMap,
         convert::TryFrom,
         sync::{
             atomic::{AtomicBool, Ordering},
@@ -1384,10 +1257,33 @@ mod tests {
         },
         time::{Duration, Instant},
     };
+
+    use arrow::record_batch::RecordBatch;
+    use bytes::Bytes;
+    use futures::TryStreamExt;
     use tempfile::TempDir;
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
+
+    use arrow_util::assert_batches_eq;
+    use connection::test_helpers::TestConnectionManager;
+    use data_types::chunk_metadata::ChunkAddr;
+    use data_types::database_rules::{
+        HashRing, LifecycleRules, PartitionTemplate, ShardConfig, TemplatePart, NO_SHARD_CONFIG,
+    };
+    use entry::test_helpers::lp_to_entry;
+    use generated_types::database_rules::decode_database_rules;
+    use influxdb_line_protocol::parse_lines;
+    use metrics::MetricRegistry;
+    use object_store::path::ObjectStorePath;
+    use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
+    use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryDatabase};
     use write_buffer::mock::MockBufferForWritingThatAlwaysErrors;
+
+    use crate::connection::test_helpers::TestRemoteServer;
+    use crate::utils::TestDb;
+
+    use super::*;
 
     const ARBITRARY_DEFAULT_TIME: i64 = 456;
 
@@ -1785,9 +1681,7 @@ mod tests {
         );
 
         // one remote is configured but it's down and we'll get connection error
-        server
-            .update_remote(bad_remote_id, BAD_REMOTE_ADDR.into())
-            .unwrap();
+        server.update_remote(bad_remote_id, BAD_REMOTE_ADDR.into());
         let err = server
             .write_lines(&db_name, &lines, ARBITRARY_DEFAULT_TIME)
             .await
@@ -1796,7 +1690,7 @@ mod tests {
             err,
             Error::NoRemoteReachable { errors } if matches!(
                 errors[BAD_REMOTE_ADDR],
-                ConnectionManagerError::RemoteServerConnectError {..}
+                connection::ConnectionManagerError::RemoteServerConnectError {..}
             )
         ));
         assert!(!written_1.load(Ordering::Relaxed));
@@ -1804,12 +1698,8 @@ mod tests {
 
         // We configure the address for the other remote, this time connection will succeed
         // despite the bad remote failing to connect.
-        server
-            .update_remote(good_remote_id_1, GOOD_REMOTE_ADDR_1.into())
-            .unwrap();
-        server
-            .update_remote(good_remote_id_2, GOOD_REMOTE_ADDR_2.into())
-            .unwrap();
+        server.update_remote(good_remote_id_1, GOOD_REMOTE_ADDR_1.into());
+        server.update_remote(good_remote_id_2, GOOD_REMOTE_ADDR_2.into());
 
         // Remotes are tried in random order, so we need to repeat the test a few times to have a reasonable
         // probability both the remotes will get hit.
@@ -1917,63 +1807,6 @@ mod tests {
         // ensure that we don't leave the server instance hanging around
         cancel_token.cancel();
         let _ = background_handle.await;
-    }
-
-    #[derive(Snafu, Debug, Clone)]
-    enum TestClusterError {
-        #[snafu(display("Test cluster error:  {}", message))]
-        General { message: String },
-    }
-
-    #[derive(Debug)]
-    struct TestConnectionManager {
-        remotes: BTreeMap<String, Arc<TestRemoteServer>>,
-    }
-
-    impl TestConnectionManager {
-        fn new() -> Self {
-            Self {
-                remotes: BTreeMap::new(),
-            }
-        }
-    }
-
-    #[async_trait]
-    impl ConnectionManager for TestConnectionManager {
-        type RemoteServer = TestRemoteServer;
-
-        async fn remote_server(
-            &self,
-            id: &str,
-        ) -> Result<Arc<TestRemoteServer>, ConnectionManagerError> {
-            #[derive(Debug, Snafu)]
-            enum TestRemoteError {
-                #[snafu(display("remote not found"))]
-                NotFound,
-            }
-            Ok(Arc::clone(self.remotes.get(id).ok_or_else(|| {
-                ConnectionManagerError::RemoteServerConnectError {
-                    source: Box::new(TestRemoteError::NotFound),
-                }
-            })?))
-        }
-    }
-
-    #[derive(Debug)]
-    struct TestRemoteServer {
-        written: Arc<AtomicBool>,
-    }
-
-    #[async_trait]
-    impl<'a> RemoteServer for TestRemoteServer {
-        async fn write_entry(
-            &self,
-            _db: &str,
-            _entry: Entry,
-        ) -> Result<(), ConnectionManagerError> {
-            self.written.store(true, Ordering::Relaxed);
-            Ok(())
-        }
     }
 
     fn parsed_lines(lp: &str) -> Vec<ParsedLine<'_>> {
