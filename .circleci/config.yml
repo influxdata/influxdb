@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  terraform: circleci/terraform@2.1.0
+
 parameters:
   aws_teardown:
     default: false
@@ -51,6 +54,46 @@ jobs:
           paths:
             - packages/influx_tools
             - packages/*.deb
+
+  pkg_run_test:
+    executor: terraform/default
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - "91:0a:5b:a7:f9:46:77:f3:5d:4a:cf:d2:44:c8:2c:5a"
+      - terraform/validate:
+          path: scripts/ci/
+      - run:
+          name: Terraform apply
+          command: |
+            set -x 
+            export DEBNAME=$(find /tmp/workspace/packages/influxdb*amd64.deb)
+            terraform -chdir=scripts/ci init -input=false
+            AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY terraform \
+              -chdir=scripts/ci \
+              apply \
+                -auto-approve \
+                -var package_path=${DEBNAME} \
+                -var instance_name=circleci-terraform-${CIRCLE_SHA1}
+      - run:
+          name: Install and run deb
+          command: |
+            set -x
+            ec2_ip=$(terraform -chdir=scripts/ci output -raw test_node_ssh)
+            ssh -o "StrictHostKeyChecking=no" ubuntu@$ec2_ip \<< EOF
+            sudo apt-get update && sudo apt-get install -y /home/ubuntu/influxdb.deb
+            sudo service influxdb start
+            EOF
+      - run:
+          name: Terraform destroy
+          command: |
+            AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY terraform \
+              -chdir=scripts/ci \
+              destroy \
+                -auto-approve
 
   perf_test:
     machine:
@@ -125,6 +168,9 @@ workflows:
       not: << pipeline.parameters.aws_teardown >>
     jobs:
       - build_and_test
+      - pkg_run_test:
+          requires:
+            - build_and_test
       - perf_test:
           requires:
             - build_and_test
