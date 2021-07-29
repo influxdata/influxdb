@@ -55,26 +55,6 @@
   contact: Query Team
   lifetime: permanent
 
-- name: Notebooks
-  description: Determine if the notebook feature's route and navbar icon are visible to the user
-  key: notebooks
-  default: false
-  contact: Monitoring Team
-  lifetime: temporary
-  expose: true
-
-# This notebooksApi flag only controls the specific API calls that the frontend uses,
-# not if the notebooks button is enabled on the sidebar. The notebooks flag (above) controls
-# the display of the notebooks button on the sidebar. The notebooksAPI flag should be set to true
-# to ensure the UI sends requests that the OSS backend can handle.
-- name: Notebooks Service API
-  description: Enable the Equivalent notebooksd Service API
-  key: notebooksApi
-  default: true
-  contact: Edge Team
-  lifetime: temporary
-  expose: true
-
 - name: Inject Latest Success Time
   description: Inject the latest successful task run timestamp into a Task query extern when executing.
   key: injectLatestSuccessTime
@@ -93,22 +73,6 @@
   contact: Compute Team
   default: false
   expose: true
-
-- name: UI CSV Uploader
-  description: Adds the ability to upload data from a CSV file to a bucket
-  key: csvUploader
-  default: true
-  contact: Monitoring Team
-  expose: true
-  lifetime: temporary
-
-- name: Editable Telegraf Configurations
-  description: Edit telegraf configurations from the UI
-  key: editTelegrafs
-  default: true
-  contact: Monitoring Team
-  expose: true
-  lifetime: temporary
 
 - name: Default Monaco Selection to EOF
   description: Positions the cursor at the end of the line(s) when using the monaco editor
@@ -137,7 +101,7 @@
 - name: Annotations UI
   description: Management, display, and manual addition of Annotations from the UI
   key: annotations
-  default: false
+  default: true
   contact: Monitoring Team
   lifetime: temporary
   expose: true
