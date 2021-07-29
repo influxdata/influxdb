@@ -67,8 +67,6 @@ async fn test_list_update_remotes() {
     const TEST_REMOTE_ADDR_2: &str = "4.3.2.1:4321";
     const TEST_REMOTE_ADDR_2_UPDATED: &str = "40.30.20.10:4321";
 
-    client.update_server_id(123).await.unwrap();
-
     let res = client.list_remotes().await.expect("list remotes failed");
     assert_eq!(res.len(), 0);
 
@@ -222,7 +220,9 @@ async fn test_create_get_update_database() {
             catalog_transactions_until_checkpoint: 13,
             late_arrive_window_seconds: 423,
             worker_backoff_millis: 15,
-            max_active_compactions: 8,
+            max_active_compactions_cfg: Some(
+                lifecycle_rules::MaxActiveCompactionsCfg::MaxActiveCompactions(8),
+            ),
             persist_row_threshold: 342,
             persist_age_threshold_seconds: 700,
             mub_row_threshold: 1343,

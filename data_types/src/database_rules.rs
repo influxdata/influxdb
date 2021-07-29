@@ -146,9 +146,7 @@ pub struct LifecycleRules {
     pub worker_backoff_millis: NonZeroU64,
 
     /// The maximum number of permitted concurrently executing compactions.
-    /// It is not currently possible to set a limit that disables compactions
-    /// entirely, nor is it possible to set an "unlimited" value.
-    pub max_active_compactions: NonZeroU32,
+    pub max_active_compactions: MaxActiveCompactions,
 
     /// After how many transactions should IOx write a new checkpoint?
     pub catalog_transactions_until_checkpoint: NonZeroU64,
@@ -173,6 +171,52 @@ pub struct LifecycleRules {
     pub parquet_cache_limit: Option<NonZeroU64>,
 }
 
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub enum MaxActiveCompactions {
+    /// The maximum number of permitted concurrently executing compactions.
+    /// It is not currently possible to set a limit that disables compactions
+    /// entirely, nor is it possible to set an "unlimited" value.
+    MaxActiveCompactions(NonZeroU32),
+
+    // The maximum number of concurrent active compactions that can run
+    // expressed as a fraction of the available cpus (rounded to the next smallest non-zero integer).
+    MaxActiveCompactionsCpuFraction {
+        fraction: f32,
+        effective: NonZeroU32,
+    },
+}
+
+impl MaxActiveCompactions {
+    pub fn new(fraction: f32) -> Self {
+        let cpus = num_cpus::get() as f32 * fraction;
+        let effective = (cpus as u32).saturating_sub(1) + 1;
+        let effective = NonZeroU32::new(effective).unwrap();
+        Self::MaxActiveCompactionsCpuFraction {
+            fraction,
+            effective,
+        }
+    }
+
+    pub fn get(&self) -> u32 {
+        match self {
+            Self::MaxActiveCompactions(effective) => effective,
+            Self::MaxActiveCompactionsCpuFraction { effective, .. } => effective,
+        }
+        .get()
+    }
+}
+
+// Defaults to number of CPUs.
+impl Default for MaxActiveCompactions {
+    fn default() -> Self {
+        Self::new(1.0)
+    }
+}
+
+// Required because database rules must be Eq but cannot derive Eq for Self
+// since f32 is not Eq.
+impl Eq for MaxActiveCompactions {}
+
 impl LifecycleRules {
     /// The max timestamp skew across concurrent writers before persisted chunks might overlap
     pub fn late_arrive_window(&self) -> Duration {
@@ -189,7 +233,7 @@ impl Default for LifecycleRules {
             persist: false,
             immutable: false,
             worker_backoff_millis: NonZeroU64::new(DEFAULT_WORKER_BACKOFF_MILLIS).unwrap(),
-            max_active_compactions: NonZeroU32::new(num_cpus::get() as u32).unwrap(), // defaults to number of CPU threads
+            max_active_compactions: Default::default(),
             catalog_transactions_until_checkpoint: NonZeroU64::new(
                 DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
             )
@@ -733,5 +777,21 @@ mod tests {
         fn ensure<'de, T: Serialize + Deserialize<'de>>(_t: T) {}
 
         ensure(DatabaseRules::new(DatabaseName::new("bananas").unwrap()));
+    }
+
+    #[test]
+    fn test_max_active_compactions_cpu_fraction() {
+        let n = MaxActiveCompactions::new(1.0);
+        let cpus = n.get();
+
+        let n = MaxActiveCompactions::new(0.5);
+        let half_cpus = n.get();
+
+        assert_eq!(half_cpus, cpus / 2);
+
+        let n = MaxActiveCompactions::new(0.0);
+        let non_zero = n.get();
+
+        assert_eq!(non_zero, 1);
     }
 }

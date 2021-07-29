@@ -1,0 +1,33 @@
+-- Test Setup: TwoMeasurementsManyFieldsOneChunk
+-- SQL: EXPLAIN SELECT count(*) from h2o;
++---------------+-------------------------------------------------------------+
+| plan_type     | plan                                                        |
++---------------+-------------------------------------------------------------+
+| logical_plan  | Projection: #COUNT(UInt8(1))                                |
+|               |   Projection: UInt64(3) AS COUNT(Uint8(1))                  |
+|               |     EmptyRelation                                           |
+| physical_plan | ProjectionExec: expr=[COUNT(UInt8(1))@0 as COUNT(Uint8(1))] |
+|               |   RepartitionExec: partitioning=RoundRobinBatch(4)          |
+|               |     ProjectionExec: expr=[3 as COUNT(Uint8(1))]             |
+|               |       EmptyExec: produce_one_row=true                       |
++---------------+-------------------------------------------------------------+
+-- SQL: EXPLAIN SELECT count(*) from h2o where temp > 70.0 and temp < 72.0;
++---------------+-----------------------------------------------------------------------------------------------------------------------------------------+
+| plan_type     | plan                                                                                                                                    |
++---------------+-----------------------------------------------------------------------------------------------------------------------------------------+
+| logical_plan  | Projection: #COUNT(UInt8(1))                                                                                                            |
+|               |   Aggregate: groupBy=[[]], aggr=[[COUNT(UInt8(1))]]                                                                                     |
+|               |     Filter: #h2o.temp Gt Float64(70) And #h2o.temp Lt Float64(72)                                                                       |
+|               |       TableScan: h2o projection=Some([3]), filters=[#h2o.temp Gt Float64(70), #h2o.temp Lt Float64(72)]                                 |
+| physical_plan | ProjectionExec: expr=[COUNT(UInt8(1))@0 as COUNT(UInt8(1))]                                                                             |
+|               |   HashAggregateExec: mode=Final, gby=[], aggr=[COUNT(UInt8(1))]                                                                         |
+|               |     CoalescePartitionsExec                                                                                                              |
+|               |       HashAggregateExec: mode=Partial, gby=[], aggr=[COUNT(UInt8(1))]                                                                   |
+|               |         CoalesceBatchesExec: target_batch_size=500                                                                                      |
+|               |           FilterExec: temp@0 > 70 AND temp@0 < 72                                                                                       |
+|               |             ProjectionExec: expr=[temp@2 as temp]                                                                                       |
+|               |               RepartitionExec: partitioning=RoundRobinBatch(4)                                                                          |
+|               |                 DeduplicateExec: [city@0 ASC,state@1 ASC,time@3 ASC]                                                                    |
+|               |                   SortExec: [city@0 ASC,state@1 ASC,time@3 ASC]                                                                         |
+|               |                     IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate exprs: [#temp Gt Float64(70), #temp Lt Float64(72)] |
++---------------+-----------------------------------------------------------------------------------------------------------------------------------------+

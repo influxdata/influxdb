@@ -234,8 +234,8 @@ fn collect_checkpoints(
             continue;
         }
 
-        if let Some(partition_checkpoint) = partition.partition_checkpoint() {
-            checkpoint_builder.register_other_partition(&partition_checkpoint);
+        if let Some(sequencer_numbers) = partition.sequencer_numbers() {
+            checkpoint_builder.register_other_partition(&sequencer_numbers);
         }
     }
 

@@ -198,17 +198,15 @@ where
         &self,
         _: Request<ListRemotesRequest>,
     ) -> Result<Response<ListRemotesResponse>, Status> {
-        let result = self.server.remotes_sorted();
-        let remotes = match result {
-            Ok(remotes) => remotes
-                .into_iter()
-                .map(|(id, connection_string)| Remote {
-                    id: id.get_u32(),
-                    connection_string,
-                })
-                .collect(),
-            Err(e) => return Err(default_server_error_handler(e)),
-        };
+        let remotes = self
+            .server
+            .remotes_sorted()
+            .into_iter()
+            .map(|(id, connection_string)| Remote {
+                id: id.get_u32(),
+                connection_string,
+            })
+            .collect();
 
         Ok(Response::new(ListRemotesResponse { remotes }))
     }
@@ -224,14 +222,8 @@ where
         let remote_id = ServerId::try_from(remote.id)
             .map_err(|_| FieldViolation::required("id").scope("remote"))?;
 
-        let result = self
-            .server
+        self.server
             .update_remote(remote_id, remote.connection_string);
-
-        match result {
-            Ok(_) => {}
-            Err(e) => return Err(default_server_error_handler(e)),
-        }
 
         Ok(Response::new(UpdateRemoteResponse {}))
     }
@@ -245,9 +237,8 @@ where
             ServerId::try_from(request.id).map_err(|_| FieldViolation::required("id"))?;
 
         match self.server.delete_remote(remote_id) {
-            Ok(Some(_)) => {}
-            Ok(None) => return Err(NotFound::default().into()),
-            Err(e) => return Err(default_server_error_handler(e)),
+            Some(_) => {}
+            None => return Err(NotFound::default().into()),
         }
 
         Ok(Response::new(DeleteRemoteResponse {}))

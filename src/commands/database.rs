@@ -190,7 +190,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                     persist: command.persist,
                     immutable: command.immutable,
                     worker_backoff_millis: Default::default(),
-                    max_active_compactions: Default::default(),
+                    max_active_compactions_cfg: Default::default(),
                     catalog_transactions_until_checkpoint: command
                         .catalog_transactions_until_checkpoint
                         .get(),
