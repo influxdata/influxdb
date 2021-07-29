@@ -2,7 +2,6 @@ use arrow::{
     array::{ArrayRef, Int64Array, StringArray},
     record_batch::RecordBatch,
 };
-use chrono::Utc;
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use internal_types::schema::builder::SchemaBuilder;
 use read_buffer::{BinaryExpr, ChunkMetrics, Predicate, RBChunk};
@@ -13,8 +12,7 @@ const ONE_MS: i64 = 1_000_000;
 
 fn satisfies_predicate(c: &mut Criterion) {
     let rb = generate_row_group(500_000);
-    let now = Utc::now();
-    let chunk = RBChunk::new("table_a", rb, ChunkMetrics::new_unregistered(), now, now);
+    let chunk = RBChunk::new("table_a", rb, ChunkMetrics::new_unregistered());
 
     // no predicate
     benchmark_satisfies_predicate(

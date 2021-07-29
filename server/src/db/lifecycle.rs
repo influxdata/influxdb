@@ -334,8 +334,6 @@ fn collect_rub(
     stream: SendableRecordBatchStream,
     db: &Db,
     table_name: &str,
-    time_of_first_write: DateTime<Utc>,
-    time_of_last_write: DateTime<Utc>,
 ) -> impl futures::Future<Output = Result<Option<read_buffer::RBChunk>>> {
     use futures::{future, StreamExt, TryStreamExt};
 
@@ -353,13 +351,7 @@ fn collect_rub(
             // At least one RecordBatch is required to create a read_buffer::Chunk
             None => return Ok(None),
         };
-        let mut chunk = read_buffer::RBChunk::new(
-            table_name,
-            first_batch,
-            chunk_metrics,
-            time_of_first_write,
-            time_of_last_write,
-        );
+        let mut chunk = read_buffer::RBChunk::new(table_name, first_batch, chunk_metrics);
 
         adapted_stream
             .try_for_each(|batch| {

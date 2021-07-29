@@ -90,15 +90,9 @@ pub(crate) fn compact_chunks(
 
         let physical_plan = ctx.prepare_plan(&plan)?;
         let stream = ctx.execute(physical_plan).await?;
-        let rb_chunk = collect_rub(
-            stream,
-            &db,
-            &table_name,
-            time_of_first_write,
-            time_of_last_write,
-        )
-        .await?
-        .expect("chunk has zero rows");
+        let rb_chunk = collect_rub(stream, &db, &table_name)
+            .await?
+            .expect("chunk has zero rows");
         let rb_row_groups = rb_chunk.row_groups();
 
         let new_chunk = {
@@ -106,7 +100,7 @@ pub(crate) fn compact_chunks(
             for id in chunk_ids {
                 partition.force_drop_chunk(id)
             }
-            partition.create_rub_chunk(rb_chunk, schema)
+            partition.create_rub_chunk(rb_chunk, time_of_first_write, time_of_last_write, schema)
         };
 
         let guard = new_chunk.read();

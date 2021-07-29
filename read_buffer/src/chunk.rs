@@ -5,11 +5,7 @@ use crate::{
     table::{self, Table},
 };
 use arrow::record_batch::RecordBatch;
-use chrono::{DateTime, Utc};
-use data_types::{
-    chunk_metadata::ChunkColumnSummary,
-    partition_metadata::{TableSummary, TableSummaryAndTimes},
-};
+use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
 use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
 use metrics::{Gauge, KeyValue};
 use observability_deps::tracing::info;
@@ -49,15 +45,6 @@ pub struct Chunk {
 
     // The table associated with the chunk.
     pub(crate) table: Table,
-
-    /// Time at which the first data was written into this table. Note
-    /// this is not the same as the timestamps on the data itself
-    time_of_first_write: DateTime<Utc>,
-
-    /// Most recent time at which data write was initiated into this
-    /// chunk. Note this is not the same as the timestamps on the data
-    /// itself
-    time_of_last_write: DateTime<Utc>,
 }
 
 impl Chunk {
@@ -66,8 +53,6 @@ impl Chunk {
         table_name: impl Into<String>,
         table_data: RecordBatch,
         mut metrics: ChunkMetrics,
-        time_of_first_write: DateTime<Utc>,
-        time_of_last_write: DateTime<Utc>,
     ) -> Self {
         let table_name = table_name.into();
         let row_group = record_batch_to_row_group_with_logging(&table_name, table_data);
@@ -77,12 +62,7 @@ impl Chunk {
 
         metrics.update_column_storage_statistics(&storage_statistics);
 
-        Self {
-            metrics,
-            table,
-            time_of_first_write,
-            time_of_last_write,
-        }
+        Self { metrics, table }
     }
 
     // Only used in tests and benchmarks
@@ -91,12 +71,9 @@ impl Chunk {
         row_group: RowGroup,
         metrics: ChunkMetrics,
     ) -> Self {
-        let now = Utc::now();
         Self {
             metrics,
             table: Table::with_row_group(table_name, row_group),
-            time_of_first_write: now,
-            time_of_last_write: now,
         }
     }
 
@@ -141,9 +118,6 @@ impl Chunk {
         let storage_statistics = row_group.column_storage_statistics();
 
         self.table.add_row_group(row_group);
-
-        // update last write time
-        self.time_of_last_write = Utc::now();
 
         // update column metrics associated with column storage
         self.metrics
@@ -220,14 +194,8 @@ impl Chunk {
     ///
     /// TODO(edd): consider deprecating or changing to return information about
     /// the physical layout of the data in the chunk.
-    pub fn table_summary(&self) -> TableSummaryAndTimes {
-        let TableSummary { name, columns } = self.table.table_summary();
-        TableSummaryAndTimes {
-            name,
-            columns,
-            time_of_first_write: self.time_of_first_write,
-            time_of_last_write: self.time_of_last_write,
-        }
+    pub fn table_summary(&self) -> TableSummary {
+        self.table.table_summary()
     }
 
     /// Returns a schema object for a `read_filter` operation using the provided
@@ -676,8 +644,6 @@ mod test {
         name: Option<String>,
         record_batch: Option<RecordBatch>,
         metrics: Option<ChunkMetrics>,
-        time_of_first_write: Option<DateTime<Utc>>,
-        time_of_last_write: Option<DateTime<Utc>>,
     }
 
     impl ChunkBuilder {
@@ -696,21 +662,11 @@ mod test {
             self
         }
 
-        fn times(mut self, first_write: DateTime<Utc>, last_write: DateTime<Utc>) -> Self {
-            self.time_of_first_write = Some(first_write);
-            self.time_of_last_write = Some(last_write);
-            self
-        }
-
         fn build(self) -> Chunk {
-            let now = Utc::now();
-
             Chunk::new(
                 self.name.unwrap_or_else(|| String::from("a_table")),
                 self.record_batch.unwrap_or_else(gen_recordbatch),
                 self.metrics.unwrap_or_else(ChunkMetrics::new_unregistered),
-                self.time_of_first_write.unwrap_or(now),
-                self.time_of_last_write.unwrap_or(now),
             )
         }
     }
@@ -722,35 +678,21 @@ mod test {
         let domain =
             registry.register_domain_with_labels("read_buffer", vec![KeyValue::new("db", "mydb")]);
 
-        let before_creation = Utc::now();
         let mut chunk = ChunkBuilder::default()
             .metrics(ChunkMetrics::new(&domain))
             .build();
-        let after_creation = Utc::now();
 
         assert_eq!(chunk.rows(), 3);
         assert_eq!(chunk.row_groups(), 1);
         assert!(chunk.size() > 0);
-        let first_write = chunk.table_summary().time_of_first_write;
-        assert_eq!(first_write, chunk.table_summary().time_of_last_write);
-        assert!(before_creation < first_write);
-        assert!(first_write < after_creation);
 
         // Add a row group to the same table in the Chunk.
         let last_chunk_size = chunk.size();
         chunk.upsert_table(gen_recordbatch());
-        let after_upsert = Utc::now();
 
         assert_eq!(chunk.rows(), 6);
         assert_eq!(chunk.row_groups(), 2);
         assert!(chunk.size() > last_chunk_size);
-        assert_ne!(
-            chunk.table_summary().time_of_first_write,
-            chunk.table_summary().time_of_last_write
-        );
-        assert_eq!(chunk.table_summary().time_of_first_write, first_write);
-        assert!(after_creation < chunk.table_summary().time_of_last_write);
-        assert!(chunk.table_summary().time_of_last_write < after_upsert);
 
         let actual = String::from_utf8(reg.registry().metrics_as_text()).unwrap();
         let actual_lines = actual.lines();

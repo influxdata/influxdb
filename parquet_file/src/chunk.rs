@@ -1,9 +1,6 @@
-use crate::{
-    metadata::{IoxMetadata, IoxParquetMetaData},
-    storage::Storage,
-};
+use crate::{metadata::IoxParquetMetaData, storage::Storage};
 use data_types::{
-    partition_metadata::{Statistics, TableSummaryAndTimes},
+    partition_metadata::{Statistics, TableSummary},
     timestamp::TimestampRange,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -85,7 +82,7 @@ pub struct ParquetChunk {
     partition_key: Arc<str>,
 
     /// Meta data of the table
-    table_summary: Arc<TableSummaryAndTimes>,
+    table_summary: Arc<TableSummary>,
 
     /// Schema that goes with this table's parquet file
     schema: Arc<Schema>,
@@ -118,22 +115,10 @@ impl ParquetChunk {
         store: Arc<ObjectStore>,
         file_size_bytes: usize,
         parquet_metadata: Arc<IoxParquetMetaData>,
+        table_name: Arc<str>,
+        partition_key: Arc<str>,
         metrics: ChunkMetrics,
     ) -> Result<Self> {
-        let iox_md = parquet_metadata
-            .read_iox_metadata()
-            .context(IoxMetadataReadFailed {
-                path: &file_location,
-            })?;
-
-        let IoxMetadata {
-            table_name,
-            time_of_first_write,
-            time_of_last_write,
-            partition_key,
-            ..
-        } = iox_md;
-
         let schema = parquet_metadata.read_schema().context(SchemaReadFailed {
             path: &file_location,
         })?;
@@ -142,11 +127,9 @@ impl ParquetChunk {
             .context(StatisticsReadFailed {
                 path: &file_location,
             })?;
-        let table_summary = TableSummaryAndTimes {
+        let table_summary = TableSummary {
             name: table_name.to_string(),
             columns,
-            time_of_first_write,
-            time_of_last_write,
         };
 
         Ok(Self::new_from_parts(
@@ -166,7 +149,7 @@ impl ParquetChunk {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_from_parts(
         partition_key: Arc<str>,
-        table_summary: Arc<TableSummaryAndTimes>,
+        table_summary: Arc<TableSummary>,
         schema: Arc<Schema>,
         file_location: Path,
         store: Arc<ObjectStore>,
@@ -200,7 +183,7 @@ impl ParquetChunk {
     }
 
     /// Returns the summary statistics for this chunk
-    pub fn table_summary(&self) -> &Arc<TableSummaryAndTimes> {
+    pub fn table_summary(&self) -> &Arc<TableSummary> {
         &self.table_summary
     }
 
@@ -286,7 +269,7 @@ impl ParquetChunk {
 }
 
 /// Extracts min/max values of the timestamp column, from the TableSummary, if possible
-fn extract_range(table_summary: &TableSummaryAndTimes) -> Option<TimestampRange> {
+fn extract_range(table_summary: &TableSummary) -> Option<TimestampRange> {
     table_summary
         .column(TIME_COLUMN_NAME)
         .map(|c| {

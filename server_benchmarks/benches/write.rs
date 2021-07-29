@@ -11,23 +11,17 @@ use std::io::Read;
 fn write_chunk(count: usize, entries: &[Entry]) {
     let mut chunk: Option<MBChunk> = None;
 
-    let time_of_write = chrono::Utc::now();
     for _ in 0..count {
         for entry in entries {
             for write in entry.partition_writes().iter().flatten() {
                 for batch in write.table_batches() {
                     match chunk {
                         Some(ref mut c) => {
-                            c.write_table_batch(batch, time_of_write).unwrap();
+                            c.write_table_batch(batch).unwrap();
                         }
                         None => {
                             chunk = Some(
-                                MBChunk::new(
-                                    ChunkMetrics::new_unregistered(),
-                                    batch,
-                                    time_of_write,
-                                )
-                                .unwrap(),
+                                MBChunk::new(ChunkMetrics::new_unregistered(), batch).unwrap(),
                             );
                         }
                     }

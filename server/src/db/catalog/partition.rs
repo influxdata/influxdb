@@ -1,6 +1,6 @@
 //! The catalog representation of a Partition
 
-use super::chunk::{CatalogChunk, ChunkStage};
+use super::chunk::{CatalogChunk, ChunkStage, Error as ChunkError};
 use crate::db::catalog::metrics::PartitionMetrics;
 use chrono::{DateTime, Utc};
 use data_types::{
@@ -34,6 +34,9 @@ pub enum Error {
         chunk: ChunkAddr,
         action: ChunkLifecycleAction,
     },
+
+    #[snafu(display("creating new mutable buffer chunk failed: {}", source))]
+    CreateOpenChunk { source: ChunkError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -127,6 +130,7 @@ impl Partition {
     pub fn create_open_chunk(
         &mut self,
         chunk: mutable_buffer::chunk::MBChunk,
+        time_of_write: DateTime<Utc>,
     ) -> Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name().as_ref(), self.table_name());
 
@@ -136,7 +140,8 @@ impl Partition {
 
         let addr = ChunkAddr::new(&self.addr, chunk_id);
 
-        let chunk = CatalogChunk::new_open(addr, chunk, self.metrics.new_chunk_metrics());
+        let chunk =
+            CatalogChunk::new_open(addr, chunk, time_of_write, self.metrics.new_chunk_metrics());
         let chunk = Arc::new(self.metrics.new_chunk_lock(chunk));
 
         if self.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
@@ -151,6 +156,8 @@ impl Partition {
     pub fn create_rub_chunk(
         &mut self,
         chunk: read_buffer::RBChunk,
+        time_of_first_write: DateTime<Utc>,
+        time_of_last_write: DateTime<Utc>,
         schema: Arc<Schema>,
     ) -> Arc<RwLock<CatalogChunk>> {
         let chunk_id = self.next_chunk_id;
@@ -163,6 +170,8 @@ impl Partition {
         let chunk = Arc::new(self.metrics.new_chunk_lock(CatalogChunk::new_rub_chunk(
             addr,
             chunk,
+            time_of_first_write,
+            time_of_last_write,
             schema,
             self.metrics.new_chunk_metrics(),
         )));
@@ -183,6 +192,8 @@ impl Partition {
         &mut self,
         chunk_id: u32,
         chunk: Arc<parquet_file::chunk::ParquetChunk>,
+        time_of_first_write: DateTime<Utc>,
+        time_of_last_write: DateTime<Utc>,
     ) -> Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name(), self.table_name());
 
@@ -193,6 +204,8 @@ impl Partition {
                 .new_chunk_lock(CatalogChunk::new_object_store_only(
                     addr,
                     chunk,
+                    time_of_first_write,
+                    time_of_last_write,
                     self.metrics.new_chunk_metrics(),
                 )),
         );

@@ -104,7 +104,7 @@ pub enum Error {
         source: mutable_buffer::chunk::Error,
     },
 
-    #[snafu(display("Can not write entry to new MUB chunk {} : {}", partition_key, source))]
+    #[snafu(display("Cannot write entry to new open chunk {}: {}", partition_key, source))]
     WriteEntryInitial {
         partition_key: String,
         source: mutable_buffer::chunk::Error,
@@ -1111,9 +1111,8 @@ impl Db {
                             let mb_chunk =
                                 chunk.mutable_buffer().expect("cannot mutate open chunk");
 
-                            if let Err(e) = mb_chunk
-                                .write_table_batch(table_batch, time_of_write)
-                                .context(WriteEntry {
+                            if let Err(e) =
+                                mb_chunk.write_table_batch(table_batch).context(WriteEntry {
                                     partition_key,
                                     chunk_id,
                                 })
@@ -1130,16 +1129,15 @@ impl Db {
                                 "mutable_buffer",
                                 self.metric_labels.clone(),
                             );
-                            let chunk_result = MBChunk::new(
-                                MutableBufferChunkMetrics::new(&metrics),
-                                table_batch,
-                                time_of_write,
-                            )
-                            .context(WriteEntryInitial { partition_key });
+
+                            let chunk_result =
+                                MBChunk::new(MutableBufferChunkMetrics::new(&metrics), table_batch)
+                                    .context(WriteEntryInitial { partition_key });
 
                             match chunk_result {
                                 Ok(mb_chunk) => {
-                                    let chunk = partition.create_open_chunk(mb_chunk);
+                                    let chunk =
+                                        partition.create_open_chunk(mb_chunk, time_of_write);
                                     let mut chunk = chunk
                                         .try_write()
                                         .expect("partition lock should prevent contention");
@@ -1882,7 +1880,7 @@ mod tests {
         assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
         assert_metric("catalog_loaded_rows", "object_store", 0.0);
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1319)
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1295)
             .unwrap();
 
         db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
@@ -1911,7 +1909,7 @@ mod tests {
 
         // verify chunk size updated (chunk moved from closing to moving to moved)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
-        let expected_read_buffer_size = 1637;
+        let expected_read_buffer_size = 1613;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -1940,7 +1938,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 703;
+        let expected_parquet_size = 679;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -2162,7 +2160,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated (chunk moved from moved to writing to written)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1637).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1613).unwrap();
 
         // drop, the chunk from the read buffer
         db.drop_chunk("cpu", partition_key, mb_chunk.id())
@@ -2312,7 +2310,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3215.0)
+            .sample_sum_eq(3191.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk).await;
@@ -2422,7 +2420,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2340.0)
+            .sample_sum_eq(2292.0)
             .unwrap();
 
         // while MB and RB chunk are identical, the PQ chunk is a new one (split off)
@@ -2542,7 +2540,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2340.0)
+            .sample_sum_eq(2292.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -2572,7 +2570,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(703.0)
+            .sample_sum_eq(679.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -3180,7 +3178,7 @@ mod tests {
                 id: 2,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                memory_bytes: 3332,       // size of RB and OS chunks
+                memory_bytes: 3284,       // size of RB and OS chunks
                 object_store_bytes: 1523, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
@@ -3194,7 +3192,7 @@ mod tests {
                 id: 0,
                 storage: ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
-                memory_bytes: 2510,
+                memory_bytes: 2486,
                 object_store_bytes: 0, // no OS chunks
                 row_count: 1,
                 time_of_last_access: None,
@@ -3230,9 +3228,9 @@ mod tests {
             );
         }
 
-        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2510 + 87);
-        assert_eq!(db.catalog.metrics().memory().read_buffer(), 2434);
-        assert_eq!(db.catalog.metrics().memory().object_store(), 898);
+        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 87);
+        assert_eq!(db.catalog.metrics().memory().read_buffer(), 2410);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 874);
     }
 
     #[tokio::test]

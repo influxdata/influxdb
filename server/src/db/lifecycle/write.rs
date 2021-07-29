@@ -53,6 +53,8 @@ pub(super) fn write_chunk_to_object_store(
 )> {
     let db = Arc::clone(&chunk.data().db);
     let addr = chunk.addr().clone();
+    let table_name = Arc::clone(&addr.table_name);
+    let partition_key = Arc::clone(&addr.partition_key);
 
     let (tracker, registration) = db.jobs.register(Job::WriteChunk {
         chunk: addr.clone(),
@@ -116,8 +118,8 @@ pub(super) fn write_chunk_to_object_store(
             //            between creation and the transaction commit.
             let metadata = IoxMetadata {
                 creation_timestamp: Utc::now(),
-                table_name: Arc::clone(&addr.table_name),
-                partition_key: Arc::clone(&addr.partition_key),
+                table_name: Arc::clone(&table_name),
+                partition_key: Arc::clone(&partition_key),
                 chunk_id: addr.chunk_id,
                 partition_checkpoint,
                 database_checkpoint,
@@ -141,6 +143,8 @@ pub(super) fn write_chunk_to_object_store(
                     Arc::clone(&db.store),
                     file_size_bytes,
                     Arc::clone(&parquet_metadata),
+                    Arc::clone(&table_name),
+                    Arc::clone(&partition_key),
                     metrics,
                 )
                 .context(ParquetChunkError)?,
