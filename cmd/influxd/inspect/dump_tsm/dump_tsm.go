@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -63,6 +64,14 @@ func dumpTSM(cmd *cobra.Command, args args) error {
 	stat, err := f.Stat()
 	if err != nil {
 		return err
+	}
+
+	if stat.IsDir() {
+		return fmt.Errorf("%s is a directory, must be a TSM file", args.path)
+	}
+
+	if filepath.Ext(args.path) != "."+tsm1.TSMFileExtension {
+		return fmt.Errorf("%s is not a TSM file", args.path)
 	}
 
 	r, err := tsm1.NewTSMReader(f)
@@ -178,7 +187,10 @@ func dumpIndex(cmd *cobra.Command, args args, info dumpIndexParams) {
 			split := strings.Split(string(key), "#!~#")
 
 			measurement := split[0]
-			field := split[1]
+			var field string
+			if len(split) > 1 {
+				field = split[1]
+			}
 
 			if args.filterKey != "" && !strings.Contains(string(key), args.filterKey) {
 				continue
