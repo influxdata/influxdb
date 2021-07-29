@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
-	"github.com/apache/arrow/go/arrow/array"
 	"github.com/apache/arrow/go/arrow/memory"
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/array"
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/values"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // splitWindows will split a windowTable by creating a new table from each

@@ -4,9 +4,8 @@ import (
 	"container/list"
 	"sync"
 
-	"github.com/apache/arrow/go/arrow"
-	"github.com/apache/arrow/go/arrow/array"
 	"github.com/apache/arrow/go/arrow/memory"
+	"github.com/influxdata/flux/array"
 	"github.com/influxdata/flux/execute"
 )
 
@@ -17,10 +16,10 @@ const defaultMaxLengthForTagsCache = 100
 
 type tagsCache struct {
 	// startColumn is a special slot for holding the start column.
-	startColumn *array.Int64
+	startColumn *array.Int
 
 	// stopColumn is a special slot for holding the stop column.
-	stopColumn *array.Int64
+	stopColumn *array.Int
 
 	// tags holds cached arrays for various tag values.
 	// An lru is used to keep track of the least recently used
@@ -55,7 +54,7 @@ func newTagsCache(sz int) *tagsCache {
 // If an array that is within the cache works with the bounds
 // and can be sliced to the length, a reference to it will be
 // returned.
-func (c *tagsCache) GetBounds(b execute.Bounds, l int, mem memory.Allocator) (start *array.Int64, stop *array.Int64) {
+func (c *tagsCache) GetBounds(b execute.Bounds, l int, mem memory.Allocator) (start *array.Int, stop *array.Int) {
 	if c == nil {
 		start = c.createBounds(b.Start, l, mem)
 		stop = c.createBounds(b.Stop, l, mem)
@@ -97,7 +96,7 @@ func (c *tagsCache) GetBounds(b execute.Bounds, l int, mem memory.Allocator) (st
 // getBoundsFromCache will return an array of values
 // if the array in the cache is of the appropriate size.
 // This must be called from inside of a lock.
-func (c *tagsCache) getBoundsFromCache(arr *array.Int64, l int) (*array.Int64, bool) {
+func (c *tagsCache) getBoundsFromCache(arr *array.Int, l int) (*array.Int, bool) {
 	if arr == nil || arr.Len() < l {
 		return nil, false
 	} else if arr.Len() == l {
@@ -109,17 +108,15 @@ func (c *tagsCache) getBoundsFromCache(arr *array.Int64, l int) (*array.Int64, b
 	// than the desired array, then we can use slice.
 	// NewSlice will automatically create a new reference to the
 	// passed in array so we do not need to manually retain.
-	data := array.NewSliceData(arr.Data(), 0, int64(l))
-	vs := array.NewInt64Data(data)
-	data.Release()
-	return vs, true
+	vs := array.Slice(arr, 0, l)
+	return vs.(*array.Int), true
 }
 
 // replaceBounds will examine the array and replace it if
 // the length of the array is greater than the current array
 // or if there isn't an array in the cache.
 // This must be called from inside of a write lock.
-func (c *tagsCache) replaceBounds(cache **array.Int64, arr *array.Int64) {
+func (c *tagsCache) replaceBounds(cache **array.Int, arr *array.Int) {
 	if *cache != nil {
 		if (*cache).Len() >= arr.Len() {
 			// The cached value is longer so just keep it.
@@ -136,13 +133,13 @@ func (c *tagsCache) replaceBounds(cache **array.Int64, arr *array.Int64) {
 //
 // DO NOT CALL THIS METHOD IN A LOCK. It is slow and will probably
 // cause lock contention.
-func (c *tagsCache) createBounds(ts execute.Time, l int, mem memory.Allocator) *array.Int64 {
-	b := array.NewInt64Builder(mem)
+func (c *tagsCache) createBounds(ts execute.Time, l int, mem memory.Allocator) *array.Int {
+	b := array.NewIntBuilder(mem)
 	b.Resize(l)
 	for i := 0; i < l; i++ {
 		b.Append(int64(ts))
 	}
-	return b.NewInt64Array()
+	return b.NewIntArray()
 }
 
 // GetTag returns a binary arrow array that contains the value
@@ -150,7 +147,7 @@ func (c *tagsCache) createBounds(ts execute.Time, l int, mem memory.Allocator) *
 // equal to the length and with the same value exists in the cache,
 // a reference to the data will be retained and returned.
 // Otherwise, the allocator will be used to construct a new column.
-func (c *tagsCache) GetTag(value string, l int, mem memory.Allocator) *array.Binary {
+func (c *tagsCache) GetTag(value string, l int, mem memory.Allocator) *array.String {
 	if l == 0 || c == nil {
 		return c.createTag(value, l, mem)
 	}
@@ -169,7 +166,7 @@ func (c *tagsCache) GetTag(value string, l int, mem memory.Allocator) *array.Bin
 // specified value at the specified length. If there is no
 // cache entry or the entry is not large enough for the
 // specified length, then this returns false.
-func (c *tagsCache) getTagFromCache(value string, l int) (*array.Binary, bool) {
+func (c *tagsCache) getTagFromCache(value string, l int) (*array.String, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -178,7 +175,7 @@ func (c *tagsCache) getTagFromCache(value string, l int) (*array.Binary, bool) {
 		return nil, false
 	}
 
-	arr := elem.Value.(*array.Binary)
+	arr := elem.Value.(*array.String)
 	if arr.Len() == l {
 		arr.Retain()
 		return arr, true
@@ -190,10 +187,8 @@ func (c *tagsCache) getTagFromCache(value string, l int) (*array.Binary, bool) {
 	// than the desired array, then we can use slice.
 	// Slice will automatically create a new reference to the
 	// passed in array so we do not need to manually retain.
-	data := array.NewSliceData(arr.Data(), 0, int64(l))
-	vs := array.NewBinaryData(data)
-	data.Release()
-	return vs, true
+	vs := array.Slice(arr, 0, l)
+	return vs.(*array.String), true
 }
 
 // touchOrReplaceTag will update the LRU cache to have
@@ -201,7 +196,7 @@ func (c *tagsCache) getTagFromCache(value string, l int) (*array.Binary, bool) {
 // used entry. If the cache entry does not exist or the
 // current array in the cache is shorter than this one,
 // it will replace the array.
-func (c *tagsCache) touchOrReplaceTag(arr *array.Binary) {
+func (c *tagsCache) touchOrReplaceTag(arr *array.String) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -212,11 +207,11 @@ func (c *tagsCache) touchOrReplaceTag(arr *array.Binary) {
 		c.tags = make(map[string]*list.Element)
 	}
 
-	value := arr.ValueString(0)
+	value := arr.Value(0)
 	if elem, ok := c.tags[value]; ok {
 		// If the array in the cache is longer to or
 		// equal to the current tag, then do not touch it.
-		carr := elem.Value.(*array.Binary)
+		carr := elem.Value.(*array.String)
 		if carr.Len() < arr.Len() {
 			// Retain this array again and release our
 			// previous reference to the other array.
@@ -247,8 +242,8 @@ func (c *tagsCache) maintainLRU() {
 	if c.lru.Len() <= max {
 		return
 	}
-	arr := c.lru.Remove(c.lru.Back()).(*array.Binary)
-	value := arr.ValueString(0)
+	arr := c.lru.Remove(c.lru.Back()).(*array.String)
+	value := arr.Value(0)
 	delete(c.tags, value)
 	arr.Release()
 }
@@ -258,14 +253,14 @@ func (c *tagsCache) maintainLRU() {
 //
 // DO NOT CALL THIS METHOD IN A LOCK. It is slow and will probably
 // cause lock contention.
-func (c *tagsCache) createTag(value string, l int, mem memory.Allocator) *array.Binary {
-	b := array.NewBinaryBuilder(mem, arrow.BinaryTypes.String)
+func (c *tagsCache) createTag(value string, l int, mem memory.Allocator) *array.String {
+	b := array.NewStringBuilder(mem)
 	b.Resize(l)
 	b.ReserveData(l * len(value))
 	for i := 0; i < l; i++ {
-		b.AppendString(value)
+		b.Append(value)
 	}
-	return b.NewBinaryArray()
+	return b.NewStringArray()
 }
 
 // Release will release all references to cached tag columns.
@@ -284,7 +279,7 @@ func (c *tagsCache) Release() {
 	}
 
 	for _, elem := range c.tags {
-		elem.Value.(*array.Binary).Release()
+		elem.Value.(*array.String).Release()
 	}
 	c.tags = nil
 	c.lru = nil

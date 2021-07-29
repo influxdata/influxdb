@@ -5,8 +5,8 @@ import (
 	"math"
 	"sync"
 
-	"github.com/apache/arrow/go/arrow/array"
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/array"
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/interval"
@@ -154,7 +154,7 @@ func (t *{{.name}}WindowTable) Do(f func(flux.ColReader) error) error {
 
 // createNextBufferTimes will read the timestamps from the array
 // cursor and construct the values for the next buffer.
-func (t *{{.name}}WindowTable) createNextBufferTimes() (start, stop *array.Int64, ok bool) {
+func (t *{{.name}}WindowTable) createNextBufferTimes() (start, stop *array.Int, ok bool) {
 	startB := arrow.NewIntBuilder(t.alloc)
 	stopB := arrow.NewIntBuilder(t.alloc)
 
@@ -177,8 +177,8 @@ func (t *{{.name}}WindowTable) createNextBufferTimes() (start, stop *array.Int64
 			startB.Append(startT)
 			stopB.Append(stopT)
 		}
-		start = startB.NewInt64Array()
-		stop = stopB.NewInt64Array()
+		start = startB.NewIntArray()
+		stop = stopB.NewIntArray()
 		return start, stop, true
 	}
 
@@ -197,8 +197,8 @@ func (t *{{.name}}WindowTable) createNextBufferTimes() (start, stop *array.Int64
 		startB.Append(startT)
 		stopB.Append(stopT)
 	}
-	start = startB.NewInt64Array()
-	stop = stopB.NewInt64Array()
+	start = startB.NewIntArray()
+	stop = stopB.NewIntArray()
 	return start, stop, true
 }
 
@@ -382,7 +382,7 @@ func (t *{{.name}}WindowSelectorTable) advance() bool {
 	return true
 }
 
-func (t *{{.name}}WindowSelectorTable) startTimes(arr *cursors.{{.Name}}Array) *array.Int64 {
+func (t *{{.name}}WindowSelectorTable) startTimes(arr *cursors.{{.Name}}Array) *array.Int {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(arr.Len())
 
@@ -395,10 +395,10 @@ func (t *{{.name}}WindowSelectorTable) startTimes(arr *cursors.{{.Name}}Array) *
 			start.Append(windowStart)
 		}
 	}
-	return start.NewInt64Array()
+	return start.NewIntArray()
 }
 
-func (t *{{.name}}WindowSelectorTable) stopTimes(arr *cursors.{{.Name}}Array) *array.Int64 {
+func (t *{{.name}}WindowSelectorTable) stopTimes(arr *cursors.{{.Name}}Array) *array.Int {
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(arr.Len())
 
@@ -411,7 +411,7 @@ func (t *{{.name}}WindowSelectorTable) stopTimes(arr *cursors.{{.Name}}Array) *a
 			stop.Append(windowStop)
 		}
 	}
-	return stop.NewInt64Array()
+	return stop.NewIntArray()
 }
 
 // This table implementation may contain empty windows
@@ -497,7 +497,7 @@ func (t *{{.name}}EmptyWindowSelectorTable) advance() bool {
 	return true
 }
 
-func (t *{{.name}}EmptyWindowSelectorTable) startTimes(builder *array.{{.ArrowType}}Builder) *array.Int64 {
+func (t *{{.name}}EmptyWindowSelectorTable) startTimes(builder *array.{{.ArrowType}}Builder) *array.Int {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
@@ -541,10 +541,10 @@ func (t *{{.name}}EmptyWindowSelectorTable) startTimes(builder *array.{{.ArrowTy
 			break
 		}
 	}
-	return start.NewInt64Array()
+	return start.NewIntArray()
 }
 
-func (t *{{.name}}EmptyWindowSelectorTable) stopTimes(builder *array.{{.ArrowType}}Builder) *array.Int64 {
+func (t *{{.name}}EmptyWindowSelectorTable) stopTimes(builder *array.{{.ArrowType}}Builder) *array.Int {
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(storage.MaxPointsPerBlock)
 
@@ -588,10 +588,10 @@ func (t *{{.name}}EmptyWindowSelectorTable) stopTimes(builder *array.{{.ArrowTyp
 			break
 		}
 	}
-	return stop.NewInt64Array()
+	return stop.NewIntArray()
 }
 
-func (t *{{.name}}EmptyWindowSelectorTable) startStopTimes(builder *array.{{.ArrowType}}Builder) (*array.Int64, *array.Int64, *array.Int64) {
+func (t *{{.name}}EmptyWindowSelectorTable) startStopTimes(builder *array.{{.ArrowType}}Builder) (*array.Int, *array.Int, *array.Int) {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
@@ -652,7 +652,7 @@ func (t *{{.name}}EmptyWindowSelectorTable) startStopTimes(builder *array.{{.Arr
 			break
 		}
 	}
-	return start.NewInt64Array(), stop.NewInt64Array(), time.NewInt64Array()
+	return start.NewIntArray(), stop.NewIntArray(), time.NewIntArray()
 }
 
 // group table

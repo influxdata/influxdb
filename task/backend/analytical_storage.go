@@ -374,8 +374,8 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 		for j, col := range cr.Cols() {
 			switch col.Label {
 			case runIDField:
-				if cr.Strings(j).ValueString(i) != "" {
-					id, err := platform.IDFromString(cr.Strings(j).ValueString(i))
+				if cr.Strings(j).Value(i) != "" {
+					id, err := platform.IDFromString(cr.Strings(j).Value(i))
 					if err != nil {
 						re.log.Info("Failed to parse runID", zap.Error(err))
 						continue
@@ -383,8 +383,8 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 					r.ID = *id
 				}
 			case taskIDTag:
-				if cr.Strings(j).ValueString(i) != "" {
-					id, err := platform.IDFromString(cr.Strings(j).ValueString(i))
+				if cr.Strings(j).Value(i) != "" {
+					id, err := platform.IDFromString(cr.Strings(j).Value(i))
 					if err != nil {
 						re.log.Info("Failed to parse taskID", zap.Error(err))
 						continue
@@ -392,37 +392,37 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 					r.TaskID = *id
 				}
 			case startedAtField:
-				started, err := time.Parse(time.RFC3339Nano, cr.Strings(j).ValueString(i))
+				started, err := time.Parse(time.RFC3339Nano, cr.Strings(j).Value(i))
 				if err != nil {
 					re.log.Info("Failed to parse startedAt time", zap.Error(err))
 					continue
 				}
 				r.StartedAt = started.UTC()
 			case requestedAtField:
-				requested, err := time.Parse(time.RFC3339Nano, cr.Strings(j).ValueString(i))
+				requested, err := time.Parse(time.RFC3339Nano, cr.Strings(j).Value(i))
 				if err != nil {
 					re.log.Info("Failed to parse requestedAt time", zap.Error(err))
 					continue
 				}
 				r.RequestedAt = requested.UTC()
 			case scheduledForField:
-				scheduled, err := time.Parse(time.RFC3339, cr.Strings(j).ValueString(i))
+				scheduled, err := time.Parse(time.RFC3339, cr.Strings(j).Value(i))
 				if err != nil {
 					re.log.Info("Failed to parse scheduledFor time", zap.Error(err))
 					continue
 				}
 				r.ScheduledFor = scheduled.UTC()
 			case statusTag:
-				r.Status = cr.Strings(j).ValueString(i)
+				r.Status = cr.Strings(j).Value(i)
 			case finishedAtField:
-				finished, err := time.Parse(time.RFC3339Nano, cr.Strings(j).ValueString(i))
+				finished, err := time.Parse(time.RFC3339Nano, cr.Strings(j).Value(i))
 				if err != nil {
 					re.log.Info("Failed to parse finishedAt time", zap.Error(err))
 					continue
 				}
 				r.FinishedAt = finished.UTC()
 			case logField:
-				logBytes := bytes.TrimSpace(cr.Strings(j).Value(i))
+				logBytes := bytes.TrimSpace([]byte(cr.Strings(j).Value(i)))
 				if len(logBytes) != 0 {
 					err := json.Unmarshal(logBytes, &r.Log)
 					if err != nil {
