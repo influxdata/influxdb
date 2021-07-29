@@ -202,7 +202,7 @@ var annotations = MakeBoolFlag(
 	"Annotations UI",
 	"annotations",
 	"Monitoring Team",
-	false,
+	true,
 	Temporary,
 	true,
 )

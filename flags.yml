@@ -117,7 +117,7 @@
 - name: Annotations UI
   description: Management, display, and manual addition of Annotations from the UI
   key: annotations
-  default: false
+  default: true
   contact: Monitoring Team
   lifetime: temporary
   expose: true
