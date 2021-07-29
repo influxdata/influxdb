@@ -128,34 +128,6 @@ func TimeFilterFlags() BoolFlag {
 	return timeFilterFlags
 }
 
-var csvUploader = MakeBoolFlag(
-	"UI CSV Uploader",
-	"csvUploader",
-	"Monitoring Team",
-	true,
-	Temporary,
-	true,
-)
-
-// UiCsvUploader - Adds the ability to upload data from a CSV file to a bucket
-func UiCsvUploader() BoolFlag {
-	return csvUploader
-}
-
-var editTelegrafs = MakeBoolFlag(
-	"Editable Telegraf Configurations",
-	"editTelegrafs",
-	"Monitoring Team",
-	true,
-	Temporary,
-	true,
-)
-
-// EditableTelegrafConfigurations - Edit telegraf configurations from the UI
-func EditableTelegrafConfigurations() BoolFlag {
-	return editTelegrafs
-}
-
 var cursorAtEOF = MakeBoolFlag(
 	"Default Monaco Selection to EOF",
 	"cursorAtEOF",
@@ -222,8 +194,6 @@ var all = []Flag{
 	injectLatestSuccessTime,
 	enforceOrgDashboardLimits,
 	timeFilterFlags,
-	csvUploader,
-	editTelegrafs,
 	cursorAtEOF,
 	refreshSingleCell,
 	rangeAnnotations,
@@ -240,8 +210,6 @@ var byKey = map[string]Flag{
 	"injectLatestSuccessTime":       injectLatestSuccessTime,
 	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
 	"timeFilterFlags":               timeFilterFlags,
-	"csvUploader":                   csvUploader,
-	"editTelegrafs":                 editTelegrafs,
 	"cursorAtEOF":                   cursorAtEOF,
 	"refreshSingleCell":             refreshSingleCell,
 	"rangeAnnotations":              rangeAnnotations,

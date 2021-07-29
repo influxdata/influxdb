@@ -74,22 +74,6 @@
   default: false
   expose: true
 
-- name: UI CSV Uploader
-  description: Adds the ability to upload data from a CSV file to a bucket
-  key: csvUploader
-  default: true
-  contact: Monitoring Team
-  expose: true
-  lifetime: temporary
-
-- name: Editable Telegraf Configurations
-  description: Edit telegraf configurations from the UI
-  key: editTelegrafs
-  default: true
-  contact: Monitoring Team
-  expose: true
-  lifetime: temporary
-
 - name: Default Monaco Selection to EOF
   description: Positions the cursor at the end of the line(s) when using the monaco editor
   key: cursorAtEOF
