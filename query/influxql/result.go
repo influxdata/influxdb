@@ -133,7 +133,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results flux.ResultIterator) (i
 						vs := cr.Strings(idx)
 						for i := 0; i < vs.Len(); i++ {
 							if vs.IsValid(i) {
-								values[i][j] = vs.ValueString(i)
+								values[i][j] = vs.Value(i)
 							}
 						}
 					case flux.TUInt:

@@ -40,11 +40,11 @@ require (
 	github.com/hashicorp/vault/api v1.0.2
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe
-	github.com/influxdata/flux v0.123.0
+	github.com/influxdata/flux v0.123.1-0.20210729174141-a0db406d1fae
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influx-cli/v2 v2.0.0-20210713195937-a69f06b41b45
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
-	github.com/influxdata/pkg-config v0.2.7
+	github.com/influxdata/pkg-config v0.2.8
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
