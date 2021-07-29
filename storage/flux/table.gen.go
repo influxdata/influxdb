@@ -11,8 +11,8 @@ import (
 	"math"
 	"sync"
 
-	"github.com/apache/arrow/go/arrow/array"
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/array"
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/interval"
@@ -157,7 +157,7 @@ func (t *floatWindowTable) Do(f func(flux.ColReader) error) error {
 
 // createNextBufferTimes will read the timestamps from the array
 // cursor and construct the values for the next buffer.
-func (t *floatWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok bool) {
+func (t *floatWindowTable) createNextBufferTimes() (start, stop *array.Int, ok bool) {
 	startB := arrow.NewIntBuilder(t.alloc)
 	stopB := arrow.NewIntBuilder(t.alloc)
 
@@ -180,8 +180,8 @@ func (t *floatWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok
 			startB.Append(startT)
 			stopB.Append(stopT)
 		}
-		start = startB.NewInt64Array()
-		stop = stopB.NewInt64Array()
+		start = startB.NewIntArray()
+		stop = stopB.NewIntArray()
 		return start, stop, true
 	}
 
@@ -200,8 +200,8 @@ func (t *floatWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok
 		startB.Append(startT)
 		stopB.Append(stopT)
 	}
-	start = startB.NewInt64Array()
-	stop = stopB.NewInt64Array()
+	start = startB.NewIntArray()
+	stop = stopB.NewIntArray()
 	return start, stop, true
 }
 
@@ -385,7 +385,7 @@ func (t *floatWindowSelectorTable) advance() bool {
 	return true
 }
 
-func (t *floatWindowSelectorTable) startTimes(arr *cursors.FloatArray) *array.Int64 {
+func (t *floatWindowSelectorTable) startTimes(arr *cursors.FloatArray) *array.Int {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(arr.Len())
 
@@ -398,10 +398,10 @@ func (t *floatWindowSelectorTable) startTimes(arr *cursors.FloatArray) *array.In
 			start.Append(windowStart)
 		}
 	}
-	return start.NewInt64Array()
+	return start.NewIntArray()
 }
 
-func (t *floatWindowSelectorTable) stopTimes(arr *cursors.FloatArray) *array.Int64 {
+func (t *floatWindowSelectorTable) stopTimes(arr *cursors.FloatArray) *array.Int {
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(arr.Len())
 
@@ -414,7 +414,7 @@ func (t *floatWindowSelectorTable) stopTimes(arr *cursors.FloatArray) *array.Int
 			stop.Append(windowStop)
 		}
 	}
-	return stop.NewInt64Array()
+	return stop.NewIntArray()
 }
 
 // This table implementation may contain empty windows
@@ -495,12 +495,12 @@ func (t *floatEmptyWindowSelectorTable) advance() bool {
 		cr.cols[timeColIdx] = time
 	}
 
-	cr.cols[valueColIdx] = values.NewFloat64Array()
+	cr.cols[valueColIdx] = values.NewFloatArray()
 	t.appendTags(cr)
 	return true
 }
 
-func (t *floatEmptyWindowSelectorTable) startTimes(builder *array.Float64Builder) *array.Int64 {
+func (t *floatEmptyWindowSelectorTable) startTimes(builder *array.FloatBuilder) *array.Int {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
@@ -544,10 +544,10 @@ func (t *floatEmptyWindowSelectorTable) startTimes(builder *array.Float64Builder
 			break
 		}
 	}
-	return start.NewInt64Array()
+	return start.NewIntArray()
 }
 
-func (t *floatEmptyWindowSelectorTable) stopTimes(builder *array.Float64Builder) *array.Int64 {
+func (t *floatEmptyWindowSelectorTable) stopTimes(builder *array.FloatBuilder) *array.Int {
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(storage.MaxPointsPerBlock)
 
@@ -591,10 +591,10 @@ func (t *floatEmptyWindowSelectorTable) stopTimes(builder *array.Float64Builder)
 			break
 		}
 	}
-	return stop.NewInt64Array()
+	return stop.NewIntArray()
 }
 
-func (t *floatEmptyWindowSelectorTable) startStopTimes(builder *array.Float64Builder) (*array.Int64, *array.Int64, *array.Int64) {
+func (t *floatEmptyWindowSelectorTable) startStopTimes(builder *array.FloatBuilder) (*array.Int, *array.Int, *array.Int) {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
@@ -655,7 +655,7 @@ func (t *floatEmptyWindowSelectorTable) startStopTimes(builder *array.Float64Bui
 			break
 		}
 	}
-	return start.NewInt64Array(), stop.NewInt64Array(), time.NewInt64Array()
+	return start.NewIntArray(), stop.NewIntArray(), time.NewIntArray()
 }
 
 // group table
@@ -1140,7 +1140,7 @@ func (t *integerWindowTable) Do(f func(flux.ColReader) error) error {
 
 // createNextBufferTimes will read the timestamps from the array
 // cursor and construct the values for the next buffer.
-func (t *integerWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok bool) {
+func (t *integerWindowTable) createNextBufferTimes() (start, stop *array.Int, ok bool) {
 	startB := arrow.NewIntBuilder(t.alloc)
 	stopB := arrow.NewIntBuilder(t.alloc)
 
@@ -1163,8 +1163,8 @@ func (t *integerWindowTable) createNextBufferTimes() (start, stop *array.Int64, 
 			startB.Append(startT)
 			stopB.Append(stopT)
 		}
-		start = startB.NewInt64Array()
-		stop = stopB.NewInt64Array()
+		start = startB.NewIntArray()
+		stop = stopB.NewIntArray()
 		return start, stop, true
 	}
 
@@ -1183,8 +1183,8 @@ func (t *integerWindowTable) createNextBufferTimes() (start, stop *array.Int64, 
 		startB.Append(startT)
 		stopB.Append(stopT)
 	}
-	start = startB.NewInt64Array()
-	stop = stopB.NewInt64Array()
+	start = startB.NewIntArray()
+	stop = stopB.NewIntArray()
 	return start, stop, true
 }
 
@@ -1368,7 +1368,7 @@ func (t *integerWindowSelectorTable) advance() bool {
 	return true
 }
 
-func (t *integerWindowSelectorTable) startTimes(arr *cursors.IntegerArray) *array.Int64 {
+func (t *integerWindowSelectorTable) startTimes(arr *cursors.IntegerArray) *array.Int {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(arr.Len())
 
@@ -1381,10 +1381,10 @@ func (t *integerWindowSelectorTable) startTimes(arr *cursors.IntegerArray) *arra
 			start.Append(windowStart)
 		}
 	}
-	return start.NewInt64Array()
+	return start.NewIntArray()
 }
 
-func (t *integerWindowSelectorTable) stopTimes(arr *cursors.IntegerArray) *array.Int64 {
+func (t *integerWindowSelectorTable) stopTimes(arr *cursors.IntegerArray) *array.Int {
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(arr.Len())
 
@@ -1397,7 +1397,7 @@ func (t *integerWindowSelectorTable) stopTimes(arr *cursors.IntegerArray) *array
 			stop.Append(windowStop)
 		}
 	}
-	return stop.NewInt64Array()
+	return stop.NewIntArray()
 }
 
 // This table implementation may contain empty windows
@@ -1478,12 +1478,12 @@ func (t *integerEmptyWindowSelectorTable) advance() bool {
 		cr.cols[timeColIdx] = time
 	}
 
-	cr.cols[valueColIdx] = values.NewInt64Array()
+	cr.cols[valueColIdx] = values.NewIntArray()
 	t.appendTags(cr)
 	return true
 }
 
-func (t *integerEmptyWindowSelectorTable) startTimes(builder *array.Int64Builder) *array.Int64 {
+func (t *integerEmptyWindowSelectorTable) startTimes(builder *array.IntBuilder) *array.Int {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
@@ -1527,10 +1527,10 @@ func (t *integerEmptyWindowSelectorTable) startTimes(builder *array.Int64Builder
 			break
 		}
 	}
-	return start.NewInt64Array()
+	return start.NewIntArray()
 }
 
-func (t *integerEmptyWindowSelectorTable) stopTimes(builder *array.Int64Builder) *array.Int64 {
+func (t *integerEmptyWindowSelectorTable) stopTimes(builder *array.IntBuilder) *array.Int {
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(storage.MaxPointsPerBlock)
 
@@ -1574,10 +1574,10 @@ func (t *integerEmptyWindowSelectorTable) stopTimes(builder *array.Int64Builder)
 			break
 		}
 	}
-	return stop.NewInt64Array()
+	return stop.NewIntArray()
 }
 
-func (t *integerEmptyWindowSelectorTable) startStopTimes(builder *array.Int64Builder) (*array.Int64, *array.Int64, *array.Int64) {
+func (t *integerEmptyWindowSelectorTable) startStopTimes(builder *array.IntBuilder) (*array.Int, *array.Int, *array.Int) {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
@@ -1638,7 +1638,7 @@ func (t *integerEmptyWindowSelectorTable) startStopTimes(builder *array.Int64Bui
 			break
 		}
 	}
-	return start.NewInt64Array(), stop.NewInt64Array(), time.NewInt64Array()
+	return start.NewIntArray(), stop.NewIntArray(), time.NewIntArray()
 }
 
 // group table
@@ -2122,7 +2122,7 @@ func (t *unsignedWindowTable) Do(f func(flux.ColReader) error) error {
 
 // createNextBufferTimes will read the timestamps from the array
 // cursor and construct the values for the next buffer.
-func (t *unsignedWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok bool) {
+func (t *unsignedWindowTable) createNextBufferTimes() (start, stop *array.Int, ok bool) {
 	startB := arrow.NewIntBuilder(t.alloc)
 	stopB := arrow.NewIntBuilder(t.alloc)
 
@@ -2145,8 +2145,8 @@ func (t *unsignedWindowTable) createNextBufferTimes() (start, stop *array.Int64,
 			startB.Append(startT)
 			stopB.Append(stopT)
 		}
-		start = startB.NewInt64Array()
-		stop = stopB.NewInt64Array()
+		start = startB.NewIntArray()
+		stop = stopB.NewIntArray()
 		return start, stop, true
 	}
 
@@ -2165,8 +2165,8 @@ func (t *unsignedWindowTable) createNextBufferTimes() (start, stop *array.Int64,
 		startB.Append(startT)
 		stopB.Append(stopT)
 	}
-	start = startB.NewInt64Array()
-	stop = stopB.NewInt64Array()
+	start = startB.NewIntArray()
+	stop = stopB.NewIntArray()
 	return start, stop, true
 }
 
@@ -2350,7 +2350,7 @@ func (t *unsignedWindowSelectorTable) advance() bool {
 	return true
 }
 
-func (t *unsignedWindowSelectorTable) startTimes(arr *cursors.UnsignedArray) *array.Int64 {
+func (t *unsignedWindowSelectorTable) startTimes(arr *cursors.UnsignedArray) *array.Int {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(arr.Len())
 
@@ -2363,10 +2363,10 @@ func (t *unsignedWindowSelectorTable) startTimes(arr *cursors.UnsignedArray) *ar
 			start.Append(windowStart)
 		}
 	}
-	return start.NewInt64Array()
+	return start.NewIntArray()
 }
 
-func (t *unsignedWindowSelectorTable) stopTimes(arr *cursors.UnsignedArray) *array.Int64 {
+func (t *unsignedWindowSelectorTable) stopTimes(arr *cursors.UnsignedArray) *array.Int {
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(arr.Len())
 
@@ -2379,7 +2379,7 @@ func (t *unsignedWindowSelectorTable) stopTimes(arr *cursors.UnsignedArray) *arr
 			stop.Append(windowStop)
 		}
 	}
-	return stop.NewInt64Array()
+	return stop.NewIntArray()
 }
 
 // This table implementation may contain empty windows
@@ -2460,12 +2460,12 @@ func (t *unsignedEmptyWindowSelectorTable) advance() bool {
 		cr.cols[timeColIdx] = time
 	}
 
-	cr.cols[valueColIdx] = values.NewUint64Array()
+	cr.cols[valueColIdx] = values.NewUintArray()
 	t.appendTags(cr)
 	return true
 }
 
-func (t *unsignedEmptyWindowSelectorTable) startTimes(builder *array.Uint64Builder) *array.Int64 {
+func (t *unsignedEmptyWindowSelectorTable) startTimes(builder *array.UintBuilder) *array.Int {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
@@ -2509,10 +2509,10 @@ func (t *unsignedEmptyWindowSelectorTable) startTimes(builder *array.Uint64Build
 			break
 		}
 	}
-	return start.NewInt64Array()
+	return start.NewIntArray()
 }
 
-func (t *unsignedEmptyWindowSelectorTable) stopTimes(builder *array.Uint64Builder) *array.Int64 {
+func (t *unsignedEmptyWindowSelectorTable) stopTimes(builder *array.UintBuilder) *array.Int {
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(storage.MaxPointsPerBlock)
 
@@ -2556,10 +2556,10 @@ func (t *unsignedEmptyWindowSelectorTable) stopTimes(builder *array.Uint64Builde
 			break
 		}
 	}
-	return stop.NewInt64Array()
+	return stop.NewIntArray()
 }
 
-func (t *unsignedEmptyWindowSelectorTable) startStopTimes(builder *array.Uint64Builder) (*array.Int64, *array.Int64, *array.Int64) {
+func (t *unsignedEmptyWindowSelectorTable) startStopTimes(builder *array.UintBuilder) (*array.Int, *array.Int, *array.Int) {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
@@ -2620,7 +2620,7 @@ func (t *unsignedEmptyWindowSelectorTable) startStopTimes(builder *array.Uint64B
 			break
 		}
 	}
-	return start.NewInt64Array(), stop.NewInt64Array(), time.NewInt64Array()
+	return start.NewIntArray(), stop.NewIntArray(), time.NewIntArray()
 }
 
 // group table
@@ -3103,7 +3103,7 @@ func (t *stringWindowTable) Do(f func(flux.ColReader) error) error {
 
 // createNextBufferTimes will read the timestamps from the array
 // cursor and construct the values for the next buffer.
-func (t *stringWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok bool) {
+func (t *stringWindowTable) createNextBufferTimes() (start, stop *array.Int, ok bool) {
 	startB := arrow.NewIntBuilder(t.alloc)
 	stopB := arrow.NewIntBuilder(t.alloc)
 
@@ -3126,8 +3126,8 @@ func (t *stringWindowTable) createNextBufferTimes() (start, stop *array.Int64, o
 			startB.Append(startT)
 			stopB.Append(stopT)
 		}
-		start = startB.NewInt64Array()
-		stop = stopB.NewInt64Array()
+		start = startB.NewIntArray()
+		stop = stopB.NewIntArray()
 		return start, stop, true
 	}
 
@@ -3146,8 +3146,8 @@ func (t *stringWindowTable) createNextBufferTimes() (start, stop *array.Int64, o
 		startB.Append(startT)
 		stopB.Append(stopT)
 	}
-	start = startB.NewInt64Array()
-	stop = stopB.NewInt64Array()
+	start = startB.NewIntArray()
+	stop = stopB.NewIntArray()
 	return start, stop, true
 }
 
@@ -3331,7 +3331,7 @@ func (t *stringWindowSelectorTable) advance() bool {
 	return true
 }
 
-func (t *stringWindowSelectorTable) startTimes(arr *cursors.StringArray) *array.Int64 {
+func (t *stringWindowSelectorTable) startTimes(arr *cursors.StringArray) *array.Int {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(arr.Len())
 
@@ -3344,10 +3344,10 @@ func (t *stringWindowSelectorTable) startTimes(arr *cursors.StringArray) *array.
 			start.Append(windowStart)
 		}
 	}
-	return start.NewInt64Array()
+	return start.NewIntArray()
 }
 
-func (t *stringWindowSelectorTable) stopTimes(arr *cursors.StringArray) *array.Int64 {
+func (t *stringWindowSelectorTable) stopTimes(arr *cursors.StringArray) *array.Int {
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(arr.Len())
 
@@ -3360,7 +3360,7 @@ func (t *stringWindowSelectorTable) stopTimes(arr *cursors.StringArray) *array.I
 			stop.Append(windowStop)
 		}
 	}
-	return stop.NewInt64Array()
+	return stop.NewIntArray()
 }
 
 // This table implementation may contain empty windows
@@ -3441,12 +3441,12 @@ func (t *stringEmptyWindowSelectorTable) advance() bool {
 		cr.cols[timeColIdx] = time
 	}
 
-	cr.cols[valueColIdx] = values.NewBinaryArray()
+	cr.cols[valueColIdx] = values.NewStringArray()
 	t.appendTags(cr)
 	return true
 }
 
-func (t *stringEmptyWindowSelectorTable) startTimes(builder *array.BinaryBuilder) *array.Int64 {
+func (t *stringEmptyWindowSelectorTable) startTimes(builder *array.StringBuilder) *array.Int {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
@@ -3490,10 +3490,10 @@ func (t *stringEmptyWindowSelectorTable) startTimes(builder *array.BinaryBuilder
 			break
 		}
 	}
-	return start.NewInt64Array()
+	return start.NewIntArray()
 }
 
-func (t *stringEmptyWindowSelectorTable) stopTimes(builder *array.BinaryBuilder) *array.Int64 {
+func (t *stringEmptyWindowSelectorTable) stopTimes(builder *array.StringBuilder) *array.Int {
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(storage.MaxPointsPerBlock)
 
@@ -3537,10 +3537,10 @@ func (t *stringEmptyWindowSelectorTable) stopTimes(builder *array.BinaryBuilder)
 			break
 		}
 	}
-	return stop.NewInt64Array()
+	return stop.NewIntArray()
 }
 
-func (t *stringEmptyWindowSelectorTable) startStopTimes(builder *array.BinaryBuilder) (*array.Int64, *array.Int64, *array.Int64) {
+func (t *stringEmptyWindowSelectorTable) startStopTimes(builder *array.StringBuilder) (*array.Int, *array.Int, *array.Int) {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
@@ -3601,7 +3601,7 @@ func (t *stringEmptyWindowSelectorTable) startStopTimes(builder *array.BinaryBui
 			break
 		}
 	}
-	return start.NewInt64Array(), stop.NewInt64Array(), time.NewInt64Array()
+	return start.NewIntArray(), stop.NewIntArray(), time.NewIntArray()
 }
 
 // group table
@@ -4028,7 +4028,7 @@ func (t *booleanWindowTable) Do(f func(flux.ColReader) error) error {
 
 // createNextBufferTimes will read the timestamps from the array
 // cursor and construct the values for the next buffer.
-func (t *booleanWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok bool) {
+func (t *booleanWindowTable) createNextBufferTimes() (start, stop *array.Int, ok bool) {
 	startB := arrow.NewIntBuilder(t.alloc)
 	stopB := arrow.NewIntBuilder(t.alloc)
 
@@ -4051,8 +4051,8 @@ func (t *booleanWindowTable) createNextBufferTimes() (start, stop *array.Int64, 
 			startB.Append(startT)
 			stopB.Append(stopT)
 		}
-		start = startB.NewInt64Array()
-		stop = stopB.NewInt64Array()
+		start = startB.NewIntArray()
+		stop = stopB.NewIntArray()
 		return start, stop, true
 	}
 
@@ -4071,8 +4071,8 @@ func (t *booleanWindowTable) createNextBufferTimes() (start, stop *array.Int64, 
 		startB.Append(startT)
 		stopB.Append(stopT)
 	}
-	start = startB.NewInt64Array()
-	stop = stopB.NewInt64Array()
+	start = startB.NewIntArray()
+	stop = stopB.NewIntArray()
 	return start, stop, true
 }
 
@@ -4256,7 +4256,7 @@ func (t *booleanWindowSelectorTable) advance() bool {
 	return true
 }
 
-func (t *booleanWindowSelectorTable) startTimes(arr *cursors.BooleanArray) *array.Int64 {
+func (t *booleanWindowSelectorTable) startTimes(arr *cursors.BooleanArray) *array.Int {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(arr.Len())
 
@@ -4269,10 +4269,10 @@ func (t *booleanWindowSelectorTable) startTimes(arr *cursors.BooleanArray) *arra
 			start.Append(windowStart)
 		}
 	}
-	return start.NewInt64Array()
+	return start.NewIntArray()
 }
 
-func (t *booleanWindowSelectorTable) stopTimes(arr *cursors.BooleanArray) *array.Int64 {
+func (t *booleanWindowSelectorTable) stopTimes(arr *cursors.BooleanArray) *array.Int {
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(arr.Len())
 
@@ -4285,7 +4285,7 @@ func (t *booleanWindowSelectorTable) stopTimes(arr *cursors.BooleanArray) *array
 			stop.Append(windowStop)
 		}
 	}
-	return stop.NewInt64Array()
+	return stop.NewIntArray()
 }
 
 // This table implementation may contain empty windows
@@ -4371,7 +4371,7 @@ func (t *booleanEmptyWindowSelectorTable) advance() bool {
 	return true
 }
 
-func (t *booleanEmptyWindowSelectorTable) startTimes(builder *array.BooleanBuilder) *array.Int64 {
+func (t *booleanEmptyWindowSelectorTable) startTimes(builder *array.BooleanBuilder) *array.Int {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
@@ -4415,10 +4415,10 @@ func (t *booleanEmptyWindowSelectorTable) startTimes(builder *array.BooleanBuild
 			break
 		}
 	}
-	return start.NewInt64Array()
+	return start.NewIntArray()
 }
 
-func (t *booleanEmptyWindowSelectorTable) stopTimes(builder *array.BooleanBuilder) *array.Int64 {
+func (t *booleanEmptyWindowSelectorTable) stopTimes(builder *array.BooleanBuilder) *array.Int {
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(storage.MaxPointsPerBlock)
 
@@ -4462,10 +4462,10 @@ func (t *booleanEmptyWindowSelectorTable) stopTimes(builder *array.BooleanBuilde
 			break
 		}
 	}
-	return stop.NewInt64Array()
+	return stop.NewIntArray()
 }
 
-func (t *booleanEmptyWindowSelectorTable) startStopTimes(builder *array.BooleanBuilder) (*array.Int64, *array.Int64, *array.Int64) {
+func (t *booleanEmptyWindowSelectorTable) startStopTimes(builder *array.BooleanBuilder) (*array.Int, *array.Int, *array.Int) {
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
@@ -4526,7 +4526,7 @@ func (t *booleanEmptyWindowSelectorTable) startStopTimes(builder *array.BooleanB
 			break
 		}
 	}
-	return start.NewInt64Array(), stop.NewInt64Array(), time.NewInt64Array()
+	return start.NewIntArray(), stop.NewIntArray(), time.NewIntArray()
 }
 
 // group table

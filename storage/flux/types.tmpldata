@@ -3,25 +3,25 @@
 		"Name":"Float",
 		"name":"float",
 		"Type":"float64",
-		"ArrowType":"Float64"
+		"ArrowType":"Float"
 	},
 	{
 		"Name":"Integer",
 		"name":"integer",
 		"Type":"int64",
-		"ArrowType":"Int64"
+		"ArrowType":"Int"
 	},
 	{
 		"Name":"Unsigned",
 		"name":"unsigned",
 		"Type":"uint64",
-		"ArrowType":"Uint64"
+		"ArrowType":"Uint"
 	},
 	{
 		"Name":"String",
 		"name":"string",
 		"Type":"string",
-		"ArrowType":"Binary"
+		"ArrowType":"String"
 	},
 	{
 		"Name":"Boolean",
