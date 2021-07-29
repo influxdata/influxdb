@@ -2,13 +2,107 @@ package http
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"path"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/prom"
+	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
+
+func TestMetrics(t *testing.T) {
+	labels := []string{"handler", "method", "path", "status", "response_code", "user_agent"}
+
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		if r.URL.Path == "/serverError" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		if r.URL.Path == "/redirect" {
+			w.WriteHeader(http.StatusPermanentRedirect)
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	tests := []struct {
+		name          string
+		reqPath       string
+		wantCount     int
+		labelResponse string
+		labelStatus   string
+	}{
+		{
+			name:          "counter increments on OK (2XX) ",
+			reqPath:       "/",
+			wantCount:     1,
+			labelResponse: "200",
+			labelStatus:   "2XX",
+		},
+		{
+			name:      "counter does not increment on not found (4XX)",
+			reqPath:   "/badpath",
+			wantCount: 0,
+		},
+		{
+			name:          "counter increments on server error (5XX)",
+			reqPath:       "/serverError",
+			wantCount:     1,
+			labelResponse: "500",
+			labelStatus:   "5XX",
+		},
+		{
+			name:      "counter does not increment on redirect (3XX)",
+			reqPath:   "/redirect",
+			wantCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			counter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "counter"}, labels)
+			hist := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "hist"}, labels)
+			reg := prom.NewRegistry(zaptest.NewLogger(t))
+			reg.MustRegister(counter, hist)
+
+			metricsMw := Metrics("testing", counter, hist)
+			svr := metricsMw(nextHandler)
+			r := httptest.NewRequest("GET", tt.reqPath, nil)
+			w := httptest.NewRecorder()
+			svr.ServeHTTP(w, r)
+
+			mfs := promtest.MustGather(t, reg)
+			m := promtest.FindMetric(mfs, "counter", map[string]string{
+				"handler":       "testing",
+				"method":        "GET",
+				"path":          tt.reqPath,
+				"response_code": tt.labelResponse,
+				"status":        tt.labelStatus,
+				"user_agent":    "unknown",
+			})
+
+			if tt.wantCount == 0 {
+				require.Nil(t, m)
+				return
+			}
+
+			require.Equal(t, tt.wantCount, int(m.Counter.GetValue()))
+		})
+	}
+}
 
 func Test_normalizePath(t *testing.T) {
 	tests := []struct {
