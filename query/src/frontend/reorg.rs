@@ -187,14 +187,14 @@ impl ReorgPlanner {
         Ok((schema, plan))
     }
 
-    /// Creates a scan plan for the set of chunks that:
+    /// Creates a scan plan for the given set of chunks.
+    /// Output data of the scan will be deduplicated and sorted
+    /// on the optimal sort order of the chunks' PK columns (tags and time).
+    /// The optimal sort order is computed based on the PK columns cardinality
+    /// that will be best for RLE encoding.
     ///
-    /// 1. Merges chunks together into a single stream
-    /// 2. Deduplicates via PK as necessary
-    /// 3. Sorts the result according to the requested key
-    ///
-    /// The plan will look like the sorted scan plan specified in
-    ///   query::provider::build_scan_plan
+    /// Prefer to query::provider::build_scan_plan for the detail of the plan
+    ///   
     fn sorted_scan_plan<C, I>(&self, schema: Arc<Schema>, chunks: I) -> Result<ScanPlan<C>>
     where
         C: QueryChunk + 'static,
@@ -210,8 +210,8 @@ impl ReorgPlanner {
         // Prepare the plan for the table
         let mut builder = ProviderBuilder::new(table_name, schema);
 
-        // Tell the scan of this provider to sort its output
-        builder.sort_output();
+        // Tell the scan of this provider to sort its output on the chunks' PK
+        builder.ensure_pk_sort();
 
         // There are no predicates in these plans, so no need to prune them
         builder = builder.add_no_op_pruner();

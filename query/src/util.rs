@@ -52,7 +52,7 @@ pub fn arrow_pk_sort_exprs(
 }
 
 pub fn arrow_sort_key_exprs(
-    sort_key: SortKey<'_>,
+    sort_key: &SortKey<'_>,
     input_schema: &ArrowSchema,
 ) -> Vec<PhysicalSortExpr> {
     let mut sort_exprs = vec![];
