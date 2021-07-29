@@ -6,7 +6,6 @@ use datafusion::{
     logical_plan::{col, Expr, LogicalPlan, LogicalPlanBuilder},
     scalar::ScalarValue,
 };
-use datafusion_util::AsExpr;
 use internal_types::schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 use observability_deps::tracing::{debug, trace};
 
@@ -74,7 +73,7 @@ impl ReorgPlanner {
         let ScanPlan {
             plan_builder,
             provider,
-        } = self.scan_and_sort_plan(schema, chunks, output_sort.clone())?;
+        } = self.sorted_scan_plan(schema, chunks)?;
 
         let mut schema = provider.iox_schema();
 
@@ -157,7 +156,7 @@ impl ReorgPlanner {
         let ScanPlan {
             plan_builder,
             provider,
-        } = self.scan_and_sort_plan(schema, chunks, output_sort.clone())?;
+        } = self.sorted_scan_plan(schema, chunks)?;
 
         let mut schema = provider.iox_schema();
 
@@ -188,22 +187,15 @@ impl ReorgPlanner {
         Ok((schema, plan))
     }
 
-    /// Creates a scan plan for the set of chunks that:
+    /// Creates a scan plan for the given set of chunks.
+    /// Output data of the scan will be deduplicated and sorted
+    /// on the optimal sort order of the chunks' PK columns (tags and time).
+    /// The optimal sort order is computed based on the PK columns cardinality
+    /// that will be best for RLE encoding.
     ///
-    /// 1. Merges chunks together into a single stream
-    /// 2. Deduplicates via PK as necessary
-    /// 3. Sorts the result according to the requested key
-    ///
-    /// The plan looks like:
-    ///
-    /// (Sort on output_sort)
-    ///   (Scan chunks) <-- any needed deduplication happens here
-    fn scan_and_sort_plan<C, I>(
-        &self,
-        schema: Arc<Schema>,
-        chunks: I,
-        output_sort: SortKey<'_>,
-    ) -> Result<ScanPlan<C>>
+    /// Prefer to query::provider::build_scan_plan for the detail of the plan
+    ///   
+    fn sorted_scan_plan<C, I>(&self, schema: Arc<Schema>, chunks: I) -> Result<ScanPlan<C>>
     where
         C: QueryChunk + 'static,
         I: IntoIterator<Item = Arc<C>>,
@@ -217,6 +209,9 @@ impl ReorgPlanner {
 
         // Prepare the plan for the table
         let mut builder = ProviderBuilder::new(table_name, schema);
+
+        // Tell the scan of this provider to sort its output on the chunks' PK
+        builder.ensure_pk_sort();
 
         // There are no predicates in these plans, so no need to prune them
         builder = builder.add_no_op_pruner();
@@ -239,19 +234,8 @@ impl ReorgPlanner {
         // Scan all columns
         let projection = None;
 
-        // figure out the sort expression
-        let sort_exprs = output_sort
-            .iter()
-            .map(|(column_name, sort_options)| Expr::Sort {
-                expr: Box::new(column_name.as_expr()),
-                asc: !sort_options.descending,
-                nulls_first: sort_options.nulls_first,
-            });
-
         let plan_builder =
             LogicalPlanBuilder::scan(table_name, Arc::clone(&provider) as _, projection)
-                .context(BuildingPlan)?
-                .sort(sort_exprs)
                 .context(BuildingPlan)?;
 
         Ok(ScanPlan {
@@ -284,7 +268,7 @@ mod test {
         // Chunk 1 with 5 rows of data on 2 tags
         let chunk1 = Arc::new(
             TestChunk::new("t")
-                .with_time_column_with_stats(Some(5), Some(7000))
+                .with_time_column_with_stats(Some(50), Some(7000))
                 .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
                 .with_i64_field_column("field_int")
                 .with_five_rows_of_data(),
@@ -378,20 +362,22 @@ mod test {
             .await
             .unwrap();
 
+        // sorted on state ASC and time
         let expected = vec![
             "+-----------+------------+------+--------------------------------+",
             "| field_int | field_int2 | tag1 | time                           |",
             "+-----------+------------+------+--------------------------------+",
-            "| 1000      | 1000       | WA   | 1970-01-01T00:00:00.000028Z    |",
-            "| 50        | 50         | VT   | 1970-01-01T00:00:00.000210Z    |",
-            "| 70        | 70         | UT   | 1970-01-01T00:00:00.000220Z    |",
+            "| 100       |            | AL   | 1970-01-01T00:00:00.000000050Z |",
+            "| 70        |            | CT   | 1970-01-01T00:00:00.000000100Z |",
             "| 1000      |            | MT   | 1970-01-01T00:00:00.000001Z    |",
             "| 5         |            | MT   | 1970-01-01T00:00:00.000005Z    |",
             "| 10        |            | MT   | 1970-01-01T00:00:00.000007Z    |",
-            "| 70        |            | CT   | 1970-01-01T00:00:00.000000100Z |",
-            "| 100       |            | AL   | 1970-01-01T00:00:00.000000050Z |",
+            "| 70        | 70         | UT   | 1970-01-01T00:00:00.000220Z    |",
+            "| 50        | 50         | VT   | 1970-01-01T00:00:00.000210Z    |",
+            "| 1000      | 1000       | WA   | 1970-01-01T00:00:00.000028Z    |",
             "+-----------+------------+------+--------------------------------+",
         ];
+
         assert_batches_eq!(&expected, &batches);
     }
 
@@ -452,18 +438,19 @@ mod test {
             .await
             .expect("plan ran without error");
 
-        // Note sorted on time
+        // Sorted on state (tag1) ASC and time
         let expected = vec![
             "+-----------+------------+------+-----------------------------+",
             "| field_int | field_int2 | tag1 | time                        |",
             "+-----------+------------+------+-----------------------------+",
             "| 5         |            | MT   | 1970-01-01T00:00:00.000005Z |",
             "| 10        |            | MT   | 1970-01-01T00:00:00.000007Z |",
-            "| 1000      | 1000       | WA   | 1970-01-01T00:00:00.000028Z |",
-            "| 50        | 50         | VT   | 1970-01-01T00:00:00.000210Z |",
             "| 70        | 70         | UT   | 1970-01-01T00:00:00.000220Z |",
+            "| 50        | 50         | VT   | 1970-01-01T00:00:00.000210Z |",
+            "| 1000      | 1000       | WA   | 1970-01-01T00:00:00.000028Z |",
             "+-----------+------------+------+-----------------------------+",
         ];
+
         assert_batches_eq!(&expected, &batches1);
     }
 }
