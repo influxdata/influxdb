@@ -207,6 +207,8 @@ func TestController_QueryRuntimeError(t *testing.T) {
 
 			q, err := ctrl.Query(context.Background(), &mock.Compiler{
 				CompileFn: func(ctx context.Context) (flux.Program, error) {
+					// ensure we have non-zero compile time
+					time.Sleep(1*time.Millisecond)
 					return &mock.Program{
 						ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
 							q.SetErr(errors.New("runtime error"))
