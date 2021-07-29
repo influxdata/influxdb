@@ -43,14 +43,21 @@ func Metrics(name string, reqMetric *prometheus.CounterVec, durMetric *prometheu
 			statusW := NewStatusResponseWriter(w)
 
 			defer func(start time.Time) {
+				statusCode := statusW.Code()
+				// only log metrics for 2XX or 5XX requests
+				if !reportFromCode(statusCode) {
+					return
+				}
+
 				label := prometheus.Labels{
 					"handler":       name,
 					"method":        r.Method,
 					"path":          normalizePath(r.URL.Path),
 					"status":        statusW.StatusCodeClass(),
-					"response_code": fmt.Sprintf("%d", statusW.Code()),
+					"response_code": fmt.Sprintf("%d", statusCode),
 					"user_agent":    UserAgent(r),
 				}
+
 				durMetric.With(label).Observe(time.Since(start).Seconds())
 				reqMetric.With(label).Inc()
 			}(time.Now())
@@ -234,4 +241,10 @@ func OrgIDFromContext(ctx context.Context) *influxdb.ID {
 	}
 	id := v.(influxdb.ID)
 	return &id
+}
+
+// reportFromCode is a helper function to determine if telemetry data should be
+// reported for this response.
+func reportFromCode(c int) bool {
+	return (c >= 200 && c <= 299) || (c >= 500 && c <= 599)
 }

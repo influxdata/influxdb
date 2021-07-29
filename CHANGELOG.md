@@ -21,6 +21,7 @@ Because of the version bump to `go`, the macOS build for this release requires a
 ### Features
 
 1. [21922](https://github.com/influxdata/influxdb/pull/21922): Add `--ui-disabled` option to `influxd` to allow for running with the UI disabled.
+1. [21969](https://github.com/influxdata/influxdb/pull/21969): Telemetry improvements: Do not record telemetry data for non-existant paths; replace invalid static asset paths with a slug.
 
 ### Bug Fixes
 
