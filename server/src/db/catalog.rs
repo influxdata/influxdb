@@ -340,13 +340,13 @@ mod tests {
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
 
-        partition
-            .create_open_chunk(
-                mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
-                batch,
-                time_of_write,
-            )
-            .unwrap();
+        let mb_chunk = mutable_buffer::chunk::MBChunk::new(
+            mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
+            batch,
+        )
+        .unwrap();
+
+        partition.create_open_chunk(mb_chunk, time_of_write);
     }
 
     #[test]

@@ -9,16 +9,13 @@ use data_types::{
     partition_metadata::TableSummary,
     write_summary::TimestampSummary,
 };
-use entry::TableBatch;
 use internal_types::{access::AccessRecorder, schema::Schema};
 use metrics::{Counter, Histogram, KeyValue};
-use mutable_buffer::chunk::{
-    snapshot::ChunkSnapshot as MBChunkSnapshot, ChunkMetrics as MutableBufferChunkMetrics, MBChunk,
-};
+use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use read_buffer::RBChunk;
-use snafu::{ResultExt, Snafu};
+use snafu::Snafu;
 use std::sync::Arc;
 use tracker::{TaskRegistration, TaskTracker};
 
@@ -66,11 +63,6 @@ pub enum Error {
         chunk
     ))]
     IncompleteLifecycleAction { chunk: ChunkAddr, action: String },
-
-    #[snafu(display("Internal Error: Cannot create a new mutable buffer chunk: {}", source))]
-    CreateOpenChunk {
-        source: mutable_buffer::chunk::Error,
-    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -272,13 +264,10 @@ impl CatalogChunk {
     /// Panics if the provided chunk is empty, otherwise creates a new open chunk.
     pub(super) fn new_open(
         addr: ChunkAddr,
-        mb_chunk_metrics: MutableBufferChunkMetrics,
-        batch: TableBatch<'_>,
+        chunk: mutable_buffer::chunk::MBChunk,
         time_of_write: DateTime<Utc>,
         metrics: ChunkMetrics,
-    ) -> Result<Self> {
-        let chunk = MBChunk::new(mb_chunk_metrics, batch).context(CreateOpenChunk)?;
-
+    ) -> Self {
         assert_eq!(chunk.table_name(), &addr.table_name);
 
         let stage = ChunkStage::Open { mb_chunk: chunk };
@@ -298,7 +287,7 @@ impl CatalogChunk {
             time_closed: None,
         };
         chunk.update_metrics();
-        Ok(chunk)
+        chunk
     }
 
     /// Creates a new RUB chunk from the provided RUB chunk and metadata
@@ -1122,6 +1111,14 @@ mod tests {
         chunk.clear_lifecycle_action().unwrap();
     }
 
+    fn make_mb_chunk(table_name: &str) -> MBChunk {
+        let entry = lp_to_entry(&format!("{} bar=1 10", table_name));
+        let write = entry.partition_writes().unwrap().remove(0);
+        let batch = write.table_batches().remove(0);
+
+        MBChunk::new(MBChunkMetrics::new_unregistered(), batch).unwrap()
+    }
+
     async fn make_parquet_chunk(addr: ChunkAddr) -> ParquetChunk {
         let object_store = make_object_store();
         make_parquet_chunk_with_store(object_store, "foo", addr).await
@@ -1138,19 +1135,15 @@ mod tests {
 
     fn make_open_chunk() -> CatalogChunk {
         let addr = chunk_addr();
-        let entry = lp_to_entry(&format!("{} bar=1 10", addr.table_name));
+        let mb_chunk = make_mb_chunk(&addr.table_name);
         let time_of_write = Utc::now();
-        let write = entry.partition_writes().unwrap().remove(0);
-        let batch = write.table_batches().remove(0);
 
         CatalogChunk::new_open(
             addr,
-            MBChunkMetrics::new_unregistered(),
-            batch,
+            mb_chunk,
             time_of_write,
             ChunkMetrics::new_unregistered(),
         )
-        .unwrap()
     }
 
     async fn make_persisted_chunk() -> CatalogChunk {

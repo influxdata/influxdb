@@ -7,14 +7,12 @@ use data_types::{
     chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkSummary},
     partition_metadata::{PartitionAddr, PartitionSummary},
 };
-use entry::TableBatch;
 use internal_types::schema::Schema;
-use mutable_buffer::chunk::ChunkMetrics as MutableBufferChunkMetrics;
 use observability_deps::tracing::info;
 use persistence_windows::{
     checkpoint::PartitionCheckpoint, persistence_windows::PersistenceWindows,
 };
-use snafu::{ResultExt, Snafu};
+use snafu::Snafu;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     fmt::Display,
@@ -131,11 +129,10 @@ impl Partition {
     /// Returns an error if the chunk is empty.
     pub fn create_open_chunk(
         &mut self,
-        metrics: MutableBufferChunkMetrics,
-        batch: TableBatch<'_>,
+        chunk: mutable_buffer::chunk::MBChunk,
         time_of_write: DateTime<Utc>,
-    ) -> Result<Arc<RwLock<CatalogChunk>>> {
-        assert_eq!(batch.name(), self.table_name());
+    ) -> Arc<RwLock<CatalogChunk>> {
+        assert_eq!(chunk.table_name().as_ref(), self.table_name());
 
         let chunk_id = self.next_chunk_id;
         assert_ne!(self.next_chunk_id, u32::MAX, "Chunk ID Overflow");
@@ -143,14 +140,8 @@ impl Partition {
 
         let addr = ChunkAddr::new(&self.addr, chunk_id);
 
-        let chunk = CatalogChunk::new_open(
-            addr,
-            metrics,
-            batch,
-            time_of_write,
-            self.metrics.new_chunk_metrics(),
-        )
-        .context(CreateOpenChunk)?;
+        let chunk =
+            CatalogChunk::new_open(addr, chunk, time_of_write, self.metrics.new_chunk_metrics());
         let chunk = Arc::new(self.metrics.new_chunk_lock(chunk));
 
         if self.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
@@ -158,7 +149,7 @@ impl Partition {
             panic!("chunk already existed with id {}", chunk_id)
         }
 
-        Ok(chunk)
+        chunk
     }
 
     /// Create a new read buffer chunk
