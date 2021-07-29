@@ -9,11 +9,9 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -200,9 +198,7 @@ func TestNotebookHandler(t *testing.T) {
 func newTestServer(t *testing.T) (*httptest.Server, *mock.MockNotebookService) {
 	ctrlr := gomock.NewController(t)
 	svc := mock.NewMockNotebookService(ctrlr)
-	// server needs to have a middleware to annotate the request context with the
-	// appropriate feature flags while notebooks is still behind a feature flag
-	server := annotatedTestServer(NewNotebookHandler(zaptest.NewLogger(t), svc))
+	server := NewNotebookHandler(zaptest.NewLogger(t), svc)
 	return httptest.NewServer(server), svc
 }
 
@@ -226,16 +222,4 @@ func doTestRequest(t *testing.T, req *http.Request, wantCode int, needJSON bool)
 		require.Equal(t, "application/json; charset=utf-8", res.Header.Get("Content-Type"))
 	}
 	return res
-}
-
-func annotatedTestServer(serv http.Handler) http.Handler {
-	notebooksFlag := feature.MakeFlag("", "notebooks", "", true, 0, true)
-	notebooksApiFlag := feature.MakeFlag("", "notebooksApi", "", true, 0, true)
-
-	return feature.NewHandler(
-		zap.NewNop(),
-		feature.DefaultFlagger(),
-		[]feature.Flag{notebooksFlag, notebooksApiFlag},
-		serv,
-	)
 }

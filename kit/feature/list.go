@@ -86,34 +86,6 @@ func QueryTracing() BoolFlag {
 	return queryTracing
 }
 
-var notebooks = MakeBoolFlag(
-	"Notebooks",
-	"notebooks",
-	"Monitoring Team",
-	false,
-	Temporary,
-	true,
-)
-
-// Notebooks - Determine if the notebook feature's route and navbar icon are visible to the user
-func Notebooks() BoolFlag {
-	return notebooks
-}
-
-var notebooksApi = MakeBoolFlag(
-	"Notebooks Service API",
-	"notebooksApi",
-	"Edge Team",
-	true,
-	Temporary,
-	true,
-)
-
-// NotebooksServiceApi - Enable the Equivalent notebooksd Service API
-func NotebooksServiceApi() BoolFlag {
-	return notebooksApi
-}
-
 var injectLatestSuccessTime = MakeBoolFlag(
 	"Inject Latest Success Time",
 	"injectLatestSuccessTime",
@@ -247,8 +219,6 @@ var all = []Flag{
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
 	queryTracing,
-	notebooks,
-	notebooksApi,
 	injectLatestSuccessTime,
 	enforceOrgDashboardLimits,
 	timeFilterFlags,
@@ -267,8 +237,6 @@ var byKey = map[string]Flag{
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"queryTracing":                  queryTracing,
-	"notebooks":                     notebooks,
-	"notebooksApi":                  notebooksApi,
 	"injectLatestSuccessTime":       injectLatestSuccessTime,
 	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
 	"timeFilterFlags":               timeFilterFlags,
