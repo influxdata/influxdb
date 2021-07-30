@@ -305,6 +305,14 @@ impl Storage {
             path: temp_path.to_string_lossy(),
         })?;
 
+        // TODO: renenable when bug in parquet statistics generation
+        // is fixed: https://github.com/apache/arrow-rs/issues/641
+        // https://github.com/influxdata/influxdb_iox/issues/2163
+        if predicate.is_some() {
+            debug!(?predicate, "Skipping predicate pushdown due to XXX");
+        }
+        let predicate = None;
+
         let parquet_exec = ParquetExec::try_from_path(
             temp_path,
             Some(projection),
