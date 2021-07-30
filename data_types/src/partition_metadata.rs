@@ -398,17 +398,28 @@ where
             Some(starting_value)
         };
 
-        Self {
-            min: starting_value.clone(),
-            max: starting_value,
-            total_count: 1,
-            null_count: 0,
-            distinct_count: None,
-        }
+        let min = starting_value.clone();
+        let max = starting_value;
+        let total_count = 1;
+        let null_count = 0;
+        let distinct_count = None;
+        Self::new_with_distinct(min, max, total_count, null_count, distinct_count)
     }
 
     /// Create new statitics with the specified count and null count
     pub fn new(min: Option<T>, max: Option<T>, total_count: u64, null_count: u64) -> Self {
+        let distinct_count = None;
+        Self::new_with_distinct(min, max, total_count, null_count, distinct_count)
+    }
+
+    /// Create new statitics with the specified count and null count and distinct values
+    fn new_with_distinct(
+        min: Option<T>,
+        max: Option<T>,
+        total_count: u64,
+        null_count: u64,
+        distinct_count: Option<NonZeroU64>,
+    ) -> Self {
         if let Some(min) = &min {
             assert!(!min.is_nan());
         }
@@ -424,14 +435,15 @@ where
             max,
             total_count,
             null_count,
-            distinct_count: None,
+            distinct_count,
         }
     }
 
-    /// Create statistics for a column with zero nulls
+    /// Create statistics for a column with zero nulls and unknown distinct count
     pub fn new_non_null(min: Option<T>, max: Option<T>, total_count: u64) -> Self {
         let null_count = 0;
-        Self::new(min, max, total_count, null_count)
+        let distinct_count = None;
+        Self::new_with_distinct(min, max, total_count, null_count, distinct_count)
     }
 
     /// Create statistics for a column that only has nulls up to now
@@ -439,7 +451,8 @@ where
         let min = None;
         let max = None;
         let null_count = total_count;
-        Self::new(min, max, total_count, null_count)
+        let distinct_count = NonZeroU64::new(1);
+        Self::new_with_distinct(min, max, total_count, null_count, distinct_count)
     }
 
     pub fn update_from(&mut self, other: &Self) {
@@ -486,6 +499,7 @@ impl<T> StatValues<T> {
         U: ToOwned<Owned = T> + PartialOrd + IsNan,
     {
         self.total_count += 1;
+        self.distinct_count = None;
 
         if !other.is_nan() {
             match &self.min {
@@ -600,6 +614,32 @@ impl IsNan for f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn statistics_new_non_null() {
+        let actual = StatValues::new_non_null(Some(-1i64), Some(1i64), 3);
+        let expected = StatValues {
+            min: Some(-1i64),
+            max: Some(1i64),
+            total_count: 3,
+            null_count: 0,
+            distinct_count: None,
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn statistics_new_all_null() {
+        let actual = StatValues::<i64>::new_all_null(3);
+        let expected = StatValues {
+            min: None,
+            max: None,
+            total_count: 3,
+            null_count: 3,
+            distinct_count: NonZeroU64::new(1),
+        };
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn statistics_update() {
