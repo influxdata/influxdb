@@ -2,8 +2,17 @@
 
 set -ex
 
+git clone https://github.com/influxdata/flux.git flux-repo
+cd flux-repo
+git fetch --tags
+latest_tag=$(git describe --abbrev=0 --tags)
+git checkout $latest_tag -b latest-tag
 
-RUST_LATEST_VERSION=1.52.1
+RUST_LATEST_VERSION=$(cat .circleci/config | grep RUST_VERSION: | sed 's/^ *//' | cut -d ' ' -f2)
+RUST_LATEST_VERSION=${RUST_LATEST_VERSION:-1.52.1}
+cd ..
+rm -rf flux-repo
+
 # For security, we specify a particular rustup version and a SHA256 hash, computed
 # ourselves and hardcoded here. When updating `RUSTUP_LATEST_VERSION`:
 #   1. Download the new rustup script from https://github.com/rust-lang/rustup/releases.
