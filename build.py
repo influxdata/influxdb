@@ -151,7 +151,7 @@ def package_scripts(build_root, config_only=False, windows=False):
         shutil.copyfile(SYSTEMD_SCRIPT, os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_SCRIPT.split('/')[1]))
         os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_SCRIPT.split('/')[1]), 0o644)
         shutil.copyfile(SYSTEMD_START_SCRIPT, os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_START_SCRIPT.split('/')[1]))
-        os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_START_SCRIPT.split('/')[1]), 0o744)
+        os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_START_SCRIPT.split('/')[1]), 0o755)
         shutil.copyfile(LOGROTATE_SCRIPT, os.path.join(build_root, LOGROTATE_DIR[1:], "influxdb"))
         os.chmod(os.path.join(build_root, LOGROTATE_DIR[1:], "influxdb"), 0o644)
         shutil.copyfile(DEFAULT_CONFIG, os.path.join(build_root, CONFIG_DIR[1:], "influxdb.conf"))
