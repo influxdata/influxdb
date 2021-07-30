@@ -79,7 +79,7 @@ func TestTagsCache_GetTags_Concurrency(t *testing.T) {
 				l := rand.Intn(128) + 1
 				vs := cache.GetTag(value, l, mem)
 				for i := 0; i < l; i++ {
-					if want, got := value, vs.ValueString(i); want != got {
+					if want, got := value, vs.Value(i); want != got {
 						t.Errorf("unexpected value in array: %s != %s", want, got)
 						vs.Release()
 						return
