@@ -84,25 +84,25 @@ async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
 
         for table_name in &table_names {
             let chunk = db
-                .rollover_partition(&table_name, partition_key)
+                .rollover_partition(table_name, partition_key)
                 .await
                 .unwrap()
                 .unwrap();
 
-            db.move_chunk_to_read_buffer(&table_name, partition_key, chunk.id())
+            db.move_chunk_to_read_buffer(table_name, partition_key, chunk.id())
                 .await
                 .unwrap();
 
             let chunk = db
                 .persist_partition(
-                    &table_name,
+                    table_name,
                     partition_key,
                     Instant::now() + Duration::from_secs(1),
                 )
                 .await
                 .unwrap();
 
-            db.unload_read_buffer(&table_name, partition_key, chunk.id())
+            db.unload_read_buffer(table_name, partition_key, chunk.id())
                 .unwrap();
         }
     }

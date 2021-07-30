@@ -89,7 +89,7 @@ impl ObjectStoreApi for InMemory {
     }
 
     async fn delete(&self, location: &Self::Path) -> Result<()> {
-        self.storage.write().await.remove(&location);
+        self.storage.write().await.remove(location);
         Ok(())
     }
 

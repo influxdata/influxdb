@@ -214,7 +214,7 @@ impl Catalog {
             });
 
         let partition = table.get_or_create_partition(partition_key);
-        (Arc::clone(&partition), table.schema())
+        (Arc::clone(partition), table.schema())
     }
 
     /// Returns a list of summaries for each partition.

@@ -306,7 +306,7 @@ pub fn pb_to_entry(database_batch: &pb::DatabaseBatch) -> Result<Entry> {
 
     let mut table_batches = Vec::with_capacity(database_batch.table_batches.len());
     for table_batch in &database_batch.table_batches {
-        table_batches.push(pb_table_batch_to_fb(&mut fbb, &table_batch)?);
+        table_batches.push(pb_table_batch_to_fb(&mut fbb, table_batch)?);
     }
     let partition_key = fbb.create_string("pkey");
     let table_batches = fbb.create_vector(&table_batches);
@@ -406,7 +406,7 @@ fn pb_table_batch_to_fb<'a>(
     for column in &table_batch.columns {
         columns.push(pb_column_to_fb(
             fbb,
-            &column,
+            column,
             table_batch.row_count as usize,
         )?);
     }
@@ -1571,7 +1571,7 @@ impl<'a> ColumnBuilder<'a> {
                 )
             }
             ColumnRaw::Time(values) => {
-                let values = fbb.create_vector(&values);
+                let values = fbb.create_vector(values);
                 let values = entry_fb::I64Values::create(
                     fbb,
                     &entry_fb::I64ValuesArgs {
@@ -1586,7 +1586,7 @@ impl<'a> ColumnBuilder<'a> {
                 )
             }
             ColumnRaw::I64(values) => {
-                let values = fbb.create_vector(&values);
+                let values = fbb.create_vector(values);
                 let values = entry_fb::I64Values::create(
                     fbb,
                     &entry_fb::I64ValuesArgs {
@@ -1601,7 +1601,7 @@ impl<'a> ColumnBuilder<'a> {
                 )
             }
             ColumnRaw::Bool(values) => {
-                let values = fbb.create_vector(&values);
+                let values = fbb.create_vector(values);
                 let values = entry_fb::BoolValues::create(
                     fbb,
                     &entry_fb::BoolValuesArgs {
@@ -1616,7 +1616,7 @@ impl<'a> ColumnBuilder<'a> {
                 )
             }
             ColumnRaw::F64(values) => {
-                let values = fbb.create_vector(&values);
+                let values = fbb.create_vector(values);
                 let values = entry_fb::F64Values::create(
                     fbb,
                     &entry_fb::F64ValuesArgs {
@@ -1631,7 +1631,7 @@ impl<'a> ColumnBuilder<'a> {
                 )
             }
             ColumnRaw::U64(values) => {
-                let values = fbb.create_vector(&values);
+                let values = fbb.create_vector(values);
                 let values = entry_fb::U64Values::create(
                     fbb,
                     &entry_fb::U64ValuesArgs {
@@ -1802,7 +1802,7 @@ pub mod test_helpers {
     /// Converts the line protocol to a single `Entry` with a single shard and
     /// a single partition.
     pub fn lp_to_entry(lp: &str) -> Entry {
-        let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
+        let lines: Vec<_> = parse_lines(lp).map(|l| l.unwrap()).collect();
 
         let default_time = Utc::now().timestamp_nanos();
 
@@ -1822,7 +1822,7 @@ pub mod test_helpers {
     /// shard and a single partition, which is useful for testing when `lp` is
     /// large. Batches are sized according to LP_BATCH_SIZE.
     pub fn lp_to_entries(lp: &str, partitioner: &impl Partitioner) -> Vec<Entry> {
-        let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
+        let lines: Vec<_> = parse_lines(lp).map(|l| l.unwrap()).collect();
 
         let default_time = Utc::now().timestamp_nanos();
 
@@ -2446,7 +2446,7 @@ mod tests {
 
         // One point that has no timestamp
         let lp = "a val=1i";
-        let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
+        let lines: Vec<_> = parse_lines(lp).map(|l| l.unwrap()).collect();
 
         // Partition on the hour
         let hour_partitioner = hour_partitioner();

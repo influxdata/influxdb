@@ -390,7 +390,7 @@ impl Column {
     ) -> RowIDsOption {
         // If we can get an answer using only the meta-data on the column then
         // return that answer.
-        match self.evaluate_predicate_on_meta(&op, &value) {
+        match self.evaluate_predicate_on_meta(op, value) {
             PredicateMatch::None => return RowIDsOption::None(dst),
             PredicateMatch::All => return RowIDsOption::All(dst),
             PredicateMatch::SomeMaybe => {} // have to apply predicate to column
@@ -482,7 +482,7 @@ impl Column {
             // When the predicate is == and the metadata range indicates the column
             // can't contain `value` then the column doesn't need to be read.
             cmp::Operator::Equal => {
-                if !self.might_contain_value(&value) {
+                if !self.might_contain_value(value) {
                     return PredicateMatch::None; // no rows are going to match.
                 }
             }
@@ -491,7 +491,7 @@ impl Column {
             // contain any null values, and the entire range of values satisfies the
             // predicate then the column doesn't need to be read.
             cmp::Operator::GT | cmp::Operator::GTE | cmp::Operator::LT | cmp::Operator::LTE => {
-                if self.predicate_matches_all_values(&op, &value) {
+                if self.predicate_matches_all_values(op, value) {
                     return PredicateMatch::All;
                 }
             }
@@ -500,13 +500,13 @@ impl Column {
             // column can't possibly contain `value` then the predicate must
             // match all rows on the column.
             cmp::Operator::NotEqual => {
-                if !self.might_contain_value(&value) {
+                if !self.might_contain_value(value) {
                     return PredicateMatch::All; // all rows are going to match.
                 }
             }
         }
 
-        if self.predicate_matches_no_values(&op, &value) {
+        if self.predicate_matches_no_values(op, value) {
             return PredicateMatch::None;
         }
 

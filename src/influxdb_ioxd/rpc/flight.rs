@@ -25,6 +25,7 @@ use std::fmt::Debug;
 
 use super::super::planner::Planner;
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Invalid ticket. Error: {:?} Ticket: {:?}", source, ticket))]
@@ -353,7 +354,7 @@ fn optimize_schema(schema: &Schema) -> Schema {
 fn hydrate_dictionary(array: &ArrayRef) -> Result<ArrayRef, Error> {
     match array.data_type() {
         DataType::Dictionary(_, value) => {
-            arrow::compute::cast(array, &value).context(DictionaryError)
+            arrow::compute::cast(array, value).context(DictionaryError)
         }
         _ => unreachable!("not a dictionary"),
     }

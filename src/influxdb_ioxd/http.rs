@@ -483,7 +483,7 @@ where
         max_request_size,
     } = req.data::<Server<M>>().expect("server state");
     let max_request_size = *max_request_size;
-    let server = Arc::clone(&server);
+    let server = Arc::clone(server);
 
     // TODO(edd): figure out best way of catching all errors in this observation.
     let obs = server.metrics().http_requests.observation(); // instrument request

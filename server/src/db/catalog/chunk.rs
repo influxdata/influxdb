@@ -791,7 +791,7 @@ impl CatalogChunk {
                 meta,
                 ..
             } => {
-                let meta = Arc::clone(&meta);
+                let meta = Arc::clone(meta);
                 match &representation {
                     ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
                         // Should always be in RUB once persisted
@@ -804,7 +804,7 @@ impl CatalogChunk {
                         .fail()
                     }
                     ChunkStageFrozenRepr::ReadBuffer(repr) => {
-                        let db = Arc::clone(&repr);
+                        let db = Arc::clone(repr);
                         self.finish_lifecycle_action(ChunkLifecycleAction::Persisting)?;
 
                         self.metrics

@@ -305,7 +305,7 @@ impl Segment {
         // we are grouping on and store each group as an iterator.
         let mut group_column_encoded_values = Vec::with_capacity(group_columns.len());
         for group_column in group_columns {
-            if let Some(column) = self.column(&group_column) {
+            if let Some(column) = self.column(group_column) {
                 let encoded_values = if filtered_row_ids_vec.len() == self.meta.rows {
                     column.all_encoded_values()
                 } else {
@@ -330,7 +330,7 @@ impl Segment {
         for (column_name, _) in aggregates {
             // let column_name: &String = column_name;
 
-            if let Some(column) = self.column(&column_name) {
+            if let Some(column) = self.column(column_name) {
                 let decoded_values = column.values(&filtered_row_ids_vec);
                 assert_eq!(
                     filtered_row_ids.cardinality() as usize,
@@ -514,7 +514,7 @@ impl Segment {
         // we are grouping on and store each group as an iterator.
         let mut group_column_encoded_values = Vec::with_capacity(group_columns.len());
         for group_column in group_columns {
-            if let Some(column) = self.column(&group_column) {
+            if let Some(column) = self.column(group_column) {
                 let encoded_values = if filtered_row_ids_vec.len() == self.meta.rows {
                     column.all_encoded_values()
                 } else {
@@ -536,7 +536,7 @@ impl Segment {
         // aggregating on.
         let mut aggregate_column_decoded_values = Vec::with_capacity(aggregates.len());
         for (column_name, _) in aggregates {
-            if let Some(column) = self.column(&column_name) {
+            if let Some(column) = self.column(column_name) {
                 let decoded_values = column.values(&filtered_row_ids_vec);
                 assert_eq!(
                     filtered_row_ids.cardinality() as usize,
@@ -657,7 +657,7 @@ impl Segment {
         // we are grouping on and store each group as an iterator.
         let mut group_column_encoded_values = Vec::with_capacity(group_columns.len());
         for group_column in group_columns {
-            if let Some(column) = self.column(&group_column) {
+            if let Some(column) = self.column(group_column) {
                 let encoded_values = if filtered_row_ids_vec.len() == self.meta.rows {
                     column.all_encoded_values()
                 } else {
@@ -688,7 +688,7 @@ impl Segment {
             aggregate_cols.push((
                 column_name.clone(),
                 agg_type.clone(),
-                self.column(&column_name).unwrap(),
+                self.column(column_name).unwrap(),
             ));
         }
 
@@ -1358,8 +1358,8 @@ impl<'a> Segments<'a> {
                             segment.aggregate_by_group_with_hash(
                                 time_range,
                                 predicates,
-                                &group_columns,
-                                &aggregates,
+                                group_columns,
+                                aggregates,
                                 window,
                             );
                             info!(

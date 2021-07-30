@@ -198,7 +198,7 @@ impl PerformQuery {
                 message
                     .header_as_dictionary_batch()
                     .ok_or(Error::CouldNotGetDictionaryBatch)?,
-                &schema,
+                schema,
                 dictionaries_by_field,
             )?;
 
@@ -213,8 +213,8 @@ impl PerformQuery {
 
         Ok(Some(flight_data_to_arrow_batch(
             &data,
-            Arc::clone(&schema),
-            &dictionaries_by_field,
+            Arc::clone(schema),
+            dictionaries_by_field,
         )?))
     }
 }

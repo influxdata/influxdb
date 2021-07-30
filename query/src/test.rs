@@ -935,7 +935,7 @@ impl DatabaseStore for TestDatabaseStore {
         let mut databases = self.databases.lock();
 
         if let Some(db) = databases.get(name) {
-            Ok(Arc::clone(&db))
+            Ok(Arc::clone(db))
         } else {
             let new_db = Arc::new(TestDatabase::new());
             databases.insert(name.to_string(), Arc::clone(&new_db));

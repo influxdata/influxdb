@@ -375,7 +375,7 @@ impl Histogram {
     /// A helper method for observing latencies. Returns a new timing instrument
     /// which will handle submitting an observation containing a duration.
     pub fn timer(&self) -> HistogramTimer<'_> {
-        HistogramTimer::new(&self)
+        HistogramTimer::new(self)
     }
 }
 #[derive(Debug)]

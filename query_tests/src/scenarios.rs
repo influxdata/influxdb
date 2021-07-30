@@ -686,10 +686,10 @@ pub(crate) async fn make_one_chunk_rub_scenario(
     let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
     }
@@ -745,7 +745,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
     }
@@ -758,10 +758,10 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
     }
@@ -774,15 +774,15 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
 
         db.persist_partition(
-            &table_name,
+            table_name,
             partition_key,
             Instant::now() + Duration::from_secs(1),
         )
@@ -798,21 +798,20 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
         db.persist_partition(
-            &table_name,
+            table_name,
             partition_key,
             Instant::now() + Duration::from_secs(1),
         )
         .await
         .unwrap();
-        db.unload_read_buffer(&table_name, partition_key, 1)
-            .unwrap();
+        db.unload_read_buffer(table_name, partition_key, 1).unwrap();
     }
     let scenario5 = DbScenario {
         scenario_name: "Data in object store only".into(),
@@ -845,7 +844,7 @@ pub async fn make_two_chunk_scenarios(
     let db = make_db().await.db;
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
     }
@@ -859,10 +858,10 @@ pub async fn make_two_chunk_scenarios(
     let db = make_db().await.db;
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
     }
@@ -876,21 +875,21 @@ pub async fn make_two_chunk_scenarios(
     let db = make_db().await.db;
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
     }
     let table_names = write_lp(&db, data2).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
 
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
 
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 1)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 1)
             .await
             .unwrap();
     }
@@ -903,14 +902,14 @@ pub async fn make_two_chunk_scenarios(
     let db = make_db().await.db;
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
         db.persist_partition(
-            &table_name,
+            table_name,
             partition_key,
             Instant::now() + Duration::from_secs(1),
         )
@@ -919,14 +918,14 @@ pub async fn make_two_chunk_scenarios(
     }
     let table_names = write_lp(&db, data2).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 2)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 2)
             .await
             .unwrap();
         db.persist_partition(
-            &table_name,
+            table_name,
             partition_key,
             Instant::now() + Duration::from_secs(1),
         )
@@ -942,39 +941,37 @@ pub async fn make_two_chunk_scenarios(
     let db = make_db().await.db;
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
         db.persist_partition(
-            &table_name,
+            table_name,
             partition_key,
             Instant::now() + Duration::from_secs(1),
         )
         .await
         .unwrap();
-        db.unload_read_buffer(&table_name, partition_key, 1)
-            .unwrap();
+        db.unload_read_buffer(table_name, partition_key, 1).unwrap();
     }
     let table_names = write_lp(&db, data2).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 2)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 2)
             .await
             .unwrap();
         db.persist_partition(
-            &table_name,
+            table_name,
             partition_key,
             Instant::now() + Duration::from_secs(1),
         )
         .await
         .unwrap();
-        db.unload_read_buffer(&table_name, partition_key, 3)
-            .unwrap();
+        db.unload_read_buffer(table_name, partition_key, 3).unwrap();
     }
     let scenario6 = DbScenario {
         scenario_name: "Data in 2 parquet chunks in object store only".into(),
@@ -986,17 +983,17 @@ pub async fn make_two_chunk_scenarios(
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
         // put chunk 1 into RUB
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
     }
     let table_names = write_lp(&db, data2).await; // write to MUB
     for table_name in &table_names {
         // compact chunks into a single RUB chunk
-        db.compact_partition(&table_name, partition_key)
+        db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
     }
@@ -1036,10 +1033,10 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
     let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
     }
@@ -1052,21 +1049,20 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
     let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
-        db.rollover_partition(&table_name, partition_key)
+        db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(&table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
         db.persist_partition(
-            &table_name,
+            table_name,
             partition_key,
             Instant::now() + Duration::from_secs(1),
         )
         .await
         .unwrap();
-        db.unload_read_buffer(&table_name, partition_key, 1)
-            .unwrap();
+        db.unload_read_buffer(table_name, partition_key, 1).unwrap();
     }
     let scenario2 = DbScenario {
         scenario_name: "--------------------- Data in object store only ".into(),

@@ -78,7 +78,7 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> PackedStringArray<K> {
 
     pub fn iter(&self) -> PackedStringIterator<'_, K> {
         PackedStringIterator {
-            array: &self,
+            array: self,
             index: 0,
         }
     }

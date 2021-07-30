@@ -546,7 +546,7 @@ impl Db {
         // assume the locks have to possibly live across the `await`
         let fut = {
             let partition = self.partition(table_name, partition_key)?;
-            let partition = LockableCatalogPartition::new(Arc::clone(&self), partition);
+            let partition = LockableCatalogPartition::new(Arc::clone(self), partition);
 
             // Do lock dance to get a write lock on the partition as well
             // as on the to-be-dropped chunk.
@@ -603,7 +603,7 @@ impl Db {
         // assume the locks have to possibly live across the `await`
         let fut = {
             let partition = self.partition(table_name, partition_key)?;
-            let partition = LockableCatalogPartition::new(Arc::clone(&self), partition);
+            let partition = LockableCatalogPartition::new(Arc::clone(self), partition);
 
             // Do lock dance to get a write lock on the partition as well
             // as on all of the chunks
@@ -637,7 +637,7 @@ impl Db {
         // assume the locks have to possibly live across the `await`
         let fut = {
             let partition = self.partition(table_name, partition_key)?;
-            let partition = LockableCatalogPartition::new(Arc::clone(&self), partition);
+            let partition = LockableCatalogPartition::new(Arc::clone(self), partition);
             let partition = partition.read();
 
             let chunks = LockablePartition::chunks(&partition);
@@ -752,7 +752,7 @@ impl Db {
         tokio::join!(
             // lifecycle policy loop
             async {
-                let mut policy = ::lifecycle::LifecyclePolicy::new(ArcDb(Arc::clone(&self)));
+                let mut policy = ::lifecycle::LifecyclePolicy::new(ArcDb(Arc::clone(self)));
 
                 while !shutdown.is_cancelled() {
                     self.worker_iterations_lifecycle
@@ -2908,7 +2908,7 @@ mod tests {
 
         for (expected_summary, actual_summary) in expected.iter().zip(chunk_summaries.iter()) {
             assert!(
-                expected_summary.equal_without_timestamps(&actual_summary),
+                expected_summary.equal_without_timestamps(actual_summary),
                 "expected:\n{:#?}\n\nactual:{:#?}\n\n",
                 expected_summary,
                 actual_summary
@@ -3218,7 +3218,7 @@ mod tests {
 
         for (expected_summary, actual_summary) in expected.iter().zip(chunk_summaries.iter()) {
             assert!(
-                expected_summary.equal_without_timestamps(&actual_summary),
+                expected_summary.equal_without_timestamps(actual_summary),
                 "\n\nexpected item:\n{:#?}\n\nactual item:\n{:#?}\n\n\
                      all expected:\n{:#?}\n\nall actual:\n{:#?}",
                 expected_summary,
@@ -4049,7 +4049,7 @@ mod tests {
 
         object_store
             .put(
-                &path,
+                path,
                 futures::stream::once(async move { Ok(data) }),
                 Some(len),
             )

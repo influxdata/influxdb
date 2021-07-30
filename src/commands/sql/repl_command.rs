@@ -29,7 +29,7 @@ impl TryInto<ReplCommand> for String {
         let raw_commands = self
             .trim()
             // chop off trailing semicolon
-            .strip_suffix(";")
+            .strip_suffix(';')
             .unwrap_or(&self)
             // tokenize on whitespace
             .split(' ')

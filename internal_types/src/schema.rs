@@ -475,7 +475,7 @@ impl Schema {
         // Now, sort lexographically (but put timestamp last)
         primary_keys.sort_by(|(a_column_type, a), (b_column_type, b)| {
             match (a_column_type, b_column_type) {
-                (Tag, Tag) => a.name().cmp(&b.name()),
+                (Tag, Tag) => a.name().cmp(b.name()),
                 (Timestamp, Tag) => Ordering::Greater,
                 (Tag, Timestamp) => Ordering::Less,
                 (Timestamp, Timestamp) => panic!("multiple timestamps in summary"),

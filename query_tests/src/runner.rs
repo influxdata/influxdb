@@ -20,6 +20,7 @@ use std::{
 use self::{parse::TestQueries, setup::TestSetup};
 use crate::scenarios::{DbScenario, DbSetup};
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Can not find case file '{:?}': {}", path, source))]
@@ -275,7 +276,7 @@ impl<W: Write> Runner<W> {
             let executor = Arc::new(executor);
 
             let physical_plan = planner
-                .query(db, &sql, executor.as_ref())
+                .query(db, sql, executor.as_ref())
                 .expect("built plan successfully");
 
             let results: Vec<RecordBatch> = executor

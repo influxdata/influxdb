@@ -108,7 +108,7 @@ async fn run_tag_values_query(
     predicate: Predicate,
 ) {
     let plan = planner
-        .tag_values(db, &tag_key, predicate)
+        .tag_values(db, tag_key, predicate)
         .expect("built plan successfully");
     let names = executor.to_string_set(plan).await.expect(
         "converted plan to strings

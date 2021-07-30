@@ -58,7 +58,7 @@ impl Job {
             Self::CompactChunks { partition, .. } => Some(&partition.db_name),
             Self::PersistChunks { partition, .. } => Some(&partition.db_name),
             Self::DropChunk { chunk, .. } => Some(&chunk.db_name),
-            Self::WipePreservedCatalog { db_name, .. } => Some(&db_name),
+            Self::WipePreservedCatalog { db_name, .. } => Some(db_name),
         }
     }
 

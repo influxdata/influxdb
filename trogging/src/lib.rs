@@ -747,7 +747,7 @@ ERROR foo
 
         for range in test_cases {
             for len in range {
-                let long = std::iter::repeat("X").take(len).collect::<String>();
+                let long = "X".repeat(len);
 
                 let captured = log_test(
                     Builder::new().with_log_filter(&Some("error".to_string())),

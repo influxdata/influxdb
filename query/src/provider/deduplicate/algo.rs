@@ -284,12 +284,12 @@ impl RecordBatchDeduplicator {
         // Special case when no ranges are duplicated (so just emit input as output)
         if num_dupes == 0 {
             trace!(num_rows = batch.num_rows(), "No dupes");
-            Self::slice_record_batch(&batch, 0, ranges.len())
+            Self::slice_record_batch(batch, 0, ranges.len())
         } else {
             trace!(num_dupes, num_rows = batch.num_rows(), "dupes");
 
             // Use take kernel
-            let sort_key_indices = self.compute_sort_key_indices(&ranges);
+            let sort_key_indices = self.compute_sort_key_indices(ranges);
 
             let take_options = Some(TakeOptions {
                 check_bounds: false,
@@ -309,7 +309,7 @@ impl RecordBatchDeduplicator {
                         )
                     } else {
                         // pick the last non null value
-                        let field_indices = self.compute_field_indices(&ranges, input_array);
+                        let field_indices = self.compute_field_indices(ranges, input_array);
 
                         arrow::compute::take(
                             input_array.as_ref(),

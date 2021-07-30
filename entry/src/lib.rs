@@ -1,6 +1,6 @@
 mod entry;
 
-#[allow(unused_imports)]
+#[allow(unused_imports, clippy::needless_borrow)]
 mod entry_generated;
 
 pub use crate::entry::*;

@@ -573,7 +573,7 @@ where
                     server_id: config.server_id(),
                 })
             }
-            ServerStage::Initialized { config, .. } => Ok(Arc::clone(&config)),
+            ServerStage::Initialized { config, .. } => Ok(Arc::clone(config)),
         }
     }
 
@@ -584,7 +584,7 @@ where
             ServerStage::Startup { .. } => Err(Error::IdNotSet),
             ServerStage::InitReady { config, .. }
             | ServerStage::Initializing { config, .. }
-            | ServerStage::Initialized { config, .. } => Ok(Arc::clone(&config)),
+            | ServerStage::Initialized { config, .. } => Ok(Arc::clone(config)),
         }
     }
 
@@ -866,7 +866,7 @@ where
                     .await?
             }
             None => {
-                self.write_entry_local(&db_name, db, sharded_entry.entry)
+                self.write_entry_local(db_name, db, sharded_entry.entry)
                     .await?
             }
         }
@@ -931,7 +931,7 @@ where
                 }
                 Ok(remote) => {
                     return remote
-                        .write_entry(&db_name, entry)
+                        .write_entry(db_name, entry)
                         .await
                         .context(RemoteError)
                 }

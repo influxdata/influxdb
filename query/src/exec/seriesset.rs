@@ -377,7 +377,7 @@ impl SeriesSetConverter {
                     ),
                 };
 
-                tag_value.map(|tag_value| (Arc::clone(&column_name), Arc::from(tag_value.as_str())))
+                tag_value.map(|tag_value| (Arc::clone(column_name), Arc::from(tag_value.as_str())))
             })
             .collect()
     }

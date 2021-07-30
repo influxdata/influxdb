@@ -307,7 +307,7 @@ pub(super) struct TimestampHistogram {
 
 impl TimestampHistogram {
     pub(super) fn add(&self, summary: &TimestampSummary) {
-        self.inner.lock().merge(&summary)
+        self.inner.lock().merge(summary)
     }
 }
 

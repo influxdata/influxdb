@@ -662,7 +662,7 @@ impl InfluxRpcPlanner {
         for chunk in chunks {
             // Try and apply the predicate using only metadata
             let pred_result = chunk
-                .apply_predicate_to_metadata(&predicate)
+                .apply_predicate_to_metadata(predicate)
                 .map_err(|e| Box::new(e) as _)
                 .context(CheckingChunkPredicate {
                     chunk_id: chunk.id(),
@@ -1048,7 +1048,7 @@ impl InfluxRpcPlanner {
         };
 
         // Group by all tag columns and the window bounds
-        let window_bound = make_window_bound_expr(TIME_COLUMN_NAME.as_expr(), &every, &offset)
+        let window_bound = make_window_bound_expr(TIME_COLUMN_NAME.as_expr(), every, offset)
             .alias(TIME_COLUMN_NAME);
 
         let group_exprs = schema
@@ -1517,7 +1517,7 @@ mod tests {
     fn reorder_prefix_err(prefix: &[&str], table_columns: &[&str]) -> String {
         let table_columns = table_columns.to_vec();
 
-        let res = reorder_prefix(&prefix, table_columns);
+        let res = reorder_prefix(prefix, table_columns);
 
         match res {
             Ok(r) => {

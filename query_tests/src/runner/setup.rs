@@ -7,6 +7,7 @@ use crate::scenarios::{get_all_setups, get_db_setup, DbSetup};
 
 const IOX_SETUP_NEEDLE: &str = "-- IOX_SETUP: ";
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display(

@@ -75,7 +75,7 @@ where
 {
     trace!(?filter_expr, schema=?chunk.schema(), "creating pruning predicate");
 
-    let pruning_predicate = match PruningPredicate::try_new(&filter_expr, chunk.schema().as_arrow())
+    let pruning_predicate = match PruningPredicate::try_new(filter_expr, chunk.schema().as_arrow())
     {
         Ok(p) => p,
         Err(e) => {

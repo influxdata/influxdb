@@ -569,7 +569,7 @@ impl AggregatableByRange for Vector {
         from_row_id: usize,
         to_row_id: usize,
     ) -> Aggregate {
-        Vector::aggregate_by_id_range(&self, agg_type, from_row_id, to_row_id)
+        Vector::aggregate_by_id_range(self, agg_type, from_row_id, to_row_id)
     }
 }
 
@@ -861,7 +861,7 @@ impl Column {
                 }
 
                 let now = std::time::Instant::now();
-                let v = c.encoded_values(&row_ids);
+                let v = c.encoded_values(row_ids);
                 debug!("time getting encoded values {:?}", now.elapsed());
 
                 debug!("dictionary {:?}", c.data.dictionary());
@@ -872,14 +872,14 @@ impl Column {
                     return Vector::Float(vec![]);
                 }
 
-                Vector::Float(c.encoded_values(&row_ids))
+                Vector::Float(c.encoded_values(row_ids))
             }
             Column::Integer(c) => {
                 if row_ids.is_empty() {
                     return Vector::Integer(vec![]);
                 }
 
-                Vector::Integer(c.encoded_values(&row_ids))
+                Vector::Integer(c.encoded_values(row_ids))
             }
         }
     }
@@ -1328,7 +1328,7 @@ impl AggregatableByRange for &Column {
         from_row_id: usize,
         to_row_id: usize,
     ) -> Aggregate {
-        Column::aggregate_by_id_range(&self, agg_type, from_row_id, to_row_id)
+        Column::aggregate_by_id_range(self, agg_type, from_row_id, to_row_id)
     }
 }
 

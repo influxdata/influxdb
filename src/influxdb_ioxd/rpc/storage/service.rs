@@ -863,9 +863,7 @@ where
     let predicate = PredicateBuilder::default().set_range(range).build();
     let db_name = db_name.as_ref();
 
-    let db = db_store
-        .db(&db_name)
-        .context(DatabaseNotFound { db_name })?;
+    let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
     let executor = db_store.executor();
 
     let plan = Planner::new(Arc::clone(&executor))
@@ -1080,9 +1078,7 @@ where
     let owned_db_name = db_name;
     let db_name = owned_db_name.as_str();
 
-    let db = db_store
-        .db(&db_name)
-        .context(DatabaseNotFound { db_name })?;
+    let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
     let executor = db_store.executor();
 
     let planner = Planner::new(Arc::clone(&executor));
@@ -1184,7 +1180,7 @@ mod tests {
     use futures::prelude::*;
 
     use generated_types::{
-        aggregate::AggregateType, i_ox_testing_client, node, read_response::frame, storage_client,
+        aggregate::AggregateType, i_ox_testing_client, node, storage_client,
         Aggregate as RPCAggregate, Duration as RPCDuration, Node, ReadSource, TestErrorRequest,
         Window as RPCWindow,
     };
@@ -2578,13 +2574,13 @@ mod tests {
                 .try_collect()
                 .await?;
 
-            let data_frames: Vec<frame::Data> = responses
+            let data_frames_count = responses
                 .into_iter()
                 .flat_map(|r| r.frames)
                 .flat_map(|f| f.data)
-                .collect();
+                .count();
 
-            let s = format!("{} aggregate_frames", data_frames.len());
+            let s = format!("{} aggregate_frames", data_frames_count);
 
             Ok(vec![s])
         }
@@ -2671,13 +2667,13 @@ mod tests {
                 .try_collect()
                 .await?;
 
-            let data_frames: Vec<frame::Data> = responses
+            let data_frames_count = responses
                 .into_iter()
                 .flat_map(|r| r.frames)
                 .flat_map(|f| f.data)
-                .collect();
+                .count();
 
-            let s = format!("{} frames", data_frames.len());
+            let s = format!("{} frames", data_frames_count);
 
             Ok(vec![s])
         }
@@ -2696,13 +2692,13 @@ mod tests {
                 .try_collect()
                 .await?;
 
-            let data_frames: Vec<frame::Data> = responses
+            let data_frames_count = responses
                 .into_iter()
                 .flat_map(|r| r.frames)
                 .flat_map(|f| f.data)
-                .collect();
+                .count();
 
-            let s = format!("{} group frames", data_frames.len());
+            let s = format!("{} group frames", data_frames_count);
 
             Ok(vec![s])
         }

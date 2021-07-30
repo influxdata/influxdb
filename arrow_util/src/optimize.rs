@@ -20,7 +20,7 @@ pub fn optimize_dictionaries(batch: &RecordBatch) -> Result<RecordBatch> {
         .iter()
         .zip(schema.fields())
         .map(|(col, field)| match field.data_type() {
-            DataType::Dictionary(key, value) => optimize_dict_col(col, &key, &value),
+            DataType::Dictionary(key, value) => optimize_dict_col(col, key, value),
             _ => Ok(Arc::clone(col)),
         })
         .collect::<Result<Vec<_>>>()?;

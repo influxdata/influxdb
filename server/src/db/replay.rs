@@ -11,6 +11,7 @@ use write_buffer::config::WriteBufferConfig;
 
 use crate::Db;
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Cannot seek sequencer {} during replay: {}", sequencer_id, source))]
@@ -382,7 +383,7 @@ mod tests {
                         // start background worker
                         let shutdown: CancellationToken = Default::default();
                         let shutdown_captured = shutdown.clone();
-                        let db_captured = Arc::clone(&db);
+                        let db_captured = Arc::clone(db);
                         let join_handle = tokio::spawn(async move {
                             db_captured.background_worker(shutdown_captured).await
                         });
@@ -480,7 +481,7 @@ mod tests {
                         )
                     }
                     Check::Query(query, expected) => {
-                        let db = Arc::clone(&db);
+                        let db = Arc::clone(db);
                         let planner = SqlQueryPlanner::default();
                         let executor = db.executor();
 

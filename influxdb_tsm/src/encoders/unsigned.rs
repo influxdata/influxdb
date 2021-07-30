@@ -6,7 +6,7 @@ use std::error::Error;
 /// deltas are further compressed if possible, either via bit-packing using
 /// simple8b or by run-length encoding the deltas if they're all the same.
 pub fn encode(src: &[u64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
-    let signed = u64_to_i64_vector(&src);
+    let signed = u64_to_i64_vector(src);
     super::integer::encode(&signed, dst)
 }
 

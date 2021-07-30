@@ -130,7 +130,7 @@ impl Chunk {
     /// caller does not need to be concerned about the size of the update.
     pub fn upsert_table(&mut self, table_data: RecordBatch) {
         let table_name = self.table.name();
-        let row_group = record_batch_to_row_group_with_logging(&table_name, table_data);
+        let row_group = record_batch_to_row_group_with_logging(table_name, table_data);
 
         self.upsert_table_with_row_group(row_group)
     }

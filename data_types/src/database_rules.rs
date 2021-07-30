@@ -98,7 +98,7 @@ impl DatabaseRules {
     }
 
     pub fn db_name(&self) -> &str {
-        &self.name.as_str()
+        self.name.as_str()
     }
 }
 
@@ -109,7 +109,7 @@ pub trait Partitioner {
 
 impl Partitioner for DatabaseRules {
     fn partition_key(&self, line: &ParsedLine<'_>, default_time: i64) -> Result<String> {
-        self.partition_key(&line, default_time)
+        self.partition_key(line, default_time)
     }
 }
 
@@ -268,16 +268,16 @@ impl Partitioner for PartitionTemplate {
             .iter()
             .map(|p| match p {
                 TemplatePart::Table => line.series.measurement.to_string(),
-                TemplatePart::Column(column) => match line.tag_value(&column) {
+                TemplatePart::Column(column) => match line.tag_value(column) {
                     Some(v) => format!("{}_{}", column, v),
-                    None => match line.field_value(&column) {
+                    None => match line.field_value(column) {
                         Some(v) => format!("{}_{}", column, v),
                         None => "".to_string(),
                     },
                 },
                 TemplatePart::TimeFormat(format) => {
                     let nanos = line.timestamp.unwrap_or(default_time);
-                    Utc.timestamp_nanos(nanos).format(&format).to_string()
+                    Utc.timestamp_nanos(nanos).format(format).to_string()
                 }
                 _ => unimplemented!(),
             })
