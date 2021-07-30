@@ -33,7 +33,7 @@ It has two modes of operation, depending on the --find-duplicates flag.
 `,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return dumpWAL.run(*cmd, args)
+			return dumpWAL.run(cmd, args)
 		},
 	}
 
@@ -43,7 +43,7 @@ It has two modes of operation, depending on the --find-duplicates flag.
 	return cmd
 }
 
-func (dumpWAL *dumpWALCommand) run(cmd cobra.Command, args []string) error {
+func (dumpWAL *dumpWALCommand) run(cmd *cobra.Command, args []string) error {
 
 	// Process each WAL file.
 	for _, path := range args {
@@ -54,7 +54,7 @@ func (dumpWAL *dumpWALCommand) run(cmd cobra.Command, args []string) error {
 	return nil
 }
 
-func (dumpWAL *dumpWALCommand) processWALFile(cmd cobra.Command, path string) error {
+func (dumpWAL *dumpWALCommand) processWALFile(cmd *cobra.Command, path string) error {
 	if filepath.Ext(path) != "."+tsm1.WALFileExtension {
 		cmd.Printf("invalid wal file path, skipping %s\n", path)
 		return nil
