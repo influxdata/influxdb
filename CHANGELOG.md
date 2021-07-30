@@ -2,6 +2,7 @@ v1.8.8 [unreleased]
 -------------------
 
 -	[#21953](https://github.com/influxdata/influxdb/pull/21953): fix: prevent silently dropped writes with overlapping shards
+-	[#21991](https://github.com/influxdata/influxdb/pull/21991): fix: restore portable backup bug
 
 v1.8.7 [2021-07-21]
 -------------------
