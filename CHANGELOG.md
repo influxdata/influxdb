@@ -5,8 +5,8 @@
 
 Linux packages for this release (`.deb` and `.rpm`) have been modified as follows:
 
-* A new `influx-cli` package contains only the `influx` CLI binary.
-* The `influxdb2` package no longer contains the `influx` binary. Instead, it declares a recommended dependency on `influx-cli`.
+* A new `influxdb2-cli` package contains only the `influx` CLI binary.
+* The `influxdb2` package no longer contains the `influx` binary. Instead, it declares a recommended dependency on `influxdb2-cli`.
 
 These changes were made to enable standalone installation of the `influx` CLI for users of InfluxDB Cloud.
 
