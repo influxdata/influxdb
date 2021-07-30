@@ -25,7 +25,7 @@ cat << EOF > /etc/telegraf/telegraf.conf
   urls = ["https://us-west-2-1.aws.cloud2.influxdata.com"]
   token = "${DB_TOKEN}"
   organization = "${CLOUD2_ORG}"
-  bucket = "${CLOUD2_BUCKET}"
+  bucket = "temp_bucket"
 
 [[inputs.file]]
   files = ["$working_dir/*.json"]
