@@ -52,7 +52,7 @@ func Test_DumpWal_File_Valid(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	params := cmdParams{
-		walPaths:     []string{file},
+		walPaths: []string{file},
 		expectedOuts: []string{
 			"[write]",
 			"cpu,host=A#!~#float 1.1 1",
