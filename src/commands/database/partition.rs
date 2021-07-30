@@ -6,7 +6,7 @@ use influxdb_iox_client::{
     connection::Builder,
     management::{
         self, ClosePartitionChunkError, GetPartitionError, ListPartitionChunksError,
-        ListPartitionsError, NewPartitionChunkError, UnloadPartitionChunkError
+        ListPartitionsError, NewPartitionChunkError, UnloadPartitionChunkError,
     },
 };
 use std::convert::{TryFrom, TryInto};
