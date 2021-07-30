@@ -8341,6 +8341,12 @@ func TestServer_Query_ShowTagValues(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
+		&Query{
+			name:    "show tag values with multiple retention policies",
+			command: `SHOW TAG VALUES FROM ` + rps[0] + `.cpu, ` + rps[1] +`.cpu WITH KEY IN (host, region)`,
+			exp:     `{"results":[{"statement_id":0,"error":"only one retention policy allowed in SHOW TAG VALUES query: \"rp1\", \"rp0\""}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
 	}...)
 
 	// Retention policy filtration of tag values only works on TSI
