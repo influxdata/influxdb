@@ -1138,23 +1138,24 @@ impl std::fmt::Display for &Scalar {
 
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum OwnedValue {
-    // Represents a NULL value in a column row.
-    Null,
-
-    // A UTF-8 valid string.
+    /// A UTF-8 valid string.
     String(String),
 
-    // An arbitrary byte array.
+    /// An arbitrary byte array.
     ByteArray(Vec<u8>),
 
-    // A boolean value.
+    /// A boolean value.
     Boolean(bool),
 
-    // A numeric scalar value.
+    /// A numeric scalar value, or NULL
     Scalar(Scalar),
 }
 
 impl OwnedValue {
+    pub fn new_null() -> Self {
+        Self::Scalar(Scalar::Null)
+    }
+
     /// The size in bytes of this value.
     pub fn size(&self) -> usize {
         let self_size = size_of::<Self>();
@@ -1169,7 +1170,6 @@ impl OwnedValue {
 impl std::fmt::Display for &OwnedValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OwnedValue::Null => write!(f, "NULL"),
             OwnedValue::String(s) => s.fmt(f),
             OwnedValue::ByteArray(s) => write!(f, "{}", String::from_utf8_lossy(s)),
             OwnedValue::Boolean(b) => b.fmt(f),
@@ -1882,7 +1882,7 @@ mod test {
 
     #[test]
     fn size() {
-        let v1 = OwnedValue::Null;
+        let v1 = OwnedValue::new_null();
         assert_eq!(v1.size(), 32);
 
         let v1 = OwnedValue::Scalar(Scalar::I64(22));

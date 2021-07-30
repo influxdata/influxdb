@@ -152,32 +152,32 @@ impl Column {
                     OwnedValue::String(min.clone()),
                     OwnedValue::String(max.clone()),
                 ),
-                None => (OwnedValue::Null, OwnedValue::Null),
+                None => (OwnedValue::new_null(), OwnedValue::new_null()),
             },
             Self::Float(meta, _) => match meta.range {
                 Some((min, max)) => (
                     OwnedValue::Scalar(Scalar::F64(min)),
                     OwnedValue::Scalar(Scalar::F64(max)),
                 ),
-                None => (OwnedValue::Null, OwnedValue::Null),
+                None => (OwnedValue::new_null(), OwnedValue::new_null()),
             },
             Self::Integer(meta, _) => match meta.range {
                 Some((min, max)) => (
                     OwnedValue::Scalar(Scalar::I64(min)),
                     OwnedValue::Scalar(Scalar::I64(max)),
                 ),
-                None => (OwnedValue::Null, OwnedValue::Null),
+                None => (OwnedValue::new_null(), OwnedValue::new_null()),
             },
             Self::Unsigned(meta, _) => match meta.range {
                 Some((min, max)) => (
                     OwnedValue::Scalar(Scalar::U64(min)),
                     OwnedValue::Scalar(Scalar::U64(max)),
                 ),
-                None => (OwnedValue::Null, OwnedValue::Null),
+                None => (OwnedValue::new_null(), OwnedValue::new_null()),
             },
             Self::Bool(meta, _) => match meta.range {
                 Some((min, max)) => (OwnedValue::Boolean(min), OwnedValue::Boolean(max)),
-                None => (OwnedValue::Null, OwnedValue::Null),
+                None => (OwnedValue::new_null(), OwnedValue::new_null()),
             },
             Self::ByteArray(_, _) => todo!(),
         }
@@ -1430,7 +1430,7 @@ mod test {
             ),
             (
                 StringArray::from(vec![None, None]),
-                (OwnedValue::Null, OwnedValue::Null),
+                (OwnedValue::new_null(), OwnedValue::new_null()),
             ),
         ];
 
@@ -1459,7 +1459,7 @@ mod test {
             ),
             (
                 Int64Array::from(vec![None, None]),
-                (OwnedValue::Null, OwnedValue::Null),
+                (OwnedValue::new_null(), OwnedValue::new_null()),
             ),
         ];
 

@@ -832,6 +832,7 @@ mod test {
     fn table_summaries() {
         let schema = SchemaBuilder::new()
             .non_null_tag("env")
+            .tag("host")
             .non_null_field("temp", Float64)
             .non_null_field("counter", UInt64)
             .non_null_field("icounter", Int64)
@@ -844,6 +845,11 @@ mod test {
         let data: Vec<ArrayRef> = vec![
             Arc::new(
                 vec!["prod", "dev", "prod"]
+                    .into_iter()
+                    .collect::<DictionaryArray<Int32Type>>(),
+            ),
+            Arc::new(
+                (vec![None, None, None] as Vec<Option<&str>>)
                     .into_iter()
                     .collect::<DictionaryArray<Int32Type>>(),
             ),
@@ -891,6 +897,11 @@ mod test {
                     null_count: 0,
                     distinct_count: Some(NonZeroU64::new(2).unwrap()),
                 }),
+            },
+            ColumnSummary {
+                name: "host".into(),
+                influxdb_type: Some(InfluxDbType::Tag),
+                stats: Statistics::String(StatValues::new_all_null(3)),
             },
             ColumnSummary {
                 name: "icounter".into(),

@@ -218,8 +218,11 @@ impl std::fmt::Display for AggregateType {
     }
 }
 
-/// Describes the semantic meaning of the column in a set of results. That is,
-/// whether the column is a "tag", "field", "timestamp", or "other".
+/// Describes the semantic meaning of the column in a set of results
+/// and the column name.
+///
+/// Semantic meaning specifies if the column is a "tag", "field",
+/// "timestamp", or "other".
 #[derive(PartialEq, Debug, PartialOrd, Clone)]
 pub enum ColumnType {
     Tag(String),

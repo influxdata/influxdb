@@ -17,6 +17,9 @@ pub async fn test() {
 
     let mut client = server_fixture.flight_client();
 
+    // This does nothing except test the client handshake implementation.
+    client.handshake().await.unwrap();
+
     let query_results = client
         .perform_query(scenario.database_name(), sql_query)
         .await

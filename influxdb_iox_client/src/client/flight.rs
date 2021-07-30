@@ -1,5 +1,6 @@
 use std::{convert::TryFrom, sync::Arc};
 
+use futures_util::stream;
 use futures_util::stream::StreamExt;
 use serde::Serialize;
 use thiserror::Error;
@@ -13,10 +14,11 @@ use arrow::{
 };
 use arrow_flight::{
     flight_service_client::FlightServiceClient, utils::flight_data_to_arrow_batch, FlightData,
-    Ticket,
+    HandshakeRequest, Ticket,
 };
 
 use crate::connection::Connection;
+use rand::Rng;
 
 /// Error responses when querying an IOx database using the Arrow Flight gRPC
 /// API.
@@ -49,6 +51,10 @@ pub enum Error {
     /// from the server.
     #[error(transparent)]
     GrpcError(#[from] tonic::Status),
+
+    /// Arrow Flight handshake failed.
+    #[error("Handshake failed")]
+    HandshakeFailed,
 }
 
 /// An IOx Arrow Flight gRPC API client.
@@ -98,6 +104,29 @@ impl Client {
         sql_query: impl Into<String> + Send,
     ) -> Result<PerformQuery, Error> {
         PerformQuery::new(self, database_name.into(), sql_query.into()).await
+    }
+
+    /// Perform a handshake with the server, as defined by the Arrow Flight API.
+    pub async fn handshake(&mut self) -> Result<(), Error> {
+        let request = HandshakeRequest {
+            protocol_version: 0,
+            payload: rand::thread_rng().gen::<[u8; 16]>().to_vec(),
+        };
+        let mut response = self
+            .inner
+            .handshake(stream::iter(vec![request.clone()]))
+            .await?
+            .into_inner();
+        if request.payload.eq(&response
+            .next()
+            .await
+            .ok_or(Error::HandshakeFailed)??
+            .payload)
+        {
+            Result::Ok(())
+        } else {
+            Result::Err(Error::HandshakeFailed)
+        }
     }
 }
 
