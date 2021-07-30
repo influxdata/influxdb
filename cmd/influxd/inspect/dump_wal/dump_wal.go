@@ -33,7 +33,7 @@ It has two modes of operation, depending on the --find-duplicates flag.
 `,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return dumpWAL.run(args)
+			return dumpWAL.run(cmd, args)
 		},
 	}
 
@@ -43,20 +43,20 @@ It has two modes of operation, depending on the --find-duplicates flag.
 	return cmd
 }
 
-func (dumpWAL *dumpWALCommand) run(args []string) error {
+func (dumpWAL *dumpWALCommand) run(cmd *cobra.Command, args []string) error {
 
 	// Process each WAL file.
 	for _, path := range args {
-		if err := dumpWAL.processWALFile(path); err != nil {
+		if err := dumpWAL.processWALFile(cmd, path); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (dumpWAL *dumpWALCommand) processWALFile(path string) error {
+func (dumpWAL *dumpWALCommand) processWALFile(cmd *cobra.Command, path string) error {
 	if filepath.Ext(path) != "."+tsm1.WALFileExtension {
-		fmt.Fprintf(os.Stderr, "invalid wal file path, skipping %s\n", path)
+		cmd.Printf("invalid wal file path, skipping %s\n", path)
 		return nil
 	}
 
@@ -83,7 +83,7 @@ func (dumpWAL *dumpWALCommand) processWALFile(path string) error {
 		switch entry := entry.(type) {
 		case *tsm1.WriteWALEntry:
 			if !dumpWAL.findDuplicates {
-				fmt.Printf("[write] sz=%d\n", entry.MarshalSize())
+				cmd.Printf("[write] sz=%d\n", entry.MarshalSize())
 			}
 
 			keys := make([]string, 0, len(entry.Values))
@@ -109,31 +109,31 @@ func (dumpWAL *dumpWALCommand) processWALFile(path string) error {
 
 					switch v := v.(type) {
 					case tsm1.IntegerValue:
-						fmt.Printf("%s %vi %d\n", k, v.Value(), t)
+						cmd.Printf("%s %vi %d\n", k, v.Value(), t)
 					case tsm1.UnsignedValue:
-						fmt.Printf("%s %vu %d\n", k, v.Value(), t)
+						cmd.Printf("%s %vu %d\n", k, v.Value(), t)
 					case tsm1.FloatValue:
-						fmt.Printf("%s %v %d\n", k, v.Value(), t)
+						cmd.Printf("%s %v %d\n", k, v.Value(), t)
 					case tsm1.BooleanValue:
-						fmt.Printf("%s %v %d\n", k, v.Value(), t)
+						cmd.Printf("%s %v %d\n", k, v.Value(), t)
 					case tsm1.StringValue:
-						fmt.Printf("%s %q %d\n", k, v.Value(), t)
+						cmd.Printf("%s %q %d\n", k, v.Value(), t)
 					default:
-						fmt.Printf("%s EMPTY\n", k)
+						cmd.Printf("%s EMPTY\n", k)
 					}
 				}
 			}
 
 		case *tsm1.DeleteWALEntry:
-			fmt.Printf("[delete] sz=%d\n", entry.MarshalSize())
+			cmd.Printf("[delete] sz=%d\n", entry.MarshalSize())
 			for _, k := range entry.Keys {
-				fmt.Printf("%s\n", string(k))
+				cmd.Printf("%s\n", string(k))
 			}
 
 		case *tsm1.DeleteRangeWALEntry:
-			fmt.Printf("[delete-range] min=%d max=%d sz=%d\n", entry.Min, entry.Max, entry.MarshalSize())
+			cmd.Printf("[delete-range] min=%d max=%d sz=%d\n", entry.Min, entry.Max, entry.MarshalSize())
 			for _, k := range entry.Keys {
-				fmt.Printf("%s\n", string(k))
+				cmd.Printf("%s\n", string(k))
 			}
 
 		default:
@@ -146,7 +146,7 @@ func (dumpWAL *dumpWALCommand) processWALFile(path string) error {
 		keys := make([]string, 0, len(duplicateKeys))
 
 		if len(duplicateKeys) == 0 {
-			fmt.Println("No duplicates or out of order timestamps found")
+			cmd.Println("No duplicates or out of order timestamps found")
 			return nil
 		}
 
@@ -156,7 +156,7 @@ func (dumpWAL *dumpWALCommand) processWALFile(path string) error {
 		sort.Strings(keys)
 
 		for _, k := range keys {
-			fmt.Println(k)
+			cmd.Println(k)
 		}
 	}
 
