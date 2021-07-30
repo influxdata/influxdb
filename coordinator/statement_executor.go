@@ -1054,6 +1054,12 @@ func (e *StatementExecutor) executeShowTagValues(ctx *query.ExecutionContext, q 
 		for _, rp := range di.RetentionPolicies {
 			rps = append(rps, rp.Name)
 		}
+	} else {
+		for _, rp := range rps {
+			if rp != rps[0] {
+				return fmt.Errorf("only one retention policy allowed in SHOW TAG VALUES query: \"%s\", \"%s\"", rp, rps[0])
+			}
+		}
 	}
 	var allGroups []meta.ShardGroupInfo
 	for _, rp := range rps {
