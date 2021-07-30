@@ -1,6 +1,7 @@
 package snapshotter_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -73,7 +74,7 @@ var data = meta.Data{
 }
 
 func init() {
-	// Set the admin privilege on the user using this method so the meta.Data's check for
+	// Set the admin privilege on the user using this method so the meta.data's check for
 	// an admin user is set properly.
 	data.SetAdminPrivilege("admin", true)
 }
@@ -163,7 +164,7 @@ func TestSnapshotter_RequestMetastoreBackup(t *testing.T) {
 	}
 	defer l.Close()
 
-	s.MetaClient = &MetaClient{Data: data}
+	s.MetaClient = &MetaClient{data: data}
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
 	}
@@ -212,7 +213,7 @@ func TestSnapshotter_RequestDatabaseInfo(t *testing.T) {
 		return "", fmt.Errorf("no such shard id: %d", id)
 	}
 
-	s.MetaClient = &MetaClient{Data: data}
+	s.MetaClient = &MetaClient{data: data}
 	s.TSDBStore = &tsdbStore
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
@@ -267,7 +268,7 @@ func TestSnapshotter_RequestDatabaseInfo_ErrDatabaseNotFound(t *testing.T) {
 	}
 	defer l.Close()
 
-	s.MetaClient = &MetaClient{Data: data}
+	s.MetaClient = &MetaClient{data: data}
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
 	}
@@ -330,7 +331,7 @@ func TestSnapshotter_RequestRetentionPolicyInfo(t *testing.T) {
 		return "", fmt.Errorf("no such shard id: %d", id)
 	}
 
-	s.MetaClient = &MetaClient{Data: data}
+	s.MetaClient = &MetaClient{data: data}
 	s.TSDBStore = &tsdbStore
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
@@ -376,6 +377,42 @@ func TestSnapshotter_RequestRetentionPolicyInfo(t *testing.T) {
 
 	if got, want := resp.Paths, []string{"db0/rp0"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("unexpected paths: got=%#v want=%#v", got, want)
+	}
+}
+
+func TestSnapshotter_RequestUpdateMeta(t *testing.T) {
+	s, l, err := NewTestService()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	var tsdbStore internal.TSDBStoreMock
+	tsdbStore.CreateShardFn = func(database, policy string, shardID uint64, enabled bool) error {
+		return nil
+	}
+
+	s.MetaClient = &MetaClient{}
+	s.TSDBStore = &tsdbStore
+	if err := s.Open(); err != nil {
+		t.Fatalf("unexpected open error: %s", err)
+	}
+	defer s.Close()
+
+	metaBytes, _ := data.MarshalBinary()
+
+	req := &snapshotter.Request{
+		Type:                   snapshotter.RequestMetaStoreUpdate,
+		BackupDatabase:         "db0",
+		RestoreDatabase:        "db1",
+		BackupRetentionPolicy:  "autogen",
+		RestoreRetentionPolicy: "autogen",
+		UploadSize:             int64(len(metaBytes)),
+	}
+
+	c := snapshotter.NewClient(l.Addr().String())
+	if _, err := c.UpdateMeta(req, bytes.NewReader(metaBytes)); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -432,18 +469,27 @@ func NewTestService() (*snapshotter.Service, net.Listener, error) {
 }
 
 type MetaClient struct {
-	Data meta.Data
+	data meta.Data
 }
 
 func (m *MetaClient) MarshalBinary() ([]byte, error) {
-	return m.Data.MarshalBinary()
+	return m.data.MarshalBinary()
 }
 
 func (m *MetaClient) Database(name string) *meta.DatabaseInfo {
-	for _, dbi := range m.Data.Databases {
+	for _, dbi := range m.data.Databases {
 		if dbi.Name == name {
 			return &dbi
 		}
 	}
+	return nil
+}
+
+func (m *MetaClient) Data() meta.Data {
+	return *m.data.Clone()
+}
+
+func (m *MetaClient) SetData(data *meta.Data) error {
+	m.data = *data.Clone()
 	return nil
 }

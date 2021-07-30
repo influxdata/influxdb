@@ -37,6 +37,8 @@ type Service struct {
 	MetaClient interface {
 		encoding.BinaryMarshaler
 		Database(name string) *meta.DatabaseInfo
+		Data() meta.Data
+		SetData(data *meta.Data) error
 	}
 
 	TSDBStore interface {
@@ -116,8 +118,7 @@ func (s *Service) serve() {
 func (s *Service) handleConn(conn net.Conn) error {
 	var typ [1]byte
 
-	_, err := conn.Read(typ[:])
-	if err != nil {
+	if _, err := io.ReadFull(conn, typ[:]); err != nil {
 		return err
 	}
 
@@ -158,8 +159,7 @@ func (s *Service) handleConn(conn net.Conn) error {
 
 func (s *Service) updateShardsLive(conn net.Conn) error {
 	var sidBytes [8]byte
-	_, err := conn.Read(sidBytes[:])
-	if err != nil {
+	if _, err := io.ReadFull(conn, sidBytes[:]); err != nil {
 		return err
 	}
 	sid := binary.BigEndian.Uint64(sidBytes[:])
@@ -182,7 +182,7 @@ func (s *Service) updateMetaStore(conn net.Conn, bits []byte, backupDBName, rest
 		return fmt.Errorf("failed to decode meta: %s", err)
 	}
 
-	data := s.MetaClient.(*meta.Client).Data()
+	data := s.MetaClient.Data()
 
 	IDMap, newDBs, err := data.ImportData(md, backupDBName, restoreDBName, backupRPName, restoreRPName)
 	if err != nil {
@@ -192,7 +192,7 @@ func (s *Service) updateMetaStore(conn net.Conn, bits []byte, backupDBName, rest
 		return err
 	}
 
-	err = s.MetaClient.(*meta.Client).SetData(&data)
+	err = s.MetaClient.SetData(&data)
 	if err != nil {
 		return err
 	}
