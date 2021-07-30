@@ -705,6 +705,9 @@ impl MetaData {
                             distinct_count,
                         })
                     }
+                    (OwnedValue::String(_), mismatch) => {
+                        panic!("inconsistent min/max expected String got {}", mismatch)
+                    }
                     (OwnedValue::Boolean(min), OwnedValue::Boolean(max)) => {
                         Statistics::Bool(StatValues {
                             min: Some(*min),
@@ -714,6 +717,9 @@ impl MetaData {
                             distinct_count,
                         })
                     }
+                    (OwnedValue::Boolean(_), mismatch) => {
+                        panic!("inconsistent min/max expected Boolean got {}", mismatch)
+                    }
                     (OwnedValue::Scalar(min), OwnedValue::Scalar(max)) => match (min, max) {
                         (Scalar::I64(min), Scalar::I64(max)) => Statistics::I64(StatValues {
                             min: Some(*min),
@@ -722,6 +728,9 @@ impl MetaData {
                             null_count,
                             distinct_count,
                         }),
+                        (Scalar::I64(_), mismatch) => {
+                            panic!("inconsistent min/max expected I64 got {}", mismatch)
+                        }
                         (Scalar::U64(min), Scalar::U64(max)) => Statistics::U64(StatValues {
                             min: Some(*min),
                             max: Some(*max),
@@ -729,6 +738,9 @@ impl MetaData {
                             null_count,
                             distinct_count,
                         }),
+                        (Scalar::U64(_), mismatch) => {
+                            panic!("inconsistent min/max expected U64 got {}", mismatch)
+                        }
                         (Scalar::F64(min), Scalar::F64(max)) => Statistics::F64(StatValues {
                             min: Some(*min),
                             max: Some(*max),
@@ -736,15 +748,37 @@ impl MetaData {
                             null_count,
                             distinct_count,
                         }),
-                        _ => panic!(
-                            "unsupported type scalar stats in read buffer: {:?}, {:?}",
-                            min, max
-                        ),
+                        (Scalar::F64(_), mismatch) => {
+                            panic!("inconsistent min/max expected F64 got {}", mismatch)
+                        }
+                        (Scalar::Null, Scalar::Null) => {
+                            assert_eq!(
+                                total_count, null_count,
+                                "expected only null values: {:?}",
+                                column_meta,
+                            );
+                            assert_eq!(
+                                distinct_count,
+                                std::num::NonZeroU64::new(1),
+                                "distinct count for all null was not 1: {:?}",
+                                column_meta,
+                            );
+
+                            make_null_stats(total_count, &column_meta.logical_data_type)
+                        }
+                        (Scalar::Null, mismatch) => {
+                            panic!("inconsistent min/max expected NULL got {}", mismatch)
+                        }
                     },
-                    _ => panic!(
-                        "unsupported type of stats in read buffer: {:?}",
-                        column_meta.range
-                    ),
+                    (OwnedValue::Scalar(_), mismatch) => {
+                        panic!("inconsistent min/max expected Scalar got {}", mismatch)
+                    }
+                    (OwnedValue::ByteArray(_), OwnedValue::ByteArray(_)) => {
+                        panic!("unsupported type statistcs type ByteArray")
+                    }
+                    (OwnedValue::ByteArray(_), mismatch) => {
+                        panic!("inconsistent min/max expected ByteArray got {}", mismatch)
+                    }
                 };
 
                 ColumnSummary {
@@ -763,6 +797,24 @@ impl MetaData {
 
     pub fn has_column(&self, name: &str) -> bool {
         self.columns.contains_key(name)
+    }
+}
+
+// Create statistics for the specified data type with no values
+fn make_null_stats(
+    total_count: u64,
+    logical_data_type: &LogicalDataType,
+) -> data_types::partition_metadata::Statistics {
+    use data_types::partition_metadata::{StatValues, Statistics};
+    use LogicalDataType::*;
+
+    match logical_data_type {
+        Integer => Statistics::I64(StatValues::new_all_null(total_count)),
+        Unsigned => Statistics::U64(StatValues::new_all_null(total_count)),
+        Float => Statistics::F64(StatValues::new_all_null(total_count)),
+        String => Statistics::String(StatValues::new_all_null(total_count)),
+        Binary => panic!("Binary statistics not supported"),
+        Boolean => Statistics::Bool(StatValues::new_all_null(total_count)),
     }
 }
 
@@ -998,6 +1050,8 @@ impl std::fmt::Display for DisplayReadAggregateResults<'_> {
 
 #[cfg(test)]
 mod test {
+    use data_types::partition_metadata::{StatValues, Statistics};
+
     use super::*;
     use crate::{
         column::Column,
@@ -1558,5 +1612,41 @@ west,host-b,100
         let table = Table::with_row_group("cpu", rg);
 
         assert_eq!(table.time_range().unwrap(), (-100, 3));
+    }
+
+    #[test]
+    fn null_stats_ifield() {
+        let actual = make_null_stats(12, &LogicalDataType::Integer);
+        assert_eq!(actual, Statistics::I64(StatValues::new_all_null(12)));
+    }
+
+    #[test]
+    fn null_stats_ufield() {
+        let actual = make_null_stats(12, &LogicalDataType::Unsigned);
+        assert_eq!(actual, Statistics::U64(StatValues::new_all_null(12)));
+    }
+
+    #[test]
+    fn null_stats_float() {
+        let actual = make_null_stats(12, &LogicalDataType::Float);
+        assert_eq!(actual, Statistics::F64(StatValues::new_all_null(12)));
+    }
+
+    #[test]
+    fn null_stats_string() {
+        let actual = make_null_stats(12, &LogicalDataType::String);
+        assert_eq!(actual, Statistics::String(StatValues::new_all_null(12)));
+    }
+
+    #[test]
+    #[should_panic(expected = "Binary statistics not supported")]
+    fn null_stats_binary() {
+        make_null_stats(12, &LogicalDataType::Binary);
+    }
+
+    #[test]
+    fn null_stats_boolean() {
+        let actual = make_null_stats(12, &LogicalDataType::Boolean);
+        assert_eq!(actual, Statistics::Bool(StatValues::new_all_null(12)));
     }
 }
