@@ -169,7 +169,7 @@ func initCommand(t *testing.T, params cmdParams) *cobra.Command {
 	cmd := NewDumpWALCommand()
 
 	allArgs := params.walPaths
-	if params.findDuplicates == true {
+	if params.findDuplicates {
 		allArgs = append(allArgs, "--find-duplicates")
 	}
 
