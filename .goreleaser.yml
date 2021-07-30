@@ -54,7 +54,7 @@ nfpms:
     conflicts:
       - influxdb
     recommends:
-      - influx-cli
+      - influxdb2-cli
     overrides:
       rpm:
         replacements:
