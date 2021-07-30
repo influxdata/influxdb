@@ -8343,7 +8343,7 @@ func TestServer_Query_ShowTagValues(t *testing.T) {
 		},
 		&Query{
 			name:    "show tag values with multiple retention policies",
-			command: `SHOW TAG VALUES FROM ` + rps[0] + `.cpu, ` + rps[1] +`.cpu WITH KEY IN (host, region)`,
+			command: `SHOW TAG VALUES FROM ` + rps[0] + `.cpu, ` + rps[1] + `.cpu WITH KEY IN (host, region)`,
 			exp:     `{"results":[{"statement_id":0,"error":"only one retention policy allowed in SHOW TAG VALUES query: \"rp1\", \"rp0\""}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
