@@ -1330,7 +1330,8 @@ func (is IndexSet) MeasurementNamesByExpr(auth query.FineAuthorizer, expr influx
 		if err != nil {
 			return nil, err
 		}
-		return slices.CopyChunkedByteSlices(names, 1000), nil
+		// Requires that names is a copy of the names from the mmapped file
+		return names, nil
 	}
 
 	itr, err := is.measurementIterator()
@@ -1462,7 +1463,7 @@ func (is IndexSet) measurementNamesByNameFilter(auth query.FineAuthorizer, op in
 		}
 	}
 	bytesutil.Sort(names)
-	return names, nil
+	return slices.CopyChunkedByteSlices(names, 1000), nil
 }
 
 // MeasurementNamesByPredicate returns a slice of measurement names matching the
@@ -1479,7 +1480,7 @@ func (is IndexSet) MeasurementNamesByPredicate(auth query.FineAuthorizer, expr i
 		if err != nil {
 			return nil, err
 		}
-		return slices.CopyChunkedByteSlices(names, 1000), nil
+		return names, nil
 	}
 
 	itr, err := is.measurementIterator()
@@ -1699,7 +1700,7 @@ func (is IndexSet) measurementNamesByTagFilter(auth query.FineAuthorizer, op inf
 	}
 
 	bytesutil.Sort(names)
-	return names, nil
+	return slices.CopyChunkedByteSlices(names, 1000), nil
 }
 
 func (is IndexSet) measurementNamesByTagPredicate(auth query.FineAuthorizer, op influxql.Token, key, val string, regex *regexp.Regexp) ([][]byte, error) {
@@ -1762,7 +1763,7 @@ func (is IndexSet) measurementNamesByTagPredicate(auth query.FineAuthorizer, op 
 	}
 
 	bytesutil.Sort(names)
-	return names, nil
+	return slices.CopyChunkedByteSlices(names, 1000), nil
 }
 
 // measurementAuthorizedSeries determines if the measurement contains a series
