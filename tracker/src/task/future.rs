@@ -93,7 +93,7 @@ impl<F: TryFuture> Future for TrackedFuture<F> {
 #[pinned_drop]
 impl<F: TryFuture> PinnedDrop for TrackedFuture<F> {
     fn drop(self: Pin<&mut Self>) {
-        let state: &TrackerState = &self.project().tracker;
+        let state: &TrackerState = self.project().tracker;
 
         let wall_nanos = state.start_instant.elapsed().as_nanos() as usize;
 

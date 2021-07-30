@@ -27,6 +27,7 @@ use std::{
     sync::Arc,
 };
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Mutable Buffer Chunk Error: {}", source))]
@@ -133,7 +134,7 @@ impl DbChunk {
                         partition_key,
                     },
                 };
-                (state, Arc::clone(&meta))
+                (state, Arc::clone(meta))
             }
             ChunkStage::Persisted {
                 parquet,
@@ -148,10 +149,10 @@ impl DbChunk {
                     }
                 } else {
                     State::ParquetFile {
-                        chunk: Arc::clone(&parquet),
+                        chunk: Arc::clone(parquet),
                     }
                 };
-                (state, Arc::clone(&meta))
+                (state, Arc::clone(meta))
             }
         };
 
@@ -176,9 +177,9 @@ impl DbChunk {
 
         let (state, meta) = match chunk.stage() {
             ChunkStage::Persisted { parquet, meta, .. } => {
-                let chunk = Arc::clone(&parquet);
+                let chunk = Arc::clone(parquet);
                 let state = State::ParquetFile { chunk };
-                (state, Arc::clone(&meta))
+                (state, Arc::clone(meta))
             }
             _ => {
                 panic!("Internal error: This chunk's stage is not Persisted");
@@ -270,7 +271,7 @@ impl QueryChunk for DbChunk {
                 // meta-data only. A future improvement could be to apply this
                 // logic to chunk meta-data without involving the backing
                 // execution engine.
-                let rb_predicate = match to_read_buffer_predicate(&predicate) {
+                let rb_predicate = match to_read_buffer_predicate(predicate) {
                     Ok(rb_predicate) => rb_predicate,
                     Err(e) => {
                         debug!(?predicate, %e, "read buffer predicate not supported for table_names, falling back");
@@ -327,7 +328,7 @@ impl QueryChunk for DbChunk {
             State::ReadBuffer { chunk, .. } => {
                 // Only apply pushdownable predicates
                 let rb_predicate =
-                    match to_read_buffer_predicate(&predicate).context(PredicateConversion) {
+                    match to_read_buffer_predicate(predicate).context(PredicateConversion) {
                         Ok(predicate) => predicate,
                         Err(_) => read_buffer::Predicate::default(),
                     };
@@ -372,7 +373,7 @@ impl QueryChunk for DbChunk {
                 Ok(chunk.column_names(columns))
             }
             State::ReadBuffer { chunk, .. } => {
-                let rb_predicate = match to_read_buffer_predicate(&predicate) {
+                let rb_predicate = match to_read_buffer_predicate(predicate) {
                     Ok(rb_predicate) => rb_predicate,
                     Err(e) => {
                         debug!(?predicate, %e, "read buffer predicate not supported for column_names, falling back");

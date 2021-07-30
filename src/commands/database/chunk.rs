@@ -9,6 +9,7 @@ use std::convert::TryFrom;
 use structopt::StructOpt;
 use thiserror::Error;
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Error listing chunks: {0}")]

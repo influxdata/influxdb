@@ -118,9 +118,9 @@ impl QueryOutputFormat {
     /// ```
     pub fn format(&self, batches: &[RecordBatch]) -> Result<String> {
         match self {
-            Self::Pretty => batches_to_pretty(&batches),
-            Self::Csv => batches_to_csv(&batches),
-            Self::Json => batches_to_json(&batches),
+            Self::Pretty => batches_to_pretty(batches),
+            Self::Csv => batches_to_csv(batches),
+            Self::Json => batches_to_json(batches),
         }
     }
 }

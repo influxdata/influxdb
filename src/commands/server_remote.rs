@@ -4,6 +4,7 @@ use thiserror::Error;
 
 use prettytable::{format, Cell, Row, Table};
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Error connecting to IOx: {0}")]

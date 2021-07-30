@@ -236,7 +236,7 @@ async fn list_tag_values_field_col() {
 
         // Test: temp is a field, not a tag
         let tag_name = "temp";
-        let plan_result = planner.tag_values(db.as_ref(), &tag_name, predicate.clone());
+        let plan_result = planner.tag_values(db.as_ref(), tag_name, predicate.clone());
 
         assert_eq!(
             plan_result.unwrap_err().to_string(),

@@ -99,7 +99,7 @@ fn benchmark_plain_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum(&input);
+                                            let _ = encoding.sum(input);
                                         });
                                     },
                                 );
@@ -121,7 +121,7 @@ fn benchmark_plain_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum(&input);
+                                            let _ = encoding.sum(input);
                                         });
                                     },
                                 );
@@ -148,7 +148,7 @@ fn benchmark_plain_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum(&input);
+                                            let _ = encoding.sum(input);
                                         });
                                     },
                                 );
@@ -170,7 +170,7 @@ fn benchmark_plain_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum(&input);
+                                            let _ = encoding.sum(input);
                                         });
                                     },
                                 );
@@ -197,7 +197,7 @@ fn benchmark_plain_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum(&input);
+                                            let _ = encoding.sum(input);
                                         });
                                     },
                                 );
@@ -219,7 +219,7 @@ fn benchmark_plain_sum(
                                     |b, input| {
                                         b.iter(|| {
                                             // do work
-                                            let _ = encoding.sum(&input);
+                                            let _ = encoding.sum(input);
                                         });
                                     },
                                 );

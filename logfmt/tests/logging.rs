@@ -258,6 +258,12 @@ fn normalize_spans(lines: Vec<String>) -> Vec<String> {
     // Note: we include leading and trailing spaces so that span=2
     // doesn't also match span=21423
     let re = Regex::new(r#" span=(\d+) "#).unwrap();
+
+    // This collect isn't needless: the `fold` below moves `lines`, so this
+    // iterator can't borrow `lines`, we need to collect into a `Vec` to
+    // stop borrowing `lines`.
+    // See https://github.com/rust-lang/rust-clippy/issues/7336
+    #[allow(clippy::needless_collect)]
     let span_ids: Vec<String> = lines
         .iter()
         .map(|line| re.find_iter(line))

@@ -19,10 +19,10 @@ use std::{
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("cannot drop last row group in table; drop table"))]
-    EmptyTableError {},
+    EmptyTable {},
 
     #[snafu(display("table does not have InfluxDB timestamp column"))]
-    NoTimestampColumnError {},
+    NoTimestampColumn {},
 
     #[snafu(display("unsupported column operation on {}: {}", column_name, msg))]
     UnsupportedColumnOperation { msg: String, column_name: String },
@@ -114,7 +114,7 @@ impl Table {
         let mut row_groups = self.table_data.write();
 
         // Tables must always have at least one row group.
-        ensure!(row_groups.data.len() > 1, EmptyTableError);
+        ensure!(row_groups.data.len() > 1, EmptyTable);
 
         row_groups.data.remove(position); // removes row group data
         row_groups.meta = Arc::new(MetaData::from(row_groups.data.as_ref())); // rebuild meta
@@ -261,7 +261,7 @@ impl Table {
             }
 
             // row group could potentially satisfy predicate
-            row_groups.push(Arc::clone(&rg));
+            row_groups.push(Arc::clone(rg));
         }
 
         (Arc::clone(&table_data.meta), row_groups)
@@ -776,7 +776,7 @@ impl From<&[Arc<RowGroup>]> for MetaData {
 
         let mut meta = Self::new(&row_groups[0]);
         for row_group in row_groups.iter().skip(1) {
-            meta = Self::update_with(meta, &row_group);
+            meta = Self::update_with(meta, row_group);
         }
 
         meta

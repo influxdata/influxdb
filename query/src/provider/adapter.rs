@@ -14,6 +14,7 @@ use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
 use futures::Stream;
 
 /// Database schema creation / validation errors.
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Internal error creating SchemaAdapterStream: field '{}' does not appear in the output schema",
@@ -178,7 +179,7 @@ impl SchemaAdapterStream {
             .mappings
             .iter()
             .map(|mapping| match mapping {
-                ColumnMapping::FromInput(input_index) => Arc::clone(&batch.column(*input_index)),
+                ColumnMapping::FromInput(input_index) => Arc::clone(batch.column(*input_index)),
                 ColumnMapping::MakeNull(data_type) => new_null_array(data_type, batch.num_rows()),
             })
             .collect::<Vec<_>>();

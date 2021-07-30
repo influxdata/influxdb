@@ -231,7 +231,7 @@ impl Repl {
             Some(QueryEngine::Remote(db_name)) => {
                 info!(%db_name, %sql, "Running sql on remote database");
 
-                scrape_query(&mut self.flight_client, &db_name, &sql).await?
+                scrape_query(&mut self.flight_client, db_name, &sql).await?
             }
             Some(QueryEngine::Observer(observer)) => {
                 info!("Running sql on local observer");

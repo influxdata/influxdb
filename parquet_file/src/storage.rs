@@ -232,7 +232,7 @@ impl Storage {
 
         self.object_store
             .put(
-                &file_name,
+                file_name,
                 futures::stream::once(async move { stream_data }),
                 Some(len),
             )

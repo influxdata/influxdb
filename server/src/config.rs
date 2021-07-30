@@ -105,7 +105,7 @@ impl Config {
         state.reservations.insert(db_name.clone());
         Ok(DatabaseHandle {
             state: Some(Arc::new(DatabaseState::Known { db_name })),
-            config: &self,
+            config: self,
         })
     }
 
@@ -139,7 +139,7 @@ impl Config {
         state.reservations.insert(db_name);
         Ok(DatabaseHandle {
             state: Some(db_state),
-            config: &self,
+            config: self,
         })
     }
 
@@ -167,7 +167,7 @@ impl Config {
         state.reservations.insert(db_name.clone());
         Ok(BlockDatabaseGuard {
             db_name: Some(db_name),
-            config: &self,
+            config: self,
         })
     }
 
@@ -364,15 +364,15 @@ impl DatabaseState {
 
     fn db_any_state(&self) -> Option<Arc<Db>> {
         match self {
-            DatabaseState::Replay { db, .. } => Some(Arc::clone(&db)),
-            DatabaseState::Initialized { db, .. } => Some(Arc::clone(&db)),
+            DatabaseState::Replay { db, .. } => Some(Arc::clone(db)),
+            DatabaseState::Initialized { db, .. } => Some(Arc::clone(db)),
             _ => None,
         }
     }
 
     fn db_initialized(&self) -> Option<Arc<Db>> {
         match self {
-            DatabaseState::Initialized { db, .. } => Some(Arc::clone(&db)),
+            DatabaseState::Initialized { db, .. } => Some(Arc::clone(db)),
             _ => None,
         }
     }
@@ -389,7 +389,7 @@ impl DatabaseState {
     fn rules(&self) -> Option<Arc<DatabaseRules>> {
         match self {
             DatabaseState::Known { .. } => None,
-            DatabaseState::RulesLoaded { rules, .. } => Some(Arc::clone(&rules)),
+            DatabaseState::RulesLoaded { rules, .. } => Some(Arc::clone(rules)),
             DatabaseState::Replay { db, .. } => Some(db.rules()),
             DatabaseState::Initialized { db, .. } => Some(db.rules()),
         }
@@ -445,7 +445,7 @@ pub(crate) struct DatabaseHandle<'a> {
 
 impl<'a> DatabaseHandle<'a> {
     fn state(&self) -> Arc<DatabaseState> {
-        Arc::clone(&self.state.as_ref().expect("not committed"))
+        Arc::clone(self.state.as_ref().expect("not committed"))
     }
 
     /// Get current [`DatabaseStateCode`] associated with this handle.
@@ -548,7 +548,7 @@ impl<'a> DatabaseHandle<'a> {
                     exec: Arc::clone(&self.config.exec),
                     preserved_catalog,
                     catalog,
-                    rules: Arc::clone(&rules),
+                    rules: Arc::clone(rules),
                     write_buffer,
                 };
                 let db = Arc::new(Db::new(database_to_commit, Arc::clone(&self.config.jobs)));
@@ -576,7 +576,7 @@ impl<'a> DatabaseHandle<'a> {
 
                 let shutdown = self.config.shutdown.child_token();
                 let shutdown_captured = shutdown.clone();
-                let db_captured = Arc::clone(&db);
+                let db_captured = Arc::clone(db);
                 let rules = db.rules();
 
                 let handle = Some(tokio::spawn(async move {
@@ -587,7 +587,7 @@ impl<'a> DatabaseHandle<'a> {
                 }));
 
                 self.state = Some(Arc::new(DatabaseState::Initialized {
-                    db: Arc::clone(&db),
+                    db: Arc::clone(db),
                     handle,
                     shutdown,
                 }));

@@ -624,7 +624,7 @@ async fn list_files(
     server_id: ServerId,
     db_name: &str,
 ) -> Result<Vec<(Path, FileType, u64, Uuid)>> {
-    let list_path = catalog_path(&object_store, server_id, &db_name);
+    let list_path = catalog_path(object_store, server_id, db_name);
     let paths = object_store
         .list(Some(&list_path))
         .await
@@ -658,7 +658,7 @@ async fn store_transaction_proto(
 
     object_store
         .put(
-            &path,
+            path,
             futures::stream::once(async move { Ok(data) }),
             Some(len),
         )
@@ -674,7 +674,7 @@ async fn load_transaction_proto(
     path: &Path,
 ) -> Result<proto::Transaction> {
     let data = object_store
-        .get(&path)
+        .get(path)
         .await
         .context(Read {})?
         .map_ok(|bytes| bytes.to_vec())
@@ -2492,7 +2492,7 @@ mod tests {
             &object_store,
             server_id,
             db_name,
-            &tkey,
+            tkey,
             FileType::Checkpoint,
         );
         store_transaction_proto(&object_store, &path, &proto)
@@ -2650,7 +2650,7 @@ mod tests {
 
         object_store
             .put(
-                &path,
+                path,
                 futures::stream::once(async move { Ok(data) }),
                 Some(len),
             )
@@ -2661,7 +2661,7 @@ mod tests {
     async fn checked_delete(object_store: &ObjectStore, path: &Path) {
         // issue full GET operation to check if object is preset
         object_store
-            .get(&path)
+            .get(path)
             .await
             .unwrap()
             .map_ok(|bytes| bytes.to_vec())
@@ -2670,7 +2670,7 @@ mod tests {
             .unwrap();
 
         // delete it
-        object_store.delete(&path).await.unwrap();
+        object_store.delete(path).await.unwrap();
     }
 
     /// Result of [`assert_single_catalog_inmem_works`].
@@ -2713,7 +2713,7 @@ mod tests {
         db_name: &str,
     ) -> TestTrace {
         let (catalog, mut state) = PreservedCatalog::new_empty(
-            Arc::clone(&object_store),
+            Arc::clone(object_store),
             server_id,
             db_name.to_string(),
             (),
@@ -2991,7 +2991,7 @@ mod tests {
         assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
 
         // create junk
-        let mut path = catalog_path(&object_store, server_id, &db_name);
+        let mut path = catalog_path(&object_store, server_id, db_name);
         path.push_dir("0");
         path.set_file_name(format!("{}.foo", Uuid::new_v4()));
         create_empty_file(&object_store, &path).await;
@@ -3002,7 +3002,7 @@ mod tests {
             .unwrap();
 
         // check file is still there
-        let prefix = catalog_path(&object_store, server_id, &db_name);
+        let prefix = catalog_path(&object_store, server_id, db_name);
         let files = object_store
             .list(Some(&prefix))
             .await

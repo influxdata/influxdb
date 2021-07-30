@@ -29,7 +29,7 @@ fn read_group_predicate_all_time(c: &mut Criterion, row_group: &RowGroup, rng: &
     benchmark_read_group_vary_cardinality(
         c,
         "row_group_read_group_all_time_vary_cardinality",
-        &row_group,
+        row_group,
         &time_pred,
         // grouping columns and expected cardinality
         vec![
@@ -47,7 +47,7 @@ fn read_group_predicate_all_time(c: &mut Criterion, row_group: &RowGroup, rng: &
     benchmark_read_group_vary_group_cols(
         c,
         "row_group_read_group_all_time_vary_columns",
-        &row_group,
+        row_group,
         &time_pred,
         // number of cols to group on and expected cardinality
         vec![
@@ -82,7 +82,7 @@ fn read_group_pre_computed_groups(c: &mut Criterion, row_group: &RowGroup, rng: 
     benchmark_read_group_vary_cardinality(
         c,
         "row_group_read_group_pre_computed_groups_vary_cardinality",
-        &row_group,
+        row_group,
         &Predicate::default(),
         // grouping columns and expected cardinality
         vec![
@@ -99,7 +99,7 @@ fn read_group_pre_computed_groups(c: &mut Criterion, row_group: &RowGroup, rng: 
     benchmark_read_group_vary_group_cols(
         c,
         "row_group_read_group_pre_computed_groups_vary_columns",
-        &row_group,
+        row_group,
         &Predicate::default(),
         // number of cols to group on and expected cardinality
         vec![

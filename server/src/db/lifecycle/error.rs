@@ -5,6 +5,7 @@ use data_types::chunk_metadata::ChunkAddr;
 
 use crate::db::catalog;
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 // Export the snafu "selectors" so they can be used in other modules
 #[snafu(visibility = "pub")]

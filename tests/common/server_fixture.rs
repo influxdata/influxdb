@@ -241,7 +241,7 @@ impl ServerFixture {
 
     /// Directory used for data storage.
     pub fn dir(&self) -> &Path {
-        &self.server.dir.path()
+        self.server.dir.path()
     }
 }
 

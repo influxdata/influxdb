@@ -23,7 +23,7 @@ pub fn encode(src: &[i64], dst: &mut Vec<u8>) -> Result<(), Box<dyn Error>> {
     }
 
     let mut max: u64 = 0;
-    let mut deltas = i64_to_u64_vector(&src);
+    let mut deltas = i64_to_u64_vector(src);
     for i in (1..deltas.len()).rev() {
         deltas[i] = zig_zag_encode(deltas[i].wrapping_sub(deltas[i - 1]) as i64);
         if deltas[i] > max {

@@ -100,7 +100,7 @@ impl FieldIndexes {
     }
 
     pub fn as_slice(&self) -> &[FieldIndex] {
-        &self.inner.as_ref()
+        self.inner.as_ref()
     }
 }
 
@@ -138,7 +138,7 @@ impl FieldIndexes {
                             column_name: TIME_COLUMN_NAME,
                         })?;
 
-                Self::names_to_indexes(schema, &field_names)?
+                Self::names_to_indexes(schema, field_names)?
                     .into_iter()
                     .map(|field_index| FieldIndex {
                         value_index: field_index,

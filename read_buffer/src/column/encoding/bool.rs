@@ -210,7 +210,7 @@ impl Bool {
     pub fn row_ids_filter(&self, value: bool, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
         match op {
             cmp::Operator::GT | cmp::Operator::GTE | cmp::Operator::LT | cmp::Operator::LTE => {
-                self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst)
+                self.row_ids_cmp_order(value, Self::ord_from_op(op), dst)
             }
             _ => self.row_ids_equal(value, op, dst),
         }

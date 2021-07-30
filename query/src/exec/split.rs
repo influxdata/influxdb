@@ -73,7 +73,7 @@ impl UserDefinedLogicalNode for StreamSplitNode {
 
     /// Schema is the same as the input schema
     fn schema(&self) -> &DFSchemaRef {
-        &self.input.schema()
+        self.input.schema()
     }
 
     fn expressions(&self) -> Vec<Expr> {

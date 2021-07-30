@@ -177,7 +177,7 @@ mod tests {
 
         let client = Client::new(&mockito::server_url(), token);
 
-        let _result = client.query_suggestions_name(&suggestion_name).await;
+        let _result = client.query_suggestions_name(suggestion_name).await;
 
         mock_server.assert();
     }

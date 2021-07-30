@@ -468,7 +468,7 @@ impl BlockData {
         }
 
         // The merged output block data to be returned
-        let mut block_data = Self::new_from_data(&blocks.first().unwrap());
+        let mut block_data = Self::new_from_data(blocks.first().unwrap());
 
         // buf will hold the next candidates from each of the sorted input
         // blocks.

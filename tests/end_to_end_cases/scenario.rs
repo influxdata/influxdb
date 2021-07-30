@@ -181,7 +181,7 @@ impl Scenario {
                 .build()
                 .unwrap(),
         ];
-        self.write_data(&influxdb2, points).await.unwrap();
+        self.write_data(influxdb2, points).await.unwrap();
 
         let host_array = StringArray::from(vec![
             Some("server01"),

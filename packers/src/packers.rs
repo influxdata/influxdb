@@ -303,7 +303,7 @@ where
     }
 
     pub fn iter(&self) -> PackerIterator<'_, T> {
-        PackerIterator::new(&self)
+        PackerIterator::new(self)
     }
 
     // TODO(edd): I don't like these getters. They're only needed so we can

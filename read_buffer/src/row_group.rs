@@ -37,10 +37,10 @@ pub const TIME_COLUMN_NAME: &str = internal_types::schema::TIME_COLUMN_NAME;
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("arrow conversion error: {}", source))]
-    ArrowError { source: arrow::error::ArrowError },
+    ArrowConversion { source: arrow::error::ArrowError },
 
     #[snafu(display("schema conversion error: {}", source))]
-    SchemaError {
+    SchemaConversion {
         source: internal_types::schema::builder::Error,
     },
 
@@ -256,7 +256,7 @@ impl RowGroup {
         columns: &[ColumnName<'_>],
         predicates: &Predicate,
     ) -> ReadFilterResult<'_> {
-        let select_columns = self.meta.schema_for_column_names(&columns);
+        let select_columns = self.meta.schema_for_column_names(columns);
         assert_eq!(select_columns.len(), columns.len());
 
         let schema = ResultSchema {
@@ -540,11 +540,11 @@ impl RowGroup {
         // single 128-bit integer as the group key. If grouping is on more than
         // four columns then a fallback to using an vector as a key will happen.
         if dst.schema.group_columns.len() <= 4 {
-            self.read_group_hash_with_u128_key(dst, &groupby_encoded_ids, aggregate_columns_data);
+            self.read_group_hash_with_u128_key(dst, groupby_encoded_ids, aggregate_columns_data);
             return;
         }
 
-        self.read_group_hash_with_vec_key(dst, &groupby_encoded_ids, aggregate_columns_data);
+        self.read_group_hash_with_vec_key(dst, groupby_encoded_ids, aggregate_columns_data);
     }
 
     // This function is used with `read_group_hash` when the number of columns
@@ -1709,7 +1709,7 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
 
     fn try_from(result: ReadFilterResult<'_>) -> Result<Self, Self::Error> {
         let schema = internal_types::schema::Schema::try_from(result.schema())
-            .map_err(|source| Error::SchemaError { source })?;
+            .map_err(|source| Error::SchemaConversion { source })?;
 
         let columns: Vec<ArrayRef> = result
             .data
@@ -1754,7 +1754,7 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
         // try_new only returns an error if the schema is invalid or the number
         // of rows on columns differ. We have full control over both so there
         // should never be an error to return...
-        Self::try_new(arrow_schema, columns).map_err(|source| Error::ArrowError { source })
+        Self::try_new(arrow_schema, columns).map_err(|source| Error::ArrowConversion { source })
     }
 }
 
@@ -2185,7 +2185,7 @@ impl TryFrom<ReadAggregateResult<'_>> for RecordBatch {
 
     fn try_from(mut result: ReadAggregateResult<'_>) -> Result<Self, Self::Error> {
         let schema = internal_types::schema::Schema::try_from(result.schema())
-            .map_err(|source| Error::SchemaError { source })?;
+            .map_err(|source| Error::SchemaConversion { source })?;
         let arrow_schema: arrow::datatypes::SchemaRef = schema.into();
 
         // Add the group columns to the set of column data for the record batch.
@@ -2257,7 +2257,7 @@ impl TryFrom<ReadAggregateResult<'_>> for RecordBatch {
         // try_new only returns an error if the schema is invalid or the number
         // of rows on columns differ. We have full control over both so there
         // should never be an error to return...
-        Self::try_new(arrow_schema, columns).context(ArrowError)
+        Self::try_new(arrow_schema, columns).context(ArrowConversion)
     }
 }
 

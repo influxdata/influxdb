@@ -18,6 +18,7 @@ mod catalog;
 mod chunk;
 mod partition;
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Error creating database: {0}")]

@@ -453,7 +453,7 @@ mod tests {
     }
 
     async fn measure_list(store: &ThrottledStore<InMemory>, n_entries: usize) -> Duration {
-        let prefix = place_test_objects(&store, n_entries).await;
+        let prefix = place_test_objects(store, n_entries).await;
 
         let t0 = Instant::now();
         store
@@ -471,7 +471,7 @@ mod tests {
         store: &ThrottledStore<InMemory>,
         n_entries: usize,
     ) -> Duration {
-        let prefix = place_test_objects(&store, n_entries).await;
+        let prefix = place_test_objects(store, n_entries).await;
 
         let t0 = Instant::now();
         store.list_with_delimiter(&prefix).await.unwrap();

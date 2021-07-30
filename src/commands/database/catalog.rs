@@ -9,6 +9,7 @@ use influxdb_iox_client::{
 use snafu::{ResultExt, Snafu};
 use structopt::StructOpt;
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Error connection to IOx: {}", source))]

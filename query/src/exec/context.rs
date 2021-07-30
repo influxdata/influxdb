@@ -90,7 +90,7 @@ impl ExtensionPlanner for IOxExtensionPlanner {
 
             let split_expr = planner.create_physical_expr(
                 stream_split.split_expr(),
-                &logical_inputs[0].schema(),
+                logical_inputs[0].schema(),
                 &physical_inputs[0].schema(),
                 ctx_state,
             )?;
@@ -207,7 +207,7 @@ impl IOxExecutionContext {
     pub fn prepare_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
         debug!(text=%plan.display_indent_schema(), "prepare_plan: initial plan");
 
-        let plan = self.inner.optimize(&plan)?;
+        let plan = self.inner.optimize(plan)?;
         trace!(text=%plan.display_indent_schema(), graphviz=%plan.display_graphviz(), "optimized plan");
 
         let physical_plan = self.inner.create_physical_plan(&plan)?;

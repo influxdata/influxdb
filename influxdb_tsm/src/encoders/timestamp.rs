@@ -152,8 +152,8 @@ pub fn decode(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
         encoding if encoding == Encoding::Uncompressed as u8 => {
             decode_uncompressed(&src[1..], dst) // first byte not used
         }
-        encoding if encoding == Encoding::Rle as u8 => decode_rle(&src, dst),
-        encoding if encoding == Encoding::Simple8b as u8 => decode_simple8b(&src, dst),
+        encoding if encoding == Encoding::Rle as u8 => decode_rle(src, dst),
+        encoding if encoding == Encoding::Simple8b as u8 => decode_simple8b(src, dst),
         _ => Err(From::from("invalid block encoding")),
     }
 }

@@ -281,7 +281,7 @@ impl MBChunk {
             );
 
             if let Some(c) = self.columns.get(column.name()) {
-                c.validate_schema(&column).context(ColumnError {
+                c.validate_schema(column).context(ColumnError {
                     column: column.name(),
                 })?;
             }
@@ -445,7 +445,7 @@ mod tests {
             cpu,host=c,env=stage val=11 1
             cpu,host=a,env=prod val=14 2
         "#;
-        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp).unwrap();
 
         let summary = chunk.table_summary();
         assert_eq!(summary.name, "cpu");
@@ -525,7 +525,7 @@ mod tests {
             cpu,host2=a v=1 40
             cpu,host=c  v=1 50
         "#;
-        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp).unwrap();
         let expected = ColumnSummary {
             name: "host".into(),
             influxdb_type: Some(InfluxDbType::Tag),
@@ -550,7 +550,7 @@ mod tests {
             cpu,host=a val=false 40
             cpu,host=c other_val=2 50
         "#;
-        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp).unwrap();
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -574,7 +574,7 @@ mod tests {
             cpu,host=a val=1u 40
             cpu,host=c other_val=2 50
         "#;
-        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp).unwrap();
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -598,7 +598,7 @@ mod tests {
             cpu,host=a val=1.0 40
             cpu,host=c other_val=2.0 50
         "#;
-        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp).unwrap();
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -622,7 +622,7 @@ mod tests {
             cpu,host=a val=1i 40
             cpu,host=c other_val=2.0 50
         "#;
-        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp).unwrap();
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -646,7 +646,7 @@ mod tests {
             cpu,host=a val="v3" 40
             cpu,host=c other_val=2.0 50
         "#;
-        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp).unwrap();
         let expected = ColumnSummary {
             name: "val".into(),
             influxdb_type: Some(InfluxDbType::Field),
@@ -670,7 +670,7 @@ mod tests {
             cpu,host=a val=4 2
             cpu,host=c val=25 12
         "#;
-        let chunk = write_lp_to_new_chunk(&lp).unwrap();
+        let chunk = write_lp_to_new_chunk(lp).unwrap();
         let expected = ColumnSummary {
             name: "time".into(),
             influxdb_type: Some(InfluxDbType::Timestamp),
@@ -699,7 +699,7 @@ mod tests {
             cpu,host2=z v=1 40
             cpu,host=c  v=1 5
         "#;
-        write_lp_to_chunk(&lp2, &mut chunk).unwrap();
+        write_lp_to_chunk(lp2, &mut chunk).unwrap();
 
         let expected = ColumnSummary {
             name: "host".into(),
@@ -823,7 +823,7 @@ mod tests {
         let mut table = write_lp_to_new_chunk(lp).unwrap();
 
         let lp = "foo t1=\"string\" 1";
-        let entry = lp_to_entry(&lp);
+        let entry = lp_to_entry(lp);
         let response = table
             .write_columns(
                 entry
@@ -854,7 +854,7 @@ mod tests {
         );
 
         let lp = "foo iv=1u 1";
-        let entry = lp_to_entry(&lp);
+        let entry = lp_to_entry(lp);
         let response = table
             .write_columns(
                 entry
@@ -885,7 +885,7 @@ mod tests {
         );
 
         let lp = "foo fv=1i 1";
-        let entry = lp_to_entry(&lp);
+        let entry = lp_to_entry(lp);
         let response = table
             .write_columns(
                 entry
@@ -916,7 +916,7 @@ mod tests {
         );
 
         let lp = "foo bv=1 1";
-        let entry = lp_to_entry(&lp);
+        let entry = lp_to_entry(lp);
         let response = table
             .write_columns(
                 entry
@@ -947,7 +947,7 @@ mod tests {
         );
 
         let lp = "foo sv=true 1";
-        let entry = lp_to_entry(&lp);
+        let entry = lp_to_entry(lp);
         let response = table
             .write_columns(
                 entry
@@ -978,7 +978,7 @@ mod tests {
         );
 
         let lp = "foo,sv=\"bar\" f=3i 1";
-        let entry = lp_to_entry(&lp);
+        let entry = lp_to_entry(lp);
         let response = table
             .write_columns(
                 entry

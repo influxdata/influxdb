@@ -398,8 +398,8 @@ where
             | (cmp::Operator::LT, cmp::Operator::GTE)
             | (cmp::Operator::LTE, cmp::Operator::GT)
             | (cmp::Operator::LTE, cmp::Operator::GTE) => self.row_ids_cmp_range_order(
-                (&left.0, Self::ord_from_op(&left.1)),
-                (&right.0, Self::ord_from_op(&right.1)),
+                (&left.0, Self::ord_from_op(left.1)),
+                (&right.0, Self::ord_from_op(right.1)),
                 dst,
             ),
 

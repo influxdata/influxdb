@@ -115,7 +115,7 @@ pub async fn delete_files(catalog: &PreservedCatalog, files: &[Path]) -> Result<
 
     for path in files {
         info!(path = %path.display(), "Delete file");
-        store.delete(&path).await.context(WriteError)?;
+        store.delete(path).await.context(WriteError)?;
     }
 
     info!(n_files = files.len(), "Finished deletion, removed files.");
@@ -383,7 +383,7 @@ mod tests {
 
         object_store
             .put(
-                &path,
+                path,
                 futures::stream::once(async move { Ok(data) }),
                 Some(len),
             )

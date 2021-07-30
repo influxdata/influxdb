@@ -394,7 +394,7 @@ impl Domain {
                 Arc::clone(vacant.insert(gauge))
             }
         };
-        Gauge::new(gauge, [&self.default_labels[..], &default_labels].concat())
+        Gauge::new(gauge, [&self.default_labels[..], default_labels].concat())
     }
 
     /// An observer can be used to provide asynchronous fetching of values from an object

@@ -587,7 +587,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
                 Self::build_sort_plan_for_read_filter(
                     Arc::clone(&table_name),
                     Arc::clone(&input_schema),
-                    Arc::clone(&chunk),
+                    Arc::clone(chunk),
                     predicate.clone(),
                     &sort_key,
                 )
@@ -884,9 +884,9 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///   │    SortExec     │             │    SortExec     │
     ///   │   (optional)    │             │   (optional)    │
     ///   └─────────────────┘             └─────────────────┘
-    ///            ▲                               ▲         
-    ///            │            .....              │         
-    ///            │                               │         
+    ///            ▲                               ▲
+    ///            │            .....              │
+    ///            │                               │
     ///   ┌─────────────────┐             ┌─────────────────┐
     ///   │IOxReadFilterNode│             │IOxReadFilterNode│
     ///   │    (Chunk 1)    │             │    (Chunk n)    │
@@ -920,7 +920,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
                 Self::build_plan_for_non_duplicates_chunk(
                     Arc::clone(&table_name),
                     Arc::clone(&output_schema),
-                    Arc::clone(&chunk),
+                    Arc::clone(chunk),
                     predicate.clone(),
                     output_sort_key,
                 )
@@ -951,9 +951,9 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     /// primary key columns
     fn compute_input_schema(output_schema: &Schema, pk_schema: &Schema) -> Arc<Schema> {
         let input_schema = SchemaMerger::new()
-            .merge(&output_schema)
+            .merge(output_schema)
             .unwrap()
-            .merge(&pk_schema)
+            .merge(pk_schema)
             .unwrap()
             .build();
         Arc::new(input_schema)

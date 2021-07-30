@@ -25,6 +25,7 @@ use crate::{
 
 const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("cannot load catalog: {}", source))]
