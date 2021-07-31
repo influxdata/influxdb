@@ -124,44 +124,46 @@ force_compaction() {
 # Run and record tests
 
 # General ingest and query tests
-for scale in 50 100 500; do
-  # generate bulk data
-  scale_string="scalevar-$scale"
-  scale_seed_string="$scale_string-seed-$seed"
-  data_fname="influx-bulk-records-usecase-devops-$scale_seed_string.txt"
-  $GOPATH/bin/bulk_data_gen --seed=$seed --use-case=devops --scale-var=$scale --format=influx-bulk > ${DATASET_DIR}/$data_fname
-  query_files=""
-  for format in http flux-http; do
-    query_fname="query-devops-$scale_seed_string-$format.txt"
-    $GOPATH/bin/bulk_query_gen --seed=$seed --use-case=devops --scale-var=$scale --format=influx-$format --db $db_name --queries 10000 --query-type 8-host-1-hr > ${DATASET_DIR}/$query_fname
-    query_files="$query_files $query_fname"
-  done
-
-  # Test loop
-  for parseme in "5000:2" "5000:20" "15000:2" "15000:20"; do
-    batch=$(echo $parseme | cut -d: -f1)
-    workers=$(echo $parseme | cut -d: -f2)
-
-    # generate load data
-    load_opts="-batch-size=$batch -workers=$workers -urls=http://${NGINX_HOST}:8086 -do-abort-on-exist=false -do-db-create=true -backoff=1s -backoff-timeout=300m0s"
-    if [ -z $INFLUXDB2 ] || [ $INFLUXDB2 = true ]; then
-      load_opts="$load_opts -organization=$TEST_ORG -token=$TEST_TOKEN"
-    fi
-
-    # run ingest tests
-    cat ${DATASET_DIR}/$data_fname | $GOPATH/bin/bulk_load_influx $load_opts | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\"}" > $working_dir/test-ingest-$scale_string-batchsize-$batch-workers-$workers.json
-
-    force_compaction
-
-    # run influxql and flux query tests
-    for query_file in $query_files; do
-      format=$(echo $query_file | cut -d '-' -f7)
-      cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://localhost:8086 --debug=0 --print-interval=0 --workers=$workers --json=true --organization=$TEST_ORG --token=$TEST_TOKEN | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-$scale_string-format-$format-workers-$workers.json
+if false; then
+  for scale in 50 100 500; do
+    # generate bulk data
+    scale_string="scalevar-$scale"
+    scale_seed_string="$scale_string-seed-$seed"
+    data_fname="influx-bulk-records-usecase-devops-$scale_seed_string.txt"
+    $GOPATH/bin/bulk_data_gen --seed=$seed --use-case=devops --scale-var=$scale --format=influx-bulk > ${DATASET_DIR}/$data_fname
+    query_files=""
+    for format in http flux-http; do
+      query_fname="query-devops-$scale_seed_string-$format.txt"
+      $GOPATH/bin/bulk_query_gen --seed=$seed --use-case=devops --scale-var=$scale --format=influx-$format --db $db_name --queries 10000 --query-type 8-host-1-hr > ${DATASET_DIR}/$query_fname
+      query_files="$query_files $query_fname"
     done
 
-    clean_db
+    # Test loop
+    for parseme in "5000:2" "5000:20" "15000:2" "15000:20"; do
+      batch=$(echo $parseme | cut -d: -f1)
+      workers=$(echo $parseme | cut -d: -f2)
+
+      # generate load data
+      load_opts="-batch-size=$batch -workers=$workers -urls=http://${NGINX_HOST}:8086 -do-abort-on-exist=false -do-db-create=true -backoff=1s -backoff-timeout=300m0s"
+      if [ -z $INFLUXDB2 ] || [ $INFLUXDB2 = true ]; then
+        load_opts="$load_opts -organization=$TEST_ORG -token=$TEST_TOKEN"
+      fi
+
+      # run ingest tests
+      cat ${DATASET_DIR}/$data_fname | $GOPATH/bin/bulk_load_influx $load_opts | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\"}" > $working_dir/test-ingest-$scale_string-batchsize-$batch-workers-$workers.json
+
+      force_compaction
+
+      # run influxql and flux query tests
+      for query_file in $query_files; do
+        format=$(echo $query_file | cut -d '-' -f7)
+        cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://localhost:8086 --debug=0 --print-interval=0 --workers=$workers --json=true --organization=$TEST_ORG --token=$TEST_TOKEN | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-$scale_string-format-$format-workers-$workers.json
+      done
+
+      clean_db
+    done
   done
-done
+fi
 
 # Metaquery tests
 if true; then
