@@ -498,7 +498,9 @@ async fn test_write_dev_null() {
 
     assert_eq!(
         err.to_string(),
-        "Unexpected server error: Internal error: Internal Error"
+        "Unexpected server error: The system is not in a state required for the operation's \
+         execution: error converting line protocol to flatbuffers: Error getting shard id No \
+         sharding rule matches line: mem bar=1 1"
     );
 }
 
