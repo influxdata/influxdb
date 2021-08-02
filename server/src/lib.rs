@@ -302,6 +302,7 @@ pub struct ServerConfig {
     remote_template: Option<RemoteTemplate>,
 
     wipe_catalog_on_error: bool,
+    skip_replay_and_seek_instead: bool,
 }
 
 impl ServerConfig {
@@ -310,6 +311,7 @@ impl ServerConfig {
         object_store: Arc<ObjectStore>,
         metric_registry: Arc<MetricRegistry>,
         remote_template: Option<RemoteTemplate>,
+        skip_replay_and_seek_instead: bool,
     ) -> Self {
         Self {
             num_worker_threads: None,
@@ -317,6 +319,7 @@ impl ServerConfig {
             metric_registry,
             remote_template,
             wipe_catalog_on_error: true,
+            skip_replay_and_seek_instead,
         }
     }
 
@@ -453,11 +456,15 @@ pub struct Server<M: ConnectionManager> {
 #[derive(Debug)]
 enum ServerStage {
     /// Server has started but doesn't have a server id yet
-    Startup { wipe_catalog_on_error: bool },
+    Startup {
+        wipe_catalog_on_error: bool,
+        skip_replay_and_seek_instead: bool,
+    },
 
     /// Server can be initialized
     InitReady {
         wipe_catalog_on_error: bool,
+        skip_replay_and_seek_instead: bool,
         config: Arc<Config>,
         last_error: Option<Arc<init::Error>>,
     },
@@ -503,6 +510,7 @@ where
             metric_registry,
             remote_template,
             wipe_catalog_on_error,
+            skip_replay_and_seek_instead,
         } = config;
 
         let num_worker_threads = num_worker_threads.unwrap_or_else(num_cpus::get);
@@ -518,6 +526,7 @@ where
             resolver: RwLock::new(Resolver::new(remote_template)),
             stage: Arc::new(RwLock::new(ServerStage::Startup {
                 wipe_catalog_on_error,
+                skip_replay_and_seek_instead,
             })),
         }
     }
@@ -531,9 +540,11 @@ where
         match &mut *stage {
             ServerStage::Startup {
                 wipe_catalog_on_error,
+                skip_replay_and_seek_instead,
             } => {
                 *stage = ServerStage::InitReady {
                     wipe_catalog_on_error: *wipe_catalog_on_error,
+                    skip_replay_and_seek_instead: *skip_replay_and_seek_instead,
                     config: Arc::new(Config::new(
                         Arc::clone(&self.jobs),
                         Arc::clone(&self.store),
@@ -703,17 +714,19 @@ where
     /// It will be a no-op if the configs are already loaded and the server is ready.
     pub async fn maybe_initialize_server(&self) {
         // Explicit scope to help async generator
-        let (wipe_catalog_on_error, config) = {
+        let (wipe_catalog_on_error, skip_replay_and_seek_instead, config) = {
             let state = self.stage.upgradable_read();
             match &*state {
                 ServerStage::InitReady {
                     wipe_catalog_on_error,
+                    skip_replay_and_seek_instead,
                     config,
                     last_error,
                 } => {
                     let config = Arc::clone(config);
                     let last_error = last_error.clone();
                     let wipe_catalog_on_error = *wipe_catalog_on_error;
+                    let skip_replay_and_seek_instead = *skip_replay_and_seek_instead;
 
                     // Mark the server as initializing and drop lock
 
@@ -723,13 +736,18 @@ where
                         wipe_catalog_on_error,
                         last_error,
                     };
-                    (wipe_catalog_on_error, config)
+                    (wipe_catalog_on_error, skip_replay_and_seek_instead, config)
                 }
                 _ => return,
             }
         };
 
-        let init_result = init::initialize_server(Arc::clone(&config), wipe_catalog_on_error).await;
+        let init_result = init::initialize_server(
+            Arc::clone(&config),
+            wipe_catalog_on_error,
+            skip_replay_and_seek_instead,
+        )
+        .await;
         let new_stage = match init_result {
             // Success -> move to next stage
             Ok(results) => {
@@ -747,6 +765,7 @@ where
                 error!(%err, "error during server init");
                 ServerStage::InitReady {
                     wipe_catalog_on_error,
+                    skip_replay_and_seek_instead,
                     config,
                     last_error: Some(Arc::new(err)),
                 }
@@ -1295,7 +1314,8 @@ mod tests {
         let test_registry = metrics::TestMetricRegistry::new(Arc::clone(&registry));
         (
             test_registry,
-            ServerConfig::new(Arc::new(object_store), registry, None).with_num_worker_threads(1),
+            ServerConfig::new(Arc::new(object_store), registry, None, false)
+                .with_num_worker_threads(1),
         )
     }
 
@@ -1386,8 +1406,9 @@ mod tests {
         store.list_with_delimiter(&store.new_path()).await.unwrap();
 
         let manager = TestConnectionManager::new();
-        let config2 = ServerConfig::new(store, Arc::new(MetricRegistry::new()), Option::None)
-            .with_num_worker_threads(1);
+        let config2 =
+            ServerConfig::new(store, Arc::new(MetricRegistry::new()), Option::None, false)
+                .with_num_worker_threads(1);
         let server2 = Server::new(manager, config2);
         server2.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server2.maybe_initialize_server().await;

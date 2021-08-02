@@ -65,6 +65,34 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Seek to latest known sequence.
+///
+/// This can be used when no replay is wanted.
+pub async fn seek_to_end(db: &Db) -> Result<()> {
+    if let Some(WriteBufferConfig::Reading(write_buffer)) = &db.write_buffer {
+        let mut write_buffer = write_buffer
+            .try_lock()
+            .expect("no streams should exist at this point");
+
+        let mut watermarks = vec![];
+        for (sequencer_id, stream) in write_buffer.streams() {
+            let watermark = (stream.fetch_high_watermark)()
+                .await
+                .context(SeekError { sequencer_id })?;
+            watermarks.push((sequencer_id, watermark));
+        }
+
+        for (sequencer_id, watermark) in watermarks {
+            write_buffer
+                .seek(sequencer_id, watermark)
+                .await
+                .context(SeekError { sequencer_id })?;
+        }
+    }
+
+    Ok(())
+}
+
 /// Perform sequencer-driven replay for this DB.
 pub async fn perform_replay(db: &Db, replay_plan: &ReplayPlan) -> Result<()> {
     if let Some(WriteBufferConfig::Reading(write_buffer)) = &db.write_buffer {
@@ -342,7 +370,7 @@ mod tests {
                     Step::Replay => {
                         test_db
                             .db
-                            .perform_replay(&test_db.replay_plan)
+                            .perform_replay(&test_db.replay_plan, false)
                             .await
                             .unwrap();
                     }
@@ -1226,7 +1254,7 @@ mod tests {
         let replay_plan = replay_planner.build().unwrap();
 
         // replay fails
-        let res = db.perform_replay(&replay_plan).await;
+        let res = db.perform_replay(&replay_plan, false).await;
         assert_contains!(
             res.unwrap_err().to_string(),
             "Replay plan references unknown sequencer"
@@ -1274,10 +1302,105 @@ mod tests {
         let replay_plan = replay_planner.build().unwrap();
 
         // replay fails
-        let res = db.perform_replay(&replay_plan).await;
+        let res = db.perform_replay(&replay_plan, false).await;
         assert_contains!(
             res.unwrap_err().to_string(),
             "Cannot replay: For sequencer 0 expected to find sequence 1 but replay jumped to 2"
         );
+    }
+
+    #[tokio::test]
+    async fn seek_to_end_works() {
+        // setup watermarks:
+        // 0 -> 3 + 1 = 4
+        // 1 -> 1 + 1 = 2
+        // 2 -> no content = 0
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(3);
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 0),
+            Utc::now(),
+            lp_to_entry("cpu bar=0 0"),
+        ));
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 3),
+            Utc::now(),
+            lp_to_entry("cpu bar=3 3"),
+        ));
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(1, 1),
+            Utc::now(),
+            lp_to_entry("cpu bar=11 11"),
+        ));
+        let write_buffer = MockBufferForReading::new(write_buffer_state.clone());
+
+        // create DB
+        let test_db = TestDb::builder()
+            .write_buffer(WriteBufferConfig::Reading(Arc::new(
+                tokio::sync::Mutex::new(Box::new(write_buffer) as _),
+            )))
+            .build()
+            .await;
+        let db = &test_db.db;
+
+        // seek
+        db.perform_replay(&test_db.replay_plan, true).await.unwrap();
+
+        // add more data
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 4),
+            Utc::now(),
+            lp_to_entry("cpu bar=4 4"),
+        ));
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(1, 9),
+            Utc::now(),
+            lp_to_entry("cpu bar=19 19"),
+        ));
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(2, 0),
+            Utc::now(),
+            lp_to_entry("cpu bar=20 20"),
+        ));
+
+        // start background worker
+        let shutdown: CancellationToken = Default::default();
+        let shutdown_captured = shutdown.clone();
+        let db_captured = Arc::clone(db);
+        let join_handle =
+            tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+
+        // wait until checks pass
+        let checks = vec![Check::Query(
+            "select * from cpu order by time",
+            vec![
+                "+-----+--------------------------------+",
+                "| bar | time                           |",
+                "+-----+--------------------------------+",
+                "| 4   | 1970-01-01T00:00:00.000000004Z |",
+                "| 19  | 1970-01-01T00:00:00.000000019Z |",
+                "| 20  | 1970-01-01T00:00:00.000000020Z |",
+                "+-----+--------------------------------+",
+            ],
+        )];
+        let t_0 = Instant::now();
+        loop {
+            println!("Try checks...");
+            if ReplayTest::eval_checks(&checks, false, &test_db).await {
+                break;
+            }
+
+            if t_0.elapsed() >= Duration::from_secs(10) {
+                println!("Running into timeout...");
+                // try to produce nice assertion message
+                ReplayTest::eval_checks(&checks, true, &test_db).await;
+                println!("being lucky, assertion passed on last try.");
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        // stop background worker
+        shutdown.cancel();
+        join_handle.await.unwrap();
     }
 }

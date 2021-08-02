@@ -96,6 +96,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub(crate) async fn initialize_server(
     config: Arc<Config>,
     wipe_on_error: bool,
+    skip_replay_and_seek_instead: bool,
 ) -> Result<Vec<(DatabaseName<'static>, Result<()>)>> {
     let root = config.root_path();
 
@@ -120,8 +121,14 @@ pub(crate) async fn initialize_server(
                 .ok()?;
 
             Some(async move {
-                let result =
-                    initialize_database(config, root, db_name.clone(), wipe_on_error).await;
+                let result = initialize_database(
+                    config,
+                    root,
+                    db_name.clone(),
+                    wipe_on_error,
+                    skip_replay_and_seek_instead,
+                )
+                .await;
                 (db_name, result)
             })
         })
@@ -135,6 +142,7 @@ async fn initialize_database(
     root: Path,
     db_name: DatabaseName<'static>,
     wipe_on_error: bool,
+    skip_replay_and_seek_instead: bool,
 ) -> Result<()> {
     // Reserve name before expensive IO (e.g. loading the preserved catalog)
     let mut handle = config
@@ -142,7 +150,13 @@ async fn initialize_database(
         .map_err(Box::new)
         .context(InitDbError)?;
 
-    match try_advance_database_init_process_until_complete(&mut handle, &root, wipe_on_error).await
+    match try_advance_database_init_process_until_complete(
+        &mut handle,
+        &root,
+        wipe_on_error,
+        skip_replay_and_seek_instead,
+    )
+    .await
     {
         Ok(true) => {
             // finished init and keep DB
@@ -216,7 +230,7 @@ pub(crate) async fn wipe_preserved_catalog_and_maybe_recover(
         let root = config.root_path();
 
         let result =
-            try_advance_database_init_process_until_complete(&mut handle, &root, true).await;
+            try_advance_database_init_process_until_complete(&mut handle, &root, true, true).await;
 
         // Commit changes even if failed
         handle.commit();
@@ -248,9 +262,17 @@ async fn try_advance_database_init_process_until_complete(
     handle: &mut DatabaseHandle<'_>,
     root: &Path,
     wipe_on_error: bool,
+    skip_replay_and_seek_instead: bool,
 ) -> Result<bool> {
     loop {
-        match try_advance_database_init_process(handle, root, wipe_on_error).await? {
+        match try_advance_database_init_process(
+            handle,
+            root,
+            wipe_on_error,
+            skip_replay_and_seek_instead,
+        )
+        .await?
+        {
             InitProgress::Unfinished => {}
             InitProgress::Done => {
                 return Ok(true);
@@ -267,6 +289,7 @@ async fn try_advance_database_init_process(
     handle: &mut DatabaseHandle<'_>,
     root: &Path,
     wipe_on_error: bool,
+    skip_replay_and_seek_instead: bool,
 ) -> Result<InitProgress> {
     match handle.state_code() {
         DatabaseStateCode::Known => {
@@ -326,7 +349,7 @@ async fn try_advance_database_init_process(
             let replay_plan = handle
                 .replay_plan()
                 .expect("replay plan should exist in this state");
-            db.perform_replay(&replay_plan)
+            db.perform_replay(&replay_plan, skip_replay_and_seek_instead)
                 .await
                 .map_err(Box::new)
                 .context(ReplayError)?;
