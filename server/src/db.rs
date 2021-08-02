@@ -897,16 +897,27 @@ impl Db {
             let sequenced_entry = Arc::new(sequenced_entry);
 
             // store entry
-            match self.store_sequenced_entry(Arc::clone(&sequenced_entry)) {
-                Ok(_) => {
-                    red_observation.ok();
-                }
-                Err(e) => {
-                    debug!(
-                        ?e,
-                        "Error storing SequencedEntry from write buffer in database"
-                    );
-                    red_observation.error();
+            loop {
+                match self.store_sequenced_entry(Arc::clone(&sequenced_entry)) {
+                    Ok(_) => {
+                        red_observation.ok();
+                        break;
+                    }
+                    Err(Error::HardLimitReached {}) => {
+                        // wait a bit and retry
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        continue;
+                    }
+                    Err(e) => {
+                        debug!(
+                            ?e,
+                            "Error storing SequencedEntry from write buffer in database"
+                        );
+                        red_observation.error();
+
+                        // no retry
+                        break;
+                    }
                 }
             }
 
