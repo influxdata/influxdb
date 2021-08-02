@@ -38,7 +38,8 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
             description: "hard buffer limit reached".to_string(),
         }
         .into(),
-        source @ Error::WritingOnlyAllowedThroughWriteBuffer { .. } => tonic::Status::failed_precondition(source.to_string()),
+        source @ Error::WritingOnlyAllowedThroughWriteBuffer { .. } |
+            source @ Error::LineConversion { .. } => tonic::Status::failed_precondition(source.to_string()),
         Error::NoRemoteConfigured { node_group } => NotFound {
             resource_type: "remote".to_string(),
             resource_name: format!("{:?}", node_group),
