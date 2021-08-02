@@ -439,6 +439,44 @@ async fn sql_union_all() {
 }
 
 #[tokio::test]
+async fn sql_distinct_aggregates() {
+    // validate distinct aggregates work against dictionary columns
+    // which have nulls in them
+    let expected = vec![
+        "+----------------------+",
+        "| COUNT(DISTINCT city) |",
+        "+----------------------+",
+        "| 2                    |",
+        "+----------------------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsManyNulls {},
+        "select count(distinct city) from o2",
+        &expected
+    );
+}
+
+#[tokio::test]
+async fn sql_aggregate_on_tags() {
+    // validate aggregates work on dictionary columns
+    // which have nulls in them
+    let expected = vec![
+        "+-----------------+--------+",
+        "| COUNT(UInt8(1)) | city   |",
+        "+-----------------+--------+",
+        "| 1               | Boston |",
+        "| 2               |        |",
+        "| 2               | NYC    |",
+        "+-----------------+--------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsManyNulls {},
+        "select count(*), city from o2 group by city",
+        &expected
+    );
+}
+
+#[tokio::test]
 async fn sql_select_with_schema_merge_subset() {
     let expected = vec![
         "+------+--------+--------+",
