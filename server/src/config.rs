@@ -543,10 +543,7 @@ impl<'a> DatabaseHandle<'a> {
                     write_buffer,
                 };
 
-                let db = Arc::new(Db::new(
-                    database_to_commit,
-                    Arc::clone(application.job_registry()),
-                ));
+                let db = Db::new(database_to_commit, Arc::clone(application.job_registry()));
 
                 self.state = Some(Arc::new(DatabaseState::Replay { db, replay_plan }));
 

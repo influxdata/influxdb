@@ -25,7 +25,12 @@ use lifecycle::{
 use observability_deps::tracing::{info, trace};
 use persistence_windows::persistence_windows::FlushHandle;
 use query::QueryChunkMeta;
-use std::{fmt::Display, sync::Arc, time::Instant};
+use std::{
+    convert::TryInto,
+    fmt::Display,
+    sync::{Arc, Weak},
+    time::Instant,
+};
 use tracker::{RwLock, TaskTracker};
 
 pub(crate) use compact::compact_chunks;
@@ -43,17 +48,9 @@ mod persist;
 mod unload;
 mod write;
 
-/// A newtype wrapper around `Arc<Db>` to workaround trait orphan rules
+/// A newtype wrapper around `Weak<Db>` to workaround trait orphan rules
 #[derive(Debug, Clone)]
-pub struct ArcDb(pub(super) Arc<Db>);
-
-impl std::ops::Deref for ArcDb {
-    type Target = Db;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+pub struct WeakDb(pub(super) Weak<Db>);
 
 ///
 /// A `LockableCatalogChunk` combines a `CatalogChunk` with its owning `Db`
@@ -232,28 +229,42 @@ impl LockablePartition for LockableCatalogPartition {
     }
 }
 
-impl LifecycleDb for ArcDb {
+impl LifecycleDb for WeakDb {
     type Chunk = LockableCatalogChunk;
     type Partition = LockableCatalogPartition;
 
     fn buffer_size(&self) -> usize {
-        self.catalog.metrics().memory().total()
+        self.0
+            .upgrade()
+            .map(|db| db.catalog.metrics().memory().total())
+            .unwrap_or_default()
     }
 
     fn rules(&self) -> LifecycleRules {
-        self.rules.read().lifecycle_rules.clone()
+        self.0
+            .upgrade()
+            .map(|db| db.rules.read().lifecycle_rules.clone())
+            .unwrap_or_default()
     }
 
     fn partitions(&self) -> Vec<Self::Partition> {
-        self.catalog
-            .partitions()
-            .into_iter()
-            .map(|partition| LockableCatalogPartition::new(Arc::clone(&self.0), partition))
-            .collect()
+        self.0
+            .upgrade()
+            .map(|db| {
+                db.catalog
+                    .partitions()
+                    .into_iter()
+                    .map(|partition| LockableCatalogPartition::new(Arc::clone(&db), partition))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     fn name(&self) -> DatabaseName<'static> {
-        self.rules.read().name.clone()
+        self.0
+            .upgrade()
+            .map(|db| db.rules.read().name.clone())
+            .unwrap_or_else(|| "gone".to_string().try_into().unwrap())
     }
 }
 

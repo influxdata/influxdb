@@ -107,7 +107,7 @@ impl TestDbBuilder {
 
         TestDb {
             metric_registry: metrics::TestMetricRegistry::new(metrics_registry),
-            db: Arc::new(Db::new(database_to_commit, Arc::new(JobRegistry::new()))),
+            db: Db::new(database_to_commit, Arc::new(JobRegistry::new())),
             replay_plan,
         }
     }

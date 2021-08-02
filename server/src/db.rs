@@ -11,7 +11,7 @@ use crate::{
             table::TableSchemaUpsertHandle,
             Catalog, TableNameFilter,
         },
-        lifecycle::{ArcDb, LockableCatalogChunk, LockableCatalogPartition},
+        lifecycle::{LockableCatalogChunk, LockableCatalogPartition, WeakDb},
     },
     JobRegistry,
 };
@@ -367,6 +367,11 @@ pub struct Db {
     /// The cleanup job needs exclusive access and hence will acquire a write-guard. Creating parquet files and creating
     /// catalog transaction only needs shared access and hence will acquire a read-guard.
     cleanup_lock: Arc<tokio::sync::RwLock<()>>,
+
+    /// Lifecycle policy.
+    ///
+    /// Optional because it will be created after `Arc<Self>`.
+    lifcycle_policy: tokio::sync::Mutex<Option<::lifecycle::LifecyclePolicy<WeakDb>>>,
 }
 
 /// All the information needed to commit a database
@@ -382,7 +387,7 @@ pub(crate) struct DatabaseToCommit {
 }
 
 impl Db {
-    pub(crate) fn new(database_to_commit: DatabaseToCommit, jobs: Arc<JobRegistry>) -> Self {
+    pub(crate) fn new(database_to_commit: DatabaseToCommit, jobs: Arc<JobRegistry>) -> Arc<Self> {
         let db_name = database_to_commit.rules.name.clone();
 
         let rules = RwLock::new(database_to_commit.rules);
@@ -408,7 +413,7 @@ impl Db {
 
         let process_clock = process_clock::ProcessClock::new();
 
-        Self {
+        let this = Self {
             rules,
             server_id,
             store,
@@ -425,7 +430,13 @@ impl Db {
             ingest_metrics,
             write_buffer: database_to_commit.write_buffer,
             cleanup_lock: Default::default(),
-        }
+            lifcycle_policy: tokio::sync::Mutex::new(None),
+        };
+        let this = Arc::new(this);
+        *this.lifcycle_policy.try_lock().expect("not used yet") = Some(
+            ::lifecycle::LifecyclePolicy::new(WeakDb(Arc::downgrade(&this))),
+        );
+        this
     }
 
     /// Return a handle to the executor used to run queries
@@ -763,13 +774,15 @@ impl Db {
         tokio::join!(
             // lifecycle policy loop
             async {
-                let mut policy = ::lifecycle::LifecyclePolicy::new(ArcDb(Arc::clone(self)));
-
                 while !shutdown.is_cancelled() {
                     self.worker_iterations_lifecycle
                         .fetch_add(1, Ordering::Relaxed);
                     tokio::select! {
-                        _ = policy.check_for_work(Utc::now(), std::time::Instant::now()) => {},
+                        _ = async {
+                            let mut guard = self.lifcycle_policy.lock().await;
+                            let policy = guard.as_mut().expect("lifecycle policy should be initialized");
+                            policy.check_for_work(Utc::now(), std::time::Instant::now()).await
+                        } => {},
                         _ = shutdown.cancelled() => break,
                     }
                 }
