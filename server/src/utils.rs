@@ -59,7 +59,11 @@ impl TestDbBuilder {
             .object_store
             .unwrap_or_else(|| Arc::new(ObjectStore::new_in_memory()));
 
-        let exec = Arc::new(Executor::new(1));
+        // deterministic thread and concurrency count
+        let mut exec = Executor::new(1);
+        exec.config_mut().set_concurrency(4);
+        let exec = Arc::new(exec);
+
         let metrics_registry = Arc::new(metrics::MetricRegistry::new());
 
         let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
