@@ -23,7 +23,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Install rust
-RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y \
+ENV RUST_VERSION=1.52.1
+RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain ${RUST_VERSION} -y \
   && . $HOME/.cargo/env && rustup target add \
     aarch64-unknown-linux-musl \
     x86_64-apple-darwin \
