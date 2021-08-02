@@ -20,6 +20,7 @@
 -	[#21863](https://github.com/influxdata/influxdb/pull/21863): fix: export example and fix adjacent shards
 -	[#21934](https://github.com/influxdata/influxdb/pull/21934): chore: use community maintained golang-jwt
 -	[#21943](https://github.com/influxdata/influxdb/pull/21943): fix: tsi index should compact old or too-large log files
+-	[#22006](https://github.com/influxdata/influxdb/pull/22006): fix: old tsl files should be compacted without new writes
 -	[#21947](https://github.com/influxdata/influxdb/pull/21947): fix: prevent silently dropped writes with overlapping shards
 -	[#21978](https://github.com/influxdata/influxdb/pull/21978): fix: restore portable backup bug
 
