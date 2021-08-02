@@ -285,7 +285,10 @@ pub async fn main(config: Config) -> Result<()> {
 
     info!("frontend shutdown completed");
     internal_shutdown.cancel();
-    server_worker.await;
+
+    if !server_worker.is_terminated() {
+        server_worker.await;
+    }
 
     info!("server completed shutting down");
 
