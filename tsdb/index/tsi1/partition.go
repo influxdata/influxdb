@@ -475,6 +475,7 @@ func (p *Partition) prependActiveLogFile() error {
 	manifestSize, err := p.Manifest().Write()
 	if err != nil {
 		// TODO: Close index if write fails.
+		p.logger.Error("manifest write failed, index is potentially damaged", zap.Error(err))
 		return err
 	}
 	p.manifestSize = manifestSize
@@ -958,6 +959,13 @@ func (p *Partition) compact() {
 
 	fs := p.retainFileSet()
 	defer fs.Release()
+
+	// check if the current active log file should be rolled
+	if p.needsLogCompaction() {
+		if err := p.prependActiveLogFile(); err != nil {
+			p.logger.Error("failed to retire active log file", zap.Error(err))
+		}
+	}
 
 	// compact any non-active log files first
 	for _, f := range p.fileSet.files {
