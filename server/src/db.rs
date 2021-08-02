@@ -45,7 +45,7 @@ use std::{
     any::Any,
     collections::HashMap,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
     time::{Duration, Instant},
@@ -372,6 +372,11 @@ pub struct Db {
     ///
     /// Optional because it will be created after `Arc<Self>`.
     lifcycle_policy: tokio::sync::Mutex<Option<::lifecycle::LifecyclePolicy<WeakDb>>>,
+
+    /// Flag to stop background worker from reading from the write buffer.
+    ///
+    /// TODO: Move write buffer read loop out of Db.
+    no_write_buffer_read: AtomicBool,
 }
 
 /// All the information needed to commit a database
@@ -431,12 +436,29 @@ impl Db {
             write_buffer: database_to_commit.write_buffer,
             cleanup_lock: Default::default(),
             lifcycle_policy: tokio::sync::Mutex::new(None),
+            no_write_buffer_read: AtomicBool::new(true),
         };
         let this = Arc::new(this);
         *this.lifcycle_policy.try_lock().expect("not used yet") = Some(
-            ::lifecycle::LifecyclePolicy::new(WeakDb(Arc::downgrade(&this))),
+            ::lifecycle::LifecyclePolicy::new_suppress_persistence(WeakDb(Arc::downgrade(&this))),
         );
         this
+    }
+
+    /// Allow persistence if database rules all it.
+    pub async fn unsuppress_persistence(&self) {
+        let mut guard = self.lifcycle_policy.lock().await;
+        let policy = guard
+            .as_mut()
+            .expect("lifecycle policy should be initialized");
+        policy.unsuppress_persistence();
+    }
+
+    /// Allow continuous reads from the write buffer (if configured).
+    ///
+    /// TODO: Move write buffer read loop out of Db.
+    pub fn allow_write_buffer_read(&self) {
+        self.no_write_buffer_read.store(false, Ordering::SeqCst);
     }
 
     /// Return a handle to the executor used to run queries
@@ -814,6 +836,16 @@ impl Db {
             // streaming from the write buffer loop
             async {
                 if let Some(WriteBufferConfig::Reading(write_buffer)) = &self.write_buffer {
+                    // wait for permission
+                    tokio::select! {
+                        _ = async {
+                            while self.no_write_buffer_read.load(Ordering::SeqCst) {
+                                tokio::time::sleep(Duration::from_millis(10)).await;
+                            }
+                        } => {},
+                        _ = shutdown.cancelled() => return,
+                    }
+
                     let mut write_buffer = write_buffer
                         .try_lock()
                         .expect("no streams should exist at this point");
@@ -1535,6 +1567,7 @@ mod tests {
         let db_captured = Arc::clone(&db);
         let join_handle =
             tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+        db.allow_write_buffer_read();
 
         let query = "select * from cpu";
 
@@ -1674,6 +1707,7 @@ mod tests {
         let db_captured = Arc::clone(&db);
         let join_handle =
             tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+        db.allow_write_buffer_read();
 
         // check: after a while the error should be reported in the database's metrics
         let t_0 = Instant::now();
@@ -2783,6 +2817,7 @@ mod tests {
         let db_captured = Arc::clone(&db);
         let join_handle =
             tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+        db.allow_write_buffer_read();
 
         // check: after a while the persistence windows should have the expected data
         let t_0 = Instant::now();

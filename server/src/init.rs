@@ -353,6 +353,8 @@ async fn try_advance_database_init_process(
                 .await
                 .map_err(Box::new)
                 .context(ReplayError)?;
+            db.unsuppress_persistence().await;
+            db.allow_write_buffer_read();
 
             handle
                 .advance_init()
