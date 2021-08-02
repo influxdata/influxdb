@@ -610,7 +610,7 @@ where
 
 impl<M> Debug for LifecyclePolicy<M>
 where
-    M: LifecycleDb + Copy,
+    M: LifecycleDb,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "LifecyclePolicy{{..}}")
