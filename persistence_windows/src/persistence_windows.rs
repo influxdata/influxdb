@@ -9,7 +9,7 @@ use chrono::{DateTime, TimeZone, Utc};
 
 use data_types::{partition_metadata::PartitionAddr, write_summary::WriteSummary};
 use entry::Sequence;
-use internal_types::guard::{ReadGuard, ReadLock};
+use internal_types::freezable::{Freezable, FreezeHandle};
 
 use crate::min_max_sequence::MinMaxSequence;
 use crate::{checkpoint::PartitionCheckpoint, min_max_sequence::OptionalMinMaxSequence};
@@ -37,7 +37,7 @@ const DEFAULT_CLOSED_WINDOW_PERIOD: Duration = Duration::from_secs(30);
 /// that arrived more than late_arrival_period seconds ago, as determined by wall clock time"
 #[derive(Debug)]
 pub struct PersistenceWindows {
-    persistable: ReadLock<Option<Window>>,
+    persistable: Freezable<Option<Window>>,
     closed: VecDeque<Window>,
     open: Option<Window>,
 
@@ -66,7 +66,7 @@ pub struct PersistenceWindows {
 ///
 #[derive(Debug)]
 pub struct FlushHandle {
-    guard: ReadGuard<Option<Window>>,
+    handle: FreezeHandle<Option<Window>>,
     /// The number of closed windows at the time of the handle's creation
     ///
     /// This identifies the windows that can have their
@@ -113,7 +113,7 @@ impl PersistenceWindows {
         let created_at_instant = Instant::now();
 
         Self {
-            persistable: ReadLock::new(None),
+            persistable: Freezable::new(None),
             closed: VecDeque::with_capacity(closed_window_count as usize),
             open: None,
             addr,
@@ -270,7 +270,7 @@ impl PersistenceWindows {
     ///
     /// Returns `None` if there is an outstanding handle
     pub fn flush_handle(&mut self, now: Instant) -> Option<FlushHandle> {
-        // Verify no active flush handles
+        // Verify no active flush handles before closing open window
         self.persistable.get_mut()?;
 
         // Close current open window if any
@@ -282,7 +282,7 @@ impl PersistenceWindows {
         self.rotate(now);
 
         Some(FlushHandle {
-            guard: self.persistable.lock(),
+            handle: self.persistable.try_freeze()?,
             closed_count: self.closed.len(),
             addr: self.addr.clone(),
             timestamp: self.persistable.as_ref()?.max_time,
@@ -294,7 +294,6 @@ impl PersistenceWindows {
     pub fn flush(&mut self, handle: FlushHandle) {
         let closed_count = handle.closed_count;
         let timestamp = handle.timestamp;
-        std::mem::drop(handle);
 
         assert!(
             self.closed.len() >= closed_count,
@@ -303,8 +302,7 @@ impl PersistenceWindows {
 
         let persistable = self
             .persistable
-            .get_mut()
-            .expect("expected no active locks")
+            .unfreeze(handle.handle)
             .take()
             .expect("expected persistable window");
 
