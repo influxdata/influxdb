@@ -170,8 +170,7 @@ done
 # series.
 scale_var=1000
 
-# How many queries to generate. Not particularly relevant right now since the
-# queries are all the same.
+# How many queries to generate.
 queries=100
 
 # The time range controls both the span over which data is generated, and the
@@ -183,7 +182,7 @@ end="2020-01-01T00:00:00Z"
 
 # How long to run the query phase of the benchmarks. It's best to specify a
 # duration to limit the maximum amount of time the queries can run for these,
-# since the queries can take a very long time.
+# since individual queries can take a long time to run.
 duration=30s
 
 # Generate data
@@ -209,7 +208,7 @@ cat ${DATASET_DIR}/$data_fname | $GOPATH/bin/bulk_load_influx $load_opts > /dev/
 
 force_compaction
 
-# Run the queries
+# Run the query benchmarks
 for query_file in $query_files; do
   format=$(echo $query_file | cut -d '-' -f3,4,5)
   format=${format%.txt}
