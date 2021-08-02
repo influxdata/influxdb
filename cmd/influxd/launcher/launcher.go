@@ -708,7 +708,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		HTTPErrorHandler:     kithttp.ErrorHandler(0),
 		Logger:               m.log,
 		SessionRenewDisabled: opts.SessionRenewDisabled,
-		NewBucketService:     source.NewBucketService,
 		NewQueryService:      source.NewQueryService,
 		PointsWriter: &storage.LoggingPointsWriter{
 			Underlying:    pointsWriter,

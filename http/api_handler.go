@@ -50,8 +50,7 @@ type APIBackend struct {
 	// write request. A value of zero specifies there is no limit.
 	WriteParserMaxValues int
 
-	NewBucketService func(*influxdb.Source) (influxdb.BucketService, error)
-	NewQueryService  func(*influxdb.Source) (query.ProxyQueryService, error)
+	NewQueryService func(*influxdb.Source) (query.ProxyQueryService, error)
 
 	WriteEventRecorder metric.EventRecorder
 	QueryEventRecorder metric.EventRecorder
