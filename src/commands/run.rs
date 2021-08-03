@@ -239,6 +239,10 @@ Possible values (case insensitive):
         default_value = "10485760" // 10 MiB
     )]
     pub max_http_request_size: usize,
+
+    /// Skip replaying the write buffer and seek to high watermark instead.
+    #[structopt(long = "--skip-replay", env = "IOX_SKIP_REPLAY")]
+    pub skip_replay_and_seek_instead: bool,
 }
 
 pub async fn command(config: Config) -> Result<()> {

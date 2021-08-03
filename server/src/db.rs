@@ -737,9 +737,20 @@ impl Db {
     }
 
     /// Perform sequencer-driven replay for this DB.
-    pub async fn perform_replay(&self, replay_plan: &ReplayPlan) -> Result<()> {
-        use crate::db::replay::perform_replay;
-        perform_replay(self, replay_plan).await.context(ReplayError)
+    ///
+    /// When `skip_and_seek` is set then no real replay will be performed. Instead the write buffer streams will be set
+    /// to the current high watermark and normal playback will continue from there.
+    pub async fn perform_replay(
+        &self,
+        replay_plan: &ReplayPlan,
+        skip_and_seek: bool,
+    ) -> Result<()> {
+        use crate::db::replay::{perform_replay, seek_to_end};
+        if skip_and_seek {
+            seek_to_end(self).await.context(ReplayError)
+        } else {
+            perform_replay(self, replay_plan).await.context(ReplayError)
+        }
     }
 
     /// Background worker function

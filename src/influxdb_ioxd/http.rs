@@ -899,8 +899,13 @@ mod tests {
         let test_registry = metrics::TestMetricRegistry::new(Arc::clone(&registry));
         (
             test_registry,
-            AppServerConfig::new(Arc::new(ObjectStore::new_in_memory()), registry, None)
-                .with_num_worker_threads(1),
+            AppServerConfig::new(
+                Arc::new(ObjectStore::new_in_memory()),
+                registry,
+                None,
+                false,
+            )
+            .with_num_worker_threads(1),
         )
     }
 

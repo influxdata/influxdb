@@ -138,7 +138,12 @@ pub async fn main(config: Config) -> Result<()> {
     let object_storage = Arc::new(object_store);
     let metric_registry = Arc::new(metrics::MetricRegistry::new());
     let remote_template = config.remote_template.map(RemoteTemplate::new);
-    let server_config = AppServerConfig::new(object_storage, metric_registry, remote_template);
+    let server_config = AppServerConfig::new(
+        object_storage,
+        metric_registry,
+        remote_template,
+        config.skip_replay_and_seek_instead,
+    );
 
     let server_config = if let Some(n) = config.num_worker_threads {
         info!(
