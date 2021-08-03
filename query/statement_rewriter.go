@@ -300,6 +300,7 @@ func rewriteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement) (influ
 
 	return &influxql.ShowTagValuesStatement{
 		Database:   stmt.Database,
+		Sources:    stmt.Sources,
 		Op:         stmt.Op,
 		TagKeyExpr: stmt.TagKeyExpr,
 		Condition:  condition,
