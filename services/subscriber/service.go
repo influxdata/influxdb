@@ -25,6 +25,7 @@ const (
 	statCreateFailures = "createFailures"
 	statPointsWritten  = "pointsWritten"
 	statWriteFailures  = "writeFailures"
+	statMemUsage       = "memUsage"
 )
 
 // WriteRequest is a parsed write request.
@@ -240,9 +241,12 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	totalSize := int64(0)
 	for _, cw := range s.subs {
 		statistics = append(statistics, cw.Statistics(tags)...)
+		totalSize += atomic.LoadInt64(&cw.queueSize)
 	}
+	statistics[0].Values[statMemUsage] = totalSize
 
 	return statistics
 }
