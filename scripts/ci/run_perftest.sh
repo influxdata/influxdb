@@ -186,14 +186,16 @@ end="2020-01-01T00:00:00Z"
 duration=30s
 
 # Generate data
-data_fname="influx-bulk-records-usecase-metaquery.txt"
+scale_string="scalevar-$scale_var"
+scale_seed_string="$scale_string-seed-$seed"
+data_fname="influx-bulk-records-usecase-metaquery-$scale_seed_string.txt"
 $GOPATH/bin/bulk_data_gen --seed=$seed -use-case metaquery -scale-var $scale_var -timestamp-start $start -timestamp-end $end > ${DATASET_DIR}/$data_fname
 
 # Generate flux queries for field-keys and tag-values
 query_files=""
 for type in field-keys tag-values; do
   for format in http flux-http; do
-    query_fname="query-metaquery-$type-$format.txt"
+    query_fname="query-metaquery-$scale_seed_string-$type-$format.txt"
     $GOPATH/bin/bulk_query_gen -use-case metaquery -query-type $type -format influx-$format -timestamp-start $start -timestamp-end $end -queries $queries > ${DATASET_DIR}/$query_fname
     query_files="$query_files $query_fname"
   done
@@ -212,7 +214,7 @@ force_compaction
 for query_file in $query_files; do
   format=$(echo $query_file | cut -d '-' -f3,4,5)
   format=${format%.txt}
-  cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://${NGINX_HOST}:8086 --benchmark-duration=$duration --debug=0 --print-interval=0 --json=true --organization=$TEST_ORG --token=$TEST_TOKEN | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-metaquery-format-$format.json
+  cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://${NGINX_HOST}:8086 --benchmark-duration=$duration --debug=0 --print-interval=0 --json=true --organization=$TEST_ORG --token=$TEST_TOKEN | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-metaquery-$scale_seed_string-format-$format.json
 done
 
 # clean up the DB before exiting
