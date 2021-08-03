@@ -1694,6 +1694,78 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn write_buffer_reads_wait_for_compaction() {
+        // these numbers are handtuned to trigger hard buffer limits w/o making the test too big
+
+        // setup write buffer
+        let n_entries = 50u64;
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        for sequence_number in 0..n_entries {
+            let lp = format!(
+                "table_1,tag_partition_by=a foo=\"hello\",bar=1 {}",
+                sequence_number / 2
+            );
+            write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+                Sequence::new(0, sequence_number),
+                Utc::now(),
+                lp_to_entry(&lp),
+            ));
+        }
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, n_entries),
+            Utc::now(),
+            lp_to_entry("table_2,partition_by=a foo=1 0"),
+        ));
+        let write_buffer = MockBufferForReading::new(write_buffer_state);
+
+        // create DB
+        let partition_template = PartitionTemplate {
+            parts: vec![TemplatePart::Column("tag_partition_by".to_string())],
+        };
+        let test_db = TestDb::builder()
+            .write_buffer(WriteBufferConfig::Reading(Arc::new(
+                tokio::sync::Mutex::new(Box::new(write_buffer) as _),
+            )))
+            .lifecycle_rules(data_types::database_rules::LifecycleRules {
+                buffer_size_hard: Some(NonZeroUsize::new(10_000).unwrap()),
+                mub_row_threshold: NonZeroUsize::new(10).unwrap(),
+                ..Default::default()
+            })
+            .partition_template(partition_template)
+            .build()
+            .await;
+        let db = test_db.db;
+
+        // start background task loop
+        let shutdown: CancellationToken = Default::default();
+        let shutdown_captured = shutdown.clone();
+        let db_captured = Arc::clone(&db);
+        let join_handle =
+            tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+        db.allow_write_buffer_read();
+
+        // after a while the table should exist
+        let t_0 = Instant::now();
+        loop {
+            if db.table_schema("table_2").is_some() {
+                break;
+            }
+
+            assert!(t_0.elapsed() < Duration::from_secs(10));
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        // do: stop background task loop
+        shutdown.cancel();
+        join_handle.await.unwrap();
+
+        // no rows should be dropped
+        let batches = run_query(db, "select sum(bar) as n from table_1").await;
+        let expected = vec!["+----+", "| n  |", "+----+", "| 25 |", "+----+"];
+        assert_batches_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
     async fn error_converting_data_from_write_buffer_to_sequenced_entry_is_reported() {
         let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
         write_buffer_state.push_error(

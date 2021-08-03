@@ -495,6 +495,7 @@ mod tests {
                 .lifecycle_rules(data_types::database_rules::LifecycleRules {
                     buffer_size_hard: Some(NonZeroUsize::new(10_000).unwrap()),
                     late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+                    mub_row_threshold: NonZeroUsize::new(10).unwrap(),
                     ..Default::default()
                 })
                 .partition_template(partition_template)
@@ -1253,14 +1254,13 @@ mod tests {
 
     #[tokio::test]
     async fn replay_compacts() {
-        // these numbers are handtuned to trigger hard buffer limits w/o making the test too big, it still takes ~10s
-        // :(
-        let n_entries = 400u64;
+        // these numbers are handtuned to trigger hard buffer limits w/o making the test too big
+        let n_entries = 50u64;
         let sequenced_entries: Vec<_> = (0..n_entries)
             .map(|sequence_number| {
                 let lp = format!(
                     "table_1,tag_partition_by=a foo=\"hello\",bar=10 {}",
-                    sequence_number
+                    sequence_number / 2
                 );
                 let lp: &'static str = Box::leak(Box::new(lp));
                 TestSequencedEntry {
