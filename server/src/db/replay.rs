@@ -323,8 +323,8 @@ impl SequenceNumberSection {
                     }
                 }
                 None => {
-                    // The range of potentially unpersisted entries is empty, aka the data up to `max`
-                    // is fully persisted. We are below `max` in this branch, so this entry is fully
+                    // The range of potentially unpersisted entries is empty, aka the data up to and including `max`
+                    // is fully persisted. We are below or equal to `max` in this branch, so this entry is fully
                     // persisted.
                     Self::Persisted
                 }
