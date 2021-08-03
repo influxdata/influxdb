@@ -1443,6 +1443,7 @@ mod tests {
         let db_captured = Arc::clone(db);
         let join_handle =
             tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+        db.allow_write_buffer_read();
 
         // wait until checks pass
         let checks = vec![Check::Query(
