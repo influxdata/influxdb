@@ -271,7 +271,11 @@ Possible values (case insensitive):
     pub max_http_request_size: usize,
 
     /// Skip replaying the write buffer and seek to high watermark instead.
-    #[structopt(long = "--skip-replay", env = "IOX_SKIP_REPLAY", default_value = "no")]
+    #[structopt(
+        long = "--skip-replay",
+        env = "INFLUXDB_IOX_SKIP_REPLAY",
+        default_value = "no"
+    )]
     pub skip_replay_and_seek_instead: BooleanFlag,
 }
 
