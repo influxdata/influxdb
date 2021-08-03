@@ -1,5 +1,6 @@
 v1.9.4 [unreleased]
 -	[#21890](https://github.com/influxdata/influxdb/pull/21890): chore: update protobuf library versions and remove influx_tsm
+-	[#22011](https://github.com/influxdata/influxdb/pull/22011): feat: SHOW TAG VALUES should produce results from one specific RP
 
 v1.9.3 [unreleased]
 
