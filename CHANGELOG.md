@@ -3,6 +3,7 @@ v1.8.8 [unreleased]
 
 -	[#21953](https://github.com/influxdata/influxdb/pull/21953): fix: prevent silently dropped writes with overlapping shards
 -	[#21991](https://github.com/influxdata/influxdb/pull/21991): fix: restore portable backup bug
+- [#21987](https://github.com/influxdata/influxdb/pull/21987): fix: systemd-startup script should be executable by group and others
 
 v1.8.7 [2021-07-21]
 -------------------
