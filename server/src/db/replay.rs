@@ -1435,7 +1435,7 @@ mod tests {
                     TestSequencedEntry {
                         sequencer_id: 0,
                         sequence_number: 0,
-                        lp: "table_2,tag_partition_by=a bar=10 0",
+                        lp: "table_2,tag_partition_by=a bar=20 0",
                     },
                     TestSequencedEntry {
                         sequencer_id: 0,
@@ -1458,6 +1458,16 @@ mod tests {
                             "| bar | tag_partition_by | time                 |",
                             "+-----+------------------+----------------------+",
                             "| 10  | a                | 1970-01-01T00:00:00Z |",
+                            "+-----+------------------+----------------------+",
+                        ],
+                    ),
+                    Check::Query(
+                        "select * from table_2 order by bar",
+                        vec![
+                            "+-----+------------------+----------------------+",
+                            "| bar | tag_partition_by | time                 |",
+                            "+-----+------------------+----------------------+",
+                            "| 20  | a                | 1970-01-01T00:00:00Z |",
                             "+-----+------------------+----------------------+",
                         ],
                     ),
