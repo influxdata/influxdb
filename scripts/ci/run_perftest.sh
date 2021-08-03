@@ -21,11 +21,15 @@ trap "aws s3 cp /home/ubuntu/perftest_log.txt s3://perftest-logs-influxdb/oss/$r
 working_dir=$(mktemp -d)
 mkdir -p /etc/telegraf
 cat << EOF > /etc/telegraf/telegraf.conf
-[[outputs.influxdb_v2]]
-  urls = ["https://us-west-2-1.aws.cloud2.influxdata.com"]
-  token = "${DB_TOKEN}"
-  organization = "${CLOUD2_ORG}"
-  bucket = "${CLOUD2_BUCKET}"
+# [[outputs.influxdb_v2]]
+#   urls = ["https://us-west-2-1.aws.cloud2.influxdata.com"]
+#   token = "${DB_TOKEN}"
+#   organization = "${CLOUD2_ORG}"
+#   bucket = "${CLOUD2_BUCKET}"
+
+[[outputs.file]]
+  files = ["stdout"]
+  data_format = "influx"
 
 [[inputs.file]]
   files = ["$working_dir/*.json"]
@@ -43,7 +47,8 @@ cat << EOF > /etc/telegraf/telegraf.conf
   json_time_format = "unix"
   tag_keys = [
     "i_type",
-    "query_format"
+    "query_format",
+    "is_metaquery"
   ]
 EOF
 systemctl restart telegraf
@@ -214,7 +219,7 @@ force_compaction
 for query_file in $query_files; do
   format=$(echo $query_file | cut -d '-' -f3,4,5)
   format=${format%.txt}
-  cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://${NGINX_HOST}:8086 --benchmark-duration=$duration --debug=0 --print-interval=0 --json=true --organization=$TEST_ORG --token=$TEST_TOKEN | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-metaquery-$scale_seed_string-format-$format.json
+  cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://${NGINX_HOST}:8086 --benchmark-duration=$duration --debug=0 --print-interval=0 --json=true --organization=$TEST_ORG --token=$TEST_TOKEN | jq ". += {is_metaquery: true, branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-metaquery-$scale_seed_string-format-$format.json
 done
 
 # clean up the DB before exiting
