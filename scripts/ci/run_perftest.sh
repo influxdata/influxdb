@@ -124,6 +124,7 @@ force_compaction() {
   # restart daemon
   systemctl unmask influxdb.service
   systemctl start influxdb
+  sleep 1 # allow time for the service to fully initialize?
 }
 
 # Run and record tests
@@ -217,9 +218,9 @@ force_compaction
 
 # Run the query benchmarks
 for query_file in $query_files; do
-  format=$(echo $query_file | cut -d '-' -f3,4,5)
+  format=$(echo $query_file | cut -d '-' -f9)
   format=${format%.txt}
-  cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://${NGINX_HOST}:8086 --benchmark-duration=$duration --debug=0 --print-interval=0 --json=true --organization=$TEST_ORG --token=$TEST_TOKEN | jq ". += {is_metaquery: true, branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-metaquery-$scale_seed_string-format-$format.json
+  cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://${NGINX_HOST}:8086 --benchmark-duration=$duration --debug=0 --print-interval=0 --json=true --organization=$TEST_ORG --token=$TEST_TOKEN | jq ". += {is_metaquery: true, branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-metaquery-$scale_string-format-$format.json
 done
 
 # clean up the DB before exiting
