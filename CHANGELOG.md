@@ -6,6 +6,7 @@
 -	[#21752](https://github.com/influxdata/influxdb/pull/21752): feat: add total-buffer-bytes config parameter to subscriptions
 -	[#21820](https://github.com/influxdata/influxdb/pull/21820): chore: update flux to v0.120.1
 -	[#21983](https://github.com/influxdata/influxdb/pull/21983): feat: SHOW TAG VALUES should produce results from one specific RP
+-	[#22020](https://github.com/influxdata/influxdb/pull/22020): feat: add subscription buffer size usage metric
 
 ### Bugfixes
 
