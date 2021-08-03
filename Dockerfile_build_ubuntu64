@@ -28,8 +28,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
 RUN pip3 install boto
 RUN gem install fpm
 
+# if you change RUST_VERSION, be sure to change it in all the Dockerfiles under releng/ as well
+ENV RUST_VERSION=1.52.1
 ENV PATH "/root/.cargo/bin:$PATH"
-RUN curl --proto '=https' --tlsv1.2 --tls-max 1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y && \
+RUN curl --proto '=https' --tlsv1.2 --tls-max 1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain ${RUST_VERSION} -y && \
     cargo --help
 
 # setup environment
