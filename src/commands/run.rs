@@ -26,6 +26,36 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Boolean flag that works with environment variables.
+///
+/// Workaround for <https://github.com/TeXitoi/structopt/issues/428>
+#[derive(Debug)]
+pub enum BooleanFlag {
+    True,
+    False,
+}
+
+impl std::str::FromStr for BooleanFlag {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "yes" | "y" | "true" | "t" | "1" => Ok(Self::True),
+            "no" | "n" | "false" | "f" | "0" => Ok(Self::False),
+            _ => Err(format!(
+                "Invalid boolean flag '{}'. Valid options: yes, no, y, n, true, false, t, f, 1, 0",
+                s
+            )),
+        }
+    }
+}
+
+impl From<BooleanFlag> for bool {
+    fn from(yes_no: BooleanFlag) -> Self {
+        matches!(yes_no, BooleanFlag::True)
+    }
+}
+
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "run",
@@ -241,8 +271,12 @@ Possible values (case insensitive):
     pub max_http_request_size: usize,
 
     /// Skip replaying the write buffer and seek to high watermark instead.
-    #[structopt(long = "--skip-replay", env = "IOX_SKIP_REPLAY")]
-    pub skip_replay_and_seek_instead: bool,
+    #[structopt(
+        long = "--skip-replay",
+        env = "INFLUXDB_IOX_SKIP_REPLAY",
+        default_value = "no"
+    )]
+    pub skip_replay_and_seek_instead: BooleanFlag,
 }
 
 pub async fn command(config: Config) -> Result<()> {
