@@ -68,6 +68,12 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Seek to latest known sequence.
 ///
 /// This can be used when no replay is wanted.
+///
+/// # Error Handling
+/// This function may return an error if the watermarks (= last known sequence number) cannot be fetched or a seek
+/// operation fails. In that case some of the sequencers in the write buffers might already be seeked and others not.
+/// The caller must NOT use the write buffer in that case without ensuring that it is put into some proper state, e.g.
+/// by retrying this function.
 pub async fn seek_to_end(db: &Db) -> Result<()> {
     if let Some(WriteBufferConfig::Reading(write_buffer)) = &db.write_buffer {
         let mut write_buffer = write_buffer
