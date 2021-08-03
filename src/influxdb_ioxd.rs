@@ -146,7 +146,7 @@ pub async fn main(config: Config) -> Result<()> {
         remote_template: config.remote_template.map(RemoteTemplate::new),
         // TODO: Don't wipe on error (#1522)
         wipe_catalog_on_error: true,
-        skip_replay_and_seek_instead: config.skip_replay_and_seek_instead,
+        skip_replay_and_seek_instead: config.skip_replay_and_seek_instead.into(),
     };
 
     if config.grpc_bind_address == config.http_bind_address {
