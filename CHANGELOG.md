@@ -24,6 +24,7 @@
 -	[#22006](https://github.com/influxdata/influxdb/pull/22006): fix: old tsl files should be compacted without new writes
 -	[#21947](https://github.com/influxdata/influxdb/pull/21947): fix: prevent silently dropped writes with overlapping shards
 -	[#21978](https://github.com/influxdata/influxdb/pull/21978): fix: restore portable backup bug
+-	[#21992](https://github.com/influxdata/influxdb/pull/21992): fix: systemd-start script should be executable by group and others
 
 v1.9.2 [unreleased]
 -	[#21631](https://github.com/influxdata/influxdb/pull/21631): fix: group by returns multiple results per group in some circumstances
