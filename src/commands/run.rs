@@ -28,7 +28,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Boolean flag that works with environment variables.
 ///
-/// Workaround for https://github.com/TeXitoi/structopt/issues/428
+/// Workaround for <https://github.com/TeXitoi/structopt/issues/428>
 #[derive(Debug)]
 pub enum BooleanFlag {
     True,
