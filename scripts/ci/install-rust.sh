@@ -2,8 +2,12 @@
 
 set -ex
 
+flux_dir=$(go list -m -f '{{.Dir}}' github.com/influxdata/flux)
+FLUX_RUST_VERSION=$(cat ${flux_dir}/Dockerfile_build | grep 'FROM rust:' | cut -d ' ' -f2 | cut -d ':' -f2)
+RUST_LATEST_VERSION=${FLUX_RUST_VERSION:-1.53}
+cd ..
+rm -rf flux-repo
 
-RUST_LATEST_VERSION=1.52.1
 # For security, we specify a particular rustup version and a SHA256 hash, computed
 # ourselves and hardcoded here. When updating `RUSTUP_LATEST_VERSION`:
 #   1. Download the new rustup script from https://github.com/rust-lang/rustup/releases.
