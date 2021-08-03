@@ -111,10 +111,13 @@ clean_db () {
 }
 
 force_compaction() {
+  # id of the bucket that will be compacted
+  b_id=$(bucket_id)
+
   # stop daemon and force compaction
   systemctl stop influxdb
   set +e
-  shards=$(find /var/lib/influxdb/engine/data/$(bucket_id)/autogen/ -maxdepth 1 -mindepth 1)
+  shards=$(find /var/lib/influxdb/engine/data/$b_id/autogen/ -maxdepth 1 -mindepth 1)
 
   set -e
   for shard in $shards; do
@@ -124,7 +127,6 @@ force_compaction() {
   # restart daemon
   systemctl unmask influxdb.service
   systemctl start influxdb
-  sleep 1 # allow time for the service to fully initialize?
 }
 
 # Run and record tests
@@ -162,6 +164,7 @@ for scale in 50 100 500; do
     # run influxql and flux query tests
     for query_file in $query_files; do
       format=$(echo $query_file | cut -d '-' -f7)
+      format=${format%.txt}
       cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://localhost:8086 --debug=0 --print-interval=0 --workers=$workers --json=true --organization=$TEST_ORG --token=$TEST_TOKEN | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-$scale_string-format-$format-workers-$workers.json
     done
 
