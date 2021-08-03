@@ -26,6 +26,7 @@
 -	[#21947](https://github.com/influxdata/influxdb/pull/21947): fix: prevent silently dropped writes with overlapping shards
 -	[#21978](https://github.com/influxdata/influxdb/pull/21978): fix: restore portable backup bug
 -	[#21992](https://github.com/influxdata/influxdb/pull/21992): fix: systemd-start script should be executable by group and others
+-	[#22019](https://github.com/influxdata/influxdb/pull/22019): fix: error instead of panic when enterprise tries to restore with OSS
 
 v1.9.2 [unreleased]
 -	[#21631](https://github.com/influxdata/influxdb/pull/21631): fix: group by returns multiple results per group in some circumstances
