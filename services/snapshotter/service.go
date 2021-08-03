@@ -28,18 +28,24 @@ const (
 	BackupMagicHeader = 0x59590101
 )
 
+type MetaClient interface {
+	encoding.BinaryMarshaler
+	Database(name string) *meta.DatabaseInfo
+}
+
+type OSSMetaClient interface {
+	MetaClient
+	Data() meta.Data
+	SetData(data *meta.Data) error
+}
+
 // Service manages the listener for the snapshot endpoint.
 type Service struct {
 	wg sync.WaitGroup
 
 	Node *influxdb.Node
 
-	MetaClient interface {
-		encoding.BinaryMarshaler
-		Database(name string) *meta.DatabaseInfo
-		Data() meta.Data
-		SetData(data *meta.Data) error
-	}
+	MetaClient MetaClient
 
 	TSDBStore interface {
 		BackupShard(id uint64, since time.Time, w io.Writer) error
@@ -182,7 +188,15 @@ func (s *Service) updateMetaStore(conn net.Conn, bits []byte, backupDBName, rest
 		return fmt.Errorf("failed to decode meta: %s", err)
 	}
 
-	data := s.MetaClient.Data()
+	ossClient, ok := s.MetaClient.(OSSMetaClient)
+	if !ok {
+		if err := s.respondIDMap(conn, map[uint64]uint64{}); err != nil {
+			return err
+		}
+		return fmt.Errorf("updateMetaStore only supported for OSS - likely tried to restore with OSS tooling instead of influxd-ctl")
+	}
+
+	data := ossClient.Data()
 
 	IDMap, newDBs, err := data.ImportData(md, backupDBName, restoreDBName, backupRPName, restoreRPName)
 	if err != nil {
@@ -192,7 +206,7 @@ func (s *Service) updateMetaStore(conn net.Conn, bits []byte, backupDBName, rest
 		return err
 	}
 
-	err = s.MetaClient.SetData(&data)
+	err = ossClient.SetData(&data)
 	if err != nil {
 		return err
 	}
