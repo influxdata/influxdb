@@ -8,7 +8,7 @@
 
 pub mod access;
 pub mod atomic_instant;
-pub mod guard;
+pub mod freezable;
 pub mod once;
 pub mod schema;
 pub mod selection;
