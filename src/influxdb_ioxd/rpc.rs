@@ -8,7 +8,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport::NamedService;
 
 use crate::influxdb_ioxd::serving_readiness::{ServingReadiness, ServingReadinessState};
-use server::{ConnectionManager, Server};
+use server::{ApplicationState, ConnectionManager, Server};
 use tonic::{Interceptor, Status};
 
 pub mod error;
@@ -76,6 +76,7 @@ impl From<ServingReadinessInterceptor> for Interceptor {
 /// shutdown.
 pub async fn serve<M>(
     socket: TcpListener,
+    application: Arc<ApplicationState>,
     server: Arc<Server<M>>,
     shutdown: CancellationToken,
     serving_readiness: ServingReadiness,
@@ -104,14 +105,18 @@ where
             testing::make_server(),
             storage::make_server(
                 Arc::clone(&server),
-                Arc::clone(server.metrics_registry()),
+                Arc::clone(application.metric_registry()),
                 serving_gate.clone(),
             ),
             flight::make_server(Arc::clone(&server), serving_gate.clone()),
             write::make_server(Arc::clone(&server), serving_gate.clone()),
             write_pb::make_server(Arc::clone(&server), serving_gate.clone()),
-            management::make_server(Arc::clone(&server), serving_readiness.clone()),
-            operations::make_server(Arc::clone(&server)),
+            management::make_server(
+                Arc::clone(&application),
+                Arc::clone(&server),
+                serving_readiness.clone()
+            ),
+            operations::make_server(Arc::clone(application.job_registry())),
         ],
     );
 

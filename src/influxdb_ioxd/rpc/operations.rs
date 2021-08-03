@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::convert::TryInto;
 use std::sync::Arc;
 
 use bytes::BytesMut;
@@ -18,14 +18,12 @@ use generated_types::{
     influxdata::iox::management::v1 as management,
     protobuf_type_url,
 };
+use server::JobRegistry;
 use tracker::{TaskId, TaskResult, TaskStatus, TaskTracker};
 
-use server::{ConnectionManager, Server};
-use std::convert::TryInto;
-
 /// Implementation of the write service
-struct OperationsService<M: ConnectionManager> {
-    server: Arc<Server<M>>,
+struct OperationsService {
+    jobs: Arc<JobRegistry>,
 }
 
 pub fn encode_tracker(tracker: TaskTracker<Job>) -> Result<Operation, tonic::Status> {
@@ -112,16 +110,13 @@ pub fn encode_tracker(tracker: TaskTracker<Job>) -> Result<Operation, tonic::Sta
     })
 }
 
-fn get_tracker<M>(server: &Server<M>, tracker: String) -> Result<TaskTracker<Job>, tonic::Status>
-where
-    M: ConnectionManager + Send + Sync,
-{
+fn get_tracker(jobs: &JobRegistry, tracker: String) -> Result<TaskTracker<Job>, tonic::Status> {
     let tracker_id = tracker.parse::<TaskId>().map_err(|e| FieldViolation {
         field: "name".to_string(),
         description: e.to_string(),
     })?;
 
-    let tracker = server.get_job(tracker_id).ok_or(NotFound {
+    let tracker = jobs.get(tracker_id).ok_or(NotFound {
         resource_type: "job".to_string(),
         resource_name: tracker,
         ..Default::default()
@@ -131,18 +126,15 @@ where
 }
 
 #[tonic::async_trait]
-impl<M> operations_server::Operations for OperationsService<M>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
+impl operations_server::Operations for OperationsService {
     async fn list_operations(
         &self,
         _request: tonic::Request<ListOperationsRequest>,
     ) -> Result<tonic::Response<ListOperationsResponse>, tonic::Status> {
         // TODO: Support pagination
         let operations: Result<Vec<_>, _> = self
-            .server
-            .tracked_jobs()
+            .jobs
+            .tracked()
             .into_iter()
             .map(encode_tracker)
             .collect();
@@ -158,7 +150,7 @@ where
         request: tonic::Request<GetOperationRequest>,
     ) -> Result<tonic::Response<Operation>, tonic::Status> {
         let request = request.into_inner();
-        let tracker = get_tracker(self.server.as_ref(), request.name)?;
+        let tracker = get_tracker(self.jobs.as_ref(), request.name)?;
 
         Ok(Response::new(encode_tracker(tracker)?))
     }
@@ -178,7 +170,7 @@ where
     ) -> Result<tonic::Response<Empty>, tonic::Status> {
         let request = request.into_inner();
 
-        let tracker = get_tracker(self.server.as_ref(), request.name)?;
+        let tracker = get_tracker(self.jobs.as_ref(), request.name)?;
         tracker.cancel();
 
         Ok(Response::new(Empty {}))
@@ -194,7 +186,7 @@ where
 
         let request = request.into_inner();
 
-        let tracker = get_tracker(self.server.as_ref(), request.name)?;
+        let tracker = get_tracker(self.jobs.as_ref(), request.name)?;
         if let Some(timeout) = request.timeout {
             let timeout = timeout.try_into().field("timeout")?;
 
@@ -209,11 +201,8 @@ where
 }
 
 /// Instantiate the write service
-pub fn make_server<M>(
-    server: Arc<Server<M>>,
-) -> operations_server::OperationsServer<impl operations_server::Operations>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
-    operations_server::OperationsServer::new(OperationsService { server })
+pub fn make_server(
+    jobs: Arc<JobRegistry>,
+) -> operations_server::OperationsServer<impl operations_server::Operations> {
+    operations_server::OperationsServer::new(OperationsService { jobs })
 }

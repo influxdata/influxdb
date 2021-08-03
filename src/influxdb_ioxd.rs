@@ -5,8 +5,8 @@ use object_store::{self, path::ObjectStorePath, ObjectStore, ObjectStoreApi, Thr
 use observability_deps::tracing::{self, error, info, warn, Instrument};
 use panic_logging::SendPanicsToTracing;
 use server::{
-    ConnectionManagerImpl as ConnectionManager, RemoteTemplate, Server as AppServer,
-    ServerConfig as AppServerConfig,
+    ApplicationState, ConnectionManagerImpl as ConnectionManager, RemoteTemplate,
+    Server as AppServer, ServerConfig,
 };
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, fs, net::SocketAddr, path::PathBuf, sync::Arc};
@@ -136,23 +136,17 @@ pub async fn main(config: Config) -> Result<()> {
     let object_store = ObjectStore::try_from(&config)?;
     check_object_store(&object_store).await?;
     let object_storage = Arc::new(object_store);
-    let metric_registry = Arc::new(metrics::MetricRegistry::new());
-    let remote_template = config.remote_template.map(RemoteTemplate::new);
-    let server_config = AppServerConfig::new(
-        object_storage,
-        metric_registry,
-        remote_template,
-        config.skip_replay_and_seek_instead,
-    );
 
-    let server_config = if let Some(n) = config.num_worker_threads {
-        info!(
-            num_worker_threads = n,
-            "Using specified number of worker threads"
-        );
-        server_config.with_num_worker_threads(n)
-    } else {
-        server_config
+    let application = Arc::new(ApplicationState::new(
+        object_storage,
+        config.num_worker_threads,
+    ));
+
+    let server_config = ServerConfig {
+        remote_template: config.remote_template.map(RemoteTemplate::new),
+        // TODO: Don't wipe on error (#1522)
+        wipe_catalog_on_error: true,
+        skip_replay_and_seek_instead: config.skip_replay_and_seek_instead,
     };
 
     if config.grpc_bind_address == config.http_bind_address {
@@ -165,7 +159,11 @@ pub async fn main(config: Config) -> Result<()> {
     }
 
     let connection_manager = ConnectionManager::new();
-    let app_server = Arc::new(AppServer::new(connection_manager, server_config));
+    let app_server = Arc::new(AppServer::new(
+        connection_manager,
+        Arc::clone(&application),
+        server_config,
+    ));
 
     // if this ID isn't set the server won't be usable until this is set via an API
     // call
@@ -189,6 +187,7 @@ pub async fn main(config: Config) -> Result<()> {
 
     let grpc_server = rpc::serve(
         socket,
+        Arc::clone(&application),
         Arc::clone(&app_server),
         frontend_shutdown.clone(),
         config.initial_serving_state.into(),
@@ -204,6 +203,7 @@ pub async fn main(config: Config) -> Result<()> {
 
     let http_server = http::serve(
         addr,
+        Arc::clone(&application),
         Arc::clone(&app_server),
         frontend_shutdown.clone(),
         max_http_request_size,

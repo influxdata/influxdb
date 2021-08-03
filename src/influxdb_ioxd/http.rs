@@ -19,7 +19,7 @@ use data_types::{
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
 use query::{exec::ExecutorType, QueryDatabase};
-use server::{ConnectionManager, Server as AppServer};
+use server::{ApplicationState, ConnectionManager, Server as AppServer};
 
 // External crates
 use bytes::{Bytes, BytesMut};
@@ -351,6 +351,7 @@ where
 }
 
 fn router<M>(
+    application: Arc<ApplicationState>,
     app_server: Arc<AppServer<M>>,
     max_request_size: usize,
 ) -> Router<Body, ApplicationError>
@@ -365,6 +366,7 @@ where
     // Create a router and specify the the handlers.
     Router::builder()
         .data(server)
+        .data(application)
         .middleware(Middleware::pre(|mut req| async move {
             // we don't need the authorization header and we don't want to accidentally log it.
             req.headers_mut().remove("authorization");
@@ -703,9 +705,14 @@ async fn handle_metrics<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .http_requests
         .observation()
         .ok_with_labels(&[metrics::KeyValue::new("path", path)]);
-    Ok(Response::new(Body::from(
-        server.metrics_registry().metrics_as_text(),
-    )))
+
+    let body = req
+        .data::<Arc<ApplicationState>>()
+        .expect("application state")
+        .metric_registry()
+        .metrics_as_text();
+
+    Ok(Response::new(Body::from(body)))
 }
 
 #[derive(Deserialize, Debug)]
@@ -860,6 +867,7 @@ async fn pprof_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
 
 pub async fn serve<M>(
     addr: AddrIncoming,
+    application: Arc<ApplicationState>,
     server: Arc<AppServer<M>>,
     shutdown: CancellationToken,
     max_request_size: usize,
@@ -867,7 +875,7 @@ pub async fn serve<M>(
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    let router = router(server, max_request_size);
+    let router = router(application, server, max_request_size);
     let service = RouterService::new(router).unwrap();
 
     hyper::Server::builder(addr)
@@ -889,31 +897,32 @@ mod tests {
     use reqwest::{Client, Response};
 
     use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
+    use metrics::TestMetricRegistry;
     use object_store::ObjectStore;
     use serde::de::DeserializeOwned;
-    use server::{db::Db, ConnectionManagerImpl, ServerConfig as AppServerConfig};
+    use server::{db::Db, ApplicationState, ConnectionManagerImpl};
     use tokio_stream::wrappers::ReceiverStream;
 
-    fn config() -> (metrics::TestMetricRegistry, AppServerConfig) {
-        let registry = Arc::new(metrics::MetricRegistry::new());
-        let test_registry = metrics::TestMetricRegistry::new(Arc::clone(&registry));
-        (
-            test_registry,
-            AppServerConfig::new(
-                Arc::new(ObjectStore::new_in_memory()),
-                registry,
-                None,
-                false,
-            )
-            .with_num_worker_threads(1),
-        )
+    fn make_application() -> Arc<ApplicationState> {
+        Arc::new(ApplicationState::new(
+            Arc::new(ObjectStore::new_in_memory()),
+            None,
+        ))
+    }
+
+    fn make_server(application: Arc<ApplicationState>) -> Arc<AppServer<ConnectionManagerImpl>> {
+        Arc::new(AppServer::new(
+            ConnectionManagerImpl::new(),
+            application,
+            Default::default(),
+        ))
     }
 
     #[tokio::test]
     async fn test_health() {
-        let (_, config) = config();
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl::new(), config));
-        let server_url = test_server(Arc::clone(&app_server));
+        let application = make_application();
+        let app_server = make_server(Arc::clone(&application));
+        let server_url = test_server(application, Arc::clone(&app_server));
 
         let client = Client::new();
         let response = client.get(&format!("{}/health", server_url)).send().await;
@@ -924,8 +933,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_write() {
-        let (_, config) = config();
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl::new(), config));
+        let application = make_application();
+        let app_server = make_server(Arc::clone(&application));
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.maybe_initialize_server().await;
         app_server
@@ -934,7 +943,7 @@ mod tests {
             ))
             .await
             .unwrap();
-        let server_url = test_server(Arc::clone(&app_server));
+        let server_url = test_server(application, Arc::clone(&app_server));
 
         let client = Client::new();
 
@@ -972,8 +981,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_metrics() {
-        let (metrics_registry, config) = config();
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl::new(), config));
+        let application = make_application();
+        let app_server = make_server(Arc::clone(&application));
+        let metric_registry = TestMetricRegistry::new(Arc::clone(application.metric_registry()));
+
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.maybe_initialize_server().await;
         app_server
@@ -982,7 +993,8 @@ mod tests {
             ))
             .await
             .unwrap();
-        let server_url = test_server(Arc::clone(&app_server));
+
+        let server_url = test_server(application, Arc::clone(&app_server));
 
         let client = Client::new();
 
@@ -1002,7 +1014,7 @@ mod tests {
             .expect("sent data");
 
         // The request completed successfully
-        metrics_registry
+        metric_registry
             .has_metric_family("http_request_duration_seconds")
             .with_labels(&[
                 ("bucket", "MetricsBucket"),
@@ -1015,7 +1027,7 @@ mod tests {
             .unwrap();
 
         // A single successful point landed
-        metrics_registry
+        metric_registry
             .has_metric_family("ingest_points_total")
             .with_labels(&[("db_name", "MetricsOrg_MetricsBucket"), ("status", "ok")])
             .counter()
@@ -1023,7 +1035,7 @@ mod tests {
             .unwrap();
 
         // Which consists of two fields
-        metrics_registry
+        metric_registry
             .has_metric_family("ingest_fields_total")
             .with_labels(&[("db_name", "MetricsOrg_MetricsBucket"), ("status", "ok")])
             .counter()
@@ -1031,7 +1043,7 @@ mod tests {
             .unwrap();
 
         // Bytes of data were written
-        metrics_registry
+        metric_registry
             .has_metric_family("ingest_points_bytes_total")
             .with_labels(&[("status", "ok"), ("db_name", "MetricsOrg_MetricsBucket")])
             .counter()
@@ -1050,7 +1062,7 @@ mod tests {
             .unwrap();
 
         // A single point was rejected
-        metrics_registry
+        metric_registry
             .has_metric_family("ingest_points_total")
             .with_labels(&[("db_name", "NotMyOrg_NotMyBucket"), ("status", "error")])
             .counter()
@@ -1062,8 +1074,8 @@ mod tests {
     /// returns a client for communicating with the server, and the server
     /// endpoint
     async fn setup_test_data() -> (Client, String) {
-        let (_, config) = config();
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl::new(), config));
+        let application = make_application();
+        let app_server = make_server(Arc::clone(&application));
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.maybe_initialize_server().await;
         app_server
@@ -1072,7 +1084,7 @@ mod tests {
             ))
             .await
             .unwrap();
-        let server_url = test_server(Arc::clone(&app_server));
+        let server_url = test_server(application, Arc::clone(&app_server));
 
         let client = Client::new();
 
@@ -1359,7 +1371,10 @@ mod tests {
 
     /// creates an instance of the http service backed by a in-memory
     /// testable database.  Returns the url of the server
-    fn test_server(server: Arc<AppServer<ConnectionManagerImpl>>) -> String {
+    fn test_server(
+        application: Arc<ApplicationState>,
+        server: Arc<AppServer<ConnectionManagerImpl>>,
+    ) -> String {
         // NB: specify port 0 to let the OS pick the port.
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
         let addr = AddrIncoming::bind(&bind_addr).expect("failed to bind server");
@@ -1367,6 +1382,7 @@ mod tests {
 
         tokio::task::spawn(serve(
             addr,
+            application,
             server,
             CancellationToken::new(),
             TEST_MAX_REQUEST_SIZE,
@@ -1391,8 +1407,8 @@ mod tests {
 
     /// return a test server and the url to contact it for `MyOrg_MyBucket`
     async fn setup_server() -> (Arc<AppServer<ConnectionManagerImpl>>, String) {
-        let (_, config) = config();
-        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl::new(), config));
+        let application = make_application();
+        let app_server = make_server(Arc::clone(&application));
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.maybe_initialize_server().await;
         app_server
@@ -1401,7 +1417,7 @@ mod tests {
             ))
             .await
             .unwrap();
-        let server_url = test_server(Arc::clone(&app_server));
+        let server_url = test_server(application, Arc::clone(&app_server));
 
         (app_server, server_url)
     }

@@ -11,15 +11,13 @@ use metrics::MetricRegistry;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use parquet_file::catalog::PreservedCatalog;
 use persistence_windows::checkpoint::ReplayPlan;
-use query::exec::Executor;
 use write_buffer::config::WriteBufferConfig;
 
 /// This module contains code for managing the configuration of the server.
 use crate::{
     db::{catalog::Catalog, DatabaseToCommit, Db},
-    DatabaseAlreadyExists, DatabaseNotFound, DatabaseReserved, Error,
-    InvalidDatabaseStateTransition, JobRegistry, Result, RulesDatabaseNameMismatch,
-    ServerShuttingDown,
+    ApplicationState, DatabaseAlreadyExists, DatabaseNotFound, DatabaseReserved, Error,
+    InvalidDatabaseStateTransition, Result, RulesDatabaseNameMismatch, ServerShuttingDown,
 };
 use object_store::path::Path;
 use observability_deps::tracing::{self, error, info, warn, Instrument};
@@ -39,12 +37,8 @@ pub(crate) const DB_RULES_FILE_NAME: &str = "rules.pb";
 /// run to completion if the tokio runtime is dropped
 #[derive(Debug)]
 pub(crate) struct Config {
-    jobs: Arc<JobRegistry>,
-    object_store: Arc<ObjectStore>,
-    exec: Arc<Executor>,
+    application: Arc<ApplicationState>,
     server_id: ServerId,
-    metric_registry: Arc<MetricRegistry>,
-
     shutdown: CancellationToken,
     state: RwLock<ConfigState>,
 }
@@ -62,19 +56,10 @@ impl<E> From<Error> for UpdateError<E> {
 
 impl Config {
     /// Create new empty config.
-    pub(crate) fn new(
-        jobs: Arc<JobRegistry>,
-        object_store: Arc<ObjectStore>,
-        exec: Arc<Executor>,
-        server_id: ServerId,
-        metric_registry: Arc<MetricRegistry>,
-    ) -> Self {
+    pub(crate) fn new(application: Arc<ApplicationState>, server_id: ServerId) -> Self {
         Self {
-            jobs,
-            object_store,
-            exec,
+            application,
             server_id,
-            metric_registry,
             shutdown: Default::default(),
             state: Default::default(),
         }
@@ -272,13 +257,17 @@ impl Config {
     }
 
     /// Metrics registry associated with this config and that should be used to create all databases.
+    ///
+    /// TODO: Remove Me
     pub fn metrics_registry(&self) -> Arc<MetricRegistry> {
-        Arc::clone(&self.metric_registry)
+        Arc::clone(self.application.metric_registry())
     }
 
     /// Returns the object store of this server
+    ///
+    /// TODO: Remove Me
     pub fn object_store(&self) -> Arc<ObjectStore> {
-        Arc::clone(&self.object_store)
+        Arc::clone(self.application.object_store())
     }
 
     /// Returns the server id of this server
@@ -289,7 +278,7 @@ impl Config {
     /// Base location in object store for this server.
     pub fn root_path(&self) -> Path {
         let id = self.server_id.get();
-        let mut path = self.object_store.new_path();
+        let mut path = self.application.object_store().new_path();
         path.push_dir(format!("{}", id));
         path
     }
@@ -460,7 +449,7 @@ impl<'a> DatabaseHandle<'a> {
 
     /// Get object store.
     pub fn object_store(&self) -> Arc<ObjectStore> {
-        Arc::clone(&self.config.object_store)
+        self.config.object_store()
     }
 
     /// Get server ID.
@@ -542,16 +531,22 @@ impl<'a> DatabaseHandle<'a> {
     ) -> Result<()> {
         match self.state().as_ref() {
             DatabaseState::RulesLoaded { rules } => {
+                let application = &self.config.application;
+
                 let database_to_commit = DatabaseToCommit {
                     server_id: self.config.server_id,
-                    object_store: Arc::clone(&self.config.object_store),
-                    exec: Arc::clone(&self.config.exec),
+                    object_store: Arc::clone(application.object_store()),
+                    exec: Arc::clone(application.executor()),
                     preserved_catalog,
                     catalog,
                     rules: Arc::clone(rules),
                     write_buffer,
                 };
-                let db = Arc::new(Db::new(database_to_commit, Arc::clone(&self.config.jobs)));
+
+                let db = Arc::new(Db::new(
+                    database_to_commit,
+                    Arc::clone(application.job_registry()),
+                ));
 
                 self.state = Some(Arc::new(DatabaseState::Replay { db, replay_plan }));
 
@@ -641,14 +636,7 @@ mod test {
     fn make_config() -> Config {
         let store = Arc::new(ObjectStore::new_in_memory());
         let server_id = ServerId::try_from(1).unwrap();
-        let metric_registry = Arc::new(metrics::MetricRegistry::new());
-        Config::new(
-            Arc::new(JobRegistry::new()),
-            Arc::clone(&store),
-            Arc::new(Executor::new(1)),
-            server_id,
-            Arc::clone(&metric_registry),
-        )
+        Config::new(Arc::new(ApplicationState::new(store, Some(1))), server_id)
     }
 
     #[tokio::test]

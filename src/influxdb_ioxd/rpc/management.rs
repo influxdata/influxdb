@@ -9,10 +9,11 @@ use generated_types::google::{
 use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
 use observability_deps::tracing::info;
 use query::{DatabaseStore, QueryDatabase};
-use server::{ConnectionManager, Error, Server};
+use server::{ApplicationState, ConnectionManager, Error, Server};
 use tonic::{Request, Response, Status};
 
 struct ManagementService<M: ConnectionManager> {
+    application: Arc<ApplicationState>,
     server: Arc<Server<M>>,
     serving_readiness: ServingReadiness,
 }
@@ -189,7 +190,10 @@ where
         request: Request<CreateDummyJobRequest>,
     ) -> Result<Response<CreateDummyJobResponse>, Status> {
         let request = request.into_inner();
-        let tracker = self.server.spawn_dummy_job(request.nanos);
+        let tracker = self
+            .application
+            .job_registry()
+            .spawn_dummy_job(request.nanos);
         let operation = Some(super::operations::encode_tracker(tracker)?);
         Ok(Response::new(CreateDummyJobResponse { operation }))
     }
@@ -476,6 +480,7 @@ where
 }
 
 pub fn make_server<M>(
+    application: Arc<ApplicationState>,
     server: Arc<Server<M>>,
     serving_readiness: ServingReadiness,
 ) -> management_service_server::ManagementServiceServer<
@@ -485,6 +490,7 @@ where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
     management_service_server::ManagementServiceServer::new(ManagementService {
+        application,
         server,
         serving_readiness,
     })

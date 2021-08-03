@@ -69,7 +69,7 @@
 )]
 
 use std::collections::HashMap;
-use std::convert::{Infallible, TryInto};
+use std::convert::TryInto;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -91,25 +91,29 @@ use generated_types::database_rules::encode_database_rules;
 use generated_types::influxdata::transfer::column::v1 as pb;
 use influxdb_line_protocol::ParsedLine;
 use lifecycle::LockableChunk;
-use metrics::{KeyValue, MetricObserverBuilder, MetricRegistry};
-use object_store::{ObjectStore, ObjectStoreApi};
+use metrics::{KeyValue, MetricObserverBuilder};
+use object_store::ObjectStoreApi;
 use observability_deps::tracing::{error, info, warn};
-use parking_lot::{Mutex, RwLock, RwLockUpgradableReadGuard};
+use parking_lot::{RwLock, RwLockUpgradableReadGuard};
 use query::{exec::Executor, DatabaseStore};
 use rand::seq::SliceRandom;
 use resolver::Resolver;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
+use tracker::{TaskTracker, TrackedFutureExt};
 use write_buffer::config::WriteBufferConfig;
 
+pub use application::ApplicationState;
 pub use connection::{ConnectionManager, ConnectionManagerImpl, RemoteServer};
 pub use db::Db;
+pub use job::JobRegistry;
 pub use resolver::{GrpcConnectionString, RemoteTemplate};
 
+mod application;
 mod config;
 mod connection;
 pub mod db;
 mod init;
+mod job;
 mod resolver;
 
 /// Utility modules used by benchmarks and tests
@@ -255,86 +259,6 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-const JOB_HISTORY_SIZE: usize = 1000;
-
-/// The global job registry
-#[derive(Debug)]
-pub struct JobRegistry {
-    inner: Mutex<TaskRegistryWithHistory<Job>>,
-}
-
-impl Default for JobRegistry {
-    fn default() -> Self {
-        Self {
-            inner: Mutex::new(TaskRegistryWithHistory::new(JOB_HISTORY_SIZE)),
-        }
-    }
-}
-
-impl JobRegistry {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    pub fn register(&self, job: Job) -> (TaskTracker<Job>, TaskRegistration) {
-        self.inner.lock().register(job)
-    }
-
-    /// Returns a list of recent Jobs, including some that are no
-    /// longer running
-    pub fn tracked(&self) -> Vec<TaskTracker<Job>> {
-        self.inner.lock().tracked()
-    }
-}
-
-/// Used to configure a server instance
-#[derive(Debug)]
-pub struct ServerConfig {
-    // number of executor worker threads. If not specified, defaults
-    // to number of cores on the system.
-    num_worker_threads: Option<usize>,
-
-    /// The `ObjectStore` instance to use for persistence
-    object_store: Arc<ObjectStore>,
-
-    metric_registry: Arc<MetricRegistry>,
-
-    remote_template: Option<RemoteTemplate>,
-
-    wipe_catalog_on_error: bool,
-    skip_replay_and_seek_instead: bool,
-}
-
-impl ServerConfig {
-    /// Create a new config using the specified store.
-    pub fn new(
-        object_store: Arc<ObjectStore>,
-        metric_registry: Arc<MetricRegistry>,
-        remote_template: Option<RemoteTemplate>,
-        skip_replay_and_seek_instead: bool,
-    ) -> Self {
-        Self {
-            num_worker_threads: None,
-            object_store,
-            metric_registry,
-            remote_template,
-            wipe_catalog_on_error: true,
-            skip_replay_and_seek_instead,
-        }
-    }
-
-    /// Use `num` worker threads for running queries
-    pub fn with_num_worker_threads(mut self, num: usize) -> Self {
-        self.num_worker_threads = Some(num);
-        self
-    }
-
-    /// return a reference to the object store in this configuration
-    pub fn store(&self) -> Arc<ObjectStore> {
-        Arc::clone(&self.object_store)
-    }
-}
-
 // A collection of metrics used to instrument the Server.
 #[derive(Debug)]
 pub struct ServerMetrics {
@@ -418,21 +342,36 @@ impl ServerMetrics {
     }
 }
 
+/// Configuration options for `Server`
+#[derive(Debug)]
+pub struct ServerConfig {
+    pub remote_template: Option<RemoteTemplate>,
+
+    pub wipe_catalog_on_error: bool,
+
+    pub skip_replay_and_seek_instead: bool,
+}
+
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self {
+            remote_template: None,
+            wipe_catalog_on_error: false,
+            skip_replay_and_seek_instead: false,
+        }
+    }
+}
+
 /// `Server` is the container struct for how servers store data internally, as
 /// well as how they communicate with other servers. Each server will have one
 /// of these structs, which keeps track of all replication and query rules.
 #[derive(Debug)]
 pub struct Server<M: ConnectionManager> {
     connection_manager: Arc<M>,
-    store: Arc<ObjectStore>,
-    exec: Arc<Executor>,
-    jobs: Arc<JobRegistry>,
-    metrics: Arc<ServerMetrics>,
 
-    /// The metrics registry associated with the server. This is needed not for
-    /// recording telemetry, but because the server hosts the /metric endpoint
-    /// and populates the endpoint with this data.
-    registry: Arc<metrics::MetricRegistry>,
+    application: Arc<ApplicationState>,
+
+    metrics: Arc<ServerMetrics>,
 
     /// Resolver for mapping ServerId to gRPC connection strings
     resolver: RwLock<Resolver>,
@@ -500,33 +439,23 @@ impl<M> Server<M>
 where
     M: ConnectionManager + Send + Sync,
 {
-    pub fn new(connection_manager: M, config: ServerConfig) -> Self {
-        let jobs = Arc::new(JobRegistry::new());
-
-        let ServerConfig {
-            num_worker_threads,
-            object_store,
-            // to test the metrics provide a different registry to the `ServerConfig`.
-            metric_registry,
-            remote_template,
-            wipe_catalog_on_error,
-            skip_replay_and_seek_instead,
-        } = config;
-
-        let num_worker_threads = num_worker_threads.unwrap_or_else(num_cpus::get);
-        let exec = Arc::new(Executor::new(num_worker_threads));
+    pub fn new(
+        connection_manager: M,
+        application: Arc<ApplicationState>,
+        config: ServerConfig,
+    ) -> Self {
+        let metrics = Arc::new(ServerMetrics::new(Arc::clone(
+            application.metric_registry(),
+        )));
 
         Self {
-            store: object_store,
+            application,
+            metrics,
             connection_manager: Arc::new(connection_manager),
-            exec,
-            jobs,
-            metrics: Arc::new(ServerMetrics::new(Arc::clone(&metric_registry))),
-            registry: Arc::clone(&metric_registry),
-            resolver: RwLock::new(Resolver::new(remote_template)),
+            resolver: RwLock::new(Resolver::new(config.remote_template)),
             stage: Arc::new(RwLock::new(ServerStage::Startup {
-                wipe_catalog_on_error,
-                skip_replay_and_seek_instead,
+                wipe_catalog_on_error: config.wipe_catalog_on_error,
+                skip_replay_and_seek_instead: config.skip_replay_and_seek_instead,
             })),
         }
     }
@@ -545,24 +474,13 @@ where
                 *stage = ServerStage::InitReady {
                     wipe_catalog_on_error: *wipe_catalog_on_error,
                     skip_replay_and_seek_instead: *skip_replay_and_seek_instead,
-                    config: Arc::new(Config::new(
-                        Arc::clone(&self.jobs),
-                        Arc::clone(&self.store),
-                        Arc::clone(&self.exec),
-                        id,
-                        Arc::clone(&self.registry),
-                    )),
+                    config: Arc::new(Config::new(Arc::clone(&self.application), id)),
                     last_error: None,
                 };
                 Ok(())
             }
             _ => Err(Error::IdAlreadySet),
         }
-    }
-
-    /// Returns the metrics registry associated with this server
-    pub fn metrics_registry(&self) -> &Arc<MetricRegistry> {
-        &self.registry
     }
 
     /// Return the metrics associated with this server
@@ -657,9 +575,9 @@ where
         // load preserved catalog
         let (preserved_catalog, catalog, replay_plan) = create_preserved_catalog(
             rules.db_name(),
-            Arc::clone(&self.store),
+            Arc::clone(self.application.object_store()),
             config.server_id(),
-            config.metrics_registry(),
+            Arc::clone(self.application.metric_registry()),
         )
         .await
         .map_err(|e| Box::new(e) as _)
@@ -694,7 +612,8 @@ where
         let len = data.len();
 
         let stream_data = std::io::Result::Ok(data.freeze());
-        self.store
+        self.application
+            .object_store()
             .put(
                 &location,
                 futures::stream::once(async move { stream_data }),
@@ -1051,24 +970,6 @@ where
         self.resolver.write().delete_remote(id)
     }
 
-    pub fn spawn_dummy_job(&self, nanos: Vec<u64>) -> TaskTracker<Job> {
-        let (tracker, registration) = self.jobs.register(Job::Dummy {
-            nanos: nanos.clone(),
-        });
-
-        for duration in nanos {
-            tokio::spawn(
-                async move {
-                    tokio::time::sleep(tokio::time::Duration::from_nanos(duration)).await;
-                    Ok::<_, Infallible>(())
-                }
-                .track(registration.clone()),
-            );
-        }
-
-        tracker
-    }
-
     /// Closes a chunk and starts moving its data to the read buffer, as a
     /// background job, dropping when complete.
     pub fn close_chunk(
@@ -1135,9 +1036,12 @@ where
             }
         };
 
-        let (tracker, registration) = self.jobs.register(Job::WipePreservedCatalog {
-            db_name: Arc::from(db_name.as_str()),
-        });
+        let (tracker, registration) =
+            self.application
+                .job_registry()
+                .register(Job::WipePreservedCatalog {
+                    db_name: Arc::from(db_name.as_str()),
+                });
 
         let state = Arc::clone(&self.stage);
         let db_name = db_name.clone();
@@ -1169,25 +1073,18 @@ where
         Ok(tracker)
     }
 
-    /// Returns a list of all jobs tracked by this server
-    pub fn tracked_jobs(&self) -> Vec<TaskTracker<Job>> {
-        self.jobs.inner.lock().tracked()
-    }
-
-    /// Returns a specific job tracked by this server
-    pub fn get_job(&self, id: TaskId) -> Option<TaskTracker<Job>> {
-        self.jobs.inner.lock().get(id)
-    }
-
     /// Background worker function for the server
     pub async fn background_worker(&self, shutdown: tokio_util::sync::CancellationToken) {
         info!("started background worker");
 
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
 
+        // TODO: Move out of Server background loop
+        let job_registry = self.application.job_registry();
+
         while !shutdown.is_cancelled() {
             self.maybe_initialize_server().await;
-            self.jobs.inner.lock().reclaim();
+            job_registry.reclaim();
 
             tokio::select! {
                 _ = interval.tick() => {},
@@ -1205,9 +1102,7 @@ where
         // Wait for any outstanding jobs to finish - frontend shutdown should be
         // sequenced before shutting down the background workers and so there
         // shouldn't be any
-        while self.jobs.inner.lock().tracked_len() != 0 {
-            self.jobs.inner.lock().reclaim();
-
+        while job_registry.reclaim() != 0 {
             interval.tick().await;
         }
 
@@ -1262,14 +1157,14 @@ where
 
     /// Return a handle to the query executor
     fn executor(&self) -> Arc<Executor> {
-        Arc::clone(&self.exec)
+        Arc::clone(self.application.executor())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::{
-        convert::TryFrom,
+        convert::{Infallible, TryFrom},
         sync::{
             atomic::{AtomicBool, Ordering},
             Arc,
@@ -1280,7 +1175,6 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use bytes::Bytes;
     use futures::TryStreamExt;
-    use tempfile::TempDir;
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
 
@@ -1293,8 +1187,8 @@ mod tests {
     use entry::test_helpers::lp_to_entry;
     use generated_types::database_rules::decode_database_rules;
     use influxdb_line_protocol::parse_lines;
-    use metrics::MetricRegistry;
-    use object_store::path::ObjectStorePath;
+    use metrics::TestMetricRegistry;
+    use object_store::{path::ObjectStorePath, ObjectStore};
     use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
     use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryDatabase};
     use write_buffer::mock::MockBufferForWritingThatAlwaysErrors;
@@ -1306,35 +1200,24 @@ mod tests {
 
     const ARBITRARY_DEFAULT_TIME: i64 = 456;
 
-    // TODO: perhaps switch to a builder pattern.
-    fn config_with_metric_registry_and_store(
-        object_store: ObjectStore,
-    ) -> (metrics::TestMetricRegistry, ServerConfig) {
-        let registry = Arc::new(metrics::MetricRegistry::new());
-        let test_registry = metrics::TestMetricRegistry::new(Arc::clone(&registry));
-        (
-            test_registry,
-            ServerConfig::new(Arc::new(object_store), registry, None, false)
-                .with_num_worker_threads(1),
-        )
+    fn make_application() -> Arc<ApplicationState> {
+        Arc::new(ApplicationState::new(
+            Arc::new(ObjectStore::new_in_memory()),
+            None,
+        ))
     }
 
-    fn config_with_metric_registry() -> (metrics::TestMetricRegistry, ServerConfig) {
-        config_with_metric_registry_and_store(ObjectStore::new_in_memory())
-    }
-
-    fn config() -> ServerConfig {
-        config_with_metric_registry().1
-    }
-
-    fn config_with_store(object_store: ObjectStore) -> ServerConfig {
-        config_with_metric_registry_and_store(object_store).1
+    fn make_server(application: Arc<ApplicationState>) -> Arc<Server<TestConnectionManager>> {
+        Arc::new(Server::new(
+            TestConnectionManager::new(),
+            application,
+            Default::default(),
+        ))
     }
 
     #[tokio::test]
     async fn server_api_calls_return_error_with_no_id_set() {
-        let manager = TestConnectionManager::new();
-        let server = Server::new(manager, config());
+        let server = make_server(make_application());
 
         let resp = server.config().unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
@@ -1349,10 +1232,8 @@ mod tests {
 
     #[tokio::test]
     async fn create_database_persists_rules() {
-        let manager = TestConnectionManager::new();
-        let config = config();
-        let store = config.store();
-        let server = Server::new(manager, config);
+        let application = make_application();
+        let server = make_server(Arc::clone(&application));
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.maybe_initialize_server().await;
 
@@ -1378,12 +1259,12 @@ mod tests {
             .await
             .expect("failed to create database");
 
-        let mut rules_path = server.store.new_path();
+        let mut rules_path = application.object_store().new_path();
         rules_path.push_all_dirs(&["1", name.as_str()]);
         rules_path.set_file_name("rules.pb");
 
-        let read_data = server
-            .store
+        let read_data = application
+            .object_store()
             .get(&rules_path)
             .await
             .unwrap()
@@ -1403,13 +1284,13 @@ mod tests {
             .await
             .expect("failed to create 2nd db");
 
-        store.list_with_delimiter(&store.new_path()).await.unwrap();
+        application
+            .object_store()
+            .list_with_delimiter(&application.object_store().new_path())
+            .await
+            .unwrap();
 
-        let manager = TestConnectionManager::new();
-        let config2 =
-            ServerConfig::new(store, Arc::new(MetricRegistry::new()), Option::None, false)
-                .with_num_worker_threads(1);
-        let server2 = Server::new(manager, config2);
+        let server2 = make_server(application);
         server2.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server2.maybe_initialize_server().await;
 
@@ -1421,8 +1302,7 @@ mod tests {
     async fn duplicate_database_name_rejected() {
         // Covers #643
 
-        let manager = TestConnectionManager::new();
-        let server = Server::new(manager, config());
+        let server = make_server(make_application());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.maybe_initialize_server().await;
 
@@ -1471,28 +1351,23 @@ mod tests {
 
     #[tokio::test]
     async fn load_databases() {
-        let temp_dir = TempDir::new().unwrap();
+        let application = make_application();
+        let store = application.object_store();
 
-        let store = ObjectStore::new_file(temp_dir.path());
-        let manager = TestConnectionManager::new();
-        let config = config_with_store(store);
-        let server = Server::new(manager, config);
+        let server = make_server(Arc::clone(&application));
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.maybe_initialize_server().await;
         create_simple_database(&server, "bananas")
             .await
             .expect("failed to create database");
 
-        let mut rules_path = server.store.new_path();
+        let mut rules_path = store.new_path();
         rules_path.push_all_dirs(&["1", "bananas"]);
         rules_path.set_file_name("rules.pb");
 
         std::mem::drop(server);
 
-        let store = ObjectStore::new_file(temp_dir.path());
-        let manager = TestConnectionManager::new();
-        let config = config_with_store(store);
-        let server = Server::new(manager, config);
+        let server = make_server(Arc::clone(&application));
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.maybe_initialize_server().await;
 
@@ -1504,15 +1379,12 @@ mod tests {
 
         std::mem::drop(server);
 
-        let store = ObjectStore::new_file(temp_dir.path());
         store
             .delete(&rules_path)
             .await
             .expect("cannot delete rules file");
 
-        let manager = TestConnectionManager::new();
-        let config = config_with_store(store);
-        let server = Server::new(manager, config);
+        let server = make_server(application);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.maybe_initialize_server().await;
 
@@ -1521,8 +1393,7 @@ mod tests {
 
     #[tokio::test]
     async fn db_names_sorted() {
-        let manager = TestConnectionManager::new();
-        let server = Server::new(manager, config());
+        let server = make_server(make_application());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.maybe_initialize_server().await;
 
@@ -1542,8 +1413,7 @@ mod tests {
 
     #[tokio::test]
     async fn writes_local() {
-        let manager = TestConnectionManager::new();
-        let server = Server::new(manager, config());
+        let server = make_server(make_application());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.maybe_initialize_server().await;
 
@@ -1576,9 +1446,9 @@ mod tests {
 
     #[tokio::test]
     async fn write_entry_local() {
-        let (metric_registry, config) = config_with_metric_registry();
-        let manager = TestConnectionManager::new();
-        let server = Server::new(manager, config);
+        let application = make_application();
+        let metric_registry = TestMetricRegistry::new(Arc::clone(application.metric_registry()));
+        let server = make_server(application);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.maybe_initialize_server().await;
 
@@ -1660,7 +1530,7 @@ mod tests {
             }),
         );
 
-        let server = Server::new(manager, config());
+        let server = Server::new(manager, make_application(), Default::default());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.maybe_initialize_server().await;
 
@@ -1737,8 +1607,7 @@ mod tests {
     #[tokio::test]
     async fn close_chunk() {
         test_helpers::maybe_start_logging();
-        let manager = TestConnectionManager::new();
-        let server = Arc::new(Server::new(manager, config()));
+        let server = make_server(make_application());
 
         let cancel_token = CancellationToken::new();
         let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
@@ -1811,14 +1680,14 @@ mod tests {
 
     #[tokio::test]
     async fn background_task_cleans_jobs() {
-        let manager = TestConnectionManager::new();
-        let server = Arc::new(Server::new(manager, config()));
+        let application = make_application();
+        let server = make_server(Arc::clone(&application));
 
         let cancel_token = CancellationToken::new();
         let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
 
         let wait_nanos = 1000;
-        let job = server.spawn_dummy_job(vec![wait_nanos]);
+        let job = application.job_registry().spawn_dummy_job(vec![wait_nanos]);
 
         // Note: this will hang forever if the background task has not been started
         job.join().await;
@@ -1843,8 +1712,7 @@ mod tests {
 
     #[tokio::test]
     async fn hard_buffer_limit() {
-        let manager = TestConnectionManager::new();
-        let server = Server::new(manager, config());
+        let server = make_server(make_application());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.maybe_initialize_server().await;
 
@@ -1894,12 +1762,7 @@ mod tests {
 
     #[tokio::test]
     async fn cannot_create_db_until_server_is_initialized() {
-        let temp_dir = TempDir::new().unwrap();
-
-        let store = ObjectStore::new_file(temp_dir.path());
-        let manager = TestConnectionManager::new();
-        let config = config_with_store(store);
-        let server = Server::new(manager, config);
+        let server = make_server(make_application());
 
         // calling before serverID set leads to `IdNotSet`
         let err = create_simple_database(&server, "bananas")
@@ -1919,8 +1782,7 @@ mod tests {
 
     #[tokio::test]
     async fn background_worker_eventually_inits_server() {
-        let manager = TestConnectionManager::new();
-        let server = Arc::new(Server::new(manager, config()));
+        let server = make_server(make_application());
 
         let cancel_token = CancellationToken::new();
         let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
@@ -1944,11 +1806,9 @@ mod tests {
     #[tokio::test]
     async fn init_error_generic() {
         // use an object store that will hopefully fail to read
-        let store = ObjectStore::new_failing_store().unwrap();
-
-        let manager = TestConnectionManager::new();
-        let config = config_with_store(store);
-        let server = Server::new(manager, config);
+        let store = Arc::new(ObjectStore::new_failing_store().unwrap());
+        let application = Arc::new(ApplicationState::new(store, None));
+        let server = make_server(application);
 
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.maybe_initialize_server().await;
@@ -1957,15 +1817,11 @@ mod tests {
 
     #[tokio::test]
     async fn init_error_database() {
-        let store = ObjectStore::new_in_memory();
+        let application = make_application();
+        let store = Arc::clone(application.object_store());
         let server_id = ServerId::try_from(1).unwrap();
 
-        // Create temporary server to create single database
-        let manager = TestConnectionManager::new();
-        let config = config_with_store(store);
-        let store = config.store();
-
-        let server = Server::new(manager, config);
+        let server = make_server(Arc::clone(&application));
         server.set_id(server_id).unwrap();
         server.maybe_initialize_server().await;
 
@@ -1992,13 +1848,10 @@ mod tests {
             .await
             .unwrap();
 
-        // start server
-        let store = Arc::try_unwrap(store).unwrap();
         store.get(&path).await.unwrap();
-        let manager = TestConnectionManager::new();
-        let config = config_with_store(store);
 
-        let server = Server::new(manager, config);
+        // start server
+        let server = make_server(application);
         server.set_id(server_id).unwrap();
         server.maybe_initialize_server().await;
 
@@ -2052,14 +1905,12 @@ mod tests {
         let db_name_created = DatabaseName::new("db_created".to_string()).unwrap();
 
         // setup
-        let store = ObjectStore::new_in_memory();
+        let application = make_application();
+        let store = Arc::clone(application.object_store());
         let server_id = ServerId::try_from(1).unwrap();
 
         // Create temporary server to create existing databases
-        let manager = TestConnectionManager::new();
-        let config = config_with_store(store);
-        let store = config.store();
-        let server = Server::new(manager, config);
+        let server = make_server(Arc::clone(&application));
         server.set_id(server_id).unwrap();
         server.maybe_initialize_server().await;
 
@@ -2085,6 +1936,7 @@ mod tests {
         let path = object_store_path_for_database_config(&root, &db_name_rules_broken);
         let data = Bytes::from("x");
         let len = data.len();
+
         store
             .put(
                 &path,
@@ -2093,6 +1945,7 @@ mod tests {
             )
             .await
             .unwrap();
+
         let (preserved_catalog, _catalog) = PreservedCatalog::load::<TestCatalogState>(
             Arc::clone(&store),
             server_id,
@@ -2102,18 +1955,15 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
+
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
         drop(preserved_catalog);
 
-        // boot actual test server
-        let store = Arc::try_unwrap(store).unwrap();
         store.get(&path).await.unwrap();
-        let manager = TestConnectionManager::new();
-        // need to disable auto-wipe for this test
-        let mut config = config_with_store(store);
-        config.wipe_catalog_on_error = false;
-        let server = Server::new(manager, config);
+
+        // boot actual test server
+        let server = make_server(Arc::clone(&application));
 
         // cannot wipe if server ID is not set
         assert_eq!(
@@ -2135,16 +1985,18 @@ mod tests {
                 .to_string(),
             "database already exists: db_existing"
         );
-        assert!(
-            PreservedCatalog::exists(&server.store, server_id, db_name_existing.as_str())
-                .await
-                .unwrap()
-        );
+        assert!(PreservedCatalog::exists(
+            application.object_store().as_ref(),
+            server_id,
+            db_name_existing.as_str()
+        )
+        .await
+        .unwrap());
 
         // 2. wiping a non-existing DB just works, but won't bring DB into existence
         assert!(server.error_database(&db_name_non_existing).is_none());
         PreservedCatalog::new_empty::<TestCatalogState>(
-            Arc::clone(&server.store),
+            Arc::clone(application.object_store()),
             server_id,
             db_name_non_existing.to_string(),
             (),
@@ -2161,7 +2013,7 @@ mod tests {
         assert_eq!(metadata, &expected_metadata);
         tracker.join().await;
         assert!(!PreservedCatalog::exists(
-            &server.store,
+            application.object_store().as_ref(),
             server_id,
             &db_name_non_existing.to_string()
         )
@@ -2182,7 +2034,7 @@ mod tests {
         assert_eq!(metadata, &expected_metadata);
         tracker.join().await;
         assert!(!PreservedCatalog::exists(
-            &server.store,
+            application.object_store().as_ref(),
             server_id,
             &db_name_rules_broken.to_string()
         )
@@ -2203,7 +2055,7 @@ mod tests {
         assert_eq!(metadata, &expected_metadata);
         tracker.join().await;
         assert!(PreservedCatalog::exists(
-            &server.store,
+            application.object_store().as_ref(),
             server_id,
             &db_name_catalog_broken.to_string()
         )
@@ -2230,22 +2082,24 @@ mod tests {
                 .to_string(),
             "database already exists: db_created"
         );
-        assert!(
-            PreservedCatalog::exists(&server.store, server_id, &db_name_created.to_string())
-                .await
-                .unwrap()
-        );
+        assert!(PreservedCatalog::exists(
+            application.object_store().as_ref(),
+            server_id,
+            &db_name_created.to_string()
+        )
+        .await
+        .unwrap());
     }
 
     #[tokio::test]
     async fn cannot_create_db_when_catalog_is_present() {
-        let store = Arc::new(ObjectStore::new_in_memory());
+        let application = make_application();
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = "my_db";
 
         // create catalog
         PreservedCatalog::new_empty::<TestCatalogState>(
-            Arc::clone(&store),
+            Arc::clone(application.object_store()),
             server_id,
             db_name.to_string(),
             (),
@@ -2254,10 +2108,7 @@ mod tests {
         .unwrap();
 
         // setup server
-        let store = Arc::try_unwrap(store).unwrap();
-        let manager = TestConnectionManager::new();
-        let config = config_with_store(store);
-        let server = Server::new(manager, config);
+        let server = make_server(application);
         server.set_id(server_id).unwrap();
         server.maybe_initialize_server().await;
 
@@ -2268,8 +2119,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_buffer_errors_propagate() {
-        let manager = TestConnectionManager::new();
-        let server = Server::new(manager, config());
+        let server = make_server(make_application());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.maybe_initialize_server().await;
 
