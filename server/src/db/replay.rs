@@ -189,7 +189,7 @@ pub async fn perform_replay(db: &Db, replay_plan: &ReplayPlan) -> Result<()> {
 
                     let entry = Arc::new(entry);
                     let mut logged_hard_limit = false;
-                    let n_tries = 100;
+                    let n_tries = 600; // 600*100ms = 60s
                     for n_try in 1..=n_tries {
                         match db.store_sequenced_entry(Arc::clone(&entry)) {
                             Ok(_) => {
