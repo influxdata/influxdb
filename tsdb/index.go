@@ -938,6 +938,26 @@ type MeasurementIterator interface {
 	Next() ([]byte, error)
 }
 
+func ToSlice(itr MeasurementIterator) ([][]byte, error) {
+	if itr == nil {
+		return nil, nil
+	} else if iterator, ok := itr.(*measurementSliceIterator); ok {
+		return iterator.ToSlice(), nil
+	} else if iterator, ok := itr.(*fileMeasurementSliceIterator); ok {
+		return iterator.measurementSliceIterator.ToSlice(), nil
+	}
+	s := make([][]byte, 0)
+	for {
+		if value, err := itr.Next(); err != nil {
+			return nil, err
+		} else if value == nil {
+			return nil, nil
+		} else {
+			s = append(s, value)
+		}
+	}
+}
+
 type MeasurementIterators []MeasurementIterator
 
 func (a MeasurementIterators) Close() (err error) {
@@ -966,6 +986,46 @@ func (itr *measurementSliceIterator) Next() (name []byte, err error) {
 	}
 	name, itr.names = itr.names[0], itr.names[1:]
 	return name, nil
+}
+
+func (itr *measurementSliceIterator) ToSlice() [][]byte {
+	return itr.names
+}
+
+// fileMeasurementSliceIterator is designed to allow a tag value slice
+// iterator to use memory from a memory-mapped file, pinning it
+// with the underlying file iterators
+type fileMeasurementSliceIterator struct {
+	measurementSliceIterator
+	fileIterators MeasurementIterators
+}
+
+func (itr *fileMeasurementSliceIterator) Close() error {
+	e1 := itr.fileIterators.Close()
+	e2 := itr.measurementSliceIterator.Close()
+	if e1 != nil {
+		return e1
+	} else {
+		return e2
+	}
+}
+
+func newFileMeasurementSliceIterator(names [][]byte, itrs MeasurementIterators) *fileMeasurementSliceIterator {
+	return &fileMeasurementSliceIterator{
+		measurementSliceIterator: measurementSliceIterator {
+			names: names,
+		},
+		fileIterators: itrs,
+	}
+}
+
+func measurementIteratorToSliceIterator(iterator MeasurementIterator) ([][]byte, *fileMeasurementSliceIterator, error) {
+	s, err := ToSlice(iterator)
+	if err != nil {
+		return nil, nil, err
+	} else {
+		return s, newFileMeasurementSliceIterator(s, MeasurementIterators{iterator}), nil
+	}
 }
 
 // MergeMeasurementIterators returns an iterator that merges a set of iterators.
@@ -1320,17 +1380,25 @@ func (is IndexSet) DedupeInmemIndexes() IndexSet {
 
 // MeasurementNamesByExpr returns a slice of measurement names matching the
 // provided condition. If no condition is provided then all names are returned.
-func (is IndexSet) MeasurementNamesByExpr(auth query.FineAuthorizer, expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) MeasurementNamesByExpr(auth query.FineAuthorizer, expr influxql.Expr) (names [][]byte, err error) {
 	release := is.SeriesFile.Retain()
 	defer release()
 
 	// Return filtered list if expression exists.
 	if expr != nil {
-		names, err := is.measurementNamesByExpr(auth, expr)
+		itr, err := is.measurementNamesByExpr(auth, expr)
 		if err != nil {
 			return nil, err
+		} else if itr == nil {
+			return nil, nil
 		}
-		return slices.CopyChunkedByteSlices(names, 1000), nil
+		defer func() { if e := itr.Close(); err == nil { err = e } }()
+
+		if names, err := ToSlice(itr); err != nil {
+			return nil, err
+		} else {
+			return slices.CopyChunkedByteSlices(names, 1000), nil
+		}
 	}
 
 	itr, err := is.measurementIterator()
@@ -1339,10 +1407,9 @@ func (is IndexSet) MeasurementNamesByExpr(auth query.FineAuthorizer, expr influx
 	} else if itr == nil {
 		return nil, nil
 	}
-	defer itr.Close()
+	defer func() { if e := itr.Close(); err == nil { err = e } }()
 
 	// Iterate over all measurements if no condition exists.
-	var names [][]byte
 	for {
 		e, err := itr.Next()
 		if err != nil {
@@ -1360,7 +1427,7 @@ func (is IndexSet) MeasurementNamesByExpr(auth query.FineAuthorizer, expr influx
 	return slices.CopyChunkedByteSlices(names, 1000), nil
 }
 
-func (is IndexSet) measurementNamesByExpr(auth query.FineAuthorizer, expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) measurementNamesByExpr(auth query.FineAuthorizer, expr influxql.Expr) (MeasurementIterator, error) {
 	if expr == nil {
 		return nil, nil
 	}
@@ -1400,20 +1467,35 @@ func (is IndexSet) measurementNamesByExpr(auth query.FineAuthorizer, expr influx
 			return is.measurementNamesByTagFilter(auth, e.Op, tag.Val, value, regex)
 
 		case influxql.OR, influxql.AND:
-			lhs, err := is.measurementNamesByExpr(auth, e.LHS)
+
+			exprToSlice := func(e influxql.Expr) (slice [][]byte, iterator *fileMeasurementSliceIterator, err error){
+				mi, err := is.measurementNamesByExpr(auth, e)
+				if err != nil {
+					return nil, nil, err
+				}
+				slice, iterator, err = measurementIteratorToSliceIterator(mi)
+				if err != nil {
+					mi.Close()
+					return nil, nil, err
+				}
+				return
+			}
+
+			ls, lsfi, err := exprToSlice(e.LHS)
 			if err != nil {
 				return nil, err
 			}
-
-			rhs, err := is.measurementNamesByExpr(auth, e.RHS)
+			rs, rsfi, err := exprToSlice(e.RHS)
 			if err != nil {
+				lsfi.Close()
 				return nil, err
 			}
 
+			mis := MeasurementIterators{lsfi, rsfi}
 			if e.Op == influxql.OR {
-				return bytesutil.Union(lhs, rhs), nil
+				return newFileMeasurementSliceIterator(bytesutil.Union(ls, rs), mis), nil
 			}
-			return bytesutil.Intersect(lhs, rhs), nil
+			return newFileMeasurementSliceIterator(bytesutil.Intersect(ls, rs), mis), nil
 
 		default:
 			return nil, fmt.Errorf("invalid tag comparison operator")
@@ -1427,19 +1509,19 @@ func (is IndexSet) measurementNamesByExpr(auth query.FineAuthorizer, expr influx
 }
 
 // measurementNamesByNameFilter returns matching measurement names in sorted order.
-func (is IndexSet) measurementNamesByNameFilter(auth query.FineAuthorizer, op influxql.Token, val string, regex *regexp.Regexp) ([][]byte, error) {
+func (is IndexSet) measurementNamesByNameFilter(auth query.FineAuthorizer, op influxql.Token, val string, regex *regexp.Regexp) (MeasurementIterator, error) {
 	itr, err := is.measurementIterator()
 	if err != nil {
 		return nil, err
 	} else if itr == nil {
 		return nil, nil
 	}
-	defer itr.Close()
 
 	var names [][]byte
 	for {
 		e, err := itr.Next()
 		if err != nil {
+			itr.Close()
 			return nil, err
 		} else if e == nil {
 			break
@@ -1462,21 +1544,27 @@ func (is IndexSet) measurementNamesByNameFilter(auth query.FineAuthorizer, op in
 		}
 	}
 	bytesutil.Sort(names)
-	return names, nil
+	return newFileMeasurementSliceIterator(names, MeasurementIterators{itr}), nil
 }
 
 // MeasurementNamesByPredicate returns a slice of measurement names matching the
 // provided condition. If no condition is provided then all names are returned.
 // This behaves differently from MeasurementNamesByExpr because it will
 // return measurements using flux predicates.
-func (is IndexSet) MeasurementNamesByPredicate(auth query.FineAuthorizer, expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) MeasurementNamesByPredicate(auth query.FineAuthorizer, expr influxql.Expr) (names [][]byte, err error) {
 	release := is.SeriesFile.Retain()
 	defer release()
 
 	// Return filtered list if expression exists.
 	if expr != nil {
-		names, err := is.measurementNamesByPredicate(auth, expr)
+		itr, err := is.measurementNamesByPredicate(auth, expr)
 		if err != nil {
+			return nil, err
+		}
+		if itr != nil {
+			defer func() { if e := itr.Close(); err == nil { err = e } }()
+		}
+		if names, err = ToSlice(itr); err != nil {
 			return nil, err
 		}
 		return slices.CopyChunkedByteSlices(names, 1000), nil
@@ -1488,10 +1576,9 @@ func (is IndexSet) MeasurementNamesByPredicate(auth query.FineAuthorizer, expr i
 	} else if itr == nil {
 		return nil, nil
 	}
-	defer itr.Close()
+	defer func() { if e := itr.Close(); err == nil { err = e } }()
 
 	// Iterate over all measurements if no condition exists.
-	var names [][]byte
 	for {
 		e, err := itr.Next()
 		if err != nil {
@@ -1509,7 +1596,7 @@ func (is IndexSet) MeasurementNamesByPredicate(auth query.FineAuthorizer, expr i
 	return slices.CopyChunkedByteSlices(names, 1000), nil
 }
 
-func (is IndexSet) measurementNamesByPredicate(auth query.FineAuthorizer, expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) measurementNamesByPredicate(auth query.FineAuthorizer, expr influxql.Expr) (MeasurementIterator, error) {
 	if expr == nil {
 		return nil, nil
 	}
@@ -1549,20 +1636,35 @@ func (is IndexSet) measurementNamesByPredicate(auth query.FineAuthorizer, expr i
 			return is.measurementNamesByTagPredicate(auth, e.Op, tag.Val, value, regex)
 
 		case influxql.OR, influxql.AND:
-			lhs, err := is.measurementNamesByPredicate(auth, e.LHS)
+			predToSlice := func(e influxql.Expr) (slice [][]byte, iterator *fileMeasurementSliceIterator, err error){
+				mi, err := is.measurementNamesByPredicate(auth, e)
+				if err != nil {
+					return nil, nil, err
+				}
+				slice, iterator, err = measurementIteratorToSliceIterator(mi)
+				if err != nil {
+					mi.Close()
+					return nil, nil, err
+				}
+				return
+			}
+
+			ls, litr, err := predToSlice(e.LHS)
 			if err != nil {
+				return nil, err
+			}
+			rs, ritr, err := predToSlice(e.RHS)
+			if err != nil {
+				litr.Close()
 				return nil, err
 			}
 
-			rhs, err := is.measurementNamesByPredicate(auth, e.RHS)
-			if err != nil {
-				return nil, err
-			}
+			mis := MeasurementIterators{litr, ritr}
 
 			if e.Op == influxql.OR {
-				return bytesutil.Union(lhs, rhs), nil
+				return newFileMeasurementSliceIterator(bytesutil.Union(ls, rs), mis), nil
 			}
-			return bytesutil.Intersect(lhs, rhs), nil
+			return newFileMeasurementSliceIterator(bytesutil.Intersect(ls, rs), mis), nil
 
 		default:
 			return nil, fmt.Errorf("invalid tag comparison operator")
@@ -1575,8 +1677,9 @@ func (is IndexSet) measurementNamesByPredicate(auth query.FineAuthorizer, expr i
 	}
 }
 
-func (is IndexSet) measurementNamesByTagFilter(auth query.FineAuthorizer, op influxql.Token, key, val string, regex *regexp.Regexp) ([][]byte, error) {
+func (is IndexSet) measurementNamesByTagFilter(auth query.FineAuthorizer, op influxql.Token, key, val string, regex *regexp.Regexp) (MeasurementIterator, error) {
 	var names [][]byte
+	failed := true
 
 	mitr, err := is.measurementIterator()
 	if err != nil {
@@ -1584,7 +1687,7 @@ func (is IndexSet) measurementNamesByTagFilter(auth query.FineAuthorizer, op inf
 	} else if mitr == nil {
 		return nil, nil
 	}
-	defer mitr.Close()
+	defer func() {if failed { mitr.Close() } }()
 
 	// valEqual determines if the provided []byte is equal to the tag value
 	// to be filtered on.
@@ -1699,11 +1802,13 @@ func (is IndexSet) measurementNamesByTagFilter(auth query.FineAuthorizer, op inf
 	}
 
 	bytesutil.Sort(names)
-	return names, nil
+	failed = false
+	return newFileMeasurementSliceIterator(names,MeasurementIterators{mitr}), nil
 }
 
-func (is IndexSet) measurementNamesByTagPredicate(auth query.FineAuthorizer, op influxql.Token, key, val string, regex *regexp.Regexp) ([][]byte, error) {
+func (is IndexSet) measurementNamesByTagPredicate(auth query.FineAuthorizer, op influxql.Token, key, val string, regex *regexp.Regexp) (MeasurementIterator, error) {
 	var names [][]byte
+	failed := true
 
 	mitr, err := is.measurementIterator()
 	if err != nil {
@@ -1711,7 +1816,7 @@ func (is IndexSet) measurementNamesByTagPredicate(auth query.FineAuthorizer, op 
 	} else if mitr == nil {
 		return nil, nil
 	}
-	defer mitr.Close()
+	defer func() {if failed { mitr.Close() } }()
 
 	var checkMeasurement func(auth query.FineAuthorizer, me []byte) (bool, error)
 	switch op {
@@ -1762,7 +1867,8 @@ func (is IndexSet) measurementNamesByTagPredicate(auth query.FineAuthorizer, op 
 	}
 
 	bytesutil.Sort(names)
-	return names, nil
+	failed = false
+	return newFileMeasurementSliceIterator(names, MeasurementIterators{mitr}), nil
 }
 
 // measurementAuthorizedSeries determines if the measurement contains a series
