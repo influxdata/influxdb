@@ -43,7 +43,8 @@ cat << EOF > /etc/telegraf/telegraf.conf
   json_time_format = "unix"
   tag_keys = [
     "i_type",
-    "query_format"
+    "query_format",
+    "branch"
   ]
 EOF
 systemctl restart telegraf
