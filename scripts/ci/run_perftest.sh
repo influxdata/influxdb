@@ -44,7 +44,6 @@ cat << EOF > /etc/telegraf/telegraf.conf
   tag_keys = [
     "i_type",
     "query_format",
-    "is_metaquery",
     "use_case",
     "query_type"
   ]
