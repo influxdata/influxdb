@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package influxdata.pbdata.v1;
+
+option go_package = "github.com/influxdata/influxdb-pb-data-protocol/golang;influxdbpbdataprotocol";
+
+message DatabaseBatch {
+    string database_name = 1;
+
+    // Table data. Data for a given table may appear in multiple table batches.
+    repeated TableBatch table_batches = 2;
+}
+
+message TableBatch {
+    string table_name = 1;
+
+    // Data are represented here.
+    //
+    // Exactly one column named and typed "time" *must* exist,
+    // and *must not* contain null values.
+    //
+    // For line protocol tables (tables containing tags and fields),
+    // columns *should* be sorted by cardinality, from lowest to highest
+    // (the time column is always last in the sort order).
+    repeated Column columns = 2;
+
+    // Length of all columns in this table batch.
+    // This count includes null and non-null values.
+    //
+    // All columns in a TableBatch must have equal length.
+    uint32 row_count = 3;
+}
+
+message Column {
+    string column_name = 1;
+
+    enum SemanticType {
+        SEMANTIC_TYPE_UNSPECIFIED = 0;
+        // "Native" semantic type (value types: i64, f64, u64, string, bool, bytes)
+        SEMANTIC_TYPE_IOX = 1;
+        // InfluxDB/TSM tag (value type string only)
+        SEMANTIC_TYPE_TAG = 2;
+        // InfluxDB/TSM field (value types: i64, f64, u64, string, bool)
+        SEMANTIC_TYPE_FIELD = 3;
+        // Timestamps, which must have value type i64
+        SEMANTIC_TYPE_TIME = 4;
+    }
+    // Semantic meaning behind the data.
+    SemanticType semantic_type = 2;
+
+    message Values {
+        repeated int64 i64_values = 1;
+        repeated double f64_values = 2;
+        repeated uint64 u64_values = 3;
+        repeated string string_values = 4;
+        repeated bool bool_values = 5;
+        repeated bytes bytes_values = 6;
+    }
+    // The sequence of non-null values contained in this column.
+    // Order matters; positions are adjusted by null positions in null_mask.
+    //
+    // For example, column "foo", containing I64 values (10,11,12,13,14,null,16,17,null,99,100):
+    //   Column:
+    //     column_name: foo
+    //     values:
+    //       i64_values: 10,11,12,13,14,16,17,99,100
+    //                7      0  15     8
+    //     null_mask: 00100000  00000001
+    //
+    // Exactly one of the fields within the Values message *should* be set.
+    Values values = 3;
+
+    // Mask that maps the positions of null values.
+    // Null positions hold space between non-null values in the values field.
+    //
+    // An on bit (1) indicates that the column value at that position is null.
+    // If zero null values exist in the column, then null_mask *may* be omitted.
+    // If zero non-null values in the column, then the column *should* be omitted.
+    // Trailing off bits (0) *may* be omitted.
+    bytes null_mask = 4;
+}
+
+service WriteService {
+    rpc Write (WriteRequest) returns (WriteResponse);
+}
+
+message WriteRequest {
+    DatabaseBatch database_batch = 1;
+}
+
+message WriteResponse {
+}

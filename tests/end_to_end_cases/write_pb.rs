@@ -1,7 +1,7 @@
 use super::scenario::{create_readable_database, rand_name};
 use crate::common::server_fixture::ServerFixture;
 use arrow_util::assert_batches_sorted_eq;
-use generated_types::influxdata::transfer::column::v1 as pb;
+use generated_types::influxdata::pbdata::v1 as pb;
 
 #[tokio::test]
 pub async fn test_write_pb() {

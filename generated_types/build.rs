@@ -46,7 +46,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("shard.proto"),
         management_path.join("jobs.proto"),
         write_path.join("service.proto"),
-        root.join("influxdata/transfer/column/v1/write.proto"),
+        root.join("influxdata/pbdata/v1/influxdb_pb_data_protocol.proto"),
         root.join("grpc/health/v1/service.proto"),
         root.join("google/longrunning/operations.proto"),
         root.join("google/rpc/error_details.proto"),

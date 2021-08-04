@@ -2,8 +2,8 @@ use thiserror::Error;
 
 use generated_types::influxdata::iox::write::v1 as write;
 use generated_types::influxdata::iox::write::v1::write_service_client::WriteServiceClient;
-use generated_types::influxdata::transfer::column::v1 as write_pb;
-use generated_types::influxdata::transfer::column::v1::write_service_client::WriteServiceClient as PBWriteServiceClient;
+use generated_types::influxdata::pbdata::v1 as write_pb;
+use generated_types::influxdata::pbdata::v1::write_service_client::WriteServiceClient as PBWriteServiceClient;
 
 use crate::connection::Connection;
 

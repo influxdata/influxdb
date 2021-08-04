@@ -88,7 +88,7 @@ use data_types::{
 use db::load::create_preserved_catalog;
 use entry::{lines_to_sharded_entries, pb_to_entry, Entry, ShardedEntry};
 use generated_types::database_rules::encode_database_rules;
-use generated_types::influxdata::transfer::column::v1 as pb;
+use generated_types::influxdata::pbdata::v1 as pb;
 use influxdb_line_protocol::ParsedLine;
 use lifecycle::LockableChunk;
 use metrics::{KeyValue, MetricObserverBuilder};

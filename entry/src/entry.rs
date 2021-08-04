@@ -9,7 +9,7 @@ use ouroboros::self_referencing;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use data_types::database_rules::{Error as DataError, Partitioner, ShardId, Sharder};
-use generated_types::influxdata::transfer::column::v1 as pb;
+use generated_types::influxdata::pbdata::v1 as pb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 use internal_types::schema::{
     builder::{Error as SchemaBuilderError, SchemaBuilder},
