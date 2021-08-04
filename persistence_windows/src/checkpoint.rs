@@ -510,6 +510,35 @@ impl PartialOrd for PartitionCheckpoint {
 /// MAYBE PERSISTED range, Entries may be partially persisted, so the
 /// values of each row within Entries must be checked using a
 /// [`PartitionCheckpoint`].
+///
+/// # Ordering
+/// Database checkpoints cannot be ordered and the following subsections describe cases why this is. You can use
+/// [`fold`](Self::fold) to create final checkpoints from multiple database checkpoints.
+///
+/// ## Measurement → Storage Reorder
+/// The order in which database checkpoints are stored in the catalog does not necessarily the same in which they were
+/// created. Imagine the following two threads:
+///
+/// | Step | Thread 1                         | Thread 2                         |
+/// | ---: | :------------------------------- | :------------------------------- |
+/// |    1 | Create DB checkpoint A           |                                  |
+/// |    2 |                                  | Create DB checkpoint B           |
+/// |    3 |                                  | Acquire catalog transaction lock |
+/// |    4 |                                  | Write checkpoint B to catalog    |
+/// |    5 |                                  | Release catalog transaction lock |
+/// |    6 | Acquire catalog transaction lock |                                  |
+/// |    7 | Write checkpoint A to catalog    |                                  |
+/// |    8 | Release catalog transaction lock |                                  |
+///
+/// So the order of checkpoints within the catalog will be B, A even though they were created as A, B.
+///
+/// ## Non-Atomic Creation
+/// Even if we would keep some generation number within the database checkpoint to address the previous point, there is
+/// still the fact that database checkpoints creation is not an atomic operation. Instead [`PersistCheckpointBuilder`]
+/// is used to which partitions are registered bit-by-bit. During this data collection no lock is held.
+///
+/// Note that this is different to a [`PartitionCheckpoint`] which is created using a
+/// [`FlushHandle`](crate::persistence_windows::FlushHandle).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DatabaseCheckpoint {
     /// Maps `sequencer_id` to the minimum and maximum sequence numbers seen.
@@ -551,6 +580,41 @@ impl DatabaseCheckpoint {
         self.sequencer_numbers
             .iter()
             .map(|(sequencer_id, min_max)| (*sequencer_id, *min_max))
+    }
+
+    /// Fold in given checkpoint to determine final result (aka last known state).
+    pub fn fold(&mut self, other: &Self) {
+        for (sequencer_id, min_max) in &other.sequencer_numbers {
+            match self.sequencer_numbers.entry(*sequencer_id) {
+                Vacant(v) => {
+                    v.insert(*min_max);
+                }
+                Occupied(mut o) => {
+                    let existing_min_max = o.get_mut();
+
+                    let max = existing_min_max.max().max(min_max.max());
+
+                    let min1 = existing_min_max
+                        .min()
+                        .map(|min| min as u128)
+                        .unwrap_or_else(|| (existing_min_max.max() as u128) + 1);
+                    let min2 = min_max
+                        .min()
+                        .map(|min| min as u128)
+                        .unwrap_or_else(|| (min_max.max() as u128) + 1);
+                    let min = min1.max(min2);
+                    let min = if min <= (max as u128) {
+                        Some(min as u64)
+                    } else if min == (max as u128) + 1 {
+                        None
+                    } else {
+                        unreachable!()
+                    };
+
+                    *existing_min_max = OptionalMinMaxSequence::new(min, max);
+                }
+            }
+        }
     }
 }
 
@@ -978,6 +1042,54 @@ mod tests {
         assert_eq!(dckpt.sequencer_ids(), vec![1, 2]);
 
         assert_eq!(dckpt, db_ckpt!({1 => (Some(10), 20), 2 => (None, 15)}));
+    }
+
+    #[test]
+    fn test_database_checkpoint_fold() {
+        let mut dckpt = db_ckpt!({
+            1 => (Some(10), 20),
+            2 => (None, 15),
+            3 => (None, u64::MAX),
+            7 => (Some(10), 20),
+            8 => (Some(11), 21),
+            9 => (Some(10), 21),
+            10 => (None, 20),
+            11 => (Some(10), 20),
+            12 => (Some(10), 30),
+            13 => (Some(10), 10)
+        });
+
+        dckpt.fold(&db_ckpt!({
+            4 => (Some(10), 20),
+            5 => (None, 15),
+            6 => (None, u64::MAX),
+            7 => (Some(11), 21),
+            8 => (Some(10), 20),
+            9 => (Some(11), 20),
+            10 => (Some(10), 20),
+            11 => (None, 20),
+            12 => (None, 20),
+            13 => (Some(10), 10)
+        }));
+
+        assert_eq!(
+            dckpt,
+            db_ckpt!({
+                1 => (Some(10), 20),
+                2 => (None, 15),
+                3 => (None, u64::MAX),
+                4 => (Some(10), 20),
+                5 => (None, 15),
+                6 => (None, u64::MAX),
+                7 => (Some(11), 21),
+                8 => (Some(11), 21),
+                9 => (Some(11), 21),
+                10 => (None, 20),
+                11 => (None, 20),
+                12 => (Some(21), 30),
+                13 => (Some(10), 10)
+            }),
+        );
     }
 
     #[test]
