@@ -304,6 +304,9 @@ pub enum Error {
         partition_key: Arc<str>,
         sequencer_id: u32,
     },
+
+    #[snafu(display("Partition checkpoint order is undetermined"))]
+    UndeterminedPartitionCheckpointOrder,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -707,8 +710,8 @@ impl PersistCheckpointBuilder {
 /// the last [`DatabaseCheckpoint`] for the whole database.
 #[derive(Debug)]
 pub struct ReplayPlanner {
-    /// Range (inclusive minimum, inclusive maximum) of sequence number to be replayed for each sequencer.
-    replay_ranges: BTreeMap<u32, OptionalMinMaxSequence>,
+    /// Folded database checkpoint.
+    database_checkpoint: DatabaseCheckpoint,
 
     /// Last known partition checkpoint, mapped via table name and partition key.
     last_partition_checkpoints: BTreeMap<(Arc<str>, Arc<str>), PartitionCheckpoint>,
@@ -718,19 +721,17 @@ impl ReplayPlanner {
     /// Create new empty replay planner.
     pub fn new() -> Self {
         Self {
-            replay_ranges: Default::default(),
+            database_checkpoint: DatabaseCheckpoint::new(Default::default()),
             last_partition_checkpoints: Default::default(),
         }
     }
 
     /// Register a partition and database checkpoint that was found in the catalog.
-    ///
-    /// **Note: The checkpoints MUST be added in the same order as they where written to the preserved catalog!**
     pub fn register_checkpoints(
         &mut self,
         partition_checkpoint: &PartitionCheckpoint,
         database_checkpoint: &DatabaseCheckpoint,
-    ) {
+    ) -> Result<()> {
         match self.last_partition_checkpoints.entry((
             Arc::clone(partition_checkpoint.table_name()),
             Arc::clone(partition_checkpoint.partition_key()),
@@ -740,43 +741,48 @@ impl ReplayPlanner {
                 v.insert(partition_checkpoint.clone());
             }
             Occupied(mut o) => {
-                // known partition, but added afterwards => insert
-                o.insert(partition_checkpoint.clone());
+                // known partition => compare order
+                let existing = o.get_mut();
+                match partition_checkpoint.partial_cmp(existing) {
+                    Some(Ordering::Equal) => {
+                        // identical => nothing to do
+                    }
+                    Some(Ordering::Greater) => {
+                        // newer checkpoint => override
+                        *existing = partition_checkpoint.clone();
+                    }
+                    Some(Ordering::Less) => {
+                        // older checkpoint => ignore
+                    }
+                    None => {
+                        return Err(Error::UndeterminedPartitionCheckpointOrder);
+                    }
+                }
             }
         }
 
-        for (sequencer_id, min_max) in &database_checkpoint.sequencer_numbers {
-            match self.replay_ranges.entry(*sequencer_id) {
-                Vacant(v) => {
-                    // unknown sequencer => store min value (we keep the latest value for that one) and max value (in
-                    // case when we don't find another partition checkpoint for this sequencer, so we have a fallback)
-                    v.insert(*min_max);
-                }
-                Occupied(mut o) => {
-                    // known sequencer => take the alter value
-                    o.insert(*min_max);
-                }
-            }
-        }
+        self.database_checkpoint.fold(database_checkpoint);
+
+        Ok(())
     }
 
     /// Build plan that is then used for replay.
     pub fn build(self) -> Result<ReplayPlan> {
         let Self {
-            replay_ranges,
+            database_checkpoint,
             last_partition_checkpoints,
         } = self;
 
         // sanity-check partition checkpoints
         for ((table_name, partition_key), partition_checkpoint) in &last_partition_checkpoints {
             for (sequencer_id, min_max) in &partition_checkpoint.sequencer_numbers {
-                let database_wide_min_max = replay_ranges.get(sequencer_id).context(
-                    PartitionCheckpointWithoutDatabase {
+                let database_wide_min_max = database_checkpoint
+                    .sequencer_number(*sequencer_id)
+                    .context(PartitionCheckpointWithoutDatabase {
                         table_name: Arc::clone(table_name),
                         partition_key: Arc::clone(partition_key),
                         sequencer_id: *sequencer_id,
-                    },
-                )?;
+                    })?;
 
                 let sequence_missing = match (min_max.min(), database_wide_min_max.min()) {
                     (Some(min), Some(db_min)) => min < db_min,
@@ -807,7 +813,7 @@ impl ReplayPlanner {
         }
 
         Ok(ReplayPlan {
-            replay_ranges,
+            replay_ranges: database_checkpoint.sequencer_numbers,
             last_partition_checkpoints,
         })
     }
@@ -1165,57 +1171,76 @@ mod tests {
     fn test_replay_planner_normal() {
         let mut planner = ReplayPlanner::new();
 
-        planner.register_checkpoints(
-            &part_ckpt!(
-                "table_1",
-                "partition_1",
-                {
-                    1 => (Some(15), 19),
-                    2 => (Some(21), 27),
-                    5 => (None, 50),
-                    7 => (None, 70),
-                    8 => (None, 80),
-                    9 => (None, 90),
+        planner
+            .register_checkpoints(
+                &part_ckpt!(
+                    "table_1",
+                    "partition_1",
+                    {
+                        1 => (Some(15), 19),
+                        2 => (Some(21), 27),
+                        5 => (None, 50),
+                        7 => (None, 70),
+                        8 => (None, 80),
+                        9 => (None, 90),
+                        10 => (None, 100),
+                        11 => (None, 109)
+                    }
+                ),
+                &db_ckpt!({
+                    1 => (Some(10), 19),
+                    2 => (Some(20), 28),
+                    5 => (None, 51),
+                    6 => (None, 60),
+                    7 => (Some(69), 70),
+                    8 => (Some(79), 80),
+                    9 => (Some(88), 90),
                     10 => (None, 100),
-                    11 => (None, 110)
-                }
-            ),
-            &db_ckpt!({
-                1 => (Some(10), 19),
-                2 => (Some(20), 28),
-                5 => (None, 51),
-                6 => (None, 60),
-                7 => (Some(69), 70),
-                8 => (Some(79), 80),
-                9 => (Some(88), 90),
-                10 => (None, 100),
-                11 => (None, 110)
-            }),
-        );
+                    11 => (None, 109)
+                }),
+            )
+            .unwrap();
 
-        planner.register_checkpoints(
-            &part_ckpt!(
-                "table_1",
-                "partition_2",
-                {
-                    2 => (Some(22), 26),
-                    3 => (Some(35), 39),
+        planner
+            .register_checkpoints(
+                &part_ckpt!(
+                    "table_1",
+                    "partition_2",
+                    {
+                        2 => (Some(22), 26),
+                        3 => (Some(35), 39),
+                        8 => (None, 80),
+                        9 => (Some(89), 90),
+                        10 => (None, 101),
+                        11 => (Some(110), 111)
+                    }
+                ),
+                &db_ckpt!({
+                    1 => (Some(11), 20),
+                    3 => (Some(30), 40),
+                    4 => (Some(40), 50),
                     8 => (None, 80),
                     9 => (Some(89), 90),
                     10 => (None, 101),
-                    11 => (Some(109), 111)
-                }
-            ),
-            &db_ckpt!({
-                1 => (Some(11), 20),
-                3 => (Some(30), 40),
-                4 => (Some(40), 50),
-                8 => (None, 80),
-                9 => (Some(89), 90),
-                10 => (None, 101),
-                11 => (Some(109), 111)
-            }),
-        );
+                    11 => (Some(110), 111)
+                }),
+            )
+            .unwrap();
+
+        planner
+            .register_checkpoints(
+                &part_ckpt!(
+                    "table_1",
+                    "partition_1",
+                    {
+                        1 => (Some(0), 1)
+                    }
+                ),
+                &db_ckpt!({
+                    1 => (Some(0), 1)
+                }),
+            )
+            .unwrap();
 
         let plan = planner.build().unwrap();
 
@@ -1265,7 +1290,7 @@ mod tests {
         );
         assert_eq!(
             plan.replay_range(11).unwrap(),
-            OptionalMinMaxSequence::new(Some(109), 111)
+            OptionalMinMaxSequence::new(Some(110), 111)
         );
         assert!(plan.replay_range(12).is_none());
 
@@ -1290,7 +1315,7 @@ mod tests {
                     8 => (None, 80),
                     9 => (None, 90),
                     10 => (None, 100),
-                    11 => (None, 110)
+                    11 => (None, 109)
                 }
             ),
         );
@@ -1306,7 +1331,7 @@ mod tests {
                     8 => (None, 80),
                     9 => (Some(89), 90),
                     10 => (None, 101),
-                    11 => (Some(109), 111)
+                    11 => (Some(110), 111)
                 }
             ),
         );
@@ -1316,13 +1341,39 @@ mod tests {
     }
 
     #[test]
+    fn test_replay_planner_fail_undetermined_order() {
+        let mut planner = ReplayPlanner::new();
+
+        planner
+            .register_checkpoints(
+                &part_ckpt!("table_1", "partition_1", {1 => (Some(11), 12)}),
+                &db_ckpt!({1 => (Some(11), 22)}),
+            )
+            .unwrap();
+
+        let err = planner
+            .register_checkpoints(
+                &part_ckpt!("table_1", "partition_1", {1 => (Some(9), 13)}),
+                &db_ckpt!({1 => (Some(9), 22)}),
+            )
+            .unwrap_err();
+
+        assert!(matches!(
+            err,
+            Error::UndeterminedPartitionCheckpointOrder { .. }
+        ));
+    }
+
+    #[test]
     fn test_replay_planner_fail_missing_database_checkpoint() {
         let mut planner = ReplayPlanner::new();
 
-        planner.register_checkpoints(
-            &part_ckpt!("table_1", "partition_1", {1 => (Some(11), 12), 2 => (Some(21), 22)}),
-            &db_ckpt!({1 => (Some(10), 20), 3 => (Some(30), 40)}),
-        );
+        planner
+            .register_checkpoints(
+                &part_ckpt!("table_1", "partition_1", {1 => (Some(11), 12), 2 => (Some(21), 22)}),
+                &db_ckpt!({1 => (Some(10), 20), 3 => (Some(30), 40)}),
+            )
+            .unwrap();
 
         let err = planner.build().unwrap_err();
         assert!(matches!(
@@ -1336,10 +1387,12 @@ mod tests {
         let tracing_capture = TracingCapture::new();
 
         let mut planner = ReplayPlanner::new();
-        planner.register_checkpoints(
-            &part_ckpt!("table_1", "partition_1", {1 => (Some(10), 12)}),
-            &db_ckpt!({1 => (None, 20)}),
-        );
+        planner
+            .register_checkpoints(
+                &part_ckpt!("table_1", "partition_1", {1 => (Some(10), 12)}),
+                &db_ckpt!({1 => (None, 20)}),
+            )
+            .unwrap();
         planner.build().unwrap();
 
         let output = tracing_capture.to_string();
@@ -1351,10 +1404,12 @@ mod tests {
         let tracing_capture = TracingCapture::new();
 
         let mut planner = ReplayPlanner::new();
-        planner.register_checkpoints(
-            &part_ckpt!("table_1", "partition_1", {1 => (Some(10), 12)}),
-            &db_ckpt!({1 => (Some(11), 20)}),
-        );
+        planner
+            .register_checkpoints(
+                &part_ckpt!("table_1", "partition_1", {1 => (Some(10), 12)}),
+                &db_ckpt!({1 => (Some(11), 20)}),
+            )
+            .unwrap();
         planner.build().unwrap();
 
         let output = tracing_capture.to_string();
@@ -1365,10 +1420,12 @@ mod tests {
     fn test_replay_planner_fail_maximum_out_of_sync() {
         let mut planner = ReplayPlanner::new();
 
-        planner.register_checkpoints(
-            &part_ckpt!("table_1", "partition_1", {1 => (Some(11), 20)}),
-            &db_ckpt!({1 => (Some(10), 12)}),
-        );
+        planner
+            .register_checkpoints(
+                &part_ckpt!("table_1", "partition_1", {1 => (Some(11), 20)}),
+                &db_ckpt!({1 => (Some(10), 12)}),
+            )
+            .unwrap();
 
         let err = planner.build().unwrap_err();
         assert!(matches!(

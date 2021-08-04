@@ -1953,7 +1953,9 @@ mod tests {
         let builder = PersistCheckpointBuilder::new(partition_checkpoint);
         let (partition_checkpoint, database_checkpoint) = builder.build();
         let mut replay_planner = ReplayPlanner::new();
-        replay_planner.register_checkpoints(&partition_checkpoint, &database_checkpoint);
+        replay_planner
+            .register_checkpoints(&partition_checkpoint, &database_checkpoint)
+            .unwrap();
         let replay_plan = replay_planner.build().unwrap();
 
         // replay fails
@@ -2001,7 +2003,9 @@ mod tests {
         let builder = PersistCheckpointBuilder::new(partition_checkpoint);
         let (partition_checkpoint, database_checkpoint) = builder.build();
         let mut replay_planner = ReplayPlanner::new();
-        replay_planner.register_checkpoints(&partition_checkpoint, &database_checkpoint);
+        replay_planner
+            .register_checkpoints(&partition_checkpoint, &database_checkpoint)
+            .unwrap();
         let replay_plan = replay_planner.build().unwrap();
 
         // replay fails

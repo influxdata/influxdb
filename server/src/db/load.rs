@@ -182,7 +182,7 @@ impl CatalogState for Loader {
         object_store: Arc<ObjectStore>,
         info: CatalogParquetInfo,
     ) -> parquet_file::catalog::Result<()> {
-        use parquet_file::catalog::{MetadataExtractFailed, SchemaError};
+        use parquet_file::catalog::{MetadataExtractFailed, ReplayPlanError, SchemaError};
 
         // extract relevant bits from parquet file metadata
         let iox_md = info
@@ -194,7 +194,11 @@ impl CatalogState for Loader {
 
         // remember file for replay
         self.planner
-            .register_checkpoints(&iox_md.partition_checkpoint, &iox_md.database_checkpoint);
+            .register_checkpoints(&iox_md.partition_checkpoint, &iox_md.database_checkpoint)
+            .map_err(|e| Box::new(e) as _)
+            .context(ReplayPlanError {
+                path: info.path.clone(),
+            })?;
 
         // Create a parquet chunk for this chunk
         let metrics = self
