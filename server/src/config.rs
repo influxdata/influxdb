@@ -321,23 +321,29 @@ enum DatabaseState {
     Replay {
         db: Arc<Db>,
         replay_plan: ReplayPlan,
-        handle: Mutex<Option<JoinHandle<()>>>,
-        shutdown: CancellationToken,
+        background_worker_join_handle: Mutex<Option<JoinHandle<()>>>,
+        background_worker_shutdown: CancellationToken,
     },
 
     /// Fully initialized database.
     Initialized {
         db: Arc<Db>,
-        handle: Mutex<Option<JoinHandle<()>>>,
-        shutdown: CancellationToken,
+        background_worker_join_handle: Mutex<Option<JoinHandle<()>>>,
+        background_worker_shutdown: CancellationToken,
     },
 }
 
 impl DatabaseState {
     fn join(&mut self) -> Option<JoinHandle<()>> {
         match self {
-            DatabaseState::Replay { handle, .. } => handle.lock().take(),
-            DatabaseState::Initialized { handle, .. } => handle.lock().take(),
+            DatabaseState::Replay {
+                background_worker_join_handle: handle,
+                ..
+            } => handle.lock().take(),
+            DatabaseState::Initialized {
+                background_worker_join_handle: handle,
+                ..
+            } => handle.lock().take(),
             _ => None,
         }
     }
@@ -401,17 +407,21 @@ impl DatabaseState {
 impl Drop for DatabaseState {
     fn drop(&mut self) {
         if let DatabaseState::Replay {
-            handle, shutdown, ..
+            background_worker_join_handle,
+            background_worker_shutdown,
+            ..
         }
         | DatabaseState::Initialized {
-            handle, shutdown, ..
+            background_worker_join_handle,
+            background_worker_shutdown,
+            ..
         } = self
         {
-            if handle.lock().is_some() {
+            if background_worker_join_handle.lock().is_some() {
                 // Join should be called on `DatabaseState` prior to dropping, for example, by
                 // calling drain() on the owning `Config`
                 warn!("DatabaseState dropped without waiting for background task to complete");
-                shutdown.cancel();
+                background_worker_shutdown.cancel();
             }
         }
     }
@@ -572,8 +582,8 @@ impl<'a> DatabaseHandle<'a> {
                 self.state = Some(Arc::new(DatabaseState::Replay {
                     db,
                     replay_plan,
-                    handle,
-                    shutdown,
+                    background_worker_join_handle: handle,
+                    background_worker_shutdown: shutdown,
                 }));
 
                 Ok(())
@@ -591,15 +601,15 @@ impl<'a> DatabaseHandle<'a> {
         match self.state().as_ref() {
             DatabaseState::Replay {
                 db,
-                handle,
-                shutdown,
+                background_worker_join_handle,
+                background_worker_shutdown,
                 ..
             } => {
-                let handle = handle.lock().take();
+                let handle = background_worker_join_handle.lock().take();
                 self.state = Some(Arc::new(DatabaseState::Initialized {
                     db: Arc::clone(db),
-                    handle: Mutex::new(handle),
-                    shutdown: shutdown.clone(),
+                    background_worker_join_handle: Mutex::new(handle),
+                    background_worker_shutdown: background_worker_shutdown.clone(),
                 }));
 
                 Ok(())
@@ -909,7 +919,10 @@ mod test {
             .unwrap()
             .as_ref()
         {
-            DatabaseState::Initialized { shutdown, .. } => shutdown.clone(),
+            DatabaseState::Initialized {
+                background_worker_shutdown,
+                ..
+            } => background_worker_shutdown.clone(),
             _ => panic!("wrong state"),
         };
 
