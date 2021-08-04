@@ -35,6 +35,9 @@ impl MinMaxSequence {
 /// **IMPORTANT: These ranges include their start and their end (aka `[start, end]`)!**
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct OptionalMinMaxSequence {
+    /// The minimum sequence number. If None, this implies that data
+    /// up to and including the max sequence number has been persisted
+    /// (aka that the min == max)
     min: Option<u64>,
     max: u64,
 }

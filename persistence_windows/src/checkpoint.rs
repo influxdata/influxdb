@@ -1,9 +1,68 @@
 //! Tooling to capture the current playback state of a database.
 //!
-//! Checkpoint data declared in this module is usually written during persistence. The data is then used when the server
-//! starts up and orchestrates replays.
+//! Checkpoint data declared in this module is usually written during
+//! a persistence operation. The data is then used when the server
+//! starts up to orchestrate replays.
 //!
-//! # Example
+//! # Overview
+//!
+//! The following is a schematic of the major components involved in
+//! Replay. An IOx database reads data from a sequencer and persists
+//! (writes to object store) that data according to its lifecycle
+//! rules. The database's progress reading data from the sequencer and
+//! how much of that sequencer's data has been persisted is recorded
+//! in a [`DatabaseCheckpoint`] using min/max sequence numbers.
+//!
+//!```text
+//!                           Database Checkpoint
+//!
+//!                     min sequence     max sequence
+//!                           │                │
+//!    Input Stream       ┌───┘          ┌─────┘
+//!   from Sequencer      ▼              ▼
+//!               ┌────┬────┬────┬────┬────┬────┬────┬────┬────┬────┐
+//!               │Data│Data│Data│Data│Data│Data│Data│Data│Data│Data│
+//!               └────┴────┴────┴────┴────┴────┴────┴────┴────┴────┘
+//!                99  100   101  102  103  104  105  106  107  108     Sequence Number
+//!                                                    ▲
+//! ╔══════════════╗                   ┌───────────────┘
+//! ║ ┌─────────┐  ║                   │                    Position of
+//! ║ │ Parquet │  ║                   │                     next read
+//! ║ │  file   │  ║      ┌────────────────────────┐
+//! ║ └─────────┘  ║      │                        │
+//! ║     ...      ║◀─────│      influxdb_iox      │
+//! ║ ┌─────────┐  ║      │                        │
+//! ║ │ Parquet │  ║      └────────────────────────┘
+//! ║ │  file   │  ║
+//! ║ └─────────┘  ║
+//! ╚══════════════╝
+//!
+//!   Object Store
+//!```
+//!
+//! Note there is a gap between what data has been read by the
+//! database and what has been persisted, as well as data that may
+//! only be partially persisted.
+//!
+//! *min sequence number*: all data with sequence number lower than
+//! this have been persisted to object store
+//!
+//! *max sequence number*: any data with sequence number higher than
+//! this number had not yet been seen by IOx when the checkpoint was
+//! persisted to object store
+//!
+//! Thus from the above diagram we can see:
+//!
+//! 1. *min sequence number* is 100, meaning that all data with
+//! sequence number < 100 is persisted in object store
+//!
+//! 2. *max sequence number* is 103, meaning there is definitely no
+//! data with sequence number > 103 persisted in object store
+//!
+//! 3. Data with sequence numbers between 100 and 103 may or may not
+//! be persisted already to object store
+//!
+//! # Code Example
 //! These examples show how the tooling in this module can be integrated into a larger application. They are -- as the
 //! title of this section suggest -- examples and the real application might look different and also to deal with more
 //! complicated edge cases and error handling.
@@ -265,7 +324,39 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Immutable record of the playback state for a single partition.
+/// Immutable record of the persisted state for a single partition at
+/// the time a "Persist" operation was planned.
+///
+/// This structure contains the minimum and maximum sequence numbers
+/// for each sequencer for a specific partition along with the
+/// min_unpersisted timestamp ("flush timestamp").
+///
+/// The min_unpersisted timestamp is relative to the value in
+/// [`TIME_COLUMN_NAME`](internal_types::schema::TIME_COLUMN_NAME). The
+/// min/max sequence numbers are relative to their respective
+/// sequencers.
+///
+/// Since the sequence number is per-Entry, that it can be evaluated
+/// quickly during replay, while the timestamp must be checked for each
+/// row and thus is more costly to check.
+///
+/// Invariants at the time this structure was written, and describes
+/// what the state of the system will be after the planned operation
+/// completes.
+///
+/// ```text
+/// ┌───────────────────┬ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┌─────────────────────┐
+/// │seq < min_sequence │ time < min_unpersisted   │ seq > max sequence  │
+/// │                   │        PERSISTED         │                     │
+/// │                   ├──────────────────────────┤                     │
+/// │     PERSISTED     │  time >= min_unpersisted │    UNPERSISTED      │
+/// │                   │       UNPERSISTED        │                     │
+/// └───────────────────┤─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┼─────────────────────┘
+///
+/// Sequence            │                          │
+/// Number          min sequence              max sequence
+///```
+///
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartitionCheckpoint {
     /// Table of the partition.
@@ -277,7 +368,9 @@ pub struct PartitionCheckpoint {
     /// Maps `sequencer_id` to the to-be-persisted minimum and seen maximum sequence numbers.
     sequencer_numbers: BTreeMap<u32, OptionalMinMaxSequence>,
 
-    /// Minimum unpersisted timestamp.
+    /// Minimum unpersisted timestamp value of the
+    /// [`TIME_COLUMN_NAME`](internal_types::schema::TIME_COLUMN_NAME) + 1ns
+    /// (aka "flush timestamp" + 1ns)
     min_unpersisted_timestamp: DateTime<Utc>,
 }
 
@@ -335,9 +428,35 @@ impl PartitionCheckpoint {
     }
 }
 
-/// Immutable record of the playback state for the whole database.
+/// Immutable record of the persisted state of the whole database.
 ///
-/// This effectively contains the minimum sequence numbers over the whole database that are the starting point for replay.
+/// This structure contains the minimum and maximum sequence numbers
+/// for each sequencer, as described in the module level
+/// documentation.
+///
+/// During a replay operation, only data with sequence numbers between
+/// the appropriate min and max sequences are considered. Data prior
+/// to the min sequence is already persisted and data after the max is
+/// known to be unpersisted.
+///
+/// ```text
+/// ┌───────────────────┬ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┌─────────────────────┐
+/// │                   │  seq >= min_sequence &&  │                     │
+/// │seq < min_sequence │   seq <= max_sequence    │ seq > max sequence  │
+/// │                   │                          │                     │
+/// │     PERSISTED     │     MAYBE PERSISTED      │     UNPERSISTED     │
+/// │                   │                          │                     │
+/// └───────────────────┼ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─├─────────────────────┘
+///
+///                     │                          │
+///                 min sequence              max sequence
+/// ```
+///
+/// In the PERSISTED sequence ranges above, the sequence number alone
+/// is sufficient to know if the Entry has been persisted. However, in
+/// MAYBE PERSISTED range, Entries may be partially persisted, so the
+/// values of each row within Entries must be checked using a
+/// [`PartitionCheckpoint`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DatabaseCheckpoint {
     /// Maps `sequencer_id` to the minimum and maximum sequence numbers seen.
@@ -448,11 +567,27 @@ impl PersistCheckpointBuilder {
     }
 }
 
-/// Plan your sequencer replays after server restarts.
+/// Plans Replays after database restarts.
 ///
-/// To plan your replay successfull, you CAN register all [`PartitionCheckpoint`]s and [`DatabaseCheckpoint`]s that are
-/// persisted in the catalog. However it is sufficient to only register the last [`PartitionCheckpoint`] for every
-/// partition and the last [`DatabaseCheckpoint`] for the whole database.
+/// Database Replay is the reading of data from the sequencers that
+/// may have been partially persisted. The goals of replay are:
+///
+/// 1. Ensure that all data is available for query up to the largest
+/// sequence number that had been read at the time of the most recent
+/// persist operation, by re-ingesting necessary data from each
+/// sequencer.
+///
+/// 2. Minimize re-ingestion of data that is already persisted in
+/// object store files. Re-ingesting previously persisted data results
+/// in an expensive read-time deduplication and would require merging
+/// of persisted parquet files to remove. IOx tries very hard to avoid
+/// merging already persisted parquet files.
+///
+/// To plan a replay successfully, you CAN register all
+/// [`PartitionCheckpoint`]s and [`DatabaseCheckpoint`]s that are
+/// persisted in the catalog. However it is sufficient to only
+/// register the last [`PartitionCheckpoint`] for every partition and
+/// the last [`DatabaseCheckpoint`] for the whole database.
 #[derive(Debug)]
 pub struct ReplayPlanner {
     /// Range (inclusive minimum, inclusive maximum) of sequence number to be replayed for each sequencer.
