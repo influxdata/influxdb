@@ -1,8 +1,15 @@
 v1.9.4 [unreleased]
--	[#21890](https://github.com/influxdata/influxdb/pull/21890): chore: update protobuf library versions and remove influx_tsm
+
+### Features
+
 -	[#22011](https://github.com/influxdata/influxdb/pull/22011): feat: SHOW TAG VALUES should produce results from one specific RP
+
+### Bugfixes
+
+-	[#21890](https://github.com/influxdata/influxdb/pull/21890): chore: update protobuf library versions and remove influx_tsm
 -	[#21988](https://github.com/influxdata/influxdb/pull/21988): fix: systemd-start script should be executable by group and others
 -	[#21993](https://github.com/influxdata/influxdb/pull/21993): fix: restore portable backup bug
+-	[#22058](https://github.com/influxdata/influxdb/pull/22058): fix: copy names from mmapped memory before closing iterator
 
 v1.9.3 [unreleased]
 
