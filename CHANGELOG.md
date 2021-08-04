@@ -1,7 +1,10 @@
-v1.8.9 [unreleased]
+v1.8.10 [unreleased]
 -------------------
 
-v1.8.8 [2021-08-03]
+v1.8.9 [2021-08-04]
+-------------------
+
+v1.8.8 [unreleased]
 -------------------
 
 -	[#21953](https://github.com/influxdata/influxdb/pull/21953): fix: prevent silently dropped writes with overlapping shards
