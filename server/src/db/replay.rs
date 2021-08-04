@@ -237,7 +237,7 @@ pub async fn perform_replay(db: &Db, replay_plan: &ReplayPlan) -> Result<()> {
 }
 
 fn filter_entry(
-    sequence: Option<Sequence>,
+    sequence: Option<&Sequence>,
     partition_key: &str,
     table_batch: &TableBatch<'_>,
     replay_plan: &ReplayPlan,

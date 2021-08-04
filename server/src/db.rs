@@ -1125,7 +1125,7 @@ impl Db {
         filter_table_batch: F,
     ) -> Result<()>
     where
-        F: Fn(Option<Sequence>, &str, &TableBatch<'_>) -> bool,
+        F: Fn(Option<&Sequence>, &str, &TableBatch<'_>) -> bool,
     {
         // Get all needed database rule values, then release the lock
         let rules = self.rules.read();
@@ -1154,7 +1154,7 @@ impl Db {
         let time_of_write = Utc::now();
 
         if let Some(partitioned_writes) = sequenced_entry.partition_writes() {
-            let sequence = sequenced_entry.as_ref().sequence().copied();
+            let sequence = sequenced_entry.as_ref().sequence();
 
             // Protect against DoS by limiting the number of errors we might collect
             const MAX_ERRORS_PER_SEQUENCED_ENTRY: usize = 10;
@@ -1281,7 +1281,7 @@ impl Db {
                     match partition.persistence_windows_mut() {
                         Some(windows) => {
                             windows.add_range(
-                                sequence.as_ref(),
+                                sequence,
                                 row_count,
                                 min_time,
                                 max_time,
@@ -1294,7 +1294,7 @@ impl Db {
                                 late_arrival_window,
                             );
                             windows.add_range(
-                                sequence.as_ref(),
+                                sequence,
                                 row_count,
                                 min_time,
                                 max_time,
@@ -1314,7 +1314,7 @@ impl Db {
 }
 
 fn filter_table_batch_keep_all(
-    _sequence: Option<Sequence>,
+    _sequence: Option<&Sequence>,
     _partition_key: &str,
     _batch: &TableBatch<'_>,
 ) -> bool {
