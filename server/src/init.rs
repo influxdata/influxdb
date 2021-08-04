@@ -146,9 +146,12 @@ async fn initialize_database(
 ) -> Result<()> {
     // Reserve name before expensive IO (e.g. loading the preserved catalog)
     let mut handle = config
-        .create_db(db_name)
+        .create_db(db_name.clone())
         .map_err(Box::new)
         .context(InitDbError)?;
+
+    info!(db_name=%db_name, wipe_on_error, skip_replay_and_seek_instead, location=?root,
+          "Database initialization started");
 
     match try_advance_database_init_process_until_complete(
         &mut handle,
@@ -159,35 +162,42 @@ async fn initialize_database(
     .await
     {
         Ok(true) => {
+            info!(db_name=%db_name, "Database initialization completed");
+
             // finished init and keep DB
             handle.commit();
             Ok(())
         }
         Ok(false) => {
+            info!(db_name=%db_name, "Database initialization finished, but not keeping db");
+
             // finished but do not keep DB
             handle.abort();
             Ok(())
         }
         Err(e) => {
             // encountered some error, still commit intermediate result
+            error!(error=?e, db_name=%db_name, "Database initialization failed");
             handle.commit();
             Err(e)
         }
     }
 }
 
-async fn load_database_rules(store: Arc<ObjectStore>, path: Path) -> Result<Option<DatabaseRules>> {
+async fn load_database_rules(
+    store: Arc<ObjectStore>,
+    path: &Path,
+) -> Result<Option<DatabaseRules>> {
     let serialized_rules = loop {
-        match get_database_config_bytes(&path, &store).await {
+        match get_database_config_bytes(path, &store).await {
             Ok(data) => break data,
             Err(e) => {
                 if let Error::NoDatabaseConfigError { location } = &e {
                     warn!(?location, "{}", e);
                     return Ok(None);
                 }
-                error!(
-                    "error getting database config {:?} from object store: {}",
-                    path, e
+                warn!(location=?path, e=?e,
+                    "error getting database config from object store, retrying"
                 );
                 tokio::time::sleep(tokio::time::Duration::from_secs(STORE_ERROR_PAUSE_SECONDS))
                     .await;
@@ -295,7 +305,7 @@ async fn try_advance_database_init_process(
         DatabaseStateCode::Known => {
             // known => load DB rules
             let path = object_store_path_for_database_config(root, &handle.db_name());
-            match load_database_rules(handle.object_store(), path).await? {
+            match load_database_rules(handle.object_store(), &path).await? {
                 Some(rules) => {
                     handle
                         .advance_rules_loaded(rules)
@@ -307,6 +317,7 @@ async fn try_advance_database_init_process(
                 }
                 None => {
                     // no rules file present, advice to forget his DB
+                    info!(location=?path, "Can not find rules file");
                     Ok(InitProgress::Forget)
                 }
             }
@@ -332,8 +343,8 @@ async fn try_advance_database_init_process(
                 .context(CreateWriteBuffer {
                     config: rules.write_buffer_connection.clone(),
                 })?;
-            info!(write_buffer_enabled=?write_buffer.is_some(), db_name=rules.db_name(), "write buffer config");
 
+            info!(write_buffer_enabled=?write_buffer.is_some(), db_name=rules.db_name(), "write buffer configured");
             handle
                 .advance_replay(preserved_catalog, catalog, replay_plan, write_buffer)
                 .map_err(Box::new)
