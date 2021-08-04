@@ -25,7 +25,7 @@ use data_types::{
     server_id::ServerId,
 };
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
-use entry::{Entry, SequencedEntry};
+use entry::{Entry, Sequence, SequencedEntry, TableBatch};
 use futures::{stream::BoxStream, StreamExt};
 use internal_types::schema::Schema;
 use metrics::KeyValue;
@@ -911,7 +911,10 @@ impl Db {
             // store entry
             let mut logged_hard_limit = false;
             loop {
-                match self.store_sequenced_entry(Arc::clone(&sequenced_entry)) {
+                match self.store_sequenced_entry(
+                    Arc::clone(&sequenced_entry),
+                    filter_table_batch_keep_all,
+                ) {
                     Ok(_) => {
                         red_observation.ok();
                         break;
@@ -1083,7 +1086,7 @@ impl Db {
                     entry,
                 ));
 
-                self.store_sequenced_entry(sequenced_entry)
+                self.store_sequenced_entry(sequenced_entry, filter_table_batch_keep_all)
             }
             (_, true) => {
                 // If not configured to send entries to the write buffer and the database is
@@ -1100,14 +1103,30 @@ impl Db {
                 // sequencing entries so skip doing so here
                 let sequenced_entry = Arc::new(SequencedEntry::new_unsequenced(entry));
 
-                self.store_sequenced_entry(sequenced_entry)
+                self.store_sequenced_entry(sequenced_entry, filter_table_batch_keep_all)
             }
         }
     }
 
     /// Given a `SequencedEntry`, if the mutable buffer is configured, the `SequencedEntry` is then
     /// written into the mutable buffer.
-    pub fn store_sequenced_entry(&self, sequenced_entry: Arc<SequencedEntry>) -> Result<()> {
+    ///
+    /// # Filtering
+    /// `filter_table_batch` can be used to filter out table batches. It gets:
+    ///
+    /// 1. the current sequence
+    /// 2. the partition key
+    /// 3. the table batch (which also contains the table name)
+    ///
+    /// It shall return `true` if the batch should be stored and `false` otherwise.
+    pub fn store_sequenced_entry<F>(
+        &self,
+        sequenced_entry: Arc<SequencedEntry>,
+        filter_table_batch: F,
+    ) -> Result<()>
+    where
+        F: Fn(Option<&Sequence>, &str, &TableBatch<'_>) -> bool,
+    {
         // Get all needed database rule values, then release the lock
         let rules = self.rules.read();
         let immutable = rules.lifecycle_rules.immutable;
@@ -1148,6 +1167,9 @@ impl Db {
                     let row_count = table_batch.row_count();
 
                     if row_count == 0 {
+                        continue;
+                    }
+                    if !filter_table_batch(sequence, partition_key, &table_batch) {
                         continue;
                     }
 
@@ -1289,6 +1311,14 @@ impl Db {
 
         Ok(())
     }
+}
+
+fn filter_table_batch_keep_all(
+    _sequence: Option<&Sequence>,
+    _partition_key: &str,
+    _batch: &TableBatch<'_>,
+) -> bool {
+    true
 }
 
 #[async_trait]

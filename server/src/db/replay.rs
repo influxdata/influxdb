@@ -4,9 +4,10 @@ use std::{
     time::Duration,
 };
 
+use entry::{Sequence, TableBatch};
 use futures::TryStreamExt;
 use observability_deps::tracing::info;
-use persistence_windows::checkpoint::ReplayPlan;
+use persistence_windows::{checkpoint::ReplayPlan, min_max_sequence::OptionalMinMaxSequence};
 use snafu::{ResultExt, Snafu};
 use write_buffer::config::WriteBufferConfig;
 
@@ -191,7 +192,12 @@ pub async fn perform_replay(db: &Db, replay_plan: &ReplayPlan) -> Result<()> {
                     let mut logged_hard_limit = false;
                     let n_tries = 600; // 600*100ms = 60s
                     for n_try in 1..=n_tries {
-                        match db.store_sequenced_entry(Arc::clone(&entry)) {
+                        match db.store_sequenced_entry(
+                            Arc::clone(&entry),
+                            |sequence, partition_key, table_batch| {
+                                filter_entry(sequence, partition_key, table_batch, replay_plan)
+                            },
+                        ) {
                             Ok(_) => {
                                 break;
                             }
@@ -228,6 +234,104 @@ pub async fn perform_replay(db: &Db, replay_plan: &ReplayPlan) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn filter_entry(
+    sequence: Option<&Sequence>,
+    partition_key: &str,
+    table_batch: &TableBatch<'_>,
+    replay_plan: &ReplayPlan,
+) -> bool {
+    let sequence = sequence.expect("write buffer results must be sequenced");
+    let table_name = table_batch.name();
+
+    // Check if we have a partition checkpoint that contains data for this specific sequencer
+    let flush_ts_and_sequence_range = replay_plan
+        .last_partition_checkpoint(table_name, partition_key)
+        .map(|partition_checkpoint| {
+            partition_checkpoint
+                .sequencer_numbers(sequence.id)
+                .map(|min_max| (partition_checkpoint.min_unpersisted_timestamp(), min_max))
+        })
+        .flatten();
+
+    match flush_ts_and_sequence_range {
+        Some((_ts, min_max)) => {
+            // Figure out what the sequence number tells us about the entire batch
+            match SequenceNumberSection::compare(sequence.number, min_max) {
+                SequenceNumberSection::Persisted => {
+                    // skip the entire batch
+                    false
+                }
+                SequenceNumberSection::PartiallyPersisted => {
+                    // TODO: implement row filtering, for now replay the entire batch
+                    true
+                }
+                SequenceNumberSection::Unpersisted => {
+                    // replay entire batch
+                    true
+                }
+            }
+        }
+        None => {
+            // One of the following two cases:
+            // - We have never written a checkpoint for this partition, which means nothing is persisted yet.
+            // - Unknown sequencer (at least from the partitions point of view).
+            //
+            // => Replay full batch.
+            true
+        }
+    }
+}
+
+/// Where is a given sequence number and the entire data batch associated with it compared to the range of persisted and
+/// partially persisted sequence numbers (extracted from partition checkpoint).
+#[derive(Debug, PartialEq)]
+enum SequenceNumberSection {
+    /// The entire batch of data has previously been persisted.
+    Persisted,
+
+    /// The entire batch of data may or may not have been persisted.
+    ///
+    /// The data in this batch may or may not have been persisted.
+    /// The row timestamp must be compared against the flush timestamp to decide on a row-be-row basis if the data
+    /// should be replayed or not.
+    PartiallyPersisted,
+
+    /// The entire batch of data is unpersisted and must be replayed.
+    Unpersisted,
+}
+
+impl SequenceNumberSection {
+    /// Compare sequence number against given sequence range.
+    fn compare(sequence_number: u64, min_max: OptionalMinMaxSequence) -> Self {
+        // Are we beyond the last seen (at the time when the last partition write happened) sequence already?
+        if sequence_number > min_max.max() {
+            // Entry appeared after the last partition write.
+            Self::Unpersisted
+        } else {
+            // We have seen this entry already. Now the question is if we can safely assume that it was
+            // fully persisted.
+            match min_max.min() {
+                Some(min) => {
+                    // The range of potentially unpersisted sequences is not empty.
+                    if sequence_number >= min {
+                        // The data might be unpersisted.
+                        Self::PartiallyPersisted
+                    } else {
+                        // The entry was definitely fully persisted.
+                        Self::Persisted
+                    }
+                }
+                None => {
+                    // The range of potentially unpersisted entries is empty, aka the data up to and including `max`
+                    // is fully persisted. We are below or equal to `max` in this branch, so this entry is fully
+                    // persisted.
+                    Self::Persisted
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1317,6 +1421,182 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn replay_prune_full_partition() {
+        // there the following entries:
+        //
+        // 0. table 2, partition a:
+        //    only used to "mark" sequence number 0 as "to be replayed"
+        //
+        // 1. table 1, partition a:
+        //    will be fully persisted
+        ReplayTest {
+            n_sequencers: 1,
+            steps: vec![
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 0,
+                        lp: "table_2,tag_partition_by=a bar=20 0",
+                    },
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 1,
+                        lp: "table_1,tag_partition_by=a bar=10 0",
+                    },
+                ]),
+                Step::Await(vec![Check::Partitions(vec![
+                    ("table_1", "tag_partition_by_a"),
+                    ("table_2", "tag_partition_by_a"),
+                ])]),
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                Step::Restart,
+                Step::Assert(vec![Check::Partitions(vec![
+                    ("table_1", "tag_partition_by_a"),
+                ])]),
+                Step::Assert(vec![
+                    // single chunk for table_1 was restored
+                    Check::Query(
+                        "select table_name, storage, count(*) as n from system.chunks group by table_name, storage order by table_name, storage",
+                        vec![
+                            "+------------+-----------------+---+",
+                            "| table_name | storage         | n |",
+                            "+------------+-----------------+---+",
+                            "| table_1    | ObjectStoreOnly | 1 |",
+                            "+------------+-----------------+---+",
+                        ],
+                    ),
+                ]),
+                Step::Replay,
+                Step::Assert(vec![
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+----------------------+",
+                            "| bar | tag_partition_by | time                 |",
+                            "+-----+------------------+----------------------+",
+                            "| 10  | a                | 1970-01-01T00:00:00Z |",
+                            "+-----+------------------+----------------------+",
+                        ],
+                    ),
+                    Check::Query(
+                        "select * from table_2 order by bar",
+                        vec![
+                            "+-----+------------------+----------------------+",
+                            "| bar | tag_partition_by | time                 |",
+                            "+-----+------------------+----------------------+",
+                            "| 20  | a                | 1970-01-01T00:00:00Z |",
+                            "+-----+------------------+----------------------+",
+                        ],
+                    ),
+                    // no additional chunk for table_1 was created
+                    Check::Query(
+                        "select table_name, storage, count(*) as n from system.chunks group by table_name, storage order by table_name, storage",
+                        vec![
+                            "+------------+-------------------+---+",
+                            "| table_name | storage           | n |",
+                            "+------------+-------------------+---+",
+                            "| table_1    | ObjectStoreOnly   | 1 |",
+                            "| table_2    | OpenMutableBuffer | 1 |",
+                            "+------------+-------------------+---+",
+                        ],
+                    ),
+                ]),
+            ],
+        }
+        .run()
+        .await
+    }
+
+    #[tokio::test]
+    async fn replay_prune_some_sequences_partition() {
+        // there the following entries:
+        //
+        // 0. table 2, partition a:
+        //    only used to "mark" sequence number 0 as "to be replayed"
+        //
+        // 1. table 1, partition a:
+        //    will be persisted
+        //
+        // 2. table 1, partition a:
+        //    will not be persisted
+        //
+        // 3. table 3, partition a:
+        //    persisted, used to "mark" the end of the replay range to sequence number 3
+        ReplayTest {
+            n_sequencers: 1,
+            steps: vec![
+                // let's ingest some data for two partitions a and b
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 0,
+                        lp: "table_2,tag_partition_by=a bar=10 0",
+                    },
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 1,
+                        lp: "table_1,tag_partition_by=a bar=10 0",
+                    },
+                ]),
+                Step::Await(vec![Check::Partitions(vec![
+                    ("table_1", "tag_partition_by_a"),
+                    ("table_2", "tag_partition_by_a"),
+                ])]),
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 2,
+                        lp: "table_1,tag_partition_by=a bar=20 10",
+                    },
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 3,
+                        lp: "table_3,tag_partition_by=a bar=10 10",
+                    },
+                ]),
+                Step::Await(vec![Check::Partitions(vec![
+                    ("table_1", "tag_partition_by_a"),
+                    ("table_2", "tag_partition_by_a"),
+                    ("table_3", "tag_partition_by_a"),
+                ])]),
+                Step::Persist(vec![("table_3", "tag_partition_by_a")]),
+                Step::Restart,
+                Step::Replay,
+                Step::Assert(vec![
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+--------------------------------+",
+                            "| bar | tag_partition_by | time                           |",
+                            "+-----+------------------+--------------------------------+",
+                            "| 10  | a                | 1970-01-01T00:00:00Z           |",
+                            "| 20  | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                    // chunks do not overlap
+                    Check::Query(
+                        "select table_name, storage, min_value, max_value, row_count from system.chunk_columns where column_name = 'time' order by table_name, storage",
+                        vec![
+                            "+------------+-------------------+-----------+-----------+-----------+",
+                            "| table_name | storage           | min_value | max_value | row_count |",
+                            "+------------+-------------------+-----------+-----------+-----------+",
+                            "| table_1    | ObjectStoreOnly   | 0         | 0         | 1         |",
+                            "| table_1    | OpenMutableBuffer | 10        | 10        | 1         |",
+                            "| table_2    | OpenMutableBuffer | 0         | 0         | 1         |",
+                            "| table_3    | ObjectStoreOnly   | 10        | 10        | 1         |",
+                            "+------------+-------------------+-----------+-----------+-----------+",
+                        ],
+                    ),
+                ]),
+            ],
+        }
+        .run()
+        .await
+    }
+
+    #[tokio::test]
     async fn replay_fail_sequencers_change() {
         // create write buffer w/ sequencer 0 and 1
         let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(2);
@@ -1497,5 +1777,86 @@ mod tests {
         // stop background worker
         shutdown.cancel();
         join_handle.await.unwrap();
+    }
+
+    #[test]
+    fn sequence_number_section() {
+        let min_max = OptionalMinMaxSequence::new(None, 0);
+        assert_eq!(
+            SequenceNumberSection::compare(0, min_max),
+            SequenceNumberSection::Persisted
+        );
+        assert_eq!(
+            SequenceNumberSection::compare(1, min_max),
+            SequenceNumberSection::Unpersisted
+        );
+
+        let min_max = OptionalMinMaxSequence::new(None, 1);
+        assert_eq!(
+            SequenceNumberSection::compare(0, min_max),
+            SequenceNumberSection::Persisted
+        );
+        assert_eq!(
+            SequenceNumberSection::compare(1, min_max),
+            SequenceNumberSection::Persisted
+        );
+        assert_eq!(
+            SequenceNumberSection::compare(2, min_max),
+            SequenceNumberSection::Unpersisted
+        );
+
+        let min_max = OptionalMinMaxSequence::new(Some(0), 0);
+        assert_eq!(
+            SequenceNumberSection::compare(0, min_max),
+            SequenceNumberSection::PartiallyPersisted
+        );
+        assert_eq!(
+            SequenceNumberSection::compare(1, min_max),
+            SequenceNumberSection::Unpersisted
+        );
+
+        let min_max = OptionalMinMaxSequence::new(Some(1), 1);
+        assert_eq!(
+            SequenceNumberSection::compare(0, min_max),
+            SequenceNumberSection::Persisted
+        );
+        assert_eq!(
+            SequenceNumberSection::compare(1, min_max),
+            SequenceNumberSection::PartiallyPersisted
+        );
+        assert_eq!(
+            SequenceNumberSection::compare(2, min_max),
+            SequenceNumberSection::Unpersisted
+        );
+
+        let min_max = OptionalMinMaxSequence::new(Some(2), 4);
+        assert_eq!(
+            SequenceNumberSection::compare(0, min_max),
+            SequenceNumberSection::Persisted
+        );
+        assert_eq!(
+            SequenceNumberSection::compare(1, min_max),
+            SequenceNumberSection::Persisted
+        );
+        assert_eq!(
+            SequenceNumberSection::compare(2, min_max),
+            SequenceNumberSection::PartiallyPersisted
+        );
+        assert_eq!(
+            SequenceNumberSection::compare(3, min_max),
+            SequenceNumberSection::PartiallyPersisted
+        );
+        assert_eq!(
+            SequenceNumberSection::compare(4, min_max),
+            SequenceNumberSection::PartiallyPersisted
+        );
+        assert_eq!(
+            SequenceNumberSection::compare(5, min_max),
+            SequenceNumberSection::Unpersisted
+        );
+        assert_eq!(
+            SequenceNumberSection::compare(6, min_max),
+            SequenceNumberSection::Unpersisted
+        );
     }
 }
