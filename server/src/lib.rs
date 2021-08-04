@@ -1393,7 +1393,12 @@ mod tests {
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.maybe_initialize_server().await;
 
-        assert_eq!(server.db_names_sorted(), vec!["apples"]);
+        assert_eq!(server.db_names_sorted(), vec!["apples", "bananas"]);
+        assert_eq!(server.databases_with_errors(), vec!["bananas"]);
+        assert!(matches!(
+            server.error_database("bananas").unwrap().as_ref(),
+            init::Error::NoDatabaseConfigError { .. }
+        ))
     }
 
     #[tokio::test]
@@ -2102,6 +2107,11 @@ mod tests {
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = "my_db";
 
+        // setup server
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.maybe_initialize_server().await;
+
         // create catalog
         PreservedCatalog::new_empty::<TestCatalogState>(
             Arc::clone(application.object_store()),
@@ -2111,11 +2121,6 @@ mod tests {
         )
         .await
         .unwrap();
-
-        // setup server
-        let server = make_server(application);
-        server.set_id(server_id).unwrap();
-        server.maybe_initialize_server().await;
 
         // creating database will now result in an error
         let err = create_simple_database(&server, db_name).await.unwrap_err();

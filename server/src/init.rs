@@ -161,18 +161,10 @@ async fn initialize_database(
     )
     .await
     {
-        Ok(true) => {
+        Ok(_) => {
             info!(db_name=%db_name, "Database initialization completed");
-
             // finished init and keep DB
             handle.commit();
-            Ok(())
-        }
-        Ok(false) => {
-            info!(db_name=%db_name, "Database initialization finished, but not keeping db");
-
-            // finished but do not keep DB
-            handle.abort();
             Ok(())
         }
         Err(e) => {
@@ -184,17 +176,14 @@ async fn initialize_database(
     }
 }
 
-async fn load_database_rules(
-    store: Arc<ObjectStore>,
-    path: &Path,
-) -> Result<Option<DatabaseRules>> {
+async fn load_database_rules(store: Arc<ObjectStore>, path: &Path) -> Result<DatabaseRules> {
     let serialized_rules = loop {
         match get_database_config_bytes(path, &store).await {
             Ok(data) => break data,
             Err(e) => {
                 if let Error::NoDatabaseConfigError { location } = &e {
                     warn!(?location, "{}", e);
-                    return Ok(None);
+                    return Err(e);
                 }
                 warn!(location=?path, e=?e,
                     "error getting database config from object store, retrying"
@@ -207,7 +196,7 @@ async fn load_database_rules(
     let rules = decode_database_rules(serialized_rules.freeze())
         .context(ErrorDeserializingRulesProtobuf)?;
 
-    Ok(Some(rules))
+    Ok(rules)
 }
 
 pub(crate) async fn wipe_preserved_catalog_and_maybe_recover(
@@ -266,14 +255,13 @@ pub(crate) async fn wipe_preserved_catalog_and_maybe_recover(
 /// Try to make as much progress as possible with DB init.
 ///
 /// Returns an error if there was an error along the way (in which case the handle should still be commit to safe
-/// the intermediate result). Returns `Ok(true)` if DB init is finished and `Ok(false)` if the DB can be forgotten
-/// (e.g. because not rules file is present.)
+/// the intermediate result).
 async fn try_advance_database_init_process_until_complete(
     handle: &mut DatabaseHandle<'_>,
     root: &Path,
     wipe_on_error: bool,
     skip_replay_and_seek_instead: bool,
-) -> Result<bool> {
+) -> Result<()> {
     loop {
         match try_advance_database_init_process(
             handle,
@@ -285,10 +273,7 @@ async fn try_advance_database_init_process_until_complete(
         {
             InitProgress::Unfinished => {}
             InitProgress::Done => {
-                return Ok(true);
-            }
-            InitProgress::Forget => {
-                return Ok(false);
+                return Ok(());
             }
         }
     }
@@ -305,22 +290,14 @@ async fn try_advance_database_init_process(
         DatabaseStateCode::Known => {
             // known => load DB rules
             let path = object_store_path_for_database_config(root, &handle.db_name());
-            match load_database_rules(handle.object_store(), &path).await? {
-                Some(rules) => {
-                    handle
-                        .advance_rules_loaded(rules)
-                        .map_err(Box::new)
-                        .context(InitDbError)?;
+            let rules = load_database_rules(handle.object_store(), &path).await?;
+            handle
+                .advance_rules_loaded(rules)
+                .map_err(Box::new)
+                .context(InitDbError)?;
 
-                    // there is still more work to do for this DB
-                    Ok(InitProgress::Unfinished)
-                }
-                None => {
-                    // no rules file present, advice to forget his DB
-                    info!(location=?path, "Can not find rules file");
-                    Ok(InitProgress::Forget)
-                }
-            }
+            // there is still more work to do for this DB
+            Ok(InitProgress::Unfinished)
         }
         DatabaseStateCode::RulesLoaded => {
             // rules already loaded => continue with loading preserved catalog
@@ -385,7 +362,6 @@ async fn try_advance_database_init_process(
 enum InitProgress {
     Unfinished,
     Done,
-    Forget,
 }
 
 // get bytes from the location in object store

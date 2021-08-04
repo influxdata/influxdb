@@ -69,8 +69,7 @@ impl Config {
     /// Get handle to create a database.
     ///
     /// The handle present a database in the [`Known`](DatabaseStateCode::Known) state. Note that until the handle is
-    /// [committed](DatabaseHandle::commit) the database will not be present in the config. Hence
-    /// [aborting](DatabaseHandle::abort) will discard the to-be-created database.
+    /// [committed](DatabaseHandle::commit) the database will not be present in the config.
     ///
     /// While the handle is held, no other operations for the given database can be executed.
     ///
@@ -504,14 +503,6 @@ impl<'a> DatabaseHandle<'a> {
         self.config.commit_db(state);
     }
 
-    /// Discard modification done to this handle.
-    ///
-    /// After aborting a new handle for the same database can be created.
-    pub fn abort(mut self) {
-        let state = self.state.take().expect("not committed");
-        self.config.forget_reservation(&state.db_name())
-    }
-
     /// Advance database state to [`RulesLoaded`](DatabaseStateCode::RulesLoaded).
     pub fn advance_rules_loaded(&mut self, rules: DatabaseRules) -> Result<()> {
         match self.state().as_ref() {
@@ -698,17 +689,7 @@ mod test {
         assert_eq!(config.db_names_sorted(), vec![]);
         assert!(!config.has_uninitialized_database(&name));
 
-        // handle.abort just works (aka does not mess up the transaction afterwards)
-        {
-            let db_reservation = config.create_db(DatabaseName::new("bar").unwrap()).unwrap();
-
-            db_reservation.abort();
-        }
-        assert!(config.db_initialized(&name).is_none());
-        assert_eq!(config.db_names_sorted(), vec![]);
-        assert!(!config.has_uninitialized_database(&name));
-
-        // create DB successfull
+        // create DB successful
         {
             let mut db_reservation = config.create_db(name.clone()).unwrap();
 
