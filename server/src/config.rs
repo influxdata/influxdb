@@ -9,6 +9,7 @@ use data_types::{
 };
 use metrics::MetricRegistry;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
+use parking_lot::Mutex;
 use parquet_file::catalog::PreservedCatalog;
 use persistence_windows::checkpoint::ReplayPlan;
 use write_buffer::config::WriteBufferConfig;
@@ -320,20 +321,29 @@ enum DatabaseState {
     Replay {
         db: Arc<Db>,
         replay_plan: ReplayPlan,
+        background_worker_join_handle: Mutex<Option<JoinHandle<()>>>,
+        background_worker_shutdown: CancellationToken,
     },
 
     /// Fully initialized database.
     Initialized {
         db: Arc<Db>,
-        handle: Option<JoinHandle<()>>,
-        shutdown: CancellationToken,
+        background_worker_join_handle: Mutex<Option<JoinHandle<()>>>,
+        background_worker_shutdown: CancellationToken,
     },
 }
 
 impl DatabaseState {
     fn join(&mut self) -> Option<JoinHandle<()>> {
         match self {
-            DatabaseState::Initialized { handle, .. } => handle.take(),
+            DatabaseState::Replay {
+                background_worker_join_handle: handle,
+                ..
+            } => handle.lock().take(),
+            DatabaseState::Initialized {
+                background_worker_join_handle: handle,
+                ..
+            } => handle.lock().take(),
             _ => None,
         }
     }
@@ -396,15 +406,22 @@ impl DatabaseState {
 
 impl Drop for DatabaseState {
     fn drop(&mut self) {
-        if let DatabaseState::Initialized {
-            handle, shutdown, ..
+        if let DatabaseState::Replay {
+            background_worker_join_handle,
+            background_worker_shutdown,
+            ..
+        }
+        | DatabaseState::Initialized {
+            background_worker_join_handle,
+            background_worker_shutdown,
+            ..
         } = self
         {
-            if handle.is_some() {
+            if background_worker_join_handle.lock().is_some() {
                 // Join should be called on `DatabaseState` prior to dropping, for example, by
                 // calling drain() on the owning `Config`
                 warn!("DatabaseState dropped without waiting for background task to complete");
-                shutdown.cancel();
+                background_worker_shutdown.cancel();
             }
         }
     }
@@ -543,12 +560,31 @@ impl<'a> DatabaseHandle<'a> {
                     write_buffer,
                 };
 
-                let db = Arc::new(Db::new(
-                    database_to_commit,
-                    Arc::clone(application.job_registry()),
-                ));
+                let db = Db::new(database_to_commit, Arc::clone(application.job_registry()));
 
-                self.state = Some(Arc::new(DatabaseState::Replay { db, replay_plan }));
+                if self.config.shutdown.is_cancelled() {
+                    error!("server is shutting down");
+                    return ServerShuttingDown.fail();
+                }
+
+                let shutdown = self.config.shutdown.child_token();
+                let shutdown_captured = shutdown.clone();
+                let db_captured = Arc::clone(&db);
+                let rules = db.rules();
+
+                let handle = Mutex::new(Some(tokio::spawn(async move {
+                    db_captured
+                        .background_worker(shutdown_captured)
+                        .instrument(tracing::info_span!("db_worker", database=%rules.name))
+                        .await
+                })));
+
+                self.state = Some(Arc::new(DatabaseState::Replay {
+                    db,
+                    replay_plan,
+                    background_worker_join_handle: handle,
+                    background_worker_shutdown: shutdown,
+                }));
 
                 Ok(())
             }
@@ -563,28 +599,17 @@ impl<'a> DatabaseHandle<'a> {
     /// Advance database state to [`Initialized`](DatabaseStateCode::Initialized).
     pub fn advance_init(&mut self) -> Result<()> {
         match self.state().as_ref() {
-            DatabaseState::Replay { db, .. } => {
-                if self.config.shutdown.is_cancelled() {
-                    error!("server is shutting down");
-                    return ServerShuttingDown.fail();
-                }
-
-                let shutdown = self.config.shutdown.child_token();
-                let shutdown_captured = shutdown.clone();
-                let db_captured = Arc::clone(db);
-                let rules = db.rules();
-
-                let handle = Some(tokio::spawn(async move {
-                    db_captured
-                        .background_worker(shutdown_captured)
-                        .instrument(tracing::info_span!("db_worker", database=%rules.name))
-                        .await
-                }));
-
+            DatabaseState::Replay {
+                db,
+                background_worker_join_handle,
+                background_worker_shutdown,
+                ..
+            } => {
+                let handle = background_worker_join_handle.lock().take();
                 self.state = Some(Arc::new(DatabaseState::Initialized {
                     db: Arc::clone(db),
-                    handle,
-                    shutdown,
+                    background_worker_join_handle: Mutex::new(handle),
+                    background_worker_shutdown: background_worker_shutdown.clone(),
                 }));
 
                 Ok(())
@@ -894,7 +919,10 @@ mod test {
             .unwrap()
             .as_ref()
         {
-            DatabaseState::Initialized { shutdown, .. } => shutdown.clone(),
+            DatabaseState::Initialized {
+                background_worker_shutdown,
+                ..
+            } => background_worker_shutdown.clone(),
             _ => panic!("wrong state"),
         };
 

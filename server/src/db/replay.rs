@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
+    time::Duration,
 };
 
 use futures::TryStreamExt;
@@ -187,9 +188,35 @@ pub async fn perform_replay(db: &Db, replay_plan: &ReplayPlan) -> Result<()> {
                     }
 
                     let entry = Arc::new(entry);
-                    db.store_sequenced_entry(entry)
-                        .map_err(Box::new)
-                        .context(StoreError { sequencer_id })?;
+                    let mut logged_hard_limit = false;
+                    let n_tries = 600; // 600*100ms = 60s
+                    for n_try in 1..=n_tries {
+                        match db.store_sequenced_entry(Arc::clone(&entry)) {
+                            Ok(_) => {
+                                break;
+                            }
+                            Err(crate::db::Error::HardLimitReached {}) if n_try < n_tries => {
+                                if !logged_hard_limit {
+                                    info!(
+                                        %db_name,
+                                        sequencer_id,
+                                        n_try,
+                                        n_tries,
+                                        "Hard limit reached while replaying, waiting for compaction to catch up",
+                                    );
+                                    logged_hard_limit = true;
+                                }
+                                tokio::time::sleep(Duration::from_millis(100)).await;
+                                continue;
+                            }
+                            Err(e) => {
+                                return Err(Error::StoreError {
+                                    sequencer_id,
+                                    source: Box::new(e),
+                                });
+                            }
+                        }
+                    }
 
                     // done replaying?
                     if sequence.number == min_max.max() {
@@ -209,7 +236,7 @@ mod tests {
 
     use std::{
         convert::TryFrom,
-        num::NonZeroU32,
+        num::{NonZeroU32, NonZeroUsize},
         sync::Arc,
         time::{Duration, Instant},
     };
@@ -230,7 +257,8 @@ mod tests {
         min_max_sequence::OptionalMinMaxSequence,
     };
     use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryChunk};
-    use test_helpers::assert_contains;
+    use test_helpers::{assert_contains, tracing::TracingCapture};
+    use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
     use write_buffer::{
         config::WriteBufferConfig,
@@ -286,6 +314,9 @@ mod tests {
         Ingest(Vec<TestSequencedEntry>),
 
         /// Restart DB
+        ///
+        /// Background loop is started as well but neither persistence nor write buffer reads are allowed until
+        /// [`Await`](Self::Await) is used.
         Restart,
 
         /// Perform replay
@@ -301,7 +332,7 @@ mod tests {
 
         /// Wait that background loop generates desired state (all checks pass).
         ///
-        /// Background loop is started before the check and stopped afterwards.
+        /// Persistence and write buffer reads are enabled in preparation to this step.
         Await(Vec<Check>),
     }
 
@@ -313,17 +344,13 @@ mod tests {
         /// What to do in which order.
         ///
         /// # Serialization
-        /// The execution of the entire test is purely serial with the exception of [`Await`](Step::Await) (see
-        /// next section). That means that nothing happens concurrently during each step. Every step is finished and
+        /// Every step is finished and
         /// checked for errors before the next is started (e.g. [`Replay`](Step::Replay) is fully executed and
         /// it is ensured that there were no errors before a subsequent [`Assert`](Step::Assert) is evaluated).
-        /// The database background worker is NOT active during any non-[`Await`](Step::Await)
         ///
-        /// # Await
-        /// Sometimes the background worker is needed to perform something, e.g. to consume some data from the write
-        /// buffer. In that case [`Await`](Step::Await) can be used. During this check (and only during this
-        /// check) the background worker is active and the checks passed to [`Await`](Step::Await) are
-        /// evaluated until they succeed. The background worker is stopped before the next test step is evaluated.
+        /// # Await / Background Worker
+        /// The database background worker is started during when the DB is created but persistence and reads from the
+        /// write buffer are disabled until [`Await`](Step::Await) is used.
         steps: Vec<Step>,
     }
 
@@ -340,7 +367,7 @@ mod tests {
             };
             let write_buffer_state =
                 MockBufferSharedState::empty_with_n_sequencers(self.n_sequencers);
-            let mut test_db = Self::create_test_db(
+            let (mut test_db, mut shutdown, mut join_handle) = Self::create_test_db(
                 Arc::clone(&object_store),
                 write_buffer_state.clone(),
                 server_id,
@@ -360,11 +387,15 @@ mod tests {
                         }
                     }
                     Step::Restart => {
-                        // first drop old DB
+                        // stop background worker
+                        shutdown.cancel();
+                        join_handle.await.unwrap();
+
+                        // drop old DB
                         drop(test_db);
 
                         // then create new one
-                        test_db = Self::create_test_db(
+                        let (test_db_tmp, shutdown_tmp, join_handle_tmp) = Self::create_test_db(
                             Arc::clone(&object_store),
                             write_buffer_state.clone(),
                             server_id,
@@ -372,11 +403,14 @@ mod tests {
                             partition_template.clone(),
                         )
                         .await;
+                        test_db = test_db_tmp;
+                        shutdown = shutdown_tmp;
+                        join_handle = join_handle_tmp;
                     }
                     Step::Replay => {
-                        test_db
-                            .db
-                            .perform_replay(&test_db.replay_plan, false)
+                        let db = &test_db.db;
+
+                        db.perform_replay(&test_db.replay_plan, false)
                             .await
                             .unwrap();
                     }
@@ -413,14 +447,8 @@ mod tests {
                     }
                     Step::Await(checks) => {
                         let db = &test_db.db;
-
-                        // start background worker
-                        let shutdown: CancellationToken = Default::default();
-                        let shutdown_captured = shutdown.clone();
-                        let db_captured = Arc::clone(db);
-                        let join_handle = tokio::spawn(async move {
-                            db_captured.background_worker(shutdown_captured).await
-                        });
+                        db.unsuppress_persistence().await;
+                        db.allow_write_buffer_read();
 
                         // wait until checks pass
                         let t_0 = Instant::now();
@@ -439,10 +467,6 @@ mod tests {
                             }
                             tokio::time::sleep(Duration::from_millis(100)).await;
                         }
-
-                        // stop background worker
-                        shutdown.cancel();
-                        join_handle.await.unwrap();
                     }
                 }
             }
@@ -471,22 +495,33 @@ mod tests {
             server_id: ServerId,
             db_name: &'static str,
             partition_template: PartitionTemplate,
-        ) -> TestDb {
+        ) -> (TestDb, CancellationToken, JoinHandle<()>) {
             let write_buffer = MockBufferForReading::new(write_buffer_state);
-            TestDb::builder()
+            let test_db = TestDb::builder()
                 .object_store(object_store)
                 .server_id(server_id)
                 .write_buffer(WriteBufferConfig::Reading(Arc::new(
                     tokio::sync::Mutex::new(Box::new(write_buffer) as _),
                 )))
                 .lifecycle_rules(data_types::database_rules::LifecycleRules {
+                    buffer_size_hard: Some(NonZeroUsize::new(10_000).unwrap()),
                     late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+                    mub_row_threshold: NonZeroUsize::new(10).unwrap(),
                     ..Default::default()
                 })
                 .partition_template(partition_template)
                 .db_name(db_name)
                 .build()
-                .await
+                .await;
+
+            // start background worker
+            let shutdown: CancellationToken = Default::default();
+            let shutdown_captured = shutdown.clone();
+            let db_captured = Arc::clone(&test_db.db);
+            let join_handle =
+                tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+
+            (test_db, shutdown, join_handle)
         }
 
         /// Evaluates given checks.
@@ -1229,6 +1264,59 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn replay_compacts() {
+        let tracing_capture = TracingCapture::new();
+
+        // these numbers are handtuned to trigger hard buffer limits w/o making the test too big
+        let n_entries = 50u64;
+        let sequenced_entries: Vec<_> = (0..n_entries)
+            .map(|sequence_number| {
+                let lp = format!(
+                    "table_1,tag_partition_by=a foo=\"hello\",bar=10 {}",
+                    sequence_number / 2
+                );
+                let lp: &'static str = Box::leak(Box::new(lp));
+                TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number,
+                    lp,
+                }
+            })
+            .collect();
+
+        ReplayTest {
+            n_sequencers: 1,
+            steps: vec![
+                Step::Ingest(sequenced_entries),
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: n_entries,
+                    lp: "table_2,tag_partition_by=a bar=11 10",
+                }]),
+                Step::Await(vec![Check::Partitions(vec![
+                    ("table_1", "tag_partition_by_a"),
+                    ("table_2", "tag_partition_by_a"),
+                ])]),
+                Step::Persist(vec![("table_2", "tag_partition_by_a")]),
+                Step::Restart,
+                Step::Assert(vec![Check::Partitions(vec![(
+                    "table_2",
+                    "tag_partition_by_a",
+                )])]),
+                Step::Replay,
+            ],
+        }
+        .run()
+        .await;
+
+        // check that hard buffer limit was actually hit (otherwise this test is pointless/outdated)
+        assert_contains!(
+            tracing_capture.to_string(),
+            "Hard limit reached while replaying, waiting for compaction to catch up"
+        );
+    }
+
+    #[tokio::test]
     async fn replay_fail_sequencers_change() {
         // create write buffer w/ sequencer 0 and 1
         let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(2);
@@ -1374,6 +1462,7 @@ mod tests {
         let db_captured = Arc::clone(db);
         let join_handle =
             tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+        db.allow_write_buffer_read();
 
         // wait until checks pass
         let checks = vec![Check::Query(

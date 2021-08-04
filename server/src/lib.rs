@@ -593,6 +593,11 @@ where
         db_reservation.advance_replay(preserved_catalog, catalog, replay_plan, write_buffer)?;
 
         // no actual replay required
+        let db = db_reservation
+            .db_any_state()
+            .expect("DB should exist at this point");
+        db.unsuppress_persistence().await;
+        db.allow_write_buffer_read();
         db_reservation.advance_init()?;
 
         // ready to commit

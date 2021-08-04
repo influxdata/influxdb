@@ -11,7 +11,7 @@ use crate::{
             table::TableSchemaUpsertHandle,
             Catalog, TableNameFilter,
         },
-        lifecycle::{ArcDb, LockableCatalogChunk, LockableCatalogPartition},
+        lifecycle::{LockableCatalogChunk, LockableCatalogPartition, WeakDb},
     },
     JobRegistry,
 };
@@ -45,7 +45,7 @@ use std::{
     any::Any,
     collections::HashMap,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
     time::{Duration, Instant},
@@ -367,6 +367,20 @@ pub struct Db {
     /// The cleanup job needs exclusive access and hence will acquire a write-guard. Creating parquet files and creating
     /// catalog transaction only needs shared access and hence will acquire a read-guard.
     cleanup_lock: Arc<tokio::sync::RwLock<()>>,
+
+    /// Lifecycle policy.
+    ///
+    /// Optional because it will be created after `Arc<Self>`.
+    ///
+    /// This is stored here for the following reasons:
+    /// - to control the persistence suppression via a [`Db::unsuppress_persistence`]
+    /// - to keep the lifecycle state (e.g. the number of running compactions) around
+    lifecycle_policy: tokio::sync::Mutex<Option<::lifecycle::LifecyclePolicy<WeakDb>>>,
+
+    /// Flag to stop background worker from reading from the write buffer.
+    ///
+    /// TODO: Move write buffer read loop out of Db.
+    no_write_buffer_read: AtomicBool,
 }
 
 /// All the information needed to commit a database
@@ -382,7 +396,7 @@ pub(crate) struct DatabaseToCommit {
 }
 
 impl Db {
-    pub(crate) fn new(database_to_commit: DatabaseToCommit, jobs: Arc<JobRegistry>) -> Self {
+    pub(crate) fn new(database_to_commit: DatabaseToCommit, jobs: Arc<JobRegistry>) -> Arc<Self> {
         let db_name = database_to_commit.rules.name.clone();
 
         let rules = RwLock::new(database_to_commit.rules);
@@ -408,7 +422,7 @@ impl Db {
 
         let process_clock = process_clock::ProcessClock::new();
 
-        Self {
+        let this = Self {
             rules,
             server_id,
             store,
@@ -425,7 +439,30 @@ impl Db {
             ingest_metrics,
             write_buffer: database_to_commit.write_buffer,
             cleanup_lock: Default::default(),
-        }
+            lifecycle_policy: tokio::sync::Mutex::new(None),
+            no_write_buffer_read: AtomicBool::new(true),
+        };
+        let this = Arc::new(this);
+        *this.lifecycle_policy.try_lock().expect("not used yet") = Some(
+            ::lifecycle::LifecyclePolicy::new_suppress_persistence(WeakDb(Arc::downgrade(&this))),
+        );
+        this
+    }
+
+    /// Allow persistence if database rules all it.
+    pub async fn unsuppress_persistence(&self) {
+        let mut guard = self.lifecycle_policy.lock().await;
+        let policy = guard
+            .as_mut()
+            .expect("lifecycle policy should be initialized");
+        policy.unsuppress_persistence();
+    }
+
+    /// Allow continuous reads from the write buffer (if configured).
+    ///
+    /// TODO: Move write buffer read loop out of Db.
+    pub fn allow_write_buffer_read(&self) {
+        self.no_write_buffer_read.store(false, Ordering::SeqCst);
     }
 
     /// Return a handle to the executor used to run queries
@@ -763,13 +800,15 @@ impl Db {
         tokio::join!(
             // lifecycle policy loop
             async {
-                let mut policy = ::lifecycle::LifecyclePolicy::new(ArcDb(Arc::clone(self)));
-
                 while !shutdown.is_cancelled() {
                     self.worker_iterations_lifecycle
                         .fetch_add(1, Ordering::Relaxed);
                     tokio::select! {
-                        _ = policy.check_for_work(Utc::now(), std::time::Instant::now()) => {},
+                        _ = async {
+                            let mut guard = self.lifecycle_policy.lock().await;
+                            let policy = guard.as_mut().expect("lifecycle policy should be initialized");
+                            policy.check_for_work(Utc::now(), std::time::Instant::now()).await
+                        } => {},
                         _ = shutdown.cancelled() => break,
                     }
                 }
@@ -801,6 +840,16 @@ impl Db {
             // streaming from the write buffer loop
             async {
                 if let Some(WriteBufferConfig::Reading(write_buffer)) = &self.write_buffer {
+                    // wait for permission
+                    tokio::select! {
+                        _ = async {
+                            while self.no_write_buffer_read.load(Ordering::SeqCst) {
+                                tokio::time::sleep(Duration::from_millis(10)).await;
+                            }
+                        } => {},
+                        _ = shutdown.cancelled() => return,
+                    }
+
                     let mut write_buffer = write_buffer
                         .try_lock()
                         .expect("no streams should exist at this point");
@@ -808,6 +857,7 @@ impl Db {
                     for (sequencer_id, stream) in write_buffer.streams() {
                         let metrics = self.ingest_metrics.new_sequencer_metrics(sequencer_id);
                         let fut = self.stream_in_sequenced_entries(
+                            sequencer_id,
                             stream.stream,
                             stream.fetch_high_watermark,
                             metrics,
@@ -830,10 +880,12 @@ impl Db {
     /// streaming entries from a write buffer.
     async fn stream_in_sequenced_entries<'a>(
         &'a self,
+        sequencer_id: u32,
         mut stream: BoxStream<'a, Result<SequencedEntry, WriteBufferError>>,
         f_mark: FetchHighWatermark<'a>,
         mut metrics: SequencerMetrics,
     ) {
+        let db_name = self.rules.read().db_name().to_string();
         let mut watermark_last_updated: Option<Instant> = None;
         let mut watermark = 0;
 
@@ -844,7 +896,12 @@ impl Db {
             let sequenced_entry = match sequenced_entry_result {
                 Ok(sequenced_entry) => sequenced_entry,
                 Err(e) => {
-                    debug!(?e, "Error converting write buffer data to SequencedEntry");
+                    debug!(
+                        %e,
+                        %db_name,
+                        sequencer_id,
+                        "Error converting write buffer data to SequencedEntry",
+                    );
                     red_observation.client_error();
                     continue;
                 }
@@ -852,16 +909,38 @@ impl Db {
             let sequenced_entry = Arc::new(sequenced_entry);
 
             // store entry
-            match self.store_sequenced_entry(Arc::clone(&sequenced_entry)) {
-                Ok(_) => {
-                    red_observation.ok();
-                }
-                Err(e) => {
-                    debug!(
-                        ?e,
-                        "Error storing SequencedEntry from write buffer in database"
-                    );
-                    red_observation.error();
+            let mut logged_hard_limit = false;
+            loop {
+                match self.store_sequenced_entry(Arc::clone(&sequenced_entry)) {
+                    Ok(_) => {
+                        red_observation.ok();
+                        break;
+                    }
+                    Err(Error::HardLimitReached {}) => {
+                        // wait a bit and retry
+                        if !logged_hard_limit {
+                            info!(
+                                %db_name,
+                                sequencer_id,
+                                "Hard limit reached while reading from write buffer, waiting for compaction to catch up",
+                            );
+                            logged_hard_limit = true;
+                        }
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        continue;
+                    }
+                    Err(e) => {
+                        debug!(
+                            %e,
+                            %db_name,
+                            sequencer_id,
+                            "Error storing SequencedEntry from write buffer in database"
+                        );
+                        red_observation.error();
+
+                        // no retry
+                        break;
+                    }
                 }
             }
 
@@ -877,7 +956,12 @@ impl Db {
                         watermark = w;
                     }
                     Err(e) => {
-                        debug!(%e, "Error while reading sequencer watermark")
+                        debug!(
+                            %e,
+                            %db_name,
+                            sequencer_id,
+                            "Error while reading sequencer watermark",
+                        )
                     }
                 }
                 watermark_last_updated = Some(Instant::now());
@@ -1352,7 +1436,7 @@ mod tests {
         },
         utils::{make_db, TestDb},
     };
-    use ::test_helpers::assert_contains;
+    use ::test_helpers::{assert_contains, tracing::TracingCapture};
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
@@ -1522,6 +1606,7 @@ mod tests {
         let db_captured = Arc::clone(&db);
         let join_handle =
             tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+        db.allow_write_buffer_read();
 
         let query = "select * from cpu";
 
@@ -1637,6 +1722,82 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn write_buffer_reads_wait_for_compaction() {
+        let tracing_capture = TracingCapture::new();
+
+        // setup write buffer
+        // these numbers are handtuned to trigger hard buffer limits w/o making the test too big
+        let n_entries = 50u64;
+        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        for sequence_number in 0..n_entries {
+            let lp = format!(
+                "table_1,tag_partition_by=a foo=\"hello\",bar=1 {}",
+                sequence_number / 2
+            );
+            write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+                Sequence::new(0, sequence_number),
+                Utc::now(),
+                lp_to_entry(&lp),
+            ));
+        }
+        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, n_entries),
+            Utc::now(),
+            lp_to_entry("table_2,partition_by=a foo=1 0"),
+        ));
+        let write_buffer = MockBufferForReading::new(write_buffer_state);
+
+        // create DB
+        let partition_template = PartitionTemplate {
+            parts: vec![TemplatePart::Column("tag_partition_by".to_string())],
+        };
+        let test_db = TestDb::builder()
+            .write_buffer(WriteBufferConfig::Reading(Arc::new(
+                tokio::sync::Mutex::new(Box::new(write_buffer) as _),
+            )))
+            .lifecycle_rules(data_types::database_rules::LifecycleRules {
+                buffer_size_hard: Some(NonZeroUsize::new(10_000).unwrap()),
+                mub_row_threshold: NonZeroUsize::new(10).unwrap(),
+                ..Default::default()
+            })
+            .partition_template(partition_template)
+            .build()
+            .await;
+        let db = test_db.db;
+
+        // start background task loop
+        let shutdown: CancellationToken = Default::default();
+        let shutdown_captured = shutdown.clone();
+        let db_captured = Arc::clone(&db);
+        let join_handle =
+            tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+        db.allow_write_buffer_read();
+
+        // after a while the table should exist
+        let t_0 = Instant::now();
+        loop {
+            if db.table_schema("table_2").is_some() {
+                break;
+            }
+
+            assert!(t_0.elapsed() < Duration::from_secs(10));
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        // do: stop background task loop
+        shutdown.cancel();
+        join_handle.await.unwrap();
+
+        // no rows should be dropped
+        let batches = run_query(db, "select sum(bar) as n from table_1").await;
+        let expected = vec!["+----+", "| n  |", "+----+", "| 25 |", "+----+"];
+        assert_batches_eq!(expected, &batches);
+
+        // check that hard buffer limit was actually hit (otherwise this test is pointless/outdated)
+        assert_contains!(tracing_capture.to_string(), "Hard limit reached while reading from write buffer, waiting for compaction to catch up");
+    }
+
+    #[tokio::test]
     async fn error_converting_data_from_write_buffer_to_sequenced_entry_is_reported() {
         let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
         write_buffer_state.push_error(
@@ -1661,6 +1822,7 @@ mod tests {
         let db_captured = Arc::clone(&db);
         let join_handle =
             tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+        db.allow_write_buffer_read();
 
         // check: after a while the error should be reported in the database's metrics
         let t_0 = Instant::now();
@@ -2770,6 +2932,7 @@ mod tests {
         let db_captured = Arc::clone(&db);
         let join_handle =
             tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+        db.allow_write_buffer_read();
 
         // check: after a while the persistence windows should have the expected data
         let t_0 = Instant::now();
