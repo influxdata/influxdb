@@ -21,15 +21,11 @@ trap "aws s3 cp /home/ubuntu/perftest_log.txt s3://perftest-logs-influxdb/oss/$r
 working_dir=$(mktemp -d)
 mkdir -p /etc/telegraf
 cat << EOF > /etc/telegraf/telegraf.conf
-# [[outputs.influxdb_v2]]
-#   urls = ["https://us-west-2-1.aws.cloud2.influxdata.com"]
-#   token = "${DB_TOKEN}"
-#   organization = "${CLOUD2_ORG}"
-#   bucket = "${CLOUD2_BUCKET}"
-
-[[outputs.file]]
-  files = ["stdout"]
-  data_format = "influx"
+[[outputs.influxdb_v2]]
+  urls = ["https://us-west-2-1.aws.cloud2.influxdata.com"]
+  token = "${DB_TOKEN}"
+  organization = "${CLOUD2_ORG}"
+  bucket = "${CLOUD2_BUCKET}"
 
 [[inputs.file]]
   files = ["$working_dir/*.json"]
@@ -48,7 +44,9 @@ cat << EOF > /etc/telegraf/telegraf.conf
   tag_keys = [
     "i_type",
     "query_format",
-    "is_metaquery"
+    "is_metaquery",
+    "use_case",
+    "query_type"
   ]
 EOF
 systemctl restart telegraf
@@ -217,13 +215,15 @@ if [ -z $INFLUXDB2 ] || [ $INFLUXDB2 = true ]; then
 fi
 cat ${DATASET_DIR}/$data_fname | $GOPATH/bin/bulk_load_influx $load_opts > /dev/null
 
-force_compaction
+# compacting is skipped for now on metaquery tests, which have many shards
+# force_compaction
 
 # Run the query benchmarks
 for query_file in $query_files; do
   format=$(echo $query_file | cut -d '-' -f9)
   format=${format%.txt}
-  cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://${NGINX_HOST}:8086 --benchmark-duration=$duration --debug=0 --print-interval=0 --json=true --organization=$TEST_ORG --token=$TEST_TOKEN | jq ". += {is_metaquery: true, branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-metaquery-$scale_string-format-$format.json
+  query_type=$(echo $query_file | cut -d '-' -f7,8))
+  cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://${NGINX_HOST}:8086 --benchmark-duration=$duration --debug=0 --print-interval=0 --json=true --organization=$TEST_ORG --token=$TEST_TOKEN | jq ". += {use_case: \"metaquery\", query_type: \"${query_type}\", branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-metaquery-$scale_string-format-$format.json
 done
 
 # clean up the DB before exiting
