@@ -320,6 +320,20 @@ pub enum Error {
         partition_key: Arc<str>,
         sequencer_id: u32,
     },
+
+    #[snafu(
+        display(
+            "Partition checkpoint for partition {}:{} and sequencer {} has non-empty unpersisted range but database checkpoint indicates empty replay range",
+            table_name,
+            partition_key,
+            sequencer_id,
+        )
+    )]
+    PartitionCheckpointEmptyRangeMismatch {
+        table_name: Arc<str>,
+        partition_key: Arc<str>,
+        sequencer_id: u32,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -661,16 +675,26 @@ impl ReplayPlanner {
                     },
                 )?;
 
-                if let (Some(min), Some(db_min)) = (min_max.min(), database_wide_min_max.min()) {
-                    if min < db_min {
-                        return Err(Error::PartitionCheckpointMinimumBeforeDatabase {
-                            partition_checkpoint_sequence_number: min,
-                            database_checkpoint_sequence_number: db_min,
+                match (min_max.min(), database_wide_min_max.min()) {
+                    (Some(min), Some(db_min)) => {
+                        if min < db_min {
+                            return Err(Error::PartitionCheckpointMinimumBeforeDatabase {
+                                partition_checkpoint_sequence_number: min,
+                                database_checkpoint_sequence_number: db_min,
+                                table_name: Arc::clone(table_name),
+                                partition_key: Arc::clone(partition_key),
+                                sequencer_id: *sequencer_id,
+                            });
+                        }
+                    }
+                    (Some(_min), None) => {
+                        return Err(Error::PartitionCheckpointEmptyRangeMismatch {
                             table_name: Arc::clone(table_name),
                             partition_key: Arc::clone(partition_key),
                             sequencer_id: *sequencer_id,
                         });
                     }
+                    _ => {}
                 }
 
                 if min_max.max() > database_wide_min_max.max() {
@@ -1061,6 +1085,22 @@ mod tests {
         assert!(matches!(
             err,
             Error::PartitionCheckpointWithoutDatabase { .. }
+        ));
+    }
+
+    #[test]
+    fn test_replay_planner_fail_empty_range_out_of_sync() {
+        let mut planner = ReplayPlanner::new();
+
+        planner.register_checkpoints(
+            &part_ckpt!("table_1", "partition_1", {1 => (Some(10), 12)}),
+            &db_ckpt!({1 => (None, 20)}),
+        );
+
+        let err = planner.build().unwrap_err();
+        assert!(matches!(
+            err,
+            Error::PartitionCheckpointEmptyRangeMismatch { .. }
         ));
     }
 
