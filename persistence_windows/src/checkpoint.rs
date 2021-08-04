@@ -257,6 +257,7 @@
 //! // database is now ready for normal playback
 //! ```
 use std::{
+    cmp::Ordering,
     collections::{
         btree_map::Entry::{Occupied, Vacant},
         BTreeMap,
@@ -340,6 +341,14 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Number          min sequence              max sequence
 ///```
 ///
+///
+/// # Ordering
+/// Partition checkpoints for the same partition are guaranteed to be created in-sequence because their creation
+/// requires a [`FlushHandle`](crate::persistence_windows::FlushHandle). They can then be ordered based on the sequence
+/// numbers they contain (the per-sequencer min and max can only increase, sequencers can only be added but never
+/// removed). Note that they are NOT compared based on the
+/// [`min_unpersisted_timestamp`](Self::min_unpersisted_timestamp) since that one depends on the data ingested by the
+/// user and might go backwards during backfills.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartitionCheckpoint {
     /// Table of the partition.
@@ -408,6 +417,67 @@ impl PartitionCheckpoint {
     /// Minimum unpersisted timestamp.
     pub fn min_unpersisted_timestamp(&self) -> DateTime<Utc> {
         self.min_unpersisted_timestamp
+    }
+}
+
+impl PartialOrd for PartitionCheckpoint {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if (self.table_name != other.table_name) || (self.partition_key != other.partition_key) {
+            return None;
+        }
+
+        let mut global_outcome = Ordering::Equal;
+
+        let mut it1 = self.sequencer_numbers.iter().peekable();
+        let mut it2 = other.sequencer_numbers.iter().peekable();
+
+        loop {
+            let local_outcome = match (it1.peek(), it2.peek()) {
+                (Some((sequencer_id1, min_max1)), Some((sequencer_id2, min_max2))) => {
+                    match sequencer_id1.cmp(sequencer_id2) {
+                        Ordering::Less => {
+                            // new sequencer got introduced in it1
+                            it1.next();
+                            Ordering::Greater
+                        }
+                        Ordering::Equal => {
+                            // same sequencer, compare ranges
+                            let res = min_max1.partial_cmp(min_max2)?;
+                            it1.next();
+                            it2.next();
+                            res
+                        }
+                        Ordering::Greater => {
+                            // new sequencer got introduced in it2
+                            it2.next();
+                            Ordering::Less
+                        }
+                    }
+                }
+                (Some(_), None) => {
+                    // new sequencer got introduced in it1
+                    it1.next();
+                    Ordering::Greater
+                }
+                (None, Some(_)) => {
+                    // new sequencer got introduced in it2
+                    it2.next();
+                    Ordering::Less
+                }
+                (None, None) => {
+                    break;
+                }
+            };
+
+            global_outcome = match (global_outcome, local_outcome) {
+                (Ordering::Equal, x) => x,
+                (x, Ordering::Equal) => x,
+                (x, y) if x == y => x,
+                _ => return None,
+            };
+        }
+
+        Some(global_outcome)
     }
 }
 
@@ -741,6 +811,9 @@ mod tests {
 
     /// Create sequence numbers map.
     macro_rules! sequencer_numbers {
+        {} => {
+            BTreeMap::new()
+        };
         {$($sequencer_number:expr => ($min:expr, $max:expr)),*} => {
             {
                 let mut sequencer_numbers = BTreeMap::new();
@@ -793,6 +866,99 @@ mod tests {
         assert_eq!(
             pckpt,
             part_ckpt!("table_1", "partition_1", {1 => (Some(10), 20), 2 => (None, 15)})
+        );
+    }
+
+    #[test]
+    fn test_partition_checkpoint_partial_cmp() {
+        // equal
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {}).partial_cmp(&part_ckpt!(
+                "table_1",
+                "partition_1",
+                {}
+            )),
+            Some(Ordering::Equal),
+        );
+
+        // cannot compare if table / partition differs
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {}).partial_cmp(&part_ckpt!(
+                "table_2",
+                "partition_1",
+                {}
+            )),
+            None,
+        );
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {}).partial_cmp(&part_ckpt!(
+                "table_1",
+                "partition_2",
+                {}
+            )),
+            None,
+        );
+
+        // add sequencer (last entry)
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {1 => (None, 0)}).partial_cmp(&part_ckpt!(
+                "table_1",
+                "partition_1",
+                {}
+            )),
+            Some(Ordering::Greater),
+        );
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {})
+                .partial_cmp(&part_ckpt!("table_1", "partition_1", {1 => (None, 0)})),
+            Some(Ordering::Less),
+        );
+
+        // add sequencer (middle entry)
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {1 => (None, 0), 2 => (None, 1)})
+                .partial_cmp(&part_ckpt!("table_1", "partition_1", {2 => (None, 1)})),
+            Some(Ordering::Greater),
+        );
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {2 => (None, 1)}).partial_cmp(
+                &part_ckpt!("table_1", "partition_1", {1 => (None, 0), 2 => (None, 1)})
+            ),
+            Some(Ordering::Less),
+        );
+
+        // cannot compare if both add sequencers
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {1 => (None, 0)})
+                .partial_cmp(&part_ckpt!("table_1", "partition_1", {2 => (None, 1)})),
+            None,
+        );
+
+        // compare based on sequence numbers
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {1 => (None, 0)})
+                .partial_cmp(&part_ckpt!("table_1", "partition_1", {1 => (None, 1)})),
+            Some(Ordering::Less),
+        );
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {1 => (Some(1), 1)})
+                .partial_cmp(&part_ckpt!("table_1", "partition_1", {1 => (Some(0), 2)})),
+            None,
+        );
+
+        // cannot compare when the one with the earlier sequence numbers adds a new sequencer
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {1 => (None, 0), 2 => (None, 0)})
+                .partial_cmp(&part_ckpt!("table_1", "partition_1", {1 => (None, 1)})),
+            None,
+        );
+
+        // compare by both new sequencer and higher sequence numbers
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {1 => (None, 0)}).partial_cmp(
+                &part_ckpt!("table_1", "partition_1", {1 => (None, 1), 2 => (None, 0)})
+            ),
+            Some(Ordering::Less),
         );
     }
 
