@@ -1,6 +1,8 @@
+use std::cmp::Ordering;
+
 /// The minimum and maximum sequence numbers seen for a given sequencer.
 ///
-/// **IMPORTANT: These ranges include their start and their end (aka `[start, end]`)!**
+/// **IMPORTANT: These ranges include their start and their end (aka `[min, max]`)!**
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct MinMaxSequence {
     min: u64,
@@ -21,10 +23,12 @@ impl MinMaxSequence {
         Self { min, max }
     }
 
+    /// Inclusive minimum.
     pub fn min(&self) -> u64 {
         self.min
     }
 
+    /// Inclusive maximum.
     pub fn max(&self) -> u64 {
         self.max
     }
@@ -32,7 +36,37 @@ impl MinMaxSequence {
 
 /// The optional minimum and maximum sequence numbers seen for a given sequencer.
 ///
-/// **IMPORTANT: These ranges include their start and their end (aka `[start, end]`)!**
+/// **IMPORTANT: These ranges include their start and their end (aka `[min, max]`)!**
+///
+/// # Ordering
+/// The sequences are partially ordered. If both the min and the max value agree on the order (less, equal, greater)
+/// then two sequences can be compared to each other, otherwise no order can be established:
+///
+/// ```
+/// # use std::cmp::Ordering;
+/// # use persistence_windows::min_max_sequence::OptionalMinMaxSequence;
+/// #
+/// assert_eq!(
+///     OptionalMinMaxSequence::new(Some(10), 15)
+///         .partial_cmp(&OptionalMinMaxSequence::new(Some(10), 15)),
+///     Some(Ordering::Equal),
+/// );
+/// assert_eq!(
+///     OptionalMinMaxSequence::new(Some(15), 16)
+///         .partial_cmp(&OptionalMinMaxSequence::new(Some(10), 12)),
+///     Some(Ordering::Greater),
+/// );
+/// assert_eq!(
+///     OptionalMinMaxSequence::new(None, 10)
+///         .partial_cmp(&OptionalMinMaxSequence::new(Some(8), 10)),
+///     Some(Ordering::Greater),
+/// );
+/// assert_eq!(
+///     OptionalMinMaxSequence::new(Some(10), 10)
+///         .partial_cmp(&OptionalMinMaxSequence::new(Some(9), 11)),
+///     None,
+/// );
+/// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct OptionalMinMaxSequence {
     /// The minimum sequence number. If None, this implies that data
@@ -58,10 +92,14 @@ impl OptionalMinMaxSequence {
         Self { min, max }
     }
 
+    /// Inclusive minimum.
+    ///
+    /// If this is `None` then the range is empty.
     pub fn min(&self) -> Option<u64> {
         self.min
     }
 
+    /// Inclusive maximum.
     pub fn max(&self) -> u64 {
         self.max
     }
@@ -73,6 +111,27 @@ impl std::fmt::Display for OptionalMinMaxSequence {
             write!(f, "[{}, {}]", min, self.max)
         } else {
             write!(f, "({}, {}]", self.max, self.max)
+        }
+    }
+}
+
+impl PartialOrd for OptionalMinMaxSequence {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        // upcast min values so that we can use `u64::MAX + 1`
+        let min1 = self
+            .min()
+            .map(|min| min as u128)
+            .unwrap_or_else(|| (self.max() as u128) + 1);
+        let min2 = other
+            .min()
+            .map(|min| min as u128)
+            .unwrap_or_else(|| (other.max() as u128) + 1);
+
+        match (min1.cmp(&min2), self.max.cmp(&other.max)) {
+            (Ordering::Equal, x) => Some(x),
+            (x, Ordering::Equal) => Some(x),
+            (x, y) if x == y => Some(x),
+            _ => None,
         }
     }
 }
@@ -134,6 +193,64 @@ mod tests {
         assert_eq!(
             OptionalMinMaxSequence::new(None, 20).to_string(),
             "(20, 20]".to_string()
+        );
+    }
+
+    #[test]
+    fn test_opt_min_max_partial_cmp() {
+        assert_eq!(
+            OptionalMinMaxSequence::new(Some(10), 10)
+                .partial_cmp(&OptionalMinMaxSequence::new(Some(10), 10)),
+            Some(Ordering::Equal),
+        );
+
+        assert_eq!(
+            OptionalMinMaxSequence::new(None, 10)
+                .partial_cmp(&OptionalMinMaxSequence::new(Some(10), 10)),
+            Some(Ordering::Greater),
+        );
+        assert_eq!(
+            OptionalMinMaxSequence::new(Some(10), 10)
+                .partial_cmp(&OptionalMinMaxSequence::new(None, 10)),
+            Some(Ordering::Less),
+        );
+
+        assert_eq!(
+            OptionalMinMaxSequence::new(None, 10)
+                .partial_cmp(&OptionalMinMaxSequence::new(Some(11), 11)),
+            Some(Ordering::Less),
+        );
+
+        assert_eq!(
+            OptionalMinMaxSequence::new(Some(10), 10)
+                .partial_cmp(&OptionalMinMaxSequence::new(Some(9), 11)),
+            None,
+        );
+        assert_eq!(
+            OptionalMinMaxSequence::new(None, 10)
+                .partial_cmp(&OptionalMinMaxSequence::new(Some(9), 11)),
+            None,
+        );
+
+        assert_eq!(
+            OptionalMinMaxSequence::new(Some(u64::MAX), u64::MAX)
+                .partial_cmp(&OptionalMinMaxSequence::new(Some(u64::MAX), u64::MAX)),
+            Some(Ordering::Equal),
+        );
+        assert_eq!(
+            OptionalMinMaxSequence::new(None, u64::MAX)
+                .partial_cmp(&OptionalMinMaxSequence::new(None, u64::MAX)),
+            Some(Ordering::Equal),
+        );
+        assert_eq!(
+            OptionalMinMaxSequence::new(None, u64::MAX)
+                .partial_cmp(&OptionalMinMaxSequence::new(Some(u64::MAX), u64::MAX)),
+            Some(Ordering::Greater),
+        );
+        assert_eq!(
+            OptionalMinMaxSequence::new(Some(u64::MAX), u64::MAX)
+                .partial_cmp(&OptionalMinMaxSequence::new(None, u64::MAX)),
+            Some(Ordering::Less),
         );
     }
 }
