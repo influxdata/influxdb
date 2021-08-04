@@ -45,6 +45,9 @@ workflows:
           requires:
             - godeps
             - jsdeps
+      - pkg_run_test:
+          requires:
+            - cross_build
       - perf_test:
           name: perf-test-flux
           format: flux-http
@@ -157,6 +160,7 @@ workflows:
 orbs:
   # Needed to install chrome for e2e testing.
   browser-tools: circleci/browser-tools@1.1
+  terraform: circleci/terraform@2.1.0
 
 commands:
   # Install system dependencies needed to run a native build of influxd
@@ -554,6 +558,58 @@ jobs:
           root: .
           paths:
             - artifacts/*amd64.deb
+
+  pkg_run_test:
+    executor: terraform/default
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - "91:0a:5b:a7:f9:46:77:f3:5d:4a:cf:d2:44:c8:2c:5a"
+      - terraform/validate:
+          path: scripts/ci/
+      - run:
+          name: Terraform apply
+          command: |
+            set -x
+            export DEBNAME=$(find /tmp/workspace/artifacts/influxdb2-server*amd64.deb)
+            terraform -chdir=scripts/ci init -input=false
+            AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY terraform \
+              -chdir=scripts/ci \
+              apply \
+                -auto-approve \
+                -var package_path=${DEBNAME} \
+                -var instance_name=circleci-terraform-${CIRCLE_SHA1}
+      - run:
+          name: Install and run deb
+          command: |
+            set -x
+            ec2_ip=$(terraform -chdir=scripts/ci output -raw test_node_ssh)
+            ssh -o "StrictHostKeyChecking=no" ubuntu@$ec2_ip \<< EOF
+            sudo apt-get update && sudo apt-get install -y /home/ubuntu/influxdb.deb
+            sudo service influxdb start
+            EOF
+            ssh -o "StrictHostKeyChecking=no" ubuntu@$ec2_ip \<< EOF
+            sudo service influxdb stop
+            sudo echo 'tls-cert = "/etc/ssl/influxdb.crt"' >> /etc/influxdb/config.toml
+            sudo echo 'tls-key = "/etc/ssl/influxdb.key"' >> /etc/influxdb/config.toml
+            sudo openssl req -x509 -nodes -newkey rsa:2048 -keyout /etc/ssl/influxdb.key -out /etc/ssl/influxdb.crt -days 365 -subj /C=US/ST=CA/L=sanfrancisco/O=influxdata/OU=edgeteam/CN=localhost
+            sudo chmod 644 /etc/ssl/influxdb.crt
+            sudo chmod 600 /etc/ssl/influxdb.key
+            sudo chown influxdb:influxdb /etc/ssl/influxdb.*
+            sudo service influxdb start
+            EOF
+      - run:
+          name: Terraform destroy
+          when: always
+          command: |
+            AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY terraform \
+              -chdir=scripts/ci \
+              destroy \
+                -auto-approve
+
 
   perf_test:
     machine:
