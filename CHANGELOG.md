@@ -45,6 +45,7 @@ Because of the version bump to `go`, the macOS build for this release requires a
 1. [21955](https://github.com/influxdata/influxdb/pull/21955): Invalid requests to `/api/v2` subroutes now return 404 instead of a list of links.
 1. [21977](https://github.com/influxdata/influxdb/pull/21977): Flux metaqueries for `_field` take fast path if `_measurement` is the only predicate.
 1. [22060](https://github.com/influxdata/influxdb/pull/22060): Copy names from mmapped memory before closing iterator
+1. [22052](https://github.com/influxdata/influxdb/pull/22052): systemd service -- handle 40x and block indefinitely
 
 ## v2.0.7 [2021-06-04]
 ----------------------
