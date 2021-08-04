@@ -188,6 +188,7 @@ pub async fn perform_replay(db: &Db, replay_plan: &ReplayPlan) -> Result<()> {
                     }
 
                     let entry = Arc::new(entry);
+                    let mut logged_hard_limit = false;
                     let n_tries = 100;
                     for n_try in 1..=n_tries {
                         match db.store_sequenced_entry(Arc::clone(&entry)) {
@@ -195,6 +196,16 @@ pub async fn perform_replay(db: &Db, replay_plan: &ReplayPlan) -> Result<()> {
                                 break;
                             }
                             Err(crate::db::Error::HardLimitReached {}) if n_try < n_tries => {
+                                if !logged_hard_limit {
+                                    info!(
+                                        %db_name,
+                                        sequencer_id,
+                                        n_try,
+                                        n_tries,
+                                        "Hard limit reached while replaying, waiting for compaction to catch up",
+                                    );
+                                    logged_hard_limit = true;
+                                }
                                 tokio::time::sleep(Duration::from_millis(100)).await;
                                 continue;
                             }
@@ -246,7 +257,7 @@ mod tests {
         min_max_sequence::OptionalMinMaxSequence,
     };
     use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryChunk};
-    use test_helpers::assert_contains;
+    use test_helpers::{assert_contains, tracing::TracingCapture};
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
     use write_buffer::{
@@ -1254,6 +1265,8 @@ mod tests {
 
     #[tokio::test]
     async fn replay_compacts() {
+        let tracing_capture = TracingCapture::new();
+
         // these numbers are handtuned to trigger hard buffer limits w/o making the test too big
         let n_entries = 50u64;
         let sequenced_entries: Vec<_> = (0..n_entries)
@@ -1295,6 +1308,12 @@ mod tests {
         }
         .run()
         .await;
+
+        // check that hard buffer limit was actually hit (otherwise this test is pointless/outdated)
+        assert_contains!(
+            tracing_capture.to_string(),
+            "Hard limit reached while replaying, waiting for compaction to catch up"
+        );
     }
 
     #[tokio::test]

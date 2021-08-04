@@ -853,6 +853,7 @@ impl Db {
                     for (sequencer_id, stream) in write_buffer.streams() {
                         let metrics = self.ingest_metrics.new_sequencer_metrics(sequencer_id);
                         let fut = self.stream_in_sequenced_entries(
+                            sequencer_id,
                             stream.stream,
                             stream.fetch_high_watermark,
                             metrics,
@@ -875,10 +876,12 @@ impl Db {
     /// streaming entries from a write buffer.
     async fn stream_in_sequenced_entries<'a>(
         &'a self,
+        sequencer_id: u32,
         mut stream: BoxStream<'a, Result<SequencedEntry, WriteBufferError>>,
         f_mark: FetchHighWatermark<'a>,
         mut metrics: SequencerMetrics,
     ) {
+        let db_name = self.rules.read().db_name().to_string();
         let mut watermark_last_updated: Option<Instant> = None;
         let mut watermark = 0;
 
@@ -889,7 +892,12 @@ impl Db {
             let sequenced_entry = match sequenced_entry_result {
                 Ok(sequenced_entry) => sequenced_entry,
                 Err(e) => {
-                    debug!(?e, "Error converting write buffer data to SequencedEntry");
+                    debug!(
+                        %e,
+                        %db_name,
+                        sequencer_id,
+                        "Error converting write buffer data to SequencedEntry",
+                    );
                     red_observation.client_error();
                     continue;
                 }
@@ -897,6 +905,7 @@ impl Db {
             let sequenced_entry = Arc::new(sequenced_entry);
 
             // store entry
+            let mut logged_hard_limit = false;
             loop {
                 match self.store_sequenced_entry(Arc::clone(&sequenced_entry)) {
                     Ok(_) => {
@@ -905,12 +914,22 @@ impl Db {
                     }
                     Err(Error::HardLimitReached {}) => {
                         // wait a bit and retry
+                        if !logged_hard_limit {
+                            info!(
+                                %db_name,
+                                sequencer_id,
+                                "Hard limit reached while reading from write buffer, waiting for compaction to catch up",
+                            );
+                            logged_hard_limit = true;
+                        }
                         tokio::time::sleep(Duration::from_millis(100)).await;
                         continue;
                     }
                     Err(e) => {
                         debug!(
-                            ?e,
+                            %e,
+                            %db_name,
+                            sequencer_id,
                             "Error storing SequencedEntry from write buffer in database"
                         );
                         red_observation.error();
@@ -933,7 +952,12 @@ impl Db {
                         watermark = w;
                     }
                     Err(e) => {
-                        debug!(%e, "Error while reading sequencer watermark")
+                        debug!(
+                            %e,
+                            %db_name,
+                            sequencer_id,
+                            "Error while reading sequencer watermark",
+                        )
                     }
                 }
                 watermark_last_updated = Some(Instant::now());
@@ -1408,7 +1432,7 @@ mod tests {
         },
         utils::{make_db, TestDb},
     };
-    use ::test_helpers::assert_contains;
+    use ::test_helpers::{assert_contains, tracing::TracingCapture};
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
@@ -1695,9 +1719,10 @@ mod tests {
 
     #[tokio::test]
     async fn write_buffer_reads_wait_for_compaction() {
-        // these numbers are handtuned to trigger hard buffer limits w/o making the test too big
+        let tracing_capture = TracingCapture::new();
 
         // setup write buffer
+        // these numbers are handtuned to trigger hard buffer limits w/o making the test too big
         let n_entries = 50u64;
         let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
         for sequence_number in 0..n_entries {
@@ -1763,6 +1788,9 @@ mod tests {
         let batches = run_query(db, "select sum(bar) as n from table_1").await;
         let expected = vec!["+----+", "| n  |", "+----+", "| 25 |", "+----+"];
         assert_batches_eq!(expected, &batches);
+
+        // check that hard buffer limit was actually hit (otherwise this test is pointless/outdated)
+        assert_contains!(tracing_capture.to_string(), "Hard limit reached while reading from write buffer, waiting for compaction to catch up");
     }
 
     #[tokio::test]
