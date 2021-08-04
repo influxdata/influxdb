@@ -1450,6 +1450,9 @@ mod tests {
                 ])]),
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
                 Step::Restart,
+                Step::Assert(vec![Check::Partitions(vec![
+                    ("table_1", "tag_partition_by_a"),
+                ])]),
                 Step::Assert(vec![
                     // single chunk for table_1 was restored
                     Check::Query(
