@@ -371,7 +371,11 @@ pub struct Db {
     /// Lifecycle policy.
     ///
     /// Optional because it will be created after `Arc<Self>`.
-    lifcycle_policy: tokio::sync::Mutex<Option<::lifecycle::LifecyclePolicy<WeakDb>>>,
+    ///
+    /// This is stored here for the following reasons:
+    /// - to control the persistence suppression via a [`Db::unsuppress_persistence`]
+    /// - to keep the lifecycle state (e.g. the number of running compactions) around
+    lifecycle_policy: tokio::sync::Mutex<Option<::lifecycle::LifecyclePolicy<WeakDb>>>,
 
     /// Flag to stop background worker from reading from the write buffer.
     ///
@@ -435,11 +439,11 @@ impl Db {
             ingest_metrics,
             write_buffer: database_to_commit.write_buffer,
             cleanup_lock: Default::default(),
-            lifcycle_policy: tokio::sync::Mutex::new(None),
+            lifecycle_policy: tokio::sync::Mutex::new(None),
             no_write_buffer_read: AtomicBool::new(true),
         };
         let this = Arc::new(this);
-        *this.lifcycle_policy.try_lock().expect("not used yet") = Some(
+        *this.lifecycle_policy.try_lock().expect("not used yet") = Some(
             ::lifecycle::LifecyclePolicy::new_suppress_persistence(WeakDb(Arc::downgrade(&this))),
         );
         this
@@ -447,7 +451,7 @@ impl Db {
 
     /// Allow persistence if database rules all it.
     pub async fn unsuppress_persistence(&self) {
-        let mut guard = self.lifcycle_policy.lock().await;
+        let mut guard = self.lifecycle_policy.lock().await;
         let policy = guard
             .as_mut()
             .expect("lifecycle policy should be initialized");
@@ -801,7 +805,7 @@ impl Db {
                         .fetch_add(1, Ordering::Relaxed);
                     tokio::select! {
                         _ = async {
-                            let mut guard = self.lifcycle_policy.lock().await;
+                            let mut guard = self.lifecycle_policy.lock().await;
                             let policy = guard.as_mut().expect("lifecycle policy should be initialized");
                             policy.check_for_work(Utc::now(), std::time::Instant::now()).await
                         } => {},
