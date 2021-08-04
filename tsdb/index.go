@@ -1388,7 +1388,7 @@ func (is IndexSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.E
 	return slices.CopyChunkedByteSlices(names, 1000), nil
 }
 
-func (is IndexSet) measurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) measurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) (MeasurementSliceIterator, error) {
 	if expr == nil {
 		return nil, nil
 	}
@@ -1457,7 +1457,7 @@ func (is IndexSet) measurementNamesByExpr(auth query.Authorizer, expr influxql.E
 }
 
 // measurementNamesByNameFilter returns matching measurement names in sorted order.
-func (is IndexSet) measurementNamesByNameFilter(auth query.Authorizer, op influxql.Token, val string, regex *regexp.Regexp) ([][]byte, error) {
+func (is IndexSet) measurementNamesByNameFilter(auth query.Authorizer, op influxql.Token, val string, regex *regexp.Regexp) (MeasurementSliceIterator, error) {
 	itr, err := is.measurementIterator()
 	if err != nil {
 		return nil, err
@@ -1550,7 +1550,7 @@ func (is IndexSet) MeasurementNamesByPredicate(auth query.Authorizer, expr influ
 	return slices.CopyChunkedByteSlices(names, 1000), nil
 }
 
-func (is IndexSet) measurementNamesByPredicate(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) measurementNamesByPredicate(auth query.Authorizer, expr influxql.Expr) (MeasurementSliceIterator, error) {
 	if expr == nil {
 		return nil, nil
 	}
@@ -1617,7 +1617,7 @@ func (is IndexSet) measurementNamesByPredicate(auth query.Authorizer, expr influ
 	}
 }
 
-func (is IndexSet) measurementNamesByTagFilter(auth query.Authorizer, op influxql.Token, key, val string, regex *regexp.Regexp) ([][]byte, error) {
+func (is IndexSet) measurementNamesByTagFilter(auth query.Authorizer, op influxql.Token, key, val string, regex *regexp.Regexp) (MeasurementSliceIterator, error) {
 	var names [][]byte
 	failed := true
 
@@ -1750,7 +1750,7 @@ func (is IndexSet) measurementNamesByTagFilter(auth query.Authorizer, op influxq
 	return newFileMeasurementSliceIterator(names, MeasurementIterators{mitr}), nil
 }
 
-func (is IndexSet) measurementNamesByTagPredicate(auth query.Authorizer, op influxql.Token, key, val string, regex *regexp.Regexp) ([][]byte, error) {
+func (is IndexSet) measurementNamesByTagPredicate(auth query.Authorizer, op influxql.Token, key, val string, regex *regexp.Regexp) (MeasurementSliceIterator, error) {
 	var names [][]byte
 	failed := true
 
