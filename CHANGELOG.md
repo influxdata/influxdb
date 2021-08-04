@@ -3,6 +3,7 @@ v1.9.4 [unreleased]
 -	[#22011](https://github.com/influxdata/influxdb/pull/22011): feat: SHOW TAG VALUES should produce results from one specific RP
 -	[#21988](https://github.com/influxdata/influxdb/pull/21988): fix: systemd-start script should be executable by group and others
 -	[#21993](https://github.com/influxdata/influxdb/pull/21993): fix: restore portable backup bug
+-	[#22061](https://github.com/influxdata/influxdb/pull/22061): fix: handle https in systemd wrapper, and prevent it from looping forever
 
 v1.9.3 [unreleased]
 
