@@ -288,12 +288,13 @@ fn filter_entry(
 /// partially persisted sequence numbers (extracted from partition checkpoint).
 #[derive(Debug, PartialEq)]
 enum SequenceNumberSection {
-    /// The entire batch of data is prooven to be persisted.
+    /// The entire batch of data has previously been persisted.
     Persisted,
 
-    /// The entire batch of data is may or may not be persisted.
+    /// The entire batch of data may or may not have been persisted.
     ///
-    /// The row timestamp should be compared against the flush timestamp to decide on a row-be-row basis if the data
+    /// The data in this batch may or may not have been persisted.
+    /// The row timestamp must be compared against the flush timestamp to decide on a row-be-row basis if the data
     /// should be replayed or not.
     PartiallyPersisted,
 
