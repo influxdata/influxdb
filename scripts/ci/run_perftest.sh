@@ -43,7 +43,9 @@ cat << EOF > /etc/telegraf/telegraf.conf
   json_time_format = "unix"
   tag_keys = [
     "i_type",
-    "query_format"
+    "query_format",
+    "use_case",
+    "query_type"
   ]
 EOF
 systemctl restart telegraf
@@ -86,10 +88,47 @@ systemctl daemon-reload
 systemctl unmask influxdb.service
 systemctl start influxdb
 
-# Run and record tests
+# Common variables used across all tests
 datestring=$(date +%s)
 seed=$datestring
 db_name="benchmark_db"
+
+# Helper functions containing common logic
+bucket_id() {
+  bucket_id=$(curl -H "Authorization: Token $TEST_TOKEN" "http://${NGINX_HOST}:8086/api/v2/buckets?org=$TEST_ORG" | jq -r ".buckets[] | select(.name | contains(\"$db_name\")).id")
+  echo $bucket_id
+}
+
+clean_db () {
+  delete_response=$(curl -s -o /dev/null -X DELETE -H "Authorization: Token $TEST_TOKEN" "http://${NGINX_HOST}:8086/api/v2/buckets/$(bucket_id)?org=$TEST_ORG" -w %{http_code})
+  if [ $delete_response != "204" ]; then
+    echo "bucket not deleted!"
+    exit 1
+  fi
+}
+
+force_compaction() {
+  # id of the bucket that will be compacted
+  b_id=$(bucket_id)
+
+  # stop daemon and force compaction
+  systemctl stop influxdb
+  set +e
+  shards=$(find /var/lib/influxdb/engine/data/$b_id/autogen/ -maxdepth 1 -mindepth 1)
+
+  set -e
+  for shard in $shards; do
+    /home/ubuntu/influx_tools compact-shard -force -verbose -path $shard
+  done
+
+  # restart daemon
+  systemctl unmask influxdb.service
+  systemctl start influxdb
+}
+
+# Run and record tests
+
+# General ingest and query tests
 for scale in 50 100 500; do
   # generate bulk data
   scale_string="scalevar-$scale"
@@ -117,35 +156,77 @@ for scale in 50 100 500; do
     # run ingest tests
     cat ${DATASET_DIR}/$data_fname | $GOPATH/bin/bulk_load_influx $load_opts | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\"}" > $working_dir/test-ingest-$scale_string-batchsize-$batch-workers-$workers.json
 
-    bucket_id=$(curl -H "Authorization: Token $TEST_TOKEN" "http://${NGINX_HOST}:8086/api/v2/buckets?org=$TEST_ORG" | jq -r ".buckets[] | select(.name | contains(\"$db_name\")).id")
-    sleep 1
-    # stop daemon and force compaction
-    systemctl stop influxdb
-    set +e
-    shards=$(find /var/lib/influxdb/engine/data/$bucket_id/autogen/ -maxdepth 1 -mindepth 1)
-    set -e
-    for shard in $shards; do
-      /home/ubuntu/influx_tools compact-shard -force -verbose -path $shard
-    done
-
-    # restart daemon
-    systemctl unmask influxdb.service
-    systemctl start influxdb
+    force_compaction
 
     # run influxql and flux query tests
     for query_file in $query_files; do
       format=$(echo $query_file | cut -d '-' -f7)
+      format=${format%.txt}
       cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://localhost:8086 --debug=0 --print-interval=0 --workers=$workers --json=true --organization=$TEST_ORG --token=$TEST_TOKEN | jq ". += {branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-$scale_string-format-$format-workers-$workers.json
     done
 
-    # delete db to start anew
-    delete_response=$(curl -s -o /dev/null -X DELETE -H "Authorization: Token $TEST_TOKEN" "http://${NGINX_HOST}:8086/api/v2/buckets/$bucket_id?org=$TEST_ORG" -w %{http_code})
-    if [ $delete_response != "204" ]; then
-      echo "bucket not deleted!"
-      exit 1
-    fi
+    clean_db
   done
 done
+
+# Metaquery tests
+
+# Controls how many data points will be generated. The total number of points
+# will be scale_var * scale_var, where each point is (approximately) a unique
+# series.
+scale_var=1000
+
+# How many queries to generate.
+queries=100
+
+# The time range controls both the span over which data is generated, and the
+# span over which queries will be performed. timestamp-start and timestamp-end
+# must be provided to both the data generation and query generation commands
+# and must be the same to ensure that the queries cover the data range.
+start="2019-01-01T00:00:00Z"
+end="2020-01-01T00:00:00Z"
+
+# How long to run the query phase of the benchmarks. It's best to specify a
+# duration to limit the maximum amount of time the queries can run for these,
+# since individual queries can take a long time to run.
+duration=30s
+
+# Generate data
+scale_string="scalevar-$scale_var"
+scale_seed_string="$scale_string-seed-$seed"
+data_fname="influx-bulk-records-usecase-metaquery-$scale_seed_string.txt"
+$GOPATH/bin/bulk_data_gen --seed=$seed -use-case metaquery -scale-var $scale_var -timestamp-start $start -timestamp-end $end > ${DATASET_DIR}/$data_fname
+
+# Generate flux queries for field-keys and tag-values
+query_files=""
+for type in field-keys tag-values; do
+  for format in http flux-http; do
+    query_fname="query-metaquery-$scale_seed_string-$type-$format.txt"
+    $GOPATH/bin/bulk_query_gen -use-case metaquery -query-type $type -format influx-$format -timestamp-start $start -timestamp-end $end -queries $queries > ${DATASET_DIR}/$query_fname
+    query_files="$query_files $query_fname"
+  done
+done
+
+# Load the data
+load_opts="-urls=http://${NGINX_HOST}:8086 -do-abort-on-exist=false -do-db-create=true"
+if [ -z $INFLUXDB2 ] || [ $INFLUXDB2 = true ]; then
+  load_opts="$load_opts -organization=$TEST_ORG -token=$TEST_TOKEN"
+fi
+cat ${DATASET_DIR}/$data_fname | $GOPATH/bin/bulk_load_influx $load_opts > /dev/null
+
+# compacting is skipped for now on metaquery tests, which have many shards
+# force_compaction
+
+# Run the query benchmarks
+for query_file in $query_files; do
+  format=$(echo $query_file | cut -d '-' -f9)
+  format=${format%.txt}
+  query_type=$(echo $query_file | cut -d '-' -f7,8)
+  cat ${DATASET_DIR}/$query_file | ${GOPATH}/bin/query_benchmarker_influxdb --urls=http://${NGINX_HOST}:8086 --benchmark-duration=$duration --debug=0 --print-interval=0 --json=true --organization=$TEST_ORG --token=$TEST_TOKEN | jq ". += {use_case: \"metaquery\", query_type: \"${query_type}\", branch: \"${INFLUXDB_VERSION}\", commit: \"${TEST_COMMIT}\", time: \"$datestring\", i_type: \"${DATA_I_TYPE}\", query_format: \"$format\"}" > $working_dir/test-query-metaquery-$query_type-$scale_string-format-$format.json
+done
+
+# clean up the DB before exiting
+clean_db
 
 echo "Using Telegraph to report results from the following files:"
 ls $working_dir
