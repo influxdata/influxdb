@@ -32,7 +32,7 @@ use metrics::KeyValue;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use object_store::{path::parsed::DirsAndFileName, ObjectStore};
 use observability_deps::tracing::{debug, error, info};
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use parquet_file::{
     catalog::{CatalogParquetInfo, CheckpointData, PreservedCatalog},
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
@@ -381,6 +381,9 @@ pub struct Db {
     ///
     /// TODO: Move write buffer read loop out of Db.
     no_write_buffer_read: AtomicBool,
+
+    /// TESTING ONLY: Mocked `Instant::now()` for the background worker
+    background_worker_now_override: Mutex<Option<Instant>>,
 }
 
 /// All the information needed to commit a database
@@ -441,6 +444,7 @@ impl Db {
             cleanup_lock: Default::default(),
             lifecycle_policy: tokio::sync::Mutex::new(None),
             no_write_buffer_read: AtomicBool::new(true),
+            background_worker_now_override: Default::default(),
         };
         let this = Arc::new(this);
         *this.lifecycle_policy.try_lock().expect("not used yet") = Some(
@@ -807,7 +811,7 @@ impl Db {
                         _ = async {
                             let mut guard = self.lifecycle_policy.lock().await;
                             let policy = guard.as_mut().expect("lifecycle policy should be initialized");
-                            policy.check_for_work(Utc::now(), std::time::Instant::now()).await
+                            policy.check_for_work(Utc::now(), self.background_worker_now()).await
                         } => {},
                         _ = shutdown.cancelled() => break,
                     }
@@ -950,8 +954,9 @@ impl Db {
             // maybe update sequencer watermark
             // We are not updating this watermark every round because asking the sequencer for that watermark can be
             // quite expensive.
+            let now = self.background_worker_now();
             if watermark_last_updated
-                .map(|ts| ts.elapsed() > Duration::from_secs(10))
+                .map(|ts| (now - ts) > Duration::from_secs(10))
                 .unwrap_or(true)
             {
                 match f_mark().await {
@@ -967,7 +972,7 @@ impl Db {
                         )
                     }
                 }
-                watermark_last_updated = Some(Instant::now());
+                watermark_last_updated = Some(now);
             }
 
             // update:
@@ -1037,6 +1042,18 @@ impl Db {
             metrics
                 .last_ingest_ts
                 .set(producer_wallclock_timestamp.timestamp_nanos() as usize, &[]);
+        }
+    }
+
+    /// `Instant::now()` that is used by the background worker. Can be mocked for testing.
+    fn background_worker_now(&self) -> Instant {
+        let mut guard = self.background_worker_now_override.lock();
+        match *guard {
+            Some(now) => {
+                *guard = Some(now + Duration::from_nanos(1));
+                now
+            }
+            None => Instant::now(),
         }
     }
 
@@ -1285,20 +1302,21 @@ impl Db {
                                 row_count,
                                 min_time,
                                 max_time,
-                                Instant::now(),
+                                self.background_worker_now(),
                             );
                         }
                         None => {
                             let mut windows = PersistenceWindows::new(
                                 partition.addr().clone(),
                                 late_arrival_window,
+                                self.background_worker_now(),
                             );
                             windows.add_range(
                                 sequence,
                                 row_count,
                                 min_time,
                                 max_time,
-                                Instant::now(),
+                                self.background_worker_now(),
                             );
                             partition.set_persistence_windows(windows);
                         }

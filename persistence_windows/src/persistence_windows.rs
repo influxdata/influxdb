@@ -102,15 +102,13 @@ impl FlushHandle {
 }
 
 impl PersistenceWindows {
-    pub fn new(addr: PartitionAddr, late_arrival_period: Duration) -> Self {
+    pub fn new(addr: PartitionAddr, late_arrival_period: Duration, now: Instant) -> Self {
         let closed_window_period = late_arrival_period.min(DEFAULT_CLOSED_WINDOW_PERIOD);
 
         let late_arrival_seconds = late_arrival_period.as_secs();
         let closed_window_seconds = closed_window_period.as_secs();
 
         let closed_window_count = late_arrival_seconds / closed_window_seconds;
-
-        let created_at_instant = Instant::now();
 
         Self {
             persistable: Freezable::new(None),
@@ -119,8 +117,8 @@ impl PersistenceWindows {
             addr,
             late_arrival_period,
             closed_window_period,
-            created_at: created_at_instant,
-            last_instant: created_at_instant,
+            created_at: now,
+            last_instant: now,
             max_sequence_numbers: Default::default(),
         }
     }
@@ -153,7 +151,9 @@ impl PersistenceWindows {
     ) {
         assert!(
             received_at >= self.last_instant,
-            "PersistenceWindows::add_range called out of order"
+            "PersistenceWindows::add_range called out of order, received_at ({:?}) < last_instant ({:?})",
+            received_at,
+            self.last_instant,
         );
         self.last_instant = received_at;
 
@@ -520,6 +520,7 @@ mod tests {
                 partition_key: Arc::from("partition_key"),
             },
             late_arrival_period,
+            Instant::now(),
         )
     }
 
