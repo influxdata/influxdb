@@ -321,7 +321,7 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 							Msg:  "Invalid type for tag column",
 						}
 					}
-					kv = append(kv, []byte(col.Label), er.Strings(j).Value(i))
+					kv = append(kv, []byte(col.Label), []byte(er.Strings(j).Value(i)))
 				}
 			}
 

@@ -8,7 +8,6 @@ require (
 	github.com/apache/arrow/go/arrow v0.0.0-20200923215132-ac86123a3f01
 	github.com/benbjohnson/tmpl v1.0.0
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40
-	github.com/boltdb/bolt v1.3.1
 	github.com/cespare/xxhash v1.1.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
@@ -19,10 +18,10 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.1
 	github.com/google/go-cmp v0.5.5
-	github.com/influxdata/flux v0.120.1
+	github.com/influxdata/flux v0.123.1-0.20210729174141-a0db406d1fae
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v1.1.1-0.20210223160523-b6ab99450c93
-	github.com/influxdata/pkg-config v0.2.7
+	github.com/influxdata/pkg-config v0.2.8
 	github.com/influxdata/roaring v0.4.13-0.20180809181101-fc520f41fab6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
 	github.com/jsternberg/zap-logfmt v1.2.0
