@@ -382,7 +382,7 @@ pub struct Db {
     /// TODO: Move write buffer read loop out of Db.
     no_write_buffer_read: AtomicBool,
 
-    /// Mocked `Instant::now()` for the background worker
+    /// TESTING ONLY: Mocked `Instant::now()` for the background worker
     background_worker_now_override: Mutex<Option<Instant>>,
 }
 
