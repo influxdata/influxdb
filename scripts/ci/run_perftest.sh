@@ -139,7 +139,7 @@ force_compaction() {
 
   set -e
   for shard in $shards; do
-    if [ -n "$(ls -A $shard)" ]; then
+    if [ -n "$(find $shard -name *.tsm)" ]; then
       /home/ubuntu/influx_tools compact-shard -force -verbose -path $shard
     fi
   done
