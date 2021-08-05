@@ -1664,8 +1664,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn replay_works_with_checkpoints_all_full_persisted() {
-        // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
+    async fn replay_works_with_checkpoints_all_full_persisted_1() {
         ReplayTest {
             catalog_transactions_until_checkpoint: NonZeroU64::new(2).unwrap(),
             steps: vec![
@@ -1696,6 +1695,85 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_1", "tag_partition_by_b"),
                 ])]),
+            ],
+            ..Default::default()
+        }
+        .run()
+        .await;
+    }
+
+    #[tokio::test]
+    async fn replay_works_with_checkpoints_all_full_persisted_2() {
+        ReplayTest {
+            catalog_transactions_until_checkpoint: NonZeroU64::new(2).unwrap(),
+            steps: vec![
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 1,
+                        lp: "table_1,tag_partition_by=b bar=10 10",
+                    },
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 2,
+                        lp: "table_1,tag_partition_by=a bar=20 20",
+                    },
+                ]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 20  |", "+-----+"],
+                )]),
+                Step::MakeWritesPersistable,
+                Step::Persist(vec![
+                    ("table_1", "tag_partition_by_b"),
+                ]),
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 3,
+                        lp: "table_1,tag_partition_by=b bar=30 30",
+                    },
+                ]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 30  |", "+-----+"],
+                )]),
+                Step::Persist(vec![
+                    ("table_1", "tag_partition_by_a"),
+                ]),
+                Step::Restart,
+                Step::Replay,
+                Step::Assert(vec![
+                    Check::Partitions(vec![
+                        ("table_1", "tag_partition_by_a"),
+                        ("table_1", "tag_partition_by_b"),
+                    ]),
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+--------------------------------+",
+                            "| bar | tag_partition_by | time                           |",
+                            "+-----+------------------+--------------------------------+",
+                            "| 10  | b                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 20  | a                | 1970-01-01T00:00:00.000000020Z |",
+                            "| 30  | b                | 1970-01-01T00:00:00.000000030Z |",
+                            "+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                    // chunks do not overlap
+                    Check::Query(
+                        "select partition_key, min_value, max_value, row_count from system.chunk_columns where column_name = 'time' order by partition_key, min_value",
+                        vec![
+                            "+--------------------+-----------+-----------+-----------+",
+                            "| partition_key      | min_value | max_value | row_count |",
+                            "+--------------------+-----------+-----------+-----------+",
+                            "| tag_partition_by_a | 20        | 20        | 1         |",
+                            "| tag_partition_by_b | 10        | 10        | 1         |",
+                            "| tag_partition_by_b | 30        | 30        | 1         |",
+                            "+--------------------+-----------+-----------+-----------+",
+                        ],
+                    ),
+                ]),
             ],
             ..Default::default()
         }
