@@ -1,11 +1,9 @@
 //! Methods to cleanup the object store.
 use std::{collections::HashSet, sync::Arc};
 
-use crate::{
-    catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
-    storage::data_location,
-};
+use crate::catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog};
 use futures::TryStreamExt;
+use iox_object_store::IoxObjectStore;
 use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
@@ -51,29 +49,26 @@ pub async fn get_unreferenced_parquet_files(
     catalog: &PreservedCatalog,
     max_files: usize,
 ) -> Result<Vec<Path>> {
-    let store = catalog.object_store();
-    let server_id = catalog.server_id();
-    let db_name = catalog.db_name();
+    let iox_object_store = catalog.iox_object_store();
     let all_known = {
         // replay catalog transactions to track ALL (even dropped) files that are referenced
-        let (_catalog, state) = PreservedCatalog::load::<TracerCatalogState>(
-            Arc::clone(&store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .context(CatalogLoadError)?
-        .expect("catalog gone while reading it?");
+        let (_catalog, state) =
+            PreservedCatalog::load::<TracerCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .context(CatalogLoadError)?
+                .expect("catalog gone while reading it?");
 
         state.files.into_inner()
     };
 
-    let prefix = data_location(&store, server_id, db_name);
+    let prefix = iox_object_store.data_path();
 
     // gather a list of "files to remove" eagerly so we do not block transactions on the catalog for too long
     let mut to_remove = vec![];
-    let mut stream = store.list(Some(&prefix)).await.context(ReadError)?;
+    let mut stream = iox_object_store
+        .list(Some(&prefix))
+        .await
+        .context(ReadError)?;
 
     'outer: while let Some(paths) = stream.try_next().await.context(ReadError)? {
         for path in paths {
@@ -111,7 +106,7 @@ pub async fn get_unreferenced_parquet_files(
 /// File creation and catalog modifications can be done while calling this method. Even
 /// [`get_unreferenced_parquet_files`] can be called while is method is in-progress.
 pub async fn delete_files(catalog: &PreservedCatalog, files: &[Path]) -> Result<()> {
-    let store = catalog.object_store();
+    let store = catalog.iox_object_store();
 
     for path in files {
         info!(path = %path.display(), "Delete file");
@@ -139,7 +134,7 @@ impl CatalogState for TracerCatalogState {
 
     fn add(
         &mut self,
-        _object_store: Arc<ObjectStore>,
+        _iox_object_store: Arc<IoxObjectStore>,
         info: CatalogParquetInfo,
     ) -> crate::catalog::Result<()> {
         self.files.lock().insert(info.path);
@@ -154,33 +149,26 @@ impl CatalogState for TracerCatalogState {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashSet, num::NonZeroU32, sync::Arc};
+    use std::{collections::HashSet, sync::Arc};
 
     use bytes::Bytes;
-    use data_types::server_id::ServerId;
     use object_store::path::{ObjectStorePath, Path};
     use tokio::sync::RwLock;
 
     use super::*;
     use crate::{
         catalog::test_helpers::TestCatalogState,
-        test_utils::{chunk_addr, db_name, make_metadata, make_object_store},
+        test_utils::{chunk_addr, make_iox_object_store, make_metadata},
     };
 
     #[tokio::test]
     async fn test_cleanup_empty() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
+        let iox_object_store = make_iox_object_store();
 
-        let (catalog, _state) = PreservedCatalog::new_empty::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+        let (catalog, _state) =
+            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap();
 
         // run clean-up
         let files = get_unreferenced_parquet_files(&catalog, 1_000)
@@ -191,18 +179,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup_rules() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = db_name();
+        let iox_object_store = make_iox_object_store();
 
-        let (catalog, _state) = PreservedCatalog::new_empty::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+        let (catalog, _state) =
+            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap();
 
         // create some data
         let mut paths_keep = vec![];
@@ -211,7 +193,7 @@ mod tests {
             let mut transaction = catalog.open_transaction().await;
 
             // an ordinary tracked parquet file => keep
-            let (path, metadata) = make_metadata(&object_store, "foo", chunk_addr(1)).await;
+            let (path, metadata) = make_metadata(&iox_object_store, "foo", chunk_addr(1)).await;
             let metadata = Arc::new(metadata);
             let path = path.into();
             let info = CatalogParquetInfo {
@@ -224,7 +206,7 @@ mod tests {
             paths_keep.push(info.path.display());
 
             // another ordinary tracked parquet file that was added and removed => keep (for time travel)
-            let (path, metadata) = make_metadata(&object_store, "foo", chunk_addr(2)).await;
+            let (path, metadata) = make_metadata(&iox_object_store, "foo", chunk_addr(2)).await;
             let metadata = Arc::new(metadata);
             let path = path.into();
             let info = CatalogParquetInfo {
@@ -239,12 +221,12 @@ mod tests {
             // not a parquet file => keep
             let mut path = info.path;
             path.file_name = Some("foo.txt".into());
-            let path = object_store.path_from_dirs_and_filename(path);
-            create_empty_file(&object_store, &path).await;
+            let path = iox_object_store.path_from_dirs_and_filename(path);
+            create_empty_file(&iox_object_store, &path).await;
             paths_keep.push(path.display());
 
             // an untracked parquet file => delete
-            let (path, _md) = make_metadata(&object_store, "foo", chunk_addr(3)).await;
+            let (path, _md) = make_metadata(&iox_object_store, "foo", chunk_addr(3)).await;
             paths_delete.push(path.display());
 
             transaction.commit().await.unwrap();
@@ -260,7 +242,7 @@ mod tests {
         delete_files(&catalog, &files).await.unwrap();
 
         // list all files
-        let all_files = list_all_files(&object_store).await;
+        let all_files = list_all_files(&iox_object_store).await;
         for p in paths_keep {
             assert!(dbg!(&all_files).contains(dbg!(&p)));
         }
@@ -271,32 +253,26 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup_with_parallel_transaction() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = db_name();
+        let iox_object_store = make_iox_object_store();
         let lock: RwLock<()> = Default::default();
 
-        let (catalog, _state) = PreservedCatalog::new_empty::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+        let (catalog, _state) =
+            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap();
 
         // try multiple times to provoke a conflict
         for i in 0..100 {
             // Every so often try to create a file with the same ChunkAddr beforehand. This should not trick the cleanup
             // logic to remove the actual file because file paths contains a UUIDv4 part.
             if i % 2 == 0 {
-                make_metadata(&object_store, "foo", chunk_addr(i)).await;
+                make_metadata(&iox_object_store, "foo", chunk_addr(i)).await;
             }
 
             let (path, _) = tokio::join!(
                 async {
                     let guard = lock.read().await;
-                    let (path, md) = make_metadata(&object_store, "foo", chunk_addr(i)).await;
+                    let (path, md) = make_metadata(&iox_object_store, "foo", chunk_addr(i)).await;
 
                     let metadata = Arc::new(md);
                     let path = path.into();
@@ -325,30 +301,24 @@ mod tests {
                 },
             );
 
-            let all_files = list_all_files(&object_store).await;
+            let all_files = list_all_files(&iox_object_store).await;
             assert!(all_files.contains(&path));
         }
     }
 
     #[tokio::test]
     async fn test_cleanup_max_files() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = db_name();
+        let iox_object_store = make_iox_object_store();
 
-        let (catalog, _state) = PreservedCatalog::new_empty::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+        let (catalog, _state) =
+            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap();
 
         // create some files
         let mut to_remove: HashSet<String> = Default::default();
         for chunk_id in 0..3 {
-            let (path, _md) = make_metadata(&object_store, "foo", chunk_addr(chunk_id)).await;
+            let (path, _md) = make_metadata(&iox_object_store, "foo", chunk_addr(chunk_id)).await;
             to_remove.insert(path.display());
         }
 
@@ -358,7 +328,7 @@ mod tests {
         delete_files(&catalog, &files).await.unwrap();
 
         // should only delete 2
-        let all_files = list_all_files(&object_store).await;
+        let all_files = list_all_files(&iox_object_store).await;
         let leftover: HashSet<_> = all_files.intersection(&to_remove).collect();
         assert_eq!(leftover.len(), 1);
 
@@ -368,20 +338,16 @@ mod tests {
         delete_files(&catalog, &files).await.unwrap();
 
         // should delete remaining file
-        let all_files = list_all_files(&object_store).await;
+        let all_files = list_all_files(&iox_object_store).await;
         let leftover: HashSet<_> = all_files.intersection(&to_remove).collect();
         assert_eq!(leftover.len(), 0);
     }
 
-    fn make_server_id() -> ServerId {
-        ServerId::new(NonZeroU32::new(1).unwrap())
-    }
-
-    async fn create_empty_file(object_store: &ObjectStore, path: &Path) {
+    async fn create_empty_file(iox_object_store: &IoxObjectStore, path: &Path) {
         let data = Bytes::default();
         let len = data.len();
 
-        object_store
+        iox_object_store
             .put(
                 path,
                 futures::stream::once(async move { Ok(data) }),
@@ -391,8 +357,8 @@ mod tests {
             .unwrap();
     }
 
-    async fn list_all_files(object_store: &ObjectStore) -> HashSet<String> {
-        object_store
+    async fn list_all_files(iox_object_store: &IoxObjectStore) -> HashSet<String> {
+        iox_object_store
             .list(None)
             .await
             .unwrap()

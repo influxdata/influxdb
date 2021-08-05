@@ -1799,6 +1799,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "iox_object_store"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "data_types",
+ "futures",
+ "object_store",
+ "tokio",
+ "tokio-stream",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2675,6 +2687,7 @@ dependencies = [
  "futures",
  "generated_types",
  "internal_types",
+ "iox_object_store",
  "metrics",
  "object_store",
  "observability_deps",
@@ -3879,6 +3892,7 @@ dependencies = [
  "influxdb_iox_client",
  "influxdb_line_protocol",
  "internal_types",
+ "iox_object_store",
  "itertools 0.10.1",
  "lifecycle",
  "metrics",
