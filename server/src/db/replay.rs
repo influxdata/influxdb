@@ -432,7 +432,7 @@ mod tests {
         Persist(Vec<(&'static str, &'static str)>),
 
         /// Advance clock far enough that all ingested entries become persistable.
-        Tick,
+        MakeWritesPersistable,
 
         /// Drop all unpersisted chunks from given partitions.
         ///
@@ -573,7 +573,7 @@ mod tests {
                             }
                         }
                     }
-                    Step::Tick => {
+                    Step::MakeWritesPersistable => {
                         let mut guard = test_db.db.background_worker_now_override.lock();
                         *guard = Some(guard.unwrap() + Duration::from_secs(60));
                     }
@@ -888,7 +888,7 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Persist(vec![("table_2", "tag_partition_by_a")]),
                 Step::Restart,
                 Step::Assert(vec![Check::Partitions(vec![(
@@ -994,7 +994,7 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
                 Step::Restart,
                 Step::Assert(vec![Check::Partitions(vec![(
@@ -1146,7 +1146,7 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
                 Step::Restart,
                 Step::Assert(vec![Check::Partitions(vec![(
@@ -1251,7 +1251,7 @@ mod tests {
                     ],
                 )]),
                 // only persist partition a
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
                 // ================================================================================
                 // after restart the non-persisted partition (B) is gone
@@ -1306,7 +1306,7 @@ mod tests {
                     ],
                 )]),
                 // ...and only persist partition a (a 2nd time)
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
                 // ================================================================================
                 // after restart partition b will be gone again
@@ -1366,7 +1366,7 @@ mod tests {
                     ],
                 )]),
                 // this time only persist partition b
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Persist(vec![("table_1", "tag_partition_by_b")]),
                 // ================================================================================
                 // after restart partition b will be fully present but the latest data for partition a is gone
@@ -1433,7 +1433,7 @@ mod tests {
                     ],
                 )]),
                 // finally persist both partitions
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Persist(vec![
                     ("table_1", "tag_partition_by_a"),
                     ("table_1", "tag_partition_by_b"),
@@ -1498,7 +1498,7 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Persist(vec![("table_2", "tag_partition_by_a")]),
                 Step::Restart,
                 Step::Assert(vec![Check::Partitions(vec![(
@@ -1546,7 +1546,7 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
                 Step::Restart,
                 Step::Assert(vec![Check::Partitions(vec![
@@ -1641,7 +1641,7 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
                 Step::Ingest(vec![
                     TestSequencedEntry {
@@ -1660,7 +1660,7 @@ mod tests {
                     ("table_2", "tag_partition_by_a"),
                     ("table_3", "tag_partition_by_a"),
                 ])]),
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Persist(vec![("table_3", "tag_partition_by_a")]),
                 Step::Restart,
                 Step::Replay,
@@ -1720,7 +1720,7 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_1", "tag_partition_by_b"),
                 ])]),
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Persist(vec![
                     ("table_1", "tag_partition_by_a"),
                     ("table_1", "tag_partition_by_b"),
@@ -1753,7 +1753,7 @@ mod tests {
                     "select max(bar) as bar from table_1",
                     vec!["+-----+", "| bar |", "+-----+", "| 10  |", "+-----+"],
                 )]),
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 2,
@@ -1774,7 +1774,7 @@ mod tests {
                     "select max(bar) as bar from table_1",
                     vec!["+-----+", "| bar |", "+-----+", "| 30  |", "+-----+"],
                 )]),
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Persist(vec![("table_1", "tag_partition_by_b")]),
                 Step::Restart,
                 Step::Replay,
@@ -1804,7 +1804,7 @@ mod tests {
                     "select max(bar) as bar from table_1",
                     vec!["+-----+", "| bar |", "+-----+", "| 10  |", "+-----+"],
                 )]),
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 2,
@@ -1825,7 +1825,7 @@ mod tests {
                     "select max(bar) as bar from table_1",
                     vec!["+-----+", "| bar |", "+-----+", "| 30  |", "+-----+"],
                 )]),
-                Step::Tick,
+                Step::MakeWritesPersistable,
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 4,
