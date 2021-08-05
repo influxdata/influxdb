@@ -55,7 +55,7 @@ cardinality of data within the files, segmented by shard and further by measurem
 			arguments.shardIdxs = map[uint64]*tsi1.Index{}
 			arguments.cardinalities = map[uint64]map[string]*cardinality{}
 
-			return arguments.run()
+			return arguments.run(cmd)
 		},
 	}
 
@@ -69,7 +69,7 @@ cardinality of data within the files, segmented by shard and further by measurem
 }
 
 // Run executes the command.
-func (report *reportTSI) run() error {
+func (report *reportTSI) run(cmd *cobra.Command) error {
 	// Get all shards from specified bucket
 	dirEntries, err := os.ReadDir(filepath.Join(report.enginePath, report.bucketId, "autogen"))
 
@@ -96,7 +96,7 @@ func (report *reportTSI) run() error {
 	}
 
 	if len(report.shardPaths) == 0 {
-		fmt.Fprintf(os.Stderr, "No shards under %s\n", report.enginePath)
+		cmd.Printf("No shards under %s\n", filepath.Join(report.enginePath, report.bucketId, "autogen"))
 		return nil
 	}
 
@@ -115,7 +115,10 @@ func (report *reportTSI) run() error {
 	defer report.sfile.Close()
 
 	// Blocks until all work done.
-	report.calculateCardinalities(report.cardinalityByMeasurement)
+	err = report.calculateCardinalities(report.cardinalityByMeasurement)
+	if err != nil {
+		return err
+	}
 
 	allIDs := make([]uint64, 0, len(report.shardIdxs))
 
@@ -154,7 +157,7 @@ func (report *reportTSI) calculateCardinalities(fn func(id uint64) error) error 
 		pth := filepath.Join(report.shardPaths[id], "index")
 
 		report.shardIdxs[id] = tsi1.NewIndex(report.sfile,
-			"",
+			report.bucketId,
 			tsi1.WithPath(pth),
 			tsi1.DisableCompactions(),
 		)
