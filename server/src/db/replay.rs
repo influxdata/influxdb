@@ -340,7 +340,7 @@ mod tests {
 
     use std::{
         convert::TryFrom,
-        num::{NonZeroU32, NonZeroUsize},
+        num::{NonZeroU32, NonZeroU64, NonZeroUsize},
         sync::Arc,
         time::{Duration, Instant},
     };
@@ -360,7 +360,7 @@ mod tests {
         checkpoint::{PartitionCheckpoint, PersistCheckpointBuilder, ReplayPlanner},
         min_max_sequence::OptionalMinMaxSequence,
     };
-    use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryChunk};
+    use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner};
     use test_helpers::{assert_contains, tracing::TracingCapture};
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
@@ -369,7 +369,7 @@ mod tests {
         mock::{MockBufferForReading, MockBufferSharedState},
     };
 
-    use crate::utils::TestDb;
+    use crate::{db::catalog::chunk::ChunkStage, utils::TestDb};
 
     #[derive(Debug)]
     struct TestSequencedEntry {
@@ -431,6 +431,14 @@ mod tests {
         /// The partitions are by table name and partition key.
         Persist(Vec<(&'static str, &'static str)>),
 
+        /// Advance clock far enough that all ingested entries become persistable.
+        Tick,
+
+        /// Drop all unpersisted chunks from given partitions.
+        ///
+        /// The partitions are by table name and partition key.
+        DropUnpersisted(Vec<(&'static str, &'static str)>),
+
         /// Assert that all these checks pass.
         Assert(Vec<Check>),
 
@@ -443,9 +451,21 @@ mod tests {
     #[derive(Debug)]
     struct ReplayTest {
         /// Number of sequencers in this test setup.
+        ///
+        /// # Default
+        /// 1
         n_sequencers: u32,
 
+        /// How often a catalog checkpoint should be created during persistence.
+        ///
+        /// # Default
+        /// `u64::MAX` aka "never"
+        catalog_transactions_until_checkpoint: NonZeroU64,
+
         /// What to do in which order.
+        ///
+        /// # Default
+        /// No steps.
         ///
         /// # Serialization
         /// Every step is finished and
@@ -477,6 +497,8 @@ mod tests {
                 server_id,
                 db_name,
                 partition_template.clone(),
+                self.catalog_transactions_until_checkpoint,
+                Instant::now(),
             )
             .await;
 
@@ -495,6 +517,9 @@ mod tests {
                         shutdown.cancel();
                         join_handle.await.unwrap();
 
+                        // remember time
+                        let now = test_db.db.background_worker_now_override.lock().unwrap();
+
                         // drop old DB
                         drop(test_db);
 
@@ -505,6 +530,8 @@ mod tests {
                             server_id,
                             db_name,
                             partition_template.clone(),
+                            self.catalog_transactions_until_checkpoint,
+                            now,
                         )
                         .await;
                         test_db = test_db_tmp;
@@ -522,28 +549,70 @@ mod tests {
                         let db = &test_db.db;
 
                         for (table_name, partition_key) in partitions {
-                            // Mark the MB chunk close
-                            let chunk_id = {
-                                let mb_chunk = db
-                                    .rollover_partition(table_name, partition_key)
+                            println!("Persist {}:{}", table_name, partition_key);
+                            loop {
+                                match db
+                                    .persist_partition(
+                                        table_name,
+                                        partition_key,
+                                        db.background_worker_now(),
+                                    )
                                     .await
-                                    .unwrap()
-                                    .unwrap();
-                                mb_chunk.id()
-                            };
-                            // Move that MB chunk to RB chunk and drop it from MB
-                            db.move_chunk_to_read_buffer(table_name, partition_key, chunk_id)
-                                .await
-                                .unwrap();
+                                {
+                                    Ok(_) => break,
+                                    Err(crate::db::Error::LifecycleError { .. }) => {
+                                        // cannot persist right now because of some lifecycle action, so wait a bit
+                                        tokio::time::sleep(Duration::from_millis(100)).await;
+                                        continue;
+                                    }
+                                    e => {
+                                        e.unwrap();
+                                        unreachable!();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Step::Tick => {
+                        let mut guard = test_db.db.background_worker_now_override.lock();
+                        *guard = Some(guard.unwrap() + Duration::from_secs(60));
+                    }
+                    Step::DropUnpersisted(partitions) => {
+                        let db = &test_db.db;
 
-                            // Write the RB chunk to Object Store but keep it in RB
-                            db.persist_partition(
-                                table_name,
-                                partition_key,
-                                Instant::now() + Duration::from_secs(1),
-                            )
-                            .await
-                            .unwrap();
+                        for (table_name, partition_key) in partitions {
+                            println!("Drop unpersisted {}:{}", table_name, partition_key);
+                            loop {
+                                // additional scope to avoid leaking the lock guard into the generator state
+                                let any_error = {
+                                    let partition =
+                                        db.partition(table_name, partition_key).unwrap();
+                                    let mut partition = partition.write();
+
+                                    let mut chunk_ids = vec![];
+                                    for chunk in partition.chunks() {
+                                        let chunk = chunk.read();
+                                        if !matches!(chunk.stage(), ChunkStage::Persisted { .. }) {
+                                            chunk_ids.push(chunk.id());
+                                        }
+                                    }
+
+                                    let mut any_error = false;
+                                    for chunk_id in chunk_ids {
+                                        any_error |= partition.drop_chunk(chunk_id).is_err();
+                                    }
+
+                                    any_error
+                                };
+
+                                if any_error {
+                                    // conflicting lifecycle actions, wait for a bit
+                                    tokio::time::sleep(Duration::from_millis(100)).await;
+                                    continue;
+                                } else {
+                                    break;
+                                }
+                            }
                         }
                     }
                     Step::Assert(checks) => {
@@ -599,6 +668,8 @@ mod tests {
             server_id: ServerId,
             db_name: &'static str,
             partition_template: PartitionTemplate,
+            catalog_transactions_until_checkpoint: NonZeroU64,
+            now: Instant,
         ) -> (TestDb, CancellationToken, JoinHandle<()>) {
             let write_buffer = MockBufferForReading::new(write_buffer_state);
             let test_db = TestDb::builder()
@@ -610,6 +681,7 @@ mod tests {
                 .lifecycle_rules(data_types::database_rules::LifecycleRules {
                     buffer_size_hard: Some(NonZeroUsize::new(10_000).unwrap()),
                     late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+                    catalog_transactions_until_checkpoint,
                     mub_row_threshold: NonZeroUsize::new(10).unwrap(),
                     ..Default::default()
                 })
@@ -617,6 +689,9 @@ mod tests {
                 .db_name(db_name)
                 .build()
                 .await;
+
+            // Mock time
+            *test_db.db.background_worker_now_override.lock() = Some(now);
 
             // start background worker
             let shutdown: CancellationToken = Default::default();
@@ -717,7 +792,22 @@ mod tests {
                 f();
                 true
             } else {
-                std::panic::catch_unwind(f).is_ok()
+                // catch unwind w/o printing backtrace
+                let hook_backup = std::panic::take_hook();
+                std::panic::set_hook(Box::new(|_| {}));
+                let res = std::panic::catch_unwind(f);
+                std::panic::set_hook(hook_backup);
+                res.is_ok()
+            }
+        }
+    }
+
+    impl Default for ReplayTest {
+        fn default() -> Self {
+            Self {
+                n_sequencers: 1,
+                catalog_transactions_until_checkpoint: NonZeroU64::new(u64::MAX).unwrap(),
+                steps: vec![],
             }
         }
     }
@@ -727,7 +817,6 @@ mod tests {
     async fn test_framework_fail_assert_partitions() {
         // Test the test framework: checking the partitions should actually fail
         ReplayTest {
-            n_sequencers: 1,
             steps: vec![
                 // that passes
                 Step::Assert(vec![Check::Partitions(vec![])]),
@@ -737,6 +826,7 @@ mod tests {
                     "tag_partition_by_a",
                 )])]),
             ],
+            ..Default::default()
         }
         .run()
         .await;
@@ -747,7 +837,6 @@ mod tests {
     async fn test_framework_fail_assert_query() {
         // Test the test framework: checking the query results should actually fail
         ReplayTest {
-            n_sequencers: 1,
             steps: vec![
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
@@ -770,6 +859,7 @@ mod tests {
                     ],
                 )]),
             ],
+            ..Default::default()
         }
         .run()
         .await;
@@ -781,7 +871,6 @@ mod tests {
         // - https://github.com/influxdata/influxdb_iox/pull/2079
         // - https://github.com/influxdata/influxdb_iox/pull/2084
         ReplayTest {
-            n_sequencers: 1,
             steps: vec![
                 Step::Ingest(vec![
                     TestSequencedEntry {
@@ -799,6 +888,7 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
+                Step::Tick,
                 Step::Persist(vec![("table_2", "tag_partition_by_a")]),
                 Step::Restart,
                 Step::Assert(vec![Check::Partitions(vec![(
@@ -875,6 +965,7 @@ mod tests {
                     ),
                 ]),
             ],
+            ..Default::default()
         }
         .run()
         .await;
@@ -886,7 +977,6 @@ mod tests {
         // - https://github.com/influxdata/influxdb_iox/pull/2079
         // - https://github.com/influxdata/influxdb_iox/pull/2084
         ReplayTest {
-            n_sequencers: 1,
             steps: vec![
                 Step::Ingest(vec![
                     TestSequencedEntry {
@@ -904,6 +994,7 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
+                Step::Tick,
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
                 Step::Restart,
                 Step::Assert(vec![Check::Partitions(vec![(
@@ -980,6 +1071,7 @@ mod tests {
                     ),
                 ]),
             ],
+            ..Default::default()
         }
         .run()
         .await;
@@ -988,7 +1080,6 @@ mod tests {
     #[tokio::test]
     async fn replay_ok_nothing_to_replay() {
         ReplayTest {
-            n_sequencers: 1,
             steps: vec![
                 Step::Restart,
                 Step::Assert(vec![Check::Partitions(vec![])]),
@@ -1014,6 +1105,7 @@ mod tests {
                     ],
                 )]),
             ],
+            ..Default::default()
         }
         .run()
         .await;
@@ -1054,6 +1146,7 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
+                Step::Tick,
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
                 Step::Restart,
                 Step::Assert(vec![Check::Partitions(vec![(
@@ -1123,6 +1216,7 @@ mod tests {
                     ),
                 ]),
             ],
+            ..Default::default()
         }
         .run()
         .await;
@@ -1131,7 +1225,6 @@ mod tests {
     #[tokio::test]
     async fn replay_ok_interleaved_writes() {
         ReplayTest {
-            n_sequencers: 1,
             steps: vec![
                 // let's ingest some data for two partitions a and b
                 Step::Ingest(vec![
@@ -1158,6 +1251,7 @@ mod tests {
                     ],
                 )]),
                 // only persist partition a
+                Step::Tick,
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
                 // ================================================================================
                 // after restart the non-persisted partition (B) is gone
@@ -1212,6 +1306,7 @@ mod tests {
                     ],
                 )]),
                 // ...and only persist partition a (a 2nd time)
+                Step::Tick,
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
                 // ================================================================================
                 // after restart partition b will be gone again
@@ -1271,6 +1366,7 @@ mod tests {
                     ],
                 )]),
                 // this time only persist partition b
+                Step::Tick,
                 Step::Persist(vec![("table_1", "tag_partition_by_b")]),
                 // ================================================================================
                 // after restart partition b will be fully present but the latest data for partition a is gone
@@ -1337,6 +1433,7 @@ mod tests {
                     ],
                 )]),
                 // finally persist both partitions
+                Step::Tick,
                 Step::Persist(vec![
                     ("table_1", "tag_partition_by_a"),
                     ("table_1", "tag_partition_by_b"),
@@ -1362,6 +1459,7 @@ mod tests {
                     ],
                 )]),
             ],
+            ..Default::default()
         }
         .run()
         .await;
@@ -1389,7 +1487,6 @@ mod tests {
             .collect();
 
         ReplayTest {
-            n_sequencers: 1,
             steps: vec![
                 Step::Ingest(sequenced_entries),
                 Step::Ingest(vec![TestSequencedEntry {
@@ -1401,6 +1498,7 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
+                Step::Tick,
                 Step::Persist(vec![("table_2", "tag_partition_by_a")]),
                 Step::Restart,
                 Step::Assert(vec![Check::Partitions(vec![(
@@ -1409,6 +1507,7 @@ mod tests {
                 )])]),
                 Step::Replay,
             ],
+            ..Default::default()
         }
         .run()
         .await;
@@ -1430,7 +1529,6 @@ mod tests {
         // 1. table 1, partition a:
         //    will be fully persisted
         ReplayTest {
-            n_sequencers: 1,
             steps: vec![
                 Step::Ingest(vec![
                     TestSequencedEntry {
@@ -1448,6 +1546,7 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
+                Step::Tick,
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
                 Step::Restart,
                 Step::Assert(vec![Check::Partitions(vec![
@@ -1502,6 +1601,7 @@ mod tests {
                     ),
                 ]),
             ],
+            ..Default::default()
         }
         .run()
         .await
@@ -1523,7 +1623,6 @@ mod tests {
         // 3. table 3, partition a:
         //    persisted, used to "mark" the end of the replay range to sequence number 3
         ReplayTest {
-            n_sequencers: 1,
             steps: vec![
                 // let's ingest some data for two partitions a and b
                 Step::Ingest(vec![
@@ -1542,6 +1641,7 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_2", "tag_partition_by_a"),
                 ])]),
+                Step::Tick,
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
                 Step::Ingest(vec![
                     TestSequencedEntry {
@@ -1560,6 +1660,7 @@ mod tests {
                     ("table_2", "tag_partition_by_a"),
                     ("table_3", "tag_partition_by_a"),
                 ])]),
+                Step::Tick,
                 Step::Persist(vec![("table_3", "tag_partition_by_a")]),
                 Step::Restart,
                 Step::Replay,
@@ -1591,9 +1692,161 @@ mod tests {
                     ),
                 ]),
             ],
+            ..Default::default()
         }
         .run()
         .await
+    }
+
+    #[tokio::test]
+    async fn replay_works_with_checkpoints_all_full_persisted() {
+        // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
+        ReplayTest {
+            catalog_transactions_until_checkpoint: NonZeroU64::new(2).unwrap(),
+            steps: vec![
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 0,
+                        lp: "table_1,tag_partition_by=b bar=10 0",
+                    },
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 1,
+                        lp: "table_1,tag_partition_by=a bar=20 0",
+                    },
+                ]),
+                Step::Await(vec![Check::Partitions(vec![
+                    ("table_1", "tag_partition_by_a"),
+                    ("table_1", "tag_partition_by_b"),
+                ])]),
+                Step::Tick,
+                Step::Persist(vec![
+                    ("table_1", "tag_partition_by_a"),
+                    ("table_1", "tag_partition_by_b"),
+                ]),
+                Step::Restart,
+                Step::Replay,
+                Step::Assert(vec![Check::Partitions(vec![
+                    ("table_1", "tag_partition_by_a"),
+                    ("table_1", "tag_partition_by_b"),
+                ])]),
+            ],
+            ..Default::default()
+        }
+        .run()
+        .await;
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "PartitionCheckpointEmptyRangeMismatch")]
+    async fn replay_works_with_checkpoints_partially_persisted_1() {
+        // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
+        ReplayTest {
+            steps: vec![
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 1,
+                    lp: "table_1,tag_partition_by=a bar=10 0",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 10  |", "+-----+"],
+                )]),
+                Step::Tick,
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 2,
+                    lp: "table_1,tag_partition_by=a bar=20 0",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 20  |", "+-----+"],
+                )]),
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                Step::DropUnpersisted(vec![("table_1", "tag_partition_by_a")]),
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 3,
+                    lp: "table_1,tag_partition_by=b bar=30 0",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 30  |", "+-----+"],
+                )]),
+                Step::Tick,
+                Step::Persist(vec![("table_1", "tag_partition_by_b")]),
+                Step::Restart,
+                Step::Replay,
+                Step::Assert(vec![Check::Partitions(vec![
+                    ("table_1", "tag_partition_by_a"),
+                    ("table_1", "tag_partition_by_b"),
+                ])]),
+            ],
+            ..Default::default()
+        }
+        .run()
+        .await;
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "PartitionCheckpointMinimumBeforeDatabase")]
+    async fn replay_works_with_checkpoints_partially_persisted_2() {
+        // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
+        ReplayTest {
+            steps: vec![
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 1,
+                    lp: "table_1,tag_partition_by=a bar=10 0",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 10  |", "+-----+"],
+                )]),
+                Step::Tick,
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 2,
+                    lp: "table_1,tag_partition_by=a bar=20 0",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 20  |", "+-----+"],
+                )]),
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                Step::DropUnpersisted(vec![("table_1", "tag_partition_by_a")]),
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 3,
+                    lp: "table_1,tag_partition_by=b bar=30 0",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 30  |", "+-----+"],
+                )]),
+                Step::Tick,
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 4,
+                    lp: "table_1,tag_partition_by=b bar=40 0",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 40  |", "+-----+"],
+                )]),
+                Step::Persist(vec![("table_1", "tag_partition_by_b")]),
+                Step::Restart,
+                Step::Replay,
+                Step::Assert(vec![Check::Partitions(vec![
+                    ("table_1", "tag_partition_by_a"),
+                    ("table_1", "tag_partition_by_b"),
+                ])]),
+            ],
+            ..Default::default()
+        }
+        .run()
+        .await;
     }
 
     #[tokio::test]
