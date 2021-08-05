@@ -48,10 +48,10 @@ workflows:
       - perf_test:
           requires:
             - cross_build
-          filters:
-            branches:
-              only:
-                - "master"
+#          filters:
+#            branches:
+#              only:
+#                - "master"
       - grace_daily:
           requires:
             - build
