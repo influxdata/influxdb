@@ -16,12 +16,11 @@ import (
 	"strconv"
 	"strings"
 
-	gzip "github.com/klauspost/pgzip"
-
 	"github.com/influxdata/influxdb/cmd/influxd/backup_util"
 	tarstream "github.com/influxdata/influxdb/pkg/tar"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/snapshotter"
+	gzip "github.com/klauspost/pgzip"
 )
 
 // Command represents the program execution for "influxd restore".
