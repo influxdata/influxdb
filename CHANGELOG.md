@@ -47,6 +47,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21936](https://github.com/influxdata/influxdb/pull/21936): Ported the `influxd inspect build-tsi` command from 1.x.
 1. [21938](https://github.com/influxdata/influxdb/pull/21938): Added route to delete individual secret.
 1. [21972](https://github.com/influxdata/influxdb/pull/21972): Added support for notebooks and annotations.
+1. [22072](https://github.com/influxdata/influxdb/pull/22072): Added `--flux-log-enabled` option to `influxd` to show detail logs for flux queries.
 1. [22135](https://github.com/influxdata/influxdb/pull/22135): Added route to return known resources.
 1. [22311](https://github.com/influxdata/influxdb/pull/22311): Add `storage-no-validate-field-size` config to `influxd` to disable enforcement of max field size.
 
