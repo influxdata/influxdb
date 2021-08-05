@@ -91,8 +91,6 @@ http = "0.2.0"
 hyper = "0.14"
 libc = { version = "0.2" }
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
-opentelemetry-jaeger = { version = "0.14", features = ["tokio"] }
-opentelemetry-otlp = "0.8"
 parking_lot = "0.11.1"
 itertools = "0.10.1"
 parquet = "5.0"
@@ -117,7 +115,6 @@ tokio-util = { version = "0.6.3" }
 tonic = "0.5.0"
 tonic-health = "0.4.0"
 tonic-reflection = "0.2.0"
-tracing-opentelemetry = { version = "0.12", default-features = false }
 uuid = { version = "0.8", features = ["v4"] }
 
 [dev-dependencies]
