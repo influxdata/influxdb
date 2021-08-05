@@ -1161,7 +1161,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::ServingReadinessInterceptor;
     use super::super::id::Id;
 
     use super::*;
@@ -1175,8 +1174,6 @@ mod tests {
     };
     use test_helpers::{assert_contains, tag_key_bytes_to_strings, tracing::TracingCapture};
 
-    use tonic::Code;
-
     use futures::prelude::*;
 
     use generated_types::{
@@ -1185,7 +1182,6 @@ mod tests {
         Window as RPCWindow,
     };
 
-    use crate::influxdb_ioxd::serving_readiness::ServingReadinessState;
     use generated_types::google::protobuf::Any;
     use prost::Message;
     use tokio_stream::wrappers::TcpListenerStream;
@@ -1902,8 +1898,8 @@ mod tests {
                 panic!("Unexpected success: {:?}", response);
             }
             Err(status) => {
-                assert_eq!(status.code(), Code::Cancelled);
-                assert_contains!(status.message(), "stream no longer needed");
+                assert_eq!(status.code(), tonic::Code::Unknown);
+                assert_contains!(status.message(), "transport error");
             }
         };
 
@@ -2819,7 +2815,6 @@ mod tests {
                 .add_service(crate::influxdb_ioxd::rpc::storage::make_server(
                     Arc::clone(&test_storage),
                     test_storage.metrics_registry.registry(),
-                    ServingReadinessInterceptor(ServingReadinessState::Serving.into()),
                 ));
 
             let server = async move {

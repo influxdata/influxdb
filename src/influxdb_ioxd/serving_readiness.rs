@@ -3,6 +3,8 @@ use std::sync::{
     Arc,
 };
 
+use tonic::{Request, Status};
+
 #[derive(Debug, Clone)]
 pub enum ServingReadinessState {
     Unavailable,
@@ -56,6 +58,19 @@ impl ServingReadiness {
 
     pub fn set(&self, state: ServingReadinessState) {
         self.0.store(state.into(), Ordering::SeqCst)
+    }
+
+    /// Implements the gRPC interceptor that returns SERVICE_UNAVAILABLE gRPC status
+    /// if the service is not ready.
+    pub fn into_interceptor(
+        self,
+    ) -> impl FnMut(Request<()>) -> Result<Request<()>, Status> + Clone {
+        move |req| match self.get() {
+            ServingReadinessState::Unavailable => {
+                Err(Status::unavailable("service not ready to serve"))
+            }
+            ServingReadinessState::Serving => Ok(req),
+        }
     }
 }
 

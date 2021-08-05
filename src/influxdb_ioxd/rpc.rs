@@ -5,11 +5,11 @@ use snafu::{ResultExt, Snafu};
 use tokio::net::TcpListener;
 use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::sync::CancellationToken;
+use tonic::codegen::InterceptedService;
 use tonic::transport::NamedService;
 
-use crate::influxdb_ioxd::serving_readiness::{ServingReadiness, ServingReadinessState};
+use crate::influxdb_ioxd::serving_readiness::ServingReadiness;
 use server::{ApplicationState, ConnectionManager, Server};
-use tonic::{Interceptor, Status};
 
 pub mod error;
 mod flight;
@@ -38,36 +38,28 @@ fn service_name<S: NamedService>(_: &S) -> &'static str {
     S::NAME
 }
 
-/// Adds a gRPC service to ServiceBuilder `builder` while registering it to the HealthReporter `health_reporter`.
+/// Adds a gRPC service to the builder, and registers it with the
+/// health reporter
 macro_rules! add_service {
-    ($builder:ident, $health_reporter:ident, $status:expr, $($tail:tt)* ) => {{
-        add_service!(@internal $ builder, $health_reporter, $status, $($tail)* );
-        $builder
-    }};
-    (@internal $builder:ident, $health_reporter:ident, $status:expr, [ $($svc:expr),* $(,)*] $(,)*) => {
-        $(
-          let service = $svc;
-          $health_reporter.set_service_status(service_name(&service), $status).await;
-          let $builder = $builder.add_service(service);
-        )*
+    ($builder:ident, $health_reporter:expr, $svc:expr) => {
+        let service = $svc;
+        let status = tonic_health::ServingStatus::Serving;
+        $health_reporter
+            .set_service_status(service_name(&service), status)
+            .await;
+        let $builder = $builder.add_service(service);
     };
 }
 
-/// Implements the gRPC interceptor that returns SERVICE_UNAVAILABLE gRPC status
-/// if the service is not ready.
-#[derive(Debug, Clone)]
-pub struct ServingReadinessInterceptor(ServingReadiness);
-
-impl From<ServingReadinessInterceptor> for Interceptor {
-    fn from(serving_readiness: ServingReadinessInterceptor) -> Self {
-        let interceptor = move |req| match serving_readiness.0.get() {
-            ServingReadinessState::Unavailable => {
-                Err(Status::unavailable("service not ready to serve"))
-            }
-            ServingReadinessState::Serving => Ok(req),
-        };
-        interceptor.into()
-    }
+/// Adds a gRPC service to the builder gated behind the serving
+/// readiness check, and registers it with the health reporter
+macro_rules! add_gated_service {
+    ($builder:ident, $health_reporter:expr, $serving_readiness:expr, $svc:expr) => {
+        let service = $svc;
+        let interceptor = $serving_readiness.clone().into_interceptor();
+        let service = InterceptedService::new(service, interceptor);
+        add_service!($builder, $health_reporter, service);
+    };
 }
 
 /// Instantiate a server listening on the specified address
@@ -92,32 +84,54 @@ where
         .build()
         .context(ReflectionError)?;
 
-    let serving_gate = ServingReadinessInterceptor(serving_readiness.clone());
-
     let mut builder = tonic::transport::Server::builder();
-    let builder = add_service!(
+
+    // important that this one is NOT gated so that it can answer health requests
+    add_service!(builder, health_reporter, health_service);
+    add_service!(builder, health_reporter, reflection_service);
+    add_service!(builder, health_reporter, testing::make_server());
+    add_gated_service!(
         builder,
         health_reporter,
-        tonic_health::ServingStatus::Serving,
-        [
-            health_service,
-            reflection_service,
-            testing::make_server(),
-            storage::make_server(
-                Arc::clone(&server),
-                Arc::clone(application.metric_registry()),
-                serving_gate.clone(),
-            ),
-            flight::make_server(Arc::clone(&server), serving_gate.clone()),
-            write::make_server(Arc::clone(&server), serving_gate.clone()),
-            write_pb::make_server(Arc::clone(&server), serving_gate.clone()),
-            management::make_server(
-                Arc::clone(&application),
-                Arc::clone(&server),
-                serving_readiness.clone()
-            ),
-            operations::make_server(Arc::clone(application.job_registry())),
-        ],
+        serving_readiness,
+        storage::make_server(
+            Arc::clone(&server),
+            Arc::clone(application.metric_registry()),
+        )
+    );
+    add_gated_service!(
+        builder,
+        health_reporter,
+        serving_readiness,
+        flight::make_server(Arc::clone(&server))
+    );
+    add_gated_service!(
+        builder,
+        health_reporter,
+        serving_readiness,
+        write::make_server(Arc::clone(&server))
+    );
+    add_gated_service!(
+        builder,
+        health_reporter,
+        serving_readiness,
+        write_pb::make_server(Arc::clone(&server))
+    );
+    // Also important this is not behind a readiness check (as it is
+    // used to change the check!)
+    add_service!(
+        builder,
+        health_reporter,
+        management::make_server(
+            Arc::clone(&application),
+            Arc::clone(&server),
+            serving_readiness.clone()
+        )
+    );
+    add_service!(
+        builder,
+        health_reporter,
+        operations::make_server(Arc::clone(application.job_registry()))
     );
 
     builder

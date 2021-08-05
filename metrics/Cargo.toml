@@ -17,10 +17,9 @@ edition = "2018"
 dashmap = { version = "4.0.1" }
 hashbrown = "0.11"
 observability_deps = { path = "../observability_deps" }
-opentelemetry-prometheus = "0.6"
+opentelemetry-prometheus = "0.8"
 parking_lot = "0.11.1"
 prometheus = "0.12"
 snafu = "0.6"
 
 [dev-dependencies] # In alphabetical order
-

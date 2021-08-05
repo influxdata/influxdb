@@ -6,7 +6,7 @@ use influxdb_line_protocol::parse_lines;
 use observability_deps::tracing::debug;
 use server::{ConnectionManager, Server};
 use std::fmt::Debug;
-use tonic::{Interceptor, Response};
+use tonic::Response;
 
 use super::error::default_server_error_handler;
 
@@ -80,10 +80,9 @@ where
 /// Instantiate the write service
 pub fn make_server<M>(
     server: Arc<Server<M>>,
-    interceptor: impl Into<Interceptor>,
 ) -> write_service_server::WriteServiceServer<impl write_service_server::WriteService>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    write_service_server::WriteServiceServer::with_interceptor(WriteService { server }, interceptor)
+    write_service_server::WriteServiceServer::new(WriteService { server })
 }

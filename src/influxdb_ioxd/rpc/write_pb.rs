@@ -34,13 +34,9 @@ where
 
 pub fn make_server<M>(
     server: Arc<Server<M>>,
-    interceptor: impl Into<tonic::Interceptor>,
 ) -> write_service_server::WriteServiceServer<impl write_service_server::WriteService>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    write_service_server::WriteServiceServer::with_interceptor(
-        PBWriteService { server },
-        interceptor,
-    )
+    write_service_server::WriteServiceServer::new(PBWriteService { server })
 }

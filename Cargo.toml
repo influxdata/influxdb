@@ -91,15 +91,15 @@ http = "0.2.0"
 hyper = "0.14"
 libc = { version = "0.2" }
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
-opentelemetry-jaeger = { version = "0.12", features = ["tokio"] }
-opentelemetry-otlp = "0.6"
+opentelemetry-jaeger = { version = "0.14", features = ["tokio"] }
+opentelemetry-otlp = "0.8"
 parking_lot = "0.11.1"
 itertools = "0.10.1"
 parquet = "5.0"
 # used by arrow/datafusion anyway
 prettytable-rs = "0.8"
-pprof = { version = "^0.4", default-features = false, features = ["flamegraph", "protobuf"] }
-prost = "0.7"
+pprof = { version = "^0.5", default-features = false, features = ["flamegraph", "protobuf"] }
+prost = "0.8"
 # Forked to upgrade hyper and tokio
 routerify = { git = "https://github.com/influxdata/routerify", rev = "274e250" }
 rustyline = "8.0"
@@ -114,9 +114,9 @@ tikv-jemalloc-ctl = "0.4.0"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "parking_lot", "signal"] }
 tokio-stream = { version = "0.1.2", features = ["net"] }
 tokio-util = { version = "0.6.3" }
-tonic = "0.4.0"
-tonic-health = "0.3.0"
-tonic-reflection = "0.1.0"
+tonic = "0.5.0"
+tonic-health = "0.4.0"
+tonic-reflection = "0.2.0"
 tracing-opentelemetry = { version = "0.12", default-features = false }
 uuid = { version = "0.8", features = ["v4"] }
 
