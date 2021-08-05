@@ -45,7 +45,8 @@ cat << EOF > /etc/telegraf/telegraf.conf
     "i_type",
     "query_format",
     "use_case",
-    "query_type"
+    "query_type",
+    "branch"
   ]
 EOF
 systemctl restart telegraf
