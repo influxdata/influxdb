@@ -136,13 +136,13 @@ scale_var=1000
 queries=500
 
 # Lines to write per request during ingest
-batch=15000
+batch=5000
 # Concurrent workers to use during ingest/query
-workers=20
+workers=4
 
 # How long to run each set of query tests. Specify a duration to limit the maximum amount of time the queries can run,
 # since individual queries can take a long time.
-duration=60s
+duration=30s
 
 # Helper functions containing common logic
 bucket_id() {
@@ -192,7 +192,7 @@ start_time() {
 end_time() {
   case $1 in
     iot|window-agg|group-agg|bare-agg)
-      echo 2018-01-02T00:00:00Z
+      echo 2018-01-01T12:00:00Z
       ;;
     metaquery)
       echo 2020-01-01T00:00:00Z
