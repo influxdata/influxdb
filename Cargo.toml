@@ -72,7 +72,7 @@ query = { path = "query" }
 read_buffer = { path = "read_buffer" }
 server = { path = "server" }
 tracker = { path = "tracker" }
-trogging = { path = "trogging", features = ["structopt"] }
+trogging = { path = "trogging", default-features = false, features = ["structopt"] }
 
 # Crates.io dependencies, in alphabetical order
 arrow = { version = "5.0", features = ["prettyprint"] }
@@ -139,6 +139,8 @@ reqwest = "0.11"
 tempfile = "3.1.0"
 
 [features]
-azure = ["object_store/azure"]
-gcp = ["object_store/gcp"]
-aws = ["object_store/aws"]
+azure = ["object_store/azure"] # Optional Azure Object store support
+gcp = ["object_store/gcp"] # Optional GCP object store support
+aws = ["object_store/aws"] # Optional AWS / S3 object store support
+jaeger = ["trogging/jaeger"] # Enable optional jaeger tracing support
+otlp = ["trogging/otlp"] # Enable optional open telemetry collector

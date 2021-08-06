@@ -10,8 +10,8 @@ description = "(TR)acing and l(OGGING) configuration"
 [dependencies]
 logfmt = { path = "../logfmt" }
 observability_deps = { path = "../observability_deps" }
-opentelemetry-jaeger = { version = "0.14", features = ["tokio"] }
-opentelemetry-otlp = "0.8"
+opentelemetry-jaeger = { version = "0.14", features = ["tokio"], optional = true }
+opentelemetry-otlp = { version = "0.8", optional = true }
 thiserror = "1.0.23"
 tracing-opentelemetry = { version = "0.14", default-features = false }
 structopt = { version = "0.3.21", optional = true }
@@ -19,3 +19,7 @@ structopt = { version = "0.3.21", optional = true }
 [dev-dependencies]
 synchronized-writer = "1"
 regex = "1"
+
+[features]
+jaeger = ["opentelemetry-jaeger"]
+otlp = ["opentelemetry-otlp"]

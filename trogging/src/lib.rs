@@ -51,8 +51,14 @@ pub enum Error {
     #[error("Jaeger exporter selected but jaeger config passed to builder")]
     JaegerConfigMissing,
 
+    #[error("'jaeger' not supported with this build. Hint: recompile with appropriate features")]
+    JaegerNotBuilt {},
+
     #[error("OTLP exporter selected but OTLP config passed to builder")]
     OtlpConfigMissing,
+
+    #[error("'otlp' not supported with this build. Hint: recompile with appropriate features")]
+    OtlpNotBuilt {},
 
     #[error("Cannot set global tracing subscriber")]
     SetGlobalDefaultError(#[from] tracing::dispatcher::SetGlobalDefaultError),
@@ -298,52 +304,61 @@ where
         };
 
         Ok(match self.traces_exporter {
-            TracesExporter::Jaeger => {
-                let config = self
-                    .jaeger_config
-                    .as_ref()
-                    .ok_or(Error::JaegerConfigMissing)?;
-                let agent_endpoint = format!("{}:{}", config.agent_host.trim(), config.agent_port);
-                opentelemetry::global::set_text_map_propagator(
-                    opentelemetry_jaeger::Propagator::new(),
-                );
-                Some({
-                    let builder = opentelemetry_jaeger::new_pipeline()
-                        .with_trace_config(trace_config)
-                        .with_agent_endpoint(agent_endpoint)
-                        .with_service_name(&config.service_name)
-                        .with_max_packet_size(config.max_packet_size);
-
-                    // Batching is hard to tune because the max batch size
-                    // is not currently exposed as a tunable from the trace config, and even then
-                    // it's defined in terms of max number of spans, and not their size in bytes.
-                    // Thus we enable batching only when the MTU size is 65000 which is the value suggested
-                    // by jaeger when exporting to localhost.
-                    if config.max_packet_size >= 65_000 {
-                        builder.install_batch(opentelemetry::runtime::Tokio)
-                    } else {
-                        builder.install_simple()
-                    }
-                    .unwrap()
-                })
-            }
-
-            TracesExporter::Otlp => {
-                let config = self.otlp_config.as_ref().ok_or(Error::OtlpConfigMissing)?;
-                let jaeger_endpoint = format!("{}:{}", config.host.trim(), config.port);
-                Some(
-                    opentelemetry_otlp::new_pipeline()
-                        .with_trace_config(trace_config)
-                        .with_endpoint(jaeger_endpoint)
-                        .with_protocol(opentelemetry_otlp::Protocol::Grpc)
-                        .with_tonic()
-                        .install_batch(opentelemetry::runtime::Tokio)
-                        .unwrap(),
-                )
-            }
-
+            TracesExporter::Jaeger => Some(self.construct_jaeger_tracer(trace_config)?),
+            TracesExporter::Otlp => Some(self.construct_otlp_tracer(trace_config)?),
             TracesExporter::None => None,
         })
+    }
+
+    #[cfg(feature = "jaeger")]
+    fn construct_jaeger_tracer(&self, trace_config: trace::Config) -> Result<trace::Tracer> {
+        let config = self
+            .jaeger_config
+            .as_ref()
+            .ok_or(Error::JaegerConfigMissing)?;
+        let agent_endpoint = format!("{}:{}", config.agent_host.trim(), config.agent_port);
+        opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
+        let builder = opentelemetry_jaeger::new_pipeline()
+            .with_trace_config(trace_config)
+            .with_agent_endpoint(agent_endpoint)
+            .with_service_name(&config.service_name)
+            .with_max_packet_size(config.max_packet_size);
+
+        // Batching is hard to tune because the max batch size
+        // is not currently exposed as a tunable from the trace config, and even then
+        // it's defined in terms of max number of spans, and not their size in bytes.
+        // Thus we enable batching only when the MTU size is 65000 which is the value suggested
+        // by jaeger when exporting to localhost.
+        let tracer = if config.max_packet_size >= 65_000 {
+            builder.install_batch(opentelemetry::runtime::Tokio)
+        } else {
+            builder.install_simple()
+        }
+        .unwrap();
+        Ok(tracer)
+    }
+
+    #[cfg(not(feature = "jaeger"))]
+    fn construct_jaeger_tracer(&self, _trace_config: trace::Config) -> Result<trace::Tracer> {
+        Err(Error::JaegerNotBuilt {})
+    }
+
+    #[cfg(feature = "otlp")]
+    fn construct_otlp_tracer(&self, trace_config: trace::Config) -> Result<trace::Tracer> {
+        let config = self.otlp_config.as_ref().ok_or(Error::OtlpConfigMissing)?;
+        let jaeger_endpoint = format!("{}:{}", config.host.trim(), config.port);
+        Ok(opentelemetry_otlp::new_pipeline()
+            .with_trace_config(trace_config)
+            .with_endpoint(jaeger_endpoint)
+            .with_protocol(opentelemetry_otlp::Protocol::Grpc)
+            .with_tonic()
+            .install_batch(opentelemetry::runtime::Tokio)
+            .unwrap())
+    }
+
+    #[cfg(not(feature = "otlp"))]
+    fn construct_otlp_tracer(&self, _trace_config: trace::Config) -> Result<trace::Tracer> {
+        Err(Error::OtlpNotBuilt {})
     }
 
     pub fn build(self) -> Result<impl Subscriber> {
