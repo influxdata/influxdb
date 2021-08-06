@@ -23,11 +23,12 @@ PORT=${BIND_ADDRESS##*:}
 
 set +e
 max_attempts=10
+max_time=2
 url="$PROTOCOL://$HOST:$PORT/health"
-result=$(curl -k -s -o /dev/null $url -w %{http_code})
+result=$(curl --max-time ${max_time} -k -s -o /dev/null $url -w %{http_code})
 while [ "$result" != "200" ]; do
   sleep 1
-  result=$(curl -k -s -o /dev/null $url -w %{http_code})
+  result=$(curl --max-time ${max_time} -k -s -o /dev/null $url -w %{http_code})
   max_attempts=$(($max_attempts-1))
   if [ $max_attempts -le 0 ]; then
     echo "Failed to reach influxdb $PROTOCOL endpoint at $url"
