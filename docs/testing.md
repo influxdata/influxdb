@@ -2,6 +2,75 @@
 
 This document covers details that are only relevant if you are developing IOx and running the tests.
 
+
+## Running the IOx server from source
+
+### Starting the server
+You can run IOx locally with a command like this (replacing `--data-dir` with your preferred location)
+
+```shell
+cargo run -- run -v --object-store=file --data-dir=$HOME/.influxdb_iox --server-id=42
+```
+
+### Loading data
+In another terminal window, try loading some data. These commands will create a database called `parquet_db` and load the contents of `tests/fixtures/lineproto/metrics.lp` into it
+
+```shell
+cd influxdb_iox
+./target/debug/influxdb_iox database create parquet_db
+./target/debug/influxdb_iox database write parquet_db tests/fixtures/lineproto/metrics.lp
+```
+
+### Editing configuration
+You can interactively edit the configuration of the IOx instance with a command like this:
+
+```shell
+./scripts/edit_db_rules  localhost:8082 parquet_db
+```
+
+Which will bring up your editor with a file that looks like this. Any changes you make to the file will be sent to IOx as its new config.
+
+In this case, these settings will cause data to be persisted to parquet almost immediately
+
+```json
+{
+  "rules": {
+    "name": "parquet_db",
+    "partitionTemplate": {
+      "parts": [
+        {
+          "time": "%Y-%m-%d %H:00:00"
+        }
+      ]
+    },
+    "lifecycleRules": {
+      "bufferSizeSoft": "52428800",
+      "bufferSizeHard": "104857600",
+      "dropNonPersisted": true,
+      "immutable": false,
+      "persist": true,
+      "workerBackoffMillis": "1000",
+      "catalogTransactionsUntilCheckpoint": "100",
+      "lateArriveWindowSeconds": 1,
+      "persistRowThreshold": "1",
+      "persistAgeThresholdSeconds": 1,
+      "mubRowThreshold": "1",
+      "parquetCacheLimit": "0",
+      "maxActiveCompactionsCpuFraction": 1
+    },
+    "workerCleanupAvgSleep": "500s"
+  }
+}
+```
+
+### Examining Parquet Files
+You can use tools such as `parquet-tools` to examine the parquet files created by IOx. For example, the following command will show the contents of the `disk` table when persisted as parquet (note the actual filename will be different):
+
+```shell
+parquet-tools meta /Users/alamb/.influxdb_iox/42/parquet_db/data/disk/2020-06-11\ 16\:00\:00/1.4b1a7805-d6de-495e-844b-32fa452147c7.parquet
+```
+
+
 ## Object storage
 
 ### To run the tests or not run the tests
