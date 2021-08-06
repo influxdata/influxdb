@@ -280,7 +280,7 @@ for query_file in $query_files; do
       -workers=$workers \
       -benchmark-duration=$duration | \
     jq '."all queries"' | \
-    jq -s '.[-1]'
+    jq -s '.[-1]' | \
     jq ". += {use_case: \"$usecase\", query_type: \"$type\", branch: \"$INFLUXDB_VERSION\", commit: \"$TEST_COMMIT\", time: \"$datestring\", i_type: \"$DATA_I_TYPE\", query_format: \"$format\"}" > \
       $working_dir/test-query-$format-$usecase-$type.json
 done
