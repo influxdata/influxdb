@@ -39,7 +39,29 @@ cat << EOF > /etc/telegraf/telegraf.conf
   bucket = "${CLOUD2_BUCKET}"
 
 [[inputs.file]]
-  files = ["$working_dir/*.json"]
+  name_override = "ingest"
+  files = ["$working_dir/test-ingest-*.json"]
+  file_tag = "test_name"
+  data_format = "json"
+  json_strict = true
+  json_string_fields = [
+    "branch",
+    "commit",
+    "i_type",
+    "time",
+    "use_case"
+  ]
+  json_time_key = "time"
+  json_time_format = "unix"
+  tag_keys = [
+    "i_type",
+    "use_case",
+    "branch"
+  ]
+
+[[inputs.file]]
+  name_override = "query"
+  files = ["$working_dir/test-query-*.json"]
   file_tag = "test_name"
   data_format = "json"
   json_strict = true
@@ -48,7 +70,9 @@ cat << EOF > /etc/telegraf/telegraf.conf
     "commit",
     "i_type",
     "query_format",
-    "time"
+    "query_type",
+    "time",
+    "use_case"
   ]
   json_time_key = "time"
   json_time_format = "unix"
