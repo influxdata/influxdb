@@ -369,7 +369,7 @@ mod tests {
         mock::{MockBufferForReading, MockBufferSharedState},
     };
 
-    use crate::{db::catalog::chunk::ChunkStage, utils::TestDb};
+    use crate::utils::TestDb;
 
     #[derive(Debug)]
     struct TestSequencedEntry {
@@ -433,11 +433,6 @@ mod tests {
 
         /// Advance clock far enough that all ingested entries become persistable.
         MakeWritesPersistable,
-
-        /// Drop all unpersisted chunks from given partitions.
-        ///
-        /// The partitions are by table name and partition key.
-        DropUnpersisted(Vec<(&'static str, &'static str)>),
 
         /// Assert that all these checks pass.
         Assert(Vec<Check>),
@@ -576,44 +571,6 @@ mod tests {
                     Step::MakeWritesPersistable => {
                         let mut guard = test_db.db.background_worker_now_override.lock();
                         *guard = Some(guard.unwrap() + Duration::from_secs(60));
-                    }
-                    Step::DropUnpersisted(partitions) => {
-                        let db = &test_db.db;
-
-                        for (table_name, partition_key) in partitions {
-                            println!("Drop unpersisted {}:{}", table_name, partition_key);
-                            loop {
-                                // additional scope to avoid leaking the lock guard into the generator state
-                                let any_error = {
-                                    let partition =
-                                        db.partition(table_name, partition_key).unwrap();
-                                    let mut partition = partition.write();
-
-                                    let mut chunk_ids = vec![];
-                                    for chunk in partition.chunks() {
-                                        let chunk = chunk.read();
-                                        if !matches!(chunk.stage(), ChunkStage::Persisted { .. }) {
-                                            chunk_ids.push(chunk.id());
-                                        }
-                                    }
-
-                                    let mut any_error = false;
-                                    for chunk_id in chunk_ids {
-                                        any_error |= partition.drop_chunk(chunk_id).is_err();
-                                    }
-
-                                    any_error
-                                };
-
-                                if any_error {
-                                    // conflicting lifecycle actions, wait for a bit
-                                    tokio::time::sleep(Duration::from_millis(100)).await;
-                                    continue;
-                                } else {
-                                    break;
-                                }
-                            }
-                        }
                     }
                     Step::Assert(checks) => {
                         Self::eval_checks(&checks, true, &test_db).await;
@@ -1764,7 +1721,6 @@ mod tests {
                     vec!["+-----+", "| bar |", "+-----+", "| 20  |", "+-----+"],
                 )]),
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
-                Step::DropUnpersisted(vec![("table_1", "tag_partition_by_a")]),
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 3,
@@ -1815,7 +1771,6 @@ mod tests {
                     vec!["+-----+", "| bar |", "+-----+", "| 20  |", "+-----+"],
                 )]),
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
-                Step::DropUnpersisted(vec![("table_1", "tag_partition_by_a")]),
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 3,
