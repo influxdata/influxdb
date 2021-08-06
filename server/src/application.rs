@@ -8,6 +8,7 @@ use query::exec::Executor;
 use crate::JobRegistry;
 
 /// A container for application-global resources
+/// shared between server and all DatabaseInstances
 #[derive(Debug, Clone)]
 pub struct ApplicationState {
     object_store: Arc<ObjectStore>,
