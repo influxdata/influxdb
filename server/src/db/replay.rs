@@ -1713,7 +1713,7 @@ mod tests {
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 1,
-                    lp: "table_1,tag_partition_by=a bar=10 0",
+                    lp: "table_1,tag_partition_by=a,tag=1 bar=10 10",
                 }]),
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
@@ -1723,7 +1723,8 @@ mod tests {
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 2,
-                    lp: "table_1,tag_partition_by=a bar=20 0",
+                    // same time as first entry
+                    lp: "table_1,tag_partition_by=a,tag=2 bar=20 10",
                 }]),
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
@@ -1733,7 +1734,7 @@ mod tests {
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 3,
-                    lp: "table_1,tag_partition_by=b bar=30 0",
+                    lp: "table_1,tag_partition_by=b,tag=3 bar=30 30",
                 }]),
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
@@ -1751,12 +1752,13 @@ mod tests {
                     Check::Query(
                         "select * from table_1 order by bar",
                         vec![
-                            "+-----+------------------+----------------------+",
-                            "| bar | tag_partition_by | time                 |",
-                            "+-----+------------------+----------------------+",
-                            "| 20  | a                | 1970-01-01T00:00:00Z |",
-                            "| 30  | b                | 1970-01-01T00:00:00Z |",
-                            "+-----+------------------+----------------------+",
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| bar | tag | tag_partition_by | time                           |",
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| 10  | 1   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 20  | 2   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 30  | 3   | b                | 1970-01-01T00:00:00.000000030Z |",
+                            "+-----+-----+------------------+--------------------------------+",
                         ],
                     ),
                 ]),
@@ -1782,7 +1784,7 @@ mod tests {
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 1,
-                    lp: "table_1,tag_partition_by=a bar=10 0",
+                    lp: "table_1,tag_partition_by=a,tag=1 bar=10 10",
                 }]),
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
@@ -1792,7 +1794,8 @@ mod tests {
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 2,
-                    lp: "table_1,tag_partition_by=a bar=20 0",
+                    // same time as first entry
+                    lp: "table_1,tag_partition_by=a,tag=2 bar=20 10",
                 }]),
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
@@ -1802,7 +1805,7 @@ mod tests {
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 3,
-                    lp: "table_1,tag_partition_by=b bar=30 0",
+                    lp: "table_1,tag_partition_by=b,tag=3 bar=30 30",
                 }]),
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
@@ -1812,7 +1815,7 @@ mod tests {
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 4,
-                    lp: "table_1,tag_partition_by=b bar=40 0",
+                    lp: "table_1,tag_partition_by=b,tag=4 bar=40 40",
                 }]),
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
@@ -1829,12 +1832,14 @@ mod tests {
                     Check::Query(
                         "select * from table_1 order by bar",
                         vec![
-                            "+-----+------------------+----------------------+",
-                            "| bar | tag_partition_by | time                 |",
-                            "+-----+------------------+----------------------+",
-                            "| 20  | a                | 1970-01-01T00:00:00Z |",
-                            "| 40  | b                | 1970-01-01T00:00:00Z |",
-                            "+-----+------------------+----------------------+",
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| bar | tag | tag_partition_by | time                           |",
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| 10  | 1   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 20  | 2   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 30  | 3   | b                | 1970-01-01T00:00:00.000000030Z |",
+                            "| 40  | 4   | b                | 1970-01-01T00:00:00.000000040Z |",
+                            "+-----+-----+------------------+--------------------------------+",
                         ],
                     ),
                 ]),
