@@ -22,17 +22,15 @@ HOST=${HOST:-"localhost"}
 PORT=${BIND_ADDRESS##*:}
 
 set +e
-max_attempts=10
+attempts=0
 url="$PROTOCOL://$HOST:$PORT/health"
 result=$(curl -k -s -o /dev/null $url -w %{http_code})
-while [ "$result" != "200" ]; do
+while [ "${result:0:2}" != "20" ] && [ "${result:0:2}" != "40" ]; do
+  attempts=$(($attempts+1))
+  echo "InfluxDB API unavailable after $attempts attempts..."
   sleep 1
   result=$(curl -k -s -o /dev/null $url -w %{http_code})
-  max_attempts=$(($max_attempts-1))
-  if [ $max_attempts -le 0 ]; then
-    echo "Failed to reach influxdb $PROTOCOL endpoint at $url"
-    exit 1
-  fi
 done
+echo "InfluxDB started"
 set -e
 
