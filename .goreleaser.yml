@@ -140,7 +140,7 @@ archives:
       - goos: windows
         format: zip
     wrap_in_directory: true
-    name_template: "influxdb2-server-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    name_template: "influxdb2-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
     files:
       - LICENSE
       - README.md
