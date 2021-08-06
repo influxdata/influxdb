@@ -101,7 +101,7 @@ systemctl unmask influxdb.service
 systemctl start influxdb
 
 # Common variables used across all tests
-datestring=$(date +%s)
+datestring=${TEST_COMMIT_TIME}
 seed=$datestring
 db_name="benchmark_db"
 
