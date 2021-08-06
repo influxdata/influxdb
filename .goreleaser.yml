@@ -61,9 +61,9 @@ nfpms:
           amd64: x86_64
           arm64: aarch64
           armhf: armv7hl
-        file_name_template: "influxdb2-server-nightly.{{ .Arch }}"
+        file_name_template: "influxdb2-nightly.{{ .Arch }}"
       deb:
-        file_name_template: "influxdb2-server-nightly-{{ .Arch }}"
+        file_name_template: "influxdb2-nightly-{{ .Arch }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
@@ -77,7 +77,7 @@ archives:
       - goos: windows
         format: zip
     wrap_in_directory: true
-    name_template: "influxdb2-server-nightly-{{ .Os }}-{{ .Arch }}"
+    name_template: "influxdb2-nightly-{{ .Os }}-{{ .Arch }}"
     files:
       - LICENSE
       - README.md
@@ -89,7 +89,7 @@ blobs:
     folder: "platform/nightlies/"
 
 checksum:
-  name_template: "influxdb2-server-nightly.sha256"
+  name_template: "influxdb2-nightly.sha256"
   algorithm: sha256
 
 dockers:
