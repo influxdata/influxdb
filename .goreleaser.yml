@@ -112,9 +112,9 @@ nfpms:
           amd64: x86_64
           arm64: aarch64
           armhf: armv7hl
-        file_name_template: "influxdb2-server-{{ .Version }}.{{ .Arch }}"
+        file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}"
       deb:
-        file_name_template: "influxdb2-server-{{ .Version }}-{{ .Arch }}"
+        file_name_template: "influxdb2-{{ .Version }}-{{ .Arch }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
