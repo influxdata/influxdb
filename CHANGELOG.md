@@ -16,7 +16,7 @@ v1.9.4 [unreleased]
 -	[#22048](https://github.com/influxdata/influxdb/pull/22048): fix: error instead of panic when enterprise tries to restore with OSS
 -	[#22067](https://github.com/influxdata/influxdb/pull/22067): fix: old tsl files should be compacted without new writes
 -	[#22095](https://github.com/influxdata/influxdb/pull/22095): fix: hard limit on field size while parsing line protocol
-
+-	[#22107](https://github.com/influxdata/influxdb/pull/22107): fix: ensure log formatting (JSON) is respected
 
 v1.9.3 [unreleased]
 
