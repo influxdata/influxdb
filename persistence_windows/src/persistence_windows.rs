@@ -141,6 +141,9 @@ impl PersistenceWindows {
     ///
     /// The times passed in are used to determine where to split the in-memory data when persistence
     /// is triggered (either by crossing a row count threshold or time).
+    ///
+    /// # Panics
+    /// When the passed `received_at` is smaller than the last time this method was used (aka time goes backwards).
     pub fn add_range(
         &mut self,
         sequence: Option<&Sequence>,
@@ -522,6 +525,29 @@ mod tests {
             late_arrival_period,
             Instant::now(),
         )
+    }
+
+    #[test]
+    #[should_panic(expected = "PersistenceWindows::add_range called out of order")]
+    fn panics_when_time_goes_backwards() {
+        let mut w = make_windows(Duration::from_secs(60));
+        let now = Instant::now();
+
+        w.add_range(
+            Some(&Sequence { id: 1, number: 1 }),
+            1,
+            Utc::now(),
+            Utc::now(),
+            now + Duration::from_nanos(1),
+        );
+
+        w.add_range(
+            Some(&Sequence { id: 1, number: 2 }),
+            1,
+            Utc::now(),
+            Utc::now(),
+            now,
+        );
     }
 
     #[test]
