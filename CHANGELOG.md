@@ -3,6 +3,7 @@ v1.9.4 [unreleased]
 ### Features
 
 -	[#22011](https://github.com/influxdata/influxdb/pull/22011): feat: SHOW TAG VALUES should produce results from one specific RP
+-	[#22049](https://github.com/influxdata/influxdb/pull/22049): feat: add subscription buffer size usage metric
 
 ### Bugfixes
 
@@ -10,6 +11,11 @@ v1.9.4 [unreleased]
 -	[#21988](https://github.com/influxdata/influxdb/pull/21988): fix: systemd-start script should be executable by group and others
 -	[#21993](https://github.com/influxdata/influxdb/pull/21993): fix: restore portable backup bug
 -	[#22058](https://github.com/influxdata/influxdb/pull/22058): fix: copy names from mmapped memory before closing iterator
+-	[#22044](https://github.com/influxdata/influxdb/pull/22044): fix: tsi index should compact old or too-large log files
+-	[#22046](https://github.com/influxdata/influxdb/pull/22046): fix: export example and fix adjacent shards
+-	[#22048](https://github.com/influxdata/influxdb/pull/22048): fix: error instead of panic when enterprise tries to restore with OSS
+-	[#22067](https://github.com/influxdata/influxdb/pull/22067): fix: old tsl files should be compacted without new writes
+
 
 v1.9.3 [unreleased]
 
