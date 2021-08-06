@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/flux/stdlib/experimental"
+	_ "github.com/influxdata/flux/stdlib/experimental"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/query"
@@ -20,7 +20,7 @@ import (
 )
 
 // ToKind is the kind for the `to` flux function
-const ExperimentalToKind = experimental.ExperimentalToKind
+const ExperimentalToKind = "influxdb-experimental-to"
 
 // ToOpSpec is the flux.OperationSpec for the `to` flux function.
 type ToOpSpec struct {
@@ -35,7 +35,6 @@ type ToOpSpec struct {
 func init() {
 	toSignature := runtime.MustLookupBuiltinType("experimental", "to")
 	runtime.ReplacePackageValue("experimental", "to", flux.MustValue(flux.FunctionValueWithSideEffect("to", createToOpSpec, toSignature)))
-	flux.RegisterOpSpec(ExperimentalToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ExperimentalToKind, newToProcedure, ExperimentalToKind)
 	execute.RegisterTransformation(ExperimentalToKind, createToTransformation)
 }

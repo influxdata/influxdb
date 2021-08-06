@@ -13,9 +13,9 @@ import (
 	"github.com/influxdata/flux/querytest"
 	"github.com/influxdata/flux/stdlib/universe"
 	platform "github.com/influxdata/influxdb/v2"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/models"
-	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/query/stdlib/experimental"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 )
@@ -56,7 +56,7 @@ from(bucket:"mydb")
 							ValueColumn: "_value"},
 					},
 					{
-						ID: "experimental-to3",
+						ID: "influxdb-experimental-to3",
 						Spec: &experimental.ToOpSpec{
 							Bucket: "series1",
 							Org:    "fred",
@@ -68,7 +68,7 @@ from(bucket:"mydb")
 				Edges: []flux.Edge{
 					{Parent: "from0", Child: "range1"},
 					{Parent: "range1", Child: "pivot2"},
-					{Parent: "pivot2", Child: "experimental-to3"},
+					{Parent: "pivot2", Child: "influxdb-experimental-to3"},
 				},
 			},
 		},
