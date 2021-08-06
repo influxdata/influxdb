@@ -93,6 +93,9 @@ type Config struct {
 	// Enables unicode validation on series keys on write.
 	ValidateKeys bool `toml:"validate-keys"`
 
+	// When true, skips size validation on fields
+	SkipFieldSizeValidation bool `toml:"skip-field-size-validation"`
+
 	// Enables strict error handling. For example, forces SELECT INTO to err out on INF values.
 	StrictErrorHandling bool `toml:"strict-error-handling"`
 

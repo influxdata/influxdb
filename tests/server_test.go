@@ -587,9 +587,11 @@ func TestServer_UserCommands(t *testing.T) {
 	}
 }
 
-// Ensure the server will write all points possible with exception to the field type conflict.
+// Ensure the server will write all points possible with exception of
+// - field type conflict
+// - field too large
 // This should return a partial write and a status of 400
-func TestServer_Write_FieldTypeConflict(t *testing.T) {
+func TestServer_Write_PartialWrite(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
 	defer s.Close()
@@ -598,44 +600,71 @@ func TestServer_Write_FieldTypeConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if res, err := s.Write("db0", "rp0", fmt.Sprintf("cpu value=1i %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:01Z").UnixNano()), nil); err != nil {
-		t.Fatal(err)
-	} else if exp := ``; exp != res {
-		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	tests := []struct {
+		name         string
+		expectErr    bool
+		writes       []string
+		selectResult string
+	}{
+		{
+			name:         "initial write of integer",
+			expectErr:    false,
+			writes:       []string{fmt.Sprintf("cpu value=1i %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:01Z").UnixNano())},
+			selectResult: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-01-01T00:00:01Z",1]]}]}]}`,
+		},
+		{
+			name:      "write mixed field types",
+			expectErr: true,
+			writes: []string{
+				fmt.Sprintf("cpu value=2i %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:02Z").UnixNano()),
+				fmt.Sprintf("cpu value=3  %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:03Z").UnixNano()),
+				fmt.Sprintf("cpu value=4i %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:04Z").UnixNano()),
+			},
+			selectResult: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-01-01T00:00:01Z",1],["2015-01-01T00:00:02Z",2],["2015-01-01T00:00:04Z",4]]}]}]}`,
+		},
+		{
+			name:      "write oversized field value",
+			expectErr: true,
+			writes: []string{
+				fmt.Sprintf("cpu str=\"%s\" %d", strings.Repeat("a", tsdb.MaxFieldValueLength+1), mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:05Z").UnixNano()),
+				fmt.Sprintf("cpu value=6i %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:06Z").UnixNano()),
+			},
+			selectResult: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-01-01T00:00:01Z",1],["2015-01-01T00:00:02Z",2],["2015-01-01T00:00:04Z",4],["2015-01-01T00:00:06Z",6]]}]}]}`,
+		},
+		{
+			name:      "write biggest field value",
+			expectErr: false,
+			writes: []string{
+				fmt.Sprintf("cpu str=\"%s\" %d", strings.Repeat("a", tsdb.MaxFieldValueLength), mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:07Z").UnixNano()),
+				fmt.Sprintf("cpu value=8i %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:08Z").UnixNano()),
+			},
+			selectResult: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","str","value"],"values":[["2015-01-01T00:00:01Z",null,1],["2015-01-01T00:00:02Z",null,2],["2015-01-01T00:00:04Z",null,4],["2015-01-01T00:00:06Z",null,6],["2015-01-01T00:00:07Z","` +
+				strings.Repeat("a", tsdb.MaxFieldValueLength) + `",null],["2015-01-01T00:00:08Z",null,8]]}]}]}`,
+		},
 	}
 
-	// Verify the data was written.
-	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
-		t.Fatal(err)
-	} else if exp := `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-01-01T00:00:01Z",1]]}]}]}`; exp != res {
-		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
-	}
-
-	writes := []string{
-		fmt.Sprintf("cpu value=2i %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:02Z").UnixNano()),
-		fmt.Sprintf("cpu value=3  %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:03Z").UnixNano()),
-		fmt.Sprintf("cpu value=4i %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:04Z").UnixNano()),
-	}
-	res, err := s.Write("db0", "rp0", strings.Join(writes, "\n"), nil)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	wr, ok := err.(WriteError)
-	if !ok {
-		t.Fatalf("wrong error type %v", err)
-	}
-	if exp, got := http.StatusBadRequest, wr.StatusCode(); exp != got {
-		t.Fatalf("unexpected status code\nexp: %d\ngot: %d\n", exp, got)
-	}
-	if exp := ``; exp != res {
-		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
-	}
-
-	// Verify the data was written.
-	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
-		t.Fatal(err)
-	} else if exp := `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-01-01T00:00:01Z",1],["2015-01-01T00:00:02Z",2],["2015-01-01T00:00:04Z",4]]}]}]}`; exp != res {
-		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := s.Write("db0", "rp0", strings.Join(tt.writes, "\n"), nil)
+			if tt.expectErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				wr, ok := err.(WriteError)
+				if !ok {
+					t.Fatalf("wrong error type %v", err)
+				}
+				if exp, got := http.StatusBadRequest, wr.StatusCode(); exp != got {
+					t.Fatalf("unexpected status code\nexp: %d\ngot: %d\n", exp, got)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, "", res)
+			res, err = s.Query(`SELECT * FROM db0.rp0.cpu`)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.selectResult, res)
+		})
 	}
 }
 
