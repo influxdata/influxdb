@@ -39,17 +39,17 @@ This section describes the key terms and vocabulary that is used in this documen
 *Row Group*: row groups are separations of data within a Chunk. Row groups have non-overlapping data within a chunk and map to the same equivalent in Parquet files. The *Read Buffer* has a row group equivalent. What boundaries to use to separate data into row groups can be set by the operator. This provides another method for allowing the query planner and executor to rule out sections of data from consideration to process a query.
 
 ## Data Lifecycle
-1. An IOx server defines the following parts of the data lifecycle:
-2. Ingest (from InfluxDB Line Protocol, JSON, or Flatbuffers)
-3. Schema validation & partition key creation
-4. Write buffering and shipping Write Buffer segments to object storage
-5. Writes to In-memory buffer that is queryable (named MutableBuffer)
-6. Synchronous Replication (inside the write request/response)
-7. Subscriptions (sent outside the write request/response from the Write Buffer)
-8. Creation of immutable in-memory Chunks (in the ReadBuffer)
-9. Creation of immutable durable Chunks (in the ObjectStore)
-10. Tails (subscriptions, but from Write Buffer Segments in object storage potentially from many writers)
-11. Loading of Parquet files into the Read Buffer
+An IOx server defines the following parts of the data lifecycle:
+1. Ingest (from InfluxDB Line Protocol, JSON, or Flatbuffers)
+2. Schema validation & partition key creation
+3. Write buffering and shipping Write Buffer segments to object storage
+4. Writes to In-memory buffer that is queryable (named MutableBuffer)
+5. Synchronous Replication (inside the write request/response)
+6. Subscriptions (sent outside the write request/response from the Write Buffer)
+7. Creation of immutable in-memory Chunks (in the ReadBuffer)
+8. Creation of immutable durable Chunks (in the ObjectStore)
+9. Tails (subscriptions, but from Write Buffer Segments in object storage potentially from many writers)
+10. Loading of Parquet files into the Read Buffer
 
 Each part of this lifecycle is optional. This can be run entirely on a single server or it can be split up across many servers to isolate workloads. Here’s a high level overview of the lifecycle flow:
 
@@ -89,13 +89,19 @@ From drawings/data_lifecycle.monopic
                  └─────────────────────┘   └───────────────────────┘    └────────────────────┘
                             │                                                      │
                             │                                                      │
-         ┌──────────────────┼───────────────────┐                      ┌───────────┴────────────┐
-         │                  │                   │                      │                        │
-         ▼                  ▼                   ▼                      ▼                        ▼
- ┌──────────────┐  ┌────────────────┐  ┌────────────────┐   ┌────────────────────┐   ┌────────────────────┐
- │   Queries    │  │    Chunk to    │  │    Chunk to    │   │    WB Segment to   │   │   Subscriptions    │
- │              │  │  Read Buffer   │  │  Object Store  │   │    Object Store    │   │                    │
- └──────────────┘  └────────────────┘  └────────────────┘   └────────────────────┘   └────────────────────┘
+         ┌──────────────────┼                                          ┌───────────┴────────────┐
+         │                  │                                          │                        │
+         ▼                  ▼                                          ▼                        ▼
+ ┌──────────────┐   ┌────────────────┐                       ┌────────────────────┐   ┌────────────────────┐
+ │   Queries    │◀─ │    Chunk to    │                       │    WB Segment to   │   │   Subscriptions    │
+ │              │   │  Read Buffer   │                       │    Object Store    │   │                    │
+ └──────────────┘   └────────────────┘                       └────────────────────┘   └────────────────────┘
+         ▲                   │
+         │                   ▼
+         │          ┌────────────────┐ 
+         │          │    Chunk to    │ 
+          ────      │  Object Store  │ 
+                    └────────────────┘ 
  ```
 
 
@@ -116,6 +122,11 @@ From drawings/data_organization.monopic
 
                          ┌──────────────────────────┐
                          │          mydata          │                                   Database
+                         └──────────────────────────┘
+                                      |
+                                      ▼ 
+                         ┌──────────────────────────┐
+                         │          mytable         │                                   Table
                          └──────────────────────────┘
                                        │
              ┌─────────────────────────┼───────────────────────┐
