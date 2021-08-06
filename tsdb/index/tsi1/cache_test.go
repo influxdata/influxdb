@@ -9,6 +9,28 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+// This function is used to log the components of disk size when DiskSizeBytes fails
+func (i *Index) LogDiskSize(t *testing.T) {
+	fs, err := i.RetainFileSet()
+	if err != nil {
+		t.Log("could not retain fileset")
+	}
+	defer fs.Release()
+	var size int64
+	// Get MANIFEST sizes from each partition.
+	for count, p := range i.partitions {
+		sz := p.manifestSize
+		t.Logf("Parition %d has size %d", count, sz)
+		size += sz
+	}
+	for _, f := range fs.files {
+		sz := f.Size()
+		t.Logf("Size of file %s is %d", f.Path(), sz)
+		size += sz
+	}
+	t.Logf("Total size is %d", size)
+}
+
 func TestTagValueSeriesIDCache(t *testing.T) {
 	m0k0v0 := tsdb.NewSeriesIDSet(1, 2, 3, 4, 5)
 	m0k0v1 := tsdb.NewSeriesIDSet(10, 20, 30, 40, 50)
