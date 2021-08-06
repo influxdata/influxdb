@@ -105,9 +105,7 @@ datestring=$(date +%s)
 seed=$datestring
 db_name="benchmark_db"
 
-# Controls how many data points will be generated. The total number of points
-# will be scale_var * scale_var, where each point is (approximately) a unique
-# series.
+# Controls the cardinality of generated points. Cardinality will be scale_var * scale_var.
 scale_var=1000
 
 # How many queries to generate.
@@ -281,6 +279,8 @@ for query_file in $query_files; do
       -token=$TEST_TOKEN \
       -workers=$workers \
       -benchmark-duration=$duration | \
+    jq '."all queries"' | \
+    jq -s '.[-1]'
     jq ". += {use_case: \"$usecase\", query_type: \"$type\", branch: \"$INFLUXDB_VERSION\", commit: \"$TEST_COMMIT\", time: \"$datestring\", i_type: \"$DATA_I_TYPE\", query_format: \"$format\"}" > \
       $working_dir/test-query-$format-$usecase-$type.json
 done
