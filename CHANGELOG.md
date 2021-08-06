@@ -28,6 +28,7 @@
 -	[#21992](https://github.com/influxdata/influxdb/pull/21992): fix: systemd-start script should be executable by group and others
 -	[#22019](https://github.com/influxdata/influxdb/pull/22019): fix: error instead of panic when enterprise tries to restore with OSS
 -	[#22040](https://github.com/influxdata/influxdb/pull/22040): fix: copy names from mmapped memory before closing iterator
+-	[#22104](https://github.com/influxdata/influxdb/issues/22104): fix: ensure log formatting (JSON) is respected
 
 v1.9.2 [unreleased]
 -	[#21631](https://github.com/influxdata/influxdb/pull/21631): fix: group by returns multiple results per group in some circumstances
