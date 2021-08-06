@@ -67,6 +67,16 @@ impl OptionalMinMaxSequence {
     }
 }
 
+impl std::fmt::Display for OptionalMinMaxSequence {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(min) = self.min {
+            write!(f, "[{}, {}]", min, self.max)
+        } else {
+            write!(f, "({}, {}]", self.max, self.max)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -109,5 +119,21 @@ mod tests {
     #[should_panic(expected = "min (11) is greater than max (10) sequence")]
     fn test_opt_min_max_checks_values() {
         OptionalMinMaxSequence::new(Some(11), 10);
+    }
+
+    #[test]
+    fn test_opt_min_max_display() {
+        assert_eq!(
+            OptionalMinMaxSequence::new(Some(10), 20).to_string(),
+            "[10, 20]".to_string()
+        );
+        assert_eq!(
+            OptionalMinMaxSequence::new(Some(20), 20).to_string(),
+            "[20, 20]".to_string()
+        );
+        assert_eq!(
+            OptionalMinMaxSequence::new(None, 20).to_string(),
+            "(20, 20]".to_string()
+        );
     }
 }

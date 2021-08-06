@@ -265,6 +265,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
+use observability_deps::tracing::warn;
 use snafu::{OptionExt, Snafu};
 
 use crate::min_max_sequence::OptionalMinMaxSequence;
@@ -298,38 +299,6 @@ pub enum Error {
     PartitionCheckpointMaximumAfterDatabase {
         partition_checkpoint_sequence_number: u64,
         database_checkpoint_sequence_number: u64,
-        table_name: Arc<str>,
-        partition_key: Arc<str>,
-        sequencer_id: u32,
-    },
-
-    #[snafu(
-        display(
-            "Minimum sequence number in partition checkpoint ({}) is lower than database-wide number ({}) for partition {}:{} and sequencer {}",
-            partition_checkpoint_sequence_number,
-            database_checkpoint_sequence_number,
-            table_name,
-            partition_key,
-            sequencer_id,
-        )
-    )]
-    PartitionCheckpointMinimumBeforeDatabase {
-        partition_checkpoint_sequence_number: u64,
-        database_checkpoint_sequence_number: u64,
-        table_name: Arc<str>,
-        partition_key: Arc<str>,
-        sequencer_id: u32,
-    },
-
-    #[snafu(
-        display(
-            "Partition checkpoint for partition {}:{} and sequencer {} has non-empty unpersisted range but database checkpoint indicates empty replay range",
-            table_name,
-            partition_key,
-            sequencer_id,
-        )
-    )]
-    PartitionCheckpointEmptyRangeMismatch {
         table_name: Arc<str>,
         partition_key: Arc<str>,
         sequencer_id: u32,
@@ -675,26 +644,20 @@ impl ReplayPlanner {
                     },
                 )?;
 
-                match (min_max.min(), database_wide_min_max.min()) {
-                    (Some(min), Some(db_min)) => {
-                        if min < db_min {
-                            return Err(Error::PartitionCheckpointMinimumBeforeDatabase {
-                                partition_checkpoint_sequence_number: min,
-                                database_checkpoint_sequence_number: db_min,
-                                table_name: Arc::clone(table_name),
-                                partition_key: Arc::clone(partition_key),
-                                sequencer_id: *sequencer_id,
-                            });
-                        }
-                    }
-                    (Some(_min), None) => {
-                        return Err(Error::PartitionCheckpointEmptyRangeMismatch {
-                            table_name: Arc::clone(table_name),
-                            partition_key: Arc::clone(partition_key),
-                            sequencer_id: *sequencer_id,
-                        });
-                    }
-                    _ => {}
+                let sequence_missing = match (min_max.min(), database_wide_min_max.min()) {
+                    (Some(min), Some(db_min)) => min < db_min,
+                    (Some(_min), None) => true,
+                    _ => false,
+                };
+                if sequence_missing {
+                    warn!(
+                        %table_name,
+                        %partition_key,
+                        sequencer_id,
+                        database_checkpoint_range=%database_wide_min_max,
+                        partition_checkpoint_range=%min_max,
+                        "Last partition checkpoint states that there is unpersisted data, but the final database state deems it fully persisted. What happened to these sequence numbers?",
+                    );
                 }
 
                 if min_max.max() > database_wide_min_max.max() {
@@ -772,6 +735,8 @@ impl ReplayPlan {
 
 #[cfg(test)]
 mod tests {
+    use test_helpers::{assert_contains, tracing::TracingCapture};
+
     use super::*;
 
     /// Create sequence numbers map.
@@ -1089,35 +1054,33 @@ mod tests {
     }
 
     #[test]
-    fn test_replay_planner_fail_empty_range_out_of_sync() {
-        let mut planner = ReplayPlanner::new();
+    fn test_replay_planner_warns_empty_range_out_of_sync() {
+        let tracing_capture = TracingCapture::new();
 
+        let mut planner = ReplayPlanner::new();
         planner.register_checkpoints(
             &part_ckpt!("table_1", "partition_1", {1 => (Some(10), 12)}),
             &db_ckpt!({1 => (None, 20)}),
         );
+        planner.build().unwrap();
 
-        let err = planner.build().unwrap_err();
-        assert!(matches!(
-            err,
-            Error::PartitionCheckpointEmptyRangeMismatch { .. }
-        ));
+        let output = tracing_capture.to_string();
+        assert_contains!(output, "What happened to these sequence numbers?");
     }
 
     #[test]
-    fn test_replay_planner_fail_minima_out_of_sync() {
-        let mut planner = ReplayPlanner::new();
+    fn test_replay_planner_warns_minima_out_of_sync() {
+        let tracing_capture = TracingCapture::new();
 
+        let mut planner = ReplayPlanner::new();
         planner.register_checkpoints(
             &part_ckpt!("table_1", "partition_1", {1 => (Some(10), 12)}),
             &db_ckpt!({1 => (Some(11), 20)}),
         );
+        planner.build().unwrap();
 
-        let err = planner.build().unwrap_err();
-        assert!(matches!(
-            err,
-            Error::PartitionCheckpointMinimumBeforeDatabase { .. }
-        ));
+        let output = tracing_capture.to_string();
+        assert_contains!(output, "What happened to these sequence numbers?");
     }
 
     #[test]

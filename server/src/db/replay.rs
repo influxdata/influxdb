@@ -369,7 +369,7 @@ mod tests {
         mock::{MockBufferForReading, MockBufferSharedState},
     };
 
-    use crate::{db::catalog::chunk::ChunkStage, utils::TestDb};
+    use crate::utils::TestDb;
 
     #[derive(Debug)]
     struct TestSequencedEntry {
@@ -426,6 +426,9 @@ mod tests {
         /// Perform replay
         Replay,
 
+        /// Skip replay and seek to high watermark instead.
+        SkipReplay,
+
         /// Persist partitions.
         ///
         /// The partitions are by table name and partition key.
@@ -433,11 +436,6 @@ mod tests {
 
         /// Advance clock far enough that all ingested entries become persistable.
         MakeWritesPersistable,
-
-        /// Drop all unpersisted chunks from given partitions.
-        ///
-        /// The partitions are by table name and partition key.
-        DropUnpersisted(Vec<(&'static str, &'static str)>),
 
         /// Assert that all these checks pass.
         Assert(Vec<Check>),
@@ -545,6 +543,11 @@ mod tests {
                             .await
                             .unwrap();
                     }
+                    Step::SkipReplay => {
+                        let db = &test_db.db;
+
+                        db.perform_replay(&test_db.replay_plan, true).await.unwrap();
+                    }
                     Step::Persist(partitions) => {
                         let db = &test_db.db;
 
@@ -576,44 +579,6 @@ mod tests {
                     Step::MakeWritesPersistable => {
                         let mut guard = test_db.db.background_worker_now_override.lock();
                         *guard = Some(guard.unwrap() + Duration::from_secs(60));
-                    }
-                    Step::DropUnpersisted(partitions) => {
-                        let db = &test_db.db;
-
-                        for (table_name, partition_key) in partitions {
-                            println!("Drop unpersisted {}:{}", table_name, partition_key);
-                            loop {
-                                // additional scope to avoid leaking the lock guard into the generator state
-                                let any_error = {
-                                    let partition =
-                                        db.partition(table_name, partition_key).unwrap();
-                                    let mut partition = partition.write();
-
-                                    let mut chunk_ids = vec![];
-                                    for chunk in partition.chunks() {
-                                        let chunk = chunk.read();
-                                        if !matches!(chunk.stage(), ChunkStage::Persisted { .. }) {
-                                            chunk_ids.push(chunk.id());
-                                        }
-                                    }
-
-                                    let mut any_error = false;
-                                    for chunk_id in chunk_ids {
-                                        any_error |= partition.drop_chunk(chunk_id).is_err();
-                                    }
-
-                                    any_error
-                                };
-
-                                if any_error {
-                                    // conflicting lifecycle actions, wait for a bit
-                                    tokio::time::sleep(Duration::from_millis(100)).await;
-                                    continue;
-                                } else {
-                                    break;
-                                }
-                            }
-                        }
                     }
                     Step::Assert(checks) => {
                         Self::eval_checks(&checks, true, &test_db).await;
@@ -1739,15 +1704,16 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "PartitionCheckpointEmptyRangeMismatch")]
-    async fn replay_works_with_checkpoints_partially_persisted_1() {
+    async fn replay_works_partially_persisted_1() {
         // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
+        let tracing_capture = TracingCapture::new();
+
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 1,
-                    lp: "table_1,tag_partition_by=a bar=10 0",
+                    lp: "table_1,tag_partition_by=a,tag=1 bar=10 10",
                 }]),
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
@@ -1757,18 +1723,18 @@ mod tests {
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 2,
-                    lp: "table_1,tag_partition_by=a bar=20 0",
+                    // same time as first entry
+                    lp: "table_1,tag_partition_by=a,tag=2 bar=20 10",
                 }]),
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
                     vec!["+-----+", "| bar |", "+-----+", "| 20  |", "+-----+"],
                 )]),
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
-                Step::DropUnpersisted(vec![("table_1", "tag_partition_by_a")]),
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 3,
-                    lp: "table_1,tag_partition_by=b bar=30 0",
+                    lp: "table_1,tag_partition_by=b,tag=3 bar=30 30",
                 }]),
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
@@ -1778,27 +1744,47 @@ mod tests {
                 Step::Persist(vec![("table_1", "tag_partition_by_b")]),
                 Step::Restart,
                 Step::Replay,
-                Step::Assert(vec![Check::Partitions(vec![
-                    ("table_1", "tag_partition_by_a"),
-                    ("table_1", "tag_partition_by_b"),
-                ])]),
+                Step::Assert(vec![
+                    Check::Partitions(vec![
+                        ("table_1", "tag_partition_by_a"),
+                        ("table_1", "tag_partition_by_b"),
+                    ]),
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| bar | tag | tag_partition_by | time                           |",
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| 10  | 1   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 20  | 2   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 30  | 3   | b                | 1970-01-01T00:00:00.000000030Z |",
+                            "+-----+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                ]),
             ],
             ..Default::default()
         }
         .run()
         .await;
+
+        assert_contains!(
+            tracing_capture.to_string(),
+            "What happened to these sequence numbers?"
+        );
     }
 
     #[tokio::test]
-    #[should_panic(expected = "PartitionCheckpointMinimumBeforeDatabase")]
-    async fn replay_works_with_checkpoints_partially_persisted_2() {
+    async fn replay_works_partially_persisted_2() {
         // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
+        let tracing_capture = TracingCapture::new();
+
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 1,
-                    lp: "table_1,tag_partition_by=a bar=10 0",
+                    lp: "table_1,tag_partition_by=a,tag=1 bar=10 10",
                 }]),
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
@@ -1808,18 +1794,18 @@ mod tests {
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 2,
-                    lp: "table_1,tag_partition_by=a bar=20 0",
+                    // same time as first entry
+                    lp: "table_1,tag_partition_by=a,tag=2 bar=20 10",
                 }]),
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
                     vec!["+-----+", "| bar |", "+-----+", "| 20  |", "+-----+"],
                 )]),
                 Step::Persist(vec![("table_1", "tag_partition_by_a")]),
-                Step::DropUnpersisted(vec![("table_1", "tag_partition_by_a")]),
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 3,
-                    lp: "table_1,tag_partition_by=b bar=30 0",
+                    lp: "table_1,tag_partition_by=b,tag=3 bar=30 30",
                 }]),
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
@@ -1829,7 +1815,7 @@ mod tests {
                 Step::Ingest(vec![TestSequencedEntry {
                     sequencer_id: 0,
                     sequence_number: 4,
-                    lp: "table_1,tag_partition_by=b bar=40 0",
+                    lp: "table_1,tag_partition_by=b,tag=4 bar=40 40",
                 }]),
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
@@ -1838,15 +1824,105 @@ mod tests {
                 Step::Persist(vec![("table_1", "tag_partition_by_b")]),
                 Step::Restart,
                 Step::Replay,
-                Step::Assert(vec![Check::Partitions(vec![
-                    ("table_1", "tag_partition_by_a"),
-                    ("table_1", "tag_partition_by_b"),
-                ])]),
+                Step::Assert(vec![
+                    Check::Partitions(vec![
+                        ("table_1", "tag_partition_by_a"),
+                        ("table_1", "tag_partition_by_b"),
+                    ]),
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| bar | tag | tag_partition_by | time                           |",
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| 10  | 1   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 20  | 2   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 30  | 3   | b                | 1970-01-01T00:00:00.000000030Z |",
+                            "| 40  | 4   | b                | 1970-01-01T00:00:00.000000040Z |",
+                            "+-----+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                ]),
             ],
             ..Default::default()
         }
         .run()
         .await;
+
+        assert_contains!(
+            tracing_capture.to_string(),
+            "What happened to these sequence numbers?"
+        );
+    }
+
+    #[tokio::test]
+    async fn replay_works_after_skip() {
+        let tracing_capture = TracingCapture::new();
+
+        ReplayTest {
+            steps: vec![
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 1,
+                    lp: "table_1,tag_partition_by=a bar=10 10",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 10  |", "+-----+"],
+                )]),
+                Step::MakeWritesPersistable,
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 2,
+                    lp: "table_1,tag_partition_by=a bar=20 20",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 20  |", "+-----+"],
+                )]),
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                Step::Restart,
+                Step::SkipReplay,
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 3,
+                    lp: "table_1,tag_partition_by=b bar=30 30",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 30  |", "+-----+"],
+                )]),
+                Step::MakeWritesPersistable,
+                Step::Persist(vec![("table_1", "tag_partition_by_b")]),
+                Step::Restart,
+                Step::Replay,
+                Step::Assert(vec![
+                    Check::Partitions(vec![
+                        ("table_1", "tag_partition_by_a"),
+                        ("table_1", "tag_partition_by_b"),
+                    ]),
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+--------------------------------+",
+                            "| bar | tag_partition_by | time                           |",
+                            "+-----+------------------+--------------------------------+",
+                            "| 10  | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 30  | b                | 1970-01-01T00:00:00.000000030Z |",
+                            "+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                ]),
+            ],
+            ..Default::default()
+        }
+        .run()
+        .await;
+
+        assert_contains!(
+            tracing_capture.to_string(),
+            "What happened to these sequence numbers?"
+        );
     }
 
     #[tokio::test]

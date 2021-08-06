@@ -8,4 +8,8 @@ chrono = "0.4"
 data_types = { path = "../data_types" }
 entry = { path = "../entry" }
 internal_types = { path = "../internal_types" }
+observability_deps = { path = "../observability_deps" }
 snafu = "0.6.2"
+
+[dev-dependencies]
+test_helpers = { path = "../test_helpers" }
