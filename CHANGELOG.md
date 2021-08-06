@@ -12,6 +12,7 @@ v1.8.8 [unreleased]
 - [#21987](https://github.com/influxdata/influxdb/pull/21987): fix: systemd-startup script should be executable by group and others
 - [#22026](https://github.com/influxdata/influxdb/pull/22026): fix: handle https in systemd wrapper, and prevent it from looping forever
 - [#22039](https://github.com/influxdata/influxdb/pull/22039): fix: error instead of panic when enterprise tries to restore with OSS
+- [#22075](https://github.com/influxdata/influxdb/pull/22075): fix: Increase loop length for making sure influx is up
 
 v1.8.7 [2021-07-21]
 -------------------
