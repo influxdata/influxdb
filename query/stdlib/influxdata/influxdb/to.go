@@ -596,7 +596,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 						}
 					}
 					// TODO(docmerlin): instead of doing this sort of thing, it would be nice if we had a way that allocated a lot less.
-					kv = append(kv, []byte(col.Label), er.Strings(j).Value(i))
+					kv = append(kv, []byte(col.Label), []byte(er.Strings(j).Value(i)))
 				}
 			}
 

@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/apache/arrow/go/arrow/array"
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/array"
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
@@ -175,7 +175,7 @@ func (t *queryTable) translateRowsToColumns() error {
 				if !ok {
 					return fmt.Errorf("unsupported type %T found in column %s of type %s", val, col.Label, col.Type)
 				}
-				b.AppendString(val)
+				b.Append(val)
 			}
 			t.cols[i] = b.NewArray()
 			b.Release()
@@ -229,7 +229,7 @@ func (t *queryTable) translateRowsToColumns() error {
 		}
 
 		for i := 0; i < t.Len(); i++ {
-			b.AppendString(value)
+			b.Append(value)
 		}
 		t.cols[j] = b.NewArray()
 		b.Release()
@@ -369,34 +369,34 @@ func (r *queryTable) Bools(j int) *array.Boolean {
 // Ints returns the values in column index j as ints.
 // It will panic if the column is not a []int64.
 // It is used to implement flux.ColReader.
-func (r *queryTable) Ints(j int) *array.Int64 {
-	return r.cols[j].(*array.Int64)
+func (r *queryTable) Ints(j int) *array.Int {
+	return r.cols[j].(*array.Int)
 }
 
 // UInts returns the values in column index j as ints.
 // It will panic if the column is not a []uint64.
 // It is used to implement flux.ColReader.
-func (r *queryTable) UInts(j int) *array.Uint64 {
-	return r.cols[j].(*array.Uint64)
+func (r *queryTable) UInts(j int) *array.Uint {
+	return r.cols[j].(*array.Uint)
 }
 
 // Floats returns the values in column index j as floats.
 // It will panic if the column is not a []float64.
 // It is used to implement flux.ColReader.
-func (r *queryTable) Floats(j int) *array.Float64 {
-	return r.cols[j].(*array.Float64)
+func (r *queryTable) Floats(j int) *array.Float {
+	return r.cols[j].(*array.Float)
 }
 
 // Strings returns the values in column index j as strings.
 // It will panic if the column is not a []string.
 // It is used to implement flux.ColReader.
-func (r *queryTable) Strings(j int) *array.Binary {
-	return r.cols[j].(*array.Binary)
+func (r *queryTable) Strings(j int) *array.String {
+	return r.cols[j].(*array.String)
 }
 
 // Times returns the values in column index j as values.Times.
 // It will panic if the column is not a []values.Time.
 // It is used to implement flux.ColReader.
-func (r *queryTable) Times(j int) *array.Int64 {
-	return r.cols[j].(*array.Int64)
+func (r *queryTable) Times(j int) *array.Int {
+	return r.cols[j].(*array.Int)
 }
