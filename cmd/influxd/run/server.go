@@ -632,7 +632,7 @@ func (s *Server) startProfile() error {
 			return err
 		}
 
-		log.Printf("Writing CPU profile to: %s\n", s.CPUProfile)
+		s.Logger.Info("writing CPU profile", zap.String("location", s.CPUProfile))
 	}
 
 	if s.MemProfile != "" {
@@ -644,7 +644,7 @@ func (s *Server) startProfile() error {
 		s.MemProfileWriteCloser = f
 		runtime.MemProfileRate = 4096
 
-		log.Printf("Writing mem profile to: %s\n", s.MemProfile)
+		s.Logger.Info("writing mem profile", zap.String("location", s.MemProfile))
 	}
 
 	return nil
@@ -657,7 +657,7 @@ func (s *Server) stopProfile() error {
 		if err := s.CPUProfileWriteCloser.Close(); err != nil {
 			return err
 		}
-		log.Println("CPU profile stopped")
+		s.Logger.Info("CPU profile stopped")
 	}
 
 	if s.MemProfileWriteCloser != nil {
@@ -665,7 +665,7 @@ func (s *Server) stopProfile() error {
 		if err := s.MemProfileWriteCloser.Close(); err != nil {
 			return err
 		}
-		log.Println("mem profile stopped")
+		s.Logger.Info("mem profile stopped")
 	}
 
 	return nil
