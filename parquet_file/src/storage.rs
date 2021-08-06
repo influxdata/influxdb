@@ -18,6 +18,7 @@ use observability_deps::tracing::debug;
 use parquet::{
     self,
     arrow::ArrowWriter,
+    basic::Compression,
     file::{metadata::KeyValue, properties::WriterProperties, writer::TryClone},
 };
 use query::{exec::stream::AdapterStream, predicate::Predicate};
@@ -191,6 +192,16 @@ impl Storage {
         Ok((path, file_size_bytes, md))
     }
 
+    fn writer_props(metadata_bytes: &[u8]) -> WriterProperties {
+        WriterProperties::builder()
+            .set_key_value_metadata(Some(vec![KeyValue {
+                key: METADATA_KEY.to_string(),
+                value: Some(base64::encode(&metadata_bytes)),
+            }]))
+            .set_compression(Compression::ZSTD)
+            .build()
+    }
+
     /// Convert the given stream of RecordBatches to bytes
     async fn parquet_stream_to_bytes(
         mut stream: SendableRecordBatchStream,
@@ -199,12 +210,7 @@ impl Storage {
     ) -> Result<Vec<u8>> {
         let metadata_bytes = metadata.to_protobuf().context(MetadataEncodeFailure)?;
 
-        let props = WriterProperties::builder()
-            .set_key_value_metadata(Some(vec![KeyValue {
-                key: METADATA_KEY.to_string(),
-                value: Some(base64::encode(&metadata_bytes)),
-            }]))
-            .build();
+        let props = Self::writer_props(&metadata_bytes);
 
         let mem_writer = MemWriter::default();
         {
@@ -465,6 +471,7 @@ mod tests {
     use chrono::Utc;
     use datafusion::physical_plan::common::SizedRecordBatchStream;
     use datafusion_util::MemoryStream;
+    use parquet::schema::types::ColumnPath;
 
     #[tokio::test]
     async fn test_parquet_contains_key_value_metadata() {
@@ -604,5 +611,15 @@ mod tests {
         let l1 = storage.location(&chunk_addr);
         let l2 = storage.location(&chunk_addr);
         assert_ne!(l1, l2);
+    }
+
+    #[test]
+    fn test_props_have_compression() {
+        // should be writing with compression
+        let props = Storage::writer_props(&[]);
+
+        // arbitrary column name to get default values
+        let col_path: ColumnPath = "default".into();
+        assert_eq!(props.compression(&col_path), Compression::ZSTD);
     }
 }

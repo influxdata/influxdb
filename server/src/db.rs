@@ -3401,7 +3401,7 @@ mod tests {
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
                 memory_bytes: 3284,       // size of RB and OS chunks
-                object_store_bytes: 1523, // size of parquet file
+                object_store_bytes: 1577, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
                 time_of_first_write: Utc.timestamp_nanos(1),
