@@ -656,7 +656,7 @@ impl ReplayPlanner {
                         sequencer_id,
                         database_checkpoint_range=%database_wide_min_max,
                         partition_checkpoint_range=%min_max,
-                        "Last partition checkpoint states that there is unpersisted data, but the final database state deems is persisted. What happened to these sequence numbers?",
+                        "Last partition checkpoint states that there is unpersisted data, but the final database state deems it fully persisted. What happened to these sequence numbers?",
                     );
                 }
 
