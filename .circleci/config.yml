@@ -382,6 +382,12 @@ jobs:
           name: Check flag generation
           command: ./scripts/ci/lint/flags.bash
       - run: make checkgenerate
+      - run:
+          name: Check generation when vendoring deps
+          command: |
+            go mod vendor
+            make checkgenerate
+            rm -rf vendor
       - run: make vet
       - run: make checkfmt
       - run: go install honnef.co/go/tools/cmd/staticcheck
