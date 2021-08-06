@@ -2730,7 +2730,9 @@ dependencies = [
  "data_types",
  "entry",
  "internal_types",
+ "observability_deps",
  "snafu",
+ "test_helpers",
 ]
 
 [[package]]

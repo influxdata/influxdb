@@ -426,6 +426,9 @@ mod tests {
         /// Perform replay
         Replay,
 
+        /// Skip replay and seek to high watermark instead.
+        SkipReplay,
+
         /// Persist partitions.
         ///
         /// The partitions are by table name and partition key.
@@ -539,6 +542,11 @@ mod tests {
                         db.perform_replay(&test_db.replay_plan, false)
                             .await
                             .unwrap();
+                    }
+                    Step::SkipReplay => {
+                        let db = &test_db.db;
+
+                        db.perform_replay(&test_db.replay_plan, true).await.unwrap();
                     }
                     Step::Persist(partitions) => {
                         let db = &test_db.db;
@@ -1696,9 +1704,10 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "PartitionCheckpointEmptyRangeMismatch")]
-    async fn replay_works_with_checkpoints_partially_persisted_1() {
+    async fn replay_works_partially_persisted_1() {
         // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
+        let tracing_capture = TracingCapture::new();
+
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![TestSequencedEntry {
@@ -1734,21 +1743,40 @@ mod tests {
                 Step::Persist(vec![("table_1", "tag_partition_by_b")]),
                 Step::Restart,
                 Step::Replay,
-                Step::Assert(vec![Check::Partitions(vec![
-                    ("table_1", "tag_partition_by_a"),
-                    ("table_1", "tag_partition_by_b"),
-                ])]),
+                Step::Assert(vec![
+                    Check::Partitions(vec![
+                        ("table_1", "tag_partition_by_a"),
+                        ("table_1", "tag_partition_by_b"),
+                    ]),
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+----------------------+",
+                            "| bar | tag_partition_by | time                 |",
+                            "+-----+------------------+----------------------+",
+                            "| 20  | a                | 1970-01-01T00:00:00Z |",
+                            "| 30  | b                | 1970-01-01T00:00:00Z |",
+                            "+-----+------------------+----------------------+",
+                        ],
+                    ),
+                ]),
             ],
             ..Default::default()
         }
         .run()
         .await;
+
+        assert_contains!(
+            tracing_capture.to_string(),
+            "What happened to these sequence numbers?"
+        );
     }
 
     #[tokio::test]
-    #[should_panic(expected = "PartitionCheckpointMinimumBeforeDatabase")]
-    async fn replay_works_with_checkpoints_partially_persisted_2() {
+    async fn replay_works_partially_persisted_2() {
         // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
+        let tracing_capture = TracingCapture::new();
+
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![TestSequencedEntry {
@@ -1793,15 +1821,103 @@ mod tests {
                 Step::Persist(vec![("table_1", "tag_partition_by_b")]),
                 Step::Restart,
                 Step::Replay,
-                Step::Assert(vec![Check::Partitions(vec![
-                    ("table_1", "tag_partition_by_a"),
-                    ("table_1", "tag_partition_by_b"),
-                ])]),
+                Step::Assert(vec![
+                    Check::Partitions(vec![
+                        ("table_1", "tag_partition_by_a"),
+                        ("table_1", "tag_partition_by_b"),
+                    ]),
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+----------------------+",
+                            "| bar | tag_partition_by | time                 |",
+                            "+-----+------------------+----------------------+",
+                            "| 20  | a                | 1970-01-01T00:00:00Z |",
+                            "| 40  | b                | 1970-01-01T00:00:00Z |",
+                            "+-----+------------------+----------------------+",
+                        ],
+                    ),
+                ]),
             ],
             ..Default::default()
         }
         .run()
         .await;
+
+        assert_contains!(
+            tracing_capture.to_string(),
+            "What happened to these sequence numbers?"
+        );
+    }
+
+    #[tokio::test]
+    async fn replay_works_after_skip() {
+        let tracing_capture = TracingCapture::new();
+
+        ReplayTest {
+            steps: vec![
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 1,
+                    lp: "table_1,tag_partition_by=a bar=10 10",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 10  |", "+-----+"],
+                )]),
+                Step::MakeWritesPersistable,
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 2,
+                    lp: "table_1,tag_partition_by=a bar=20 20",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 20  |", "+-----+"],
+                )]),
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                Step::Restart,
+                Step::SkipReplay,
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 3,
+                    lp: "table_1,tag_partition_by=b bar=30 30",
+                }]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 30  |", "+-----+"],
+                )]),
+                Step::MakeWritesPersistable,
+                Step::Persist(vec![("table_1", "tag_partition_by_b")]),
+                Step::Restart,
+                Step::Replay,
+                Step::Assert(vec![
+                    Check::Partitions(vec![
+                        ("table_1", "tag_partition_by_a"),
+                        ("table_1", "tag_partition_by_b"),
+                    ]),
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+--------------------------------+",
+                            "| bar | tag_partition_by | time                           |",
+                            "+-----+------------------+--------------------------------+",
+                            "| 10  | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 30  | b                | 1970-01-01T00:00:00.000000030Z |",
+                            "+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                ]),
+            ],
+            ..Default::default()
+        }
+        .run()
+        .await;
+
+        assert_contains!(
+            tracing_capture.to_string(),
+            "What happened to these sequence numbers?"
+        );
     }
 
     #[tokio::test]
