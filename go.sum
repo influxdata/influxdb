@@ -458,8 +458,8 @@ github.com/imdario/mergo v0.3.5/go.mod h1:2EnlNZ0deacrJVfApfmtdGgDfMuh/nq6Ok1EcJ
 github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NHg9XEKhtSvM=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/flux v0.65.0/go.mod h1:BwN2XG2lMszOoquQaFdPET8FRQfrXiZsWmcMO9rkaVY=
-github.com/influxdata/flux v0.123.1-0.20210729174141-a0db406d1fae h1:H6N4SU2birrb4LeTytC2WoC3hYnJTyr4p62QL/t4D/g=
-github.com/influxdata/flux v0.123.1-0.20210729174141-a0db406d1fae/go.mod h1:LMf1amHWjEjWW6K4XgJNfZjpdwTkU1NhxUEsk08614M=
+github.com/influxdata/flux v0.124.0 h1:jheeLiBl/o2U7WQtcaxaAfl1vgey5hXpur1qm7zqPYo=
+github.com/influxdata/flux v0.124.0/go.mod h1:LMf1amHWjEjWW6K4XgJNfZjpdwTkU1NhxUEsk08614M=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69 h1:WQsmW0fXO4ZE/lFGIE84G6rIV5SJN3P3sjIXAP1a8eU=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69/go.mod h1:pwymjR6SrP3gD3pRj9RJwdl1j5s3doEEV8gS4X9qSzA=
 github.com/influxdata/influxdb v1.8.0/go.mod h1:SIzcnsjaHRFpmlxpJ4S3NT64qtEKYweNTUMb/vh0OMQ=
