@@ -22,7 +22,7 @@ HOST=${HOST:-"localhost"}
 PORT=${BIND_ADDRESS##*:}
 
 set +e
-max_attempts=10
+max_attempts=60
 url="$PROTOCOL://$HOST:$PORT/health"
 result=$(curl -k -s -o /dev/null $url -w %{http_code})
 while [ "$result" != "200" ]; do
