@@ -323,6 +323,8 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 		}
 
 		if got, exp := idx.DiskSizeBytes(), expSize; got != exp {
+			// We had some odd errors - if the size is unexpected, log it
+			idx.Index.LogDiskSize(t)
 			t.Fatalf("got %d bytes, expected %d", got, exp)
 		}
 	})
