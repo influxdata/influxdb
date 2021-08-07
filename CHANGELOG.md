@@ -1,6 +1,8 @@
 v1.8.10 [unreleased]
 -------------------
 
+- [#22109](https://github.com/influxdata/influxdb/pull/22109): fix: longer retry to support low-end hardware
+
 v1.8.9 [2021-08-04]
 -------------------
 
