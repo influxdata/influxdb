@@ -1765,11 +1765,13 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow_util",
+ "futures",
  "hashbrown",
  "indexmap",
  "itertools 0.10.1",
  "observability_deps",
  "snafu",
+ "tokio",
 ]
 
 [[package]]

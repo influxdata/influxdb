@@ -589,8 +589,8 @@ where
             // Have exclusive lock on state - can drop database creation lock
             std::mem::drop(guard);
 
-            let state = state.get_mut().expect("no transaction in progress");
-            let database = match state {
+            let mut state = state.get_mut().expect("no transaction in progress");
+            let database = match &mut *state {
                 ServerState::Initialized(initialized) => {
                     match initialized.databases.entry(db_name.clone()) {
                         hashbrown::hash_map::Entry::Vacant(vacant) => {
@@ -633,7 +633,7 @@ where
         }
 
         let (init_ready, handle) = {
-            let mut state = self.shared.state.write();
+            let state = self.shared.state.read();
 
             let init_ready = match &**state {
                 ServerState::Startup(_) => {

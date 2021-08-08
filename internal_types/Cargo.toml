@@ -13,6 +13,9 @@ indexmap = "1.6"
 itertools = "0.10.1"
 observability_deps = { path = "../observability_deps" }
 snafu = "0.6"
+tokio = { version = "1.0", features = ["sync"] }
 
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }
+futures = "0.3"
+tokio = { version = "1.0", features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }

@@ -179,7 +179,7 @@ impl Database {
     pub fn wipe_preserved_catalog(&self) -> Result<impl Future<Output = Result<(), Error>>, Error> {
         let db_name = &self.shared.config.name;
         let (current_state, handle) = {
-            let mut state = self.shared.state.write();
+            let state = self.shared.state.read();
             let current_state = match &**state {
                 DatabaseState::CatalogLoadError(rules_loaded, _) => rules_loaded.clone(),
                 _ => {
@@ -278,7 +278,7 @@ async fn initialize_database(shared: &DatabaseShared) {
     while !shared.shutdown.is_cancelled() {
         // Acquire locks and determine if work to be done
         let maybe_transaction = {
-            let mut state = shared.state.write();
+            let state = shared.state.read();
 
             match &**state {
                 // Already initialized

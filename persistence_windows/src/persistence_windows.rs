@@ -66,7 +66,7 @@ pub struct PersistenceWindows {
 ///
 #[derive(Debug)]
 pub struct FlushHandle {
-    handle: FreezeHandle<Option<Window>>,
+    handle: FreezeHandle,
     /// The number of closed windows at the time of the handle's creation
     ///
     /// This identifies the windows that can have their
@@ -211,7 +211,7 @@ impl PersistenceWindows {
 
         // if there is no ongoing persistence operation, try and
         // add closed windows to the `persistable` window
-        if let Some(persistable) = self.persistable.get_mut() {
+        if let Some(mut persistable) = self.persistable.get_mut() {
             while self
                 .closed
                 .front()
