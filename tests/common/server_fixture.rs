@@ -13,6 +13,9 @@ use std::{
 
 use assert_cmd::prelude::*;
 use futures::prelude::*;
+use generated_types::influxdata::iox::management::v1::{
+    database_status::DatabaseState, ServerStatus,
+};
 use once_cell::sync::OnceCell;
 use tempfile::{NamedTempFile, TempDir};
 use tokio::sync::Mutex;
@@ -22,6 +25,8 @@ use tokio::sync::Mutex;
 // TODO(786): allocate random free ports instead of hardcoding.
 // TODO(785): we cannot use localhost here.
 static NEXT_PORT: AtomicUsize = AtomicUsize::new(8090);
+
+pub const DEFAULT_SERVER_ID: u32 = 32;
 
 /// This structure contains all the addresses a test server should use
 pub struct BindAddresses {
@@ -226,13 +231,20 @@ impl ServerFixture {
         }
     }
 
-    /// Wait until server is initialized. Databases should be loaded.
-    pub async fn wait_server_initialized(&self) {
+    /// Wait until server is initialized and all databases have initialized or errored.
+    pub async fn wait_server_initialized(&self) -> ServerStatus {
         let mut client = self.management_client();
         let t_0 = Instant::now();
         loop {
-            if client.get_server_status().await.unwrap().initialized {
-                break;
+            let status = client.get_server_status().await.unwrap();
+            if status.initialized
+                && status.database_statuses.iter().all(|status| {
+                    status.error.is_some()
+                        || DatabaseState::from_i32(status.state).unwrap()
+                            == DatabaseState::Initialized
+                })
+            {
+                return status;
             }
             assert!(t_0.elapsed() < Duration::from_secs(10));
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -417,7 +429,7 @@ impl TestServer {
         // Set the writer id, if requested
         match initial_config {
             InitialConfig::SetWriterId => {
-                let id = 42;
+                let id = DEFAULT_SERVER_ID;
 
                 management_client
                     .update_server_id(id)

@@ -14,6 +14,9 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
             description: "Writer ID must be set".to_string(),
         }
         .into(),
+        Error::DatabaseNotInitialized { db_name } => tonic::Status::unavailable(
+            format!("Database ({}) is not yet initialized", db_name)
+        ),
         Error::ServerNotInitialized{ server_id } => tonic::Status::unavailable(
             format!("Server ID is set ({}) but server is not yet initialized (e.g. DBs and remotes are not loaded). Server is not yet ready to read/write data.", server_id)
         ),
@@ -25,11 +28,6 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         .into(),
         Error::InvalidDatabaseName { source } => FieldViolation {
             field: "db_name".into(),
-            description: source.to_string(),
-        }
-        .into(),
-        Error::DecodingEntry { source } => FieldViolation {
-            field: "entry".into(),
             description: source.to_string(),
         }
         .into(),
@@ -47,6 +45,14 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         }
         .into(),
         Error::RemoteError { source } => tonic::Status::unavailable(source.to_string()),
+        Error::WipePreservedCatalog { source } => match source {
+            server::database::Error::TransitionInProgress { .. } => tonic::Status::unavailable("recovery operation already in progress"),
+            server::database::Error::InvalidState { .. } => tonic::Status::failed_precondition(source.to_string()),
+            error => {
+                error!(?error, "Unexpected error wiping catalog");
+                InternalError {}.into()
+            }
+        }
         error => {
             error!(?error, "Unexpected error");
             InternalError {}.into()

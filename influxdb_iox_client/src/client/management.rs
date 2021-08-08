@@ -285,15 +285,11 @@ pub enum GetServerStatusError {
 #[derive(Debug, Error)]
 pub enum WipePersistedCatalogError {
     /// Server ID is not set
-    #[error("Server ID not set")]
-    NoServerId,
-
-    /// Database already exists
-    #[error("Database already exists")]
-    DatabaseAlreadyExists,
+    #[error("Failed precondition: {}", .0.message())]
+    FailedPrecondition(tonic::Status),
 
     /// Server returned an invalid argument error
-    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    #[error("Invalid argument: {}", .0.message())]
     InvalidArgument(tonic::Status),
 
     /// Response contained no payload
@@ -735,8 +731,9 @@ impl Client {
             .wipe_preserved_catalog(WipePreservedCatalogRequest { db_name })
             .await
             .map_err(|status| match status.code() {
-                tonic::Code::AlreadyExists => WipePersistedCatalogError::DatabaseAlreadyExists,
-                tonic::Code::FailedPrecondition => WipePersistedCatalogError::NoServerId,
+                tonic::Code::FailedPrecondition => {
+                    WipePersistedCatalogError::FailedPrecondition(status)
+                }
                 tonic::Code::InvalidArgument => WipePersistedCatalogError::InvalidArgument(status),
                 _ => WipePersistedCatalogError::ServerError(status),
             })?;

@@ -16,6 +16,7 @@ use crate::{
 };
 
 use super::scenario::{create_readable_database, rand_name};
+use crate::end_to_end_cases::scenario::fixture_broken_catalog;
 
 #[tokio::test]
 async fn test_server_id() {
@@ -615,9 +616,9 @@ async fn test_close_partition_chunk_error() {
 
 #[tokio::test]
 async fn test_wipe_persisted_catalog() {
-    let server_fixture = ServerFixture::create_shared().await;
-    let addr = server_fixture.grpc_base();
     let db_name = rand_name();
+    let server_fixture = fixture_broken_catalog(&db_name).await;
+    let addr = server_fixture.grpc_base();
 
     let stdout: Operation = serde_json::from_slice(
         &Command::cargo_bin("influxdb_iox")
@@ -675,6 +676,8 @@ async fn test_wipe_persisted_catalog_error_db_exists() {
 
     create_readable_database(&db_name, server_fixture.grpc_channel()).await;
 
+    let expected_err = format!("Failed precondition: database ({}) in invalid state (Initialized) for transition (WipePreservedCatalog)", db_name);
+
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
@@ -686,7 +689,7 @@ async fn test_wipe_persisted_catalog_error_db_exists() {
         .arg("--force")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Database already exists"));
+        .stderr(predicate::str::contains(&expected_err));
 }
 
 /// Loads the specified lines into the named database

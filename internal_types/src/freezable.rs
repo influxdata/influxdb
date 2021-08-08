@@ -110,6 +110,12 @@ impl<T> Deref for Freezable<T> {
     }
 }
 
+impl<T: std::fmt::Display> std::fmt::Display for Freezable<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// `FreezeHandle` is returned by `Freezable::try_freeze` and prevents modification
 /// of the contents of `Freezable`. Importantly:
 ///

@@ -14,9 +14,7 @@ use parquet_file::{
 use persistence_windows::checkpoint::{ReplayPlan, ReplayPlanner};
 use snafu::{ResultExt, Snafu};
 
-use crate::db::catalog::{chunk::ChunkStage, table::TableSchemaUpsertHandle};
-
-use super::catalog::Catalog;
+use super::catalog::{chunk::ChunkStage, table::TableSchemaUpsertHandle, Catalog};
 
 #[derive(Debug, Snafu)]
 pub enum Error {

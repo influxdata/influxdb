@@ -96,18 +96,20 @@ where
         request: Request<GetDatabaseRequest>,
     ) -> Result<Response<GetDatabaseResponse>, Status> {
         let name = DatabaseName::new(request.into_inner().name).field("name")?;
+        let database = self
+            .server
+            .database(&name)
+            .map_err(default_server_error_handler)?;
 
-        match self.server.db_rules(&name) {
+        match database.rules() {
             Some(rules) => Ok(Response::new(GetDatabaseResponse {
                 rules: Some(rules.as_ref().clone().into()),
             })),
             None => {
-                return Err(NotFound {
-                    resource_type: "database".to_string(),
-                    resource_name: name.to_string(),
-                    ..Default::default()
-                }
-                .into())
+                return Err(tonic::Status::unavailable(format!(
+                    "Rules have not yet been loaded for database ({})",
+                    name
+                )))
             }
         }
     }
@@ -159,18 +161,10 @@ where
         request: Request<ListChunksRequest>,
     ) -> Result<Response<ListChunksResponse>, Status> {
         let db_name = DatabaseName::new(request.into_inner().db_name).field("db_name")?;
-
-        let db = match self.server.db(&db_name) {
-            Some(db) => db,
-            None => {
-                return Err(NotFound {
-                    resource_type: "database".to_string(),
-                    resource_name: db_name.to_string(),
-                    ..Default::default()
-                }
-                .into())
-            }
-        };
+        let db = self
+            .server
+            .db(&db_name)
+            .map_err(default_server_error_handler)?;
 
         let chunk_summaries = match db.chunk_summaries() {
             Ok(chunk_summaries) => chunk_summaries,
@@ -255,11 +249,10 @@ where
         let ListPartitionsRequest { db_name } = request.into_inner();
         let db_name = DatabaseName::new(db_name).field("db_name")?;
 
-        let db = self.server.db(&db_name).ok_or_else(|| NotFound {
-            resource_type: "database".to_string(),
-            resource_name: db_name.to_string(),
-            ..Default::default()
-        })?;
+        let db = self
+            .server
+            .db(&db_name)
+            .map_err(default_server_error_handler)?;
 
         let partition_keys = db.partition_keys().map_err(default_db_error_handler)?;
         let partitions = partition_keys
@@ -279,12 +272,10 @@ where
             partition_key,
         } = request.into_inner();
         let db_name = DatabaseName::new(db_name).field("db_name")?;
-
-        let db = self.server.db(&db_name).ok_or_else(|| NotFound {
-            resource_type: "database".to_string(),
-            resource_name: db_name.to_string(),
-            ..Default::default()
-        })?;
+        let db = self
+            .server
+            .db(&db_name)
+            .map_err(default_server_error_handler)?;
 
         // TODO: get more actual partition details
         let partition_keys = db.partition_keys().map_err(default_db_error_handler)?;
@@ -307,12 +298,10 @@ where
             partition_key,
         } = request.into_inner();
         let db_name = DatabaseName::new(db_name).field("db_name")?;
-
-        let db = self.server.db(&db_name).ok_or_else(|| NotFound {
-            resource_type: "database".to_string(),
-            resource_name: db_name.to_string(),
-            ..Default::default()
-        })?;
+        let db = self
+            .server
+            .db(&db_name)
+            .map_err(default_server_error_handler)?;
 
         let chunks: Vec<Chunk> = db
             .partition_chunk_summaries(&partition_key)
@@ -333,12 +322,10 @@ where
             table_name,
         } = request.into_inner();
         let db_name = DatabaseName::new(db_name).field("db_name")?;
-
-        let db = self.server.db(&db_name).ok_or_else(|| NotFound {
-            resource_type: "database".to_string(),
-            resource_name: db_name.to_string(),
-            ..Default::default()
-        })?;
+        let db = self
+            .server
+            .db(&db_name)
+            .map_err(default_server_error_handler)?;
 
         db.rollover_partition(&table_name, &partition_key)
             .await
@@ -363,7 +350,7 @@ where
 
         let tracker = self
             .server
-            .close_chunk(db_name, table_name, partition_key, chunk_id)
+            .close_chunk(&db_name, table_name, partition_key, chunk_id)
             .map_err(default_server_error_handler)?;
 
         let operation = Some(super::operations::encode_tracker(tracker)?);
@@ -384,18 +371,10 @@ where
 
         // Validate that the database name is legit
         let db_name = DatabaseName::new(db_name).field("db_name")?;
-
-        let db = match self.server.db(&db_name) {
-            Some(db) => db,
-            None => {
-                return Err(NotFound {
-                    resource_type: "database".to_string(),
-                    resource_name: db_name.to_string(),
-                    ..Default::default()
-                }
-                .into())
-            }
-        };
+        let db = self
+            .server
+            .db(&db_name)
+            .map_err(default_server_error_handler)?;
 
         db.unload_read_buffer(&table_name, &partition_key, chunk_id)
             .map_err(default_db_error_handler)?;
@@ -418,33 +397,36 @@ where
     ) -> Result<Response<GetServerStatusResponse>, Status> {
         let initialized = self.server.initialized();
 
-        let database_statuses: Vec<_> = if initialized {
-            self.server
-                .db_names_sorted()
-                .into_iter()
-                .map(|db_name| {
-                    let error = self.server.error_database(&db_name).map(|e| ProtobufError {
-                        message: e.to_string(),
-                    });
+        // Purposefully suppress error from server::Databases as don't want
+        // to return an error if the server is not initialized
+        let mut database_statuses: Vec<_> = self
+            .server
+            .databases()
+            .map(|databases| {
+                databases
+                    .into_iter()
+                    .map(|database| {
+                        let state: database_status::DatabaseState = database.state_code().into();
 
-                    let state: database_status::DatabaseState =
-                        self.server.database_state(&db_name).into();
+                        DatabaseStatus {
+                            db_name: database.config().name.to_string(),
+                            error: database.init_error().map(|e| ProtobufError {
+                                message: e.to_string(),
+                            }),
+                            state: state.into(),
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
 
-                    DatabaseStatus {
-                        db_name,
-                        error,
-                        state: state.into(),
-                    }
-                })
-                .collect()
-        } else {
-            Default::default()
-        };
+        // Sort output by database name
+        database_statuses.sort_unstable_by(|a, b| a.db_name.cmp(&b.db_name));
 
         Ok(Response::new(GetServerStatusResponse {
             server_status: Some(ServerStatus {
                 initialized,
-                error: self.server.error_generic().map(|e| ProtobufError {
+                error: self.server.server_init_error().map(|e| ProtobufError {
                     message: e.to_string(),
                 }),
                 database_statuses,

@@ -101,7 +101,7 @@ impl Job {
         }
     }
 
-    /// Returns a human readable description assocated with this job, if any
+    /// Returns a human readable description associated with this job, if any
     pub fn description(&self) -> &str {
         match self {
             Self::Dummy { .. } => "Dummy Job, for testing",

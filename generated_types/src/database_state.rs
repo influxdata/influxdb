@@ -6,8 +6,11 @@ impl From<DatabaseStateCode> for management::database_status::DatabaseState {
         match state_code {
             DatabaseStateCode::Known => Self::Known,
             DatabaseStateCode::RulesLoaded => Self::RulesLoaded,
-            DatabaseStateCode::Replay => Self::Replay,
+            DatabaseStateCode::CatalogLoaded => Self::CatalogLoaded,
             DatabaseStateCode::Initialized => Self::Initialized,
+            DatabaseStateCode::RulesLoadError => Self::RulesLoadError,
+            DatabaseStateCode::CatalogLoadError => Self::CatalogLoadError,
+            DatabaseStateCode::ReplayError => Self::ReplayError,
         }
     }
 }

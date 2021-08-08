@@ -144,8 +144,7 @@ pub async fn main(config: Config) -> Result<()> {
 
     let server_config = ServerConfig {
         remote_template: config.remote_template.map(RemoteTemplate::new),
-        // TODO: Don't wipe on error (#1522)
-        wipe_catalog_on_error: true,
+        wipe_catalog_on_error: config.wipe_catalog_on_error.into(),
         skip_replay_and_seek_instead: config.skip_replay_and_seek_instead.into(),
     };
 

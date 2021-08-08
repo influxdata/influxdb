@@ -270,6 +270,15 @@ Possible values (case insensitive):
     )]
     pub max_http_request_size: usize,
 
+    /// Automatically wipe the preserved catalog on error
+    #[structopt(
+        long = "--wipe-catalog-on-error",
+        env = "INFLUXDB_IOX_WIPE_CATALOG_ON_ERROR",
+        // TODO: Don't automatically wipe on error (#1522)
+        default_value = "yes"
+    )]
+    pub wipe_catalog_on_error: BooleanFlag,
+
     /// Skip replaying the write buffer and seek to high watermark instead.
     #[structopt(
         long = "--skip-replay",

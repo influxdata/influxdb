@@ -10,6 +10,7 @@ use crate::{
 };
 
 use super::scenario::{collect_query, create_readable_database, rand_name, DatabaseBuilder};
+use crate::common::server_fixture::DEFAULT_SERVER_ID;
 use generated_types::influxdata::iox::management::v1::{operation_metadata::Job, CompactChunks};
 
 #[tokio::test]
@@ -196,13 +197,12 @@ async fn test_update_late_arrival() {
 async fn test_query_chunk_after_restart() {
     // fixtures
     let fixture = ServerFixture::create_single_use().await;
-    let server_id = 42;
     let db_name = rand_name();
 
     // set server ID
     let mut management_client = fixture.management_client();
     management_client
-        .update_server_id(server_id)
+        .update_server_id(DEFAULT_SERVER_ID)
         .await
         .expect("set ID failed");
     fixture.wait_server_initialized().await;

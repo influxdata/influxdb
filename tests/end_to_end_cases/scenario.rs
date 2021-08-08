@@ -13,6 +13,7 @@ use rand::{
     distributions::{Alphanumeric, Standard},
     thread_rng, Rng,
 };
+use test_helpers::assert_contains;
 
 use data_types::{names::org_and_bucket_to_database, DatabaseName};
 use database_rules::RoutingRules;
@@ -23,7 +24,7 @@ use generated_types::{
 };
 use influxdb_iox_client::flight::PerformQuery;
 
-use crate::common::server_fixture::ServerFixture;
+use crate::common::server_fixture::{ServerFixture, DEFAULT_SERVER_ID};
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -560,4 +561,62 @@ pub async fn list_chunks(fixture: &ServerFixture, db_name: &str) -> Vec<ChunkSum
     let chunks = management_client.list_chunks(db_name).await.unwrap();
 
     chunks.into_iter().map(|c| c.try_into().unwrap()).collect()
+}
+
+/// Creates a database with a broken catalog
+pub async fn fixture_broken_catalog(db_name: &str) -> ServerFixture {
+    let server_id = DEFAULT_SERVER_ID;
+
+    let env = vec![(
+        "INFLUXDB_IOX_WIPE_CATALOG_ON_ERROR".to_string(),
+        "no".to_string(),
+    )];
+
+    let fixture = ServerFixture::create_single_use_with_env(env).await;
+    fixture
+        .management_client()
+        .update_server_id(server_id)
+        .await
+        .unwrap();
+    fixture.wait_server_initialized().await;
+
+    //
+    // Create database with corrupted catalog
+    //
+
+    fixture
+        .management_client()
+        .create_database(DatabaseRules {
+            name: db_name.to_string(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let mut path = fixture.dir().to_path_buf();
+    path.push(server_id.to_string());
+    path.push(db_name);
+    path.push("transactions");
+    path.push("00000000000000000001");
+    std::fs::create_dir(path.clone()).unwrap();
+
+    path.push("48eb9059-ca73-45e1-b6b4-e1f47d6159fb.txn");
+    std::fs::write(path, "INVALID").unwrap();
+
+    //
+    // Try to load broken catalog and error
+    //
+
+    let fixture = fixture.restart_server().await;
+
+    let status = fixture.wait_server_initialized().await;
+    assert_eq!(status.database_statuses.len(), 1);
+
+    let load_error = &status.database_statuses[0].error.as_ref().unwrap().message;
+    assert_contains!(
+        load_error,
+        "error loading catalog: Cannot load preserved catalog"
+    );
+
+    fixture
 }

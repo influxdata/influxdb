@@ -251,9 +251,13 @@ struct SequencerMetrics {
     last_ingest_ts: metrics::Gauge,
 }
 
-/// This is the main IOx Database object. It is the root object of any
-/// specific InfluxDB IOx instance
+/// `Db` is an instance-local, queryable, possibly persisted, and possibly mutable data store
 ///
+/// It is responsible for:
+///
+/// * Receiving new writes for this IOx instance
+/// * Exposing APIs for the lifecycle policy to compact/persist data
+/// * Exposing APIs for the query engine to use to query data
 ///
 /// The data in a `Db` is structured in this way:
 ///
@@ -262,16 +266,16 @@ struct SequencerMetrics {
 /// │    ┌────────────────┐                         │
 /// │    │    Database    │                         │
 /// │    └────────────────┘                         │
+/// │             │  multiple Tables (measurements) │
+/// │             ▼                                 │
+/// │    ┌────────────────┐                         │
+/// │    │     Table      │                         │
+/// │    └────────────────┘                         │
 /// │             │ one partition per               │
 /// │             │ partition_key                   │
 /// │             ▼                                 │
 /// │    ┌────────────────┐                         │
 /// │    │   Partition    │                         │
-/// │    └────────────────┘                         │
-/// │             │  multiple Tables (measurements) │
-/// │             ▼                                 │
-/// │    ┌────────────────┐                         │
-/// │    │     Table      │                         │
 /// │    └────────────────┘                         │
 /// │             │  one open Chunk                 │
 /// │             │  zero or more closed            │
@@ -279,12 +283,11 @@ struct SequencerMetrics {
 /// │    ┌────────────────┐                         │
 /// │    │     Chunk      │                         │
 /// │    └────────────────┘                         │
-/// │             │  multiple Colums                │
+/// │             │  multiple Columns               │
 /// │             ▼                                 │
 /// │    ┌────────────────┐                         │
 /// │    │     Column     │                         │
 /// │    └────────────────┘                         │
-/// │                              MutableBuffer    │
 /// │                                               │
 /// └───────────────────────────────────────────────┘
 ///
@@ -583,7 +586,7 @@ impl Db {
         partition_key: &str,
         chunk_id: u32,
     ) -> Result<()> {
-        // Use explict scope to ensure the async generator doesn't
+        // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
             let partition = self.partition(table_name, partition_key)?;
@@ -640,7 +643,7 @@ impl Db {
         table_name: &str,
         partition_key: &str,
     ) -> Result<Arc<DbChunk>> {
-        // Use explict scope to ensure the async generator doesn't
+        // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
             let partition = self.partition(table_name, partition_key)?;

@@ -19,7 +19,7 @@ use data_types::{
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
 use query::{exec::ExecutorType, QueryDatabase};
-use server::{ApplicationState, ConnectionManager, Server as AppServer};
+use server::{ApplicationState, ConnectionManager, Error, Server as AppServer};
 
 // External crates
 use bytes::{Bytes, BytesMut};
@@ -126,11 +126,6 @@ pub enum ApplicationError {
         source: serde_urlencoded::de::Error,
     },
 
-    #[snafu(display("Query error: {}", source))]
-    QueryError {
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-
     #[snafu(display("Invalid request body: {}", source))]
     InvalidRequestBody { source: serde_json::error::Error },
 
@@ -166,28 +161,16 @@ pub enum ApplicationError {
     #[snafu(display("No handler for {:?} {}", method, path))]
     RouteNotFound { method: Method, path: String },
 
-    #[snafu(display("Internal error from database {}: {}", database, source))]
-    DatabaseError {
-        database: String,
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-
     #[snafu(display("Error generating json response: {}", source))]
     JsonGenerationError { source: serde_json::Error },
-
-    #[snafu(display("Error creating database: {}", source))]
-    ErrorCreatingDatabase { source: server::Error },
 
     #[snafu(display("Invalid database name: {}", source))]
     DatabaseNameError {
         source: data_types::DatabaseNameError,
     },
 
-    #[snafu(display("Database {} not found", name))]
-    DatabaseNotFound { name: String },
-
-    #[snafu(display("Database {} does not have a Write Buffer", name))]
-    WriteBufferNotFound { name: String },
+    #[snafu(display("Database {} not found", db_name))]
+    DatabaseNotFound { db_name: String },
 
     #[snafu(display("Internal error creating HTTP response:  {}", source))]
     CreatingResponse { source: http::Error },
@@ -213,18 +196,6 @@ pub enum ApplicationError {
     #[snafu(display("Error while planning query: {}", source))]
     Planning { source: super::planner::Error },
 
-    #[snafu(display(
-        "Cannot create snapshot because there is no data: {} {}:{}",
-        db_name,
-        partition,
-        table_name
-    ))]
-    NoSnapshot {
-        db_name: String,
-        partition: String,
-        table_name: String,
-    },
-
     #[snafu(display("PProf error: {}", source))]
     PProf { source: pprof::Error },
 
@@ -233,6 +204,18 @@ pub enum ApplicationError {
 
     #[snafu(display("Empty flamegraph"))]
     EmptyFlamegraph,
+
+    #[snafu(display("Server id not set"))]
+    ServerIdNotSet,
+
+    #[snafu(display("Server not initialized"))]
+    ServerNotInitialized,
+
+    #[snafu(display("Database {} not found", db_name))]
+    DatabaseNotInitialized { db_name: String },
+
+    #[snafu(display("Internal server error"))]
+    InternalServerError,
 }
 
 impl ApplicationError {
@@ -242,7 +225,6 @@ impl ApplicationError {
             Self::BucketMappingError { .. } => self.internal_error(),
             Self::WritingPoints { .. } => self.internal_error(),
             Self::Query { .. } => self.internal_error(),
-            Self::QueryError { .. } => self.bad_request(),
             Self::BucketNotFound { .. } => self.not_found(),
             Self::RequestSizeExceeded { .. } => self.bad_request(),
             Self::ExpectedQueryString { .. } => self.bad_request(),
@@ -257,20 +239,20 @@ impl ApplicationError {
             Self::ReadingBodyAsGzip { .. } => self.bad_request(),
             Self::ClientHangup { .. } => self.bad_request(),
             Self::RouteNotFound { .. } => self.not_found(),
-            Self::DatabaseError { .. } => self.internal_error(),
             Self::JsonGenerationError { .. } => self.internal_error(),
-            Self::ErrorCreatingDatabase { .. } => self.bad_request(),
             Self::DatabaseNameError { .. } => self.bad_request(),
             Self::DatabaseNotFound { .. } => self.not_found(),
-            Self::WriteBufferNotFound { .. } => self.not_found(),
             Self::CreatingResponse { .. } => self.internal_error(),
             Self::FormattingResult { .. } => self.internal_error(),
             Self::ParsingFormat { .. } => self.bad_request(),
             Self::Planning { .. } => self.bad_request(),
-            Self::NoSnapshot { .. } => self.not_modified(),
             Self::PProf { .. } => self.internal_error(),
             Self::Prost { .. } => self.internal_error(),
             Self::EmptyFlamegraph => self.no_content(),
+            Self::ServerIdNotSet => self.bad_request(),
+            Self::ServerNotInitialized => self.bad_request(),
+            Self::DatabaseNotInitialized { .. } => self.bad_request(),
+            Self::InternalServerError => self.internal_error(),
         }
     }
 
@@ -295,13 +277,6 @@ impl ApplicationError {
             .unwrap()
     }
 
-    fn not_modified(&self) -> Response<Body> {
-        Response::builder()
-            .status(StatusCode::NOT_MODIFIED)
-            .body(self.body())
-            .unwrap()
-    }
-
     fn no_content(&self) -> Response<Body> {
         Response::builder()
             .status(StatusCode::NO_CONTENT)
@@ -321,24 +296,27 @@ impl ApplicationError {
         match self {
             Self::DatabaseNameError { .. } => ApiErrorCode::DB_INVALID_NAME,
             Self::DatabaseNotFound { .. } => ApiErrorCode::DB_NOT_FOUND,
-
-            // Some errors are wrapped
-            Self::ErrorCreatingDatabase {
-                source: server::Error::InvalidDatabaseName { .. },
-            } => ApiErrorCode::DB_INVALID_NAME,
-
-            Self::ErrorCreatingDatabase {
-                source: server::Error::DatabaseNotFound { .. },
-            } => ApiErrorCode::DB_NOT_FOUND,
-
-            Self::ErrorCreatingDatabase {
-                source: server::Error::DatabaseAlreadyExists { .. },
-            } => ApiErrorCode::DB_ALREADY_EXISTS,
-
             // A "catch all" error code
             _ => ApiErrorCode::UNKNOWN,
         }
         .into()
+    }
+}
+
+impl From<server::Error> for ApplicationError {
+    fn from(e: Error) -> Self {
+        match e {
+            Error::IdNotSet => Self::ServerIdNotSet,
+            Error::ServerNotInitialized { .. } => Self::ServerNotInitialized,
+            Error::DatabaseNotInitialized { db_name } => Self::DatabaseNotInitialized { db_name },
+            Error::DatabaseNotFound { db_name } => Self::DatabaseNotFound { db_name },
+            Error::InvalidDatabaseName { source } => Self::DatabaseNameError { source },
+            e => {
+                error!(%e, "unexpected server error");
+                // Don't return potentially sensitive information in response
+                Self::InternalServerError
+            }
+        }
     }
 }
 
@@ -561,7 +539,7 @@ where
             obs.client_error_with_labels(&metric_kv); // user error
             match e {
                 server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
-                    name: db_name.to_string(),
+                    db_name: db_name.to_string(),
                 },
                 _ => ApplicationError::WritingPoints {
                     org: write_info.org.clone(),
@@ -643,9 +621,7 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     let db_name = DatabaseName::new(&db_name_str).context(DatabaseNameError)?;
     debug!(uri = ?req.uri(), %q, ?format, %db_name, "running SQL query");
 
-    let db = server
-        .db(&db_name)
-        .context(DatabaseNotFound { name: &db_name_str })?;
+    let db = server.db(&db_name)?;
 
     let executor = db.executor();
     let physical_plan = Planner::new(Arc::clone(&executor))
@@ -746,10 +722,7 @@ async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
         KeyValue::new("path", path),
     ];
 
-    let db = server.db(&db_name).context(BucketNotFound {
-        org: &info.org,
-        bucket: &info.bucket,
-    })?;
+    let db = server.db(&db_name)?;
 
     let partition_keys =
         db.partition_keys()
