@@ -257,6 +257,7 @@
 //! // database is now ready for normal playback
 //! ```
 use std::{
+    cmp::Ordering,
     collections::{
         btree_map::Entry::{Occupied, Vacant},
         BTreeMap,
@@ -303,6 +304,9 @@ pub enum Error {
         partition_key: Arc<str>,
         sequencer_id: u32,
     },
+
+    #[snafu(display("Partition checkpoint order is undetermined, this is a bug"))]
+    UndeterminedPartitionCheckpointOrder,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -340,6 +344,24 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Number          min sequence              max sequence
 ///```
 ///
+///
+/// # Ordering
+/// Partition checkpoints for the same partition are guaranteed to be created in-sequence because their creation
+/// requires a [`FlushHandle`](crate::persistence_windows::FlushHandle). Two checkpoints can therefore be compared if:
+///
+/// 1. **same table/partition:** They belong to the same table and partition. Only equality is allowed, the strings are
+///    NOT ordered.
+/// 2. **same or larger sequencer set:** Sequencers can only be added but never removed, so either both checkpoints
+///   present the same set of sequencers or one has strictly more sequencers than the other.
+/// 3. **range comparable:** For all matching sequencers, the [`OptionalMinMaxSequence`] must be comparable.
+/// 4. **unambiguity:** All checks performed in (2) and (3) must be unambiguous, which means if any check of the checks
+///    yields "greater", all other checks must yield "greater" or "equal"; and if any of the checks yields "less" all
+///    other checks must yield "less" or "equal". E.g. order cannot be established if the sequence number ranges for
+///    sequencer 1 yield "less" and the ranges for sequencer 2 yield "greater"; or if the sequence number ranges yield
+///    "less" but the first checkpoint has more sequencers than the second.
+///
+/// Note that they are NOT compared based on the [`min_unpersisted_timestamp`](Self::min_unpersisted_timestamp) since
+/// that one depends on the data ingested by the user and might go backwards during backfills.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartitionCheckpoint {
     /// Table of the partition.
@@ -411,6 +433,68 @@ impl PartitionCheckpoint {
     }
 }
 
+impl PartialOrd for PartitionCheckpoint {
+    /// See [`PartitionCheckpoint`] for an explanation of how/when ranges are ordered.
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if (self.table_name != other.table_name) || (self.partition_key != other.partition_key) {
+            return None;
+        }
+
+        let mut global_outcome = Ordering::Equal;
+
+        let mut it1 = self.sequencer_numbers.iter().peekable();
+        let mut it2 = other.sequencer_numbers.iter().peekable();
+
+        loop {
+            let local_outcome = match (it1.peek(), it2.peek()) {
+                (Some((sequencer_id1, min_max1)), Some((sequencer_id2, min_max2))) => {
+                    match sequencer_id1.cmp(sequencer_id2) {
+                        Ordering::Less => {
+                            // new sequencer got introduced in it1
+                            it1.next();
+                            Ordering::Greater
+                        }
+                        Ordering::Equal => {
+                            // same sequencer, compare ranges
+                            let res = min_max1.partial_cmp(min_max2)?;
+                            it1.next();
+                            it2.next();
+                            res
+                        }
+                        Ordering::Greater => {
+                            // new sequencer got introduced in it2
+                            it2.next();
+                            Ordering::Less
+                        }
+                    }
+                }
+                (Some(_), None) => {
+                    // new sequencer got introduced in it1
+                    it1.next();
+                    Ordering::Greater
+                }
+                (None, Some(_)) => {
+                    // new sequencer got introduced in it2
+                    it2.next();
+                    Ordering::Less
+                }
+                (None, None) => {
+                    break;
+                }
+            };
+
+            global_outcome = match (global_outcome, local_outcome) {
+                (Ordering::Equal, x) => x,
+                (x, Ordering::Equal) => x,
+                (x, y) if x == y => x,
+                _ => return None,
+            };
+        }
+
+        Some(global_outcome)
+    }
+}
+
 /// Immutable record of the persisted state of the whole database.
 ///
 /// This structure contains the minimum and maximum sequence numbers
@@ -440,6 +524,35 @@ impl PartitionCheckpoint {
 /// MAYBE PERSISTED range, Entries may be partially persisted, so the
 /// values of each row within Entries must be checked using a
 /// [`PartitionCheckpoint`].
+///
+/// # Ordering
+/// Database checkpoints cannot be ordered and the following subsections describe cases why this is. You can use
+/// [`fold`](Self::fold) to create final checkpoints from multiple database checkpoints.
+///
+/// ## Measurement → Storage Reorder
+/// The order in which database checkpoints are stored in the catalog does not necessarily the same in which they were
+/// created. Imagine the following two threads:
+///
+/// | Step | Thread 1                         | Thread 2                         |
+/// | ---: | :------------------------------- | :------------------------------- |
+/// |    1 | Create DB checkpoint A           |                                  |
+/// |    2 |                                  | Create DB checkpoint B           |
+/// |    3 |                                  | Acquire catalog transaction lock |
+/// |    4 |                                  | Write checkpoint B to catalog    |
+/// |    5 |                                  | Release catalog transaction lock |
+/// |    6 | Acquire catalog transaction lock |                                  |
+/// |    7 | Write checkpoint A to catalog    |                                  |
+/// |    8 | Release catalog transaction lock |                                  |
+///
+/// So the order of checkpoints within the catalog will be B, A even though they were created as A, B.
+///
+/// ## Non-Atomic Creation
+/// Even if we would keep some generation number within the database checkpoint to address the previous point, there is
+/// still the fact that database checkpoints creation is not an atomic operation. Instead [`PersistCheckpointBuilder`]
+/// is used to which partitions are registered bit-by-bit. During this data collection no lock is held.
+///
+/// Note that this is different to a [`PartitionCheckpoint`] which is created using a
+/// [`FlushHandle`](crate::persistence_windows::FlushHandle).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DatabaseCheckpoint {
     /// Maps `sequencer_id` to the minimum and maximum sequence numbers seen.
@@ -481,6 +594,41 @@ impl DatabaseCheckpoint {
         self.sequencer_numbers
             .iter()
             .map(|(sequencer_id, min_max)| (*sequencer_id, *min_max))
+    }
+
+    /// Fold in given checkpoint to determine final result (aka last known state).
+    pub fn fold(&mut self, other: &Self) {
+        for (sequencer_id, min_max) in &other.sequencer_numbers {
+            match self.sequencer_numbers.entry(*sequencer_id) {
+                Vacant(v) => {
+                    v.insert(*min_max);
+                }
+                Occupied(mut o) => {
+                    let existing_min_max = o.get_mut();
+
+                    let max = existing_min_max.max().max(min_max.max());
+
+                    let min1 = existing_min_max
+                        .min()
+                        .map(|min| min as u128)
+                        .unwrap_or_else(|| (existing_min_max.max() as u128) + 1);
+                    let min2 = min_max
+                        .min()
+                        .map(|min| min as u128)
+                        .unwrap_or_else(|| (min_max.max() as u128) + 1);
+                    let min = min1.max(min2);
+                    let min = if min <= (max as u128) {
+                        Some(min as u64)
+                    } else if min == (max as u128) + 1 {
+                        None
+                    } else {
+                        unreachable!()
+                    };
+
+                    *existing_min_max = OptionalMinMaxSequence::new(min, max);
+                }
+            }
+        }
     }
 }
 
@@ -573,8 +721,8 @@ impl PersistCheckpointBuilder {
 /// the last [`DatabaseCheckpoint`] for the whole database.
 #[derive(Debug)]
 pub struct ReplayPlanner {
-    /// Range (inclusive minimum, inclusive maximum) of sequence number to be replayed for each sequencer.
-    replay_ranges: BTreeMap<u32, OptionalMinMaxSequence>,
+    /// Folded database checkpoint.
+    database_checkpoint: DatabaseCheckpoint,
 
     /// Last known partition checkpoint, mapped via table name and partition key.
     last_partition_checkpoints: BTreeMap<(Arc<str>, Arc<str>), PartitionCheckpoint>,
@@ -584,19 +732,17 @@ impl ReplayPlanner {
     /// Create new empty replay planner.
     pub fn new() -> Self {
         Self {
-            replay_ranges: Default::default(),
+            database_checkpoint: DatabaseCheckpoint::new(Default::default()),
             last_partition_checkpoints: Default::default(),
         }
     }
 
     /// Register a partition and database checkpoint that was found in the catalog.
-    ///
-    /// **Note: The checkpoints MUST be added in the same order as they where written to the preserved catalog!**
     pub fn register_checkpoints(
         &mut self,
         partition_checkpoint: &PartitionCheckpoint,
         database_checkpoint: &DatabaseCheckpoint,
-    ) {
+    ) -> Result<()> {
         match self.last_partition_checkpoints.entry((
             Arc::clone(partition_checkpoint.table_name()),
             Arc::clone(partition_checkpoint.partition_key()),
@@ -606,43 +752,48 @@ impl ReplayPlanner {
                 v.insert(partition_checkpoint.clone());
             }
             Occupied(mut o) => {
-                // known partition, but added afterwards => insert
-                o.insert(partition_checkpoint.clone());
+                // known partition => compare order
+                let existing = o.get_mut();
+                match partition_checkpoint.partial_cmp(existing) {
+                    Some(Ordering::Equal) => {
+                        // identical => nothing to do
+                    }
+                    Some(Ordering::Greater) => {
+                        // newer checkpoint => override
+                        *existing = partition_checkpoint.clone();
+                    }
+                    Some(Ordering::Less) => {
+                        // older checkpoint => ignore
+                    }
+                    None => {
+                        return Err(Error::UndeterminedPartitionCheckpointOrder);
+                    }
+                }
             }
         }
 
-        for (sequencer_id, min_max) in &database_checkpoint.sequencer_numbers {
-            match self.replay_ranges.entry(*sequencer_id) {
-                Vacant(v) => {
-                    // unknown sequencer => store min value (we keep the latest value for that one) and max value (in
-                    // case when we don't find another partition checkpoint for this sequencer, so we have a fallback)
-                    v.insert(*min_max);
-                }
-                Occupied(mut o) => {
-                    // known sequencer => take the alter value
-                    o.insert(*min_max);
-                }
-            }
-        }
+        self.database_checkpoint.fold(database_checkpoint);
+
+        Ok(())
     }
 
     /// Build plan that is then used for replay.
     pub fn build(self) -> Result<ReplayPlan> {
         let Self {
-            replay_ranges,
+            database_checkpoint,
             last_partition_checkpoints,
         } = self;
 
         // sanity-check partition checkpoints
         for ((table_name, partition_key), partition_checkpoint) in &last_partition_checkpoints {
             for (sequencer_id, min_max) in &partition_checkpoint.sequencer_numbers {
-                let database_wide_min_max = replay_ranges.get(sequencer_id).context(
-                    PartitionCheckpointWithoutDatabase {
+                let database_wide_min_max = database_checkpoint
+                    .sequencer_number(*sequencer_id)
+                    .context(PartitionCheckpointWithoutDatabase {
                         table_name: Arc::clone(table_name),
                         partition_key: Arc::clone(partition_key),
                         sequencer_id: *sequencer_id,
-                    },
-                )?;
+                    })?;
 
                 let sequence_missing = match (min_max.min(), database_wide_min_max.min()) {
                     (Some(min), Some(db_min)) => min < db_min,
@@ -673,7 +824,7 @@ impl ReplayPlanner {
         }
 
         Ok(ReplayPlan {
-            replay_ranges,
+            replay_ranges: database_checkpoint.sequencer_numbers,
             last_partition_checkpoints,
         })
     }
@@ -741,6 +892,9 @@ mod tests {
 
     /// Create sequence numbers map.
     macro_rules! sequencer_numbers {
+        {} => {
+            BTreeMap::new()
+        };
         {$($sequencer_number:expr => ($min:expr, $max:expr)),*} => {
             {
                 let mut sequencer_numbers = BTreeMap::new();
@@ -797,6 +951,99 @@ mod tests {
     }
 
     #[test]
+    fn test_partition_checkpoint_partial_cmp() {
+        // equal
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {}).partial_cmp(&part_ckpt!(
+                "table_1",
+                "partition_1",
+                {}
+            )),
+            Some(Ordering::Equal),
+        );
+
+        // cannot compare if table / partition differs
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {}).partial_cmp(&part_ckpt!(
+                "table_2",
+                "partition_1",
+                {}
+            )),
+            None,
+        );
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {}).partial_cmp(&part_ckpt!(
+                "table_1",
+                "partition_2",
+                {}
+            )),
+            None,
+        );
+
+        // add sequencer (last entry)
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {1 => (None, 0)}).partial_cmp(&part_ckpt!(
+                "table_1",
+                "partition_1",
+                {}
+            )),
+            Some(Ordering::Greater),
+        );
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {})
+                .partial_cmp(&part_ckpt!("table_1", "partition_1", {1 => (None, 0)})),
+            Some(Ordering::Less),
+        );
+
+        // add sequencer (middle entry)
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {1 => (None, 0), 2 => (None, 1)})
+                .partial_cmp(&part_ckpt!("table_1", "partition_1", {2 => (None, 1)})),
+            Some(Ordering::Greater),
+        );
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {2 => (None, 1)}).partial_cmp(
+                &part_ckpt!("table_1", "partition_1", {1 => (None, 0), 2 => (None, 1)})
+            ),
+            Some(Ordering::Less),
+        );
+
+        // cannot compare if both add sequencers
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {1 => (None, 0)})
+                .partial_cmp(&part_ckpt!("table_1", "partition_1", {2 => (None, 1)})),
+            None,
+        );
+
+        // compare based on sequence numbers
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {1 => (None, 0)})
+                .partial_cmp(&part_ckpt!("table_1", "partition_1", {1 => (None, 1)})),
+            Some(Ordering::Less),
+        );
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {1 => (Some(1), 1)})
+                .partial_cmp(&part_ckpt!("table_1", "partition_1", {1 => (Some(0), 2)})),
+            None,
+        );
+
+        // cannot compare when the one with the earlier sequence numbers adds a new sequencer
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {1 => (None, 0), 2 => (None, 0)})
+                .partial_cmp(&part_ckpt!("table_1", "partition_1", {1 => (None, 1)})),
+            None,
+        );
+
+        // compare by both new sequencer and higher sequence numbers
+        assert_eq!(
+            part_ckpt!("table_1", "partition_1", {1 => (None, 0)}).partial_cmp(
+                &part_ckpt!("table_1", "partition_1", {1 => (None, 1), 2 => (None, 0)})
+            ),
+            Some(Ordering::Less),
+        );
+    }
+
+    #[test]
     fn test_database_checkpoint() {
         let dckpt = db_ckpt!({1 => (Some(10), 20), 2 => (None, 15)});
 
@@ -812,6 +1059,63 @@ mod tests {
         assert_eq!(dckpt.sequencer_ids(), vec![1, 2]);
 
         assert_eq!(dckpt, db_ckpt!({1 => (Some(10), 20), 2 => (None, 15)}));
+    }
+
+    #[test]
+    fn test_database_checkpoint_fold() {
+        let mut dckpt = db_ckpt!({
+            1 => (Some(10), 20),
+            2 => (None, 15),
+            3 => (None, u64::MAX),
+            7 => (Some(10), 20),
+            8 => (Some(11), 21),
+            9 => (Some(10), 21),
+            10 => (None, 20),
+            11 => (Some(10), 20),
+            12 => (Some(10), 30),
+            13 => (Some(10), 10),
+            14 => (Some(10), 20),
+            15 => (Some(12), 22),
+            16 => (Some(10), 22)
+        });
+
+        dckpt.fold(&db_ckpt!({
+            4 => (Some(10), 20),
+            5 => (None, 15),
+            6 => (None, u64::MAX),
+            7 => (Some(11), 21),
+            8 => (Some(10), 20),
+            9 => (Some(11), 20),
+            10 => (Some(10), 20),
+            11 => (None, 20),
+            12 => (None, 20),
+            13 => (Some(10), 10),
+            14 => (Some(12), 22),
+            15 => (Some(10), 20),
+            16 => (Some(12), 20)
+        }));
+
+        assert_eq!(
+            dckpt,
+            db_ckpt!({
+                1 => (Some(10), 20),
+                2 => (None, 15),
+                3 => (None, u64::MAX),
+                4 => (Some(10), 20),
+                5 => (None, 15),
+                6 => (None, u64::MAX),
+                7 => (Some(11), 21),
+                8 => (Some(11), 21),
+                9 => (Some(11), 21),
+                10 => (None, 20),
+                11 => (None, 20),
+                12 => (Some(21), 30),
+                13 => (Some(10), 10),
+                14 => (Some(12), 22),
+                15 => (Some(12), 22),
+                16 => (Some(12), 22)
+            }),
+        );
     }
 
     #[test]
@@ -887,57 +1191,76 @@ mod tests {
     fn test_replay_planner_normal() {
         let mut planner = ReplayPlanner::new();
 
-        planner.register_checkpoints(
-            &part_ckpt!(
-                "table_1",
-                "partition_1",
-                {
-                    1 => (Some(15), 19),
-                    2 => (Some(21), 27),
-                    5 => (None, 50),
-                    7 => (None, 70),
-                    8 => (None, 80),
-                    9 => (None, 90),
+        planner
+            .register_checkpoints(
+                &part_ckpt!(
+                    "table_1",
+                    "partition_1",
+                    {
+                        1 => (Some(15), 19),
+                        2 => (Some(21), 27),
+                        5 => (None, 50),
+                        7 => (None, 70),
+                        8 => (None, 80),
+                        9 => (None, 90),
+                        10 => (None, 100),
+                        11 => (None, 109)
+                    }
+                ),
+                &db_ckpt!({
+                    1 => (Some(10), 19),
+                    2 => (Some(20), 28),
+                    5 => (None, 51),
+                    6 => (None, 60),
+                    7 => (Some(69), 70),
+                    8 => (Some(79), 80),
+                    9 => (Some(88), 90),
                     10 => (None, 100),
-                    11 => (None, 110)
-                }
-            ),
-            &db_ckpt!({
-                1 => (Some(10), 19),
-                2 => (Some(20), 28),
-                5 => (None, 51),
-                6 => (None, 60),
-                7 => (Some(69), 70),
-                8 => (Some(79), 80),
-                9 => (Some(88), 90),
-                10 => (None, 100),
-                11 => (None, 110)
-            }),
-        );
+                    11 => (None, 109)
+                }),
+            )
+            .unwrap();
 
-        planner.register_checkpoints(
-            &part_ckpt!(
-                "table_1",
-                "partition_2",
-                {
-                    2 => (Some(22), 26),
-                    3 => (Some(35), 39),
+        planner
+            .register_checkpoints(
+                &part_ckpt!(
+                    "table_1",
+                    "partition_2",
+                    {
+                        2 => (Some(22), 26),
+                        3 => (Some(35), 39),
+                        8 => (None, 80),
+                        9 => (Some(89), 90),
+                        10 => (None, 101),
+                        11 => (Some(110), 111)
+                    }
+                ),
+                &db_ckpt!({
+                    1 => (Some(11), 20),
+                    3 => (Some(30), 40),
+                    4 => (Some(40), 50),
                     8 => (None, 80),
                     9 => (Some(89), 90),
                     10 => (None, 101),
-                    11 => (Some(109), 111)
-                }
-            ),
-            &db_ckpt!({
-                1 => (Some(11), 20),
-                3 => (Some(30), 40),
-                4 => (Some(40), 50),
-                8 => (None, 80),
-                9 => (Some(89), 90),
-                10 => (None, 101),
-                11 => (Some(109), 111)
-            }),
-        );
+                    11 => (Some(110), 111)
+                }),
+            )
+            .unwrap();
+
+        planner
+            .register_checkpoints(
+                &part_ckpt!(
+                    "table_1",
+                    "partition_1",
+                    {
+                        1 => (Some(0), 1)
+                    }
+                ),
+                &db_ckpt!({
+                    1 => (Some(0), 1)
+                }),
+            )
+            .unwrap();
 
         let plan = planner.build().unwrap();
 
@@ -987,7 +1310,7 @@ mod tests {
         );
         assert_eq!(
             plan.replay_range(11).unwrap(),
-            OptionalMinMaxSequence::new(Some(109), 111)
+            OptionalMinMaxSequence::new(Some(110), 111)
         );
         assert!(plan.replay_range(12).is_none());
 
@@ -1012,7 +1335,7 @@ mod tests {
                     8 => (None, 80),
                     9 => (None, 90),
                     10 => (None, 100),
-                    11 => (None, 110)
+                    11 => (None, 109)
                 }
             ),
         );
@@ -1028,7 +1351,7 @@ mod tests {
                     8 => (None, 80),
                     9 => (Some(89), 90),
                     10 => (None, 101),
-                    11 => (Some(109), 111)
+                    11 => (Some(110), 111)
                 }
             ),
         );
@@ -1038,13 +1361,39 @@ mod tests {
     }
 
     #[test]
+    fn test_replay_planner_fail_undetermined_order() {
+        let mut planner = ReplayPlanner::new();
+
+        planner
+            .register_checkpoints(
+                &part_ckpt!("table_1", "partition_1", {1 => (Some(11), 12)}),
+                &db_ckpt!({1 => (Some(11), 22)}),
+            )
+            .unwrap();
+
+        let err = planner
+            .register_checkpoints(
+                &part_ckpt!("table_1", "partition_1", {1 => (Some(9), 13)}),
+                &db_ckpt!({1 => (Some(9), 22)}),
+            )
+            .unwrap_err();
+
+        assert!(matches!(
+            err,
+            Error::UndeterminedPartitionCheckpointOrder { .. }
+        ));
+    }
+
+    #[test]
     fn test_replay_planner_fail_missing_database_checkpoint() {
         let mut planner = ReplayPlanner::new();
 
-        planner.register_checkpoints(
-            &part_ckpt!("table_1", "partition_1", {1 => (Some(11), 12), 2 => (Some(21), 22)}),
-            &db_ckpt!({1 => (Some(10), 20), 3 => (Some(30), 40)}),
-        );
+        planner
+            .register_checkpoints(
+                &part_ckpt!("table_1", "partition_1", {1 => (Some(11), 12), 2 => (Some(21), 22)}),
+                &db_ckpt!({1 => (Some(10), 20), 3 => (Some(30), 40)}),
+            )
+            .unwrap();
 
         let err = planner.build().unwrap_err();
         assert!(matches!(
@@ -1058,10 +1407,12 @@ mod tests {
         let tracing_capture = TracingCapture::new();
 
         let mut planner = ReplayPlanner::new();
-        planner.register_checkpoints(
-            &part_ckpt!("table_1", "partition_1", {1 => (Some(10), 12)}),
-            &db_ckpt!({1 => (None, 20)}),
-        );
+        planner
+            .register_checkpoints(
+                &part_ckpt!("table_1", "partition_1", {1 => (Some(10), 12)}),
+                &db_ckpt!({1 => (None, 20)}),
+            )
+            .unwrap();
         planner.build().unwrap();
 
         let output = tracing_capture.to_string();
@@ -1073,10 +1424,12 @@ mod tests {
         let tracing_capture = TracingCapture::new();
 
         let mut planner = ReplayPlanner::new();
-        planner.register_checkpoints(
-            &part_ckpt!("table_1", "partition_1", {1 => (Some(10), 12)}),
-            &db_ckpt!({1 => (Some(11), 20)}),
-        );
+        planner
+            .register_checkpoints(
+                &part_ckpt!("table_1", "partition_1", {1 => (Some(10), 12)}),
+                &db_ckpt!({1 => (Some(11), 20)}),
+            )
+            .unwrap();
         planner.build().unwrap();
 
         let output = tracing_capture.to_string();
@@ -1087,10 +1440,12 @@ mod tests {
     fn test_replay_planner_fail_maximum_out_of_sync() {
         let mut planner = ReplayPlanner::new();
 
-        planner.register_checkpoints(
-            &part_ckpt!("table_1", "partition_1", {1 => (Some(11), 20)}),
-            &db_ckpt!({1 => (Some(10), 12)}),
-        );
+        planner
+            .register_checkpoints(
+                &part_ckpt!("table_1", "partition_1", {1 => (Some(11), 20)}),
+                &db_ckpt!({1 => (Some(10), 12)}),
+            )
+            .unwrap();
 
         let err = planner.build().unwrap_err();
         assert!(matches!(

@@ -1664,8 +1664,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn replay_works_with_checkpoints_all_full_persisted() {
-        // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
+    async fn replay_works_with_checkpoints_all_full_persisted_1() {
         ReplayTest {
             catalog_transactions_until_checkpoint: NonZeroU64::new(2).unwrap(),
             steps: vec![
@@ -1696,6 +1695,94 @@ mod tests {
                     ("table_1", "tag_partition_by_a"),
                     ("table_1", "tag_partition_by_b"),
                 ])]),
+            ],
+            ..Default::default()
+        }
+        .run()
+        .await;
+    }
+
+    #[tokio::test]
+    async fn replay_works_with_checkpoints_all_full_persisted_2() {
+        // try to provoke an catalog checkpoints that lists database checkpoints in the wrong order
+        ReplayTest {
+            catalog_transactions_until_checkpoint: NonZeroU64::new(2).unwrap(),
+            steps: vec![
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 1,
+                        lp: "table_1,tag_partition_by=b bar=10 10",
+                    },
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 2,
+                        lp: "table_1,tag_partition_by=a bar=20 20",
+                    },
+                ]),
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 20  |", "+-----+"],
+                )]),
+                Step::MakeWritesPersistable,
+                // persist partition B
+                Step::Persist(vec![
+                    ("table_1", "tag_partition_by_b"),
+                ]),
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 3,
+                        lp: "table_1,tag_partition_by=b bar=30 30",
+                    },
+                ]),
+                // persist partition A
+                Step::Await(vec![Check::Query(
+                    "select max(bar) as bar from table_1",
+                    vec!["+-----+", "| bar |", "+-----+", "| 30  |", "+-----+"],
+                )]),
+                Step::Persist(vec![
+                    ("table_1", "tag_partition_by_a"),
+                ]),
+                // Here we have a catalog checkpoint that orders parquet files by file name, so partition A comes before
+                // B. That is the flipped storage order (see persist actions above). If the upcoming replay would only
+                // consider the last of the two database checkpoints (as presented by the catalog), it would forget
+                // that:
+                // 1. sequence number 3 was seen and added to partition B
+                // 2. that partition A was fully persisted
+                Step::Restart,
+                Step::Replay,
+                Step::Assert(vec![
+                    Check::Partitions(vec![
+                        ("table_1", "tag_partition_by_a"),
+                        ("table_1", "tag_partition_by_b"),
+                    ]),
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+--------------------------------+",
+                            "| bar | tag_partition_by | time                           |",
+                            "+-----+------------------+--------------------------------+",
+                            "| 10  | b                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 20  | a                | 1970-01-01T00:00:00.000000020Z |",
+                            "| 30  | b                | 1970-01-01T00:00:00.000000030Z |",
+                            "+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                    // chunks do not overlap
+                    Check::Query(
+                        "select partition_key, min_value, max_value, row_count from system.chunk_columns where column_name = 'time' order by partition_key, min_value",
+                        vec![
+                            "+--------------------+-----------+-----------+-----------+",
+                            "| partition_key      | min_value | max_value | row_count |",
+                            "+--------------------+-----------+-----------+-----------+",
+                            "| tag_partition_by_a | 20        | 20        | 1         |",
+                            "| tag_partition_by_b | 10        | 10        | 1         |",
+                            "| tag_partition_by_b | 30        | 30        | 1         |",
+                            "+--------------------+-----------+-----------+-----------+",
+                        ],
+                    ),
+                ]),
             ],
             ..Default::default()
         }
@@ -1953,7 +2040,9 @@ mod tests {
         let builder = PersistCheckpointBuilder::new(partition_checkpoint);
         let (partition_checkpoint, database_checkpoint) = builder.build();
         let mut replay_planner = ReplayPlanner::new();
-        replay_planner.register_checkpoints(&partition_checkpoint, &database_checkpoint);
+        replay_planner
+            .register_checkpoints(&partition_checkpoint, &database_checkpoint)
+            .unwrap();
         let replay_plan = replay_planner.build().unwrap();
 
         // replay fails
@@ -2001,7 +2090,9 @@ mod tests {
         let builder = PersistCheckpointBuilder::new(partition_checkpoint);
         let (partition_checkpoint, database_checkpoint) = builder.build();
         let mut replay_planner = ReplayPlanner::new();
-        replay_planner.register_checkpoints(&partition_checkpoint, &database_checkpoint);
+        replay_planner
+            .register_checkpoints(&partition_checkpoint, &database_checkpoint)
+            .unwrap();
         let replay_plan = replay_planner.build().unwrap();
 
         // replay fails
