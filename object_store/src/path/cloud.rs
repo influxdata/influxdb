@@ -1,6 +1,6 @@
 use super::{DirsAndFileName, ObjectStorePath, PathPart, DELIMITER};
 
-use std::mem;
+use std::{fmt, mem};
 
 use itertools::Itertools;
 
@@ -63,6 +63,12 @@ impl CloudPath {
                 path
             }
         }
+    }
+}
+
+impl fmt::Display for CloudPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", self.to_raw())
     }
 }
 
@@ -277,5 +283,11 @@ mod tests {
 
         assert!(cloud_parts.directories.is_empty());
         assert!(cloud_parts.file_name.is_none());
+    }
+
+    #[test]
+    fn test_path_display() {
+        let cloudpath = CloudPath::raw("/foo/bar/bbb.json");
+        assert_eq!(format!("{}", cloudpath), "/foo/bar/bbb.json");
     }
 }

@@ -1,6 +1,8 @@
 //! This module contains code for abstracting object locations that work
 //! across different backing implementations and platforms.
 
+use std::fmt;
+
 /// Paths that came from or are to be used in cloud-based object storage
 pub mod cloud;
 use cloud::CloudPath;
@@ -126,5 +128,73 @@ impl From<Path> for DirsAndFileName {
             Path::InMemory(path) => path,
             Path::MicrosoftAzure(path) => path.into(),
         }
+    }
+}
+
+impl fmt::Display for Path {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            Self::AmazonS3(path) => {
+                write!(f, "s3:{}", path)
+            }
+            Self::File(path) => {
+                write!(f, "file:{}", path)
+            }
+            Self::GoogleCloudStorage(path) => {
+                write!(f, "gcs:{}", path)
+            }
+            Self::InMemory(path) => {
+                write!(f, "mem:{}", path)
+            }
+            Self::MicrosoftAzure(path) => {
+                write!(f, "azure:{}", path)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::parsed_path;
+
+    #[test]
+    fn test_display() {
+        assert_eq!(
+            format!("{}", Path::AmazonS3(CloudPath::raw("/foo/bar/baz.json"))),
+            "s3:/foo/bar/baz.json"
+        );
+        assert_eq!(
+            format!(
+                "{}",
+                Path::GoogleCloudStorage(CloudPath::raw("/foo/bar/baz.json"))
+            ),
+            "gcs:/foo/bar/baz.json"
+        );
+        assert_eq!(
+            format!(
+                "{}",
+                Path::MicrosoftAzure(CloudPath::raw("/foo/bar/baz.json"))
+            ),
+            "azure:/foo/bar/baz.json"
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                Path::File(FilePath::raw(&PathBuf::from("/foo/bar/baz.json"), false))
+            ),
+            "file:/foo/bar/baz.json"
+        );
+
+        assert_eq!(
+            format!(
+                "{}",
+                Path::InMemory(parsed_path!(["foo", "bar"], "baz.json"))
+            ),
+            "mem:foo/bar/baz.json"
+        );
     }
 }
