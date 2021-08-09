@@ -100,7 +100,7 @@ impl Database {
             state_notify: Default::default(),
         });
 
-        let handle = tokio::spawn(background_loop(Arc::clone(&shared)));
+        let handle = tokio::spawn(background_worker(Arc::clone(&shared)));
         let join = handle.map_err(Arc::new).boxed().shared();
 
         Self { join, shared }
@@ -112,7 +112,7 @@ impl Database {
         self.shared.shutdown.cancel()
     }
 
-    /// Waits for this `Database` background loop to exit
+    /// Waits for the background worker of this `Database` to exit
     pub async fn join(&self) -> Result<(), Arc<JoinError>> {
         self.join.clone().await
     }
@@ -223,7 +223,7 @@ impl Database {
     }
 }
 
-/// State shared with the `Database` background loop
+/// State shared with the `Database` background worker
 #[derive(Debug)]
 struct DatabaseShared {
     /// Configuration provided to the database at startup
@@ -242,9 +242,9 @@ struct DatabaseShared {
     state_notify: Notify,
 }
 
-/// The background loop for `Database` - there should only ever be one
-async fn background_loop(shared: Arc<DatabaseShared>) {
-    info!(db_name=%shared.config.name, "started database background loop");
+/// The background worker for `Database` - there should only ever be one
+async fn background_worker(shared: Arc<DatabaseShared>) {
+    info!(db_name=%shared.config.name, "started database background worker");
 
     initialize_database(shared.as_ref()).await;
 
@@ -258,7 +258,7 @@ async fn background_loop(shared: Arc<DatabaseShared>) {
                 .db,
         );
 
-        info!(db_name=%shared.config.name, "database finished initialization - starting Db loop");
+        info!(db_name=%shared.config.name, "database finished initialization - starting Db worker");
 
         // TODO: Pull background_worker out of `Db`
         db.background_worker(shared.shutdown.clone()).await

@@ -909,7 +909,7 @@ mod tests {
         let application = make_application();
         let app_server = make_server(Arc::clone(&application));
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        app_server.maybe_initialize_server().await;
+        app_server.wait_for_init().await.unwrap();
         app_server
             .create_database(DatabaseRules::new(
                 DatabaseName::new("MyOrg_MyBucket").unwrap(),
@@ -959,7 +959,7 @@ mod tests {
         let metric_registry = TestMetricRegistry::new(Arc::clone(application.metric_registry()));
 
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        app_server.maybe_initialize_server().await;
+        app_server.wait_for_init().await.unwrap();
         app_server
             .create_database(DatabaseRules::new(
                 DatabaseName::new("MetricsOrg_MetricsBucket").unwrap(),
@@ -1050,7 +1050,7 @@ mod tests {
         let application = make_application();
         let app_server = make_server(Arc::clone(&application));
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        app_server.maybe_initialize_server().await;
+        app_server.wait_for_init().await.unwrap();
         app_server
             .create_database(DatabaseRules::new(
                 DatabaseName::new("MyOrg_MyBucket").unwrap(),
@@ -1383,7 +1383,7 @@ mod tests {
         let application = make_application();
         let app_server = make_server(Arc::clone(&application));
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        app_server.maybe_initialize_server().await;
+        app_server.wait_for_init().await.unwrap();
         app_server
             .create_database(DatabaseRules::new(
                 DatabaseName::new("MyOrg_MyBucket").unwrap(),

@@ -2,7 +2,7 @@ use crate::commands::run::{Config, ObjectStore as ObjStoreOpt};
 use futures::{future::FusedFuture, pin_mut, FutureExt, TryStreamExt};
 use hyper::server::conn::AddrIncoming;
 use object_store::{self, path::ObjectStorePath, ObjectStore, ObjectStoreApi, ThrottleConfig};
-use observability_deps::tracing::{self, error, info, warn, Instrument};
+use observability_deps::tracing::{error, info, warn};
 use panic_logging::SendPanicsToTracing;
 use server::{
     ApplicationState, ConnectionManagerImpl as ConnectionManager, RemoteTemplate,
@@ -172,11 +172,8 @@ pub async fn main(config: Config) -> Result<()> {
         warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
     }
 
-    // An internal shutdown token for internal workers
-    let internal_shutdown = tokio_util::sync::CancellationToken::new();
-
     // Construct a token to trigger shutdown of API services
-    let frontend_shutdown = internal_shutdown.child_token();
+    let frontend_shutdown = tokio_util::sync::CancellationToken::new();
 
     // Construct and start up gRPC server
     let grpc_bind_addr = config.grpc_bind_address;
@@ -213,10 +210,7 @@ pub async fn main(config: Config) -> Result<()> {
     info!(git_hash, "InfluxDB IOx server ready");
 
     // Get IOx background worker task
-    let server_worker = app_server
-        .background_worker(internal_shutdown.clone())
-        .instrument(tracing::info_span!("server_worker"))
-        .fuse();
+    let server_worker = app_server.join().fuse();
 
     // Shutdown signal
     let signal = wait_for_signal().fuse();
@@ -266,7 +260,6 @@ pub async fn main(config: Config) -> Result<()> {
             _ = signal => info!("Shutdown requested"),
             _ = server_worker => {
                 info!("server worker shutdown prematurely");
-                internal_shutdown.cancel();
             },
             result = grpc_server => match result {
                 Ok(_) => info!("gRPC server shutdown"),
@@ -288,10 +281,13 @@ pub async fn main(config: Config) -> Result<()> {
     }
 
     info!("frontend shutdown completed");
-    internal_shutdown.cancel();
+    app_server.shutdown();
 
     if !server_worker.is_terminated() {
-        server_worker.await;
+        match server_worker.await {
+            Ok(_) => info!("server worker shutdown"),
+            Err(error) => error!(%error, "server worker error"),
+        }
     }
 
     info!("server completed shutting down");

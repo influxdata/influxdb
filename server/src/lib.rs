@@ -73,15 +73,17 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::BytesMut;
 use data_types::database_rules::ShardConfig;
+use data_types::error::ErrorLogger;
 use data_types::{
     database_rules::{DatabaseRules, NodeGroup, RoutingRules, ShardId, Sink},
     job::Job,
     server_id::ServerId,
     {DatabaseName, DatabaseNameError},
 };
-use database::Database;
+use database::{Database, DatabaseConfig};
 use db::load::create_preserved_catalog;
 use entry::{lines_to_sharded_entries, pb_to_entry, Entry, ShardedEntry};
+use futures::future::{BoxFuture, FutureExt, Shared, TryFutureExt};
 use generated_types::database_rules::encode_database_rules;
 use generated_types::influxdata::pbdata::v1 as pb;
 use hashbrown::HashMap;
@@ -96,17 +98,19 @@ use query::exec::Executor;
 use rand::seq::SliceRandom;
 use resolver::Resolver;
 use snafu::{OptionExt, ResultExt, Snafu};
+use tokio::task::JoinError;
+use tokio_util::sync::CancellationToken;
 use tracker::{TaskTracker, TrackedFutureExt};
 
-use crate::database::DatabaseConfig;
 pub use application::ApplicationState;
 pub use connection::{ConnectionManager, ConnectionManagerImpl, RemoteServer};
-use data_types::error::ErrorLogger;
+
 pub use db::Db;
 pub use job::JobRegistry;
 use object_store::path::parsed::DirsAndFileName;
 use object_store::path::{ObjectStorePath, Path};
 pub use resolver::{GrpcConnectionString, RemoteTemplate};
+use tokio::sync::Notify;
 
 mod application;
 mod connection;
@@ -360,6 +364,9 @@ pub struct Server<M: ConnectionManager> {
 
     metrics: Arc<ServerMetrics>,
 
+    /// Future that resolves when the background worker exits
+    join: Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>,
+
     /// Resolver for mapping ServerId to gRPC connection strings
     resolver: RwLock<Resolver>,
 
@@ -369,9 +376,17 @@ pub struct Server<M: ConnectionManager> {
 
 #[derive(Debug)]
 struct ServerShared {
+    /// A token that is used to trigger shutdown of the background worker
+    shutdown: CancellationToken,
+
+    /// Application-global state
     application: Arc<ApplicationState>,
 
+    /// The state of the `Server`
     state: RwLock<Freezable<ServerState>>,
+
+    /// Notify that the database state has changed
+    state_notify: Notify,
 }
 
 #[derive(Debug, Snafu)]
@@ -473,17 +488,25 @@ where
             application.metric_registry(),
         )));
 
+        let shared = Arc::new(ServerShared {
+            shutdown: Default::default(),
+            application,
+            state: RwLock::new(Freezable::new(ServerState::Startup(ServerStateStartup {
+                wipe_catalog_on_error: config.wipe_catalog_on_error,
+                skip_replay_and_seek_instead: config.skip_replay_and_seek_instead,
+            }))),
+            state_notify: Default::default(),
+        });
+
+        let handle = tokio::spawn(background_worker(Arc::clone(&shared)));
+        let join = handle.map_err(Arc::new).boxed().shared();
+
         Self {
             metrics,
+            shared,
+            join,
             connection_manager: Arc::new(connection_manager),
             resolver: RwLock::new(Resolver::new(config.remote_template)),
-            shared: Arc::new(ServerShared {
-                application,
-                state: RwLock::new(Freezable::new(ServerState::Startup(ServerStateStartup {
-                    wipe_catalog_on_error: config.wipe_catalog_on_error,
-                    skip_replay_and_seek_instead: config.skip_replay_and_seek_instead,
-                }))),
-            }),
         }
     }
 
@@ -525,6 +548,37 @@ where
     /// NB: not all databases may be initialized
     pub fn initialized(&self) -> bool {
         self.shared.state.read().initialized().is_ok()
+    }
+
+    /// Triggers shutdown of this `Server`
+    pub fn shutdown(&self) {
+        info!("server shutting down");
+        self.shared.shutdown.cancel()
+    }
+
+    /// Waits for this `Server` background worker to exit
+    pub async fn join(&self) -> Result<(), Arc<JoinError>> {
+        self.join.clone().await
+    }
+
+    /// Returns Ok(()) when the Server is initialized, or the error
+    /// if one is encountered
+    pub async fn wait_for_init(&self) -> Result<(), Arc<InitError>> {
+        loop {
+            // Register interest before checking to avoid race
+            let notify = self.shared.state_notify.notified();
+
+            // Note: this is not guaranteed to see non-terminal states
+            // as the state machine may advance past them between
+            // the notification being fired, and this task waking up
+            match &**self.shared.state.read() {
+                ServerState::InitError(_, e) => return Err(Arc::clone(e)),
+                ServerState::Initialized(_) => return Ok(()),
+                _ => {}
+            }
+
+            notify.await;
+        }
     }
 
     /// Error occurred during generic server init (e.g. listing store content).
@@ -634,90 +688,6 @@ where
         database.wait_for_init().await.context(DatabaseInit)?;
 
         Ok(())
-    }
-
-    /// Loads the database configurations based on the databases in the
-    /// object store. Any databases in the config already won't be
-    /// replaced.
-    ///
-    /// This requires the serverID to be set.
-    ///
-    /// It will be a no-op if the configs are already loaded and the server is ready.
-    ///
-    /// TODO: Make server own background loop and make this private
-    pub async fn maybe_initialize_server(&self) {
-        if self.initialized() {
-            return;
-        }
-
-        let (init_ready, handle) = {
-            let state = self.shared.state.read();
-
-            let init_ready = match &**state {
-                ServerState::Startup(_) => {
-                    info!("server not initialized - ID not set");
-                    return;
-                }
-                ServerState::InitReady(state) => {
-                    info!(server_id=%state.server_id, "server init ready");
-                    state.clone()
-                }
-                ServerState::InitError(state, e) => {
-                    info!(server_id=%state.server_id, %e, "retrying server init");
-                    state.clone()
-                }
-                ServerState::Initialized(_) => return,
-            };
-
-            let handle = match state.try_freeze() {
-                Some(handle) => handle,
-                None => return,
-            };
-
-            (init_ready, handle)
-        };
-
-        let maybe_databases = list_databases(
-            self.shared.application.object_store().as_ref(),
-            init_ready.server_id,
-        )
-        .await;
-
-        let next_state = match maybe_databases {
-            Ok(databases) => {
-                let databases = databases
-                    .into_iter()
-                    .map(|(db_name, store_prefix)| {
-                        (
-                            db_name.clone(),
-                            Arc::new(Database::new(
-                                Arc::clone(&self.shared.application),
-                                DatabaseConfig {
-                                    name: db_name,
-                                    server_id: init_ready.server_id,
-                                    store_prefix,
-                                    wipe_catalog_on_error: init_ready.wipe_catalog_on_error,
-                                    skip_replay: init_ready.skip_replay_and_seek_instead,
-                                },
-                            )),
-                        )
-                    })
-                    .collect();
-
-                info!(server_id=%init_ready.server_id, "server initialized");
-
-                ServerState::Initialized(ServerStateInitialized {
-                    server_id: init_ready.server_id,
-                    databases,
-                })
-            }
-            Err(e) => {
-                error!(server_id=%init_ready.server_id, %e, "error initializing server");
-                ServerState::InitError(init_ready, Arc::new(e))
-            }
-        };
-
-        *self.shared.state.write().unfreeze(handle) = next_state;
     }
 
     pub async fn write_pb(&self, database_batch: pb::DatabaseBatch) -> Result<()> {
@@ -1025,49 +995,140 @@ where
 
         Ok(tracker)
     }
+}
 
-    /// Background worker function for the server
-    ///
-    /// TODO: Server should own its background thread
-    pub async fn background_worker(&self, shutdown: tokio_util::sync::CancellationToken) {
-        info!("started background worker");
+/// Background worker function for the server
+async fn background_worker(shared: Arc<ServerShared>) {
+    info!("started server background worker");
 
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
 
-        // TODO: Move out of Server background loop
-        let job_registry = self.shared.application.job_registry();
+    // TODO: Move out of Server background worker
+    let job_registry = shared.application.job_registry();
 
-        while !shutdown.is_cancelled() {
-            self.maybe_initialize_server().await;
-            job_registry.reclaim();
+    while !shared.shutdown.is_cancelled() {
+        maybe_initialize_server(shared.as_ref()).await;
+        job_registry.reclaim();
 
-            // TODO: Trigger termination if database worker finishes
+        // TODO: Trigger termination if database worker finishes
 
-            tokio::select! {
-                _ = interval.tick() => {},
-                _ = shutdown.cancelled() => break
-            }
+        tokio::select! {
+            _ = interval.tick() => {},
+            _ = shared.shutdown.cancelled() => break
         }
-
-        info!("shutting down background workers");
-        if let Ok(databases) = self.databases() {
-            for database in databases {
-                database.shutdown();
-                let _ = database.join().await.log_if_error("database worker");
-            }
-        }
-
-        info!("draining tracker registry");
-
-        // Wait for any outstanding jobs to finish - frontend shutdown should be
-        // sequenced before shutting down the background workers and so there
-        // shouldn't be any
-        while job_registry.reclaim() != 0 {
-            interval.tick().await;
-        }
-
-        info!("drained tracker registry");
     }
+
+    info!("shutting down databases");
+    let databases: Vec<_> = shared
+        .state
+        .read()
+        .initialized()
+        .into_iter()
+        .flat_map(|x| x.databases.values().cloned())
+        .collect();
+
+    for database in databases {
+        database.shutdown();
+        let _ = database
+            .join()
+            .await
+            .log_if_error("database background worker");
+    }
+
+    info!("draining tracker registry");
+
+    // Wait for any outstanding jobs to finish - frontend shutdown should be
+    // sequenced before shutting down the background workers and so there
+    // shouldn't be any
+    while job_registry.reclaim() != 0 {
+        interval.tick().await;
+    }
+
+    info!("drained tracker registry");
+}
+
+/// Loads the database configurations based on the databases in the
+/// object store. Any databases in the config already won't be
+/// replaced.
+///
+/// This requires the serverID to be set.
+///
+/// It will be a no-op if the configs are already loaded and the server is ready.
+///
+async fn maybe_initialize_server(shared: &ServerShared) {
+    if shared.state.read().initialized().is_ok() {
+        return;
+    }
+
+    let (init_ready, handle) = {
+        let state = shared.state.read();
+
+        let init_ready = match &**state {
+            ServerState::Startup(_) => {
+                info!("server not initialized - ID not set");
+                return;
+            }
+            ServerState::InitReady(state) => {
+                info!(server_id=%state.server_id, "server init ready");
+                state.clone()
+            }
+            ServerState::InitError(state, e) => {
+                info!(server_id=%state.server_id, %e, "retrying server init");
+                state.clone()
+            }
+            ServerState::Initialized(_) => return,
+        };
+
+        let handle = match state.try_freeze() {
+            Some(handle) => handle,
+            None => return,
+        };
+
+        (init_ready, handle)
+    };
+
+    let maybe_databases = list_databases(
+        shared.application.object_store().as_ref(),
+        init_ready.server_id,
+    )
+    .await;
+
+    let next_state = match maybe_databases {
+        Ok(databases) => {
+            let databases = databases
+                .into_iter()
+                .map(|(db_name, store_prefix)| {
+                    (
+                        db_name.clone(),
+                        Arc::new(Database::new(
+                            Arc::clone(&shared.application),
+                            DatabaseConfig {
+                                name: db_name,
+                                server_id: init_ready.server_id,
+                                store_prefix,
+                                wipe_catalog_on_error: init_ready.wipe_catalog_on_error,
+                                skip_replay: init_ready.skip_replay_and_seek_instead,
+                            },
+                        )),
+                    )
+                })
+                .collect();
+
+            info!(server_id=%init_ready.server_id, "server initialized");
+
+            ServerState::Initialized(ServerStateInitialized {
+                server_id: init_ready.server_id,
+                databases,
+            })
+        }
+        Err(e) => {
+            error!(server_id=%init_ready.server_id, %e, "error initializing server");
+            ServerState::InitError(init_ready, Arc::new(e))
+        }
+    };
+
+    *shared.state.write().unfreeze(handle) = next_state;
+    shared.state_notify.notify_waiters();
 }
 
 /// TODO: Revisit this trait's API
@@ -1210,8 +1271,6 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use bytes::Bytes;
     use futures::TryStreamExt;
-    use tokio::task::JoinHandle;
-    use tokio_util::sync::CancellationToken;
 
     use arrow_util::assert_batches_eq;
     use connection::test_helpers::{TestConnectionManager, TestRemoteServer};
@@ -1225,6 +1284,7 @@ mod tests {
     use object_store::{path::ObjectStorePath, ObjectStore};
     use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
     use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryDatabase};
+    use test_helpers::assert_contains;
 
     use super::*;
 
@@ -1266,7 +1326,7 @@ mod tests {
         let application = make_application();
         let server = make_server(Arc::clone(&application));
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         let name = DatabaseName::new("bananas").unwrap();
 
@@ -1323,7 +1383,7 @@ mod tests {
 
         let server2 = make_server(application);
         server2.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server2.maybe_initialize_server().await;
+        server2.wait_for_init().await.unwrap();
 
         let database1 = server2.database(&name).unwrap();
         let database2 = server2.database(&db2).unwrap();
@@ -1341,7 +1401,7 @@ mod tests {
 
         let server = make_server(make_application());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         let name = DatabaseName::new("bananas").unwrap();
 
@@ -1393,7 +1453,7 @@ mod tests {
 
         let server = make_server(Arc::clone(&application));
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
         create_simple_database(&server, "bananas")
             .await
             .expect("failed to create database");
@@ -1406,7 +1466,7 @@ mod tests {
 
         let server = make_server(Arc::clone(&application));
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         create_simple_database(&server, "apples")
             .await
@@ -1423,7 +1483,7 @@ mod tests {
 
         let server = make_server(application);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         assert_eq!(server.db_names_sorted(), vec!["apples", "bananas"]);
 
@@ -1448,7 +1508,7 @@ mod tests {
     async fn db_names_sorted() {
         let server = make_server(make_application());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         let names = vec!["bar", "baz"];
 
@@ -1468,7 +1528,7 @@ mod tests {
     async fn writes_local() {
         let server = make_server(make_application());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         let db_name = DatabaseName::new("foo".to_string()).unwrap();
         server
@@ -1503,7 +1563,7 @@ mod tests {
         let metric_registry = TestMetricRegistry::new(Arc::clone(application.metric_registry()));
         let server = make_server(application);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
@@ -1585,7 +1645,7 @@ mod tests {
 
         let server = Server::new(manager, make_application(), Default::default());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
         server
@@ -1662,11 +1722,8 @@ mod tests {
         test_helpers::maybe_start_logging();
         let server = make_server(make_application());
 
-        let cancel_token = CancellationToken::new();
-        let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
-
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
         server
@@ -1725,10 +1782,6 @@ mod tests {
             "expected:\n{:#?}\n\nactual:{:#?}\n\n",
             expected, actual
         );
-
-        // ensure that we don't leave the server instance hanging around
-        cancel_token.cancel();
-        let _ = background_handle.await;
     }
 
     #[tokio::test]
@@ -1736,38 +1789,26 @@ mod tests {
         let application = make_application();
         let server = make_server(Arc::clone(&application));
 
-        let cancel_token = CancellationToken::new();
-        let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
-
         let wait_nanos = 1000;
         let job = application.job_registry().spawn_dummy_job(vec![wait_nanos]);
 
-        // Note: this will hang forever if the background task has not been started
         job.join().await;
 
         assert!(job.is_complete());
 
-        // ensure that we don't leave the server instance hanging around
-        cancel_token.cancel();
-        let _ = background_handle.await;
+        server.shutdown();
+        server.join().await.unwrap();
     }
 
     fn parsed_lines(lp: &str) -> Vec<ParsedLine<'_>> {
         parse_lines(lp).map(|l| l.unwrap()).collect()
     }
 
-    fn spawn_worker<M>(server: Arc<Server<M>>, token: CancellationToken) -> JoinHandle<()>
-    where
-        M: ConnectionManager + Send + Sync + 'static,
-    {
-        tokio::task::spawn(async move { server.background_worker(token).await })
-    }
-
     #[tokio::test]
     async fn hard_buffer_limit() {
         let server = make_server(make_application());
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
@@ -1837,9 +1878,6 @@ mod tests {
     async fn background_worker_eventually_inits_server() {
         let server = make_server(make_application());
 
-        let cancel_token = CancellationToken::new();
-        let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
-
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
 
         let t_0 = Instant::now();
@@ -1850,10 +1888,6 @@ mod tests {
             assert!(t_0.elapsed() < Duration::from_secs(10));
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
-
-        // ensure that we don't leave the server instance hanging around
-        cancel_token.cancel();
-        let _ = background_handle.await;
     }
 
     #[tokio::test]
@@ -1864,9 +1898,12 @@ mod tests {
         let server = make_server(application);
 
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_initialize_server().await;
-        assert!(dbg!(server.server_init_error().unwrap().to_string())
-            .starts_with("error listing databases in object storage:"));
+        let err = server.wait_for_init().await.unwrap_err();
+        assert!(matches!(err.as_ref(), InitError::ListRules { .. }));
+        assert_contains!(
+            server.server_init_error().unwrap().to_string(),
+            "error listing databases in object storage:"
+        );
     }
 
     #[tokio::test]
@@ -1877,7 +1914,7 @@ mod tests {
 
         let server = make_server(Arc::clone(&application));
         server.set_id(server_id).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         let foo_db_name = DatabaseName::new("foo").unwrap();
         let bar_db_name = DatabaseName::new("bar").unwrap();
@@ -1906,7 +1943,7 @@ mod tests {
         // start server
         let server = make_server(application);
         server.set_id(server_id).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         // generic error MUST NOT be set
         assert!(server.server_init_error().is_none());
@@ -1973,7 +2010,7 @@ mod tests {
         // Create temporary server to create existing databases
         let server = make_server(Arc::clone(&application));
         server.set_id(server_id).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         create_simple_database(&server, db_name_existing.clone())
             .await
@@ -2032,7 +2069,7 @@ mod tests {
         );
 
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         // Wait for databases to finish startup
         let databases = server.databases().unwrap();
@@ -2176,7 +2213,7 @@ mod tests {
         // setup server
         let server = make_server(Arc::clone(&application));
         server.set_id(server_id).unwrap();
-        server.maybe_initialize_server().await;
+        server.wait_for_init().await.unwrap();
 
         // create catalog
         PreservedCatalog::new_empty::<TestCatalogState>(
