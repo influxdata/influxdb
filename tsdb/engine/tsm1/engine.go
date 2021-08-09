@@ -2101,17 +2101,27 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			level4Groups := e.CompactionPlan.Plan(e.LastModified())
 			atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, int64(len(level4Groups)))
 
+			// Update the level plan queue stats. Do not update if the planner could not acquire
+			// the groups, because that means compactions are in progress, and the queue length
+			// should not suddenly become zero
+			isFull := e.CompactionPlan.IsFull()
 			// If no full compactions are need, see if an optimize is needed
 			if len(level4Groups) == 0 {
 				level4Groups = e.CompactionPlan.PlanOptimize()
-				atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, int64(len(level4Groups)))
+				if level4Groups != nil || isFull {
+					atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, int64(len(level4Groups)))
+				}
 			}
 
-			// Update the level plan queue stats
-			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[0], int64(len(level1Groups)))
-			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[1], int64(len(level2Groups)))
-			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[2], int64(len(level3Groups)))
-
+			if level1Groups != nil || isFull {
+				atomic.StoreInt64(&e.stats.TSMCompactionsQueue[0], int64(len(level1Groups)))
+			}
+			if level2Groups != nil || isFull {
+				atomic.StoreInt64(&e.stats.TSMCompactionsQueue[1], int64(len(level2Groups)))
+			}
+			if level3Groups != nil || isFull {
+				atomic.StoreInt64(&e.stats.TSMCompactionsQueue[2], int64(len(level3Groups)))
+			}
 			// Set the queue depths on the scheduler
 			e.scheduler.setDepth(1, len(level1Groups))
 			e.scheduler.setDepth(2, len(level2Groups))

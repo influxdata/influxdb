@@ -2878,6 +2878,7 @@ func (m *mockPlanner) PlanOptimize() []tsm1.CompactionGroup            { return 
 func (m *mockPlanner) Release(groups []tsm1.CompactionGroup)           {}
 func (m *mockPlanner) FullyCompacted() (bool, string)                  { return false, "not compacted" }
 func (m *mockPlanner) ForceFull()                                      {}
+func (m *mockPlanner) IsFull() bool                                    { return false }
 func (m *mockPlanner) SetFileStore(fs *tsm1.FileStore)                 {}
 
 // ParseTags returns an instance of Tags for a comma-delimited list of key/values.

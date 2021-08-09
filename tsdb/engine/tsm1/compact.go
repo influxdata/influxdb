@@ -98,6 +98,7 @@ type CompactionPlanner interface {
 	// ForceFull causes the planner to return a full compaction plan the next
 	// time Plan() is called if there are files that could be compacted.
 	ForceFull()
+	IsFull() bool
 
 	SetFileStore(fs *FileStore)
 }
@@ -231,6 +232,12 @@ func (c *DefaultPlanner) ForceFull() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.forceFull = true
+}
+
+func (c *DefaultPlanner) IsFull() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.forceFull
 }
 
 // PlanLevel returns a set of TSM files to rewrite for a specific level.
