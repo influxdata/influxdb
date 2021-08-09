@@ -7,6 +7,7 @@
 -	[#21820](https://github.com/influxdata/influxdb/pull/21820): chore: update flux to v0.120.1
 -	[#21983](https://github.com/influxdata/influxdb/pull/21983): feat: SHOW TAG VALUES should produce results from one specific RP
 -	[#22020](https://github.com/influxdata/influxdb/pull/22020): feat: add subscription buffer size usage metric
+-	[#22097](https://github.com/influxdata/influxdb/pull/22097): chore: update flux dependency to 0.124.0
 
 ### Bugfixes
 
