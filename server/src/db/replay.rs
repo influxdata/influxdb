@@ -539,14 +539,12 @@ mod tests {
                     Step::Replay => {
                         let db = &test_db.db;
 
-                        db.perform_replay(&test_db.replay_plan, false)
-                            .await
-                            .unwrap();
+                        db.perform_replay(Some(&test_db.replay_plan)).await.unwrap();
                     }
                     Step::SkipReplay => {
                         let db = &test_db.db;
 
-                        db.perform_replay(&test_db.replay_plan, true).await.unwrap();
+                        db.perform_replay(None).await.unwrap();
                     }
                     Step::Persist(partitions) => {
                         let db = &test_db.db;
@@ -2046,7 +2044,7 @@ mod tests {
         let replay_plan = replay_planner.build().unwrap();
 
         // replay fails
-        let res = db.perform_replay(&replay_plan, false).await;
+        let res = db.perform_replay(Some(&replay_plan)).await;
         assert_contains!(
             res.unwrap_err().to_string(),
             "Replay plan references unknown sequencer"
@@ -2096,7 +2094,7 @@ mod tests {
         let replay_plan = replay_planner.build().unwrap();
 
         // replay fails
-        let res = db.perform_replay(&replay_plan, false).await;
+        let res = db.perform_replay(Some(&replay_plan)).await;
         assert_contains!(
             res.unwrap_err().to_string(),
             "Cannot replay: For sequencer 0 expected to find sequence 1 but replay jumped to 2"
@@ -2137,7 +2135,7 @@ mod tests {
         let db = &test_db.db;
 
         // seek
-        db.perform_replay(&test_db.replay_plan, true).await.unwrap();
+        db.perform_replay(None).await.unwrap();
 
         // add more data
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(

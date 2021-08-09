@@ -72,6 +72,7 @@ impl TestDbBuilder {
             server_id,
             Arc::clone(&metrics_registry),
             true,
+            false,
         )
         .await
         .unwrap();
@@ -112,7 +113,7 @@ impl TestDbBuilder {
         TestDb {
             metric_registry: metrics::TestMetricRegistry::new(metrics_registry),
             db: Db::new(database_to_commit, Arc::new(JobRegistry::new())),
-            replay_plan,
+            replay_plan: replay_plan.expect("did not skip replay"),
         }
     }
 

@@ -328,7 +328,7 @@ async fn initialize_database(shared: &DatabaseShared) {
                 Ok(state) => DatabaseState::CatalogLoaded(state),
                 Err(e) => DatabaseState::CatalogLoadError(state, Arc::new(e)),
             },
-            DatabaseState::CatalogLoaded(state) => match state.advance(shared).await {
+            DatabaseState::CatalogLoaded(state) => match state.advance().await {
                 Ok(state) => DatabaseState::Initialized(state),
                 Err(e) => DatabaseState::ReplayError(state, Arc::new(e)),
             },
@@ -496,6 +496,7 @@ impl DatabaseStateRulesLoaded {
             shared.config.server_id,
             Arc::clone(shared.application.metric_registry()),
             shared.config.wipe_catalog_on_error,
+            shared.config.skip_replay,
         )
         .await
         .context(CatalogLoad)?;
@@ -529,18 +530,15 @@ impl DatabaseStateRulesLoaded {
 #[derive(Debug, Clone)]
 struct DatabaseStateCatalogLoaded {
     db: Arc<Db>,
-    replay_plan: Arc<ReplayPlan>,
+    replay_plan: Arc<Option<ReplayPlan>>,
 }
 
 impl DatabaseStateCatalogLoaded {
     /// Perform replay
-    async fn advance(
-        &self,
-        shared: &DatabaseShared,
-    ) -> Result<DatabaseStateInitialized, InitError> {
+    async fn advance(&self) -> Result<DatabaseStateInitialized, InitError> {
         let db = Arc::clone(&self.db);
 
-        db.perform_replay(self.replay_plan.as_ref(), shared.config.skip_replay)
+        db.perform_replay(self.replay_plan.as_ref().as_ref())
             .await
             .context(Replay)?;
 
