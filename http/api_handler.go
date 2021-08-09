@@ -192,6 +192,8 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	h.Mount("/api/v2/flags", b.FlagsHandler)
 
+	h.Mount(prefixResources, NewResourceListHandler())
+
 	variableBackend := NewVariableBackend(b.Logger.With(zap.String("handler", "variable")), b)
 	variableBackend.VariableService = authorizer.NewVariableService(b.VariableService)
 	h.Mount(prefixVariables, NewVariableHandler(b.Logger, variableBackend))
