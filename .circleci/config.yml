@@ -194,16 +194,6 @@ workflows:
           requires:
             - build_and_test
       - perf_test:
-          name: perf-test-flux
-          format: flux-http
-          record_ingest_results: false
-          requires:
-            - build_and_test
-          filters:
-            branches:
-              only:
-                - "1.8"
-      - perf_test:
           name: perf-test-influxql
           format: http
           record_ingest_results: true
