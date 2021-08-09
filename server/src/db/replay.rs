@@ -1704,6 +1704,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_works_with_checkpoints_all_full_persisted_2() {
+        // try to provoke an catalog checkpoints that lists database checkpoints in the wrong order
         ReplayTest {
             catalog_transactions_until_checkpoint: NonZeroU64::new(2).unwrap(),
             steps: vec![
@@ -1724,6 +1725,7 @@ mod tests {
                     vec!["+-----+", "| bar |", "+-----+", "| 20  |", "+-----+"],
                 )]),
                 Step::MakeWritesPersistable,
+                // persist partition B
                 Step::Persist(vec![
                     ("table_1", "tag_partition_by_b"),
                 ]),
@@ -1734,6 +1736,7 @@ mod tests {
                         lp: "table_1,tag_partition_by=b bar=30 30",
                     },
                 ]),
+                // persist partition A
                 Step::Await(vec![Check::Query(
                     "select max(bar) as bar from table_1",
                     vec!["+-----+", "| bar |", "+-----+", "| 30  |", "+-----+"],
@@ -1741,6 +1744,12 @@ mod tests {
                 Step::Persist(vec![
                     ("table_1", "tag_partition_by_a"),
                 ]),
+                // Here we have a catalog checkpoint that orders parquet files by file name, so partition A comes before
+                // B. That is the flipped storage order (see persist actions above). If the upcoming replay would only
+                // consider the last of the two database checkpoints (as presented by the catalog), it would forget
+                // that:
+                // 1. sequence number 3 was seen and added to partition B
+                // 2. that partition A was fully persisted
                 Step::Restart,
                 Step::Replay,
                 Step::Assert(vec![
