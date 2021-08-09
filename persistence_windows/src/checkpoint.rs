@@ -288,7 +288,7 @@ pub enum Error {
 
     #[snafu(
         display(
-            "Minimum sequence number in partition checkpoint ({}) is larger than database-wide number ({}) for partition {}:{} and sequencer {}",
+            "Maximum sequence number in partition checkpoint ({}) is larger than database-wide number ({}) for partition {}:{} and sequencer {}",
             partition_checkpoint_sequence_number,
             database_checkpoint_sequence_number,
             table_name,
