@@ -54,7 +54,7 @@ workflows:
           filters:
             branches:
               only:
-                - "master"
+                - "2.0"
       - perf_test:
           name: perf-test-influxql
           format: http
