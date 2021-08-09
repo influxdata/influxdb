@@ -144,7 +144,8 @@ impl PersistenceWindows {
     /// is triggered (either by crossing a row count threshold or time).
     ///
     /// # Panics
-    /// When the passed `received_at` is smaller than the last time this method was used (aka time goes backwards).
+    /// - When the passed `received_at` is smaller than the last time this method was used (aka time goes backwards).
+    /// - When `min_time > max_time`.
     pub fn add_range(
         &mut self,
         sequence: Option<&Sequence>,
@@ -158,6 +159,12 @@ impl PersistenceWindows {
             "PersistenceWindows::add_range called out of order, received_at ({:?}) < last_instant ({:?})",
             received_at,
             self.last_instant,
+        );
+        assert!(
+            min_time <= max_time,
+            "PersistenceWindows::add_range called with min_time ({}) > max_time ({})",
+            min_time,
+            max_time
         );
         self.last_instant = received_at;
 
@@ -553,6 +560,21 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "PersistenceWindows::add_range called with min_time")]
+    fn panics_when_min_time_gt_max_time() {
+        let mut w = make_windows(Duration::from_secs(60));
+
+        let t = Utc::now();
+        w.add_range(
+            Some(&Sequence { id: 1, number: 1 }),
+            NonZeroUsize::new(1).unwrap(),
+            t + chrono::Duration::nanoseconds(1),
+            t,
+            Instant::now(),
+        );
+    }
+
+    #[test]
     fn starts_open_window() {
         let mut w = make_windows(Duration::from_secs(60));
 
@@ -580,11 +602,12 @@ mod tests {
             Utc::now(),
             Instant::now(),
         );
+        let time_before_last_time = Utc::now();
         let last_time = Utc::now();
         w.add_range(
             Some(&Sequence { id: 2, number: 23 }),
             NonZeroUsize::new(10).unwrap(),
-            Utc::now(),
+            time_before_last_time,
             last_time,
             Instant::now(),
         );
