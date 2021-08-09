@@ -347,11 +347,21 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// # Ordering
 /// Partition checkpoints for the same partition are guaranteed to be created in-sequence because their creation
-/// requires a [`FlushHandle`](crate::persistence_windows::FlushHandle). They can then be ordered based on the sequence
-/// numbers they contain (the per-sequencer min and max can only increase, sequencers can only be added but never
-/// removed). Note that they are NOT compared based on the
-/// [`min_unpersisted_timestamp`](Self::min_unpersisted_timestamp) since that one depends on the data ingested by the
-/// user and might go backwards during backfills.
+/// requires a [`FlushHandle`](crate::persistence_windows::FlushHandle). Two checkpoints can therefore be compared if:
+///
+/// 1. **same table/partition:** They belong to the same table and partition. Only equality is allowed, the strings are
+///    NOT ordered.
+/// 2. **same or larger sequencer set:** Sequencers can only be added but never removed, so either both checkpoints
+///   present the same set of sequencers or one has strictly more sequencers than the other.
+/// 3. **range comparable:** For all matchin sequencers, the [`OptionalMinMaxSequence`] must be comparable.
+/// 4. **unambiguity:** All checks performed in (2) and (3) must be unambiguous, which means if any check of the checks
+///    yields "greater", all other checks must yield "greater" or "equal"; and if any of the checks yields "less" all
+///    other checks must yield "less" or "equal". E.g. order cannot be established if the sequence number ranges for
+///    sequencer 1 yield "less" and the ranges for sequencer 2 yield "greater"; or if the sequence number ranges yield
+///    "less" but the first checkpoint has more sequencers than the second.
+///
+/// Note that they are NOT compared based on the [`min_unpersisted_timestamp`](Self::min_unpersisted_timestamp) since
+/// that one depends on the data ingested by the user and might go backwards during backfills.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartitionCheckpoint {
     /// Table of the partition.
@@ -424,6 +434,7 @@ impl PartitionCheckpoint {
 }
 
 impl PartialOrd for PartitionCheckpoint {
+    /// See [`PartitionCheckpoint`] for an explanation of how/when ranges are ordered.
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         if (self.table_name != other.table_name) || (self.partition_key != other.partition_key) {
             return None;

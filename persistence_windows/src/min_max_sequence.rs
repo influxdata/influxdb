@@ -116,6 +116,7 @@ impl std::fmt::Display for OptionalMinMaxSequence {
 }
 
 impl PartialOrd for OptionalMinMaxSequence {
+    /// See [`OptionalMinMaxSequence`] for an explanation of how/when ranges are ordered.
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         // upcast min values so that we can use `u64::MAX + 1`
         let min1 = self
