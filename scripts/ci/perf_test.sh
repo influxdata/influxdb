@@ -65,6 +65,7 @@ RAMDISK_DIR=/mnt/ramdisk
 ssh ubuntu@$ec2_ip << EOF
 sudo DEBIAN_FRONTEND=noninteractive apt-get install --assume-yes /home/ubuntu/$base_debname
 sudo sed -i 's/# flux-enabled = false/flux-enabled = true/g' /etc/influxdb/influxdb.conf
+sudo sed -i 's/# index-version = "inmem"/index-version = "tsi1"/g' /etc/influxdb/influxdb.conf
 sudo systemctl unmask influxdb.service
 sudo systemctl start influxdb
 sudo mkdir -p ${RAMDISK_DIR}
