@@ -353,7 +353,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///    NOT ordered.
 /// 2. **same or larger sequencer set:** Sequencers can only be added but never removed, so either both checkpoints
 ///   present the same set of sequencers or one has strictly more sequencers than the other.
-/// 3. **range comparable:** For all matchin sequencers, the [`OptionalMinMaxSequence`] must be comparable.
+/// 3. **range comparable:** For all matching sequencers, the [`OptionalMinMaxSequence`] must be comparable.
 /// 4. **unambiguity:** All checks performed in (2) and (3) must be unambiguous, which means if any check of the checks
 ///    yields "greater", all other checks must yield "greater" or "equal"; and if any of the checks yields "less" all
 ///    other checks must yield "less" or "equal". E.g. order cannot be established if the sequence number ranges for
