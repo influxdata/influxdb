@@ -92,7 +92,7 @@ use metrics::{KeyValue, MetricObserverBuilder};
 use object_store::{ObjectStore, ObjectStoreApi};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
-use query::{exec::Executor, DatabaseStore};
+use query::exec::Executor;
 use rand::seq::SliceRandom;
 use resolver::Resolver;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -222,6 +222,31 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Storage for `Databases` which can be retrieved by name
+#[async_trait]
+pub trait DatabaseStore: std::fmt::Debug + Send + Sync {
+    /// The type of database that is stored by this DatabaseStore
+    type Database: query::QueryDatabase;
+
+    /// The type of error this DataBase store generates
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// List the database names.
+    fn db_names_sorted(&self) -> Vec<String>;
+
+    /// Retrieve the database specified by `name` returning None if no
+    /// such database exists
+    fn db(&self, name: &str) -> Option<Arc<Self::Database>>;
+
+    /// Retrieve the database specified by `name`, creating it if it
+    /// doesn't exist.
+    async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error>;
+
+    /// Provide a query executor to use for running queries on
+    /// databases in this `DatabaseStore`
+    fn executor(&self) -> Arc<Executor>;
+}
 
 /// A collection of metrics used to instrument the Server.
 #[derive(Debug)]
