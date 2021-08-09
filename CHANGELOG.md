@@ -4,6 +4,7 @@ v1.9.4 [unreleased]
 
 -	[#22011](https://github.com/influxdata/influxdb/pull/22011): feat: SHOW TAG VALUES should produce results from one specific RP
 -	[#22049](https://github.com/influxdata/influxdb/pull/22049): feat: add subscription buffer size usage metric
+-	[#22102](https://github.com/influxdata/influxdb/pull/22102): chore: update flux dependency to 0.124.0
 
 ### Bugfixes
 
