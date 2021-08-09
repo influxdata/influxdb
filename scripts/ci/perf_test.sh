@@ -22,7 +22,7 @@ instance_info=$(aws --region us-west-2 ec2 run-instances \
   --key-name circleci-oss-test \
   --security-group-ids sg-03004366a38eccc97 \
   --subnet-id subnet-0c079d746f27ede5e \
-  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=oss-perftest-$datestring-${CIRCLE_BRANCH}-${CIRCLE_SHA1}}]")
+  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=oss-perftest-$datestring-${CIRCLE_BRANCH}-${CIRCLE_SHA1}-${TEST_FORMAT}}]")
 
 # get instance info
 ec2_instance_id=$(echo $instance_info | jq -r .Instances[].InstanceId)
