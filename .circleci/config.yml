@@ -13,6 +13,9 @@ parameters:
   aws_teardown_datestring:
     default: "n/a"
     type: string
+  aws_teardown_query_format:
+    default: "n/a"
+    type: string
 
 workflows:
   version: 2
@@ -43,6 +46,19 @@ workflows:
             - godeps
             - jsdeps
       - perf_test:
+          name: perf-test-flux
+          format: flux-http
+          record_ingest_results: true
+          requires:
+            - cross_build
+          filters:
+            branches:
+              only:
+                - "2.0"
+      - perf_test:
+          name: perf-test-influxql
+          format: http
+          record_ingest_results: false
           requires:
             - cross_build
           filters:
@@ -542,6 +558,11 @@ jobs:
   perf_test:
     machine:
       image: ubuntu-2004:202010-01
+    parameters:
+      format:
+        type: string
+      record_ingest_results:
+        type: boolean
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -552,8 +573,12 @@ jobs:
       - run:
           name: Run test in AWS instance
           no_output_timeout: 20m
-          command: AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} scripts/ci/perf_test.sh
-
+          command: >
+            AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID}
+            AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY}
+            TEST_FORMAT=<< parameters.format >>
+            TEST_RECORD_INGEST_RESULTS=<< parameters.record_ingest_results >>
+            scripts/ci/perf_test.sh
   aws_destroy_by_date:
     machine:
       enabled: true
@@ -603,7 +628,7 @@ jobs:
           no_output_timeout: 20m
           command: |
             set -x
-            name=oss-perftest-<< pipeline.parameters.aws_teardown_datestring >>-<< pipeline.parameters.aws_teardown_branch >>-<< pipeline.parameters.aws_teardown_sha >>
+            name=oss-perftest-<< pipeline.parameters.aws_teardown_datestring >>-<< pipeline.parameters.aws_teardown_branch >>-<< pipeline.parameters.aws_teardown_sha >>-<< pipeline.parameters.aws_teardown_query_format >>
             instance_id=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 describe-instances --filters "Name=tag:Name,Values=$name" --query 'Reservations[].Instances[].InstanceId' --output text)
             AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
 

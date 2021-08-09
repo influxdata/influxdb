@@ -1,5 +1,14 @@
 set -ex -o pipefail
 
+case "${TEST_FORMAT}" in
+  http|flux-http)
+    ;;
+  *)
+    >&2 echo "Unknown query format: ${TEST_FORMAT}"
+    exit 1
+    ;;
+esac
+
 # get latest ubuntu 20.04 ami for us-west-2
 ami_id=$(aws --region us-west-2 ssm get-parameters --names /aws/service/canonical/ubuntu/server/20.04/stable/current/amd64/hvm/ebs-gp2/ami-id --query 'Parameters[0].[Value]' --output text)
 
@@ -13,7 +22,7 @@ instance_info=$(aws --region us-west-2 ec2 run-instances \
   --key-name circleci-oss-test \
   --security-group-ids sg-03004366a38eccc97 \
   --subnet-id subnet-0c079d746f27ede5e \
-  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=oss-perftest-$datestring-${CIRCLE_BRANCH}-${CIRCLE_SHA1}}]")
+  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=oss-perftest-$datestring-${CIRCLE_BRANCH}-${CIRCLE_SHA1}-${TEST_FORMAT}}]")
 
 # get instance info
 ec2_instance_id=$(echo $instance_info | jq -r .Instances[].InstanceId)
@@ -44,7 +53,7 @@ done
 trap "aws --region us-west-2 ec2 terminate-instances --instance-ids $ec2_instance_id" KILL
 
 # push binary and script to instance
-debname=$(find /tmp/workspace/artifacts/influxdb2*amd64.deb)
+debname=$(find /tmp/workspace/artifacts -regex ".*/influxdb2-[0-9].*amd64.deb")
 base_debname=$(basename $debname)
 source_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
@@ -75,6 +84,7 @@ fi
 
 # run tests
 set +x
-echo "running 'ssh ubuntu@$ec2_ip \"nohup sudo AWS_ACCESS_KEY_ID=REDACTED AWS_SECRET_ACCESS_KEY=REDACTED CIRCLE_TEARDOWN=true CIRCLE_TOKEN=REDACTED  CLOUD2_BUCKET=${CLOUD2_PERFTEST_BUCKET} CLOUD2_ORG=${CLOUD2_PERFTEST_ORG} DATASET_DIR=${RAMDISK_DIR} DATA_I_TYPE=${instance_type} DB_TOKEN=REDACTED INFLUXDB2=${INFLUXDB2} INFLUXDB_VERSION=${CIRCLE_BRANCH} NGINX_HOST=localhost TEST_COMMIT=${CIRCLE_SHA1} TEST_ORG=${TEST_ORG} TEST_TOKEN=${TEST_TOKEN} CIRCLE_TEARDOWN_DATESTRING=$datestring ./run_perftest.sh > /home/ubuntu/perftest_log.txt 2>&1 &\"'"
-ssh ubuntu@$ec2_ip "nohup sudo AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} CIRCLE_TEARDOWN=true CIRCLE_TOKEN=${CIRCLE_API_CALLBACK_TOKEN}  CLOUD2_BUCKET=${CLOUD2_PERFTEST_BUCKET} CLOUD2_ORG=${CLOUD2_PERFTEST_ORG} DATASET_DIR=${RAMDISK_DIR} DATA_I_TYPE=${instance_type} DB_TOKEN=${CLOUD2_PERFTEST_TOKEN} INFLUXDB2=${INFLUXDB2} INFLUXDB_VERSION=${CIRCLE_BRANCH} NGINX_HOST=localhost TEST_COMMIT=${CIRCLE_SHA1} TEST_ORG=${TEST_ORG} TEST_TOKEN=${TEST_TOKEN} CIRCLE_TEARDOWN_DATESTRING=$datestring ./run_perftest.sh > /home/ubuntu/perftest_log.txt 2>&1 &"
+export COMMIT_TIME=$(git show -s --format=%ct)
+echo "running 'ssh ubuntu@$ec2_ip \"nohup sudo AWS_ACCESS_KEY_ID=REDACTED AWS_SECRET_ACCESS_KEY=REDACTED CIRCLE_TEARDOWN=true CIRCLE_TOKEN=REDACTED  CLOUD2_BUCKET=${CLOUD2_PERFTEST_BUCKET} CLOUD2_ORG=${CLOUD2_PERFTEST_ORG} DATASET_DIR=${RAMDISK_DIR} DATA_I_TYPE=${instance_type} DB_TOKEN=REDACTED INFLUXDB2=${INFLUXDB2} INFLUXDB_VERSION=${CIRCLE_BRANCH} TEST_FORMAT=${TEST_FORMAT} TEST_RECORD_INGEST_RESULTS=${TEST_RECORD_INGEST_RESULTS} NGINX_HOST=localhost TEST_COMMIT=${CIRCLE_SHA1} TEST_COMMIT_TIME=${COMMIT_TIME} TEST_ORG=${TEST_ORG} TEST_TOKEN=${TEST_TOKEN} CIRCLE_TEARDOWN_DATESTRING=$datestring ./run_perftest.sh > /home/ubuntu/perftest_log.txt 2>&1 &\"'"
+ssh ubuntu@$ec2_ip "nohup sudo AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} CIRCLE_TEARDOWN=true CIRCLE_TOKEN=${CIRCLE_API_CALLBACK_TOKEN}  CLOUD2_BUCKET=${CLOUD2_PERFTEST_BUCKET} CLOUD2_ORG=${CLOUD2_PERFTEST_ORG} DATASET_DIR=${RAMDISK_DIR} DATA_I_TYPE=${instance_type} DB_TOKEN=${CLOUD2_PERFTEST_TOKEN} INFLUXDB2=${INFLUXDB2} INFLUXDB_VERSION=${CIRCLE_BRANCH} TEST_FORMAT=${TEST_FORMAT} TEST_RECORD_INGEST_RESULTS=${TEST_RECORD_INGEST_RESULTS} NGINX_HOST=localhost TEST_COMMIT=${CIRCLE_SHA1} TEST_COMMIT_TIME=${COMMIT_TIME} TEST_ORG=${TEST_ORG} TEST_TOKEN=${TEST_TOKEN} CIRCLE_TEARDOWN_DATESTRING=$datestring ./run_perftest.sh > /home/ubuntu/perftest_log.txt 2>&1 &"
 
