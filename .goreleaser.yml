@@ -112,9 +112,9 @@ nfpms:
           amd64: x86_64
           arm64: aarch64
           armhf: armv7hl
-        file_name_template: "influxdb2-server-{{ .Version }}.{{ .Arch }}"
+        file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}"
       deb:
-        file_name_template: "influxdb2-server-{{ .Version }}-{{ .Arch }}"
+        file_name_template: "influxdb2-{{ .Version }}-{{ .Arch }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
@@ -130,17 +130,6 @@ archives:
         format: zip
     wrap_in_directory: true
     name_template: "influxdb2-client-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
-    files:
-      - LICENSE
-      - README.md
-  - id: influxd_only
-    builds: [influxd]
-    format: tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
-    wrap_in_directory: true
-    name_template: "influxdb2-server-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
     files:
       - LICENSE
       - README.md
