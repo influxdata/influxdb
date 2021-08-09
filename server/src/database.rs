@@ -316,6 +316,8 @@ async fn initialize_database(shared: &DatabaseShared) {
             }
         };
 
+        info!(%db_name, %state, "attempting to advance database initialization state");
+
         // Try to advance to the next state
         let next_state = match state {
             DatabaseState::Known(state) => match state.advance(shared).await {
@@ -336,6 +338,8 @@ async fn initialize_database(shared: &DatabaseShared) {
         // Commit the next state
         {
             let mut state = shared.state.write();
+            info!(%db_name, from=%state, to=%next_state, "database initialization state transition");
+
             *state.unfreeze(handle) = next_state;
             shared.state_notify.notify_waiters();
         }
