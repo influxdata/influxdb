@@ -49,7 +49,7 @@ require (
 	github.com/influxdata/pkg-config v0.2.8
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
-	github.com/kevinburke/go-bindata v3.11.0+incompatible
+	github.com/kevinburke/go-bindata v3.22.0+incompatible
 	github.com/lib/pq v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.13
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
