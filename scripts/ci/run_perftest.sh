@@ -220,10 +220,13 @@ for usecase in iot metaquery; do
     load_opts="$load_opts -organization=$TEST_ORG -token=$TEST_TOKEN"
   fi
 
-  # run ingest tests
+  # Run ingest tests. Only write the results to disk if this run should contribute to ingest-test results.
+  out=/dev/null
+  if [ "${TEST_RECORD_INGEST_RESULTS}" = true ]; then
+    out=$working_dir/test-ingest-$usecase.json
+  fi
   $GOPATH/bin/bulk_load_influx $load_opts | \
-    jq ". += {branch: \"$INFLUXDB_VERSION\", commit: \"$TEST_COMMIT\", time: \"$datestring\", i_type: \"$DATA_I_TYPE\", use_case: \"$usecase\"}" > \
-      $working_dir/test-ingest-$usecase.json
+    jq ". += {branch: \"$INFLUXDB_VERSION\", commit: \"$TEST_COMMIT\", time: \"$datestring\", i_type: \"$DATA_I_TYPE\", use_case: \"$usecase\"}" > ${out}
 
   # Cleanup
   force_compaction
@@ -247,22 +250,20 @@ query_types() {
 
 # Generate queries to test.
 query_files=""
-for format in http flux-http; do
-  # Aggregate queries
-  for usecase in window-agg group-agg bare-agg metaquery; do
-    for type in $(query_types $usecase); do
-      query_fname="${format}_${usecase}_${type}"
-      $GOPATH/bin/bulk_query_gen \
-          -use-case=$usecase \
-          -query-type=$type \
-          -format=influx-$format \
-          -timestamp-start=$(start_time $usecase) \
-          -timestamp-end=$(end_time $usecase) \
-          -queries=$queries \
-          -scale-var=$scale_var > \
-        ${DATASET_DIR}/$query_fname
-      query_files="$query_files $query_fname"
-    done
+# Aggregate queries
+for usecase in window-agg group-agg bare-agg metaquery; do
+  for type in $(query_types $usecase); do
+    query_fname="${TEST_FORMAT}_${usecase}_${type}"
+    $GOPATH/bin/bulk_query_gen \
+        -use-case=$usecase \
+        -query-type=$type \
+        -format=influx-${TEST_FORMAT} \
+        -timestamp-start=$(start_time $usecase) \
+        -timestamp-end=$(end_time $usecase) \
+        -queries=$queries \
+        -scale-var=$scale_var > \
+      ${DATASET_DIR}/$query_fname
+    query_files="$query_files $query_fname"
   done
 done
 
