@@ -133,17 +133,6 @@ archives:
     files:
       - LICENSE
       - README.md
-  - id: influxd_only
-    builds: [influxd]
-    format: tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
-    wrap_in_directory: true
-    name_template: "influxdb2-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
-    files:
-      - LICENSE
-      - README.md
   - id: influx_and_influxd
     format: tar.gz
     format_overrides:
