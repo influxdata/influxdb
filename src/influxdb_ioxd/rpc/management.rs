@@ -8,8 +8,8 @@ use generated_types::google::{
 };
 use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
 use observability_deps::tracing::info;
-use query::{DatabaseStore, QueryDatabase};
-use server::{ApplicationState, ConnectionManager, Error, Server};
+use query::QueryDatabase;
+use server::{ApplicationState, ConnectionManager, DatabaseStore, Error, Server};
 use tonic::{Request, Response, Status};
 
 struct ManagementService<M: ConnectionManager> {

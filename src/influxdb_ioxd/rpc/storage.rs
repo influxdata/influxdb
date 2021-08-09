@@ -16,7 +16,7 @@ pub mod service;
 
 use generated_types::storage_server::{Storage, StorageServer};
 use metrics::{MetricRegistry, RedMetric};
-use query::DatabaseStore;
+use server::DatabaseStore;
 use std::sync::Arc;
 
 /// Concrete implementation of the gRPC InfluxDB Storage Service API
