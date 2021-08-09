@@ -444,11 +444,6 @@ struct ServerStateInitReady {
 struct ServerStateInitialized {
     server_id: ServerId,
 
-    /// A lock that is held whilst creating a new database, this is necessary because
-    /// not all object stores can provide CreateIfNotExists semantics and therefore
-    /// we must prevent two catalogs being created at the same path simultaneously
-    create_database_lock: Arc<tokio::sync::Mutex<()>>,
-
     /// A map of possibly initialized `Database` owned by this `Server`
     databases: HashMap<DatabaseName<'static>, Arc<Database>>,
 }
@@ -577,7 +572,11 @@ where
         let db_name = rules.name.clone();
         let object_store = self.shared.application.object_store().as_ref();
 
-        let (server_id, create_database_lock) = {
+        // Wait for exclusive access to mutate server state
+        let handle_fut = self.shared.state.read().freeze();
+        let handle = handle_fut.await;
+
+        let server_id = {
             let state = self.shared.state.read();
             let initialized = state.initialized()?;
 
@@ -586,14 +585,8 @@ where
                     db_name: db_name.to_string(),
                 });
             }
-            (
-                initialized.server_id,
-                Arc::clone(&initialized.create_database_lock),
-            )
+            initialized.server_id
         };
-
-        // Prevent concurrent database creation
-        let guard = create_database_lock.lock().await;
 
         let store_prefix = database_store_prefix(object_store, server_id, &db_name);
         persist_database_rules(object_store, &store_prefix, rules).await?;
@@ -611,10 +604,9 @@ where
         let database = {
             let mut state = self.shared.state.write();
 
-            // Have exclusive lock on state - can drop database creation lock
-            std::mem::drop(guard);
+            // Exchange FreezeHandle for mutable access via WriteGuard
+            let mut state = state.unfreeze(handle);
 
-            let mut state = state.get_mut().expect("no transaction in progress");
             let database = match &mut *state {
                 ServerState::Initialized(initialized) => {
                     match initialized.databases.entry(db_name.clone()) {
@@ -715,7 +707,6 @@ where
 
                 ServerState::Initialized(ServerStateInitialized {
                     server_id: init_ready.server_id,
-                    create_database_lock: Default::default(),
                     databases,
                 })
             }
