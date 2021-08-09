@@ -44,6 +44,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     any::Any,
     collections::HashMap,
+    num::NonZeroUsize,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
@@ -1184,11 +1185,11 @@ impl Db {
             for write in partitioned_writes {
                 let partition_key = write.key();
                 for table_batch in write.table_batches() {
-                    let row_count = table_batch.row_count();
+                    let row_count = match NonZeroUsize::new(table_batch.row_count()) {
+                        Some(row_count) => row_count,
+                        None => continue,
+                    };
 
-                    if row_count == 0 {
-                        continue;
-                    }
                     if !filter_table_batch(sequence, partition_key, &table_batch) {
                         continue;
                     }
@@ -1227,7 +1228,7 @@ impl Db {
 
                     // At this point this should not be possible
                     ensure!(
-                        timestamp_summary.stats.total_count == row_count as u64,
+                        timestamp_summary.stats.total_count == row_count.get() as u64,
                         TableBatchMissingTimes {}
                     );
 
