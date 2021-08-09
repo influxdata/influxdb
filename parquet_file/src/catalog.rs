@@ -154,7 +154,7 @@ pub enum Error {
 
     #[snafu(
         display(
-            "Using checkpoints from {:?} leads to broken replay plan: {}",
+            "Internal error: Using checkpoints from {:?} leads to broken replay plan: {}, catalog likely broken",
             path,
             source
         ),

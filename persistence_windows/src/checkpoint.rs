@@ -305,7 +305,7 @@ pub enum Error {
         sequencer_id: u32,
     },
 
-    #[snafu(display("Partition checkpoint order is undetermined"))]
+    #[snafu(display("Partition checkpoint order is undetermined, this is a bug"))]
     UndeterminedPartitionCheckpointOrder,
 }
 
