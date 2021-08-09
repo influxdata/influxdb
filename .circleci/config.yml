@@ -553,7 +553,7 @@ jobs:
       - run:
           name: Run test in AWS instance
           no_output_timeout: 20m
-          command: AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} scripts/ci/perf_test.sh
+          command: AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} TEST_FORMAT=flux-http scripts/ci/perf_test.sh
   aws_destroy_by_date:
     machine:
       enabled: true

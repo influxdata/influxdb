@@ -249,22 +249,20 @@ query_types() {
 
 # Generate queries to test.
 query_files=""
-for format in http flux-http; do
-  # Aggregate queries
-  for usecase in window-agg group-agg bare-agg metaquery; do
-    for type in $(query_types $usecase); do
-      query_fname="${format}_${usecase}_${type}"
-      $GOPATH/bin/bulk_query_gen \
-          -use-case=$usecase \
-          -query-type=$type \
-          -format=influx-$format \
-          -timestamp-start=$(start_time $usecase) \
-          -timestamp-end=$(end_time $usecase) \
-          -queries=$queries \
-          -scale-var=$scale_var > \
-        ${DATASET_DIR}/$query_fname
-      query_files="$query_files $query_fname"
-    done
+# Aggregate queries
+for usecase in window-agg group-agg bare-agg metaquery; do
+  for type in $(query_types $usecase); do
+    query_fname="${TEST_FORMAT}_${usecase}_${type}"
+    $GOPATH/bin/bulk_query_gen \
+        -use-case=$usecase \
+        -query-type=$type \
+        -format=influx-${TEST_FORMAT} \
+        -timestamp-start=$(start_time $usecase) \
+        -timestamp-end=$(end_time $usecase) \
+        -queries=$queries \
+        -scale-var=$scale_var > \
+      ${DATASET_DIR}/$query_fname
+    query_files="$query_files $query_fname"
   done
 done
 
