@@ -41,7 +41,6 @@ cat << EOF > /etc/telegraf/telegraf.conf
 [[inputs.file]]
   name_override = "ingest"
   files = ["$working_dir/test-ingest-*.json"]
-  file_tag = "test_name"
   data_format = "json"
   json_strict = true
   json_string_fields = [
@@ -62,7 +61,6 @@ cat << EOF > /etc/telegraf/telegraf.conf
 [[inputs.file]]
   name_override = "query"
   files = ["$working_dir/test-query-*.json"]
-  file_tag = "test_name"
   data_format = "json"
   json_strict = true
   json_string_fields = [
