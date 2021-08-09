@@ -222,10 +222,13 @@ for usecase in iot metaquery; do
     load_opts="$load_opts -organization=$TEST_ORG -token=$TEST_TOKEN"
   fi
 
-  # run ingest tests
+  # Run ingest tests. Only write the results to disk if this run should contribute to ingest-test results.
+  out=/dev/null
+  if [ "${TEST_RECORD_INGEST_RESULTS}" = true ]; then
+    out=$working_dir/test-ingest-$usecase.json
+  fi
   $GOPATH/bin/bulk_load_influx $load_opts | \
-    jq ". += {branch: \"$INFLUXDB_VERSION\", commit: \"$TEST_COMMIT\", time: \"$datestring\", i_type: \"$DATA_I_TYPE\", use_case: \"$usecase\"}" > \
-      $working_dir/test-ingest-$usecase.json
+    jq ". += {branch: \"$INFLUXDB_VERSION\", commit: \"$TEST_COMMIT\", time: \"$datestring\", i_type: \"$DATA_I_TYPE\", use_case: \"$usecase\"}" > ${out}
 
   # Cleanup
   force_compaction
