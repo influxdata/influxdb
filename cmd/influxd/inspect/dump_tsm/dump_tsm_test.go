@@ -201,6 +201,7 @@ func makeTSMFile(t *testing.T, params tsmParams) (string, string) {
 	for _, key := range params.keys {
 		values := []tsm1.Value{tsm1.NewValue(0, 1.0)}
 		require.NoError(t, w.Write([]byte(key), values))
+		require.NoError(t, w.Flush())
 	}
 	if len(params.keys) != 0 {
 		require.NoError(t, w.WriteIndex())
