@@ -52,13 +52,19 @@ pub async fn load_or_create_preserved_catalog(
     server_id: ServerId,
     metrics_registry: Arc<MetricRegistry>,
     wipe_on_error: bool,
-) -> Result<(PreservedCatalog, Catalog, ReplayPlan)> {
+    skip_replay: bool,
+) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
     // first try to load existing catalogs
     match PreservedCatalog::load(
         Arc::clone(&object_store),
         server_id,
         db_name.to_string(),
-        LoaderEmptyInput::new(db_name, server_id, Arc::clone(&metrics_registry)),
+        LoaderEmptyInput::new(
+            db_name,
+            server_id,
+            Arc::clone(&metrics_registry),
+            skip_replay,
+        ),
     )
     .await
     {
@@ -66,7 +72,10 @@ pub async fn load_or_create_preserved_catalog(
             // successfull load
             info!("Found existing catalog for DB {}", db_name);
             let Loader { catalog, planner } = loader;
-            let plan = planner.build().context(CannotBuildReplayPlan)?;
+            let plan = planner
+                .map(|planner| planner.build())
+                .transpose()
+                .context(CannotBuildReplayPlan)?;
             Ok((preserved_catalog, catalog, plan))
         }
         Ok(None) => {
@@ -81,6 +90,7 @@ pub async fn load_or_create_preserved_catalog(
                 Arc::clone(&object_store),
                 server_id,
                 Arc::clone(&metrics_registry),
+                skip_replay,
             )
             .await
         }
@@ -99,6 +109,7 @@ pub async fn load_or_create_preserved_catalog(
                     Arc::clone(&object_store),
                     server_id,
                     Arc::clone(&metrics_registry),
+                    skip_replay,
                 )
                 .await
             } else {
@@ -116,18 +127,27 @@ pub async fn create_preserved_catalog(
     object_store: Arc<ObjectStore>,
     server_id: ServerId,
     metrics_registry: Arc<MetricRegistry>,
-) -> Result<(PreservedCatalog, Catalog, ReplayPlan)> {
+    skip_replay: bool,
+) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
     let (preserved_catalog, loader) = PreservedCatalog::new_empty(
         Arc::clone(&object_store),
         server_id,
         db_name.to_string(),
-        LoaderEmptyInput::new(db_name, server_id, Arc::clone(&metrics_registry)),
+        LoaderEmptyInput::new(
+            db_name,
+            server_id,
+            Arc::clone(&metrics_registry),
+            skip_replay,
+        ),
     )
     .await
     .context(CannotCreateCatalog)?;
 
     let Loader { catalog, planner } = loader;
-    let plan = planner.build().context(CannotBuildReplayPlan)?;
+    let plan = planner
+        .map(|planner| planner.build())
+        .transpose()
+        .context(CannotBuildReplayPlan)?;
     Ok((preserved_catalog, catalog, plan))
 }
 
@@ -137,10 +157,16 @@ pub struct LoaderEmptyInput {
     domain: ::metrics::Domain,
     metrics_registry: Arc<::metrics::MetricRegistry>,
     metric_labels: Vec<KeyValue>,
+    skip_replay: bool,
 }
 
 impl LoaderEmptyInput {
-    fn new(db_name: &str, server_id: ServerId, metrics_registry: Arc<MetricRegistry>) -> Self {
+    fn new(
+        db_name: &str,
+        server_id: ServerId,
+        metrics_registry: Arc<MetricRegistry>,
+        skip_replay: bool,
+    ) -> Self {
         let metric_labels = vec![
             KeyValue::new("db_name", db_name.to_string()),
             KeyValue::new("svr_id", format!("{}", server_id)),
@@ -151,6 +177,7 @@ impl LoaderEmptyInput {
             domain,
             metrics_registry,
             metric_labels,
+            skip_replay,
         }
     }
 }
@@ -159,7 +186,7 @@ impl LoaderEmptyInput {
 #[derive(Debug)]
 struct Loader {
     catalog: Catalog,
-    planner: ReplayPlanner,
+    planner: Option<ReplayPlanner>,
 }
 
 impl CatalogState for Loader {
@@ -173,7 +200,7 @@ impl CatalogState for Loader {
                 data.metrics_registry,
                 data.metric_labels,
             ),
-            planner: ReplayPlanner::new(),
+            planner: (!data.skip_replay).then(ReplayPlanner::new),
         }
     }
 
@@ -193,12 +220,14 @@ impl CatalogState for Loader {
             })?;
 
         // remember file for replay
-        self.planner
-            .register_checkpoints(&iox_md.partition_checkpoint, &iox_md.database_checkpoint)
-            .map_err(|e| Box::new(e) as _)
-            .context(ReplayPlanError {
-                path: info.path.clone(),
-            })?;
+        if let Some(planner) = self.planner.as_mut() {
+            planner
+                .register_checkpoints(&iox_md.partition_checkpoint, &iox_md.database_checkpoint)
+                .map_err(|e| Box::new(e) as _)
+                .context(ReplayPlanError {
+                    path: info.path.clone(),
+                })?;
+        }
 
         // Create a parquet chunk for this chunk
         let metrics = self
@@ -308,9 +337,16 @@ mod tests {
             .await;
 
         let metrics_registry = Arc::new(metrics::MetricRegistry::new());
-        load_or_create_preserved_catalog(db_name, object_store, server_id, metrics_registry, true)
-            .await
-            .unwrap();
+        load_or_create_preserved_catalog(
+            db_name,
+            object_store,
+            server_id,
+            metrics_registry,
+            true,
+            false,
+        )
+        .await
+        .unwrap();
     }
 
     fn checkpoint_data_from_loader(loader: &Loader) -> CheckpointData {
@@ -324,6 +360,7 @@ mod tests {
             domain: metrics_registry.register_domain("catalog"),
             metrics_registry,
             metric_labels: vec![],
+            skip_replay: false,
         };
         assert_catalog_state_implementation::<Loader, _>(empty_input, checkpoint_data_from_loader)
             .await;

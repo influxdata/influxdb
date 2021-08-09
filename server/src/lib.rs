@@ -596,6 +596,7 @@ where
             Arc::clone(self.shared.application.object_store()),
             server_id,
             Arc::clone(self.shared.application.metric_registry()),
+            true,
         )
         .await
         .map_err(|e| Box::new(e) as _)
