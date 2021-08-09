@@ -45,10 +45,10 @@ workflows:
       - perf_test:
           requires:
             - cross_build
-          filters:
-            branches:
-              only:
-                - "2.0"
+#          filters:
+#            branches:
+#              only:
+#                - "2.0"
       - e2e:
           requires:
             - build
