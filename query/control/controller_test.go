@@ -130,8 +130,6 @@ func TestController_QuerySuccess(t *testing.T) {
 			}
 			defer shutdown(t, ctrl)
 
-			reg := setupPromRegistry(ctrl)
-
 			q, err := ctrl.Query(context.Background(), mockCompiler)
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
@@ -145,21 +143,6 @@ func TestController_QuerySuccess(t *testing.T) {
 			if err := q.Err(); err != nil {
 				t.Errorf("unexpected error: %s", err)
 			}
-
-			stats := q.Statistics()
-			if stats.CompileDuration == 0 {
-				t.Error("expected compile duration to be above zero")
-			}
-			if stats.QueueDuration == 0 {
-				t.Error("expected queue duration to be above zero")
-			}
-			if stats.ExecuteDuration == 0 {
-				t.Error("expected execute duration to be above zero")
-			}
-			if stats.TotalDuration == 0 {
-				t.Error("expected total duration to be above zero")
-			}
-			validateRequestTotals(t, reg, 1, 0, 0, 0)
 		})
 	}
 }
