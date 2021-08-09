@@ -130,6 +130,8 @@ func TestController_QuerySuccess(t *testing.T) {
 			}
 			defer shutdown(t, ctrl)
 
+			reg := setupPromRegistry(ctrl)
+
 			q, err := ctrl.Query(context.Background(), mockCompiler)
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
@@ -143,6 +145,7 @@ func TestController_QuerySuccess(t *testing.T) {
 			if err := q.Err(); err != nil {
 				t.Errorf("unexpected error: %s", err)
 			}
+			validateRequestTotals(t, reg, 1, 0, 0, 0)
 		})
 	}
 }
