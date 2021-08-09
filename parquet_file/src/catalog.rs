@@ -153,6 +153,19 @@ pub enum Error {
     },
 
     #[snafu(
+        display(
+            "Internal error: Using checkpoints from {:?} leads to broken replay plan: {}, catalog likely broken",
+            path,
+            source
+        ),
+        visibility(pub)
+    )]
+    ReplayPlanError {
+        source: Box<dyn std::error::Error + Send + Sync>,
+        path: DirsAndFileName,
+    },
+
+    #[snafu(
         display("Cannot create parquet chunk from {:?}: {}", path, source),
         visibility(pub)
     )]
