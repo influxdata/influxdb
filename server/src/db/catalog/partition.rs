@@ -310,7 +310,7 @@ impl Partition {
     pub fn sequencer_numbers(&self) -> Option<BTreeMap<u32, OptionalMinMaxSequence>> {
         self.persistence_windows
             .as_ref()
-            .map(|persistence_windows| persistence_windows.sequencer_numbers(false))
+            .map(|persistence_windows| persistence_windows.sequencer_numbers())
     }
 }
 

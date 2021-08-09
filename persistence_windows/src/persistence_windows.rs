@@ -2,11 +2,12 @@
 use std::{
     collections::{btree_map::Entry, BTreeMap, VecDeque},
     num::NonZeroUsize,
+    ops::Deref,
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 
 use data_types::{partition_metadata::PartitionAddr, write_summary::WriteSummary};
 use entry::Sequence;
@@ -238,10 +239,15 @@ impl PersistenceWindows {
         }
     }
 
+    /// Returns the sequence number range of unpersisted writes described by this instance.
+    pub fn sequencer_numbers(&self) -> BTreeMap<u32, OptionalMinMaxSequence> {
+        self.sequencer_numbers_inner(false)
+    }
+
     /// Returns the sequence number range of unpersisted writes described by this instance
     ///
-    /// Can optionally skip the persistable window if any
-    pub fn sequencer_numbers(
+    /// Can optionally skip the persistable window if any.
+    fn sequencer_numbers_inner(
         &self,
         skip_persistable: bool,
     ) -> BTreeMap<u32, OptionalMinMaxSequence> {
@@ -249,9 +255,9 @@ impl PersistenceWindows {
             Default::default()
         }
 
-        let skip = match skip_persistable {
-            true if self.persistable.is_some() => 1,
-            _ => 0,
+        let (skip, min_time) = match (skip_persistable, self.persistable.deref()) {
+            (true, Some(persistable)) => (1, Some(new_min_time_from_persistable(persistable))),
+            _ => (0, None),
         };
 
         self.max_sequence_numbers
@@ -261,7 +267,14 @@ impl PersistenceWindows {
                 let window = self
                     .windows()
                     .skip(skip)
-                    .filter_map(|window| window.sequencer_numbers.get(sequencer_id))
+                    .filter_map(|window| {
+                        if let Some(min_time) = min_time {
+                            if window.max_time < min_time {
+                                return None;
+                            }
+                        }
+                        window.sequencer_numbers.get(sequencer_id)
+                    })
                     .next();
 
                 let min = window.map(|window| {
@@ -297,7 +310,7 @@ impl PersistenceWindows {
             closed_count: self.closed.len(),
             addr: self.addr.clone(),
             timestamp: self.persistable.as_ref()?.max_time,
-            sequencer_numbers: self.sequencer_numbers(true),
+            sequencer_numbers: self.sequencer_numbers_inner(true),
         })
     }
 
@@ -322,7 +335,7 @@ impl PersistenceWindows {
             "persistable max time doesn't match handle"
         );
         // Everything up to and including persistable max time will have been persisted
-        let new_min = Utc.timestamp_nanos(persistable.max_time.timestamp_nanos() + 1);
+        let new_min = new_min_time_from_persistable(&persistable);
         for w in self.closed.iter_mut().take(closed_count) {
             if w.min_time < new_min {
                 w.min_time = new_min;
@@ -396,6 +409,10 @@ impl PersistenceWindows {
             .map(|window| window.row_count.get())
             .sum()
     }
+}
+
+fn new_min_time_from_persistable(persistable: &Window) -> DateTime<Utc> {
+    persistable.max_time + chrono::Duration::nanoseconds(1)
 }
 
 #[derive(Debug, Clone)]
@@ -522,6 +539,8 @@ impl Window {
 
 #[cfg(test)]
 mod tests {
+    use chrono::TimeZone;
+
     use super::*;
 
     fn make_windows(late_arrival_period: Duration) -> PersistenceWindows {
@@ -1179,7 +1198,7 @@ mod tests {
         assert_eq!(flush_checkpoint.min_unpersisted_timestamp(), truncated_time);
 
         // The sequencer numbers on the partition should include everything
-        let sequencer_numbers = w.sequencer_numbers(false);
+        let sequencer_numbers = w.sequencer_numbers();
         assert_eq!(
             sequencer_numbers.get(&1).unwrap(),
             &OptionalMinMaxSequence::new(Some(2), 4)
@@ -1191,7 +1210,7 @@ mod tests {
 
         // As there were no writes between creating the flush handle and the flush
         // the new partition sequencer numbers should match the persisted one
-        let sequencer_numbers = w.sequencer_numbers(false);
+        let sequencer_numbers = w.sequencer_numbers();
         assert_eq!(
             &flush_checkpoint.sequencer_numbers(1).unwrap(),
             sequencer_numbers.get(&1).unwrap()
@@ -1315,7 +1334,7 @@ mod tests {
         assert_eq!(checkpoint.min_unpersisted_timestamp(), truncated_time);
 
         // The sequencer numbers of partition should include everything
-        let sequencer_numbers = w.sequencer_numbers(false);
+        let sequencer_numbers = w.sequencer_numbers();
         assert_eq!(
             sequencer_numbers.get(&1).unwrap(),
             &OptionalMinMaxSequence::new(Some(2), 14)
@@ -1324,7 +1343,7 @@ mod tests {
         w.flush(flush);
 
         // The sequencer numbers after the flush should include the new write
-        let sequencer_numbers = w.sequencer_numbers(false);
+        let sequencer_numbers = w.sequencer_numbers();
         assert_eq!(
             sequencer_numbers.get(&1).unwrap(),
             &OptionalMinMaxSequence::new(Some(6), 14)
@@ -1471,5 +1490,42 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn test_regression_2206() {
+        let late_arrival_period = DEFAULT_CLOSED_WINDOW_PERIOD * 10;
+        let mut w = make_windows(late_arrival_period);
+        let mut now = w.created_at;
+
+        // window 1: to be persisted
+        let min_time = Utc.timestamp_nanos(10);
+        let max_time = Utc.timestamp_nanos(11);
+        w.add_range(
+            Some(&Sequence { id: 1, number: 1 }),
+            NonZeroUsize::new(1).unwrap(),
+            min_time,
+            max_time,
+            now,
+        );
+
+        // window 2: closed but overlaps with the persistence range
+        now += late_arrival_period;
+        w.add_range(
+            Some(&Sequence { id: 1, number: 4 }),
+            NonZeroUsize::new(1).unwrap(),
+            min_time,
+            max_time,
+            now,
+        );
+
+        // persist
+        let handle = w.flush_handle(now).unwrap();
+        let ckpt = handle.checkpoint();
+        w.flush(handle);
+
+        // speculated checkpoint should be correct
+        let ckpt_sequencer_numbers: BTreeMap<_, _> = ckpt.sequencer_numbers_iter().collect();
+        assert_eq!(w.sequencer_numbers(), ckpt_sequencer_numbers);
     }
 }

@@ -1791,8 +1791,6 @@ mod tests {
     #[tokio::test]
     async fn replay_works_partially_persisted_1() {
         // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
-        let tracing_capture = TracingCapture::new();
-
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![TestSequencedEntry {
@@ -1852,18 +1850,11 @@ mod tests {
         }
         .run()
         .await;
-
-        assert_contains!(
-            tracing_capture.to_string(),
-            "What happened to these sequence numbers?"
-        );
     }
 
     #[tokio::test]
     async fn replay_works_partially_persisted_2() {
         // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
-        let tracing_capture = TracingCapture::new();
-
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![TestSequencedEntry {
@@ -1933,11 +1924,6 @@ mod tests {
         }
         .run()
         .await;
-
-        assert_contains!(
-            tracing_capture.to_string(),
-            "What happened to these sequence numbers?"
-        );
     }
 
     #[tokio::test]
