@@ -171,7 +171,7 @@ func makeArgs(path string, meas string) (args map[string][]string) {
 	args[argsKeys[1]] = []string{"--file", path, "--blocks"}
 	args[argsKeys[2]] = []string{"--file", path, "--all"}
 	if meas != "" {
-		args[argsKeys[3]] = []string{"--file", path, "--filter-key", meas}
+		args[argsKeys[3]] = []string{"--file", path, "--filter-key", meas, "--all"}
 	}
 	return
 }
