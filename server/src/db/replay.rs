@@ -7,7 +7,10 @@ use std::{
 use entry::{Sequence, TableBatch};
 use futures::TryStreamExt;
 use observability_deps::tracing::info;
-use persistence_windows::{checkpoint::ReplayPlan, min_max_sequence::OptionalMinMaxSequence};
+use persistence_windows::{
+    checkpoint::ReplayPlan, min_max_sequence::OptionalMinMaxSequence,
+    persistence_windows::PersistenceWindows,
+};
 use snafu::{ResultExt, Snafu};
 use write_buffer::config::WriteBufferConfig;
 
@@ -227,6 +230,32 @@ pub async fn perform_replay(db: &Db, replay_plan: &ReplayPlan) -> Result<()> {
                     // done replaying?
                     if sequence.number == min_max.max() {
                         break;
+                    }
+                }
+            }
+        }
+
+        // remember max seen sequence numbers even for partitions that were not touched during replay
+        let late_arrival_window = db.rules().lifecycle_rules.late_arrive_window();
+        for (table_name, partition_key) in replay_plan.partitions() {
+            if let Ok(partition) = db.partition(&table_name, &partition_key) {
+                let mut partition = partition.write();
+                let partition_checkpoint = replay_plan
+                    .last_partition_checkpoint(&table_name, &partition_key)
+                    .expect("replay plan inconsistent");
+
+                match partition.persistence_windows_mut() {
+                    Some(windows) => {
+                        windows.mark_seen_and_persisted(partition_checkpoint);
+                    }
+                    None => {
+                        let mut windows = PersistenceWindows::new(
+                            partition.addr().clone(),
+                            late_arrival_window,
+                            db.background_worker_now(),
+                        );
+                        windows.mark_seen_and_persisted(partition_checkpoint);
+                        partition.set_persistence_windows(windows);
                     }
                 }
             }
@@ -2008,6 +2037,136 @@ mod tests {
             tracing_capture.to_string(),
             "What happened to these sequence numbers?"
         );
+    }
+
+    #[tokio::test]
+    async fn replay_initializes_max_seen_sequence_numbers() {
+        // Ensures that either replay or the catalog loading initializes the maximum seen sequence numbers (per
+        // partition) correctly. Before this test (and its fix), sequence numbers were only written if there was any
+        // unpersisted range during replay.
+        //
+        // This is a regression test for https://github.com/influxdata/influxdb_iox/issues/2215
+        ReplayTest {
+            n_sequencers: 2,
+            steps: vec![
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 0,
+                        lp: "table_1,tag_partition_by=b bar=10 10",
+                    },
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 1,
+                        lp: "table_1,tag_partition_by=a bar=20 20",
+                    },
+                ]),
+                Step::Await(vec![
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+--------------------------------+",
+                            "| bar | tag_partition_by | time                           |",
+                            "+-----+------------------+--------------------------------+",
+                            "| 10  | b                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 20  | a                | 1970-01-01T00:00:00.000000020Z |",
+                            "+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                ]),
+                Step::MakeWritesPersistable,
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                Step::Restart,
+                Step::Replay,
+                Step::Assert(vec![
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+--------------------------------+",
+                            "| bar | tag_partition_by | time                           |",
+                            "+-----+------------------+--------------------------------+",
+                            "| 10  | b                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 20  | a                | 1970-01-01T00:00:00.000000020Z |",
+                            "+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                ]),
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 1,
+                        sequence_number: 0,
+                        lp: "table_1,tag_partition_by=a bar=30 30",
+                    },
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 2,
+                        lp: "table_1,tag_partition_by=b bar=40 40",
+                    },
+                ]),
+                Step::Await(vec![
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+--------------------------------+",
+                            "| bar | tag_partition_by | time                           |",
+                            "+-----+------------------+--------------------------------+",
+                            "| 10  | b                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 20  | a                | 1970-01-01T00:00:00.000000020Z |",
+                            "| 30  | a                | 1970-01-01T00:00:00.000000030Z |",
+                            "| 40  | b                | 1970-01-01T00:00:00.000000040Z |",
+                            "+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                ]),
+                Step::MakeWritesPersistable,
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                Step::Assert(vec![
+                    // there should be two persisted chunks for partition a
+                    Check::Query(
+                        "select storage, count(*) as n from system.chunks where partition_key = 'tag_partition_by_a' group by storage order by storage",
+                        vec![
+                            "+--------------------------+---+",
+                            "| storage                  | n |",
+                            "+--------------------------+---+",
+                            "| ObjectStoreOnly          | 1 |",
+                            "| ReadBufferAndObjectStore | 1 |",
+                            "+--------------------------+---+",
+                        ],
+                    ),
+                ]),
+                Step::Restart,
+                Step::Replay,
+                Step::Assert(vec![
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+--------------------------------+",
+                            "| bar | tag_partition_by | time                           |",
+                            "+-----+------------------+--------------------------------+",
+                            "| 10  | b                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 20  | a                | 1970-01-01T00:00:00.000000020Z |",
+                            "| 30  | a                | 1970-01-01T00:00:00.000000030Z |",
+                            "| 40  | b                | 1970-01-01T00:00:00.000000040Z |",
+                            "+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                    // no additional chunk for partition a was created
+                    Check::Query(
+                        "select storage, count(*) as n from system.chunks where partition_key = 'tag_partition_by_a' group by storage order by storage",
+                        vec![
+                            "+-----------------+---+",
+                            "| storage         | n |",
+                            "+-----------------+---+",
+                            "| ObjectStoreOnly | 2 |",
+                            "+-----------------+---+",
+                        ],
+                    ),
+                ]),
+            ],
+            ..Default::default()
+        }
+        .run()
+        .await
     }
 
     #[tokio::test]
