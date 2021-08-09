@@ -30,6 +30,7 @@
 -	[#22019](https://github.com/influxdata/influxdb/pull/22019): fix: error instead of panic when enterprise tries to restore with OSS
 -	[#22040](https://github.com/influxdata/influxdb/pull/22040): fix: copy names from mmapped memory before closing iterator
 -	[#22106](https://github.com/influxdata/influxdb/pull/22106): fix: ensure log formatting (JSON) is respected
+-	[#22140](https://github.com/influxdata/influxdb/pull/22140): fix: do not update queue stats if compaction has locked files
 
 v1.9.2 [unreleased]
 -	[#21631](https://github.com/influxdata/influxdb/pull/21631): fix: group by returns multiple results per group in some circumstances
