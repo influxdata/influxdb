@@ -13,6 +13,9 @@ parameters:
   aws_teardown_datestring:
     default: "n/a"
     type: string
+  aws_teardown_query_format:
+    default: "n/a"
+    type: string
 
 workflows:
   version: 2
@@ -625,7 +628,7 @@ jobs:
           no_output_timeout: 20m
           command: |
             set -x
-            name=oss-perftest-<< pipeline.parameters.aws_teardown_datestring >>-<< pipeline.parameters.aws_teardown_branch >>-<< pipeline.parameters.aws_teardown_sha >>
+            name=oss-perftest-<< pipeline.parameters.aws_teardown_datestring >>-<< pipeline.parameters.aws_teardown_branch >>-<< pipeline.parameters.aws_teardown_sha >>-<< pipeline.parameters.aws_teardown_query_format >>
             instance_id=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 describe-instances --filters "Name=tag:Name,Values=$name" --query 'Reservations[].Instances[].InstanceId' --output text)
             AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
 
