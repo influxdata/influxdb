@@ -91,6 +91,19 @@ impl MockBufferSharedState {
             })
             .collect()
     }
+
+    /// Provides a way to wipe messages (e.g. to simulate retention periods in Kafka)
+    ///
+    /// # Panics
+    /// - when sequencer does not exist
+    pub fn clear_messages(&self, sequencer_id: u32) {
+        let mut entries = self.entries.lock();
+        let entry_vec = entries
+            .get_mut(&sequencer_id)
+            .expect("invalid sequencer ID");
+
+        entry_vec.clear();
+    }
 }
 
 #[derive(Debug)]
@@ -426,5 +439,39 @@ mod tests {
     fn test_state_get_messages_panic_wrong_sequencer() {
         let state = MockBufferSharedState::empty_with_n_sequencers(2);
         state.get_messages(2);
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid sequencer ID")]
+    fn test_state_clear_messages_panic_wrong_sequencer() {
+        let state = MockBufferSharedState::empty_with_n_sequencers(2);
+        state.clear_messages(2);
+    }
+
+    #[test]
+    fn test_clear_messages() {
+        let state = MockBufferSharedState::empty_with_n_sequencers(2);
+
+        let entry = lp_to_entry("upc,region=east user=1 100");
+        let sequence_1 = Sequence::new(0, 11);
+        let sequence_2 = Sequence::new(1, 12);
+        state.push_entry(SequencedEntry::new_from_sequence(
+            sequence_1,
+            Utc::now(),
+            entry.clone(),
+        ));
+        state.push_entry(SequencedEntry::new_from_sequence(
+            sequence_2,
+            Utc::now(),
+            entry,
+        ));
+
+        assert_eq!(state.get_messages(0).len(), 1);
+        assert_eq!(state.get_messages(1).len(), 1);
+
+        state.clear_messages(0);
+
+        assert_eq!(state.get_messages(0).len(), 0);
+        assert_eq!(state.get_messages(1).len(), 1);
     }
 }
