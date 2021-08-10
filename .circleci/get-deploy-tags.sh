@@ -52,5 +52,8 @@ if [[ -z "${IMAGE_PROMOTION_COMMAND}" ]]; then
 	echo "Skipping image promotion (IMAGE_PROMOTION_COMMAND not set)"
 else
 	echo "Triggering image promotion"
-	eval "${IMAGE_PROMOTION_COMMAND}" < deploy.json 
+	eval "${IMAGE_PROMOTION_COMMAND}" < deploy.json
+	eval "${IMAGE_PROMOTION_COMMAND_K8S_IOX}" < deploy.json || {
+	   echo "experimental k8s_iox promotion failed"
+	}
 fi
