@@ -361,7 +361,7 @@ mod tests {
         min_max_sequence::OptionalMinMaxSequence,
     };
     use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner};
-    use test_helpers::{assert_contains, tracing::TracingCapture};
+    use test_helpers::{assert_contains, assert_not_contains, tracing::TracingCapture};
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
     use write_buffer::{
@@ -1791,6 +1791,8 @@ mod tests {
     #[tokio::test]
     async fn replay_works_partially_persisted_1() {
         // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
+        let tracing_capture = TracingCapture::new();
+
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![TestSequencedEntry {
@@ -1850,11 +1852,18 @@ mod tests {
         }
         .run()
         .await;
+
+        assert_not_contains!(
+            tracing_capture.to_string(),
+            "What happened to these sequence numbers?"
+        );
     }
 
     #[tokio::test]
     async fn replay_works_partially_persisted_2() {
         // regression test for https://github.com/influxdata/influxdb_iox/issues/2185
+        let tracing_capture = TracingCapture::new();
+
         ReplayTest {
             steps: vec![
                 Step::Ingest(vec![TestSequencedEntry {
@@ -1924,6 +1933,11 @@ mod tests {
         }
         .run()
         .await;
+
+        assert_not_contains!(
+            tracing_capture.to_string(),
+            "What happened to these sequence numbers?"
+        );
     }
 
     #[tokio::test]
