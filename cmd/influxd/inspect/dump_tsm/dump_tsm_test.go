@@ -96,7 +96,8 @@ func Test_DumpTSM_ManyKeys(t *testing.T) {
 		expectOuts: makeExpectOut(
 			[]string{"Total: 3", "Size: 102"},
 			[]string{"Blocks:", "float64", "s8b/gor", "9/19"},
-			[]string{"cpu", "foobar", "mem", "float64"},
+			// TODO https://github.com/influxdata/influxdb/issues/22145
+			//[]string{"cpu", "foobar", "mem", "float64"},
 		),
 	})
 }
@@ -113,8 +114,9 @@ func Test_DumpTSM_FilterKey(t *testing.T) {
 		expectOuts: makeExpectOut(
 			[]string{"Total: 3", "Size: 102"},
 			[]string{"Blocks:", "float64", "s8b/gor", "9/19"},
-			[]string{"cpu", "foobar", "mem", "float64"},
-			[]string{"Points:\n    Total: 1", "s8b: 1 (33%)", "gor: 1 (33%)"},
+			// TODO https://github.com/influxdata/influxdb/issues/22145
+			//[]string{"cpu", "foobar", "mem", "float64"},
+			//[]string{"Points:\n    Total: 1", "s8b: 1 (33%)", "gor: 1 (33%)"},
 		),
 	})
 }
