@@ -187,7 +187,7 @@ where
         let tracker = self
             .application
             .job_registry()
-            .spawn_dummy_job(request.nanos);
+            .spawn_dummy_job(request.nanos, None);
         let operation = Some(super::operations::encode_tracker(tracker)?);
         Ok(Response::new(CreateDummyJobResponse { operation }))
     }

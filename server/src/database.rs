@@ -271,7 +271,33 @@ async fn background_worker(shared: Arc<DatabaseShared>) {
         db.background_worker(shared.shutdown.clone()).await
     }
 
-    // TODO: Drain database jobs
+    info!(db_name=%shared.config.name, "draining tasks");
+
+    // Loop in case tasks are spawned during shutdown
+    loop {
+        use futures::stream::{FuturesUnordered, StreamExt};
+
+        // We get a list of jobs from the global registry and filter them for this database
+        let jobs = shared.application.job_registry().running();
+        let mut futures: FuturesUnordered<_> = jobs
+            .iter()
+            .filter_map(|tracker| {
+                let db_name = tracker.metadata().db_name()?;
+                if db_name.as_ref() != shared.config.name.as_str() {
+                    return None;
+                }
+                Some(tracker.join())
+            })
+            .collect();
+
+        if futures.is_empty() {
+            break;
+        }
+
+        info!(db_name=%shared.config.name, count=futures.len(), "waiting for jobs");
+
+        while futures.next().await.is_some() {}
+    }
 
     info!(db_name=%shared.config.name, "database worker finished");
 }
@@ -580,4 +606,66 @@ async fn get_store_bytes(
         .await?;
 
     Ok(bytes.freeze())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::num::NonZeroU32;
+
+    #[tokio::test]
+    async fn database_shutdown_waits_for_jobs() {
+        let application = Arc::new(ApplicationState::new(
+            Arc::new(ObjectStore::new_in_memory()),
+            None,
+        ));
+
+        let database = Database::new(
+            Arc::clone(&application),
+            DatabaseConfig {
+                name: DatabaseName::new("test").unwrap(),
+                server_id: ServerId::new(NonZeroU32::new(23).unwrap()),
+                store_prefix: application.object_store().new_path(),
+                wipe_catalog_on_error: false,
+                skip_replay: false,
+            },
+        );
+
+        // Should have failed to load (this isn't important to the test)
+        let err = database.wait_for_init().await.unwrap_err();
+        assert!(matches!(err.as_ref(), InitError::RulesFetch { .. }));
+
+        // Database should be running
+        assert!(database.join().now_or_never().is_none());
+
+        // Spawn a dummy job associated with this database
+        let database_dummy_job = application
+            .job_registry()
+            .spawn_dummy_job(vec![50_000_000], Some(Arc::from("test")));
+
+        // Spawn a dummy job not associated with this database
+        let server_dummy_job = application
+            .job_registry()
+            .spawn_dummy_job(vec![10_000_000_000], None);
+
+        // Trigger database shutdown
+        database.shutdown();
+
+        // Expect timeout to not complete
+        tokio::time::timeout(tokio::time::Duration::from_millis(1), database.join())
+            .await
+            .unwrap_err();
+
+        // Database task shouldn't have finished yet
+        assert!(!database_dummy_job.is_complete());
+
+        // Wait for database to finish
+        database.join().await.unwrap();
+
+        // Database task should have finished
+        assert!(database_dummy_job.is_complete());
+
+        // Shouldn't have waited for server tracker to finish
+        assert!(!server_dummy_job.is_complete());
+    }
 }

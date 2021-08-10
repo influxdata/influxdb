@@ -789,7 +789,7 @@ mod tests {
         // Spawn a dummy job that will delay shutdown as it runs to completion
         let task = application
             .job_registry()
-            .spawn_dummy_job(vec![1_000_000_000]);
+            .spawn_dummy_job(vec![1_000_000_000], None);
 
         // Create database that will panic in its worker loop
         server

@@ -1829,7 +1829,9 @@ mod tests {
         let server = make_server(Arc::clone(&application));
 
         let wait_nanos = 1000;
-        let job = application.job_registry().spawn_dummy_job(vec![wait_nanos]);
+        let job = application
+            .job_registry()
+            .spawn_dummy_job(vec![wait_nanos], None);
 
         job.join().await;
 
