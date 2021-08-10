@@ -411,6 +411,7 @@ impl PersistenceWindows {
     }
 }
 
+/// Get new minimum row time that will be left unpersisted after the given persistable window has been persisted.
 fn new_min_time_from_persistable(persistable: &Window) -> DateTime<Utc> {
     persistable.max_time + chrono::Duration::nanoseconds(1)
 }
