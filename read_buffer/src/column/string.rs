@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 
 use arrow::{self, array::Array};
 use either::Either;
-use observability_deps::tracing::info;
 
 use super::cmp;
 use super::encoding::string::{dictionary, rle};
@@ -481,10 +480,7 @@ impl From<arrow::array::DictionaryArray<arrow::datatypes::Int32Type>> for String
             .downcast_ref::<arrow::array::StringArray>()
             .unwrap();
 
-        let now = std::time::Instant::now();
         let dictionary: BTreeSet<_> = values.iter().flatten().map(Into::into).collect();
-        let rb_to_set_dur = now.elapsed();
-        let dict_len = dictionary.len();
 
         let mut data: Encoding = if dictionary.len() > TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT {
             Encoding::Plain(Dictionary::with_dictionary(dictionary))
@@ -524,16 +520,6 @@ impl From<arrow::array::DictionaryArray<arrow::datatypes::Int32Type>> for String
             Some(x) => data.push_additional(Some(values.value(x as usize).to_string()), count),
             None => data.push_additional(None, count),
         };
-
-        // TODO(edd): remove - this is temp logging.
-        info!(
-            ?rb_to_set_dur,
-            rb_to_col_dur = ?now.elapsed(),
-            rb_dict_len = values.len(),
-            rb_dict_card = dict_len,
-            column_type = data.debug_name(),
-            "creating RUB string column"
-        );
 
         match data {
             Encoding::RLE(enc) => Self::RleDictionary(enc),
