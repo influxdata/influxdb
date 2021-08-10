@@ -255,8 +255,8 @@ impl PersistenceWindows {
             Default::default()
         }
 
-        let (skip, min_time) = match (skip_persistable, self.persistable.deref()) {
-            (true, Some(persistable)) => (1, Some(new_min_time_from_persistable(persistable))),
+        let (skip, flush_time) = match (skip_persistable, self.persistable.deref()) {
+            (true, Some(persistable)) => (1, Some(persistable.max_time)),
             _ => (0, None),
         };
 
@@ -268,8 +268,8 @@ impl PersistenceWindows {
                     .windows()
                     .skip(skip)
                     .filter_map(|window| {
-                        if let Some(min_time) = min_time {
-                            if window.max_time < min_time {
+                        if let Some(flush_time) = flush_time {
+                            if window.max_time <= flush_time {
                                 return None;
                             }
                         }
@@ -335,7 +335,7 @@ impl PersistenceWindows {
             "persistable max time doesn't match handle"
         );
         // Everything up to and including persistable max time will have been persisted
-        let new_min = new_min_time_from_persistable(&persistable);
+        let new_min = persistable.max_time + chrono::Duration::nanoseconds(1);
         for w in self.closed.iter_mut().take(closed_count) {
             if w.min_time < new_min {
                 w.min_time = new_min;
@@ -409,11 +409,6 @@ impl PersistenceWindows {
             .map(|window| window.row_count.get())
             .sum()
     }
-}
-
-/// Get new minimum row time that will be left unpersisted after the given persistable window has been persisted.
-fn new_min_time_from_persistable(persistable: &Window) -> DateTime<Utc> {
-    persistable.max_time + chrono::Duration::nanoseconds(1)
 }
 
 #[derive(Debug, Clone)]
