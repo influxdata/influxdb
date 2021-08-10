@@ -3747,14 +3747,20 @@ mod tests {
         let chunks = db.catalog.chunks();
         assert_eq!(chunks.len(), 1);
 
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+
         let chunk_a = Arc::clone(&chunks[0]);
         let chunk_b = Arc::clone(&chunks[0]);
 
         let chunk_b = chunk_b.write();
 
         let task = tokio::spawn(async move {
+            sender.send(()).unwrap();
             let _ = chunk_a.read();
         });
+
+        // Wait for background task to reach lock
+        let _ = receiver.await.unwrap();
 
         // Hold lock for 100 milliseconds blocking background task
         std::thread::sleep(std::time::Duration::from_millis(100));
