@@ -113,8 +113,8 @@ impl Database {
     }
 
     /// Waits for the background worker of this `Database` to exit
-    pub async fn join(&self) -> Result<(), Arc<JoinError>> {
-        self.join.clone().await
+    pub fn join(&self) -> impl Future<Output = Result<(), Arc<JoinError>>> {
+        self.join.clone()
     }
 
     /// Returns the config of this database
@@ -259,6 +259,13 @@ async fn background_worker(shared: Arc<DatabaseShared>) {
         );
 
         info!(db_name=%shared.config.name, "database finished initialization - starting Db worker");
+
+        crate::utils::panic_test(|| {
+            Some(format!(
+                "database background worker: {}",
+                shared.config.name
+            ))
+        });
 
         // TODO: Pull background_worker out of `Db`
         db.background_worker(shared.shutdown.clone()).await

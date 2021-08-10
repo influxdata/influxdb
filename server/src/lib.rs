@@ -83,7 +83,7 @@ use data_types::{
 use database::{Database, DatabaseConfig};
 use db::load::create_preserved_catalog;
 use entry::{lines_to_sharded_entries, pb_to_entry, Entry, ShardedEntry};
-use futures::future::{BoxFuture, FutureExt, Shared, TryFutureExt};
+use futures::future::{BoxFuture, Future, FutureExt, Shared, TryFutureExt};
 use generated_types::database_rules::encode_database_rules;
 use generated_types::influxdata::pbdata::v1 as pb;
 use hashbrown::HashMap;
@@ -463,6 +463,50 @@ struct ServerStateInitialized {
     databases: HashMap<DatabaseName<'static>, Arc<Database>>,
 }
 
+impl ServerStateInitialized {
+    /// Add a new database to the state
+    ///
+    /// Returns an error if a database with the same name already exists
+    fn new_database(
+        &mut self,
+        shared: &ServerShared,
+        config: DatabaseConfig,
+    ) -> Result<&Arc<Database>> {
+        let db_name = config.name.clone();
+        let database = match self.databases.entry(db_name.clone()) {
+            hashbrown::hash_map::Entry::Vacant(vacant) => vacant.insert(Arc::new(Database::new(
+                Arc::clone(&shared.application),
+                config,
+            ))),
+            hashbrown::hash_map::Entry::Occupied(_) => {
+                return Err(Error::DatabaseAlreadyExists {
+                    db_name: config.name.to_string(),
+                })
+            }
+        };
+
+        // Spawn a task to monitor the Database and trigger server shutdown if it fails
+        let fut = database.join();
+        let shutdown = shared.shutdown.clone();
+        let _ = tokio::spawn(async move {
+            match fut.await {
+                Ok(_) => info!(%db_name, "server observed clean shutdown of database worker"),
+                Err(e) => {
+                    if e.is_panic() {
+                        error!(%db_name, %e, "panic in database worker - shutting down server");
+                    } else {
+                        error!(%db_name, %e, "unexpected database worker shut down - shutting down server");
+                    }
+
+                    shutdown.cancel();
+                }
+            }
+        });
+
+        Ok(database)
+    }
+}
+
 #[derive(Debug)]
 pub enum UpdateError<E> {
     Update(Error),
@@ -557,8 +601,8 @@ where
     }
 
     /// Waits for this `Server` background worker to exit
-    pub async fn join(&self) -> Result<(), Arc<JoinError>> {
-        self.join.clone().await
+    pub fn join(&self) -> impl Future<Output = Result<(), Arc<JoinError>>> {
+        self.join.clone()
     }
 
     /// Returns Ok(()) when the Server is initialized, or the error
@@ -663,23 +707,18 @@ where
             let mut state = state.unfreeze(handle);
 
             let database = match &mut *state {
-                ServerState::Initialized(initialized) => {
-                    match initialized.databases.entry(db_name.clone()) {
-                        hashbrown::hash_map::Entry::Vacant(vacant) => {
-                            vacant.insert(Arc::new(Database::new(
-                                Arc::clone(&self.shared.application),
-                                DatabaseConfig {
-                                    name: db_name,
-                                    server_id,
-                                    store_prefix,
-                                    wipe_catalog_on_error: false,
-                                    skip_replay: false,
-                                },
-                            )))
-                        }
-                        hashbrown::hash_map::Entry::Occupied(_) => unreachable!(),
-                    }
-                }
+                ServerState::Initialized(initialized) => initialized
+                    .new_database(
+                        &self.shared,
+                        DatabaseConfig {
+                            name: db_name,
+                            server_id,
+                            store_prefix,
+                            wipe_catalog_on_error: false,
+                            skip_replay: false,
+                        },
+                    )
+                    .expect("database unique"),
                 _ => unreachable!(),
             };
             Arc::clone(database)
@@ -1010,7 +1049,10 @@ async fn background_worker(shared: Arc<ServerShared>) {
         maybe_initialize_server(shared.as_ref()).await;
         job_registry.reclaim();
 
-        // TODO: Trigger termination if database worker finishes
+        crate::utils::panic_test(|| {
+            let server_id = shared.state.read().initialized().ok()?.server_id;
+            Some(format!("server background worker: {}", server_id))
+        });
 
         tokio::select! {
             _ = interval.tick() => {},
@@ -1095,31 +1137,28 @@ async fn maybe_initialize_server(shared: &ServerShared) {
 
     let next_state = match maybe_databases {
         Ok(databases) => {
-            let databases = databases
-                .into_iter()
-                .map(|(db_name, store_prefix)| {
-                    (
-                        db_name.clone(),
-                        Arc::new(Database::new(
-                            Arc::clone(&shared.application),
-                            DatabaseConfig {
-                                name: db_name,
-                                server_id: init_ready.server_id,
-                                store_prefix,
-                                wipe_catalog_on_error: init_ready.wipe_catalog_on_error,
-                                skip_replay: init_ready.skip_replay_and_seek_instead,
-                            },
-                        )),
+            let mut state = ServerStateInitialized {
+                server_id: init_ready.server_id,
+                databases: HashMap::with_capacity(databases.len()),
+            };
+
+            for (db_name, store_prefix) in databases {
+                state
+                    .new_database(
+                        shared,
+                        DatabaseConfig {
+                            name: db_name,
+                            server_id: init_ready.server_id,
+                            store_prefix,
+                            wipe_catalog_on_error: init_ready.wipe_catalog_on_error,
+                            skip_replay: init_ready.skip_replay_and_seek_instead,
+                        },
                     )
-                })
-                .collect();
+                    .expect("database unique");
+            }
 
             info!(server_id=%init_ready.server_id, "server initialized");
-
-            ServerState::Initialized(ServerStateInitialized {
-                server_id: init_ready.server_id,
-                databases,
-            })
+            ServerState::Initialized(state)
         }
         Err(e) => {
             error!(server_id=%init_ready.server_id, %e, "error initializing server");

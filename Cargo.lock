@@ -3862,6 +3862,7 @@ dependencies = [
  "num_cpus",
  "object_store",
  "observability_deps",
+ "once_cell",
  "parking_lot",
  "parquet_file",
  "persistence_windows",
