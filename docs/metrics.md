@@ -9,7 +9,7 @@ Here are useful metrics
 | --- | --- | --- | 
 | http_requests_total | http_requests | Total number of HTTP requests |
 | gRPC_requests_total | requests | Total number of gROC requests |
-| http_request_duration_seconds| ? | ? |
+| http_request_duration_seconds| ? | Time to finish a request  |
 | http_mem_bytes | ? | ? |
 | http_mem_bytes_total | ? | ? |
 
@@ -31,11 +31,10 @@ Here are useful metrics
 | catalog_loaded_rows | row_count | Total number of rows (MUB, RUB, RUBandOS) for each table |
 | catalog_lock_total | ? | ? |
 | catalog_lock_wait_seconds_total | ? | ? |
-| ? | table_lock_tracker| ? |
 | ? | partition_lock_tracker | ? |
 | ? | chunk_lock_tracker | ? |
-| ? | timestamp_histogram| ? |
-| catalog_chunks_total | chunk_state | Number of chunks in different states (open, closed, compacting, compacted, writing_os, rub_and_os, ...)) |
+| ? | timestamp_histogram| Breakdown of timestamp distribution |
+| catalog_chunks_total | chunk_state | Number of chunks in different states (open, closed, compacting, compacted, writing_os, rub_and_os, ...)) - might be removed in the future |
 
 ### Chunks and Rows Pruned by Queries
 | Metric name |  Code Name | Description |
@@ -52,7 +51,7 @@ Here are useful metrics
 | read_buffer_column_raw_bytes | column_raw_bytes_total | Estimated uncompressed data size for read buffer columns, further segmented by nullness |
 
 
-### Ingest Request (from Kafka?)
+### Ingest Request (from Kafka to Query Server)
 | Metric name |  Code Name | Description |
 | --- | --- | --- |
 | write_buffer_ingest_requests_total | red | Total number of write requests |
@@ -66,4 +65,4 @@ Here are useful metrics
 ### jemalloc
 | Metric name |  Code Name | Description |
 | --- | --- | --- |
-| jemalloc_memstats_bytes | ? | ? |
+| jemalloc_memstats_bytes | ServerMetrics::jemalloc_domain | tracking jemalloc's active, alloc, metadata, mapped, resident, retained  |
