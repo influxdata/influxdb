@@ -53,5 +53,7 @@ if [[ -z "${IMAGE_PROMOTION_COMMAND}" ]]; then
 else
 	echo "Triggering image promotion"
 	eval "${IMAGE_PROMOTION_COMMAND}" < deploy.json
-	eval "${IMAGE_PROMOTION_COMMAND_K8S_IOX}" < deploy.json
+	eval "${IMAGE_PROMOTION_COMMAND_K8S_IOX}" < deploy.json || {
+	   echo "experimental k8s_iox promotion failed"
+	}
 fi
