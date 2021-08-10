@@ -361,7 +361,7 @@ mod tests {
         min_max_sequence::OptionalMinMaxSequence,
     };
     use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner};
-    use test_helpers::{assert_contains, tracing::TracingCapture};
+    use test_helpers::{assert_contains, assert_not_contains, tracing::TracingCapture};
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
     use write_buffer::{
@@ -1853,7 +1853,7 @@ mod tests {
         .run()
         .await;
 
-        assert_contains!(
+        assert_not_contains!(
             tracing_capture.to_string(),
             "What happened to these sequence numbers?"
         );
@@ -1934,7 +1934,7 @@ mod tests {
         .run()
         .await;
 
-        assert_contains!(
+        assert_not_contains!(
             tracing_capture.to_string(),
             "What happened to these sequence numbers?"
         );
