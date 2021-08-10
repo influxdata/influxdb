@@ -46,6 +46,9 @@ message OperationMetadata {
 message Dummy {
   // How long the job should sleep for before returning
   repeated uint64 nanos = 1;
+
+  // Name of the database, if any
+  string db_name = 2;
 }
 
 // Move a chunk from mutable buffer to read buffer

@@ -615,13 +615,8 @@ impl MetaData {
             // No way to accurately aggregate counts across RowGroups
             curr_meta.distinct_count = None;
 
-            if column_range_min < &curr_meta.range.0 {
-                curr_meta.range.0 = column_range_min.clone();
-            }
-
-            if column_range_max > &curr_meta.range.1 {
-                curr_meta.range.1 = column_range_max.clone();
-            }
+            curr_meta.range.0.update_min(column_range_min);
+            curr_meta.range.1.update_max(column_range_max);
         }
 
         this
@@ -1103,6 +1098,44 @@ mod test {
             (
                 OwnedValue::String("east".to_owned()),
                 OwnedValue::String("west".to_owned())
+            )
+        );
+    }
+
+    #[test]
+    fn meta_data_update_with_null() {
+        let columns = vec![
+            (
+                "time".to_string(),
+                ColumnType::create_time(&[100, 200, 300]),
+            ),
+            (
+                "region".to_string(),
+                ColumnType::create_tag_opt(&[None, None, None]),
+            ),
+        ];
+
+        let rg = RowGroup::new(3, columns);
+
+        let mut meta = MetaData::new(&rg);
+
+        // add a second column
+        let columns = vec![
+            ("time".to_string(), ColumnType::create_time(&[10, 400])),
+            (
+                "region".to_string(),
+                ColumnType::create_tag(&["east", "south"]),
+            ),
+        ];
+        let rg = RowGroup::new(2, columns);
+
+        meta = MetaData::update_with(meta, &rg);
+        assert_eq!(meta.rows, 5);
+        assert_eq!(
+            meta.columns.get("region").unwrap().range,
+            (
+                OwnedValue::String("east".to_owned()),
+                OwnedValue::String("south".to_owned())
             )
         );
     }

@@ -1,6 +1,6 @@
 //! This module contains implementations for the storage gRPC service
-//! implemented in terms of the `query::Database` and
-//! `query::DatabaseStore`
+//! implemented in terms of the [`QueryDatabase`](query::QueryDatabase) and
+//! [`DatabaseStore`]
 
 use crate::influxdb_ioxd::{
     planner::Planner,
@@ -27,8 +27,9 @@ use metrics::KeyValue;
 use observability_deps::tracing::{error, info};
 use query::{
     exec::fieldlist::FieldList, exec::seriesset::Error as SeriesSetError,
-    predicate::PredicateBuilder, DatabaseStore,
+    predicate::PredicateBuilder,
 };
+use server::DatabaseStore;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc;
@@ -1166,8 +1167,14 @@ mod tests {
     use super::*;
     use datafusion::logical_plan::{col, lit, Expr};
     use panic_logging::SendPanicsToTracing;
-    use query::{predicate::PredicateMatch, test::TestChunk, test::TestDatabaseStore};
+    use parking_lot::Mutex;
+    use query::{
+        exec::Executor,
+        predicate::PredicateMatch,
+        test::{TestChunk, TestDatabase, TestError},
+    };
     use std::{
+        collections::BTreeMap,
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, SocketAddr},
         time::Duration,
@@ -2863,6 +2870,67 @@ mod tests {
     impl NewClient for StorageClient {
         async fn connect(addr: String) -> Result<Self, tonic::transport::Error> {
             Self::connect(addr).await
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct TestDatabaseStore {
+        databases: Mutex<BTreeMap<String, Arc<TestDatabase>>>,
+        executor: Arc<Executor>,
+        pub metrics_registry: metrics::TestMetricRegistry,
+    }
+
+    impl TestDatabaseStore {
+        pub fn new() -> Self {
+            Self::default()
+        }
+    }
+
+    impl Default for TestDatabaseStore {
+        fn default() -> Self {
+            Self {
+                databases: Mutex::new(BTreeMap::new()),
+                executor: Arc::new(Executor::new(1)),
+                metrics_registry: metrics::TestMetricRegistry::default(),
+            }
+        }
+    }
+
+    #[tonic::async_trait]
+    impl DatabaseStore for TestDatabaseStore {
+        type Database = TestDatabase;
+        type Error = TestError;
+
+        /// List the database names.
+        fn db_names_sorted(&self) -> Vec<String> {
+            let databases = self.databases.lock();
+
+            databases.keys().cloned().collect()
+        }
+
+        /// Retrieve the database specified name
+        fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
+            let databases = self.databases.lock();
+
+            databases.get(name).cloned()
+        }
+
+        /// Retrieve the database specified by name, creating it if it
+        /// doesn't exist.
+        async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error> {
+            let mut databases = self.databases.lock();
+
+            if let Some(db) = databases.get(name) {
+                Ok(Arc::clone(db))
+            } else {
+                let new_db = Arc::new(TestDatabase::new());
+                databases.insert(name.to_string(), Arc::clone(&new_db));
+                Ok(new_db)
+            }
+        }
+
+        fn executor(&self) -> Arc<Executor> {
+            Arc::clone(&self.executor)
         }
     }
 }

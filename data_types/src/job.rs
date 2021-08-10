@@ -12,18 +12,15 @@ use crate::partition_metadata::PartitionAddr;
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Job {
     Dummy {
+        db_name: Option<Arc<str>>,
         nanos: Vec<u64>,
     },
 
     /// Move a chunk from mutable buffer to read buffer
-    CompactChunk {
-        chunk: ChunkAddr,
-    },
+    CompactChunk { chunk: ChunkAddr },
 
     /// Write a chunk from read buffer to object store
-    WriteChunk {
-        chunk: ChunkAddr,
-    },
+    WriteChunk { chunk: ChunkAddr },
 
     /// Compact a set of chunks
     CompactChunks {
@@ -38,21 +35,17 @@ pub enum Job {
     },
 
     /// Drop chunk from memory and (if persisted) from object store.
-    DropChunk {
-        chunk: ChunkAddr,
-    },
+    DropChunk { chunk: ChunkAddr },
 
     /// Wipe preserved catalog
-    WipePreservedCatalog {
-        db_name: Arc<str>,
-    },
+    WipePreservedCatalog { db_name: Arc<str> },
 }
 
 impl Job {
     /// Returns the database name associated with this job, if any
     pub fn db_name(&self) -> Option<&Arc<str>> {
         match self {
-            Self::Dummy { .. } => None,
+            Self::Dummy { db_name, .. } => db_name.as_ref(),
             Self::CompactChunk { chunk, .. } => Some(&chunk.db_name),
             Self::WriteChunk { chunk, .. } => Some(&chunk.db_name),
             Self::CompactChunks { partition, .. } => Some(&partition.db_name),
@@ -101,7 +94,7 @@ impl Job {
         }
     }
 
-    /// Returns a human readable description assocated with this job, if any
+    /// Returns a human readable description associated with this job, if any
     pub fn description(&self) -> &str {
         match self {
             Self::Dummy { .. } => "Dummy Job, for testing",

@@ -1,5 +1,7 @@
 use super::{ObjectStorePath, PathPart, DELIMITER};
 
+use std::fmt;
+
 use itertools::Itertools;
 
 /// A path stored as a collection of 0 or more directories and 0 or 1 file name
@@ -42,6 +44,12 @@ impl ObjectStorePath for DirsAndFileName {
             s.push_str(file_name.encoded());
         }
         s
+    }
+}
+
+impl fmt::Display for DirsAndFileName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", self.display())
     }
 }
 
@@ -379,5 +387,11 @@ mod tests {
             file_name: None,
         };
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_display() {
+        let path = parsed_path!(["foo", "bar"], "baz");
+        assert_eq!(format!("{}", path), "foo/bar/baz");
     }
 }

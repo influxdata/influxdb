@@ -15,7 +15,9 @@ use super::scenario::{
 };
 use crate::{
     common::server_fixture::ServerFixture,
-    end_to_end_cases::scenario::{wait_for_exact_chunk_states, DatabaseBuilder},
+    end_to_end_cases::scenario::{
+        fixture_broken_catalog, wait_for_exact_chunk_states, DatabaseBuilder,
+    },
 };
 use chrono::{DateTime, Utc};
 use std::convert::TryInto;
@@ -786,12 +788,29 @@ async fn test_chunk_lifecycle() {
 #[tokio::test]
 async fn test_wipe_preserved_catalog() {
     use influxdb_iox_client::management::generated_types::operation_metadata::Job;
+    let db_name = rand_name();
 
-    let fixture = ServerFixture::create_shared().await;
+    //
+    // Try to load broken catalog and error
+    //
+
+    let fixture = fixture_broken_catalog(&db_name).await;
+
     let mut management_client = fixture.management_client();
     let mut operations_client = fixture.operations_client();
 
-    let db_name = rand_name();
+    let status = fixture.wait_server_initialized().await;
+    assert_eq!(status.database_statuses.len(), 1);
+
+    let load_error = &status.database_statuses[0].error.as_ref().unwrap().message;
+    assert_contains!(
+        load_error,
+        "error loading catalog: Cannot load preserved catalog"
+    );
+
+    //
+    // Recover by wiping preserved catalog
+    //
 
     let operation = management_client
         .wipe_persisted_catalog(&db_name)
@@ -817,6 +836,10 @@ async fn test_wipe_preserved_catalog() {
         .wait_operation(operation_id, Some(std::time::Duration::from_secs(1)))
         .await
         .expect("failed to wait operation");
+
+    let status = fixture.wait_server_initialized().await;
+    assert_eq!(status.database_statuses.len(), 1);
+    assert!(status.database_statuses[0].error.is_none());
 }
 
 /// Normalizes a set of Chunks for comparison by removing timestamps
@@ -941,7 +964,7 @@ async fn test_get_server_status_global_error() {
         loop {
             let status = client.get_server_status().await.unwrap();
             if let Some(err) = status.error {
-                assert!(dbg!(err.message).starts_with("store error:"));
+                assert!(dbg!(err.message).starts_with("error listing databases in object storage:"));
                 assert!(status.database_statuses.is_empty());
                 return;
             }
@@ -978,7 +1001,7 @@ async fn test_get_server_status_db_error() {
     let db_status = &status.database_statuses[0];
     assert_eq!(db_status.db_name, "my_db");
     assert!(dbg!(&db_status.error.as_ref().unwrap().message)
-        .starts_with("error deserializing database rules from protobuf:"));
+        .starts_with("error decoding database rules:"));
     assert_eq!(
         DatabaseState::from_i32(db_status.state).unwrap(),
         DatabaseState::Known

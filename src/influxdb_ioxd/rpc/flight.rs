@@ -5,7 +5,7 @@ use futures::Stream;
 use observability_deps::tracing::{info, warn};
 use query::exec::ExecutorType;
 use serde::Deserialize;
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu};
 use tonic::{Request, Response, Streaming};
 
 use arrow::{
@@ -24,6 +24,7 @@ use server::{ConnectionManager, Server};
 use std::fmt::Debug;
 
 use super::super::planner::Planner;
+use crate::influxdb_ioxd::rpc::error::default_server_error_handler;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -167,9 +168,10 @@ where
 
         let database = DatabaseName::new(&read_info.database_name).context(InvalidDatabaseName)?;
 
-        let db = self.server.db(&database).context(DatabaseNotFound {
-            database_name: &read_info.database_name,
-        })?;
+        let db = self
+            .server
+            .db(&database)
+            .map_err(default_server_error_handler)?;
 
         let executor = db.executor();
 

@@ -8,13 +8,12 @@
     clippy::future_not_send
 )]
 
-use async_trait::async_trait;
 use data_types::{
     chunk_metadata::ChunkSummary,
     partition_metadata::{InfluxDbType, TableSummary},
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
-use exec::{stringset::StringSet, Executor};
+use exec::stringset::StringSet;
 use internal_types::{
     schema::{sort::SortKey, Schema, TIME_COLUMN_NAME},
     selection::Selection,
@@ -55,9 +54,6 @@ pub trait QueryChunkMeta: Sized {
 ///
 /// Databases store data organized by partitions and each partition stores
 /// data in Chunks.
-///
-/// TODO: Move all Query and Line Protocol specific things out of this
-/// trait and into the various query planners.
 pub trait QueryDatabase: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
     type Chunk: QueryChunk;
@@ -151,31 +147,6 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
 
     /// Returns chunk type which is either MUB, RUB, OS
     fn chunk_type(&self) -> &str;
-}
-
-#[async_trait]
-/// Storage for `Databases` which can be retrieved by name
-pub trait DatabaseStore: Debug + Send + Sync {
-    /// The type of database that is stored by this DatabaseStore
-    type Database: QueryDatabase;
-
-    /// The type of error this DataBase store generates
-    type Error: std::error::Error + Send + Sync + 'static;
-
-    /// List the database names.
-    fn db_names_sorted(&self) -> Vec<String>;
-
-    /// Retrieve the database specified by `name` returning None if no
-    /// such database exists
-    fn db(&self, name: &str) -> Option<Arc<Self::Database>>;
-
-    /// Retrieve the database specified by `name`, creating it if it
-    /// doesn't exist.
-    async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error>;
-
-    /// Provide a query executor to use for running queries on
-    /// databases in this `DatabaseStore`
-    fn executor(&self) -> Arc<Executor>;
 }
 
 /// Implement ChunkMeta for something wrapped in an Arc (like Chunks often are)

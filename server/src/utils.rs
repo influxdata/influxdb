@@ -72,6 +72,7 @@ impl TestDbBuilder {
             server_id,
             Arc::clone(&metrics_registry),
             true,
+            false,
         )
         .await
         .unwrap();
@@ -112,7 +113,7 @@ impl TestDbBuilder {
         TestDb {
             metric_registry: metrics::TestMetricRegistry::new(metrics_registry),
             db: Db::new(database_to_commit, Arc::new(JobRegistry::new())),
-            replay_plan,
+            replay_plan: replay_plan.expect("did not skip replay"),
         }
     }
 
@@ -192,4 +193,31 @@ pub fn count_object_store_chunks(db: &Db) -> usize {
                 || s.storage == ChunkStorage::ObjectStoreOnly
         })
         .count()
+}
+
+static PANIC_DATABASE: once_cell::race::OnceBox<parking_lot::Mutex<hashbrown::HashSet<String>>> =
+    once_cell::race::OnceBox::new();
+
+/// Register a key to trigger a panic when provided in a call to panic_test
+pub fn register_panic_key(key: impl Into<String>) {
+    let mut panic_database = PANIC_DATABASE.get_or_init(Default::default).lock();
+    panic_database.insert(key.into());
+}
+
+#[inline]
+/// Used to induce panics in tests
+///
+/// This needs to be public and not test-only to allow usage by other crates, unfortunately
+/// this means it currently isn't stripped out of production builds
+///
+/// The runtime cost if no keys are registered is that of a single atomic load, and so
+/// it is deemed not worth the feature flag plumbing necessary to strip it out
+pub fn panic_test(key: impl FnOnce() -> Option<String>) {
+    if let Some(panic_database) = PANIC_DATABASE.get() {
+        if let Some(key) = key() {
+            if panic_database.lock().contains(&key) {
+                panic!("key {} registered in panic database", key)
+            }
+        }
+    }
 }

@@ -1,19 +1,17 @@
-//! This module provides a reference implementaton of `query::DatabaseSource`
-//! and `query::Database` for use in testing.
+//! This module provides a reference implementaton of
+//! [`QueryDatabase`] for use in testing.
 //!
 //! AKA it is a Mock
 
-use crate::exec::Executor;
 use crate::{
     exec::stringset::{StringSet, StringSetRef},
-    DatabaseStore, Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
+    Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
 };
 use arrow::{
     array::{ArrayRef, DictionaryArray, Int64Array, StringArray, TimestampNanosecondArray},
     datatypes::{DataType, Int32Type, TimeUnit},
     record_batch::RecordBatch,
 };
-use async_trait::async_trait;
 use data_types::{
     chunk_metadata::ChunkSummary,
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
@@ -884,67 +882,6 @@ impl QueryChunkMeta for TestChunk {
 
     fn schema(&self) -> Arc<Schema> {
         Arc::clone(&self.schema)
-    }
-}
-
-#[derive(Debug)]
-pub struct TestDatabaseStore {
-    databases: Mutex<BTreeMap<String, Arc<TestDatabase>>>,
-    executor: Arc<Executor>,
-    pub metrics_registry: metrics::TestMetricRegistry,
-}
-
-impl TestDatabaseStore {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl Default for TestDatabaseStore {
-    fn default() -> Self {
-        Self {
-            databases: Mutex::new(BTreeMap::new()),
-            executor: Arc::new(Executor::new(1)),
-            metrics_registry: metrics::TestMetricRegistry::default(),
-        }
-    }
-}
-
-#[async_trait]
-impl DatabaseStore for TestDatabaseStore {
-    type Database = TestDatabase;
-    type Error = TestError;
-
-    /// List the database names.
-    fn db_names_sorted(&self) -> Vec<String> {
-        let databases = self.databases.lock();
-
-        databases.keys().cloned().collect()
-    }
-
-    /// Retrieve the database specified name
-    fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
-        let databases = self.databases.lock();
-
-        databases.get(name).cloned()
-    }
-
-    /// Retrieve the database specified by name, creating it if it
-    /// doesn't exist.
-    async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error> {
-        let mut databases = self.databases.lock();
-
-        if let Some(db) = databases.get(name) {
-            Ok(Arc::clone(db))
-        } else {
-            let new_db = Arc::new(TestDatabase::new());
-            databases.insert(name.to_string(), Arc::clone(&new_db));
-            Ok(new_db)
-        }
-    }
-
-    fn executor(&self) -> Arc<Executor> {
-        Arc::clone(&self.executor)
     }
 }
 

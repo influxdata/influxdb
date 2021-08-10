@@ -1480,16 +1480,6 @@ impl ColumnType {
             Self::Time(c) => c.cardinality(),
         }
     }
-
-    /// Helper function to construct a `Tag` column from a slice of `&str`
-    pub fn create_tag(values: &[&str]) -> Self {
-        Self::Tag(Column::from(values))
-    }
-
-    /// Helper function to construct a `Time` column from a slice of `i64`
-    pub fn create_time(values: &[i64]) -> Self {
-        Self::Time(Column::from(values))
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -2317,6 +2307,25 @@ impl Display for ReadAggregateResult<'_> {
         }
 
         writeln!(f)
+    }
+}
+
+/// Test helpers that are only available when compiled in test mode
+#[cfg(test)]
+impl ColumnType {
+    /// Helper function to construct a `Tag` column from a slice of `&str`
+    pub fn create_tag(values: &[&str]) -> Self {
+        Self::Tag(Column::from(values))
+    }
+
+    /// Helper function to construct a `Tag` column from a slice of `Option<&str>`
+    pub fn create_tag_opt(values: &[Option<&str>]) -> Self {
+        Self::Tag(Column::from(values))
+    }
+
+    /// Helper function to construct a `Time` column from a slice of `i64`
+    pub fn create_time(values: &[i64]) -> Self {
+        Self::Time(Column::from(values))
     }
 }
 

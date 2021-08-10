@@ -26,7 +26,7 @@ async fn test_start_stop() {
 
     assert_eq!(stdout.total_count, 1);
     match stdout.job {
-        Some(Job::Dummy { nanos }) => assert_eq!(nanos, vec![duration]),
+        Some(Job::Dummy { nanos, .. }) => assert_eq!(nanos, vec![duration]),
         _ => panic!("expected dummy job got {:?}", stdout.job),
     }
 
@@ -46,7 +46,7 @@ async fn test_start_stop() {
 
     assert_eq!(operations.len(), 1);
     match &operations[0].job {
-        Some(Job::Dummy { nanos }) => {
+        Some(Job::Dummy { nanos, .. }) => {
             assert_eq!(nanos.len(), 1);
             assert_eq!(nanos[0], duration);
         }

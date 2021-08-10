@@ -290,19 +290,28 @@ message DatabaseStatus {
 
   // Current initialization state of the database.
   enum DatabaseState {
-      DATABASE_STATE_UNSPECIFIED = 0;
+    DATABASE_STATE_UNSPECIFIED = 0;
 
-      // Database is known but nothing is loaded.
-      DATABASE_STATE_KNOWN = 1;
+    // Database is known but nothing is loaded.
+    DATABASE_STATE_KNOWN = 1;
 
-      // Rules are loaded
-      DATABASE_STATE_RULES_LOADED = 2;
+    // Rules are loaded
+    DATABASE_STATE_RULES_LOADED = 2;
 
-      // Catalog is loaded but data from sequencers / write buffers is not yet replayed.
-      DATABASE_STATE_REPLAY = 3;
+    // Catalog is loaded but data from sequencers / write buffers is not yet replayed.
+    DATABASE_STATE_CATALOG_LOADED = 3;
 
-      // Fully initialized database.
-      DATABASE_STATE_INITIALIZED = 4;
+    // Fully initialized database.
+    DATABASE_STATE_INITIALIZED = 4;
+
+    // Error loading rules
+    DATABASE_STATE_RULES_LOAD_ERROR = 5;
+
+    // Error during catalog load
+    DATABASE_STATE_CATALOG_LOAD_ERROR = 6;
+
+    // Error during replay
+    DATABASE_STATE_REPLAY_ERROR = 7;
   }
 
   // Current initialization state of the database.

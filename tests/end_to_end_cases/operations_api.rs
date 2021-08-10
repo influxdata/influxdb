@@ -42,7 +42,13 @@ async fn test_operations() {
 
     assert_eq!(meta.total_count, 2);
     assert_eq!(meta.pending_count, 1);
-    assert_eq!(job, operation_metadata::Job::Dummy(Dummy { nanos }));
+    assert_eq!(
+        job,
+        operation_metadata::Job::Dummy(Dummy {
+            nanos,
+            db_name: String::new()
+        })
+    );
 
     // Check wait times out correctly
     let fetched = operations_client

@@ -33,6 +33,7 @@ mutable_buffer = { path = "../mutable_buffer" }
 num_cpus = "1.13.0"
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
+once_cell = { version = "1.4.0", features = ["race"] }
 parking_lot = "0.11.1"
 parquet_file = { path = "../parquet_file" }
 persistence_windows = { path = "../persistence_windows" }

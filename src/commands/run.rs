@@ -29,7 +29,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Boolean flag that works with environment variables.
 ///
 /// Workaround for <https://github.com/TeXitoi/structopt/issues/428>
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum BooleanFlag {
     True,
     False,
@@ -269,6 +269,15 @@ Possible values (case insensitive):
         default_value = "10485760" // 10 MiB
     )]
     pub max_http_request_size: usize,
+
+    /// Automatically wipe the preserved catalog on error
+    #[structopt(
+        long = "--wipe-catalog-on-error",
+        env = "INFLUXDB_IOX_WIPE_CATALOG_ON_ERROR",
+        // TODO: Don't automatically wipe on error (#1522)
+        default_value = "yes"
+    )]
+    pub wipe_catalog_on_error: BooleanFlag,
 
     /// Skip replaying the write buffer and seek to high watermark instead.
     #[structopt(

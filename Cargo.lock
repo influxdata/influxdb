@@ -1765,11 +1765,13 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow_util",
+ "futures",
  "hashbrown",
  "indexmap",
  "itertools 0.10.1",
  "observability_deps",
  "snafu",
+ "tokio",
 ]
 
 [[package]]
@@ -3860,6 +3862,7 @@ dependencies = [
  "num_cpus",
  "object_store",
  "observability_deps",
+ "once_cell",
  "parking_lot",
  "parquet_file",
  "persistence_windows",

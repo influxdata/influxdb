@@ -49,7 +49,7 @@ where
         tracked
     }
 
-    /// Returns a list of active trackers
+    /// Returns a list of running trackers
     pub fn running(&self) -> Vec<TaskTracker<T>> {
         self.registry.running()
     }

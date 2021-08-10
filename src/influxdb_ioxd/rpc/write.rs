@@ -1,12 +1,18 @@
+use std::convert::TryFrom;
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use chrono::Utc;
-use generated_types::{google::FieldViolation, influxdata::iox::write::v1::*};
+use tonic::Response;
+
+use data_types::DatabaseName;
+use generated_types::{
+    google::{FieldViolation, FieldViolationExt},
+    influxdata::iox::write::v1::*,
+};
 use influxdb_line_protocol::parse_lines;
 use observability_deps::tracing::debug;
 use server::{ConnectionManager, Server};
-use std::fmt::Debug;
-use tonic::Response;
 
 use super::error::default_server_error_handler;
 
@@ -30,7 +36,7 @@ where
         // contain a timestamp
         let default_time = Utc::now().timestamp_nanos();
 
-        let db_name = request.db_name;
+        let db_name = DatabaseName::new(&request.db_name).field("db_name")?;
         let lp_data = request.lp_data;
         let lp_chars = lp_data.len();
         let mut num_fields = 0;
@@ -64,12 +70,16 @@ where
         request: tonic::Request<WriteEntryRequest>,
     ) -> Result<tonic::Response<WriteEntryResponse>, tonic::Status> {
         let request = request.into_inner();
+        let db_name = DatabaseName::new(&request.db_name).field("db_name")?;
+
         if request.entry.is_empty() {
             return Err(FieldViolation::required("entry").into());
         }
 
+        let entry = entry::Entry::try_from(request.entry).field("entry")?;
+
         self.server
-            .write_entry(&request.db_name, request.entry)
+            .write_entry_local(&db_name, entry)
             .await
             .map_err(default_server_error_handler)?;
 

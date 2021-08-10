@@ -10,7 +10,10 @@ use std::sync::Arc;
 impl From<Job> for management::operation_metadata::Job {
     fn from(job: Job) -> Self {
         match job {
-            Job::Dummy { nanos } => Self::Dummy(management::Dummy { nanos }),
+            Job::Dummy { nanos, db_name } => Self::Dummy(management::Dummy {
+                nanos,
+                db_name: db_name.map(|x| x.to_string()).unwrap_or_default(),
+            }),
             Job::CompactChunk { chunk } => Self::CloseChunk(management::CloseChunk {
                 db_name: chunk.db_name.to_string(),
                 partition_key: chunk.partition_key.to_string(),
@@ -58,7 +61,10 @@ impl From<management::operation_metadata::Job> for Job {
     fn from(value: management::operation_metadata::Job) -> Self {
         use management::operation_metadata::Job;
         match value {
-            Job::Dummy(management::Dummy { nanos }) => Self::Dummy { nanos },
+            Job::Dummy(management::Dummy { nanos, db_name }) => Self::Dummy {
+                nanos,
+                db_name: (!db_name.is_empty()).then(|| Arc::from(db_name.as_str())),
+            },
             Job::CloseChunk(management::CloseChunk {
                 db_name,
                 partition_key,

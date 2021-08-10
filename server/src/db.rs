@@ -44,6 +44,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     any::Any,
     collections::HashMap,
+    num::NonZeroUsize,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
@@ -251,9 +252,13 @@ struct SequencerMetrics {
     last_ingest_ts: metrics::Gauge,
 }
 
-/// This is the main IOx Database object. It is the root object of any
-/// specific InfluxDB IOx instance
+/// `Db` is an instance-local, queryable, possibly persisted, and possibly mutable data store
 ///
+/// It is responsible for:
+///
+/// * Receiving new writes for this IOx instance
+/// * Exposing APIs for the lifecycle policy to compact/persist data
+/// * Exposing APIs for the query engine to use to query data
 ///
 /// The data in a `Db` is structured in this way:
 ///
@@ -262,16 +267,16 @@ struct SequencerMetrics {
 /// │    ┌────────────────┐                         │
 /// │    │    Database    │                         │
 /// │    └────────────────┘                         │
+/// │             │  multiple Tables (measurements) │
+/// │             ▼                                 │
+/// │    ┌────────────────┐                         │
+/// │    │     Table      │                         │
+/// │    └────────────────┘                         │
 /// │             │ one partition per               │
 /// │             │ partition_key                   │
 /// │             ▼                                 │
 /// │    ┌────────────────┐                         │
 /// │    │   Partition    │                         │
-/// │    └────────────────┘                         │
-/// │             │  multiple Tables (measurements) │
-/// │             ▼                                 │
-/// │    ┌────────────────┐                         │
-/// │    │     Table      │                         │
 /// │    └────────────────┘                         │
 /// │             │  one open Chunk                 │
 /// │             │  zero or more closed            │
@@ -279,12 +284,11 @@ struct SequencerMetrics {
 /// │    ┌────────────────┐                         │
 /// │    │     Chunk      │                         │
 /// │    └────────────────┘                         │
-/// │             │  multiple Colums                │
+/// │             │  multiple Columns               │
 /// │             ▼                                 │
 /// │    ┌────────────────┐                         │
 /// │    │     Column     │                         │
 /// │    └────────────────┘                         │
-/// │                              MutableBuffer    │
 /// │                                               │
 /// └───────────────────────────────────────────────┘
 ///
@@ -583,7 +587,7 @@ impl Db {
         partition_key: &str,
         chunk_id: u32,
     ) -> Result<()> {
-        // Use explict scope to ensure the async generator doesn't
+        // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
             let partition = self.partition(table_name, partition_key)?;
@@ -640,7 +644,7 @@ impl Db {
         table_name: &str,
         partition_key: &str,
     ) -> Result<Arc<DbChunk>> {
-        // Use explict scope to ensure the async generator doesn't
+        // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
             let partition = self.partition(table_name, partition_key)?;
@@ -779,18 +783,14 @@ impl Db {
 
     /// Perform sequencer-driven replay for this DB.
     ///
-    /// When `skip_and_seek` is set then no real replay will be performed. Instead the write buffer streams will be set
+    /// When `replay_plan` is `None` then no real replay will be performed. Instead the write buffer streams will be set
     /// to the current high watermark and normal playback will continue from there.
-    pub async fn perform_replay(
-        &self,
-        replay_plan: &ReplayPlan,
-        skip_and_seek: bool,
-    ) -> Result<()> {
+    pub async fn perform_replay(&self, replay_plan: Option<&ReplayPlan>) -> Result<()> {
         use crate::db::replay::{perform_replay, seek_to_end};
-        if skip_and_seek {
-            seek_to_end(self).await.context(ReplayError)
-        } else {
+        if let Some(replay_plan) = replay_plan {
             perform_replay(self, replay_plan).await.context(ReplayError)
+        } else {
+            seek_to_end(self).await.context(ReplayError)
         }
     }
 
@@ -1181,11 +1181,11 @@ impl Db {
             for write in partitioned_writes {
                 let partition_key = write.key();
                 for table_batch in write.table_batches() {
-                    let row_count = table_batch.row_count();
+                    let row_count = match NonZeroUsize::new(table_batch.row_count()) {
+                        Some(row_count) => row_count,
+                        None => continue,
+                    };
 
-                    if row_count == 0 {
-                        continue;
-                    }
                     if !filter_table_batch(sequence, partition_key, &table_batch) {
                         continue;
                     }
@@ -1224,7 +1224,7 @@ impl Db {
 
                     // At this point this should not be possible
                     ensure!(
-                        timestamp_summary.stats.total_count == row_count as u64,
+                        timestamp_summary.stats.total_count == row_count.get() as u64,
                         TableBatchMissingTimes {}
                     );
 
@@ -3747,14 +3747,20 @@ mod tests {
         let chunks = db.catalog.chunks();
         assert_eq!(chunks.len(), 1);
 
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+
         let chunk_a = Arc::clone(&chunks[0]);
         let chunk_b = Arc::clone(&chunks[0]);
 
         let chunk_b = chunk_b.write();
 
         let task = tokio::spawn(async move {
+            sender.send(()).unwrap();
             let _ = chunk_a.read();
         });
+
+        // Wait for background task to reach lock
+        let _ = receiver.await.unwrap();
 
         // Hold lock for 100 milliseconds blocking background task
         std::thread::sleep(std::time::Duration::from_millis(100));

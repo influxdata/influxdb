@@ -1,7 +1,7 @@
 use super::{DirsAndFileName, ObjectStorePath, PathPart};
 
 use std::{
-    mem,
+    fmt, mem,
     path::{is_separator, PathBuf},
 };
 
@@ -124,6 +124,12 @@ impl From<DirsAndFileName> for FilePath {
         Self {
             inner: FilePathRepresentation::Parsed(dirs_and_file_name),
         }
+    }
+}
+
+impl fmt::Display for FilePath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", self.display())
     }
 }
 
@@ -489,5 +495,13 @@ mod tests {
         let a_parsed: FilePath = a_parts.into();
 
         assert_eq!(a_parsed.display(), expected_display);
+    }
+
+    #[test]
+    fn filepath_display() {
+        let a_path_buf: PathBuf = "/foo/bar/a.json".into();
+        let a_file_path = FilePath::raw(&a_path_buf, false);
+
+        assert_eq!(format!("{}", a_file_path), "/foo/bar/a.json");
     }
 }
