@@ -135,15 +135,24 @@ impl TableSummary {
     pub fn update_from(&mut self, other: &Self) {
         assert_eq!(self.name, other.name);
 
+        let new_total_count = self.total_count() + other.total_count();
+
+        // update all existing columns
         for col in &mut self.columns {
             if let Some(other_col) = other.column(&col.name) {
                 col.update_from(other_col);
+            } else {
+                col.update_to_total_count(new_total_count);
             }
         }
 
+        // Add any columns that were new
         for col in &other.columns {
             if self.column(&col.name).is_none() {
-                self.columns.push(col.clone());
+                let mut new_col = col.clone();
+                // ensure the count is consistent
+                new_col.update_to_total_count(new_total_count);
+                self.columns.push(new_col);
             }
         }
     }
@@ -235,6 +244,21 @@ impl ColumnSummary {
             (Statistics::Bool(_), _) => unreachable!(),
             (Statistics::String(_), _) => unreachable!(),
         }
+    }
+
+    /// Updates these statistics so that that the total length of this
+    /// column is `len` rows, padding it with trailing NULLs if
+    /// necessary
+    pub fn update_to_total_count(&mut self, len: u64) {
+        let total_count = self.total_count();
+        assert!(
+            total_count <= len,
+            "trying to shrink column stats from {} to {}",
+            total_count,
+            len
+        );
+        let delta = len - total_count;
+        self.stats.update_for_nulls(delta);
     }
 }
 
@@ -350,6 +374,17 @@ impl Statistics {
         match self {
             Self::String(v) => std::mem::size_of::<Self>() + v.string_size(),
             _ => std::mem::size_of::<Self>(),
+        }
+    }
+
+    /// Update the statistics values to account for `num_nulls` additional null values
+    pub fn update_for_nulls(&mut self, num_nulls: u64) {
+        match self {
+            Self::I64(v) => v.update_for_nulls(num_nulls),
+            Self::U64(v) => v.update_for_nulls(num_nulls),
+            Self::F64(v) => v.update_for_nulls(num_nulls),
+            Self::Bool(v) => v.update_for_nulls(num_nulls),
+            Self::String(v) => v.update_for_nulls(num_nulls),
         }
     }
 }
@@ -971,7 +1006,7 @@ mod tests {
         let col = table_a.column("float").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::F64(StatValues::new_non_null(Some(1.3), Some(9.1), 2))
+            Statistics::F64(StatValues::new(Some(1.3), Some(9.1), 4, 2))
         );
 
         table_b.update_from(&table_c);
@@ -994,8 +1029,75 @@ mod tests {
         let col = table_b.column("float").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::F64(StatValues::new_non_null(Some(1.3), Some(9.1), 2))
+            Statistics::F64(StatValues::new(Some(1.3), Some(9.1), 4, 2))
         );
+    }
+
+    #[test]
+    fn table_update_from_new_column() {
+        let string_stats = StatValues::new_with_value("bar".to_string());
+        let string_col = ColumnSummary {
+            name: "string".to_string(),
+            influxdb_type: None,
+            stats: Statistics::String(string_stats),
+        };
+
+        let int_stats = StatValues::new_with_value(5);
+        let int_col = ColumnSummary {
+            name: "int".to_string(),
+            influxdb_type: None,
+            stats: Statistics::I64(int_stats),
+        };
+
+        // table summary that does not have the "string" col
+        let table1 = TableSummary {
+            name: "the_table".to_string(),
+            columns: vec![int_col.clone()],
+        };
+
+        // table summary that has both columns
+        let table2 = TableSummary {
+            name: "the_table".to_string(),
+            columns: vec![int_col, string_col],
+        };
+
+        // Statistics should be the same regardless of the order we update the stats
+
+        let expected_string_stats = Statistics::String(StatValues::new(
+            Some("bar".to_string()),
+            Some("bar".to_string()),
+            2, // total count is 2 even though did not appear in the update
+            1, // 1 null
+        ));
+
+        let expected_int_stats = Statistics::I64(StatValues::new(
+            Some(5),
+            Some(5),
+            2,
+            0, // no nulls
+        ));
+
+        // update table 1 with table 2
+        let mut table = table1.clone();
+        table.update_from(&table2);
+
+        assert_eq!(
+            &table.column("string").unwrap().stats,
+            &expected_string_stats
+        );
+
+        assert_eq!(&table.column("int").unwrap().stats, &expected_int_stats);
+
+        // update table 2 with table 1
+        let mut table = table2;
+        table.update_from(&table1);
+
+        assert_eq!(
+            &table.column("string").unwrap().stats,
+            &expected_string_stats
+        );
+
+        assert_eq!(&table.column("int").unwrap().stats, &expected_int_stats);
     }
 
     #[test]
@@ -1035,10 +1137,11 @@ mod tests {
         let col = t.column("string").unwrap();
         assert_eq!(
             col.stats,
-            Statistics::String(StatValues::new_non_null(
+            Statistics::String(StatValues::new(
                 Some("bar".to_string()),
                 Some("foo".to_string()),
-                2,
+                3, // no entry for "string" column in table_a_2
+                1,
             ))
         );
         let col = t.column("int").unwrap();
