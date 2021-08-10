@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::{convert::TryFrom, fmt::Formatter};
 use std::{mem::size_of, sync::Arc};
 
@@ -1136,7 +1137,7 @@ impl std::fmt::Display for &Scalar {
     }
 }
 
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum OwnedValue {
     /// A UTF-8 valid string.
     String(String),
@@ -1151,9 +1152,44 @@ pub enum OwnedValue {
     Scalar(Scalar),
 }
 
+impl PartialOrd for OwnedValue {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Self::String(s), Self::String(o)) => s.partial_cmp(o),
+            (Self::ByteArray(s), Self::ByteArray(o)) => s.partial_cmp(o),
+            (Self::Boolean(s), Self::Boolean(o)) => s.partial_cmp(o),
+            (Self::Scalar(s), Self::Scalar(o)) => s.partial_cmp(o),
+            // can not compare if not the same type
+            _ => None,
+        }
+    }
+}
+
 impl OwnedValue {
     pub fn new_null() -> Self {
         Self::Scalar(Scalar::Null)
+    }
+
+    pub fn is_null(&self) -> bool {
+        matches!(self, Self::Scalar(Scalar::Null))
+    }
+
+    /// Update self to the min of self and other, taking into
+    /// account NULL
+    pub fn update_min(&mut self, other: &Self) {
+        if (self.is_null() && !other.is_null()) || other.partial_cmp(self) == Some(Ordering::Less) {
+            *self = other.clone()
+        }
+    }
+
+    /// Update self to the max of self and other, taking into
+    /// account NULL
+    pub fn update_max(&mut self, other: &Self) {
+        if (self.is_null() && !other.is_null())
+            || other.partial_cmp(self) == Some(Ordering::Greater)
+        {
+            *self = other.clone()
+        }
     }
 
     /// The size in bytes of this value.
@@ -1893,6 +1929,66 @@ mod test {
 
         let v1 = OwnedValue::ByteArray(vec![2, 44, 252]);
         assert_eq!(v1.size(), 35);
+    }
+
+    #[test]
+    fn update_min() {
+        let null = OwnedValue::new_null();
+        let eleven = OwnedValue::Scalar(Scalar::I64(11));
+        let twenty_two = OwnedValue::Scalar(Scalar::I64(22));
+        let thirty_three = OwnedValue::Scalar(Scalar::I64(33));
+        let string = OwnedValue::String("foo".to_string());
+
+        let mut v1 = OwnedValue::new_null();
+
+        v1.update_min(&null);
+        assert_eq!(&v1, &null);
+
+        v1.update_min(&twenty_two);
+        assert_eq!(&v1, &twenty_two);
+
+        v1.update_min(&thirty_three);
+        assert_eq!(&v1, &twenty_two);
+
+        v1.update_min(&eleven);
+        assert_eq!(&v1, &eleven);
+
+        v1.update_min(&null);
+        assert_eq!(&v1, &eleven);
+
+        // different type should not update either
+        v1.update_min(&string);
+        assert_eq!(&v1, &eleven);
+    }
+
+    #[test]
+    fn update_max() {
+        let null = OwnedValue::new_null();
+        let eleven = OwnedValue::Scalar(Scalar::I64(11));
+        let twenty_two = OwnedValue::Scalar(Scalar::I64(22));
+        let thirty_three = OwnedValue::Scalar(Scalar::I64(33));
+        let string = OwnedValue::String("foo".to_string());
+
+        let mut v1 = OwnedValue::new_null();
+
+        v1.update_max(&null);
+        assert_eq!(&v1, &null);
+
+        v1.update_max(&twenty_two);
+        assert_eq!(&v1, &twenty_two);
+
+        v1.update_max(&eleven);
+        assert_eq!(&v1, &twenty_two);
+
+        v1.update_max(&thirty_three);
+        assert_eq!(&v1, &thirty_three);
+
+        v1.update_max(&null);
+        assert_eq!(&v1, &thirty_three);
+
+        // different type should not update either
+        v1.update_max(&string);
+        assert_eq!(&v1, &thirty_three);
     }
 
     #[test]
