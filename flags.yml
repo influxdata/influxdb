@@ -90,18 +90,3 @@
   expose: true
   lifetime: temporary
 
-- name: Range Annotations
-  description: Enables the creation of Range Annotations on Drag (if annotation write mode is activated)
-  key: rangeAnnotations
-  default: false
-  contact: Jill Pelavin/ Dumplings Team
-  lifetime: temporary
-  expose: true
-
-- name: Annotations UI
-  description: Management, display, and manual addition of Annotations from the UI
-  key: annotations
-  default: true
-  contact: Monitoring Team
-  lifetime: temporary
-  expose: true
