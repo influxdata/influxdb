@@ -174,6 +174,11 @@ impl RowGroup {
         self.meta.rows
     }
 
+    /// The number of columns in the `RowGroup`.
+    pub fn columns(&self) -> usize {
+        self.columns.len()
+    }
+
     // The row group's meta data.
     pub fn metadata(&self) -> &MetaData {
         &self.meta
