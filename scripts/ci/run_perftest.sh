@@ -137,6 +137,7 @@ queries=500
 
 # Lines to write per request during ingest
 batch=5000
+
 # Concurrent workers to use during ingest/query
 workers=4
 
@@ -240,6 +241,9 @@ query_types() {
     window-agg|group-agg|bare-agg)
       echo min mean max first last count sum
       ;;
+    iot)
+      echo 1-home-12-hours
+      ;;
     metaquery)
       echo field-keys tag-values
       ;;
@@ -252,8 +256,7 @@ query_types() {
 
 # Generate queries to test.
 query_files=""
-# Aggregate queries
-for usecase in window-agg group-agg bare-agg metaquery; do
+for usecase in window-agg group-agg bare-agg iot metaquery; do
   for type in $(query_types $usecase); do
     query_fname="${TEST_FORMAT}_${usecase}_${type}"
     $GOPATH/bin/bulk_query_gen \
