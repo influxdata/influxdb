@@ -1483,6 +1483,7 @@ impl ColumnType {
 }
 
 #[derive(Debug, Clone)]
+/// Row Group metadata per Column
 pub struct ColumnMeta {
     pub typ: crate::schema::ColumnType,
     pub logical_data_type: LogicalDataType,
@@ -1524,19 +1525,20 @@ impl PartialEq for ColumnMeta {
 }
 
 #[derive(Default, Debug)]
+/// The metadata for a RowGroup
 pub struct MetaData {
-    // The total size in bytes of all column data in the `RowGroup`.
+    /// The total size in bytes of all column data in the `RowGroup`.
     pub columns_size: usize,
 
-    // The total number of rows in the `RowGroup`.
+    /// The total number of rows in the `RowGroup`.
     pub rows: u32,
 
-    // The distinct set of columns for this `RowGroup` (all of these columns
-    // will appear in all of the `Table`'s `RowGroup`s) and the range of values
-    // for each of those columns.
-    //
-    // This can be used to skip the table entirely if a logical predicate can't
-    // possibly match based on the range of values a column has.
+    /// The distinct set of columns for this `RowGroup` (all of these columns
+    /// will appear in all of the `Table`'s `RowGroup`s) and the range of values
+    /// for each of those columns.
+    ///
+    /// This can be used to skip the table entirely if a logical predicate can't
+    /// possibly match based on the range of values a column has.
     pub columns: BTreeMap<String, ColumnMeta>,
 
     pub column_names: Vec<String>,

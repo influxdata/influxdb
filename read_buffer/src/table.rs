@@ -540,8 +540,10 @@ impl Table {
     }
 }
 
-// TODO(edd): reduce owned strings here by, e.g., using references as keys.
-// Does not implement `Default`; must contain some data.
+/// Table level MetaData
+///
+/// TODO(edd): reduce owned strings here by, e.g., using references as keys.
+/// Does not implement `Default`; must contain some data.
 #[derive(Clone)]
 pub struct MetaData {
     // The total size of all row-group data associated with the table in bytes.
