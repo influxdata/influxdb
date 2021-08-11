@@ -456,7 +456,7 @@ impl PreservedCatalog {
                 &object_store,
                 server_id,
                 &db_name,
-                &tkey,
+                tkey,
                 &mut state,
                 &last_tkey,
                 file_type,
@@ -497,7 +497,6 @@ impl PreservedCatalog {
     pub fn revision_counter(&self) -> u64 {
         self.previous_tkey
             .read()
-            .clone()
             .map(|tkey| tkey.revision_counter)
             .expect("catalog should have at least an empty transaction")
     }
@@ -579,18 +578,38 @@ fn file_path(
     object_store: &ObjectStore,
     server_id: ServerId,
     db_name: &str,
-    tkey: &TransactionKey,
+    tkey: TransactionKey,
     file_type: FileType,
 ) -> Path {
-    let mut path = catalog_path(object_store, server_id, db_name);
+    let path = catalog_path(object_store, server_id, db_name);
 
-    // pad number: `u64::MAX.to_string().len()` is 20
-    path.push_dir(format!("{:0>20}", tkey.revision_counter));
+    let transaction = TransactionFile {
+        catalog_root: path,
+        tkey,
+        file_type,
+    };
 
-    let file_name = format!("{}.{}", tkey.uuid, file_type.suffix());
-    path.set_file_name(file_name);
+    transaction.file_path()
+}
 
-    path
+struct TransactionFile {
+    catalog_root: Path,
+    tkey: TransactionKey,
+    file_type: FileType,
+}
+
+impl TransactionFile {
+    fn file_path(&self) -> Path {
+        let mut path = self.catalog_root.clone();
+
+        // pad number: `u64::MAX.to_string().len()` is 20
+        path.push_dir(format!("{:0>20}", self.tkey.revision_counter));
+
+        let file_name = format!("{}.{}", self.tkey.uuid, self.file_type.suffix());
+        path.set_file_name(file_name);
+
+        path
+    }
 }
 
 /// Extracts revision counter, UUID, and file type from transaction or checkpoint path.
@@ -765,7 +784,7 @@ fn parse_encoding(encoding: i32) -> Result<proto::transaction::Encoding> {
 }
 
 /// Key to address transactions.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 struct TransactionKey {
     revision_counter: u64,
     uuid: Uuid,
@@ -884,7 +903,7 @@ impl OpenTransaction {
             object_store,
             server_id,
             db_name,
-            &self.tkey(),
+            self.tkey(),
             FileType::Transaction,
         );
         store_transaction_proto(object_store, &path, &self.proto).await?;
@@ -895,7 +914,7 @@ impl OpenTransaction {
         object_store: &Arc<ObjectStore>,
         server_id: ServerId,
         db_name: &str,
-        tkey: &TransactionKey,
+        tkey: TransactionKey,
         state: &mut S,
         last_tkey: &Option<TransactionKey>,
         file_type: FileType,
@@ -1232,7 +1251,7 @@ impl<'c> CheckpointHandle<'c> {
             &object_store,
             server_id,
             db_name,
-            &self.tkey,
+            self.tkey,
             FileType::Checkpoint,
         );
         store_transaction_proto(&object_store, &path, &proto).await?;
@@ -1328,7 +1347,7 @@ pub mod test_helpers {
             &catalog.object_store,
             catalog.server_id,
             &catalog.db_name,
-            &tkey,
+            tkey,
             FileType::Transaction,
         );
         let mut proto = load_transaction_proto(&catalog.object_store, &path)
@@ -1343,10 +1362,7 @@ pub mod test_helpers {
     /// Helper function to ensure that guards don't leak into the future state machine.
     fn get_tkey(catalog: &PreservedCatalog) -> TransactionKey {
         let guard = catalog.previous_tkey.read();
-        guard
-            .as_ref()
-            .expect("should have at least a single transaction")
-            .clone()
+        guard.expect("should have at least a single transaction")
     }
 
     /// Torture-test implementations for [`CatalogState`].
@@ -1772,7 +1788,7 @@ mod tests {
 
         // remove transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -1835,7 +1851,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -1872,7 +1888,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -1914,7 +1930,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -1951,7 +1967,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -1988,7 +2004,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2022,7 +2038,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[1];
+        let tkey = trace.tkeys[1];
         let path = file_path(
             &object_store,
             server_id,
@@ -2056,7 +2072,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2093,7 +2109,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2160,12 +2176,12 @@ mod tests {
 
         // re-create transaction file with different UUID
         assert!(trace.tkeys.len() >= 2);
-        let mut tkey = trace.tkeys[1].clone();
+        let mut tkey = trace.tkeys[1];
         let path = file_path(
             &object_store,
             server_id,
             db_name,
-            &tkey,
+            tkey,
             FileType::Transaction,
         );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
@@ -2177,7 +2193,7 @@ mod tests {
             &object_store,
             server_id,
             db_name,
-            &tkey,
+            tkey,
             FileType::Transaction,
         );
         proto.uuid = new_uuid.to_string();
@@ -2210,12 +2226,12 @@ mod tests {
 
         // create checkpoint file with different UUID
         assert!(trace.tkeys.len() >= 2);
-        let mut tkey = trace.tkeys[1].clone();
+        let mut tkey = trace.tkeys[1];
         let path = file_path(
             &object_store,
             server_id,
             db_name,
-            &tkey,
+            tkey,
             FileType::Transaction,
         );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
@@ -2227,7 +2243,7 @@ mod tests {
             &object_store,
             server_id,
             db_name,
-            &tkey,
+            tkey,
             FileType::Checkpoint,
         );
         proto.uuid = new_uuid.to_string();
@@ -2261,7 +2277,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2304,7 +2320,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2341,7 +2357,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2381,7 +2397,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2418,7 +2434,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2455,7 +2471,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2492,7 +2508,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2587,7 +2603,7 @@ mod tests {
             if trace.aborted[i] {
                 continue;
             }
-            let tkey = &trace.tkeys[i];
+            let tkey = trace.tkeys[i];
             let path = file_path(
                 &object_store,
                 server_id,
@@ -2712,8 +2728,7 @@ mod tests {
         }
 
         fn record(&mut self, catalog: &PreservedCatalog, state: &TestCatalogState, aborted: bool) {
-            self.tkeys
-                .push(catalog.previous_tkey.read().clone().unwrap());
+            self.tkeys.push(catalog.previous_tkey.read().unwrap());
             self.states.push(state.clone());
             self.post_timestamps.push(Utc::now());
             self.aborted.push(aborted);
@@ -3118,7 +3133,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -3166,7 +3181,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -3239,7 +3254,7 @@ mod tests {
         trace.record(&catalog, &state, false);
 
         // delete transaction files
-        for (aborted, tkey) in trace.aborted.iter().zip(trace.tkeys.iter()) {
+        for (aborted, tkey) in trace.aborted.iter().zip(trace.tkeys.into_iter()) {
             if *aborted {
                 continue;
             }
@@ -3325,12 +3340,12 @@ mod tests {
         .unwrap();
 
         // delete transaction file
-        let tkey = catalog.previous_tkey.read().clone().unwrap();
+        let tkey = catalog.previous_tkey.read().unwrap();
         let path = file_path(
             &object_store,
             server_id,
             db_name,
-            &tkey,
+            tkey,
             FileType::Transaction,
         );
         checked_delete(&object_store, &path).await;
@@ -3346,12 +3361,12 @@ mod tests {
         }
 
         // delete transaction file
-        let tkey = catalog.previous_tkey.read().clone().unwrap();
+        let tkey = catalog.previous_tkey.read().unwrap();
         let path = file_path(
             &object_store,
             server_id,
             db_name,
-            &tkey,
+            tkey,
             FileType::Transaction,
         );
         checked_delete(&object_store, &path).await;
