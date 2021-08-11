@@ -333,10 +333,6 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 	s := OpenServer(c)
 	defer s.Close()
 
-	if _, ok := s.(*RemoteServer); ok {
-		t.Skip("Skipping. Cannot alter auto create rp remotely")
-	}
-
 	test := tests.load(t, "retention_policy_commands")
 
 	// Create a database.
@@ -425,10 +421,6 @@ func TestServer_ShowDatabases_WithAuth(t *testing.T) {
 	c.HTTPD.AuthEnabled = true
 	s := OpenServer(c)
 	defer s.Close()
-
-	if _, ok := s.(*RemoteServer); ok {
-		t.Skip("Skipping.  Cannot enable auth on remote server")
-	}
 
 	adminParams := map[string][]string{"u": []string{"admin"}, "p": []string{"admin"}}
 	readerParams := map[string][]string{"u": []string{"reader"}, "p": []string{"r"}}
@@ -1279,10 +1271,6 @@ func TestServer_Query_MaxSelectSeriesN(t *testing.T) {
 	config.Coordinator.MaxSelectSeriesN = 3
 	s := OpenServer(config)
 	defer s.Close()
-
-	if _, ok := s.(*RemoteServer); ok {
-		t.Skip("Skipping.  Cannot modify MaxSelectSeriesN remotely")
-	}
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
@@ -9324,10 +9312,6 @@ func TestServer_Query_LargeTimestamp(t *testing.T) {
 	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
-	if _, ok := s.(*RemoteServer); ok {
-		t.Skip("Skipping.  Cannot restart remote server")
-	}
-
 	writes := []string{
 		fmt.Sprintf(`cpu value=100 %d`, models.MaxNanoTime),
 	}
@@ -9424,9 +9408,6 @@ func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
 	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
-	if _, ok := s.(*RemoteServer); ok {
-		t.Skip("Skipping.  Cannot access PointsWriter remotely")
-	}
 	// goroutine to write points
 	done := make(chan struct{})
 	var wg sync.WaitGroup

@@ -32,6 +32,7 @@ var seed int64
 // Server represents a test wrapper for run.Server.
 type Server interface {
 	URL() string
+	TcpAddr() string
 	Open() error
 	SetLogOutput(w io.Writer)
 	Close()
@@ -51,133 +52,12 @@ type Server interface {
 	WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
 }
 
-// RemoteServer is a Server that is accessed remotely via the HTTP API
-type RemoteServer struct {
-	*client
-	url string
-}
-
-func (s *RemoteServer) URL() string {
-	return s.url
-}
-
-func (s *RemoteServer) Open() error {
-	resp, err := http.Get(s.URL() + "/ping")
-	if err != nil {
-		return err
-	}
-	body := strings.TrimSpace(string(MustReadAll(resp.Body)))
-	if resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("unexpected status code: code=%d, body=%s", resp.StatusCode, body)
-	}
-	return nil
-}
-
-func (s *RemoteServer) Close() {
-	// ignore, we can't shutdown a remote server
-}
-
-func (s *RemoteServer) SetLogOutput(w io.Writer) {
-	// ignore, we can't change the logging of a remote server
-}
-
-func (s *RemoteServer) Closed() bool {
-	return true
-}
-
-func (s *RemoteServer) CreateDatabase(db string) (*meta.DatabaseInfo, error) {
-	stmt := fmt.Sprintf("CREATE+DATABASE+%s", db)
-
-	_, err := s.HTTPPost(s.URL()+"/query?q="+stmt, nil)
-	if err != nil {
-		return nil, err
-	}
-	return &meta.DatabaseInfo{}, nil
-}
-
-func (s *RemoteServer) CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionPolicySpec, makeDefault bool) error {
-	if _, err := s.CreateDatabase(db); err != nil {
-		return err
-	}
-
-	stmt := fmt.Sprintf("CREATE+RETENTION+POLICY+%s+ON+\"%s\"+DURATION+%s+REPLICATION+%v+SHARD+DURATION+%s",
-		rp.Name, db, rp.Duration, *rp.ReplicaN, rp.ShardGroupDuration)
-	if makeDefault {
-		stmt += "+DEFAULT"
-	}
-
-	_, err := s.HTTPPost(s.URL()+"/query?q="+stmt, nil)
-	return err
-}
-
-func (s *RemoteServer) CreateSubscription(database, rp, name, mode string, destinations []string) error {
-	dests := make([]string, 0, len(destinations))
-	for _, d := range destinations {
-		dests = append(dests, "'"+d+"'")
-	}
-
-	stmt := fmt.Sprintf("CREATE+SUBSCRIPTION+%s+ON+\"%s\".\"%s\"+DESTINATIONS+%v+%s",
-		name, database, rp, mode, strings.Join(dests, ","))
-
-	_, err := s.HTTPPost(s.URL()+"/query?q="+stmt, nil)
-	return err
-}
-
-func (s *RemoteServer) DropDatabase(db string) error {
-	stmt := fmt.Sprintf("DROP+DATABASE+%s", db)
-
-	_, err := s.HTTPPost(s.URL()+"/query?q="+stmt, nil)
-	return err
-}
-
-// Reset attempts to remove all database state by dropping everything
-func (s *RemoteServer) Reset() error {
-	stmt := "SHOW+DATABASES"
-	results, err := s.HTTPPost(s.URL()+"/query?q="+stmt, nil)
-	if err != nil {
-		return err
-	}
-
-	resp := &httpd.Response{}
-	if resp.UnmarshalJSON([]byte(results)); err != nil {
-		return err
-	}
-
-	for _, db := range resp.Results[0].Series[0].Values {
-		if err := s.DropDatabase(fmt.Sprintf("%s", db[0])); err != nil {
-			return err
-		}
-	}
-	return nil
-
-}
-
-func (s *RemoteServer) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error {
-	panic("WritePoints not implemented")
-}
-
 // NewServer returns a new instance of Server.
 func NewServer(c *Config) Server {
 	buildInfo := &run.BuildInfo{
 		Version: "testServer",
 		Commit:  "testCommit",
 		Branch:  "testBranch",
-	}
-
-	// If URL exists, create a server that will run against a remote endpoint
-	if url := os.Getenv("URL"); url != "" {
-		s := &RemoteServer{
-			url: url,
-			client: &client{
-				URLFn: func() string {
-					return url
-				},
-			},
-		}
-		if err := s.Reset(); err != nil {
-			panic(err.Error())
-		}
-		return s
 	}
 
 	// Otherwise create a local server
@@ -293,6 +173,12 @@ func (s *LocalServer) URL() string {
 		}
 	}
 	panic("httpd server not found in services")
+}
+
+func (s *LocalServer) TcpAddr() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return "tcp://" + s.Listener.Addr().String()
 }
 
 func (s *LocalServer) CreateDatabase(db string) (*meta.DatabaseInfo, error) {

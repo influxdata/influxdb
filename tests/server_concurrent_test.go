@@ -22,10 +22,6 @@ func TestConcurrentServer_WriteValues(t *testing.T) {
 	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
-	if _, ok := s.(*RemoteServer); ok {
-		t.Skip("Skipping.  Not implemented on remote server")
-	}
-
 	// The first %%d becomes a %d once fmt is done, so we can then inject new
 	// measurement names later on.
 	write := strings.Join([]string{
@@ -53,10 +49,6 @@ func TestConcurrentServer_TagValues(t *testing.T) {
 
 	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
-
-	if _, ok := s.(*RemoteServer); ok {
-		t.Skip("Skipping.  Not implemented on remote server")
-	}
 
 	write := strings.Join([]string{
 		fmt.Sprintf(`a,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
@@ -112,10 +104,6 @@ func TestConcurrentServer_ShowMeasurements(t *testing.T) {
 
 	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
-
-	if _, ok := s.(*RemoteServer); ok {
-		t.Skip("Skipping.  Not implemented on remote server")
-	}
 
 	write := strings.Join([]string{
 		fmt.Sprintf(`a,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),

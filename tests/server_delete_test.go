@@ -131,10 +131,6 @@ func TestServer_DELETE_DROP_SERIES_DROP_MEASUREMENT(t *testing.T) {
 	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
-	if _, ok := s.(*RemoteServer); ok {
-		t.Skip("Skipping. Not implemented on remote server")
-	}
-
 	localServer := s.(*LocalServer)
 
 	// First initialize some writes such that we end up with 10 shards.
