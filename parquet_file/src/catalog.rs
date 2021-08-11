@@ -284,9 +284,7 @@ impl PreservedCatalog {
         db_name: &str,
     ) -> Result<Option<DateTime<Utc>>> {
         let mut res = None;
-        for (path, _file_type, _revision_counter, _uuid) in
-            list_files(object_store, server_id, db_name).await?
-        {
+        for (path, _file_type, _tkey) in list_files(object_store, server_id, db_name).await? {
             match load_transaction_proto(object_store, &path).await {
                 Ok(proto) => match parse_timestamp(&proto.start_timestamp) {
                     Ok(ts) => {
@@ -316,9 +314,7 @@ impl PreservedCatalog {
         server_id: ServerId,
         db_name: &str,
     ) -> Result<()> {
-        for (path, _file_type, _revision_counter, _uuid) in
-            list_files(object_store, server_id, db_name).await?
-        {
+        for (path, _file_type, _tkey) in list_files(object_store, server_id, db_name).await? {
             object_store.delete(&path).await.context(Write)?;
         }
 
@@ -379,38 +375,36 @@ impl PreservedCatalog {
         let mut transactions: HashMap<u64, Uuid> = HashMap::new();
         let mut max_revision = None;
         let mut last_checkpoint = None;
-        for (_path, file_type, revision_counter, uuid) in
-            list_files(&object_store, server_id, &db_name).await?
-        {
+        for (_path, file_type, tkey) in list_files(&object_store, server_id, &db_name).await? {
             // keep track of the max
             max_revision = Some(
                 max_revision
-                    .map(|m: u64| m.max(revision_counter))
-                    .unwrap_or(revision_counter),
+                    .map(|m: u64| m.max(tkey.revision_counter))
+                    .unwrap_or(tkey.revision_counter),
             );
 
             // keep track of latest checkpoint
             if matches!(file_type, FileType::Checkpoint) {
                 last_checkpoint = Some(
                     last_checkpoint
-                        .map(|m: u64| m.max(revision_counter))
-                        .unwrap_or(revision_counter),
+                        .map(|m: u64| m.max(tkey.revision_counter))
+                        .unwrap_or(tkey.revision_counter),
                 );
             }
 
             // insert but check for duplicates
-            match transactions.entry(revision_counter) {
+            match transactions.entry(tkey.revision_counter) {
                 Occupied(o) => {
                     // sort for determinism
-                    let (uuid1, uuid2) = if *o.get() < uuid {
-                        (*o.get(), uuid)
+                    let (uuid1, uuid2) = if *o.get() < tkey.uuid {
+                        (*o.get(), tkey.uuid)
                     } else {
-                        (uuid, *o.get())
+                        (tkey.uuid, *o.get())
                     };
 
                     if uuid1 != uuid2 {
                         Fork {
-                            revision_counter,
+                            revision_counter: tkey.revision_counter,
                             uuid1,
                             uuid2,
                         }
@@ -418,7 +412,7 @@ impl PreservedCatalog {
                     }
                 }
                 Vacant(v) => {
-                    v.insert(uuid);
+                    v.insert(tkey.uuid);
                 }
             }
         }
@@ -613,7 +607,7 @@ impl TransactionFile {
 }
 
 /// Extracts revision counter, UUID, and file type from transaction or checkpoint path.
-fn parse_file_path(path: Path) -> Option<(u64, Uuid, FileType)> {
+fn parse_file_path(path: Path) -> Option<(TransactionKey, FileType)> {
     let parsed: DirsAndFileName = path.into();
     if parsed.directories.len() != 4 {
         return None;
@@ -639,7 +633,13 @@ fn parse_file_path(path: Path) -> Option<(u64, Uuid, FileType)> {
                 std::array::IntoIter::new([FileType::Checkpoint, FileType::Transaction])
             {
                 if name_parts[1] == file_type.suffix() {
-                    return Some((revision_counter, uuid, file_type));
+                    return Some((
+                        TransactionKey {
+                            revision_counter,
+                            uuid,
+                        },
+                        file_type,
+                    ));
                 }
             }
             None
@@ -655,7 +655,7 @@ async fn list_files(
     object_store: &ObjectStore,
     server_id: ServerId,
     db_name: &str,
-) -> Result<Vec<(Path, FileType, u64, Uuid)>> {
+) -> Result<Vec<(Path, FileType, TransactionKey)>> {
     let list_path = catalog_path(object_store, server_id, db_name);
     let paths = object_store
         .list(Some(&list_path))
@@ -665,9 +665,8 @@ async fn list_files(
             paths
                 .into_iter()
                 .filter_map(|path| {
-                    parse_file_path(path.clone()).map(|(revision_counter, uuid, file_type)| {
-                        (path.clone(), file_type, revision_counter, uuid)
-                    })
+                    parse_file_path(path.clone())
+                        .map(|(tkey, file_type)| (path.clone(), file_type, tkey))
                 })
                 .collect()
         })
