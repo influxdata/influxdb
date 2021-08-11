@@ -71,7 +71,7 @@ impl TestDbBuilder {
             Arc::clone(&object_store),
             server_id,
             Arc::clone(&metrics_registry),
-            true,
+            false,
             false,
         )
         .await
