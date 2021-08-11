@@ -115,8 +115,7 @@ func (report *reportTSI) run(cmd *cobra.Command) error {
 	defer report.sfile.Close()
 
 	// Blocks until all work done.
-	err = report.calculateCardinalities(report.cardinalityByMeasurement)
-	if err != nil {
+	if err = report.calculateCardinalities(report.cardinalityByMeasurement); err != nil {
 		return err
 	}
 
@@ -127,8 +126,7 @@ func (report *reportTSI) run(cmd *cobra.Command) error {
 	}
 
 	// Print summary.
-	err = report.printSummaryByMeasurement(cmd)
-	if err != nil {
+	if err = report.printSummaryByMeasurement(cmd); err != nil {
 		return err
 	}
 
@@ -407,16 +405,16 @@ func (report *reportTSI) printSummaryByMeasurement(cmd *cobra.Command) error {
 
 	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 8, 8, 1, '\t', tabwriter.AlignRight)
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Summary\nDatabase Path: %s\nCardinality (exact): %d\n\n", filepath.Join(report.dataPath, report.bucketId), totalCardinality)
-	fmt.Fprint(cmd.OutOrStdout(), "Measurement\tCardinality (exact)\n\n")
+	fmt.Fprintf(tw, "Summary\nDatabase Path: %s\nCardinality (exact): %d\n\n", filepath.Join(report.dataPath, report.bucketId), totalCardinality)
+	fmt.Fprint(tw, "Measurement\tCardinality (exact)\n\n")
 	for _, res := range measurements {
-		fmt.Fprintf(cmd.OutOrStdout(), "%q\t%d\t\n", res.name, res.count)
+		fmt.Fprintf(tw, "%q\t%d\t\n", res.name, res.count)
 	}
 
 	if err := tw.Flush(); err != nil {
 		return err
 	}
-	fmt.Fprint(cmd.OutOrStdout(), "\n\n")
+	fmt.Fprint(tw, "\n\n")
 
 	return nil
 }
@@ -450,13 +448,13 @@ func (report *reportTSI) printShardByMeasurement(cmd *cobra.Command, id uint64) 
 		all = all[:n]
 	}
 
-	tw := tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
-	fmt.Fprintf(cmd.OutOrStdout(), "===============\nShard ID: %d\nPath: %s\nCardinality (exact): %d\n\n", id, report.shardPaths[id], totalCardinality)
-	fmt.Fprint(cmd.OutOrStdout(), "Measurement\tCardinality (exact)\n\n")
+	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 8, 8, 1, '\t', 0)
+	fmt.Fprintf(tw, "===============\nShard ID: %d\nPath: %s\nCardinality (exact): %d\n\n", id, report.shardPaths[id], totalCardinality)
+	fmt.Fprint(tw, "Measurement\tCardinality (exact)\n\n")
 	for _, card := range all {
-		fmt.Fprintf(cmd.OutOrStdout(), "%q\t%d\t\n", card.name, card.cardinality())
+		fmt.Fprintf(tw, "%q\t%d\t\n", card.name, card.cardinality())
 	}
-	fmt.Fprint(cmd.OutOrStdout(), "===============\n\n")
+	fmt.Fprint(tw, "===============\n\n")
 	if err := tw.Flush(); err != nil {
 		return err
 	}

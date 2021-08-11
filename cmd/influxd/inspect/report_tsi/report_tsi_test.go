@@ -157,7 +157,7 @@ func initCommand(t *testing.T, params cmdParams) *cobra.Command {
 func getOutput(t *testing.T, cmd *cobra.Command) []byte {
 	t.Helper()
 
-	b := bytes.NewBufferString("")
+	b := &bytes.Buffer{}
 	cmd.SetOut(b)
 	cmd.SetErr(b)
 	require.NoError(t, cmd.Execute())
