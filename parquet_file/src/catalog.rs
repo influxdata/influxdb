@@ -284,7 +284,8 @@ impl PreservedCatalog {
         db_name: &str,
     ) -> Result<Option<DateTime<Utc>>> {
         let mut res = None;
-        for (path, _file_type, _tkey) in list_files(object_store, server_id, db_name).await? {
+        for transaction in list_files(object_store, server_id, db_name).await? {
+            let path = transaction.file_path();
             match load_transaction_proto(object_store, &path).await {
                 Ok(proto) => match parse_timestamp(&proto.start_timestamp) {
                     Ok(ts) => {
@@ -314,7 +315,8 @@ impl PreservedCatalog {
         server_id: ServerId,
         db_name: &str,
     ) -> Result<()> {
-        for (path, _file_type, _tkey) in list_files(object_store, server_id, db_name).await? {
+        for transaction in list_files(object_store, server_id, db_name).await? {
+            let path = transaction.file_path();
             object_store.delete(&path).await.context(Write)?;
         }
 
@@ -375,36 +377,36 @@ impl PreservedCatalog {
         let mut transactions: HashMap<u64, Uuid> = HashMap::new();
         let mut max_revision = None;
         let mut last_checkpoint = None;
-        for (_path, file_type, tkey) in list_files(&object_store, server_id, &db_name).await? {
+        for transaction in list_files(&object_store, server_id, &db_name).await? {
             // keep track of the max
             max_revision = Some(
                 max_revision
-                    .map(|m: u64| m.max(tkey.revision_counter))
-                    .unwrap_or(tkey.revision_counter),
+                    .map(|m: u64| m.max(transaction.tkey.revision_counter))
+                    .unwrap_or(transaction.tkey.revision_counter),
             );
 
             // keep track of latest checkpoint
-            if matches!(file_type, FileType::Checkpoint) {
+            if matches!(transaction.file_type, FileType::Checkpoint) {
                 last_checkpoint = Some(
                     last_checkpoint
-                        .map(|m: u64| m.max(tkey.revision_counter))
-                        .unwrap_or(tkey.revision_counter),
+                        .map(|m: u64| m.max(transaction.tkey.revision_counter))
+                        .unwrap_or(transaction.tkey.revision_counter),
                 );
             }
 
             // insert but check for duplicates
-            match transactions.entry(tkey.revision_counter) {
+            match transactions.entry(transaction.tkey.revision_counter) {
                 Occupied(o) => {
                     // sort for determinism
-                    let (uuid1, uuid2) = if *o.get() < tkey.uuid {
-                        (*o.get(), tkey.uuid)
+                    let (uuid1, uuid2) = if *o.get() < transaction.tkey.uuid {
+                        (*o.get(), transaction.tkey.uuid)
                     } else {
-                        (tkey.uuid, *o.get())
+                        (transaction.tkey.uuid, *o.get())
                     };
 
                     if uuid1 != uuid2 {
                         Fork {
-                            revision_counter: tkey.revision_counter,
+                            revision_counter: transaction.tkey.revision_counter,
                             uuid1,
                             uuid2,
                         }
@@ -412,7 +414,7 @@ impl PreservedCatalog {
                     }
                 }
                 Vacant(v) => {
-                    v.insert(tkey.uuid);
+                    v.insert(transaction.tkey.uuid);
                 }
             }
         }
@@ -586,7 +588,8 @@ fn file_path(
     let path = catalog_path(object_store, server_id, db_name);
 
     let transaction = TransactionFile {
-        catalog_root: path,
+        catalog_root: Some(path),
+        file_path: None,
         tkey,
         file_type,
     };
@@ -595,55 +598,72 @@ fn file_path(
 }
 
 struct TransactionFile {
-    catalog_root: Path,
+    /// catalog_root will be stored elsewhere when all parquet file paths are relative
+    catalog_root: Option<Path>,
+    /// full path including catalog root; this will become a relative path only
+    file_path: Option<Path>,
+
     tkey: TransactionKey,
     file_type: FileType,
 }
 
 impl TransactionFile {
+    fn parse(path: Path) -> Option<Self> {
+        let file_path = path.clone();
+
+        let parsed: DirsAndFileName = path.into();
+        if parsed.directories.len() != 4 {
+            return None;
+        };
+
+        let revision_counter = parsed.directories[3].encoded().parse().ok()?;
+
+        let name_parts: Vec<_> = parsed
+            .file_name
+            .as_ref()
+            .expect("got file from object store w/o file name (aka only a directory?)")
+            .encoded()
+            .split('.')
+            .collect();
+        if name_parts.len() != 2 {
+            return None;
+        }
+        let uuid = Uuid::parse_str(name_parts[0]).ok()?;
+
+        let file_type = FileType::parse_str(name_parts[1])?;
+
+        Some(Self {
+            catalog_root: None,
+            file_path: Some(file_path),
+            tkey: TransactionKey {
+                revision_counter,
+                uuid,
+            },
+            file_type,
+        })
+    }
+
     fn file_path(&self) -> Path {
-        let mut path = self.catalog_root.clone();
+        if let Some(file_path) = &self.file_path {
+            file_path.clone()
+        } else {
+            // If we don't have the full path, we must have the catalog path. This will be
+            // simplified soon
+            let mut path = self
+                .catalog_root
+                .as_ref()
+                .expect("must have catalog_root when there is no file_path")
+                .clone();
 
-        // pad number: `u64::MAX.to_string().len()` is 20
-        path.push_dir(format!("{:0>20}", self.tkey.revision_counter));
+            // pad number: `u64::MAX.to_string().len()` is 20
+            path.push_dir(format!("{:0>20}", self.tkey.revision_counter));
 
-        let file_name = format!("{}.{}", self.tkey.uuid, self.file_type.suffix());
-        path.set_file_name(file_name);
+            let file_name = format!("{}.{}", self.tkey.uuid, self.file_type.suffix());
+            path.set_file_name(file_name);
 
-        path
+            path
+        }
     }
-}
-
-/// Extracts revision counter, UUID, and file type from transaction or checkpoint path.
-fn parse_file_path(path: Path) -> Option<(TransactionKey, FileType)> {
-    let parsed: DirsAndFileName = path.into();
-    if parsed.directories.len() != 4 {
-        return None;
-    };
-
-    let revision_counter = parsed.directories[3].encoded().parse().ok()?;
-
-    let name_parts: Vec<_> = parsed
-        .file_name
-        .as_ref()
-        .expect("got file from object store w/o file name (aka only a directory?)")
-        .encoded()
-        .split('.')
-        .collect();
-    if name_parts.len() != 2 {
-        return None;
-    }
-    let uuid = Uuid::parse_str(name_parts[0]).ok()?;
-
-    let file_type = FileType::parse_str(name_parts[1])?;
-
-    Some((
-        TransactionKey {
-            revision_counter,
-            uuid,
-        },
-        file_type,
-    ))
 }
 
 /// Load a list of all transaction file from object store. Also parse revision counter and transaction UUID.
@@ -653,7 +673,7 @@ async fn list_files(
     object_store: &ObjectStore,
     server_id: ServerId,
     db_name: &str,
-) -> Result<Vec<(Path, FileType, TransactionKey)>> {
+) -> Result<Vec<TransactionFile>> {
     let list_path = catalog_path(object_store, server_id, db_name);
     let paths = object_store
         .list(Some(&list_path))
@@ -662,10 +682,7 @@ async fn list_files(
         .map_ok(|paths| {
             paths
                 .into_iter()
-                .filter_map(|path| {
-                    parse_file_path(path.clone())
-                        .map(|(tkey, file_type)| (path.clone(), file_type, tkey))
-                })
+                .filter_map(TransactionFile::parse)
                 .collect()
         })
         .try_concat()
