@@ -342,6 +342,8 @@ func (s *Shard) Open() error {
 		}
 
 		// Load metadata index for the inmem index only.
+		// If the shard already has data, this is what loads the series ids into the series file, even
+		// if we are on TSI indexing.
 		if err := e.LoadMetadataIndex(s.id, s.index); err != nil {
 			return err
 		}
