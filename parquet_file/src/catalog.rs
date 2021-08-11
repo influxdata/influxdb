@@ -559,6 +559,14 @@ impl FileType {
             Self::Checkpoint => proto::transaction::Encoding::Full,
         }
     }
+
+    fn parse_str(suffix: &str) -> Option<Self> {
+        match suffix {
+            TRANSACTION_FILE_SUFFIX => Some(Self::Transaction),
+            CHECKPOINT_FILE_SUFFIX => Some(Self::Checkpoint),
+            _ => None,
+        }
+    }
 }
 
 /// Creates object store path for given transaction or checkpoint.
@@ -613,7 +621,7 @@ fn parse_file_path(path: Path) -> Option<(TransactionKey, FileType)> {
         return None;
     };
 
-    let revision_counter = parsed.directories[3].encoded().parse();
+    let revision_counter = parsed.directories[3].encoded().parse().ok()?;
 
     let name_parts: Vec<_> = parsed
         .file_name
@@ -625,27 +633,17 @@ fn parse_file_path(path: Path) -> Option<(TransactionKey, FileType)> {
     if name_parts.len() != 2 {
         return None;
     }
-    let uuid = Uuid::parse_str(name_parts[0]);
+    let uuid = Uuid::parse_str(name_parts[0]).ok()?;
 
-    match (revision_counter, uuid) {
-        (Ok(revision_counter), Ok(uuid)) => {
-            for file_type in
-                std::array::IntoIter::new([FileType::Checkpoint, FileType::Transaction])
-            {
-                if name_parts[1] == file_type.suffix() {
-                    return Some((
-                        TransactionKey {
-                            revision_counter,
-                            uuid,
-                        },
-                        file_type,
-                    ));
-                }
-            }
-            None
-        }
-        _ => None,
-    }
+    let file_type = FileType::parse_str(name_parts[1])?;
+
+    Some((
+        TransactionKey {
+            revision_counter,
+            uuid,
+        },
+        file_type,
+    ))
 }
 
 /// Load a list of all transaction file from object store. Also parse revision counter and transaction UUID.
