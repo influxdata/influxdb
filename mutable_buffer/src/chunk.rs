@@ -311,6 +311,7 @@ impl MBChunk {
             assert_eq!(column.len(), final_row_count);
         }
 
+        // Pad any columns that did not have values in this batch with NULLs
         for c in self.columns.values_mut() {
             c.push_nulls_to_len(final_row_count);
         }
@@ -500,6 +501,86 @@ mod tests {
             "\n\nactual:\n{:#?}\n\nexpected:\n{:#?}\n\n",
             summary.columns, expected_column_summaries
         );
+    }
+
+    #[test]
+    fn test_summary_null_columns() {
+        // Tests that inserting multiple writes, each with a subset of the columns,
+        // results in the correct counts in all columns.
+
+        // first write has no tags
+        let lp1 = "cpu field=23 1";
+
+        // second write has host tag
+        let lp2 = "cpu,host=a field=34 2";
+
+        // third write has host tag and a new field
+        let lp3 = "cpu,host=a field=45,new_field=100 3";
+
+        // final write has only new field
+        let lp4 = "cpu new_field=200 4";
+
+        let mut chunk = write_lp_to_new_chunk(lp1).unwrap();
+        write_lp_to_chunk(lp2, &mut chunk).unwrap();
+        write_lp_to_chunk(lp3, &mut chunk).unwrap();
+        write_lp_to_chunk(lp4, &mut chunk).unwrap();
+
+        let summary = chunk.table_summary();
+
+        let expected_column_summaries = vec![
+            ColumnSummary {
+                name: "field".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::F64(StatValues {
+                    min: Some(23.0),
+                    max: Some(45.0),
+                    total_count: 4,
+                    null_count: 1,
+                    distinct_count: None,
+                }),
+            },
+            ColumnSummary {
+                name: "host".into(),
+                influxdb_type: Some(InfluxDbType::Tag),
+                stats: Statistics::String(StatValues {
+                    min: Some("a".into()),
+                    max: Some("a".into()),
+                    total_count: 4,
+                    null_count: 2,
+                    distinct_count: NonZeroU64::new(2),
+                }),
+            },
+            ColumnSummary {
+                name: "new_field".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::F64(StatValues {
+                    min: Some(100.0),
+                    max: Some(200.0),
+                    total_count: 4,
+                    null_count: 2,
+                    distinct_count: None,
+                }),
+            },
+            ColumnSummary {
+                name: "time".into(),
+                influxdb_type: Some(InfluxDbType::Timestamp),
+                stats: Statistics::I64(StatValues {
+                    min: Some(1),
+                    max: Some(4),
+                    total_count: 4,
+                    null_count: 0,
+                    distinct_count: None,
+                }),
+            },
+        ];
+        assert_eq!(
+            summary.columns, expected_column_summaries,
+            "\n\nactual:\n{:#?}\n\nexpected:\n{:#?}\n\n",
+            summary.columns, expected_column_summaries
+        );
+
+        // total counts for all columns should be the same
+        assert!(summary.columns.iter().all(|s| s.stats.total_count() == 4));
     }
 
     // test statistics generation for each type as at time of writing the codepaths were slightly different

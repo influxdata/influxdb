@@ -257,6 +257,8 @@ impl Column {
         Ok(())
     }
 
+    /// Ensures that the total length of this column is `len` rows,
+    /// padding it with trailing NULLs if necessary
     pub fn push_nulls_to_len(&mut self, len: usize) {
         if self.valid.len() == len {
             return;
@@ -266,12 +268,30 @@ impl Column {
         self.valid.append_unset(delta);
 
         match &mut self.data {
-            ColumnData::F64(data, _) => data.resize(len, 0.),
-            ColumnData::I64(data, _) => data.resize(len, 0),
-            ColumnData::U64(data, _) => data.resize(len, 0),
-            ColumnData::String(data, _) => data.extend(delta),
-            ColumnData::Bool(data, _) => data.append_unset(delta),
-            ColumnData::Tag(data, _, _) => data.resize(len, INVALID_DID),
+            ColumnData::F64(data, stats) => {
+                data.resize(len, 0.);
+                stats.update_for_nulls(delta as u64);
+            }
+            ColumnData::I64(data, stats) => {
+                data.resize(len, 0);
+                stats.update_for_nulls(delta as u64);
+            }
+            ColumnData::U64(data, stats) => {
+                data.resize(len, 0);
+                stats.update_for_nulls(delta as u64);
+            }
+            ColumnData::String(data, stats) => {
+                data.extend(delta);
+                stats.update_for_nulls(delta as u64);
+            }
+            ColumnData::Bool(data, stats) => {
+                data.append_unset(delta);
+                stats.update_for_nulls(delta as u64);
+            }
+            ColumnData::Tag(data, _dict, stats) => {
+                data.resize(len, INVALID_DID);
+                stats.update_for_nulls(delta as u64);
+            }
         }
     }
 
