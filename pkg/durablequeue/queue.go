@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Possible errors returned by a hinted handoff queue.
+// Possible errors returned by a queue.
 var (
 	ErrNotOpen      = fmt.Errorf("queue not open")
 	ErrQueueFull    = fmt.Errorf("queue is full")
@@ -30,7 +30,7 @@ const (
 	footerSize         = 8
 )
 
-// MaxWritesPending is the number of hh writes that can be pending at any given time.
+// MaxWritesPending is the number of writes that can be pending at any given time.
 const MaxWritesPending = 1024
 
 // Queue is a bounded, disk-backed, append-only type that combines Queue and
@@ -82,8 +82,7 @@ type Queue struct {
 
 	// The segments that exist on disk
 	segments segments
-	// verifyBlockFn is used to verify a block within a segment contains valid
-	// hh data.
+	// verifyBlockFn is used to verify a block within a segment contains valid data.
 	verifyBlockFn func([]byte) error
 
 	// Channel used for throttling append requests.
@@ -324,7 +323,7 @@ func (l *Queue) Empty() bool {
 	return empty
 }
 
-// TotalBytes returns the number of bytes of HH data remaining in the queue.
+// TotalBytes returns the number of bytes of data remaining in the queue.
 func (l *Queue) TotalBytes() int64 {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -436,7 +435,7 @@ func (l *Queue) nextSegmentID() (uint64, error) {
 	return maxID + 1, nil
 }
 
-// TotalSegments determines how many segments the current hh Queue is
+// TotalSegments determines how many segments the current Queue is
 // utilising. Empty segments at the end of the Queue are not counted.
 func (l *Queue) TotalSegments() int {
 	l.mu.RLock()
@@ -602,8 +601,7 @@ type segment struct {
 	pos     int64    // Position (offset) of current block.
 	file    *os.File // Underlying file representing the segment.
 
-	// verifyBlockFn is used to verify a block within a segment contains valid
-	// hh data.
+	// verifyBlockFn is used to verify a block within a segment contains valid data.
 	verifyBlockFn func([]byte) error
 
 	path string // Path of underlying file as passed to newSegment.
