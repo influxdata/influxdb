@@ -17,6 +17,11 @@ variable "package_path" { }
 variable "instance_name" { }
 
 # Variables with default values
+variable "additional_files_dir" {
+  type = string
+  default = ""
+}
+
 variable "instance_type" {
   type = string
   default = "t3.micro"
@@ -30,6 +35,7 @@ variable "region" {
 ####################
 # Declare data
 locals {
+  additional_files_dest = "/home/ubuntu/files"
   package_path = "/tmp/workspace/packages"
   ubuntu_home = "/home/ubuntu"
   ubuntu_user = "ubuntu"
@@ -93,6 +99,44 @@ resource "aws_instance" "test_node" {
   provisioner "file" {
     source = var.package_path
     destination = "${local.ubuntu_home}/influxdb.deb"
+
+    connection {
+      type     = "ssh"
+      user     = local.ubuntu_user
+      host     = self.public_dns
+      agent    = true
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "mkdir -p ${local.additional_files_dest}",
+    ]
+
+    connection {
+      type     = "ssh"
+      user     = local.ubuntu_user
+      host     = self.public_dns
+      agent    = true
+    }
+  }
+
+  provisioner "file" {
+    source = var.additional_files_dir
+    destination = "${local.additional_files_dest}"
+
+    connection {
+      type     = "ssh"
+      user     = local.ubuntu_user
+      host     = self.public_dns
+      agent    = true
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x ${local.additional_files_dest}/*.sh",
+    ]
 
     connection {
       type     = "ssh"
