@@ -32,6 +32,7 @@ var seed int64
 // Server represents a test wrapper for run.Server.
 type Server interface {
 	URL() string
+	TcpAddr() string
 	Open() error
 	SetLogOutput(w io.Writer)
 	Close()
@@ -59,6 +60,10 @@ type RemoteServer struct {
 
 func (s *RemoteServer) URL() string {
 	return s.url
+}
+
+func (s *RemoteServer) TcpAddr() string {
+	panic("TODO: tcp url not implemented for remote server")
 }
 
 func (s *RemoteServer) Open() error {
@@ -293,6 +298,12 @@ func (s *LocalServer) URL() string {
 		}
 	}
 	panic("httpd server not found in services")
+}
+
+func (s *LocalServer) TcpAddr() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return "tcp://" + s.Listener.Addr().String()
 }
 
 func (s *LocalServer) CreateDatabase(db string) (*meta.DatabaseInfo, error) {
