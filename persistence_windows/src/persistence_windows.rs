@@ -131,6 +131,22 @@ impl PersistenceWindows {
         self.late_arrival_period = late_arrival_period;
     }
 
+    /// Marks sequence numbers as seen and persisted.
+    ///
+    /// This can be used during replay to keep in-memory information in sync with the already persisted data.
+    pub fn mark_seen_and_persisted(&mut self, partition_checkpoint: &PartitionCheckpoint) {
+        for (sequencer_id, min_max) in partition_checkpoint.sequencer_numbers_iter() {
+            match self.max_sequence_numbers.entry(sequencer_id) {
+                Entry::Occupied(mut occupied) => {
+                    *occupied.get_mut() = (*occupied.get()).max(min_max.max());
+                }
+                Entry::Vacant(vacant) => {
+                    vacant.insert(min_max.max());
+                }
+            }
+        }
+    }
+
     /// Updates the windows with the information from a batch of rows from a single sequencer
     /// to the same partition. The min and max times are the times on the row data. The `received_at`
     /// Instant is when the data was received. Taking it in this function is really just about
@@ -1523,5 +1539,38 @@ mod tests {
         // speculated checkpoint should be correct
         let ckpt_sequencer_numbers: BTreeMap<_, _> = ckpt.sequencer_numbers_iter().collect();
         assert_eq!(w.sequencer_numbers(), ckpt_sequencer_numbers);
+    }
+
+    #[test]
+    fn test_mark_seen_and_persisted() {
+        let late_arrival_period = Duration::from_secs(100);
+        let mut w = make_windows(late_arrival_period);
+
+        let mut sequencer_numbers1 = BTreeMap::new();
+        sequencer_numbers1.insert(1, OptionalMinMaxSequence::new(Some(1), 2));
+        let ckpt1 = PartitionCheckpoint::new(
+            Arc::from("foo"),
+            Arc::from("bar"),
+            sequencer_numbers1,
+            Utc::now(),
+        );
+        w.mark_seen_and_persisted(&ckpt1);
+
+        let mut sequencer_numbers2 = BTreeMap::new();
+        sequencer_numbers2.insert(1, OptionalMinMaxSequence::new(Some(0), 1));
+        sequencer_numbers2.insert(2, OptionalMinMaxSequence::new(None, 3));
+        let ckpt2 = PartitionCheckpoint::new(
+            Arc::from("foo"),
+            Arc::from("bar"),
+            sequencer_numbers2,
+            Utc::now(),
+        );
+        w.mark_seen_and_persisted(&ckpt2);
+
+        let actual = w.sequencer_numbers();
+        let mut expected = BTreeMap::new();
+        expected.insert(1, OptionalMinMaxSequence::new(None, 2));
+        expected.insert(2, OptionalMinMaxSequence::new(None, 3));
+        assert_eq!(actual, expected);
     }
 }
