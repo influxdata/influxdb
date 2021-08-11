@@ -217,22 +217,23 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	// Detailed logging for flux queries if enabled
 	if h.FluxLogEnabled {
-		c, ok := req.Request.Compiler.(lang.FluxCompiler)
-		if !ok {
-			h.log.Error("failed to log flux query")
-			return
-		}
-
-		h.logFluxQuery(cw.Count(), stats, c, err)
+		h.logFluxQuery(cw.Count(), stats, req.Request.Compiler, err)
 	}
 
 }
 
-func (h *FluxHandler) logFluxQuery(n int64, stats flux.Statistics, compiler lang.FluxCompiler, err error) {
+func (h *FluxHandler) logFluxQuery(n int64, stats flux.Statistics, compiler flux.Compiler, err error) {
+	var q string
+	c, ok := compiler.(lang.FluxCompiler)
+	if !ok {
+		q = "unknown"
+	}
+	q = c.Query
+
 	h.log.Info("Executed Flux query",
 		zap.String("compiler_type", string(compiler.CompilerType())),
 		zap.Int64("response_size", n),
-		zap.String("query", compiler.Query),
+		zap.String("query", q),
 		zap.Error(err),
 		zap.Duration("stat_total_duration", stats.TotalDuration),
 		zap.Duration("stat_compile_duration", stats.CompileDuration),
