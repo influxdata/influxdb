@@ -155,23 +155,28 @@ mod tests {
         }
     }
 
-    //  blocks until https://github.com/influxdata/influxdb_iox/issues/2189 is solved
-    // #[tokio::test]
-    // async fn test_reading_kafka() {
-    //     let factory = WriteBufferConfigFactory::new();
+    #[tokio::test]
+    #[ignore = "waits forever to connect until https://github.com/influxdata/influxdb_iox/issues/2189 is solved"]
+    async fn test_reading_kafka() {
+        let factory = WriteBufferConfigFactory::new();
 
-    //     let server_id = ServerId::try_from(1).unwrap();
+        let server_id = ServerId::try_from(1).unwrap();
 
-    //     let mut rules = DatabaseRules::new(DatabaseName::new("foo").unwrap());
-    //     rules.write_buffer_connection = Some(WriteBufferConnection::Reading("test".to_string()));
+        let mut rules = DatabaseRules::new(DatabaseName::new("foo").unwrap());
+        rules.write_buffer_connection = Some(WriteBufferConnection::Reading("test".to_string()));
 
-    //     if let WriteBufferConfig::Reading(conn) = factory.new_config(server_id, &rules).await.unwrap().unwrap() {
-    //         let conn = conn.lock().await;
-    //         assert_eq!(conn.type_name(), "kafka");
-    //     } else {
-    //         panic!("not a reading connection");
-    //     }
-    // }
+        if let WriteBufferConfig::Reading(conn) = factory
+            .new_config(server_id, &rules)
+            .await
+            .unwrap()
+            .unwrap()
+        {
+            let conn = conn.lock().await;
+            assert_eq!(conn.type_name(), "kafka");
+        } else {
+            panic!("not a reading connection");
+        }
+    }
 
     #[tokio::test]
     async fn test_writing_mock() {
