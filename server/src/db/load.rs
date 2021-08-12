@@ -153,7 +153,7 @@ pub async fn create_preserved_catalog(
 
 /// All input required to create an empty [`Loader`]
 #[derive(Debug)]
-pub struct LoaderEmptyInput {
+struct LoaderEmptyInput {
     domain: ::metrics::Domain,
     metrics_registry: Arc<::metrics::MetricRegistry>,
     metric_labels: Vec<KeyValue>,
