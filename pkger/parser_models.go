@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/astutil"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
@@ -1177,7 +1178,11 @@ func (q query) DashboardQuery() string {
 			edit.SetOption(files[0], "task", tobj)
 		}
 	}
-	return ast.Format(files[0])
+	// TODO(danmoran): I'm not happy about ignoring this error, but pkger doesn't have adequate error return values
+	//  in the callstack. In most cases errors are simply ignored and the desired output of the operation is skipped.
+	//  If I were to change the contract here, a lot of other things would need to be changed.
+	s, _ := astutil.Format(files[0])
+	return s
 }
 
 type queries []query

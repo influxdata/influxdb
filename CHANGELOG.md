@@ -1,6 +1,10 @@
 ## v2.0.9 [unreleased]
 ----------------------
 
+### Bug Fixes
+
+1. [22186](https://github.com/influxdata/influxdb/pull/22186): Preserve comments in flux queries when saving task definitions
+
 ## v2.0.8 [2021-08-13]
 ----------------------
 

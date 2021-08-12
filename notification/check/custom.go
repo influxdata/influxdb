@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/astutil"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification/flux"
 	"github.com/influxdata/influxdb/v2/query"
@@ -95,7 +96,7 @@ func (c Custom) sanitizeFlux(lang influxdb.FluxLanguageService) (string, error) 
 		}
 	})
 
-	return ast.Format(p), nil
+	return astutil.Format(p.Files[0])
 }
 
 func propertyHasValue(prop *ast.Property, key string, value string) bool {

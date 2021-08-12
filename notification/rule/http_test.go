@@ -7,12 +7,12 @@ import (
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHTTP_GenerateFlux(t *testing.T) {
-	want := `package main
-// foo
-import "influxdata/influxdb/monitor"
+	want := `import "influxdata/influxdb/monitor"
 import "http"
 import "json"
 import "experimental"
@@ -21,26 +21,16 @@ option task = {name: "foo", every: 1h, offset: 1s}
 
 headers = {"Content-Type": "application/json"}
 endpoint = http["endpoint"](url: "http://localhost:7777")
-notification = {
-	_notification_rule_id: "0000000000000001",
-	_notification_rule_name: "foo",
-	_notification_endpoint_id: "0000000000000002",
-	_notification_endpoint_name: "foo",
-}
+notification = {_notification_rule_id: "0000000000000001", _notification_rule_name: "foo", _notification_endpoint_id: "0000000000000002", _notification_endpoint_name: "foo"}
 statuses = monitor["from"](start: -2h)
-crit = statuses
-	|> filter(fn: (r) =>
-		(r["_level"] == "crit"))
-all_statuses = crit
-	|> filter(fn: (r) =>
-		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
+crit = statuses |> filter(fn: (r) => r["_level"] == "crit")
+all_statuses = crit |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses
-	|> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
-		body = {r with _version: 1}
+all_statuses |> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
+    body = {r with _version: 1}
 
-		return {headers: headers, data: json["encode"](v: body)}
-	}))`
+    return {headers: headers, data: json["encode"](v: body)}
+}))`
 
 	s := &rule.HTTP{
 		Base: rule.Base{
@@ -78,9 +68,7 @@ all_statuses
 }
 
 func TestHTTP_GenerateFlux_basicAuth(t *testing.T) {
-	want := `package main
-// foo
-import "influxdata/influxdb/monitor"
+	want := `import "influxdata/influxdb/monitor"
 import "http"
 import "json"
 import "experimental"
@@ -90,26 +78,16 @@ option task = {name: "foo", every: 1h, offset: 1s}
 
 headers = {"Content-Type": "application/json", "Authorization": http["basicAuth"](u: secrets["get"](key: "000000000000000e-username"), p: secrets["get"](key: "000000000000000e-password"))}
 endpoint = http["endpoint"](url: "http://localhost:7777")
-notification = {
-	_notification_rule_id: "0000000000000001",
-	_notification_rule_name: "foo",
-	_notification_endpoint_id: "0000000000000002",
-	_notification_endpoint_name: "foo",
-}
+notification = {_notification_rule_id: "0000000000000001", _notification_rule_name: "foo", _notification_endpoint_id: "0000000000000002", _notification_endpoint_name: "foo"}
 statuses = monitor["from"](start: -2h)
-crit = statuses
-	|> filter(fn: (r) =>
-		(r["_level"] == "crit"))
-all_statuses = crit
-	|> filter(fn: (r) =>
-		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
+crit = statuses |> filter(fn: (r) => r["_level"] == "crit")
+all_statuses = crit |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses
-	|> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
-		body = {r with _version: 1}
+all_statuses |> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
+    body = {r with _version: 1}
 
-		return {headers: headers, data: json["encode"](v: body)}
-	}))`
+    return {headers: headers, data: json["encode"](v: body)}
+}))`
 	s := &rule.HTTP{
 		Base: rule.Base{
 			ID:         1,
@@ -153,9 +131,7 @@ all_statuses
 }
 
 func TestHTTP_GenerateFlux_bearer(t *testing.T) {
-	want := `package main
-// foo
-import "influxdata/influxdb/monitor"
+	want := `import "influxdata/influxdb/monitor"
 import "http"
 import "json"
 import "experimental"
@@ -165,26 +141,16 @@ option task = {name: "foo", every: 1h, offset: 1s}
 
 headers = {"Content-Type": "application/json", "Authorization": "Bearer " + secrets["get"](key: "000000000000000e-token")}
 endpoint = http["endpoint"](url: "http://localhost:7777")
-notification = {
-	_notification_rule_id: "0000000000000001",
-	_notification_rule_name: "foo",
-	_notification_endpoint_id: "0000000000000002",
-	_notification_endpoint_name: "foo",
-}
+notification = {_notification_rule_id: "0000000000000001", _notification_rule_name: "foo", _notification_endpoint_id: "0000000000000002", _notification_endpoint_name: "foo"}
 statuses = monitor["from"](start: -2h)
-crit = statuses
-	|> filter(fn: (r) =>
-		(r["_level"] == "crit"))
-all_statuses = crit
-	|> filter(fn: (r) =>
-		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
+crit = statuses |> filter(fn: (r) => r["_level"] == "crit")
+all_statuses = crit |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses
-	|> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
-		body = {r with _version: 1}
+all_statuses |> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
+    body = {r with _version: 1}
 
-		return {headers: headers, data: json["encode"](v: body)}
-	}))`
+    return {headers: headers, data: json["encode"](v: body)}
+}))`
 
 	s := &rule.HTTP{
 		Base: rule.Base{
@@ -226,9 +192,7 @@ all_statuses
 }
 
 func TestHTTP_GenerateFlux_bearer_every_second(t *testing.T) {
-	want := `package main
-// foo
-import "influxdata/influxdb/monitor"
+	want := `import "influxdata/influxdb/monitor"
 import "http"
 import "json"
 import "experimental"
@@ -238,26 +202,16 @@ option task = {name: "foo", every: 5s, offset: 1s}
 
 headers = {"Content-Type": "application/json", "Authorization": "Bearer " + secrets["get"](key: "000000000000000e-token")}
 endpoint = http["endpoint"](url: "http://localhost:7777")
-notification = {
-	_notification_rule_id: "0000000000000001",
-	_notification_rule_name: "foo",
-	_notification_endpoint_id: "0000000000000002",
-	_notification_endpoint_name: "foo",
-}
+notification = {_notification_rule_id: "0000000000000001", _notification_rule_name: "foo", _notification_endpoint_id: "0000000000000002", _notification_endpoint_name: "foo"}
 statuses = monitor["from"](start: -10s)
-crit = statuses
-	|> filter(fn: (r) =>
-		(r["_level"] == "crit"))
-all_statuses = crit
-	|> filter(fn: (r) =>
-		(r["_time"] >= experimental["subDuration"](from: now(), d: 5s)))
+crit = statuses |> filter(fn: (r) => r["_level"] == "crit")
+all_statuses = crit |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 5s))
 
-all_statuses
-	|> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
-		body = {r with _version: 1}
+all_statuses |> monitor["notify"](data: notification, endpoint: endpoint(mapFn: (r) => {
+    body = {r with _version: 1}
 
-		return {headers: headers, data: json["encode"](v: body)}
-	}))`
+    return {headers: headers, data: json["encode"](v: body)}
+}))`
 
 	s := &rule.HTTP{
 		Base: rule.Base{
@@ -289,11 +243,6 @@ all_statuses
 	}
 
 	f, err := s.GenerateFlux(e)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if f != want {
-		t.Errorf("scripts did not match. want:\n%v\n\ngot:\n%v", want, f)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, want, f)
 }

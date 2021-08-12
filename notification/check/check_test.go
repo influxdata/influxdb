@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/astutil"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -14,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	influxTesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -280,4 +283,13 @@ func TestJSON(t *testing.T) {
 		}
 		t.Run(c.name, fn)
 	}
+}
+
+func mustFormatPackage(t *testing.T, pkg *ast.Package) string {
+	if len(pkg.Files) == 0 {
+		t.Fatal("package expected to have at least one file")
+	}
+	v, err := astutil.Format(pkg.Files[0])
+	require.NoError(t, err)
+	return v
 }
