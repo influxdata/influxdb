@@ -1,8 +1,9 @@
 package rule_test
 
 import (
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/parser"
@@ -39,9 +40,7 @@ func TestSlack_GenerateFlux(t *testing.T) {
 	}{
 		{
 			name: "with any status",
-			want: `package main
-// foo
-import "influxdata/influxdb/monitor"
+			want: `import "influxdata/influxdb/monitor"
 import "slack"
 import "influxdata/influxdb/secrets"
 import "experimental"
@@ -49,24 +48,12 @@ import "experimental"
 option task = {name: "foo", every: 1h}
 
 slack_endpoint = slack["endpoint"](url: "http://localhost:7777")
-notification = {
-	_notification_rule_id: "0000000000000001",
-	_notification_rule_name: "foo",
-	_notification_endpoint_id: "0000000000000002",
-	_notification_endpoint_name: "foo",
-}
-statuses = monitor["from"](start: -2h, fn: (r) =>
-	(r["foo"] == "bar" and r["baz"] == "bang"))
-any = statuses
-	|> filter(fn: (r) =>
-		(true))
-all_statuses = any
-	|> filter(fn: (r) =>
-		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
+notification = {_notification_rule_id: "0000000000000001", _notification_rule_name: "foo", _notification_endpoint_id: "0000000000000002", _notification_endpoint_name: "foo"}
+statuses = monitor["from"](start: -2h, fn: (r) => r["foo"] == "bar" and r["baz"] == "bang")
+any = statuses |> filter(fn: (r) => true)
+all_statuses = any |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses
-	|> monitor["notify"](data: notification, endpoint: slack_endpoint(mapFn: (r) =>
-		({channel: "bar", text: "blah", color: if r["_level"] == "crit" then "danger" else if r["_level"] == "warn" then "warning" else "good"})))`,
+all_statuses |> monitor["notify"](data: notification, endpoint: slack_endpoint(mapFn: (r) => ({channel: "bar", text: "blah", color: if r["_level"] == "crit" then "danger" else if r["_level"] == "warn" then "warning" else "good"})))`,
 			rule: &rule.Slack{
 				Channel:         "bar",
 				MessageTemplate: "blah",
@@ -108,9 +95,7 @@ all_statuses
 		},
 		{
 			name: "with url",
-			want: `package main
-// foo
-import "influxdata/influxdb/monitor"
+			want: `import "influxdata/influxdb/monitor"
 import "slack"
 import "influxdata/influxdb/secrets"
 import "experimental"
@@ -118,27 +103,13 @@ import "experimental"
 option task = {name: "foo", every: 1h}
 
 slack_endpoint = slack["endpoint"](url: "http://localhost:7777")
-notification = {
-	_notification_rule_id: "0000000000000001",
-	_notification_rule_name: "foo",
-	_notification_endpoint_id: "0000000000000002",
-	_notification_endpoint_name: "foo",
-}
-statuses = monitor["from"](start: -2h, fn: (r) =>
-	(r["foo"] == "bar" and r["baz"] == "bang"))
-crit = statuses
-	|> filter(fn: (r) =>
-		(r["_level"] == "crit"))
-info_to_warn = statuses
-	|> monitor["stateChanges"](fromLevel: "info", toLevel: "warn")
-all_statuses = union(tables: [crit, info_to_warn])
-	|> sort(columns: ["_time"])
-	|> filter(fn: (r) =>
-		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
+notification = {_notification_rule_id: "0000000000000001", _notification_rule_name: "foo", _notification_endpoint_id: "0000000000000002", _notification_endpoint_name: "foo"}
+statuses = monitor["from"](start: -2h, fn: (r) => r["foo"] == "bar" and r["baz"] == "bang")
+crit = statuses |> filter(fn: (r) => r["_level"] == "crit")
+info_to_warn = statuses |> monitor["stateChanges"](fromLevel: "info", toLevel: "warn")
+all_statuses = union(tables: [crit, info_to_warn]) |> sort(columns: ["_time"]) |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses
-	|> monitor["notify"](data: notification, endpoint: slack_endpoint(mapFn: (r) =>
-		({channel: "bar", text: "blah", color: if r["_level"] == "crit" then "danger" else if r["_level"] == "warn" then "warning" else "good"})))`,
+all_statuses |> monitor["notify"](data: notification, endpoint: slack_endpoint(mapFn: (r) => ({channel: "bar", text: "blah", color: if r["_level"] == "crit" then "danger" else if r["_level"] == "warn" then "warning" else "good"})))`,
 			rule: &rule.Slack{
 				Channel:         "bar",
 				MessageTemplate: "blah",
@@ -184,9 +155,7 @@ all_statuses
 		},
 		{
 			name: "with token",
-			want: `package main
-// foo
-import "influxdata/influxdb/monitor"
+			want: `import "influxdata/influxdb/monitor"
 import "slack"
 import "influxdata/influxdb/secrets"
 import "experimental"
@@ -195,27 +164,13 @@ option task = {name: "foo", every: 1h}
 
 slack_secret = secrets["get"](key: "slack_token")
 slack_endpoint = slack["endpoint"](token: slack_secret)
-notification = {
-	_notification_rule_id: "0000000000000001",
-	_notification_rule_name: "foo",
-	_notification_endpoint_id: "0000000000000002",
-	_notification_endpoint_name: "foo",
-}
-statuses = monitor["from"](start: -2h, fn: (r) =>
-	(r["foo"] == "bar" and r["baz"] == "bang"))
-crit = statuses
-	|> filter(fn: (r) =>
-		(r["_level"] == "crit"))
-info_to_warn = statuses
-	|> monitor["stateChanges"](fromLevel: "info", toLevel: "warn")
-all_statuses = union(tables: [crit, info_to_warn])
-	|> sort(columns: ["_time"])
-	|> filter(fn: (r) =>
-		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
+notification = {_notification_rule_id: "0000000000000001", _notification_rule_name: "foo", _notification_endpoint_id: "0000000000000002", _notification_endpoint_name: "foo"}
+statuses = monitor["from"](start: -2h, fn: (r) => r["foo"] == "bar" and r["baz"] == "bang")
+crit = statuses |> filter(fn: (r) => r["_level"] == "crit")
+info_to_warn = statuses |> monitor["stateChanges"](fromLevel: "info", toLevel: "warn")
+all_statuses = union(tables: [crit, info_to_warn]) |> sort(columns: ["_time"]) |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses
-	|> monitor["notify"](data: notification, endpoint: slack_endpoint(mapFn: (r) =>
-		({channel: "bar", text: "blah", color: if r["_level"] == "crit" then "danger" else if r["_level"] == "warn" then "warning" else "good"})))`,
+all_statuses |> monitor["notify"](data: notification, endpoint: slack_endpoint(mapFn: (r) => ({channel: "bar", text: "blah", color: if r["_level"] == "crit" then "danger" else if r["_level"] == "warn" then "warning" else "good"})))`,
 			rule: &rule.Slack{
 				Channel:         "bar",
 				MessageTemplate: "blah",
@@ -263,9 +218,7 @@ all_statuses
 		},
 		{
 			name: "with token and url",
-			want: `package main
-// foo
-import "influxdata/influxdb/monitor"
+			want: `import "influxdata/influxdb/monitor"
 import "slack"
 import "influxdata/influxdb/secrets"
 import "experimental"
@@ -274,27 +227,13 @@ option task = {name: "foo", every: 1h}
 
 slack_secret = secrets["get"](key: "slack_token")
 slack_endpoint = slack["endpoint"](token: slack_secret, url: "http://localhost:7777")
-notification = {
-	_notification_rule_id: "0000000000000001",
-	_notification_rule_name: "foo",
-	_notification_endpoint_id: "0000000000000002",
-	_notification_endpoint_name: "foo",
-}
-statuses = monitor["from"](start: -2h, fn: (r) =>
-	(r["foo"] == "bar" and r["baz"] == "bang"))
-crit = statuses
-	|> filter(fn: (r) =>
-		(r["_level"] == "crit"))
-info_to_warn = statuses
-	|> monitor["stateChanges"](fromLevel: "info", toLevel: "warn")
-all_statuses = union(tables: [crit, info_to_warn])
-	|> sort(columns: ["_time"])
-	|> filter(fn: (r) =>
-		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
+notification = {_notification_rule_id: "0000000000000001", _notification_rule_name: "foo", _notification_endpoint_id: "0000000000000002", _notification_endpoint_name: "foo"}
+statuses = monitor["from"](start: -2h, fn: (r) => r["foo"] == "bar" and r["baz"] == "bang")
+crit = statuses |> filter(fn: (r) => r["_level"] == "crit")
+info_to_warn = statuses |> monitor["stateChanges"](fromLevel: "info", toLevel: "warn")
+all_statuses = union(tables: [crit, info_to_warn]) |> sort(columns: ["_time"]) |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses
-	|> monitor["notify"](data: notification, endpoint: slack_endpoint(mapFn: (r) =>
-		({channel: "bar", text: "blah", color: if r["_level"] == "crit" then "danger" else if r["_level"] == "warn" then "warning" else "good"})))`,
+all_statuses |> monitor["notify"](data: notification, endpoint: slack_endpoint(mapFn: (r) => ({channel: "bar", text: "blah", color: if r["_level"] == "crit" then "danger" else if r["_level"] == "warn" then "warning" else "good"})))`,
 			rule: &rule.Slack{
 				Channel:         "bar",
 				MessageTemplate: "blah",

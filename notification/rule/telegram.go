@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/influxdata/flux/ast/astutil"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux/ast"
@@ -26,21 +27,16 @@ func (s *Telegram) GenerateFlux(e influxdb.NotificationEndpoint) (string, error)
 	if !ok {
 		return "", fmt.Errorf("endpoint provided is a %s, not a Telegram endpoint", e.Type())
 	}
-	p, err := s.GenerateFluxAST(telegramEndpoint)
-	if err != nil {
-		return "", err
-	}
-	return ast.Format(p), nil
+	return astutil.Format(s.GenerateFluxAST(telegramEndpoint))
 }
 
 // GenerateFluxAST generates a flux AST for the telegram notification rule.
-func (s *Telegram) GenerateFluxAST(e *endpoint.Telegram) (*ast.Package, error) {
-	f := flux.File(
+func (s *Telegram) GenerateFluxAST(e *endpoint.Telegram) *ast.File {
+	return flux.File(
 		s.Name,
 		flux.Imports("influxdata/influxdb/monitor", "contrib/sranka/telegram", "influxdata/influxdb/secrets", "experimental"),
 		s.generateFluxASTBody(e),
 	)
-	return &ast.Package{Package: "main", Files: []*ast.File{f}}, nil
 }
 
 func (s *Telegram) generateFluxASTBody(e *endpoint.Telegram) []ast.Statement {

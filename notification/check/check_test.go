@@ -2,9 +2,13 @@ package check_test
 
 import (
 	"encoding/json"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 	"time"
+
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/astutil"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/stretchr/testify/require"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -281,4 +285,13 @@ func TestJSON(t *testing.T) {
 		}
 		t.Run(c.name, fn)
 	}
+}
+
+func mustFormatPackage(t *testing.T, pkg *ast.Package) string {
+	if len(pkg.Files) == 0 {
+		t.Fatal("package expected to have at least one file")
+	}
+	v, err := astutil.Format(pkg.Files[0])
+	require.NoError(t, err)
+	return v
 }

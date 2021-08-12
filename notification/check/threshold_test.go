@@ -3,12 +3,12 @@ package check_test
 import (
 	"testing"
 
-	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestThreshold_GenerateFlux(t *testing.T) {
@@ -77,45 +77,29 @@ func TestThreshold_GenerateFlux(t *testing.T) {
 				},
 			},
 			wants: wants{
-				script: `package main
-import "influxdata/influxdb/monitor"
+				script: `import "influxdata/influxdb/monitor"
 import "influxdata/influxdb/v1"
 
-data = from(bucket: "foo")
-	|> range(start: -1h)
-	|> filter(fn: (r) =>
-		(r._field == "usage_user"))
-	|> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+data = from(bucket: "foo") |> range(start: -1h) |> filter(fn: (r) => r._field == "usage_user")
+    |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
 
 option task = {name: "moo", every: 1h}
 
-check = {
-	_check_id: "000000000000000a",
-	_check_name: "moo",
-	_type: "threshold",
-	tags: {aaa: "vaaa", bbb: "vbbb"},
-}
-ok = (r) =>
-	(r["usage_user"] > 10.0)
-info = (r) =>
-	(r["usage_user"] < 40.0)
-warn = (r) =>
-	(r["usage_user"] < 40.0 and r["usage_user"] > 10.0)
-crit = (r) =>
-	(r["usage_user"] < 10.0 or r["usage_user"] > 40.0)
-messageFn = (r) =>
-	("whoa! {r[\"usage_user\"]}")
+check = {_check_id: "000000000000000a", _check_name: "moo", _type: "threshold", tags: {aaa: "vaaa", bbb: "vbbb"}}
+ok = (r) => r["usage_user"] > 10.0
+info = (r) => r["usage_user"] < 40.0
+warn = (r) => r["usage_user"] < 40.0 and r["usage_user"] > 10.0
+crit = (r) => r["usage_user"] < 10.0 or r["usage_user"] > 40.0
+messageFn = (r) => "whoa! {r[\"usage_user\"]}"
 
-data
-	|> v1["fieldsAsCols"]()
-	|> monitor["check"](
-		data: check,
-		messageFn: messageFn,
-		ok: ok,
-		info: info,
-		warn: warn,
-		crit: crit,
-	)`,
+data |> v1["fieldsAsCols"]() |> monitor["check"](
+    data: check,
+    messageFn: messageFn,
+    ok: ok,
+    info: info,
+    warn: warn,
+    crit: crit,
+)`,
 			},
 		},
 		{
@@ -168,45 +152,29 @@ data
 				},
 			},
 			wants: wants{
-				script: `package main
-import "influxdata/influxdb/monitor"
+				script: `import "influxdata/influxdb/monitor"
 import "influxdata/influxdb/v1"
 
-data = from(bucket: "foo")
-	|> range(start: -1h)
-	|> filter(fn: (r) =>
-		(r._field == "usage_user"))
-	|> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+data = from(bucket: "foo") |> range(start: -1h) |> filter(fn: (r) => r._field == "usage_user")
+    |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
 
 option task = {name: "moo", every: 1h}
 
-check = {
-	_check_id: "000000000000000a",
-	_check_name: "moo",
-	_type: "threshold",
-	tags: {aaa: "vaaa", bbb: "vbbb"},
-}
-ok = (r) =>
-	(r["usage_user"] > 10.0)
-info = (r) =>
-	(r["usage_user"] < 40.0)
-warn = (r) =>
-	(r["usage_user"] < 40.0 and r["usage_user"] > 10.0)
-crit = (r) =>
-	(r["usage_user"] < 10.0 or r["usage_user"] > 40.0)
-messageFn = (r) =>
-	("whoa! {r[\"usage_user\"]}")
+check = {_check_id: "000000000000000a", _check_name: "moo", _type: "threshold", tags: {aaa: "vaaa", bbb: "vbbb"}}
+ok = (r) => r["usage_user"] > 10.0
+info = (r) => r["usage_user"] < 40.0
+warn = (r) => r["usage_user"] < 40.0 and r["usage_user"] > 10.0
+crit = (r) => r["usage_user"] < 10.0 or r["usage_user"] > 40.0
+messageFn = (r) => "whoa! {r[\"usage_user\"]}"
 
-data
-	|> v1["fieldsAsCols"]()
-	|> monitor["check"](
-		data: check,
-		messageFn: messageFn,
-		ok: ok,
-		info: info,
-		warn: warn,
-		crit: crit,
-	)`,
+data |> v1["fieldsAsCols"]() |> monitor["check"](
+    data: check,
+    messageFn: messageFn,
+    ok: ok,
+    info: info,
+    warn: warn,
+    crit: crit,
+)`,
 			},
 		},
 		{
@@ -259,45 +227,29 @@ data
 				},
 			},
 			wants: wants{
-				script: `package main
-import "influxdata/influxdb/monitor"
+				script: `import "influxdata/influxdb/monitor"
 import "influxdata/influxdb/v1"
 
-data = from(bucket: "foo")
-	|> range(start: -1h)
-	|> filter(fn: (r) =>
-		(r._field == "usage user"))
-	|> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+data = from(bucket: "foo") |> range(start: -1h) |> filter(fn: (r) => r._field == "usage user")
+    |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
 
 option task = {name: "moo", every: 1h}
 
-check = {
-	_check_id: "000000000000000a",
-	_check_name: "moo",
-	_type: "threshold",
-	tags: {aaa: "vaaa", bbb: "vbbb"},
-}
-ok = (r) =>
-	(r["usage user"] > 10.0)
-info = (r) =>
-	(r["usage user"] < 40.0)
-warn = (r) =>
-	(r["usage user"] < 40.0 and r["usage user"] > 10.0)
-crit = (r) =>
-	(r["usage user"] < 10.0 or r["usage user"] > 40.0)
-messageFn = (r) =>
-	("whoa! {r[\"usage user\"]}")
+check = {_check_id: "000000000000000a", _check_name: "moo", _type: "threshold", tags: {aaa: "vaaa", bbb: "vbbb"}}
+ok = (r) => r["usage user"] > 10.0
+info = (r) => r["usage user"] < 40.0
+warn = (r) => r["usage user"] < 40.0 and r["usage user"] > 10.0
+crit = (r) => r["usage user"] < 10.0 or r["usage user"] > 40.0
+messageFn = (r) => "whoa! {r[\"usage user\"]}"
 
-data
-	|> v1["fieldsAsCols"]()
-	|> monitor["check"](
-		data: check,
-		messageFn: messageFn,
-		ok: ok,
-		info: info,
-		warn: warn,
-		crit: crit,
-	)`,
+data |> v1["fieldsAsCols"]() |> monitor["check"](
+    data: check,
+    messageFn: messageFn,
+    ok: ok,
+    info: info,
+    warn: warn,
+    crit: crit,
+)`,
 			},
 		},
 		{
@@ -350,59 +302,38 @@ data
 				},
 			},
 			wants: wants{
-				script: `package main
-import "influxdata/influxdb/monitor"
+				script: `import "influxdata/influxdb/monitor"
 import "influxdata/influxdb/v1"
 
-data = from(bucket: "foo")
-	|> range(start: -1h)
-	|> filter(fn: (r) =>
-		(r._field == "usage_user"))
-	|> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+data = from(bucket: "foo") |> range(start: -1h) |> filter(fn: (r) => r._field == "usage_user")
+    |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
 
 option task = {name: "moo", every: 1h}
 
-check = {
-	_check_id: "000000000000000a",
-	_check_name: "moo",
-	_type: "threshold",
-	tags: {aaa: "vaaa", bbb: "vbbb"},
-}
-ok = (r) =>
-	(r["usage_user"] > 10.0)
-info = (r) =>
-	(r["usage_user"] < 40.0)
-warn = (r) =>
-	(r["usage_user"] < 40.0 and r["usage_user"] > 10.0)
-crit = (r) =>
-	(r["usage_user"] < 40.0 and r["usage_user"] > 10.0)
-messageFn = (r) =>
-	("whoa! {r[\"usage_user\"]}")
+check = {_check_id: "000000000000000a", _check_name: "moo", _type: "threshold", tags: {aaa: "vaaa", bbb: "vbbb"}}
+ok = (r) => r["usage_user"] > 10.0
+info = (r) => r["usage_user"] < 40.0
+warn = (r) => r["usage_user"] < 40.0 and r["usage_user"] > 10.0
+crit = (r) => r["usage_user"] < 40.0 and r["usage_user"] > 10.0
+messageFn = (r) => "whoa! {r[\"usage_user\"]}"
 
-data
-	|> v1["fieldsAsCols"]()
-	|> monitor["check"](
-		data: check,
-		messageFn: messageFn,
-		ok: ok,
-		info: info,
-		warn: warn,
-		crit: crit,
-	)`,
+data |> v1["fieldsAsCols"]() |> monitor["check"](
+    data: check,
+    messageFn: messageFn,
+    ok: ok,
+    info: info,
+    warn: warn,
+    crit: crit,
+)`,
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// TODO(desa): change this to GenerateFlux() when we don't need to code
-			// around the monitor package not being available.
-			p, err := tt.args.threshold.GenerateFluxAST(fluxlang.DefaultService)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			assert.Equal(t, tt.wants.script, ast.Format(p))
+			s, err := tt.args.threshold.GenerateFlux(fluxlang.DefaultService)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wants.script, s)
 		})
 	}
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/influxdata/flux/ast/astutil"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux/ast"
@@ -57,21 +58,16 @@ func (s *PagerDuty) GenerateFlux(e influxdb.NotificationEndpoint) (string, error
 	if !ok {
 		return "", fmt.Errorf("endpoint provided is a %s, not an PagerDuty endpoint", e.Type())
 	}
-	p, err := s.GenerateFluxAST(pagerdutyEndpoint)
-	if err != nil {
-		return "", err
-	}
-	return ast.Format(p), nil
+	return astutil.Format(s.GenerateFluxAST(pagerdutyEndpoint))
 }
 
 // GenerateFluxAST generates a flux AST for the pagerduty notification rule.
-func (s *PagerDuty) GenerateFluxAST(e *endpoint.PagerDuty) (*ast.Package, error) {
-	f := flux.File(
+func (s *PagerDuty) GenerateFluxAST(e *endpoint.PagerDuty) *ast.File {
+	return flux.File(
 		s.Name,
 		flux.Imports("influxdata/influxdb/monitor", "pagerduty", "influxdata/influxdb/secrets", "experimental"),
 		s.generateFluxASTBody(e),
 	)
-	return &ast.Package{Package: "main", Files: []*ast.File{f}}, nil
 }
 
 func (s *PagerDuty) generateFluxASTBody(e *endpoint.PagerDuty) []ast.Statement {

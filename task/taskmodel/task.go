@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/astutil"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -401,7 +402,10 @@ func (t *TaskUpdate) updateFlux(parser fluxlang.FluxLanguageService, oldFlux str
 		}
 
 		t.Options.Clear()
-		s := ast.Format(parsed)
+		s, err := astutil.Format(parsed)
+		if err != nil {
+			return err
+		}
 		t.Flux = &s
 	}
 	return nil

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/andreyvit/diff"
-	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification/check"
@@ -28,10 +27,8 @@ import "influxdata/influxdb/v1"
 
 data = from(bucket: "_tasks")
 |> range(start: -1m)
-|> filter(fn: (r) =>
-				(r._measurement == "runs"))
-|> filter(fn: (r) =>
-				(r._field == "finishedAt"))
+|> filter(fn: (r) => r._measurement == "runs")
+|> filter(fn: (r) => r._field == "finishedAt")
 |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
 
 option task = {name: "moo", every: 1m, offset: 0s}
@@ -110,13 +107,13 @@ data
 					ID:   10,
 					Name: "moo",
 					Query: influxdb.DashboardQuery{
-						Text: ast.Format(parser.ParseSource(fmt.Sprintf(validQuery, "000000000000000a"))),
+						Text: mustFormatPackage(t, parser.ParseSource(fmt.Sprintf(validQuery, "000000000000000a"))),
 					},
 				},
 			},
 			wants: wants{
 				err:    nil,
-				script: ast.Format(parser.ParseSource(fmt.Sprintf(validQuery, "000000000000000a"))),
+				script: mustFormatPackage(t, parser.ParseSource(fmt.Sprintf(validQuery, "000000000000000a"))),
 			},
 		},
 		{
@@ -126,13 +123,13 @@ data
 					ID:   10,
 					Name: "moo",
 					Query: influxdb.DashboardQuery{
-						Text: ast.Format(parser.ParseSource(fmt.Sprintf(validQuery, "000000000000000b"))),
+						Text: mustFormatPackage(t, parser.ParseSource(fmt.Sprintf(validQuery, "000000000000000b"))),
 					},
 				},
 			},
 			wants: wants{
 				err:    nil,
-				script: ast.Format(parser.ParseSource(fmt.Sprintf(validQuery, "000000000000000a"))),
+				script: mustFormatPackage(t, parser.ParseSource(fmt.Sprintf(validQuery, "000000000000000a"))),
 			},
 		},
 		{
@@ -157,7 +154,7 @@ data
 					ID:   10,
 					Name: "moo",
 					Query: influxdb.DashboardQuery{
-						Text: ast.Format(parser.ParseSource(fmt.Sprintf(invalidTaskQuery, "000000000000000b"))),
+						Text: mustFormatPackage(t, parser.ParseSource(fmt.Sprintf(invalidTaskQuery, "000000000000000b"))),
 					},
 				},
 			},

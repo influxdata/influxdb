@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/astutil"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/flux"
@@ -33,18 +34,18 @@ func (c Deadman) Type() string {
 
 // GenerateFlux returns a flux script for the Deadman provided.
 func (c Deadman) GenerateFlux(lang fluxlang.FluxLanguageService) (string, error) {
-	p, err := c.GenerateFluxAST(lang)
+	f, err := c.GenerateFluxAST(lang)
 	if err != nil {
 		return "", err
 	}
 
-	return ast.Format(p), nil
+	return astutil.Format(f)
 }
 
 // GenerateFluxAST returns a flux AST for the deadman provided. If there
 // are any errors in the flux that the user provided the function will return
 // an error for each error found when the script is parsed.
-func (c Deadman) GenerateFluxAST(lang fluxlang.FluxLanguageService) (*ast.Package, error) {
+func (c Deadman) GenerateFluxAST(lang fluxlang.FluxLanguageService) (*ast.File, error) {
 	p, err := query.Parse(lang, c.Query.Text)
 	if p == nil {
 		return nil, err
@@ -69,7 +70,7 @@ func (c Deadman) GenerateFluxAST(lang fluxlang.FluxLanguageService) (*ast.Packag
 	f.Imports = append(f.Imports, flux.Imports("influxdata/influxdb/monitor", "experimental", "influxdata/influxdb/v1")...)
 	f.Body = append(f.Body, c.generateFluxASTBody()...)
 
-	return p, nil
+	return f, nil
 }
 
 func (c Deadman) generateFluxASTBody() []ast.Statement {
