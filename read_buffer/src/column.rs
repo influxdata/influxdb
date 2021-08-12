@@ -51,8 +51,17 @@ impl Column {
     //  Meta information about the column
     //
 
-    /// The estimated size in bytes of the column that is held in memory.
+    /// The estimated size in bytes of all data in the column, including all
+    /// allocated but unfilled buffers. An estimation of the on-heap memory usage
+    // of this column.
     pub fn size(&self) -> usize {
+        self.size_bytes(true)
+    }
+
+    // This method exposes two ways to calculate an estimation for the in-memory
+    // size of the column. When `with_capacity` is true then all allocated but
+    // unused buffers are taken into account.
+    fn size_bytes(&self, with_capacity: bool) -> usize {
         // Since `MetaData` is generic each value in the range can have a
         // different size, so just do the calculations here where we know each
         // `T`.
@@ -63,19 +72,19 @@ impl Column {
                 if let Some((min, max)) = &meta.range {
                     meta_size += min.len() + max.len();
                 };
-                meta_size + data.size(false)
+                meta_size + data.size(with_capacity)
             }
             Self::Float(_, data) => {
                 let meta_size = size_of::<Option<(f64, f64)>>() + size_of::<ColumnProperties>();
-                meta_size + data.size(false)
+                meta_size + data.size(with_capacity)
             }
             Self::Integer(_, data) => {
                 let meta_size = size_of::<Option<(i64, i64)>>() + size_of::<ColumnProperties>();
-                meta_size + data.size(false)
+                meta_size + data.size(with_capacity)
             }
             Self::Unsigned(_, data) => {
                 let meta_size = size_of::<Option<(u64, u64)>>() + size_of::<ColumnProperties>();
-                meta_size + data.size(false)
+                meta_size + data.size(with_capacity)
             }
             Self::Bool(_, data) => {
                 let meta_size = size_of::<Option<(bool, bool)>>() + size_of::<ColumnProperties>();
@@ -88,7 +97,7 @@ impl Column {
                     meta_size += min.len() + max.len();
                 };
 
-                meta_size + data.size(false)
+                meta_size + data.size(with_capacity)
             }
         }
     }

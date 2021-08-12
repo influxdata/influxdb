@@ -2531,7 +2531,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3308.0)
+            .sample_sum_eq(3436.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk).await;
