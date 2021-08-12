@@ -16,6 +16,7 @@ use data_types::{
     names::{org_and_bucket_to_database, OrgBucketMappingError},
     DatabaseName,
 };
+use heappy::{self, HeapReport};
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
 use query::{exec::ExecutorType, QueryDatabase};
@@ -36,7 +37,8 @@ use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use hyper::server::conn::AddrIncoming;
-use pprof::protos::Message;
+//use pprof::protos::Message;
+use prost::Message;
 use std::num::NonZeroI32;
 use std::{
     fmt::Debug,
@@ -362,6 +364,7 @@ where
         .get("/api/v1/partitions", list_partitions::<M>)
         .get("/debug/pprof", pprof_home::<M>)
         .get("/debug/pprof/profile", pprof_profile::<M>)
+        .get("/debug/pprof/heappy/profile", pprof_heappy_profile::<M>)
         // Specify the error handler to handle any errors caused by
         // a route or any middleware.
         .err_handler_with_info(error_handler)
@@ -784,6 +787,22 @@ async fn dump_rsprof(seconds: u64, frequency: i32) -> pprof::Result<pprof::Repor
     guard.report().build()
 }
 
+async fn dump_heappy_rsprof(seconds: u64, frequency: i32) -> HeapReport {
+    let guard = heappy::HeapProfilerGuard::new(frequency as usize);
+    info!(
+        "start heappy profiling {} seconds with frequency {} /s",
+        seconds, frequency
+    );
+
+    tokio::time::sleep(Duration::from_secs(seconds)).await;
+
+    info!(
+        "done heappy  profiling {} seconds with frequency {} /s",
+        seconds, frequency
+    );
+    guard.report()
+}
+
 #[derive(Debug, Deserialize)]
 struct PProfArgs {
     #[serde(default = "PProfArgs::default_seconds")]
@@ -834,6 +853,41 @@ async fn pprof_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
         let profile = report.pprof().context(PProf)?;
         profile.encode(&mut body).context(Prost)?;
     }
+
+    Ok(Response::new(Body::from(body)))
+}
+
+#[tracing::instrument(level = "debug")]
+async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let query_string = req.uri().query().unwrap_or_default();
+    let query: PProfArgs =
+        serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
+
+    let report: HeapReport = dump_heappy_rsprof(query.seconds, query.frequency.get()).await;
+    //.context(PProf)?;
+
+    let mut body: Vec<u8> = Vec::new();
+
+    // render flamegraph when opening in the browser
+    // otherwise render as protobuf; works great with: go tool pprof http://..../debug/pprof/profile
+    if req
+        .headers()
+        .get_all("Accept")
+        .iter()
+        .flat_map(|i| i.to_str().unwrap_or_default().split(','))
+        .any(|i| i == "text/html" || i == "image/svg+xml")
+    {
+        report.flamegraph(&mut body);
+        if body.is_empty() {
+            return EmptyFlamegraph.fail();
+        }
+    }
+    // } else {
+    //     let profile = report.pprof();
+    //     profile.encode(&mut body).context(Prost)?; // prost version 0.8 does not support encode
+    // }
 
     Ok(Response::new(Body::from(body)))
 }

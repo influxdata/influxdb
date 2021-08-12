@@ -1,0 +1,9 @@
+[package]
+name = "simple"
+version = "0.1.0"
+authors = [ "Marko Mikulicic <mkm@influxdata.com>" ]
+edition = "2018"
+
+[dependencies]
+heappy = { path = "../..", features = [ "enable_heap_profiler" ] }
+prost = "0.7"

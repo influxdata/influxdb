@@ -1,0 +1,21 @@
+[package]
+name = "heappy"
+version = "0.1.0"
+authors = [ "Marko Mikulicic <mkm@influxdata.com>" ]
+edition = "2018"
+
+[features]
+default = []
+jemalloc_shim = [ "tikv-jemalloc-sys" ]
+enable_heap_profiler = [ "jemalloc_shim" ]
+measure_free = []
+
+[dependencies]
+backtrace = "0.3.59"
+bytes = "1.0.1"
+lazy_static = "1.4.0"
+libc = { version = "^0.2.8", default-features = false }
+pprof = {version = "0.4.3", features = [ "flamegraph", "protobuf" ] }
+prost = "0.7"
+spin = "0.9.0"
+tikv-jemalloc-sys = { version = "0.4", optional = true, features = [ "stats" ] }
