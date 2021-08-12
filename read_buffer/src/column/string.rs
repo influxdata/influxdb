@@ -31,7 +31,7 @@ impl StringEncoding {
     pub fn size(&self) -> usize {
         match self {
             Self::RleDictionary(enc) => enc.size(),
-            Self::Dictionary(enc) => enc.size(),
+            Self::Dictionary(enc) => enc.size(false),
         }
     }
 
