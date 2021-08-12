@@ -612,8 +612,6 @@ async fn get_store_bytes(
 
 #[cfg(test)]
 mod tests {
-    use write_buffer::config::WriteBufferConfigFactory;
-
     use super::*;
     use std::num::NonZeroU32;
 
@@ -621,7 +619,6 @@ mod tests {
     async fn database_shutdown_waits_for_jobs() {
         let application = Arc::new(ApplicationState::new(
             Arc::new(ObjectStore::new_in_memory()),
-            Arc::new(WriteBufferConfigFactory::new()),
             None,
         ));
 

@@ -12,7 +12,6 @@ use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, fs, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::time::Duration;
 use uuid::Uuid;
-use write_buffer::config::WriteBufferConfigFactory;
 
 mod http;
 mod planner;
@@ -116,11 +115,8 @@ async fn make_application(config: &Config) -> Result<Arc<ApplicationState>> {
     check_object_store(&object_store).await?;
     let object_storage = Arc::new(object_store);
 
-    let write_buffer_factory = Arc::new(WriteBufferConfigFactory::new());
-
     Ok(Arc::new(ApplicationState::new(
         object_storage,
-        write_buffer_factory,
         config.num_worker_threads,
     )))
 }
