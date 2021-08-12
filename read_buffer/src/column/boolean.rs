@@ -11,7 +11,7 @@ impl BooleanEncoding {
     /// The total size in bytes of the store columnar data.
     pub fn size(&self) -> usize {
         match self {
-            Self::BooleanNull(enc) => enc.size(),
+            Self::BooleanNull(enc) => enc.size(false),
         }
     }
 
