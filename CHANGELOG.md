@@ -1,14 +1,14 @@
 ## v2.0.8 [unreleased]
 ----------------------
 
-### Linux packaging
+### WARNING: Upcoming changes to CLI packaging
 
-Linux packages for this release (`.deb` and `.rpm`) have been modified as follows:
+Beginning with the next minor version, the `influx` CLI will no longer be packaged in releases from `influxdb`. 
+Future versions of the CLI will instead be released from the [`influx-cli`](https://github.com/influxdata/influx-cli)
+repository.
 
-* A new `influxdb2-cli` package contains only the `influx` CLI binary.
-* The `influxdb2` package no longer contains the `influx` binary. Instead, it declares a recommended dependency on `influxdb2-cli`.
-
-These changes were made to enable standalone installation of the `influx` CLI for users of InfluxDB Cloud.
+Users who wish to adopt the new CLI can download its latest release from [GitHub](https://github.com/influxdata/influx-cli/releases/latest)
+or from the InfluxData [Downloads Portal](https://portal.influxdata.com/downloads/).
 
 ### Go Version
 
