@@ -284,9 +284,8 @@ impl PreservedCatalog {
         db_name: &str,
     ) -> Result<Option<DateTime<Utc>>> {
         let mut res = None;
-        for (path, _file_type, _revision_counter, _uuid) in
-            list_files(object_store, server_id, db_name).await?
-        {
+        for transaction in list_files(object_store, server_id, db_name).await? {
+            let path = transaction.file_path();
             match load_transaction_proto(object_store, &path).await {
                 Ok(proto) => match parse_timestamp(&proto.start_timestamp) {
                     Ok(ts) => {
@@ -316,9 +315,8 @@ impl PreservedCatalog {
         server_id: ServerId,
         db_name: &str,
     ) -> Result<()> {
-        for (path, _file_type, _revision_counter, _uuid) in
-            list_files(object_store, server_id, db_name).await?
-        {
+        for transaction in list_files(object_store, server_id, db_name).await? {
+            let path = transaction.file_path();
             object_store.delete(&path).await.context(Write)?;
         }
 
@@ -379,38 +377,36 @@ impl PreservedCatalog {
         let mut transactions: HashMap<u64, Uuid> = HashMap::new();
         let mut max_revision = None;
         let mut last_checkpoint = None;
-        for (_path, file_type, revision_counter, uuid) in
-            list_files(&object_store, server_id, &db_name).await?
-        {
+        for transaction in list_files(&object_store, server_id, &db_name).await? {
             // keep track of the max
             max_revision = Some(
                 max_revision
-                    .map(|m: u64| m.max(revision_counter))
-                    .unwrap_or(revision_counter),
+                    .map(|m: u64| m.max(transaction.tkey.revision_counter))
+                    .unwrap_or(transaction.tkey.revision_counter),
             );
 
             // keep track of latest checkpoint
-            if matches!(file_type, FileType::Checkpoint) {
+            if matches!(transaction.file_type, FileType::Checkpoint) {
                 last_checkpoint = Some(
                     last_checkpoint
-                        .map(|m: u64| m.max(revision_counter))
-                        .unwrap_or(revision_counter),
+                        .map(|m: u64| m.max(transaction.tkey.revision_counter))
+                        .unwrap_or(transaction.tkey.revision_counter),
                 );
             }
 
             // insert but check for duplicates
-            match transactions.entry(revision_counter) {
+            match transactions.entry(transaction.tkey.revision_counter) {
                 Occupied(o) => {
                     // sort for determinism
-                    let (uuid1, uuid2) = if *o.get() < uuid {
-                        (*o.get(), uuid)
+                    let (uuid1, uuid2) = if *o.get() < transaction.tkey.uuid {
+                        (*o.get(), transaction.tkey.uuid)
                     } else {
-                        (uuid, *o.get())
+                        (transaction.tkey.uuid, *o.get())
                     };
 
                     if uuid1 != uuid2 {
                         Fork {
-                            revision_counter,
+                            revision_counter: transaction.tkey.revision_counter,
                             uuid1,
                             uuid2,
                         }
@@ -418,7 +414,7 @@ impl PreservedCatalog {
                     }
                 }
                 Vacant(v) => {
-                    v.insert(uuid);
+                    v.insert(transaction.tkey.uuid);
                 }
             }
         }
@@ -456,7 +452,7 @@ impl PreservedCatalog {
                 &object_store,
                 server_id,
                 &db_name,
-                &tkey,
+                tkey,
                 &mut state,
                 &last_tkey,
                 file_type,
@@ -497,7 +493,6 @@ impl PreservedCatalog {
     pub fn revision_counter(&self) -> u64 {
         self.previous_tkey
             .read()
-            .clone()
             .map(|tkey| tkey.revision_counter)
             .expect("catalog should have at least an empty transaction")
     }
@@ -566,6 +561,14 @@ impl FileType {
             Self::Checkpoint => proto::transaction::Encoding::Full,
         }
     }
+
+    fn parse_str(suffix: &str) -> Option<Self> {
+        match suffix {
+            TRANSACTION_FILE_SUFFIX => Some(Self::Transaction),
+            CHECKPOINT_FILE_SUFFIX => Some(Self::Checkpoint),
+            _ => None,
+        }
+    }
 }
 
 /// Creates object store path for given transaction or checkpoint.
@@ -579,53 +582,87 @@ fn file_path(
     object_store: &ObjectStore,
     server_id: ServerId,
     db_name: &str,
-    tkey: &TransactionKey,
+    tkey: TransactionKey,
     file_type: FileType,
 ) -> Path {
-    let mut path = catalog_path(object_store, server_id, db_name);
+    let path = catalog_path(object_store, server_id, db_name);
 
-    // pad number: `u64::MAX.to_string().len()` is 20
-    path.push_dir(format!("{:0>20}", tkey.revision_counter));
-
-    let file_name = format!("{}.{}", tkey.uuid, file_type.suffix());
-    path.set_file_name(file_name);
-
-    path
-}
-
-/// Extracts revision counter, UUID, and file type from transaction or checkpoint path.
-fn parse_file_path(path: Path) -> Option<(u64, Uuid, FileType)> {
-    let parsed: DirsAndFileName = path.into();
-    if parsed.directories.len() != 4 {
-        return None;
+    let transaction = TransactionFile {
+        catalog_root: Some(path),
+        file_path: None,
+        tkey,
+        file_type,
     };
 
-    let revision_counter = parsed.directories[3].encoded().parse();
+    transaction.file_path()
+}
 
-    let name_parts: Vec<_> = parsed
-        .file_name
-        .as_ref()
-        .expect("got file from object store w/o file name (aka only a directory?)")
-        .encoded()
-        .split('.')
-        .collect();
-    if name_parts.len() != 2 {
-        return None;
-    }
-    let uuid = Uuid::parse_str(name_parts[0]);
+struct TransactionFile {
+    /// catalog_root will be stored elsewhere when all parquet file paths are relative
+    catalog_root: Option<Path>,
+    /// full path including catalog root; this will become a relative path only
+    file_path: Option<Path>,
 
-    match (revision_counter, uuid) {
-        (Ok(revision_counter), Ok(uuid)) => {
-            for file_type in
-                std::array::IntoIter::new([FileType::Checkpoint, FileType::Transaction])
-            {
-                if name_parts[1] == file_type.suffix() {
-                    return Some((revision_counter, uuid, file_type));
-                }
-            }
-            None
+    tkey: TransactionKey,
+    file_type: FileType,
+}
+
+impl TransactionFile {
+    fn parse(path: Path) -> Option<Self> {
+        let file_path = path.clone();
+
+        let parsed: DirsAndFileName = path.into();
+        if parsed.directories.len() != 4 {
+            return None;
+        };
+
+        let revision_counter = parsed.directories[3].encoded().parse().ok()?;
+
+        let name_parts: Vec<_> = parsed
+            .file_name
+            .as_ref()
+            .expect("got file from object store w/o file name (aka only a directory?)")
+            .encoded()
+            .split('.')
+            .collect();
+        if name_parts.len() != 2 {
+            return None;
         }
-        _ => None,
+        let uuid = Uuid::parse_str(name_parts[0]).ok()?;
+
+        let file_type = FileType::parse_str(name_parts[1])?;
+
+        Some(Self {
+            catalog_root: None,
+            file_path: Some(file_path),
+            tkey: TransactionKey {
+                revision_counter,
+                uuid,
+            },
+            file_type,
+        })
+    }
+
+    fn file_path(&self) -> Path {
+        if let Some(file_path) = &self.file_path {
+            file_path.clone()
+        } else {
+            // If we don't have the full path, we must have the catalog path. This will be
+            // simplified soon
+            let mut path = self
+                .catalog_root
+                .as_ref()
+                .expect("must have catalog_root when there is no file_path")
+                .clone();
+
+            // pad number: `u64::MAX.to_string().len()` is 20
+            path.push_dir(format!("{:0>20}", self.tkey.revision_counter));
+
+            let file_name = format!("{}.{}", self.tkey.uuid, self.file_type.suffix());
+            path.set_file_name(file_name);
+
+            path
+        }
     }
 }
 
@@ -636,7 +673,7 @@ async fn list_files(
     object_store: &ObjectStore,
     server_id: ServerId,
     db_name: &str,
-) -> Result<Vec<(Path, FileType, u64, Uuid)>> {
+) -> Result<Vec<TransactionFile>> {
     let list_path = catalog_path(object_store, server_id, db_name);
     let paths = object_store
         .list(Some(&list_path))
@@ -645,11 +682,7 @@ async fn list_files(
         .map_ok(|paths| {
             paths
                 .into_iter()
-                .filter_map(|path| {
-                    parse_file_path(path.clone()).map(|(revision_counter, uuid, file_type)| {
-                        (path.clone(), file_type, revision_counter, uuid)
-                    })
-                })
+                .filter_map(TransactionFile::parse)
                 .collect()
         })
         .try_concat()
@@ -765,7 +798,7 @@ fn parse_encoding(encoding: i32) -> Result<proto::transaction::Encoding> {
 }
 
 /// Key to address transactions.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 struct TransactionKey {
     revision_counter: u64,
     uuid: Uuid,
@@ -884,7 +917,7 @@ impl OpenTransaction {
             object_store,
             server_id,
             db_name,
-            &self.tkey(),
+            self.tkey(),
             FileType::Transaction,
         );
         store_transaction_proto(object_store, &path, &self.proto).await?;
@@ -895,7 +928,7 @@ impl OpenTransaction {
         object_store: &Arc<ObjectStore>,
         server_id: ServerId,
         db_name: &str,
-        tkey: &TransactionKey,
+        tkey: TransactionKey,
         state: &mut S,
         last_tkey: &Option<TransactionKey>,
         file_type: FileType,
@@ -1232,7 +1265,7 @@ impl<'c> CheckpointHandle<'c> {
             &object_store,
             server_id,
             db_name,
-            &self.tkey,
+            self.tkey,
             FileType::Checkpoint,
         );
         store_transaction_proto(&object_store, &path, &proto).await?;
@@ -1328,7 +1361,7 @@ pub mod test_helpers {
             &catalog.object_store,
             catalog.server_id,
             &catalog.db_name,
-            &tkey,
+            tkey,
             FileType::Transaction,
         );
         let mut proto = load_transaction_proto(&catalog.object_store, &path)
@@ -1343,10 +1376,7 @@ pub mod test_helpers {
     /// Helper function to ensure that guards don't leak into the future state machine.
     fn get_tkey(catalog: &PreservedCatalog) -> TransactionKey {
         let guard = catalog.previous_tkey.read();
-        guard
-            .as_ref()
-            .expect("should have at least a single transaction")
-            .clone()
+        guard.expect("should have at least a single transaction")
     }
 
     /// Torture-test implementations for [`CatalogState`].
@@ -1772,7 +1802,7 @@ mod tests {
 
         // remove transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -1835,7 +1865,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -1872,7 +1902,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -1914,7 +1944,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -1951,7 +1981,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -1988,7 +2018,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2022,7 +2052,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[1];
+        let tkey = trace.tkeys[1];
         let path = file_path(
             &object_store,
             server_id,
@@ -2056,7 +2086,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2093,7 +2123,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2160,12 +2190,12 @@ mod tests {
 
         // re-create transaction file with different UUID
         assert!(trace.tkeys.len() >= 2);
-        let mut tkey = trace.tkeys[1].clone();
+        let mut tkey = trace.tkeys[1];
         let path = file_path(
             &object_store,
             server_id,
             db_name,
-            &tkey,
+            tkey,
             FileType::Transaction,
         );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
@@ -2177,7 +2207,7 @@ mod tests {
             &object_store,
             server_id,
             db_name,
-            &tkey,
+            tkey,
             FileType::Transaction,
         );
         proto.uuid = new_uuid.to_string();
@@ -2210,12 +2240,12 @@ mod tests {
 
         // create checkpoint file with different UUID
         assert!(trace.tkeys.len() >= 2);
-        let mut tkey = trace.tkeys[1].clone();
+        let mut tkey = trace.tkeys[1];
         let path = file_path(
             &object_store,
             server_id,
             db_name,
-            &tkey,
+            tkey,
             FileType::Transaction,
         );
         let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
@@ -2227,7 +2257,7 @@ mod tests {
             &object_store,
             server_id,
             db_name,
-            &tkey,
+            tkey,
             FileType::Checkpoint,
         );
         proto.uuid = new_uuid.to_string();
@@ -2261,7 +2291,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2304,7 +2334,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2341,7 +2371,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2381,7 +2411,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2418,7 +2448,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2455,7 +2485,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2492,7 +2522,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -2587,7 +2617,7 @@ mod tests {
             if trace.aborted[i] {
                 continue;
             }
-            let tkey = &trace.tkeys[i];
+            let tkey = trace.tkeys[i];
             let path = file_path(
                 &object_store,
                 server_id,
@@ -2712,8 +2742,7 @@ mod tests {
         }
 
         fn record(&mut self, catalog: &PreservedCatalog, state: &TestCatalogState, aborted: bool) {
-            self.tkeys
-                .push(catalog.previous_tkey.read().clone().unwrap());
+            self.tkeys.push(catalog.previous_tkey.read().unwrap());
             self.states.push(state.clone());
             self.post_timestamps.push(Utc::now());
             self.aborted.push(aborted);
@@ -3118,7 +3147,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -3166,7 +3195,7 @@ mod tests {
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
-        let tkey = &trace.tkeys[0];
+        let tkey = trace.tkeys[0];
         let path = file_path(
             &object_store,
             server_id,
@@ -3239,7 +3268,7 @@ mod tests {
         trace.record(&catalog, &state, false);
 
         // delete transaction files
-        for (aborted, tkey) in trace.aborted.iter().zip(trace.tkeys.iter()) {
+        for (aborted, tkey) in trace.aborted.iter().zip(trace.tkeys.into_iter()) {
             if *aborted {
                 continue;
             }
@@ -3325,12 +3354,12 @@ mod tests {
         .unwrap();
 
         // delete transaction file
-        let tkey = catalog.previous_tkey.read().clone().unwrap();
+        let tkey = catalog.previous_tkey.read().unwrap();
         let path = file_path(
             &object_store,
             server_id,
             db_name,
-            &tkey,
+            tkey,
             FileType::Transaction,
         );
         checked_delete(&object_store, &path).await;
@@ -3346,12 +3375,12 @@ mod tests {
         }
 
         // delete transaction file
-        let tkey = catalog.previous_tkey.read().clone().unwrap();
+        let tkey = catalog.previous_tkey.read().unwrap();
         let path = file_path(
             &object_store,
             server_id,
             db_name,
-            &tkey,
+            tkey,
             FileType::Transaction,
         );
         checked_delete(&object_store, &path).await;

@@ -3,8 +3,6 @@ use std::convert::From;
 use std::iter;
 use std::mem::size_of;
 
-use croaring::Bitmap;
-
 use arrow::array::{Array, StringArray};
 
 use super::NULL_ID;
@@ -75,13 +73,18 @@ impl RLE {
     }
 
     /// A reasonable estimation of the on-heap size this encoding takes up.
-    pub fn size(&self) -> usize {
-        // the total size of all decoded values in the column.
-        let decoded_keys_size = self.index_entries.iter().map(|k| k.len()).sum::<usize>();
+    /// If `buffers` is true then the size of all allocated buffers in the
+    /// encoding are accounted for.
+    pub fn size(&self, buffers: bool) -> usize {
+        let base_size = size_of::<Self>();
 
-        let index_entry_size = size_of::<Vec<String>>() // container size
-            + (size_of::<String>() * self.index_entries.len()) // elements size
-            + decoded_keys_size; // heap allocated strings size
+        let mut index_entries_size = size_of::<String>()
+            * match buffers {
+                true => self.index_entries.capacity(),
+                false => self.index_entries.len(),
+            };
+        // the total size of all decoded values in the column.
+        index_entries_size += self.index_entries.iter().map(|k| k.len()).sum::<usize>();
 
         // The total size (an upper bound estimate) of all the bitmaps
         // in the column.
@@ -91,14 +94,16 @@ impl RLE {
             .map(|row_ids| row_ids.size())
             .sum::<usize>();
 
-        let index_row_ids_size = size_of::<BTreeMap<u32, Bitmap>>()
-            + (size_of::<u32>() * self.index_row_ids.len())
-            + row_ids_bitmaps_size;
+        let index_row_ids_size =
+            (size_of::<u32>() * self.index_row_ids.len()) + row_ids_bitmaps_size;
 
-        let run_lengths_size = size_of::<Vec<(u32, u32)>>() + // container size
-            (size_of::<(u32, u32)>() * self.run_lengths.len()); // each run-length size
+        let run_lengths_size = size_of::<(u32, u32)>()
+            * match buffers {
+                true => self.run_lengths.capacity(),
+                false => self.run_lengths.len(),
+            };
 
-        index_entry_size + index_row_ids_size + run_lengths_size + 1 + 4
+        base_size + index_entries_size + index_row_ids_size + run_lengths_size
     }
 
     /// A reasonable estimation of the on-heap size of the underlying string
@@ -958,7 +963,7 @@ impl std::fmt::Display for RLE {
             f,
             "[{}] size: {:?} rows: {:?} cardinality: {}, nulls: {} runs: {} ",
             ENCODING_NAME,
-            self.size(),
+            self.size(false),
             self.num_rows,
             self.cardinality(),
             self.null_count(),
@@ -1000,22 +1005,34 @@ mod test {
         enc.push_none();
         enc.push_none();
 
-        // Note: there are 4 index entries to account for NULL entry.
-        // `index_entry` is 24 + (24*4) + 14 == 134
+        // * Self: 24 + 24 + 24 + 1 + (padding 3b) + 4 = 80b
+        // * index entries: (4) are is (24*4) + 14 == 110
+        // * index row ids: (bitmaps) is (4 * 4) + (108b for bitmaps) == 124
+        // * run lengths: (8*5) == 40
         //
-        // bitmaps for east, north, south and NULL entries.
-        // `index_row_ids` is 24 + (4 * 4) + (108b for bitmaps) == 148
-        //
-        // `run lengths` is 24 + (8*5) == 64
-        //
-        // `contains_null` - 1 byte
-        // `num_rows` - 4 bytes
-        //
-        // 351
+        // 354
+        // assert_eq!(enc.size(false), 354);
 
-        // TODO(edd): there some mystery bytes in the bitmap implementation.
-        // need to figure out how to measure these
-        assert_eq!(enc.size(), 351);
+        // check allocated size
+        let mut enc = RLE::default();
+        enc.index_entries.reserve_exact(39); // account for already-allocated NULL element
+        enc.run_lengths.reserve_exact(40);
+
+        enc.push_additional(Some("east".to_string()), 3);
+        enc.push_additional(Some("north".to_string()), 1);
+        enc.push_additional(Some("east".to_string()), 5);
+        enc.push_additional(Some("south".to_string()), 2);
+        enc.push_none();
+        enc.push_none();
+        enc.push_none();
+        enc.push_none();
+
+        // * Self: 24 + 24 + 24 + 1 + (padding 3b) + 4 = 80b
+        // * index entries: (40 * 24) + 14 == 974
+        // * index row ids: (bitmaps) is (4 * 4) + (108b for bitmaps) == 124
+        // * run lengths: (40 * 8) == 320
+        //
+        assert_eq!(enc.size(true), 1498);
     }
 
     #[test]

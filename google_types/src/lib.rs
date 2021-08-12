@@ -1,7 +1,7 @@
 // This crate deliberately does not use the same linting rules as the other
 // crates because of all the generated code it contains that we don't have much
 // control over.
-#![deny(broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
+#![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![allow(
     unused_imports,
     clippy::redundant_static_lifetimes,

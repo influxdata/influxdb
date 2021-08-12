@@ -59,7 +59,7 @@
 //!   └────────────┘  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 //! ```
 
-#![deny(broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
+#![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_debug_implementations,
     clippy::explicit_iter_loop,
@@ -71,7 +71,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::BytesMut;
 use data_types::database_rules::ShardConfig;
 use data_types::error::ErrorLogger;
 use data_types::{
@@ -80,11 +79,9 @@ use data_types::{
     server_id::ServerId,
     {DatabaseName, DatabaseNameError},
 };
-use database::{Database, DatabaseConfig};
-use db::load::create_preserved_catalog;
+use database::{persist_database_rules, Database, DatabaseConfig};
 use entry::{lines_to_sharded_entries, pb_to_entry, Entry, ShardedEntry};
 use futures::future::{BoxFuture, Future, FutureExt, Shared, TryFutureExt};
-use generated_types::database_rules::encode_database_rules;
 use generated_types::influxdata::pbdata::v1 as pb;
 use hashbrown::HashMap;
 use influxdb_line_protocol::ParsedLine;
@@ -140,6 +137,12 @@ pub enum Error {
     #[snafu(display("database not initialized"))]
     DatabaseNotInitialized { db_name: String },
 
+    #[snafu(display("cannot persisted updated rules: {}", source))]
+    CannotPersistUpdatedRules { source: crate::database::InitError },
+
+    #[snafu(display("cannot create database: {}", source))]
+    CannotCreateDatabase { source: crate::database::InitError },
+
     #[snafu(display("database not found"))]
     DatabaseNotFound { db_name: String },
 
@@ -176,14 +179,6 @@ pub enum Error {
     #[snafu(display("error replicating to remote: {}", source))]
     ErrorReplicating { source: DatabaseError },
 
-    #[snafu(display("error serializing database rules to protobuf: {}", source))]
-    ErrorSerializingRulesProtobuf {
-        source: generated_types::database_rules::EncodeError,
-    },
-
-    #[snafu(display("store error: {}", source))]
-    StoreError { source: object_store::Error },
-
     #[snafu(display("error converting line protocol to flatbuffers: {}", source))]
     LineConversion { source: entry::Error },
 
@@ -217,9 +212,6 @@ pub enum Error {
     RemoteError {
         source: connection::ConnectionManagerError,
     },
-
-    #[snafu(display("cannot create preserved catalog: {}", source))]
-    CannotCreatePreservedCatalog { source: DatabaseError },
 
     #[snafu(display("database failed to initialize: {}", source))]
     DatabaseInit { source: Arc<database::InitError> },
@@ -372,6 +364,19 @@ pub struct Server<M: ConnectionManager> {
 
     /// State shared with the background worker
     shared: Arc<ServerShared>,
+}
+
+impl<M: ConnectionManager> Drop for Server<M> {
+    fn drop(&mut self) {
+        if !self.shared.shutdown.is_cancelled() {
+            warn!("server dropped without calling shutdown()");
+            self.shared.shutdown.cancel();
+        }
+
+        if self.join.clone().now_or_never().is_none() {
+            warn!("server dropped without waiting for worker termination");
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -687,18 +692,14 @@ where
         };
 
         let store_prefix = database_store_prefix(object_store, server_id, &db_name);
-        persist_database_rules(object_store, &store_prefix, rules).await?;
-
-        create_preserved_catalog(
-            db_name.as_str(),
-            Arc::clone(self.shared.application.object_store()),
+        Database::create(
+            Arc::clone(&self.shared.application),
+            &store_prefix,
+            rules,
             server_id,
-            Arc::clone(self.shared.application.metric_registry()),
-            true,
         )
         .await
-        .map_err(|e| Box::new(e) as _)
-        .context(CannotCreatePreservedCatalog)?;
+        .map_err(|e| Error::CannotCreateDatabase { source: e })?;
 
         let database = {
             let mut state = self.shared.state.write();
@@ -971,7 +972,8 @@ where
             &database.config().store_prefix,
             rules.as_ref().clone(),
         )
-        .await?;
+        .await
+        .map_err(|e| Error::CannotPersistUpdatedRules { source: e })?;
         Ok(rules)
     }
 
@@ -1268,32 +1270,6 @@ fn database_store_prefix(
     path.push_dir(server_id.to_string());
     path.push_dir(db_name);
     path
-}
-
-/// Persist the the `DatabaseRules` given the `Database` store prefix
-async fn persist_database_rules(
-    object_store: &ObjectStore,
-    store_prefix: &Path,
-    rules: DatabaseRules,
-) -> Result<()> {
-    let mut data = BytesMut::new();
-    encode_database_rules(rules, &mut data).context(ErrorSerializingRulesProtobuf)?;
-
-    let mut location = store_prefix.clone();
-    location.set_file_name(DB_RULES_FILE_NAME);
-
-    let len = data.len();
-
-    let stream_data = std::io::Result::Ok(data.freeze());
-    object_store
-        .put(
-            &location,
-            futures::stream::once(async move { stream_data }),
-            Some(len),
-        )
-        .await
-        .context(StoreError)?;
-    Ok(())
 }
 
 #[cfg(test)]
@@ -2268,7 +2244,7 @@ mod tests {
 
         // creating database will now result in an error
         let err = create_simple_database(&server, db_name).await.unwrap_err();
-        assert!(matches!(err, Error::CannotCreatePreservedCatalog { .. }));
+        assert!(matches!(err, Error::CannotCreateDatabase { .. }));
     }
 
     // run a sql query against the database, returning the results as record batches

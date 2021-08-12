@@ -30,8 +30,8 @@ impl StringEncoding {
     /// The estimated total size in bytes of the in-memory columnar data.
     pub fn size(&self) -> usize {
         match self {
-            Self::RleDictionary(enc) => enc.size(),
-            Self::Dictionary(enc) => enc.size(),
+            Self::RleDictionary(enc) => enc.size(false),
+            Self::Dictionary(enc) => enc.size(false),
         }
     }
 

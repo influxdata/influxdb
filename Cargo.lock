@@ -3898,7 +3898,6 @@ dependencies = [
  "serde_json",
  "snafu",
  "snap",
- "tempfile",
  "test_helpers",
  "tikv-jemalloc-ctl",
  "tokio",

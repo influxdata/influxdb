@@ -32,7 +32,7 @@ impl FloatEncoding {
     /// The total size in bytes of to store columnar data in memory.
     pub fn size(&self) -> usize {
         match self {
-            Self::F64(enc, _) => enc.size(),
+            Self::F64(enc, _) => enc.size(false),
         }
     }
 
