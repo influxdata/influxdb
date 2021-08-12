@@ -7,6 +7,7 @@ use data_types::server_id::ServerId;
 use data_types::{database_rules::DatabaseRules, DatabaseName};
 use futures::future::{BoxFuture, Shared};
 use futures::{FutureExt, TryFutureExt};
+use generated_types::database_rules::encode_database_rules;
 use internal_types::freezable::Freezable;
 use object_store::path::{ObjectStorePath, Path};
 use observability_deps::tracing::{error, info};
@@ -17,7 +18,7 @@ use tokio::sync::Notify;
 use tokio::task::JoinError;
 use tokio_util::sync::CancellationToken;
 
-use crate::db::load::load_or_create_preserved_catalog;
+use crate::db::load::{create_preserved_catalog, load_or_create_preserved_catalog};
 use crate::db::DatabaseToCommit;
 use crate::{ApplicationState, Db, DB_RULES_FILE_NAME};
 use bytes::BytesMut;
@@ -89,6 +90,9 @@ pub struct DatabaseConfig {
 }
 
 impl Database {
+    /// Create in-mem database object.
+    ///
+    /// This is backed by an existing database, which was [created](Self::create) some time in the past.
     pub fn new(application: Arc<ApplicationState>, config: DatabaseConfig) -> Self {
         info!(db_name=%config.name, store_prefix=%config.store_prefix.display(), "new database");
 
@@ -104,6 +108,30 @@ impl Database {
         let join = handle.map_err(Arc::new).boxed().shared();
 
         Self { join, shared }
+    }
+
+    /// Create fresh database w/o any state.
+    pub async fn create(
+        application: Arc<ApplicationState>,
+        store_prefix: &Path,
+        rules: DatabaseRules,
+        server_id: ServerId,
+    ) -> Result<(), InitError> {
+        let db_name = rules.name.clone();
+
+        persist_database_rules(application.object_store(), store_prefix, rules).await?;
+
+        create_preserved_catalog(
+            db_name.as_str(),
+            Arc::clone(application.object_store()),
+            server_id,
+            Arc::clone(application.metric_registry()),
+            true,
+        )
+        .await
+        .context(CannotCreatePreservedCatalog)?;
+
+        Ok(())
     }
 
     /// Triggers shutdown of this `Database`
@@ -407,6 +435,17 @@ pub enum InitError {
 
     #[snafu(display("error during replay: {}", source))]
     Replay { source: crate::db::Error },
+
+    #[snafu(display("store error: {}", source))]
+    StoreError { source: object_store::Error },
+
+    #[snafu(display("error serializing database rules to protobuf: {}", source))]
+    ErrorSerializingRulesProtobuf {
+        source: generated_types::database_rules::EncodeError,
+    },
+
+    #[snafu(display("cannot create preserved catalog: {}", source))]
+    CannotCreatePreservedCatalog { source: crate::db::load::Error },
 }
 
 /// The Database startup state machine
@@ -606,6 +645,32 @@ async fn get_store_bytes(
         .await?;
 
     Ok(bytes.freeze())
+}
+
+/// Persist the the `DatabaseRules` given the `Database` store prefix
+pub(super) async fn persist_database_rules(
+    object_store: &ObjectStore,
+    store_prefix: &Path,
+    rules: DatabaseRules,
+) -> Result<(), InitError> {
+    let mut data = BytesMut::new();
+    encode_database_rules(rules, &mut data).context(ErrorSerializingRulesProtobuf)?;
+
+    let mut location = store_prefix.clone();
+    location.set_file_name(DB_RULES_FILE_NAME);
+
+    let len = data.len();
+
+    let stream_data = std::io::Result::Ok(data.freeze());
+    object_store
+        .put(
+            &location,
+            futures::stream::once(async move { stream_data }),
+            Some(len),
+        )
+        .await
+        .context(StoreError)?;
+    Ok(())
 }
 
 #[cfg(test)]
