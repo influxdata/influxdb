@@ -58,7 +58,7 @@ impl WriteBufferConfigFactory {
     ///
     /// # Panics
     /// When mock with identical name is already registered.
-    pub fn register_alway_fail_mock(&mut self, name: String) {
+    pub fn register_always_fail_mock(&mut self, name: String) {
         self.set_mock(name, Mock::AlwaysFailing);
     }
 
@@ -287,7 +287,7 @@ mod tests {
         let mut factory = WriteBufferConfigFactory::new();
 
         let mock_name = "some_mock";
-        factory.register_alway_fail_mock(mock_name.to_string());
+        factory.register_always_fail_mock(mock_name.to_string());
 
         let server_id = ServerId::try_from(1).unwrap();
 
@@ -320,7 +320,7 @@ mod tests {
         let mut factory = WriteBufferConfigFactory::new();
 
         let mock_name = "some_mock";
-        factory.register_alway_fail_mock(mock_name.to_string());
+        factory.register_always_fail_mock(mock_name.to_string());
 
         let server_id = ServerId::try_from(1).unwrap();
 
@@ -366,8 +366,8 @@ mod tests {
         let mut factory = WriteBufferConfigFactory::new();
 
         let mock_name = "some_mock";
-        factory.register_alway_fail_mock(mock_name.to_string());
-        factory.register_alway_fail_mock(mock_name.to_string());
+        factory.register_always_fail_mock(mock_name.to_string());
+        factory.register_always_fail_mock(mock_name.to_string());
     }
 
     #[test]
@@ -378,7 +378,7 @@ mod tests {
         let state = MockBufferSharedState::empty_with_n_sequencers(1);
         let mock_name = "some_mock";
         factory.register_mock(mock_name.to_string(), state);
-        factory.register_alway_fail_mock(mock_name.to_string());
+        factory.register_always_fail_mock(mock_name.to_string());
     }
 
     #[test]
@@ -388,7 +388,7 @@ mod tests {
 
         let state = MockBufferSharedState::empty_with_n_sequencers(1);
         let mock_name = "some_mock";
-        factory.register_alway_fail_mock(mock_name.to_string());
+        factory.register_always_fail_mock(mock_name.to_string());
         factory.register_mock(mock_name.to_string(), state);
     }
 }

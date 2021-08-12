@@ -2235,7 +2235,7 @@ mod tests {
     #[tokio::test]
     async fn write_buffer_errors_propagate() {
         let mut factory = WriteBufferConfigFactory::new();
-        factory.register_alway_fail_mock("my_mock".to_string());
+        factory.register_always_fail_mock("my_mock".to_string());
         let application = Arc::new(ApplicationState::with_write_buffer_factory(
             Arc::new(ObjectStore::new_in_memory()),
             Arc::new(factory),
