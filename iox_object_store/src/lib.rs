@@ -26,6 +26,8 @@ use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
 
 /// Handles persistence of data for a particular database. Writes within its directory/prefix.
+///
+/// This wrapper on top of an `ObjectStore` maps IOx specific concepts to ObjectStore locations
 #[derive(Debug)]
 pub struct IoxObjectStore {
     store: Arc<ObjectStore>,
