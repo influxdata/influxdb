@@ -118,11 +118,11 @@ impl IoxObjectStore {
         tokio::spawn(async move {
             match inner.list(prefix.as_ref()).await {
                 Err(e) => {
-                    tx.send(Err(e)).await.expect("sending over channel failed");
+                    let _ = tx.send(Err(e)).await;
                 }
                 Ok(mut stream) => {
                     while let Some(list) = stream.next().await {
-                        tx.send(list).await.expect("sending over channel failed");
+                        let _ = tx.send(list).await;
                     }
                 }
             }
