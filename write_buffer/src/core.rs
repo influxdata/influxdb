@@ -22,6 +22,9 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
         entry: &Entry,
         sequencer_id: u32,
     ) -> Result<(Sequence, DateTime<Utc>), WriteBufferError>;
+
+    /// Return type (like `"mock"` or `"kafka"`) of this writer.
+    fn type_name(&self) -> &'static str;
 }
 
 pub type FetchHighWatermarkFut<'a> = BoxFuture<'a, Result<u64, WriteBufferError>>;
@@ -65,6 +68,9 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
         sequencer_id: u32,
         sequence_number: u64,
     ) -> Result<(), WriteBufferError>;
+
+    /// Return type (like `"mock"` or `"kafka"`) of this reader.
+    fn type_name(&self) -> &'static str;
 }
 
 pub mod test_utils {

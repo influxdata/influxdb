@@ -80,6 +80,10 @@ impl WriteBufferWriting for KafkaBufferProducer {
             timestamp,
         ))
     }
+
+    fn type_name(&self) -> &'static str {
+        "kafka"
+    }
 }
 
 impl KafkaBufferProducer {
@@ -229,6 +233,10 @@ impl WriteBufferReading for KafkaBufferConsumer {
         }
 
         Ok(())
+    }
+
+    fn type_name(&self) -> &'static str {
+        "kafka"
     }
 }
 
