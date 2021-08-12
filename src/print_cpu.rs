@@ -1,8 +1,9 @@
 #![recursion_limit = "512"]
-/// Prints what CPU features are used by the compiler by default
-/// Script from
-/// https://stackoverflow.com/questions/65156743/what-target-features-uses-rustc-by-default
-/// https://gist.github.com/AngelicosPhosphoros/4f8c9f08656e0812f4ed3560e53bd600
+/// Prints what CPU features are used by the compiler by default.
+///
+/// Script from:
+/// - <https://stackoverflow.com/questions/65156743/what-target-features-uses-rustc-by-default>
+/// - <https://gist.github.com/AngelicosPhosphoros/4f8c9f08656e0812f4ed3560e53bd600>
 
 // This script prints all cpu features which active in this build.
 // There are 3 steps in usage of script:
