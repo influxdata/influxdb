@@ -45,6 +45,9 @@ workflows:
           requires:
             - godeps
             - jsdeps
+      - pkg_run_test:
+          requires:
+            - cross_build
       - perf_test:
           name: perf-test-flux
           format: flux-http
@@ -157,6 +160,7 @@ workflows:
 orbs:
   # Needed to install chrome for e2e testing.
   browser-tools: circleci/browser-tools@1.1
+  terraform: circleci/terraform@2.1.0
 
 commands:
   # Install system dependencies needed to run a native build of influxd
@@ -554,6 +558,57 @@ jobs:
           root: .
           paths:
             - artifacts/*amd64.deb
+
+  pkg_run_test:
+    executor: terraform/default
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - "91:0a:5b:a7:f9:46:77:f3:5d:4a:cf:d2:44:c8:2c:5a"
+      - terraform/validate:
+          path: scripts/ci/
+      - run:
+          name: Terraform apply
+          command: |
+            set -x
+            export DEBNAME=$(find /tmp/workspace/artifacts/influxdb2-2*amd64.deb)
+            terraform -chdir=scripts/ci init -input=false
+            AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY terraform \
+              -chdir=scripts/ci \
+              apply \
+                -auto-approve \
+                -var package_path=${DEBNAME} \
+                -var instance_name=circleci-terraform-${CIRCLE_SHA1} \
+                -var additional_files_dir=${PWD}/scripts/ci/tests/
+      - run:
+          name: Install deb
+          command: |
+            set -x
+            export ec2_ip=$(terraform -chdir=scripts/ci output -raw test_node_ssh)
+            ssh -o "StrictHostKeyChecking=no" ubuntu@$ec2_ip \<< EOF
+            sudo apt-get update && sudo apt-get install -y /home/ubuntu/influxdb.deb
+            EOF
+      - run:
+          name: Run tests
+          command: |
+            set -x
+            export ec2_ip=$(terraform -chdir=scripts/ci output -raw test_node_ssh)
+            files=$(ssh -o "StrictHostKeyChecking=no" ubuntu@$ec2_ip 'find /home/ubuntu/files/ -maxdepth 1 -mindepth 1 | sort')
+            for file in $files; do
+              ssh -o "StrictHostKeyChecking=no" ubuntu@$ec2_ip "sudo $file"
+            done
+      - run:
+          name: Terraform destroy
+          when: always
+          command: |
+            AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY terraform \
+              -chdir=scripts/ci \
+              destroy \
+                -auto-approve
+
 
   perf_test:
     machine:
