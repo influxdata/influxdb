@@ -220,7 +220,12 @@ pub enum ApplicationError {
 
     #[snafu(display("Internal server error"))]
     InternalServerError,
+
+    #[snafu(display("Heappy is not compiled"))]
+    HeappyIsNotCompiled,
 }
+
+type Result<T, E = ApplicationError> = std::result::Result<T, E>;
 
 impl ApplicationError {
     pub fn response(&self) -> Response<Body> {
@@ -258,6 +263,7 @@ impl ApplicationError {
             Self::ServerNotInitialized => self.bad_request(),
             Self::DatabaseNotInitialized { .. } => self.bad_request(),
             Self::InternalServerError => self.internal_error(),
+            Self::HeappyIsNotCompiled => self.internal_error(),
         }
     }
 
@@ -790,7 +796,8 @@ async fn dump_rsprof(seconds: u64, frequency: i32) -> pprof::Result<pprof::Repor
     guard.report().build()
 }
 
-async fn dump_heappy_rsprof(seconds: u64, frequency: i32) -> HeapReport {
+#[cfg(feature = "heappy")]
+async fn dump_heappy_rsprof(seconds: u64, frequency: i32) -> Result<HeapReport> {
     let guard = heappy::HeapProfilerGuard::new(frequency as usize);
     info!(
         "start heappy profiling {} seconds with frequency {} /s",
@@ -803,7 +810,13 @@ async fn dump_heappy_rsprof(seconds: u64, frequency: i32) -> HeapReport {
         "done heappy  profiling {} seconds with frequency {} /s",
         seconds, frequency
     );
-    guard.report()
+
+    Ok(guard.report())
+}
+
+#[cfg(not(feature = "heappy"))]
+async fn dump_heappy_rsprof(_seconds: u64, _frequency: i32) -> Result<HeapReport> {
+    HeappyIsNotCompiled {}.fail()
 }
 
 #[derive(Debug, Deserialize)]
@@ -868,8 +881,7 @@ async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'stat
     let query: PProfArgs =
         serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
 
-    let report: HeapReport = dump_heappy_rsprof(query.seconds, query.frequency.get()).await;
-    //.context(PProf)?;
+    let report: HeapReport = dump_heappy_rsprof(query.seconds, query.frequency.get()).await?;
 
     let mut body: Vec<u8> = Vec::new();
 
