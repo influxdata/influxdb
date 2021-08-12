@@ -1,6 +1,7 @@
 //! An encoding nullable bool, by an Arrow array.
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use std::mem::size_of;
 
 use arrow::array::{Array, BooleanArray};
 use cmp::Operator;
@@ -19,7 +20,7 @@ impl std::fmt::Display for Bool {
             "[Bool] rows: {:?}, nulls: {:?}, size: {}",
             self.arr.len(),
             self.arr.null_count(),
-            self.size()
+            self.size(false)
         )
     }
 }
@@ -42,8 +43,12 @@ impl Bool {
 
     /// Returns an estimation of the total size in bytes used by this column
     /// encoding.
-    pub fn size(&self) -> usize {
-        std::mem::size_of::<BooleanArray>() + self.arr.get_array_memory_size()
+    pub fn size(&self, buffers: bool) -> usize {
+        size_of::<Self>()
+            + match buffers {
+                true => self.arr.get_array_memory_size(), // includes buffer capacities
+                false => self.arr.get_buffer_memory_size(),
+            }
     }
 
     /// The estimated total size in bytes of the underlying bool values in the
@@ -360,7 +365,8 @@ mod test {
     #[test]
     fn size() {
         let v = Bool::from(vec![None, None, Some(true), Some(false)].as_slice());
-        assert_eq!(v.size(), 400);
+        assert_eq!(v.size(false), 256);
+        assert_eq!(v.size(true), 400); // includes allocated buffers
     }
 
     #[test]
