@@ -4,7 +4,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use generated_types::influxdata::iox::catalog::v1 as proto;
-use iox_object_store::IoxObjectStore;
+use iox_object_store::{IoxObjectStore, ParquetFilePath, ParquetFilePathParseError};
 use object_store::{
     path::{parsed::DirsAndFileName, parts::PathPart, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
@@ -41,10 +41,14 @@ pub const CHECKPOINT_FILE_SUFFIX: &str = "ckpt";
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Error during serialization: {}", source))]
-    Serialization { source: EncodeError },
+    Serialization {
+        source: EncodeError,
+    },
 
     #[snafu(display("Error during deserialization: {}", source))]
-    Deserialization { source: DecodeError },
+    Deserialization {
+        source: DecodeError,
+    },
 
     #[snafu(display("Error during store write operation: {}", source))]
     Write {
@@ -57,14 +61,19 @@ pub enum Error {
     },
 
     #[snafu(display("Missing transaction: {}", revision_counter))]
-    MissingTransaction { revision_counter: u64 },
+    MissingTransaction {
+        revision_counter: u64,
+    },
 
     #[snafu(display(
         "Wrong revision counter in transaction file: expected {} but found {}",
         expected,
         actual
     ))]
-    WrongTransactionRevision { expected: u64, actual: u64 },
+    WrongTransactionRevision {
+        expected: u64,
+        actual: u64,
+    },
 
     #[snafu(display(
         "Wrong UUID for transaction file (revision: {}): expected {} but found {}",
@@ -91,7 +100,9 @@ pub enum Error {
     },
 
     #[snafu(display("Cannot parse UUID: {}", source))]
-    UuidParse { source: uuid::Error },
+    UuidParse {
+        source: uuid::Error,
+    },
 
     #[snafu(display("UUID required but not provided"))]
     UuidRequired {},
@@ -119,19 +130,29 @@ pub enum Error {
     },
 
     #[snafu(display("Upgrade path not implemented/supported: {}", format))]
-    UnsupportedUpgrade { format: String },
+    UnsupportedUpgrade {
+        format: String,
+    },
 
     #[snafu(display("Parquet already exists in catalog: {:?}", path))]
-    ParquetFileAlreadyExists { path: DirsAndFileName },
+    ParquetFileAlreadyExists {
+        path: ParquetFilePath,
+    },
 
     #[snafu(display("Parquet does not exist in catalog: {:?}", path))]
-    ParquetFileDoesNotExist { path: DirsAndFileName },
+    ParquetFileDoesNotExist {
+        path: ParquetFilePath,
+    },
 
     #[snafu(display("Cannot encode parquet metadata: {}", source))]
-    MetadataEncodingFailed { source: crate::metadata::Error },
+    MetadataEncodingFailed {
+        source: crate::metadata::Error,
+    },
 
     #[snafu(display("Cannot decode parquet metadata: {}", source))]
-    MetadataDecodingFailed { source: crate::metadata::Error },
+    MetadataDecodingFailed {
+        source: crate::metadata::Error,
+    },
 
     #[snafu(
         display("Cannot extract metadata from {:?}: {}", path, source),
@@ -139,7 +160,7 @@ pub enum Error {
     )]
     MetadataExtractFailed {
         source: crate::metadata::Error,
-        path: DirsAndFileName,
+        path: ParquetFilePath,
     },
 
     #[snafu(
@@ -148,7 +169,7 @@ pub enum Error {
     )]
     SchemaError {
         source: Box<dyn std::error::Error + Send + Sync>,
-        path: DirsAndFileName,
+        path: ParquetFilePath,
     },
 
     #[snafu(
@@ -161,7 +182,7 @@ pub enum Error {
     )]
     ReplayPlanError {
         source: Box<dyn std::error::Error + Send + Sync>,
-        path: DirsAndFileName,
+        path: ParquetFilePath,
     },
 
     #[snafu(
@@ -170,7 +191,7 @@ pub enum Error {
     )]
     ChunkCreationFailed {
         source: crate::chunk::Error,
-        path: DirsAndFileName,
+        path: ParquetFilePath,
     },
 
     #[snafu(display("Catalog already exists"))]
@@ -180,13 +201,17 @@ pub enum Error {
     DateTimeRequired {},
 
     #[snafu(display("Internal: Cannot parse datetime in serialized catalog: {}", source))]
-    DateTimeParseError { source: TryFromIntError },
+    DateTimeParseError {
+        source: TryFromIntError,
+    },
 
     #[snafu(display(
         "Internal: Cannot parse encoding in serialized catalog: {} is not a valid, specified variant",
         data
     ))]
-    EncodingParseError { data: i32 },
+    EncodingParseError {
+        data: i32,
+    },
 
     #[snafu(display(
         "Internal: Found wrong encoding in serialized catalog file: Expected {:?} but got {:?}",
@@ -199,7 +224,13 @@ pub enum Error {
     },
 
     #[snafu(display("Cannot commit transaction: {}", source))]
-    CommitError { source: Box<Error> },
+    CommitError {
+        source: Box<Error>,
+    },
+
+    InvalidParquetFilePath {
+        source: ParquetFilePathParseError,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -208,7 +239,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Clone)]
 pub struct CatalogParquetInfo {
     /// Path within this database.
-    pub path: DirsAndFileName,
+    pub path: ParquetFilePath,
 
     /// Size of the parquet file, in bytes
     pub file_size_bytes: usize,
@@ -235,7 +266,7 @@ pub trait CatalogState {
     ) -> Result<()>;
 
     /// Remove parquet file from state.
-    fn remove(&mut self, path: DirsAndFileName) -> Result<()>;
+    fn remove(&mut self, path: &ParquetFilePath) -> Result<()>;
 }
 
 /// In-memory view of the preserved catalog.
@@ -314,8 +345,8 @@ impl PreservedCatalog {
 
     /// Create new catalog w/o any data.
     ///
-    /// An empty transaction will be used to mark the catalog start so that concurrent open but still-empty catalogs can
-    /// easily be detected.
+    /// An empty transaction will be used to mark the catalog start so that concurrent open but
+    /// still-empty catalogs can easily be detected.
     pub async fn new_empty<S>(
         iox_object_store: Arc<IoxObjectStore>,
         state_data: S::EmptyInput,
@@ -688,22 +719,24 @@ fn parse_uuid_required(s: &str) -> Result<Uuid> {
     parse_uuid(s)?.context(UuidRequired {})
 }
 
-/// Parse [`DirsAndFilename`](object_store::path::parsed::DirsAndFileName) from protobuf.
-fn parse_dirs_and_filename(proto: &Option<proto::Path>) -> Result<DirsAndFileName> {
-    let proto = proto.as_ref().context(PathRequired)?;
-
-    Ok(DirsAndFileName {
+/// Parse [`ParquetFilePath`](iox_object_store::ParquetFilePath) from protobuf.
+fn parse_dirs_and_filename(proto: &proto::Path) -> Result<ParquetFilePath> {
+    let dirs_and_file_name = DirsAndFileName {
         directories: proto
             .directories
             .iter()
             .map(|s| PathPart::from(&s[..]))
             .collect(),
         file_name: Some(PathPart::from(&proto.file_name[..])),
-    })
+    };
+
+    ParquetFilePath::from_relative_dirs_and_file_name(&dirs_and_file_name)
+        .context(InvalidParquetFilePath)
 }
 
-/// Store [`DirsAndFilename`](object_store::path::parsed::DirsAndFileName) as protobuf.
-fn unparse_dirs_and_filename(path: &DirsAndFileName) -> proto::Path {
+/// Store [`ParquetFilePath`](iox_object_store::ParquetFilePath) as protobuf.
+fn unparse_dirs_and_filename(path: &ParquetFilePath) -> proto::Path {
+    let path = path.relative_dirs_and_file_name();
     proto::Path {
         directories: path
             .directories
@@ -787,11 +820,11 @@ impl OpenTransaction {
 
     /// Handle the given action and populate data to the catalog state.
     ///
-    /// The deserializes the action state and passes it to the correct method in [`CatalogState`].
+    /// This deserializes the action state and passes it to the correct method in [`CatalogState`].
     ///
-    /// Note that this method is primarily for replaying transactions and will NOT append the given action to the
-    /// current transaction. If you want to store the given action (e.g. during an in-progress transaction), use
-    /// [`record_action`](Self::record_action).
+    /// Note that this method is primarily for replaying transactions and will NOT append the given
+    /// action to the current transaction. If you want to store the given action (e.g. during an
+    /// in-progress transaction), use [`record_action`](Self::record_action).
     fn handle_action<S>(
         state: &mut S,
         action: &proto::transaction::action::Action,
@@ -808,7 +841,7 @@ impl OpenTransaction {
                 .fail()?;
             }
             proto::transaction::action::Action::AddParquet(a) => {
-                let path = parse_dirs_and_filename(&a.path)?;
+                let path = parse_dirs_and_filename(a.path.as_ref().context(PathRequired)?)?;
                 let file_size_bytes = a.file_size_bytes as usize;
 
                 let metadata =
@@ -825,8 +858,8 @@ impl OpenTransaction {
                 )?;
             }
             proto::transaction::action::Action::RemoveParquet(a) => {
-                let path = parse_dirs_and_filename(&a.path)?;
-                state.remove(path)?;
+                let path = parse_dirs_and_filename(a.path.as_ref().context(PathRequired)?)?;
+                state.remove(&path)?;
             }
         };
         Ok(())
@@ -932,14 +965,16 @@ impl OpenTransaction {
 
 /// Structure that holds all information required to create a checkpoint.
 ///
-/// Note that while checkpoint are addressed using the same schema as we use for transaction (revision counter, UUID),
-/// they contain the changes at the end (aka including) the transaction they refer.
+/// Note that while checkpoint are addressed using the same schema as we use for transaction
+/// (revision counter, UUID), they contain the changes at the end (aka including) the transaction
+/// they refer.
 #[derive(Debug)]
 pub struct CheckpointData {
-    /// List of all Parquet files that are currently (i.e. by the current version) tracked by the catalog.
+    /// List of all Parquet files that are currently (i.e. by the current version) tracked by the
+    /// catalog.
     ///
     /// If a file was once added but later removed it MUST NOT appear in the result.
-    pub files: HashMap<DirsAndFileName, CatalogParquetInfo>,
+    pub files: HashMap<ParquetFilePath, CatalogParquetInfo>,
 }
 
 /// Handle for an open uncommitted transaction.
@@ -1082,7 +1117,7 @@ impl<'c> TransactionHandle<'c> {
     /// Remove a parquet file from the catalog.
     ///
     /// Removing files that do not exist or were already removed will result in an error.
-    pub fn remove_parquet(&mut self, path: &DirsAndFileName) {
+    pub fn remove_parquet(&mut self, path: &ParquetFilePath) {
         self.transaction
             .as_mut()
             .expect("transaction handle w/o transaction?!")
@@ -1208,14 +1243,15 @@ impl<'c> Debug for CheckpointHandle<'c> {
 
 pub mod test_helpers {
     use super::*;
-    use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata};
-    use object_store::parsed_path;
+    use crate::test_utils::{
+        chunk_addr, make_iox_object_store, make_metadata, make_parquet_file_path,
+    };
 
     /// In-memory catalog state, for testing.
     #[derive(Clone, Debug)]
     pub struct TestCatalogState {
         /// Map of all parquet files that are currently pregistered.
-        pub parquet_files: HashMap<DirsAndFileName, CatalogParquetInfo>,
+        pub parquet_files: HashMap<ParquetFilePath, CatalogParquetInfo>,
     }
 
     impl TestCatalogState {
@@ -1255,8 +1291,8 @@ pub mod test_helpers {
             Ok(())
         }
 
-        fn remove(&mut self, path: DirsAndFileName) -> Result<()> {
-            match self.parquet_files.entry(path) {
+        fn remove(&mut self, path: &ParquetFilePath) -> Result<()> {
+            match self.parquet_files.entry(path.clone()) {
                 Occupied(o) => {
                     o.remove();
                 }
@@ -1302,15 +1338,14 @@ pub mod test_helpers {
             PreservedCatalog::new_empty::<S>(Arc::clone(&iox_object_store), state_data)
                 .await
                 .unwrap();
-        let mut expected = HashMap::new();
+        let mut expected: HashMap<ParquetFilePath, _> = HashMap::new();
         assert_checkpoint(&state, &f, &expected);
 
         // add files
         let mut chunk_id_watermark = 5;
         {
             for chunk_id in 0..chunk_id_watermark {
-                let path = parsed_path!(format!("chunk_{}", chunk_id).as_ref());
-                let (_, metadata) =
+                let (path, metadata) =
                     make_metadata(&iox_object_store, "ok", chunk_addr(chunk_id)).await;
                 state
                     .add(
@@ -1329,16 +1364,15 @@ pub mod test_helpers {
 
         // remove files
         {
-            let path = parsed_path!("chunk_1");
-            state.remove(path.clone()).unwrap();
+            let path = expected.keys().next().unwrap().clone();
+            state.remove(&path).unwrap();
             expected.remove(&path);
         }
         assert_checkpoint(&state, &f, &expected);
 
         // add and remove in the same transaction
         {
-            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
-            let (_, metadata) =
+            let (path, metadata) =
                 make_metadata(&iox_object_store, "ok", chunk_addr(chunk_id_watermark)).await;
             state
                 .add(
@@ -1350,23 +1384,23 @@ pub mod test_helpers {
                     },
                 )
                 .unwrap();
-            state.remove(path.clone()).unwrap();
+            state.remove(&path).unwrap();
             chunk_id_watermark += 1;
         }
         assert_checkpoint(&state, &f, &expected);
 
         // remove and add in the same transaction
         {
-            let path = parsed_path!("chunk_2");
-            let (_, metadata) = make_metadata(&iox_object_store, "ok", chunk_addr(2)).await;
-            state.remove(path.clone()).unwrap();
+            let path = expected.keys().next().unwrap().clone();
+            let metadata = expected.get(&path).unwrap();
+            state.remove(&path).unwrap();
             state
                 .add(
                     Arc::clone(&iox_object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
                         file_size_bytes: 33,
-                        metadata: Arc::new(metadata),
+                        metadata: Arc::clone(metadata),
                     },
                 )
                 .unwrap();
@@ -1375,8 +1409,7 @@ pub mod test_helpers {
 
         // add, remove, add in the same transaction
         {
-            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
-            let (_, metadata) =
+            let (path, metadata) =
                 make_metadata(&iox_object_store, "ok", chunk_addr(chunk_id_watermark)).await;
             state
                 .add(
@@ -1388,7 +1421,7 @@ pub mod test_helpers {
                     },
                 )
                 .unwrap();
-            state.remove(path.clone()).unwrap();
+            state.remove(&path).unwrap();
             state
                 .add(
                     Arc::clone(&iox_object_store),
@@ -1406,20 +1439,20 @@ pub mod test_helpers {
 
         // remove, add, remove in same transaction
         {
-            let path = parsed_path!("chunk_2");
-            let (_, metadata) = make_metadata(&iox_object_store, "ok", chunk_addr(2)).await;
-            state.remove(path.clone()).unwrap();
+            let path = expected.keys().next().unwrap().clone();
+            let metadata = expected.get(&path).unwrap();
+            state.remove(&path).unwrap();
             state
                 .add(
                     Arc::clone(&iox_object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
                         file_size_bytes: 33,
-                        metadata: Arc::new(metadata),
+                        metadata: Arc::clone(metadata),
                     },
                 )
                 .unwrap();
-            state.remove(path.clone()).unwrap();
+            state.remove(&path).unwrap();
             expected.remove(&path);
         }
         assert_checkpoint(&state, &f, &expected);
@@ -1427,7 +1460,7 @@ pub mod test_helpers {
         // error handling, no real opt
         {
             // already exists (should also not change the metadata)
-            let path = parsed_path!("chunk_0");
+            let path = expected.keys().next().unwrap();
             let (_, metadata) = make_metadata(&iox_object_store, "fail", chunk_addr(0)).await;
             let err = state
                 .add(
@@ -1442,8 +1475,8 @@ pub mod test_helpers {
             assert!(matches!(err, Error::ParquetFileAlreadyExists { .. }));
 
             // does not exist
-            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
-            let err = state.remove(path).unwrap_err();
+            let path = make_parquet_file_path();
+            let err = state.remove(&path).unwrap_err();
             assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
             chunk_id_watermark += 1;
         }
@@ -1452,7 +1485,7 @@ pub mod test_helpers {
         // error handling, still something works
         {
             // already exists (should also not change the metadata)
-            let path = parsed_path!("chunk_0");
+            let path = expected.keys().next().unwrap();
             let (_, metadata) = make_metadata(&iox_object_store, "fail", chunk_addr(0)).await;
             let err = state
                 .add(
@@ -1467,8 +1500,7 @@ pub mod test_helpers {
             assert!(matches!(err, Error::ParquetFileAlreadyExists { .. }));
 
             // this transaction will still work
-            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
-            let (_, metadata) =
+            let (path, metadata) =
                 make_metadata(&iox_object_store, "ok", chunk_addr(chunk_id_watermark)).await;
             state
                 .add(
@@ -1488,7 +1520,7 @@ pub mod test_helpers {
                 .add(
                     Arc::clone(&iox_object_store),
                     CatalogParquetInfo {
-                        path: path.clone(),
+                        path,
                         file_size_bytes: 33,
                         metadata: Arc::new(metadata),
                     },
@@ -1497,18 +1529,18 @@ pub mod test_helpers {
             assert!(matches!(err, Error::ParquetFileAlreadyExists { .. }));
 
             // does not exist
-            let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
-            let err = state.remove(path).unwrap_err();
+            let path = make_parquet_file_path();
+            let err = state.remove(&path).unwrap_err();
             assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
             chunk_id_watermark += 1;
 
             // this still works
-            let path = parsed_path!("chunk_3");
-            state.remove(path.clone()).unwrap();
+            let path = expected.keys().next().unwrap().clone();
+            state.remove(&path).unwrap();
             expected.remove(&path);
 
             // recently removed
-            let err = state.remove(path).unwrap_err();
+            let err = state.remove(&path).unwrap_err();
             assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
         }
         assert_checkpoint(&state, &f, &expected);
@@ -1521,7 +1553,7 @@ pub mod test_helpers {
     fn assert_checkpoint<S, F>(
         state: &S,
         f: &F,
-        expected_files: &HashMap<DirsAndFileName, Arc<IoxParquetMetaData>>,
+        expected_files: &HashMap<ParquetFilePath, Arc<IoxParquetMetaData>>,
     ) where
         F: Fn(&S) -> CheckpointData,
     {
@@ -1568,8 +1600,9 @@ mod tests {
         },
         *,
     };
-    use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata};
-    use object_store::parsed_path;
+    use crate::test_utils::{
+        chunk_addr, make_iox_object_store, make_metadata, make_parquet_file_path,
+    };
 
     #[tokio::test]
     async fn test_create_empty() {
@@ -2226,7 +2259,7 @@ mod tests {
         // create another transaction on-top that adds a file (this transaction will be required to load the full state)
         {
             let mut transaction = catalog.open_transaction().await;
-            let path = parsed_path!("last_one");
+            let path = make_parquet_file_path();
             let info = CatalogParquetInfo {
                 path,
                 file_size_bytes: 33,
@@ -2271,11 +2304,13 @@ mod tests {
     }
 
     /// Get sorted list of catalog files from state
-    fn get_catalog_parquet_files(state: &TestCatalogState) -> Vec<(String, IoxParquetMetaData)> {
-        let mut files: Vec<(String, IoxParquetMetaData)> = state
+    fn get_catalog_parquet_files(
+        state: &TestCatalogState,
+    ) -> Vec<(ParquetFilePath, IoxParquetMetaData)> {
+        let mut files: Vec<(ParquetFilePath, IoxParquetMetaData)> = state
             .parquet_files
             .values()
-            .map(|info| (info.path.to_string(), info.metadata.as_ref().clone()))
+            .map(|info| (info.path.clone(), info.metadata.as_ref().clone()))
             .collect();
         files.sort_by_key(|(path, _)| path.clone());
         files
@@ -2284,9 +2319,12 @@ mod tests {
     /// Assert that set of parquet files tracked by a catalog are identical to the given sorted list.
     fn assert_catalog_parquet_files(
         state: &TestCatalogState,
-        expected: &[(String, IoxParquetMetaData)],
+        expected: &[(ParquetFilePath, IoxParquetMetaData)],
     ) {
         let actual = get_catalog_parquet_files(state);
+        let mut expected = expected.to_vec();
+        expected.sort_by_key(|(path, _)| path.clone());
+
         for ((actual_path, actual_md), (expected_path, expected_md)) in
             actual.iter().zip(expected.iter())
         {
@@ -2388,39 +2426,39 @@ mod tests {
         trace.record(&catalog, &state, false);
 
         // fill catalog with examples
+        let test1 = make_parquet_file_path();
+        let sub1_test1 = make_parquet_file_path();
+        let sub1_test2 = make_parquet_file_path();
+        let sub2_test1 = make_parquet_file_path();
         {
             let mut t = catalog.open_transaction().await;
 
-            let path = parsed_path!("test1");
             let info = CatalogParquetInfo {
-                path,
+                path: test1.clone(),
                 file_size_bytes: 33,
                 metadata: Arc::clone(&metadata1),
             };
             state.parquet_files.insert(info.path.clone(), info.clone());
             t.add_parquet(&info).unwrap();
 
-            let path = parsed_path!(["sub1"], "test1");
             let info = CatalogParquetInfo {
-                path,
+                path: sub1_test1.clone(),
                 file_size_bytes: 33,
                 metadata: Arc::clone(&metadata2),
             };
             state.parquet_files.insert(info.path.clone(), info.clone());
             t.add_parquet(&info).unwrap();
 
-            let path = parsed_path!(["sub1"], "test2");
             let info = CatalogParquetInfo {
-                path,
+                path: sub1_test2.clone(),
                 file_size_bytes: 33,
                 metadata: Arc::clone(&metadata2),
             };
             state.parquet_files.insert(info.path.clone(), info.clone());
             t.add_parquet(&info).unwrap();
 
-            let path = parsed_path!(["sub2"], "test1");
             let info = CatalogParquetInfo {
-                path,
+                path: sub2_test1.clone(),
                 file_size_bytes: 33,
                 metadata: Arc::clone(&metadata1),
             };
@@ -2433,31 +2471,30 @@ mod tests {
         assert_catalog_parquet_files(
             &state,
             &[
-                ("sub1/test1".to_string(), metadata2.as_ref().clone()),
-                ("sub1/test2".to_string(), metadata2.as_ref().clone()),
-                ("sub2/test1".to_string(), metadata1.as_ref().clone()),
-                ("test1".to_string(), metadata1.as_ref().clone()),
+                (sub1_test1.clone(), metadata2.as_ref().clone()),
+                (sub1_test2.clone(), metadata2.as_ref().clone()),
+                (sub2_test1.clone(), metadata1.as_ref().clone()),
+                (test1.clone(), metadata1.as_ref().clone()),
             ],
         );
         trace.record(&catalog, &state, false);
 
         // modify catalog with examples
+        let test4 = make_parquet_file_path();
         {
             let mut t = catalog.open_transaction().await;
 
             // "real" modifications
-            let path = parsed_path!("test4");
             let info = CatalogParquetInfo {
-                path,
+                path: test4.clone(),
                 file_size_bytes: 33,
                 metadata: Arc::clone(&metadata1),
             };
             state.parquet_files.insert(info.path.clone(), info.clone());
             t.add_parquet(&info).unwrap();
 
-            let path = parsed_path!("test1");
-            state.parquet_files.remove(&path);
-            t.remove_parquet(&path);
+            state.parquet_files.remove(&test1);
+            t.remove_parquet(&test1);
 
             t.commit().await.unwrap();
         }
@@ -2465,10 +2502,10 @@ mod tests {
         assert_catalog_parquet_files(
             &state,
             &[
-                ("sub1/test1".to_string(), metadata2.as_ref().clone()),
-                ("sub1/test2".to_string(), metadata2.as_ref().clone()),
-                ("sub2/test1".to_string(), metadata1.as_ref().clone()),
-                ("test4".to_string(), metadata1.as_ref().clone()),
+                (sub1_test1.clone(), metadata2.as_ref().clone()),
+                (sub1_test2.clone(), metadata2.as_ref().clone()),
+                (sub2_test1.clone(), metadata1.as_ref().clone()),
+                (test4.clone(), metadata1.as_ref().clone()),
             ],
         );
         trace.record(&catalog, &state, false);
@@ -2478,13 +2515,13 @@ mod tests {
             let mut t = catalog.open_transaction().await;
 
             let info = CatalogParquetInfo {
-                path: parsed_path!("test5"),
+                path: make_parquet_file_path(),
                 file_size_bytes: 33,
                 metadata: Arc::clone(&metadata1),
             };
 
             t.add_parquet(&info).unwrap();
-            t.remove_parquet(&parsed_path!(["sub1"], "test2"));
+            t.remove_parquet(&sub1_test2);
 
             // NO commit here!
         }
@@ -2492,10 +2529,10 @@ mod tests {
         assert_catalog_parquet_files(
             &state,
             &[
-                ("sub1/test1".to_string(), metadata2.as_ref().clone()),
-                ("sub1/test2".to_string(), metadata2.as_ref().clone()),
-                ("sub2/test1".to_string(), metadata1.as_ref().clone()),
-                ("test4".to_string(), metadata1.as_ref().clone()),
+                (sub1_test1.clone(), metadata2.as_ref().clone()),
+                (sub1_test2.clone(), metadata2.as_ref().clone()),
+                (sub2_test1.clone(), metadata1.as_ref().clone()),
+                (test4.clone(), metadata1.as_ref().clone()),
             ],
         );
         trace.record(&catalog, &state, true);

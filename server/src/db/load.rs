@@ -3,9 +3,8 @@
 
 use super::catalog::{chunk::ChunkStage, table::TableSchemaUpsertHandle, Catalog};
 use data_types::server_id::ServerId;
-use iox_object_store::IoxObjectStore;
+use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use metrics::{KeyValue, MetricRegistry};
-use object_store::path::parsed::DirsAndFileName;
 use observability_deps::tracing::{error, info};
 use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
@@ -232,7 +231,7 @@ impl CatalogState for Loader {
 
         let metrics = ParquetChunkMetrics::new(&metrics);
         let parquet_chunk = ParquetChunk::new(
-            iox_object_store.path_from_dirs_and_filename(info.path.clone()),
+            &info.path,
             iox_object_store,
             info.file_size_bytes,
             info.metadata,
@@ -240,9 +239,7 @@ impl CatalogState for Loader {
             Arc::clone(&iox_md.partition_key),
             metrics,
         )
-        .context(ChunkCreationFailed {
-            path: info.path.clone(),
-        })?;
+        .context(ChunkCreationFailed { path: &info.path })?;
         let parquet_chunk = Arc::new(parquet_chunk);
 
         // Get partition from the catalog
@@ -268,7 +265,7 @@ impl CatalogState for Loader {
         Ok(())
     }
 
-    fn remove(&mut self, path: DirsAndFileName) -> parquet_file::catalog::Result<()> {
+    fn remove(&mut self, path: &ParquetFilePath) -> parquet_file::catalog::Result<()> {
         let mut removed_any = false;
 
         for partition in self.catalog.partitions() {
@@ -278,8 +275,7 @@ impl CatalogState for Loader {
             for chunk in partition.chunks() {
                 let chunk = chunk.read();
                 if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
-                    let chunk_path: DirsAndFileName = parquet.path().into();
-                    if path == chunk_path {
+                    if path == parquet.path() {
                         to_remove.push(chunk.id());
                     }
                 }
@@ -296,7 +292,7 @@ impl CatalogState for Loader {
         if removed_any {
             Ok(())
         } else {
-            Err(parquet_file::catalog::Error::ParquetFileDoesNotExist { path })
+            Err(parquet_file::catalog::Error::ParquetFileDoesNotExist { path: path.clone() })
         }
     }
 }

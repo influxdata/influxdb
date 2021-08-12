@@ -31,7 +31,6 @@ use internal_types::schema::Schema;
 use iox_object_store::IoxObjectStore;
 use metrics::KeyValue;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
-use object_store::path::parsed::DirsAndFileName;
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::{Mutex, RwLock};
 use parquet_file::{
@@ -1407,7 +1406,7 @@ pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData 
     for chunk in catalog.chunks() {
         let guard = chunk.read();
         if let ChunkStage::Persisted { parquet, .. } = guard.stage() {
-            let path: DirsAndFileName = parquet.path().into();
+            let path = parquet.path().clone();
 
             let m = CatalogParquetInfo {
                 path: path.clone(),
@@ -1510,7 +1509,7 @@ mod tests {
     use bytes::Bytes;
     use chrono::{DateTime, TimeZone};
     use data_types::{
-        chunk_metadata::ChunkStorage,
+        chunk_metadata::{ChunkAddr, ChunkStorage},
         database_rules::{LifecycleRules, PartitionTemplate, TemplatePart},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
         write_summary::TimestampSummary,
@@ -1518,10 +1517,8 @@ mod tests {
     use entry::{test_helpers::lp_to_entry, Sequence};
     use futures::{stream, StreamExt, TryStreamExt};
     use internal_types::{schema::Schema, selection::Selection};
-    use object_store::{
-        path::{parts::PathPart, Path},
-        ObjectStore, ObjectStoreApi,
-    };
+    use iox_object_store::ParquetFilePath;
+    use object_store::{path::parsed::DirsAndFileName, ObjectStore, ObjectStoreApi};
     use parquet_file::{
         catalog::test_helpers::TestCatalogState,
         metadata::IoxParquetMetaData,
@@ -1530,7 +1527,7 @@ mod tests {
     use persistence_windows::min_max_sequence::MinMaxSequence;
     use query::{frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
     use std::{
-        collections::{BTreeMap, HashSet},
+        collections::BTreeMap,
         convert::TryFrom,
         iter::Iterator,
         num::{NonZeroU32, NonZeroU64, NonZeroUsize},
@@ -2591,12 +2588,9 @@ mod tests {
         );
     }
 
-    async fn flatten_list_stream(
-        storage: Arc<ObjectStore>,
-        prefix: Option<&Path>,
-    ) -> Result<Vec<Path>> {
-        storage
-            .list(prefix)
+    async fn parquet_files(iox_storage: &IoxObjectStore) -> Result<Vec<ParquetFilePath>> {
+        iox_storage
+            .parquet_files()
             .await?
             .map_ok(|v| stream::iter(v).map(Ok))
             .try_flatten()
@@ -2679,11 +2673,9 @@ mod tests {
         let path = pq_chunk.object_store_path().unwrap();
 
         // Check that the path must exist in the object store
-        let path_list = flatten_list_stream(Arc::clone(&object_store), Some(&path))
-            .await
-            .unwrap();
+        let path_list = parquet_files(&db.iox_object_store).await.unwrap();
         assert_eq!(path_list.len(), 1);
-        assert_eq!(path_list[0], path);
+        assert_eq!(&path_list[0], path);
 
         // Now read data from that path
         let parquet_data =
@@ -2821,12 +2813,10 @@ mod tests {
         let path = pq_chunk.object_store_path().unwrap();
 
         // Check that the path must exist in the object store
-        let path_list = flatten_list_stream(Arc::clone(&object_store), Some(&path))
-            .await
-            .unwrap();
+        let path_list = parquet_files(&db.iox_object_store).await.unwrap();
         println!("path_list: {:#?}", path_list);
         assert_eq!(path_list.len(), 1);
-        assert_eq!(path_list[0], path);
+        assert_eq!(&path_list[0], path);
 
         // Now read data from that path
         let parquet_data =
@@ -3913,7 +3903,7 @@ mod tests {
             let chunk = db.chunk(table_name, partition_key, *chunk_id).unwrap();
             let chunk = chunk.read();
             if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
-                paths_expected.push(parquet.path().to_string());
+                paths_expected.push(parquet.path().clone());
             } else {
                 panic!("Wrong chunk state.");
             }
@@ -3925,15 +3915,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
         let paths_actual = {
-            let mut tmp: Vec<String> = catalog
-                .parquet_files
-                .keys()
-                .map(|p| {
-                    object_store
-                        .path_from_dirs_and_filename(p.clone())
-                        .to_string()
-                })
-                .collect();
+            let mut tmp: Vec<_> = catalog.parquet_files.keys().cloned().collect();
             tmp.sort();
             tmp
         };
@@ -4010,7 +3992,7 @@ mod tests {
             let chunk = db.chunk(&table_name, &partition_key, chunk_id).unwrap();
             let chunk = chunk.read();
             if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
-                paths_keep.push(parquet.path());
+                paths_keep.push(parquet.path().clone());
             } else {
                 panic!("Wrong chunk state.");
             }
@@ -4030,18 +4012,18 @@ mod tests {
         }
 
         // ==================== do: create garbage ====================
-        let mut path: DirsAndFileName = paths_keep[0].clone().into();
-        path.file_name = Some(PathPart::from(
-            format!("prefix_{}", path.file_name.unwrap().encoded()).as_ref(),
-        ));
-        let path_delete = object_store.path_from_dirs_and_filename(path);
-        create_empty_file(&object_store, &path_delete).await;
-        let path_delete = path_delete.to_string();
+        let path_delete = ParquetFilePath::new(&ChunkAddr {
+            table_name: "cpu".into(),
+            partition_key: "123".into(),
+            chunk_id: 3,
+            db_name: "not used".into(),
+        });
+        create_empty_file(&db.iox_object_store, &path_delete).await;
 
         // ==================== check: all files are there ====================
-        let all_files = get_object_store_files(&object_store).await;
+        let all_files = parquet_files(&db.iox_object_store).await.unwrap();
         for path in &paths_keep {
-            assert!(all_files.contains(&path.to_string()));
+            assert!(all_files.contains(path));
         }
 
         // ==================== do: start background task loop ====================
@@ -4054,7 +4036,7 @@ mod tests {
         // ==================== check: after a while the dropped file should be gone ====================
         let t_0 = Instant::now();
         loop {
-            let all_files = get_object_store_files(&object_store).await;
+            let all_files = parquet_files(&db.iox_object_store).await.unwrap();
             if !all_files.contains(&path_delete) {
                 break;
             }
@@ -4067,10 +4049,10 @@ mod tests {
         join_handle.await.unwrap();
 
         // ==================== check: some files are there ====================
-        let all_files = get_object_store_files(&object_store).await;
+        let all_files = parquet_files(&db.iox_object_store).await.unwrap();
         assert!(!all_files.contains(&path_delete));
         for path in &paths_keep {
-            assert!(all_files.contains(&path.to_string()));
+            assert!(all_files.contains(path));
         }
     }
 
@@ -4359,25 +4341,12 @@ mod tests {
         (table_name.to_string(), partition_key.to_string(), chunk_id)
     }
 
-    async fn get_object_store_files(object_store: &ObjectStore) -> HashSet<String> {
-        object_store
-            .list(None)
-            .await
-            .unwrap()
-            .try_concat()
-            .await
-            .unwrap()
-            .iter()
-            .map(|p| p.to_string())
-            .collect()
-    }
-
-    async fn create_empty_file(object_store: &ObjectStore, path: &Path) {
+    async fn create_empty_file(iox_object_store: &IoxObjectStore, path: &ParquetFilePath) {
         let data = Bytes::default();
         let len = data.len();
 
-        object_store
-            .put(
+        iox_object_store
+            .put_parquet_file(
                 path,
                 futures::stream::once(async move { Ok(data) }),
                 Some(len),
