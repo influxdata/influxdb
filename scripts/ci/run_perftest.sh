@@ -48,6 +48,7 @@ cat << EOF > /etc/telegraf/telegraf.conf
     "time",
     "use_case"
   ]
+  tagexclude = ["host"]
   json_time_key = "time"
   json_time_format = "unix"
   tag_keys = [
@@ -70,6 +71,7 @@ cat << EOF > /etc/telegraf/telegraf.conf
     "time",
     "use_case"
   ]
+  tagexclude = ["host"]
   json_time_key = "time"
   json_time_format = "unix"
   tag_keys = [
