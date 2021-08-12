@@ -29,11 +29,13 @@ pub enum FloatEncoding {
 }
 
 impl FloatEncoding {
-    /// The total size in bytes of to store columnar data in memory.
-    pub fn size(&self) -> usize {
-        match self {
-            Self::F64(enc, _) => enc.size(false),
-        }
+    /// The total size in bytes of the encoding and all its data, including
+    /// allocated buffers if `buffers` is true.
+    pub fn size(&self, buffers: bool) -> usize {
+        size_of::<Self>()
+            + match self {
+                Self::F64(enc, name) => enc.size(buffers) + name.len(),
+            }
     }
 
     /// The estimated total size in bytes of the underlying float values in the
@@ -59,7 +61,7 @@ impl FloatEncoding {
             log_data_type: self.logical_datatype(),
             values: self.num_rows(),
             nulls: self.null_count(),
-            bytes: self.size(),
+            bytes: self.size(false),
             raw_bytes: self.size_raw(true),
             raw_bytes_no_null: self.size_raw(false),
         }

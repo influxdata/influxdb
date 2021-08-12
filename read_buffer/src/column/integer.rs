@@ -24,12 +24,14 @@ pub enum IntegerEncoding {
 }
 
 impl IntegerEncoding {
-    /// The total size in bytes of the store columnar data.
-    pub fn size(&self) -> usize {
-        match self {
-            Self::I64(enc, _) => enc.size(false),
-            Self::U64(enc, _) => enc.size(false),
-        }
+    /// The total size in bytes of the encoding and all its data, including
+    /// allocated buffers if `buffers` is true.
+    pub fn size(&self, buffers: bool) -> usize {
+        size_of::<Self>()
+            + match self {
+                Self::I64(enc, name) => enc.size(buffers) + name.len(),
+                Self::U64(enc, name) => enc.size(buffers) + name.len(),
+            }
     }
 
     /// The estimated total size in bytes of the underlying integer values in
@@ -58,7 +60,7 @@ impl IntegerEncoding {
             log_data_type: self.logical_datatype(),
             values: self.num_rows(),
             nulls: self.null_count(),
-            bytes: self.size(),
+            bytes: self.size(false),
             raw_bytes: self.size_raw(true),
             raw_bytes_no_null: self.size_raw(false),
         }
@@ -717,19 +719,19 @@ mod test {
     // Tests that input data gets byte trimmed correctly.
     fn from_slice_i64() {
         let cases = vec![
-            (vec![0_i64, 2, 245, 3], 28_usize),             // u8 fixed array
-            (vec![0_i64, -120, 127, 3], 28),                // i8 fixed array
-            (vec![399_i64, 2, 2452, 3], 32),                // u16 fixed array
-            (vec![-399_i64, 2, 2452, 3], 32),               // u16 fixed array
-            (vec![u32::MAX as i64, 2, 245, 3], 40),         // u32 fixed array
-            (vec![i32::MIN as i64, 2, 245, 3], 40),         // i32 fixed array
-            (vec![0_i64, 2, 245, u32::MAX as i64 + 1], 56), // u64 fixed array
-            (vec![0_i64, 2, 245, i64::MIN], 56),            // i64 fixed array
+            (vec![0_i64, 2, 245, 3], 87_usize),              // u8 fixed array
+            (vec![0_i64, -120, 127, 3], 87),                 // i8 fixed array
+            (vec![399_i64, 2, 2452, 3], 92),                 // u16 fixed array
+            (vec![-399_i64, 2, 2452, 3], 92),                // u16 fixed array
+            (vec![u32::MAX as i64, 2, 245, 3], 100),         // u32 fixed array
+            (vec![i32::MIN as i64, 2, 245, 3], 100),         // i32 fixed array
+            (vec![0_i64, 2, 245, u32::MAX as i64 + 1], 109), // u64 fixed array
+            (vec![0_i64, 2, 245, i64::MIN], 109),            // i64 fixed array
         ];
 
         for (case, name) in cases.into_iter() {
             let enc = IntegerEncoding::from(case.as_slice());
-            assert_eq!(enc.size(), name, "failed: {:?}", enc);
+            assert_eq!(enc.size(false), name, "failed: {:?}", enc);
         }
     }
 
@@ -860,15 +862,15 @@ mod test {
     #[test]
     fn from_slice_u64() {
         let cases = vec![
-            (vec![0_u64, 2, 245, 3], 28_usize),             // u8 fixed array
-            (vec![399_u64, 2, 2452, 3], 32),                // u16 fixed array
-            (vec![u32::MAX as u64, 2, 245, 3], 40),         // u32 fixed array
-            (vec![0_u64, 2, 245, u32::MAX as u64 + 1], 56), // u64 fixed array
+            (vec![0_u64, 2, 245, 3], 87_usize),              // u8 fixed array
+            (vec![399_u64, 2, 2452, 3], 92),                 // u16 fixed array
+            (vec![u32::MAX as u64, 2, 245, 3], 100),         // u32 fixed array
+            (vec![0_u64, 2, 245, u32::MAX as u64 + 1], 109), // u64 fixed array
         ];
 
         for (case, exp) in cases.into_iter() {
             let enc = IntegerEncoding::from(case.as_slice());
-            assert_eq!(enc.size(), exp, "failed: {:?}", enc);
+            assert_eq!(enc.size(false), exp, "failed: {:?}", enc);
         }
     }
 
@@ -951,14 +953,14 @@ mod test {
     #[test]
     fn from_arrow_i64_array() {
         let cases = vec![
-            (vec![0_i64, 2, 245, 3], 28_usize),             // u8 fixed array
-            (vec![0_i64, -120, 127, 3], 28),                // i8 fixed array
-            (vec![399_i64, 2, 2452, 3], 32),                // u16 fixed array
-            (vec![-399_i64, 2, 2452, 3], 32),               // i16 fixed array
-            (vec![u32::MAX as i64, 2, 245, 3], 40),         // u32 fixed array
-            (vec![i32::MIN as i64, 2, 245, 3], 40),         // i32 fixed array
-            (vec![0_i64, 2, 245, u32::MAX as i64 + 1], 56), // u64 fixed array
-            (vec![0_i64, 2, 245, i64::MIN], 56),            // i64 fixed array
+            (vec![0_i64, 2, 245, 3], 87_usize),              // u8 fixed array
+            (vec![0_i64, -120, 127, 3], 87),                 // i8 fixed array
+            (vec![399_i64, 2, 2452, 3], 92),                 // u16 fixed array
+            (vec![-399_i64, 2, 2452, 3], 92),                // i16 fixed array
+            (vec![u32::MAX as i64, 2, 245, 3], 100),         // u32 fixed array
+            (vec![i32::MIN as i64, 2, 245, 3], 100),         // i32 fixed array
+            (vec![0_i64, 2, 245, u32::MAX as i64 + 1], 109), // u64 fixed array
+            (vec![0_i64, 2, 245, i64::MIN], 109),            // i64 fixed array
         ];
 
         // for Arrow arrays with no nulls we can store the column using a
@@ -966,24 +968,24 @@ mod test {
         for (case, size) in cases.iter().cloned() {
             let arr = Int64Array::from(case);
             let enc = IntegerEncoding::from(arr);
-            assert_eq!(enc.size(), size, "failed: {:?}", enc);
+            assert_eq!(enc.size(false), size, "failed: {:?}", enc);
         }
 
         // Input data containing NULL will be stored in an Arrow array encoding
         let cases = vec![
-            (vec![None, Some(0_i64)], 400_usize),         // u8 Arrow array
-            (vec![None, Some(-120_i64)], 400),            // i8
-            (vec![None, Some(399_i64)], 400),             // u16
-            (vec![None, Some(-399_i64)], 400),            // i16
-            (vec![None, Some(u32::MAX as i64)], 400),     // u32
-            (vec![None, Some(i32::MIN as i64)], 400),     // i32
-            (vec![None, Some(u32::MAX as i64 + 1)], 400), //u64
+            (vec![None, Some(0_i64)], 460_usize),         // u8 Arrow array
+            (vec![None, Some(-120_i64)], 460),            // i8
+            (vec![None, Some(399_i64)], 461),             // u16
+            (vec![None, Some(-399_i64)], 461),            // i16
+            (vec![None, Some(u32::MAX as i64)], 461),     // u32
+            (vec![None, Some(i32::MIN as i64)], 461),     // i32
+            (vec![None, Some(u32::MAX as i64 + 1)], 454), // u64
         ];
 
         for (case, name) in cases.iter().cloned() {
             let arr = Int64Array::from(case);
             let enc = IntegerEncoding::from(arr);
-            assert_eq!(enc.size(), name, "failed: {:?}", enc);
+            assert_eq!(enc.size(false), name, "failed: {:?}", enc);
         }
     }
 
@@ -1147,10 +1149,10 @@ mod test {
     #[test]
     fn from_arrow_u64_array() {
         let cases = vec![
-            (vec![0_u64, 2, 245, 3], 28_usize),     // stored in Fixed u8 array
-            (vec![399_u64, 2, 2452, 3], 32),        // stored in Fixed u16 array
-            (vec![u32::MAX as u64, 2, 245, 3], 40), // stored in Fixed u32 array
-            (vec![0_u64, 2, 245, u32::MAX as u64 + 1], 56), // Fixed u64 array
+            (vec![0_u64, 2, 245, 3], 87_usize), // stored in Fixed u8 array
+            (vec![399_u64, 2, 2452, 3], 92),    // stored in Fixed u16 array
+            (vec![u32::MAX as u64, 2, 245, 3], 100), // stored in Fixed u32 array
+            (vec![0_u64, 2, 245, u32::MAX as u64 + 1], 109), // Fixed u64 array
         ];
 
         // for Arrow arrays with no nulls we can store the column using a
@@ -1158,21 +1160,21 @@ mod test {
         for (case, size) in cases.iter().cloned() {
             let arr = UInt64Array::from(case);
             let enc = IntegerEncoding::from(arr);
-            assert_eq!(enc.size(), size, "failed: {:?}", enc);
+            assert_eq!(enc.size(false), size, "failed: {:?}", enc);
         }
 
         // Input data containing NULL will be stored in an Arrow array encoding
         let cases = vec![
-            (vec![None, Some(0_u64)], 400_usize),
-            (vec![None, Some(399_u64)], 400),
-            (vec![None, Some(u32::MAX as u64)], 400),
-            (vec![None, Some(u64::MAX)], 400),
+            (vec![None, Some(0_u64)], 460_usize),
+            (vec![None, Some(399_u64)], 461),
+            (vec![None, Some(u32::MAX as u64)], 461),
+            (vec![None, Some(u64::MAX)], 454),
         ];
 
         for (case, size) in cases.iter().cloned() {
             let arr = UInt64Array::from(case);
             let enc = IntegerEncoding::from(arr);
-            assert_eq!(enc.size(), size, "failed: {:?}", enc);
+            assert_eq!(enc.size(false), size, "failed: {:?}", enc);
         }
     }
 

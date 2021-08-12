@@ -27,11 +27,12 @@ pub enum StringEncoding {
 /// This implementation is concerned with how to produce string columns with
 /// different encodings.
 impl StringEncoding {
-    /// The estimated total size in bytes of the in-memory columnar data.
-    pub fn size(&self) -> usize {
+    /// The total size in bytes of the encoding and all its data, including
+    /// allocated buffers if `buffers` is true.
+    pub fn size(&self, buffers: bool) -> usize {
         match self {
-            Self::RleDictionary(enc) => enc.size(false),
-            Self::Dictionary(enc) => enc.size(false),
+            Self::RleDictionary(enc) => enc.size(buffers),
+            Self::Dictionary(enc) => enc.size(buffers),
         }
     }
 
@@ -79,7 +80,7 @@ impl StringEncoding {
             log_data_type: "string",
             values: self.num_rows(),
             nulls: self.null_count(),
-            bytes: self.size(),
+            bytes: self.size(false),
             raw_bytes: self.size_raw(true),
             raw_bytes_no_null: self.size_raw(false),
         }

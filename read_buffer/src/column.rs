@@ -63,19 +63,19 @@ impl Column {
                 if let Some((min, max)) = &meta.range {
                     meta_size += min.len() + max.len();
                 };
-                meta_size + data.size()
+                meta_size + data.size(false)
             }
             Self::Float(_, data) => {
                 let meta_size = size_of::<Option<(f64, f64)>>() + size_of::<ColumnProperties>();
-                meta_size + data.size()
+                meta_size + data.size(false)
             }
             Self::Integer(_, data) => {
                 let meta_size = size_of::<Option<(i64, i64)>>() + size_of::<ColumnProperties>();
-                meta_size + data.size()
+                meta_size + data.size(false)
             }
             Self::Unsigned(_, data) => {
                 let meta_size = size_of::<Option<(u64, u64)>>() + size_of::<ColumnProperties>();
-                meta_size + data.size()
+                meta_size + data.size(false)
             }
             Self::Bool(_, data) => {
                 let meta_size = size_of::<Option<(bool, bool)>>() + size_of::<ColumnProperties>();
@@ -88,7 +88,7 @@ impl Column {
                     meta_size += min.len() + max.len();
                 };
 
-                meta_size + data.size()
+                meta_size + data.size(false)
             }
         }
     }
