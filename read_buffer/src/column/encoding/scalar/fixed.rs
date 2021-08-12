@@ -432,7 +432,7 @@ mod test {
     #[test]
     fn size() {
         let (v, _) = new_encoding(vec![22_i64, 1, 18]);
-        // Self if 32 bytes and there are 3 * 8b values
+        // Self is 32 bytes and there are 3 * 8b values
         assert_eq!(v.size(false), 56);
 
         // check pre-allocated sizing
