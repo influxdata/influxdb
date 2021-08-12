@@ -29,7 +29,7 @@ const (
 type reportTSI struct {
 	// Flags
 	bucketId    string // required
-	enginePath  string
+	dataPath    string
 	topN        int
 	concurrency int
 
@@ -55,23 +55,23 @@ cardinality of data within the files, segmented by shard and further by measurem
 			arguments.shardIdxs = map[uint64]*tsi1.Index{}
 			arguments.cardinalities = map[uint64]map[string]*cardinality{}
 
-			return arguments.run()
+			return arguments.run(cmd)
 		},
 	}
 
 	cmd.Flags().StringVarP(&arguments.bucketId, "bucket-id", "b", "", "Required - specify which bucket to report on. A bucket id must be a base-16 string")
-	cmd.Flags().StringVar(&arguments.enginePath, "path", os.Getenv("HOME")+"/.influxdbv2/engine/data", "Path to engine.")
+	cmd.Flags().StringVar(&arguments.dataPath, "data-path", os.Getenv("HOME")+"/.influxdbv2/engine/data", "Path to data directory")
 	cmd.Flags().IntVarP(&arguments.topN, "top", "t", 0, "Limit results to top n")
-	cmd.Flags().IntVar(&arguments.concurrency, "c", runtime.GOMAXPROCS(0), "How many concurrent workers to run.")
+	cmd.Flags().IntVar(&arguments.concurrency, "concurrency", runtime.GOMAXPROCS(0), "How many concurrent workers to run")
 	cmd.MarkFlagRequired("bucket-id")
 
 	return cmd
 }
 
 // Run executes the command.
-func (report *reportTSI) run() error {
+func (report *reportTSI) run(cmd *cobra.Command) error {
 	// Get all shards from specified bucket
-	dirEntries, err := os.ReadDir(filepath.Join(report.enginePath, report.bucketId, "autogen"))
+	dirEntries, err := os.ReadDir(filepath.Join(report.dataPath, report.bucketId, "autogen"))
 
 	if err != nil {
 		return err
@@ -92,15 +92,15 @@ func (report *reportTSI) run() error {
 			continue
 		}
 
-		report.shardPaths[uint64(id)] = filepath.Join(report.enginePath, report.bucketId, "autogen", entry.Name())
+		report.shardPaths[uint64(id)] = filepath.Join(report.dataPath, report.bucketId, "autogen", entry.Name())
 	}
 
 	if len(report.shardPaths) == 0 {
-		fmt.Fprintf(os.Stderr, "No shards under %s\n", report.enginePath)
+		cmd.Printf("No shards under %s\n", filepath.Join(report.dataPath, report.bucketId, "autogen"))
 		return nil
 	}
 
-	report.sfile = tsdb.NewSeriesFile(filepath.Join(report.enginePath, report.bucketId, tsdb.SeriesFileDirectory))
+	report.sfile = tsdb.NewSeriesFile(filepath.Join(report.dataPath, report.bucketId, tsdb.SeriesFileDirectory))
 
 	config := logger.NewConfig()
 	newLogger, err := config.New(os.Stderr)
@@ -115,7 +115,9 @@ func (report *reportTSI) run() error {
 	defer report.sfile.Close()
 
 	// Blocks until all work done.
-	report.calculateCardinalities(report.cardinalityByMeasurement)
+	if err = report.calculateCardinalities(report.cardinalityByMeasurement); err != nil {
+		return err
+	}
 
 	allIDs := make([]uint64, 0, len(report.shardIdxs))
 
@@ -124,20 +126,14 @@ func (report *reportTSI) run() error {
 	}
 
 	// Print summary.
-	err = report.printSummaryByMeasurement()
-
-	for id := range report.shardIdxs {
-		report.shardIdxs[id].Close()
-	}
-
-	if err != nil {
+	if err = report.printSummaryByMeasurement(cmd); err != nil {
 		return err
 	}
 
 	sort.Slice(allIDs, func(i int, j int) bool { return allIDs[i] < allIDs[j] })
 
 	for _, id := range allIDs {
-		if err := report.printShardByMeasurement(id); err != nil {
+		if err := report.printShardByMeasurement(cmd, id); err != nil {
 			return err
 		}
 	}
@@ -152,6 +148,13 @@ func (report *reportTSI) calculateCardinalities(fn func(id uint64) error) error 
 	shardIDs := make([]uint64, 0, len(report.shardPaths))
 	for id := range report.shardPaths {
 		pth := filepath.Join(report.shardPaths[id], "index")
+
+		// Verify directory is an index before opening it.
+		if ok, err := tsi1.IsIndexDir(pth); err != nil {
+			return err
+		} else if !ok {
+			return fmt.Errorf("not a TSI index directory: %s", pth)
+		}
 
 		report.shardIdxs[id] = tsi1.NewIndex(report.sfile,
 			"",
@@ -341,7 +344,7 @@ func (a results) Len() int           { return len(a) }
 func (a results) Less(i, j int) bool { return a[i].count < a[j].count }
 func (a results) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
-func (report *reportTSI) printSummaryByMeasurement() error {
+func (report *reportTSI) printSummaryByMeasurement(cmd *cobra.Command) error {
 	// Get global set of measurement names across shards.
 	idxs := &tsdb.IndexSet{SeriesFile: report.sfile}
 	for _, idx := range report.shardIdxs {
@@ -400,9 +403,9 @@ func (report *reportTSI) printSummaryByMeasurement() error {
 		measurements = measurements[:n]
 	}
 
-	tw := tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', tabwriter.AlignRight)
+	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 8, 8, 1, '\t', tabwriter.AlignRight)
 
-	fmt.Fprintf(tw, "Summary\nDatabase Path: %s\nCardinality (exact): %d\n\n", report.enginePath, totalCardinality)
+	fmt.Fprintf(tw, "Summary\nDatabase Path: %s\nCardinality (exact): %d\n\n", filepath.Join(report.dataPath, report.bucketId), totalCardinality)
 	fmt.Fprint(tw, "Measurement\tCardinality (exact)\n\n")
 	for _, res := range measurements {
 		fmt.Fprintf(tw, "%q\t%d\t\n", res.name, res.count)
@@ -411,12 +414,14 @@ func (report *reportTSI) printSummaryByMeasurement() error {
 	if err := tw.Flush(); err != nil {
 		return err
 	}
-	fmt.Fprint(os.Stdout, "\n\n")
+	fmt.Fprint(tw, "\n\n")
 
 	return nil
 }
 
-func (report *reportTSI) printShardByMeasurement(id uint64) error {
+func (report *reportTSI) printShardByMeasurement(cmd *cobra.Command, id uint64) error {
+	defer report.shardIdxs[id].Close()
+
 	allMap, ok := report.cardinalities[id]
 	if !ok {
 		return nil
@@ -443,7 +448,7 @@ func (report *reportTSI) printShardByMeasurement(id uint64) error {
 		all = all[:n]
 	}
 
-	tw := tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
+	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 8, 8, 1, '\t', 0)
 	fmt.Fprintf(tw, "===============\nShard ID: %d\nPath: %s\nCardinality (exact): %d\n\n", id, report.shardPaths[id], totalCardinality)
 	fmt.Fprint(tw, "Measurement\tCardinality (exact)\n\n")
 	for _, card := range all {
