@@ -37,8 +37,7 @@ use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use hyper::server::conn::AddrIncoming;
-//use pprof::protos::Message;
-use prost::Message;
+use pprof::protos::Message;
 use std::num::NonZeroI32;
 use std::{
     fmt::Debug,
