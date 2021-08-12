@@ -624,6 +624,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea221b5284a47e40033bf9b66f35f984ec0ea2931eb03505246cd27a963f981b"
 
 [[package]]
+name = "cpp_demangle"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ea47428dc9d2237f3c6bc134472edfd63ebba0af932e783506dcfd66f10d18a"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1421,6 +1430,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "heappy"
+version = "0.1.0"
+source = "git+https://github.com/mkmik/heappy?rev=39530c987aecda0b2d76503e8b5bb33d8a93f384#39530c987aecda0b2d76503e8b5bb33d8a93f384"
+dependencies = [
+ "backtrace",
+ "bytes",
+ "lazy_static",
+ "libc",
+ "pprof",
+ "prost 0.8.0",
+ "spin 0.9.2",
+]
+
+[[package]]
 name = "heck"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1645,6 +1668,7 @@ dependencies = [
  "flate2",
  "futures",
  "generated_types",
+ "heappy",
  "hex",
  "http",
  "hyper",
@@ -3480,7 +3504,7 @@ dependencies = [
  "cc",
  "libc",
  "once_cell",
- "spin",
+ "spin 0.5.2",
  "untrusted",
  "web-sys",
  "winapi",
@@ -4028,6 +4052,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
+name = "spin"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "511254be0c5bcf062b019a6c89c01a664aa359ded62f78aa72c6fc137c0590e5"
+dependencies = [
+ "lock_api",
+]
+
+[[package]]
 name = "sqlparser"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4172,6 +4205,7 @@ version = "8.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6780c62bfbd609bffaa13d6959715850578aa43caaae7aee14f1f24ceb64f433"
 dependencies = [
+ "cpp_demangle",
  "rustc-demangle",
  "symbolic-common",
 ]

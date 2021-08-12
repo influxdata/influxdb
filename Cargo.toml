@@ -59,6 +59,8 @@ datafusion = { path = "datafusion" }
 data_types = { path = "data_types" }
 entry = { path = "entry" }
 generated_types = { path = "generated_types" }
+heappy = { git = "https://github.com/mkmik/heappy", rev = "39530c987aecda0b2d76503e8b5bb33d8a93f384" }
+
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
 internal_types = { path = "internal_types" }
