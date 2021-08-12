@@ -351,39 +351,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Mock with the name 'some_mock' already registered")]
-    fn test_register_mock_twice_panics_normal_normal() {
-        let mut factory = WriteBufferConfigFactory::new();
-
-        let state = MockBufferSharedState::empty_with_n_sequencers(1);
-        let mock_name = "some_mock";
-        factory.register_mock(mock_name.to_string(), state.clone());
-        factory.register_mock(mock_name.to_string(), state);
-    }
-
-    #[test]
-    #[should_panic(expected = "Mock with the name 'some_mock' already registered")]
-    fn test_register_mock_twice_panics_failing_failing() {
-        let mut factory = WriteBufferConfigFactory::new();
-
-        let mock_name = "some_mock";
-        factory.register_always_fail_mock(mock_name.to_string());
-        factory.register_always_fail_mock(mock_name.to_string());
-    }
-
-    #[test]
-    #[should_panic(expected = "Mock with the name 'some_mock' already registered")]
-    fn test_register_mock_twice_panics_normal_failing() {
-        let mut factory = WriteBufferConfigFactory::new();
-
-        let state = MockBufferSharedState::empty_with_n_sequencers(1);
-        let mock_name = "some_mock";
-        factory.register_mock(mock_name.to_string(), state);
-        factory.register_always_fail_mock(mock_name.to_string());
-    }
-
-    #[test]
-    #[should_panic(expected = "Mock with the name 'some_mock' already registered")]
-    fn test_register_mock_twice_panics_failing_normal() {
+    fn test_register_mock_twice_panics() {
         let mut factory = WriteBufferConfigFactory::new();
 
         let state = MockBufferSharedState::empty_with_n_sequencers(1);
