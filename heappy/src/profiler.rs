@@ -177,7 +177,7 @@ impl HeapReport {
 
         let mut dudup_str = HashSet::new();
         for key in data.iter().map(|(key, _)| key) {
-            for frame in &key.frames { 
+            for frame in &key.frames {
                 for symbol in frame {
                     dudup_str.insert(symbol.name());
                     dudup_str.insert(symbol.sys_name().into_owned());
@@ -198,9 +198,9 @@ impl HeapReport {
         let mut loc_tbl = vec![];
         let mut fn_tbl = vec![];
         let mut functions = HashMap::new();
-        for (key, rec) in &data { 
+        for (key, rec) in &data {
             let mut locs = vec![];
-            for frame in &key.frames { 
+            for frame in &key.frames {
                 for symbol in frame {
                     let name = symbol.name();
                     if let Some(loc_idx) = functions.get(&name) {
