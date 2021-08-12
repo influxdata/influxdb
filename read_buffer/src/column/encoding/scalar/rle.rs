@@ -70,7 +70,7 @@ where
             f,
             "[{}] size: {:?} rows: {:?} nulls: {} runs: {} ",
             self.name(),
-            self.size(),
+            self.size(false),
             self.num_rows(),
             self.null_count(),
             self.run_lengths.len()
@@ -343,8 +343,13 @@ where
         ENCODING_NAME
     }
 
-    fn size(&self) -> usize {
-        std::mem::size_of::<Self>() + (self.run_lengths.len() * size_of::<(u32, Option<P>)>())
+    fn size(&self, buffers: bool) -> usize {
+        let values = size_of::<(u32, Option<P>)>()
+            * match buffers {
+                true => self.run_lengths.capacity(),
+                false => self.run_lengths.len(),
+            };
+        std::mem::size_of::<Self>() + values
     }
 
     fn size_raw(&self, include_nulls: bool) -> usize {
@@ -713,16 +718,26 @@ mod test {
     fn size() {
         let (mut enc, _) = new_encoding(vec![]);
 
-        // 40b Self + (0 rl * 24) = 32
-        assert_eq!(enc.size(), 40);
+        // 40b Self + (0 rl * 24) = 40
+        assert_eq!(enc.size(false), 40);
 
         enc.push_none();
-        // 40b Self + (1 rl * 24) = 56
-        assert_eq!(enc.size(), 64);
+        // 40b Self + (1 rl * 24) = 64
+        assert_eq!(enc.size(false), 64);
 
         enc.push_additional_some(1, 10);
-        // 40b Self + (2 rl * 24) = 80
-        assert_eq!(enc.size(), 88);
+        // 40b Self + (2 rl * 24) = 88
+        assert_eq!(enc.size(false), 88);
+
+        // check allocated buffer size
+        let (mut enc, _) = new_encoding(vec![]);
+        enc.run_lengths.reserve_exact(40);
+        // 40b Self + (40 rl * 24) = 1000b
+        assert_eq!(enc.size(true), 1000);
+
+        // 40b Self + (40 rl * 24) = 1000b - no new allocations
+        enc.push_additional_some(1, 10);
+        assert_eq!(enc.size(true), 1000);
     }
 
     #[test]

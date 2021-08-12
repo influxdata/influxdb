@@ -53,7 +53,7 @@ where
             "[{}] rows: {:?}, size: {}",
             self.name(),
             self.num_rows(),
-            self.size()
+            self.size(false)
         )
     }
 }
@@ -252,9 +252,13 @@ where
         self.values.len() as u32
     }
 
-    /// Encoded data size including `Self` - an "accurate" estimation.
-    fn size(&self) -> usize {
-        size_of::<Self>() + (size_of::<P>() * self.values.len())
+    fn size(&self, buffers: bool) -> usize {
+        let values = size_of::<P>()
+            * match buffers {
+                true => self.values.capacity(),
+                false => self.values.len(),
+            };
+        size_of::<Self>() + values
     }
 
     fn size_raw(&self, _: bool) -> usize {
@@ -423,6 +427,19 @@ mod test {
     ) -> (Fixed<i64, i64, Arc<MockTranscoder>>, Arc<MockTranscoder>) {
         let mock = Arc::new(MockTranscoder::default());
         (Fixed::new(values, Arc::clone(&mock)), mock)
+    }
+
+    #[test]
+    fn size() {
+        let (v, _) = new_encoding(vec![22_i64, 1, 18]);
+        // Self if 32 bytes and there are 3 * 8b values
+        assert_eq!(v.size(false), 56);
+
+        // check pre-allocated sizing
+        let (mut v, _) = new_encoding(vec![]);
+        v.values.reserve_exact(40);
+        // Self if 32 bytes and there are 40 * 8b values allocated
+        assert_eq!(v.size(true), 352);
     }
 
     #[test]
