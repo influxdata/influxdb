@@ -204,6 +204,9 @@ pub enum ApplicationError {
     #[snafu(display("Protobuf error: {}", source))]
     Prost { source: prost::EncodeError },
 
+    #[snafu(display("Protobuf error: {}", source))]
+    ProstIO { source: std::io::Error },
+
     #[snafu(display("Empty flamegraph"))]
     EmptyFlamegraph,
 
@@ -250,6 +253,7 @@ impl ApplicationError {
             Self::Planning { .. } => self.bad_request(),
             Self::PProf { .. } => self.internal_error(),
             Self::Prost { .. } => self.internal_error(),
+            Self::ProstIO { .. } => self.internal_error(),
             Self::EmptyFlamegraph => self.no_content(),
             Self::ServerIdNotSet => self.bad_request(),
             Self::ServerNotInitialized => self.bad_request(),
@@ -871,7 +875,7 @@ async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'stat
     let mut body: Vec<u8> = Vec::new();
 
     // render flamegraph when opening in the browser
-    // otherwise render as protobuf; works great with: go tool pprof http://..../debug/pprof/profile
+    // otherwise render as protobuf; works great with: go tool pprof http://..../debug/pprof/heappy/profile
     if req
         .headers()
         .get_all("Accept")
@@ -883,11 +887,9 @@ async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'stat
         if body.is_empty() {
             return EmptyFlamegraph.fail();
         }
+    } else {
+        report.write_pprof(&mut body).context(ProstIO)?
     }
-    // } else {
-    //     let profile = report.pprof();
-    //     profile.encode(&mut body).context(Prost)?; // prost version 0.8 does not support encode
-    // }
 
     Ok(Response::new(Body::from(body)))
 }

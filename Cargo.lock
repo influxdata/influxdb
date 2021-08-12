@@ -1432,15 +1432,15 @@ dependencies = [
 [[package]]
 name = "heappy"
 version = "0.1.0"
+source = "git+https://github.com/mkmik/heappy?rev=39530c987aecda0b2d76503e8b5bb33d8a93f384#39530c987aecda0b2d76503e8b5bb33d8a93f384"
 dependencies = [
  "backtrace",
  "bytes",
  "lazy_static",
  "libc",
- "pprof 0.4.4",
- "prost 0.7.0",
+ "pprof",
+ "prost 0.8.0",
  "spin 0.9.2",
- "tikv-jemalloc-sys",
 ]
 
 [[package]]
@@ -1688,7 +1688,7 @@ dependencies = [
  "panic_logging",
  "parking_lot",
  "parquet",
- "pprof 0.5.0",
+ "pprof",
  "predicates 1.0.8",
  "prettytable-rs",
  "prost 0.8.0",
@@ -2855,27 +2855,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "521fa9638fa597e1dc53e9412a4f9cefb01187ee1f7413076f9e6749e2885ba9"
 dependencies = [
  "plotters-backend",
-]
-
-[[package]]
-name = "pprof"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c7600124d694d855283caf9f333befe2abce090833bb638009aeddd9e156dee"
-dependencies = [
- "backtrace",
- "inferno",
- "lazy_static",
- "libc",
- "log",
- "nix",
- "parking_lot",
- "prost 0.7.0",
- "prost-build 0.7.0",
- "prost-derive 0.7.0",
- "symbolic-demangle",
- "tempfile",
- "thiserror",
 ]
 
 [[package]]
