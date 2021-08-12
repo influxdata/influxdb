@@ -30,7 +30,7 @@ use tokio_stream::wrappers::ReceiverStream;
 /// This wrapper on top of an `ObjectStore` maps IOx specific concepts to ObjectStore locations
 #[derive(Debug)]
 pub struct IoxObjectStore {
-    store: Arc<ObjectStore>,
+    inner: Arc<ObjectStore>,
     server_id: ServerId,
     database_name: String, // TODO: use data_types DatabaseName?
     root_path: RootPath,
@@ -40,13 +40,13 @@ impl IoxObjectStore {
     /// Create a database-specific wrapper. Takes all the information needed to create the
     /// root directory of a database.
     pub fn new(
-        store: Arc<ObjectStore>,
+        inner: Arc<ObjectStore>,
         server_id: ServerId,
         database_name: &DatabaseName<'_>,
     ) -> Self {
-        let root_path = RootPath::new(store.new_path(), server_id, database_name);
+        let root_path = RootPath::new(inner.new_path(), server_id, database_name);
         Self {
-            store,
+            inner,
             server_id,
             database_name: database_name.into(),
             root_path,
@@ -67,7 +67,7 @@ impl IoxObjectStore {
     /// ```
     // TODO: avoid leaking this outside this crate
     pub fn catalog_path(&self) -> Path {
-        let mut path = self.store.new_path();
+        let mut path = self.inner.new_path();
         path.push_dir(self.server_id.to_string());
         path.push_dir(&self.database_name);
         path.push_dir("transactions");
@@ -83,7 +83,7 @@ impl IoxObjectStore {
     /// ```
     // TODO: avoid leaking this outside this crate
     pub fn data_path(&self) -> Path {
-        let mut path = self.store.new_path();
+        let mut path = self.inner.new_path();
         path.push_dir(self.server_id.to_string());
         path.push_dir(&self.database_name);
         path.push_dir("data");
@@ -95,7 +95,7 @@ impl IoxObjectStore {
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
-        self.store.put(location, bytes, length).await
+        self.inner.put(location, bytes, length).await
     }
 
     /// List all the catalog transaction files in object storage for this database.
@@ -109,14 +109,14 @@ impl IoxObjectStore {
         prefix: Option<&Path>,
     ) -> Result<BoxStream<'static, Result<Vec<Path>>>> {
         let (tx, rx) = channel(4);
-        let store = Arc::clone(&self.store);
+        let inner = Arc::clone(&self.inner);
         let prefix = prefix.cloned();
 
         // This is necessary because of the lifetime restrictions on the ObjectStoreApi trait's
         // methods, which might not actually be necessary but fixing it involves changes to the
         // cloud_storage crate that are longer term.
         tokio::spawn(async move {
-            match store.list(prefix.as_ref()).await {
+            match inner.list(prefix.as_ref()).await {
                 Err(e) => {
                     tx.send(Err(e)).await.expect("sending over channel failed");
                 }
@@ -133,18 +133,18 @@ impl IoxObjectStore {
 
     /// Get the data in this relative path in this database's object store.
     pub async fn get(&self, location: &Path) -> Result<BoxStream<'static, Result<Bytes>>> {
-        self.store.get(location).await
+        self.inner.get(location).await
     }
 
     /// Delete the relative paths in this database's object store.
     pub async fn delete(&self, location: &Path) -> Result<()> {
-        self.store.delete(location).await
+        self.inner.delete(location).await
     }
 
     /// Create implementation-specific path from parsed representation.
     /// This might not be needed eventually
     pub fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Path {
-        self.store.path_from_dirs_and_filename(path)
+        self.inner.path_from_dirs_and_filename(path)
     }
 }
 
