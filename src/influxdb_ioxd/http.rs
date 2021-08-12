@@ -875,10 +875,12 @@ mod tests {
     use serde::de::DeserializeOwned;
     use server::{db::Db, ApplicationState, ConnectionManagerImpl};
     use tokio_stream::wrappers::ReceiverStream;
+    use write_buffer::config::WriteBufferConfigFactory;
 
     fn make_application() -> Arc<ApplicationState> {
         Arc::new(ApplicationState::new(
             Arc::new(ObjectStore::new_in_memory()),
+            Arc::new(WriteBufferConfigFactory::new()),
             None,
         ))
     }

@@ -1324,6 +1324,7 @@ mod tests {
     use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
     use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryDatabase};
     use test_helpers::assert_contains;
+    use write_buffer::config::WriteBufferConfigFactory;
 
     use super::*;
 
@@ -1332,6 +1333,7 @@ mod tests {
     fn make_application() -> Arc<ApplicationState> {
         Arc::new(ApplicationState::new(
             Arc::new(ObjectStore::new_in_memory()),
+            Arc::new(WriteBufferConfigFactory::new()),
             None,
         ))
     }
@@ -1935,7 +1937,8 @@ mod tests {
     async fn init_error_generic() {
         // use an object store that will hopefully fail to read
         let store = Arc::new(ObjectStore::new_failing_store().unwrap());
-        let application = Arc::new(ApplicationState::new(store, None));
+        let write_buffer_factory = Arc::new(WriteBufferConfigFactory::new());
+        let application = Arc::new(ApplicationState::new(store, write_buffer_factory, None));
         let server = make_server(application);
 
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();

@@ -23,7 +23,6 @@ use crate::{ApplicationState, Db, DB_RULES_FILE_NAME};
 use bytes::BytesMut;
 use object_store::{ObjectStore, ObjectStoreApi};
 use parquet_file::catalog::PreservedCatalog;
-use write_buffer::config::WriteBufferConfig;
 
 const INIT_BACKOFF: Duration = Duration::from_secs(1);
 
@@ -534,7 +533,10 @@ impl DatabaseStateRulesLoaded {
         .await
         .context(CatalogLoad)?;
 
-        let write_buffer = WriteBufferConfig::new(shared.config.server_id, self.rules.as_ref())
+        let write_buffer = shared
+            .application
+            .write_buffer_factory()
+            .new_config(shared.config.server_id, self.rules.as_ref())
             .await
             .context(CreateWriteBuffer)?;
 
@@ -610,6 +612,8 @@ async fn get_store_bytes(
 
 #[cfg(test)]
 mod tests {
+    use write_buffer::config::WriteBufferConfigFactory;
+
     use super::*;
     use std::num::NonZeroU32;
 
@@ -617,6 +621,7 @@ mod tests {
     async fn database_shutdown_waits_for_jobs() {
         let application = Arc::new(ApplicationState::new(
             Arc::new(ObjectStore::new_in_memory()),
+            Arc::new(WriteBufferConfigFactory::new()),
             None,
         ));
 
