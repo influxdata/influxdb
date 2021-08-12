@@ -152,6 +152,10 @@ impl WriteBufferWriting for MockBufferForWriting {
 
         Ok((sequence, timestamp))
     }
+
+    fn type_name(&self) -> &'static str {
+        "mock"
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -168,6 +172,10 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
             "Something bad happened on the way to writing an entry in the write buffer",
         )
         .into())
+    }
+
+    fn type_name(&self) -> &'static str {
+        "mock"
     }
 }
 
@@ -316,6 +324,10 @@ impl WriteBufferReading for MockBufferForReading {
         }
 
         Ok(())
+    }
+
+    fn type_name(&self) -> &'static str {
+        "mock"
     }
 }
 
