@@ -60,7 +60,8 @@ impl IntegerEncoding {
             log_data_type: self.logical_datatype(),
             values: self.num_rows(),
             nulls: self.null_count(),
-            bytes: self.size(false),
+            allocated_bytes: self.size(true),
+            used_bytes: self.size(false),
             raw_bytes: self.size_raw(true),
             raw_bytes_no_null: self.size_raw(false),
         }
