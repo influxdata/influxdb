@@ -2599,24 +2599,21 @@ spec:
 
 				// parmas
 				queryText := `option params = {
-	bucket: "bar",
-	start: -24h0m0s,
-	stop: now(),
-	name: "max",
-	floatVal: 37.2,
-	minVal: 10,
+    bucket: "bar",
+    start: -24h0m0s,
+    stop: now(),
+    name: "max",
+    floatVal: 37.2,
+    minVal: 10,
 }
 
 from(bucket: params.bucket)
-	|> range(start: params.start, stop: params.stop)
-	|> filter(fn: (r) =>
-		(r._measurement == "processes"))
-	|> filter(fn: (r) =>
-		(r.floater == params.floatVal))
-	|> filter(fn: (r) =>
-		(r._value > params.minVal))
-	|> aggregateWindow(every: v.windowPeriod, fn: max)
-	|> yield(name: params.name)`
+    |> range(start: params.start, stop: params.stop)
+    |> filter(fn: (r) => r._measurement == "processes")
+    |> filter(fn: (r) => r.floater == params.floatVal)
+    |> filter(fn: (r) => r._value > params.minVal)
+    |> aggregateWindow(every: v.windowPeriod, fn: max)
+    |> yield(name: params.name)`
 
 				q := props.Queries[0]
 				assert.Equal(t, queryText, q.Text)
@@ -3599,24 +3596,21 @@ spec:
 				assert.Equal(t, "task-uuid", actual.MetaName)
 
 				queryText := `option params = {
-	bucket: "bar",
-	start: -24h0m0s,
-	stop: now(),
-	name: "max",
-	floatVal: 37.2,
-	minVal: 10,
+    bucket: "bar",
+    start: -24h0m0s,
+    stop: now(),
+    name: "max",
+    floatVal: 37.2,
+    minVal: 10,
 }
 
 from(bucket: params.bucket)
-	|> range(start: params.start, stop: params.stop)
-	|> filter(fn: (r) =>
-		(r._measurement == "processes"))
-	|> filter(fn: (r) =>
-		(r.floater == params.floatVal))
-	|> filter(fn: (r) =>
-		(r._value > params.minVal))
-	|> aggregateWindow(every: v.windowPeriod, fn: max)
-	|> yield(name: params.name)`
+    |> range(start: params.start, stop: params.stop)
+    |> filter(fn: (r) => r._measurement == "processes")
+    |> filter(fn: (r) => r.floater == params.floatVal)
+    |> filter(fn: (r) => r._value > params.minVal)
+    |> aggregateWindow(every: v.windowPeriod, fn: max)
+    |> yield(name: params.name)`
 
 				assert.Equal(t, queryText, actual.Query)
 
@@ -3732,13 +3726,11 @@ from(bucket: params.bucket)
 				queryText := `option task = {name: "foo", every: 1m0s, offset: 1m0s}
 
 from(bucket: "rucket_1")
-	|> range(start: -5d, stop: -1h)
-	|> filter(fn: (r) =>
-		(r._measurement == "cpu"))
-	|> filter(fn: (r) =>
-		(r._field == "usage_idle"))
-	|> aggregateWindow(every: 1m, fn: mean)
-	|> yield(name: "mean")`
+    |> range(start: -5d, stop: -1h)
+    |> filter(fn: (r) => r._measurement == "cpu")
+    |> filter(fn: (r) => r._field == "usage_idle")
+    |> aggregateWindow(every: 1m, fn: mean)
+    |> yield(name: "mean")`
 
 				assert.Equal(t, queryText, actual[0].Query)
 
@@ -3763,13 +3755,11 @@ from(bucket: "rucket_1")
 				queryText := `option params = {this: "foo"}
 
 from(bucket: "rucket_1")
-	|> range(start: -5d, stop: -1h)
-	|> filter(fn: (r) =>
-		(r._measurement == params.this))
-	|> filter(fn: (r) =>
-		(r._field == "usage_idle"))
-	|> aggregateWindow(every: 1m, fn: mean)
-	|> yield(name: "mean")`
+    |> range(start: -5d, stop: -1h)
+    |> filter(fn: (r) => r._measurement == params.this)
+    |> filter(fn: (r) => r._field == "usage_idle")
+    |> aggregateWindow(every: 1m, fn: mean)
+    |> yield(name: "mean")`
 
 				assert.Equal(t, queryText, actual[0].Query)
 

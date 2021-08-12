@@ -116,7 +116,7 @@ func TestDeduplicateRuns(t *testing.T) {
 		},
 		FindRunsFn: func(context.Context, taskmodel.RunFilter) ([]*taskmodel.Run, int, error) {
 			return []*taskmodel.Run{
-				&taskmodel.Run{ID: 2, Status: "started"},
+				{ID: 2, Status: "started"},
 			}, 1, nil
 		},
 	}

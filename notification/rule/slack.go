@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/influxdata/flux/ast/astutil"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux/ast"
@@ -25,21 +26,16 @@ func (s *Slack) GenerateFlux(e influxdb.NotificationEndpoint) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("endpoint provided is a %s, not an Slack endpoint", e.Type())
 	}
-	p, err := s.GenerateFluxAST(slackEndpoint)
-	if err != nil {
-		return "", err
-	}
-	return ast.Format(p), nil
+	return astutil.Format(s.GenerateFluxAST(slackEndpoint))
 }
 
 // GenerateFluxAST generates a flux AST for the slack notification rule.
-func (s *Slack) GenerateFluxAST(e *endpoint.Slack) (*ast.Package, error) {
-	f := flux.File(
+func (s *Slack) GenerateFluxAST(e *endpoint.Slack) *ast.File {
+	return flux.File(
 		s.Name,
 		flux.Imports("influxdata/influxdb/monitor", "slack", "influxdata/influxdb/secrets", "experimental"),
 		s.generateFluxASTBody(e),
 	)
-	return &ast.Package{Package: "main", Files: []*ast.File{f}}, nil
 }
 
 func (s *Slack) generateFluxASTBody(e *endpoint.Slack) []ast.Statement {
