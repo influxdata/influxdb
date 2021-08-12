@@ -415,7 +415,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	// Update task: just update an option.
 	newStatus = string(taskmodel.TaskActive)
-	newFlux = "option task = {name: \"task-changed #98\", cron: \"* * * * *\", offset: 5s, concurrency: 100}\n\nfrom(bucket: \"b\")\n    |> to(bucket: \"two\", orgID: \"000000000000000\")"
+	newFlux = "option task = {name: \"task-changed #98\", cron: \"* * * * *\", offset: 5s, concurrency: 100}\n\n// This comment should persist.\nfrom(bucket: \"b\")\n    |> to(bucket: \"two\", orgID: \"000000000000000\")"
 	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, taskmodel.TaskUpdate{Options: options.Options{Name: "task-changed #98"}})
 	if err != nil {
 		t.Fatal(err)
@@ -430,7 +430,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	// Update task: switch to every.
 	newStatus = string(taskmodel.TaskActive)
-	newFlux = "option task = {name: \"task-changed #98\", every: 30s, offset: 5s, concurrency: 100}\n\nfrom(bucket: \"b\")\n    |> to(bucket: \"two\", orgID: \"000000000000000\")"
+	newFlux = "option task = {name: \"task-changed #98\", every: 30s, offset: 5s, concurrency: 100}\n\n// This comment should persist.\nfrom(bucket: \"b\")\n    |> to(bucket: \"two\", orgID: \"000000000000000\")"
 	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, taskmodel.TaskUpdate{Options: options.Options{Every: *(options.MustParseDuration("30s"))}})
 	if err != nil {
 		t.Fatal(err)
@@ -1782,11 +1782,13 @@ func creds(t *testing.T, s *System) TestCreds {
 const (
 	scriptFmt = `option task = {name: "task #%d", cron: "* * * * *", offset: 5s, concurrency: 100}
 
+// This comment should persist.
 from(bucket: "b")
     |> to(bucket: "two", orgID: "000000000000000")`
 
 	scriptDifferentName = `option task = {name: "task-changed #%d", cron: "* * * * *", offset: 5s, concurrency: 100}
 
+// This comment should persist.
 from(bucket: "b")
     |> to(bucket: "two", orgID: "000000000000000")`
 )
