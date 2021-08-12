@@ -1,30 +1,34 @@
-use std::future::Future;
-use std::sync::Arc;
-use std::time::Duration;
-
-use data_types::database_state::DatabaseStateCode;
-use data_types::server_id::ServerId;
-use data_types::{database_rules::DatabaseRules, DatabaseName};
-use futures::future::{BoxFuture, Shared};
-use futures::{FutureExt, TryFutureExt};
+use crate::{
+    db::{
+        load::{create_preserved_catalog, load_or_create_preserved_catalog},
+        DatabaseToCommit,
+    },
+    ApplicationState, Db, DB_RULES_FILE_NAME,
+};
+use bytes::BytesMut;
+use data_types::{
+    database_rules::DatabaseRules, database_state::DatabaseStateCode, server_id::ServerId,
+    DatabaseName,
+};
+use futures::{
+    future::{BoxFuture, Shared},
+    FutureExt, TryFutureExt,
+};
 use generated_types::database_rules::encode_database_rules;
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
-use object_store::path::{ObjectStorePath, Path};
+use object_store::{
+    path::{ObjectStorePath, Path},
+    ObjectStore, ObjectStoreApi,
+};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
+use parquet_file::catalog::PreservedCatalog;
 use persistence_windows::checkpoint::ReplayPlan;
 use snafu::{ResultExt, Snafu};
-use tokio::sync::Notify;
-use tokio::task::JoinError;
+use std::{future::Future, sync::Arc, time::Duration};
+use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
-
-use crate::db::load::{create_preserved_catalog, load_or_create_preserved_catalog};
-use crate::db::DatabaseToCommit;
-use crate::{ApplicationState, Db, DB_RULES_FILE_NAME};
-use bytes::BytesMut;
-use object_store::{ObjectStore, ObjectStoreApi};
-use parquet_file::catalog::PreservedCatalog;
 
 const INIT_BACKOFF: Duration = Duration::from_secs(1);
 

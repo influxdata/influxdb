@@ -68,13 +68,10 @@
     clippy::future_not_send
 )]
 
-use std::sync::Arc;
-
 use async_trait::async_trait;
-use data_types::database_rules::ShardConfig;
-use data_types::error::ErrorLogger;
 use data_types::{
-    database_rules::{DatabaseRules, NodeGroup, RoutingRules, ShardId, Sink},
+    database_rules::{DatabaseRules, NodeGroup, RoutingRules, ShardConfig, ShardId, Sink},
+    error::ErrorLogger,
     job::Job,
     server_id::ServerId,
     {DatabaseName, DatabaseNameError},
@@ -88,26 +85,26 @@ use influxdb_line_protocol::ParsedLine;
 use internal_types::freezable::Freezable;
 use lifecycle::LockableChunk;
 use metrics::{KeyValue, MetricObserverBuilder};
-use object_store::{ObjectStore, ObjectStoreApi};
+use object_store::{
+    path::{parsed::DirsAndFileName, ObjectStorePath, Path},
+    ObjectStore, ObjectStoreApi,
+};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use query::exec::Executor;
 use rand::seq::SliceRandom;
 use resolver::Resolver;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tokio::task::JoinError;
+use std::sync::Arc;
+use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
 use tracker::{TaskTracker, TrackedFutureExt};
 
 pub use application::ApplicationState;
 pub use connection::{ConnectionManager, ConnectionManagerImpl, RemoteServer};
-
 pub use db::Db;
 pub use job::JobRegistry;
-use object_store::path::parsed::DirsAndFileName;
-use object_store::path::{ObjectStorePath, Path};
 pub use resolver::{GrpcConnectionString, RemoteTemplate};
-use tokio::sync::Notify;
 
 mod application;
 mod connection;
@@ -1274,6 +1271,25 @@ fn database_store_prefix(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use arrow::record_batch::RecordBatch;
+    use arrow_util::assert_batches_eq;
+    use bytes::Bytes;
+    use connection::test_helpers::{TestConnectionManager, TestRemoteServer};
+    use data_types::{
+        chunk_metadata::ChunkAddr,
+        database_rules::{
+            HashRing, LifecycleRules, PartitionTemplate, ShardConfig, TemplatePart, NO_SHARD_CONFIG,
+        },
+    };
+    use futures::TryStreamExt;
+    use generated_types::database_rules::decode_database_rules;
+    use influxdb_line_protocol::parse_lines;
+    use iox_object_store::IoxObjectStore;
+    use metrics::TestMetricRegistry;
+    use object_store::{path::ObjectStorePath, ObjectStore};
+    use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
+    use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryDatabase};
     use std::{
         convert::{Infallible, TryFrom},
         sync::{
@@ -1282,27 +1298,7 @@ mod tests {
         },
         time::{Duration, Instant},
     };
-
-    use arrow::record_batch::RecordBatch;
-    use bytes::Bytes;
-    use futures::TryStreamExt;
-
-    use arrow_util::assert_batches_eq;
-    use connection::test_helpers::{TestConnectionManager, TestRemoteServer};
-    use data_types::chunk_metadata::ChunkAddr;
-    use data_types::database_rules::{
-        HashRing, LifecycleRules, PartitionTemplate, ShardConfig, TemplatePart, NO_SHARD_CONFIG,
-    };
-    use generated_types::database_rules::decode_database_rules;
-    use influxdb_line_protocol::parse_lines;
-    use iox_object_store::IoxObjectStore;
-    use metrics::TestMetricRegistry;
-    use object_store::{path::ObjectStorePath, ObjectStore};
-    use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
-    use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryDatabase};
     use test_helpers::assert_contains;
-
-    use super::*;
 
     const ARBITRARY_DEFAULT_TIME: i64 = 456;
 

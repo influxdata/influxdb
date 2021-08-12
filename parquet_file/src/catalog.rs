@@ -1,16 +1,4 @@
 //! Catalog preservation and transaction handling.
-use std::{
-    collections::{
-        hash_map::Entry::{Occupied, Vacant},
-        HashMap,
-    },
-    convert::TryInto,
-    fmt::{Debug, Display},
-    num::TryFromIntError,
-    str::FromStr,
-    sync::Arc,
-};
-
 use crate::metadata::IoxParquetMetaData;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -25,6 +13,17 @@ use observability_deps::tracing::{info, warn};
 use parking_lot::RwLock;
 use prost::{DecodeError, EncodeError, Message};
 use snafu::{OptionExt, ResultExt, Snafu};
+use std::{
+    collections::{
+        hash_map::Entry::{Occupied, Vacant},
+        HashMap,
+    },
+    convert::TryInto,
+    fmt::{Debug, Display},
+    num::TryFromIntError,
+    str::FromStr,
+    sync::Arc,
+};
 use tokio::sync::{Semaphore, SemaphorePermit};
 use uuid::Uuid;
 
@@ -1563,13 +1562,14 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        test_helpers::{
+            assert_catalog_state_implementation, break_catalog_with_weird_version, TestCatalogState,
+        },
+        *,
+    };
     use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata};
     use object_store::parsed_path;
-
-    use super::test_helpers::{
-        assert_catalog_state_implementation, break_catalog_with_weird_version, TestCatalogState,
-    };
-    use super::*;
 
     #[tokio::test]
     async fn test_create_empty() {
