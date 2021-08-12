@@ -30,7 +30,7 @@ impl Encoding {
 
     pub fn size(&self) -> usize {
         match &self {
-            Self::RLE(enc) => enc.size(),
+            Self::RLE(enc) => enc.size(false),
             Self::Plain(enc) => enc.size(false),
         }
     }
