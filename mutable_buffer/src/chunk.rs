@@ -142,10 +142,7 @@ impl MBChunk {
     /// Returns a queryable snapshot of this chunk
     #[cfg(feature = "nocache")]
     pub fn snapshot(&self) -> Arc<ChunkSnapshot> {
-        Arc::new(ChunkSnapshot::new(
-            self,
-            self.metrics.memory_bytes.clone_empty(),
-        ))
+        Arc::new(ChunkSnapshot::new(self))
     }
 
     /// Return the name of the table in this chunk
