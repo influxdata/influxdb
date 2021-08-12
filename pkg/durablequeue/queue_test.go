@@ -215,12 +215,51 @@ func TestQueueAdvancePastEnd(t *testing.T) {
 }
 
 func TestQueueFull(t *testing.T) {
-	q, dir := newTestQueue(t, withMaxSize(8))
+	q, dir := newTestQueue(t, withMaxSize(64), withMaxSegmentSize(16))
 	defer os.RemoveAll(dir)
 
-	if err := q.Append([]byte("ninebytes")); err != ErrQueueFull {
-		t.Fatalf("Queue.Append expected to return queue full")
+	require.Equal(t, ErrQueueFull, q.Append([]byte(strings.Repeat("a", 65))))
+}
+
+func TestQueueChangeMaxSize(t *testing.T) {
+	q, dir := newTestQueue(t, withMaxSize(64), withMaxSegmentSize(12))
+	defer os.RemoveAll(dir)
+
+	// Write a full segment into the queue.
+	for i := 0; i < 3; i++ {
+		require.NoError(t, q.Append([]byte("helloworld")))
 	}
+
+	// Shrink the queue's max past the current size.
+	require.NoError(t, q.SetMaxSize(48))
+
+	// Writes blocked.
+	require.Equal(t, ErrQueueFull, q.Append([]byte("abcdefg")))
+
+	// Read off bytes.
+	cur, err := q.Current()
+	require.NoError(t, err)
+	require.Equal(t, "helloworld", string(cur))
+	require.NoError(t, q.Advance())
+
+	// Now enough room to write.
+	require.NoError(t, q.Append([]byte("abcdefg")))
+
+	// Writes blocked.
+	require.Equal(t, ErrQueueFull, q.Append([]byte("hijklmnop")))
+
+	// Resize to make enough room.
+	require.NoError(t, q.SetMaxSize(100))
+	require.NoError(t, q.Append([]byte("hijklmnop")))
+
+	for _, exp := range []string{"helloworld", "helloworld", "abcdefg", "hijklmnop"} {
+		cur, err := q.Current()
+		require.NoError(t, err)
+		require.Equal(t, exp, string(cur))
+		require.NoError(t, q.Advance())
+	}
+	_, err = q.Current()
+	require.Equal(t, io.EOF, err)
 }
 
 func TestQueueReopen(t *testing.T) {
@@ -334,7 +373,7 @@ func TestQueue_TotalBytes(t *testing.T) {
 	if err := q.Close(); err != nil {
 		t.Fatalf("Queue.Close failed: %v", err)
 	}
-	q, err := NewQueue(dir, 1024, &SharedCount{}, MaxWritesPending, func([]byte) error { return nil })
+	q, err := NewQueue(dir, 1024, 512, &SharedCount{}, MaxWritesPending, func([]byte) error { return nil })
 	if err != nil {
 		t.Fatalf("failed to create queue: %v", err)
 	}
@@ -427,7 +466,7 @@ func TestQueue_AdvanceSingleCorruptSegment(t *testing.T) {
 		scan.Next()
 		scan.Next()
 		return 2
-	}, "dropped bad disk queue segment: record size out of range: max 10485760: got 1000000000")
+	}, "dropped bad disk queue segment: record size out of range: max 512: got 1000000000")
 
 	if got, exp := q.TotalBytes(), int64(0); got != exp {
 		// queue should have been truncated due to error
@@ -550,7 +589,7 @@ func mustCreateSegment(ts *TestSegment, dir string, vf func([]byte) error) *segm
 	}
 
 	// Create a new segment.
-	segment, err := newSegment(fd.Name(), defaultSegmentSize, vf)
+	segment, err := newSegment(fd.Name(), DefaultSegmentSize, vf)
 	if err != nil {
 		panic(err)
 	}

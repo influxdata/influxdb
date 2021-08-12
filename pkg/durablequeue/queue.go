@@ -26,7 +26,7 @@ var (
 )
 
 const (
-	defaultSegmentSize = 10 * 1024 * 1024
+	DefaultSegmentSize = 10 * 1024 * 1024
 	footerSize         = 8
 )
 
@@ -120,12 +120,15 @@ func (a segments) Len() int           { return len(a) }
 func (a segments) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a segments) Less(i, j int) bool { return a[i].id < a[j].id }
 
-// NewQueue create a Queue that will store segments in dir and that will
-// consume no more than maxSize on disk.
-func NewQueue(dir string, maxSize int64, queueTotalSize *SharedCount, depth int, verifyBlockFn func([]byte) error) (*Queue, error) {
+// NewQueue create a Queue that will store segments in dir and that will consume no more than maxSize on disk.
+func NewQueue(dir string, maxSize int64, maxSegmentSize int64, queueTotalSize *SharedCount, depth int, verifyBlockFn func([]byte) error) (*Queue, error) {
+	if maxSize < 2*maxSegmentSize {
+		return nil, fmt.Errorf("max queue size %d too small: must be at least twice the max segment size %d", maxSize, maxSegmentSize)
+	}
+
 	return &Queue{
 		dir:            dir,
-		maxSegmentSize: defaultSegmentSize,
+		maxSegmentSize: maxSegmentSize,
 		maxSize:        maxSize,
 		queueTotalSize: queueTotalSize,
 		segments:       segments{},
@@ -138,6 +141,24 @@ func NewQueue(dir string, maxSize int64, queueTotalSize *SharedCount, depth int,
 // WithLogger sets the internal logger to the logger passed in.
 func (l *Queue) WithLogger(log *zap.Logger) {
 	l.logger = log
+}
+
+// SetMaxSize updates the max queue size to the passed-in value.
+//
+// Max queue size must be at least twice the current max segment size, otherwise an error will be returned.
+//
+// If the new value is smaller than the amount of data currently in the queue,
+// writes will be rejected until the queue drains to below the new maximum.
+func (l *Queue) SetMaxSize(maxSize int64) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if maxSize < 2*l.maxSegmentSize {
+		return fmt.Errorf("queue size %d too small: must be at least %d bytes", maxSize, 2*l.maxSegmentSize)
+	}
+
+	l.maxSize = maxSize
+	return nil
 }
 
 // Open opens the queue for reading and writing.
@@ -237,11 +258,16 @@ func (l *Queue) RemoveSegments() error {
 	return nil
 }
 
-// SetMaxSegmentSize updates the max segment size for new and existing
-// segments.
+// SetMaxSegmentSize updates the max segment size for new and existing (tail) segments.
+//
+// The new segment size must be less than half the current max queue size, otherwise an error will be returned.
 func (l *Queue) SetMaxSegmentSize(size int64) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	if 2*size > l.maxSize {
+		return fmt.Errorf("segment size %d is too large: must be at most half of max queue size %d", size, l.maxSize)
+	}
 
 	l.maxSegmentSize = size
 

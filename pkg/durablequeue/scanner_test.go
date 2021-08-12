@@ -10,11 +10,13 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 )
 
 type opts struct {
-	fn      func([]byte) error
-	maxSize int64
+	fn             func([]byte) error
+	maxSize        int64
+	maxSegmentSize int64
 }
 
 func withVerify(fn func([]byte) error) func(o *opts) {
@@ -29,12 +31,18 @@ func withMaxSize(maxSize int64) func(o *opts) {
 	}
 }
 
+func withMaxSegmentSize(maxSegmentSize int64) func(o *opts) {
+	return func(o *opts) {
+		o.maxSegmentSize = maxSegmentSize
+	}
+}
+
 // newTestQueue creates and opens a new Queue with a default
 // maxSize of 1024
 func newTestQueue(t testing.TB, fns ...func(o *opts)) (*Queue, string) {
 	t.Helper()
 
-	opts := &opts{maxSize: 1024}
+	opts := &opts{maxSize: 1024, maxSegmentSize: 512}
 	for _, fn := range fns {
 		fn(opts)
 	}
@@ -45,19 +53,12 @@ func newTestQueue(t testing.TB, fns ...func(o *opts)) (*Queue, string) {
 	}
 
 	dir, err := ioutil.TempDir(tmp, "hh_queue")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
+	require.NoError(t, err)
 
-	q, err := NewQueue(dir, opts.maxSize, &SharedCount{}, MaxWritesPending, opts.fn)
-	if err != nil {
-		t.Fatalf("failed to create queue: %v", err)
-	}
+	q, err := NewQueue(dir, opts.maxSize, opts.maxSegmentSize, &SharedCount{}, MaxWritesPending, opts.fn)
+	require.NoError(t, err)
 
-	if err := q.Open(); err != nil {
-		t.Fatalf("failed to open queue: %v", err)
-	}
-
+	require.NoError(t, q.Open())
 	return q, dir
 }
 
@@ -242,7 +243,7 @@ func TestQueue_NewScanner_AppendWhileScan(t *testing.T) {
 }
 
 func TestQueue_NewScanner_Corrupted(t *testing.T) {
-	q, dir := newTestQueue(t, withMaxSize(100))
+	q, dir := newTestQueue(t, withMaxSize(100), withMaxSegmentSize(25))
 	defer os.RemoveAll(dir)
 	_ = dir
 
