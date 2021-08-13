@@ -16,6 +16,7 @@ use futures::prelude::*;
 use generated_types::influxdata::iox::management::v1::{
     database_status::DatabaseState, ServerStatus,
 };
+use influxdb_iox_client::connection::Connection;
 use once_cell::sync::OnceCell;
 use tempfile::{NamedTempFile, TempDir};
 use tokio::sync::Mutex;
@@ -77,7 +78,7 @@ const TOKEN: &str = "InfluxDB IOx doesn't have authentication yet";
 /// testing.
 pub struct ServerFixture {
     server: Arc<TestServer>,
-    grpc_channel: tonic::transport::Channel,
+    grpc_channel: Connection,
 }
 
 /// Specifieds should we configure a server initially
@@ -162,7 +163,7 @@ impl ServerFixture {
 
     /// Return a channel connected to the gRPC API. Panics if the
     /// server is not yet up
-    pub fn grpc_channel(&self) -> tonic::transport::Channel {
+    pub fn grpc_channel(&self) -> Connection {
         self.grpc_channel.clone()
     }
 
@@ -471,9 +472,7 @@ impl TestServer {
     }
 
     /// Create a connection channel for the gRPC endpoint
-    async fn grpc_channel(
-        &self,
-    ) -> influxdb_iox_client::connection::Result<tonic::transport::Channel> {
+    async fn grpc_channel(&self) -> influxdb_iox_client::connection::Result<Connection> {
         grpc_channel(&self.addrs).await
     }
 
@@ -485,7 +484,7 @@ impl TestServer {
 /// Create a connection channel for the gRPC endpoint
 pub async fn grpc_channel(
     addrs: &BindAddresses,
-) -> influxdb_iox_client::connection::Result<tonic::transport::Channel> {
+) -> influxdb_iox_client::connection::Result<Connection> {
     influxdb_iox_client::connection::Builder::default()
         .build(&addrs.grpc_base)
         .await

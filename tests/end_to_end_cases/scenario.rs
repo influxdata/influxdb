@@ -22,7 +22,7 @@ use generated_types::{
     influxdata::iox::management::v1::{self as management, *},
     ReadSource, TimestampRange,
 };
-use influxdb_iox_client::flight::PerformQuery;
+use influxdb_iox_client::{connection::Connection, flight::PerformQuery};
 
 use crate::common::server_fixture::{ServerFixture, DEFAULT_SERVER_ID};
 
@@ -361,7 +361,7 @@ impl DatabaseBuilder {
     }
 
     // Build a database
-    pub async fn build(self, channel: tonic::transport::Channel) {
+    pub async fn build(self, channel: Connection) {
         let mut management_client = influxdb_iox_client::management::Client::new(channel);
 
         let routing_rules = if self.write_buffer.is_some() {
@@ -427,19 +427,13 @@ impl DatabaseBuilder {
 /// given a channel to talk with the management api, create a new
 /// database with the specified name configured with a 10MB mutable
 /// buffer, partitioned on table
-pub async fn create_readable_database(
-    db_name: impl Into<String>,
-    channel: tonic::transport::Channel,
-) {
+pub async fn create_readable_database(db_name: impl Into<String>, channel: Connection) {
     DatabaseBuilder::new(db_name.into()).build(channel).await
 }
 
 /// given a channel to talk with the management api, create a new
 /// database with no mutable buffer configured, no partitioning rules
-pub async fn create_unreadable_database(
-    db_name: impl Into<String>,
-    channel: tonic::transport::Channel,
-) {
+pub async fn create_unreadable_database(db_name: impl Into<String>, channel: Connection) {
     let mut management_client = influxdb_iox_client::management::Client::new(channel);
 
     let rules = DatabaseRules {
@@ -456,10 +450,7 @@ pub async fn create_unreadable_database(
 /// given a channel to talk with the management api, create a new
 /// database with the specified name configured with a 10MB mutable
 /// buffer, partitioned on table, with some data written into two partitions
-pub async fn create_two_partition_database(
-    db_name: impl Into<String>,
-    channel: tonic::transport::Channel,
-) {
+pub async fn create_two_partition_database(db_name: impl Into<String>, channel: Connection) {
     let mut write_client = influxdb_iox_client::write::Client::new(channel.clone());
 
     let db_name = db_name.into();

@@ -76,6 +76,9 @@ pub async fn serve<M>(
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
+    // TODO: Replace this with a jaeger collector
+    let trace_collector = Arc::new(trace::LogTraceCollector::new());
+
     let stream = TcpListenerStream::new(socket);
 
     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
@@ -84,7 +87,8 @@ where
         .build()
         .context(ReflectionError)?;
 
-    let mut builder = tonic::transport::Server::builder();
+    let builder = tonic::transport::Server::builder();
+    let mut builder = builder.layer(trace::tower::TraceLayer::new(trace_collector));
 
     // important that this one is NOT gated so that it can answer health requests
     add_service!(builder, health_reporter, health_service);
