@@ -14,9 +14,12 @@
 // TODO: Create an IoxPath type and only take/return paths of those types, and wrap in the
 // database's root path before sending to the underlying object_store.
 
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use data_types::{server_id::ServerId, DatabaseName};
-use futures::{stream::BoxStream, Stream, StreamExt, TryStreamExt};
+use futures::{
+    stream::{self, BoxStream},
+    Stream, StreamExt, TryStreamExt,
+};
 use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi, Result,
@@ -28,6 +31,8 @@ use tokio_stream::wrappers::ReceiverStream;
 mod paths;
 use paths::{DataPath, RootPath};
 pub use paths::{ParquetFilePath, ParquetFilePathParseError};
+
+const DB_RULES_FILE_NAME: &str = "rules.pb";
 
 /// Handles persistence of data for a particular database. Writes within its directory/prefix.
 ///
@@ -139,6 +144,37 @@ impl IoxObjectStore {
         let full_path = self.data_path.join(location);
 
         self.inner.delete(&full_path).await
+    }
+
+    fn db_rules_path(&self) -> Path {
+        self.root_path.join(DB_RULES_FILE_NAME)
+    }
+
+    /// Get the data for the database rules
+    pub async fn get_database_rules_file(&self) -> Result<bytes::Bytes> {
+        let mut stream = self.inner.get(&self.db_rules_path()).await?;
+        let mut bytes = BytesMut::new();
+
+        while let Some(buf) = stream.next().await {
+            bytes.extend(buf?);
+        }
+
+        Ok(bytes.freeze())
+    }
+
+    /// Store the data for the database rules
+    pub async fn put_database_rules_file(&self, bytes: bytes::Bytes) -> Result<()> {
+        let len = bytes.len();
+        let stream = stream::once(async move { Ok(bytes) });
+
+        self.inner
+            .put(&self.db_rules_path(), stream, Some(len))
+            .await
+    }
+
+    /// Delete the data for the database rules
+    pub async fn delete_database_rules_file(&self) -> Result<()> {
+        self.inner.delete(&self.db_rules_path()).await
     }
 
     /// List the relative paths in this database's object store.

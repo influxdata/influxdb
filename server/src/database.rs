@@ -3,7 +3,7 @@ use crate::{
         load::{create_preserved_catalog, load_or_create_preserved_catalog},
         DatabaseToCommit,
     },
-    ApplicationState, Db, DB_RULES_FILE_NAME,
+    ApplicationState, Db,
 };
 use bytes::BytesMut;
 use data_types::{
@@ -17,10 +17,7 @@ use futures::{
 use generated_types::database_rules::encode_database_rules;
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
-use object_store::{
-    path::{ObjectStorePath, Path},
-    ObjectStore, ObjectStoreApi,
-};
+use object_store::path::Path;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use parquet_file::catalog::PreservedCatalog;
@@ -129,21 +126,18 @@ impl Database {
     /// Create fresh database w/o any state.
     pub async fn create(
         application: Arc<ApplicationState>,
-        store_prefix: &Path,
         rules: DatabaseRules,
         server_id: ServerId,
     ) -> Result<(), InitError> {
         let db_name = rules.name.clone();
+        let object_store =
+            IoxObjectStore::new(Arc::clone(application.object_store()), server_id, &db_name);
 
-        persist_database_rules(application.object_store(), store_prefix, rules).await?;
+        persist_database_rules(&object_store, rules).await?;
 
         create_preserved_catalog(
             db_name.as_str(),
-            Arc::new(IoxObjectStore::new(
-                Arc::clone(application.object_store()),
-                server_id,
-                &db_name,
-            )),
+            Arc::new(object_store),
             server_id,
             Arc::clone(application.metric_registry()),
             true,
@@ -608,11 +602,10 @@ impl DatabaseStateKnown {
         &self,
         shared: &DatabaseShared,
     ) -> Result<DatabaseStateRulesLoaded, InitError> {
-        let mut location = shared.config.store_prefix.clone();
-        location.set_file_name(DB_RULES_FILE_NAME);
-
         // TODO: Retry this
-        let bytes = get_store_bytes(shared.application.object_store().as_ref(), &location)
+        let bytes = shared
+            .iox_object_store
+            .get_database_rules_file()
             .await
             .context(RulesFetch)?;
 
@@ -715,47 +708,16 @@ struct DatabaseStateInitialized {
     db: Arc<Db>,
 }
 
-/// Get the bytes for a given object store location
-///
-/// TODO: move to object_store crate
-async fn get_store_bytes(
-    store: &ObjectStore,
-    location: &Path,
-) -> Result<bytes::Bytes, object_store::Error> {
-    use futures::stream::TryStreamExt;
-
-    let stream = store.get(location).await?;
-    let bytes = stream
-        .try_fold(BytesMut::new(), |mut acc, buf| async move {
-            acc.extend_from_slice(&buf);
-            Ok(acc)
-        })
-        .await?;
-
-    Ok(bytes.freeze())
-}
-
 /// Persist the the `DatabaseRules` given the `Database` store prefix
 pub(super) async fn persist_database_rules(
-    object_store: &ObjectStore,
-    store_prefix: &Path,
+    object_store: &IoxObjectStore,
     rules: DatabaseRules,
 ) -> Result<(), InitError> {
     let mut data = BytesMut::new();
     encode_database_rules(rules, &mut data).context(ErrorSerializingRulesProtobuf)?;
 
-    let mut location = store_prefix.clone();
-    location.set_file_name(DB_RULES_FILE_NAME);
-
-    let len = data.len();
-
-    let stream_data = std::io::Result::Ok(data.freeze());
     object_store
-        .put(
-            &location,
-            futures::stream::once(async move { stream_data }),
-            Some(len),
-        )
+        .put_database_rules_file(data.freeze())
         .await
         .context(StoreError)?;
     Ok(())
@@ -766,6 +728,7 @@ mod tests {
     use chrono::Utc;
     use data_types::database_rules::{PartitionTemplate, TemplatePart, WriteBufferConnection};
     use entry::{test_helpers::lp_to_entries, Sequence, SequencedEntry};
+    use object_store::{ObjectStore, ObjectStoreApi};
     use write_buffer::{config::WriteBufferConfigFactory, mock::MockBufferSharedState};
 
     use super::*;
@@ -877,7 +840,7 @@ mod tests {
             )),
         };
         let store_prefix = application.object_store().new_path();
-        Database::create(Arc::clone(&application), &store_prefix, rules, server_id)
+        Database::create(Arc::clone(&application), rules, server_id)
             .await
             .unwrap();
         let db_config = DatabaseConfig {
