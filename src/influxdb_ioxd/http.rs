@@ -1224,7 +1224,7 @@ mod tests {
         let response = client
             .get(&format!(
                 "{}/iox/api/v1/databases/MyOrg_MyBucket/query?q={}&format=json",
-                server_url, "select%20*%20from%20h2o_temperature"
+                server_url, "select%20*%20from%20h2o_temperature%20order%20by%20surface_degrees"
             ))
             .send()
             .await;
