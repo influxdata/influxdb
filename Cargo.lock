@@ -1441,6 +1441,7 @@ dependencies = [
  "pprof",
  "prost 0.8.0",
  "spin 0.9.2",
+ "tikv-jemalloc-sys",
 ]
 
 [[package]]

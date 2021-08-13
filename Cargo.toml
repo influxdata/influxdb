@@ -60,7 +60,7 @@ datafusion = { path = "datafusion" }
 data_types = { path = "data_types" }
 entry = { path = "entry" }
 generated_types = { path = "generated_types" }
-heappy = { git = "https://github.com/mkmik/heappy", rev = "39530c987aecda0b2d76503e8b5bb33d8a93f384" }
+heappy = { git = "https://github.com/mkmik/heappy", rev = "39530c987aecda0b2d76503e8b5bb33d8a93f384", features = ["enable_heap_profiler", "jemalloc_shim"], optional = true}
 
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
@@ -112,7 +112,8 @@ serde_urlencoded = "0.7.0"
 snafu = "0.6.9"
 structopt = "0.3.21"
 thiserror = "1.0.23"
-tikv-jemallocator = { version = "0.4.0", features = ["unprefixed_malloc_on_supported_platforms"] }
+# remember to put "unprefixed_malloc_on_supported_platforms" if you disable heappy
+tikv-jemallocator = {version = "0.4.0" }
 tikv-jemalloc-ctl = "0.4.0"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "parking_lot", "signal"] }
 tokio-stream = { version = "0.1.2", features = ["net"] }
@@ -149,3 +150,5 @@ gcp = ["object_store/gcp"] # Optional GCP object store support
 aws = ["object_store/aws"] # Optional AWS / S3 object store support
 jaeger = ["trogging/jaeger"] # Enable optional jaeger tracing support
 otlp = ["trogging/otlp"] # Enable optional open telemetry collector
+# heappy is also an optional feature; Not on by default as it
+# runtime overhead on all allocations (calls to malloc)
