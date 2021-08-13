@@ -59,7 +59,7 @@ datafusion = { path = "datafusion" }
 data_types = { path = "data_types" }
 entry = { path = "entry" }
 generated_types = { path = "generated_types" }
-heappy = { git = "https://github.com/mkmik/heappy", rev = "39530c987aecda0b2d76503e8b5bb33d8a93f384" , features = ["enable_heap_profiler"]}
+heappy = { git = "https://github.com/mkmik/heappy", rev = "39530c987aecda0b2d76503e8b5bb33d8a93f384", features = ["enable_heap_profiler", "jemalloc_shim"], optional = true}
 
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
@@ -147,3 +147,5 @@ gcp = ["object_store/gcp"] # Optional GCP object store support
 aws = ["object_store/aws"] # Optional AWS / S3 object store support
 jaeger = ["trogging/jaeger"] # Enable optional jaeger tracing support
 otlp = ["trogging/otlp"] # Enable optional open telemetry collector
+# heappy is also an optional feature; Not on by default as it
+# runtime overhead on all allocations (calls to malloc)
