@@ -1398,8 +1398,8 @@ pub(crate) struct Statistics {
     pub values: u32,                 // Number of values present (NULL and non-NULL)
     pub nulls: u32,                  // Number of NULL values present
     pub allocated_bytes: usize, // Total size of all data including allocated but unused buffers
-    pub used_bytes: usize,      // Total size of all data used (excluding capacity bytes)
-    pub raw_bytes: usize,       // Estimated "uncompressed" size
+    pub required_bytes: usize, // Total minimum required bytes needed for the column (excluding capacity bytes)
+    pub raw_bytes: usize,      // Estimated "uncompressed" size
     pub raw_bytes_no_null: usize, // Estimated "uncompressed" size ignoring NULL values
 }
 

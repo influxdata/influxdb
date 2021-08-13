@@ -387,7 +387,7 @@ impl ChunkMetrics {
 
             // update bytes in use but excluded unused
             self.column_required_bytes_total
-                .inc(stat.used_bytes, labels);
+                .inc(stat.required_bytes, labels);
 
             // update raw estimated bytes of NULL values
             self.column_raw_bytes_total.inc(

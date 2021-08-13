@@ -62,7 +62,7 @@ impl FloatEncoding {
             values: self.num_rows(),
             nulls: self.null_count(),
             allocated_bytes: self.size(true),
-            used_bytes: self.size(true),
+            required_bytes: self.size(true),
             raw_bytes: self.size_raw(true),
             raw_bytes_no_null: self.size_raw(false),
         }
