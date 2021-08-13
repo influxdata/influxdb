@@ -21,7 +21,7 @@ use futures::{
     Stream, StreamExt, TryStreamExt,
 };
 use object_store::{
-    path::{parsed::DirsAndFileName, ObjectStorePath, Path},
+    path::{parsed::DirsAndFileName, Path},
     ObjectStore, ObjectStoreApi, Result,
 };
 use std::{io, sync::Arc};
@@ -29,7 +29,7 @@ use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
 
 mod paths;
-use paths::{DataPath, RootPath};
+use paths::{DataPath, RootPath, TransactionsPath};
 pub use paths::{ParquetFilePath, ParquetFilePathParseError};
 
 const DB_RULES_FILE_NAME: &str = "rules.pb";
@@ -44,6 +44,7 @@ pub struct IoxObjectStore {
     database_name: String, // TODO: use data_types DatabaseName?
     root_path: RootPath,
     data_path: DataPath,
+    transactions_path: TransactionsPath,
 }
 
 impl IoxObjectStore {
@@ -56,34 +57,20 @@ impl IoxObjectStore {
     ) -> Self {
         let root_path = RootPath::new(inner.new_path(), server_id, database_name);
         let data_path = DataPath::new(&root_path);
+        let transactions_path = TransactionsPath::new(&root_path);
         Self {
             inner,
             server_id,
             database_name: database_name.into(),
             root_path,
             data_path,
+            transactions_path,
         }
     }
 
     /// The name of the database this object store is for.
     pub fn database_name(&self) -> &str {
         &self.database_name
-    }
-
-    /// Path where transactions are stored.
-    ///
-    /// The format is:
-    ///
-    /// ```text
-    /// <server_id>/<db_name>/transactions/
-    /// ```
-    // TODO: avoid leaking this outside this crate
-    pub fn catalog_path(&self) -> Path {
-        let mut path = self.inner.new_path();
-        path.push_dir(self.server_id.to_string());
-        path.push_dir(&self.database_name);
-        path.push_dir("transactions");
-        path
     }
 
     /// Store this data in this database's object store.
@@ -96,7 +83,10 @@ impl IoxObjectStore {
 
     /// List all the catalog transaction files in object storage for this database.
     pub async fn catalog_transaction_files(&self) -> Result<BoxStream<'static, Result<Vec<Path>>>> {
-        Ok(self.list(Some(&self.catalog_path())).await?.boxed())
+        Ok(self
+            .list(Some(&self.transactions_path.inner))
+            .await?
+            .boxed())
     }
 
     /// List all parquet file paths in object storage for this database.
@@ -226,7 +216,7 @@ impl IoxObjectStore {
 mod tests {
     use super::*;
     use data_types::chunk_metadata::ChunkAddr;
-    use object_store::{ObjectStore, ObjectStoreApi};
+    use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
     use std::num::NonZeroU32;
     use uuid::Uuid;
 

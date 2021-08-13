@@ -31,6 +31,21 @@ impl RootPath {
     }
 }
 
+/// A database-specific object store path for all catalog transaction files. This should not be
+/// leaked outside this crate.
+#[derive(Debug, Clone)]
+pub struct TransactionsPath {
+    pub inner: Path,
+}
+
+impl TransactionsPath {
+    pub fn new(root_path: &RootPath) -> Self {
+        Self {
+            inner: root_path.join("transactions"),
+        }
+    }
+}
+
 /// A database-specific object store path for all data files. This should not be leaked outside
 /// this crate.
 #[derive(Debug, Clone)]
@@ -238,12 +253,12 @@ mod tests {
     }
 
     #[test]
-    fn catalog_path_is_relative_to_db_root() {
+    fn transactions_path_is_relative_to_db_root() {
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
         let iox_object_store = IoxObjectStore::new(make_object_store(), server_id, &database_name);
         assert_eq!(
-            iox_object_store.catalog_path().to_string(),
+            iox_object_store.transactions_path.inner.to_string(),
             "1/clouds/transactions/"
         );
     }
