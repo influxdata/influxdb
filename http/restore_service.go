@@ -59,8 +59,9 @@ const (
 	restoreSqlPath   = prefixRestore + "/sql"
 	restoreShardPath = prefixRestore + "/shards/:shardID"
 
-	restoreBucketPath         = prefixRestore + "/buckets/:bucketID" // Deprecated
-	restoreBucketMetadataPath = prefixRestore + "/bucket-metadata"
+	restoreBucketPath                   = prefixRestore + "/buckets/:bucketID" // Deprecated. Used by 2.0.x clients.
+	restoreBucketMetadataDeprecatedPath = prefixRestore + "/bucket-metadata"   // Deprecated. Used by 2.1.0 of the CLI
+	restoreBucketMetadataPath           = prefixRestore + "/bucketMetadata"
 )
 
 // NewRestoreHandler creates a new handler at /api/v2/restore to receive restore requests.
@@ -78,6 +79,7 @@ func NewRestoreHandler(b *RestoreBackend) *RestoreHandler {
 	h.HandlerFunc(http.MethodPost, restoreKVPath, h.handleRestoreKVStore)
 	h.HandlerFunc(http.MethodPost, restoreSqlPath, h.handleRestoreSqlStore)
 	h.HandlerFunc(http.MethodPost, restoreBucketPath, h.handleRestoreBucket)
+	h.HandlerFunc(http.MethodPost, restoreBucketMetadataDeprecatedPath, h.handleRestoreBucketMetadata)
 	h.HandlerFunc(http.MethodPost, restoreBucketMetadataPath, h.handleRestoreBucketMetadata)
 	h.HandlerFunc(http.MethodPost, restoreShardPath, h.handleRestoreShard)
 
