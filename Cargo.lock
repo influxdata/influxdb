@@ -1717,6 +1717,7 @@ dependencies = [
  "tonic 0.5.0",
  "tonic-health",
  "tonic-reflection",
+ "trace",
  "tracker",
  "trogging",
  "uuid",
@@ -4710,6 +4711,24 @@ name = "tower-service"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "360dfd1d6d30e05fda32ace2c8c70e9c0a9da713275777f5a4dbb8a1893930c6"
+
+[[package]]
+name = "trace"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "futures",
+ "http",
+ "http-body",
+ "observability_deps",
+ "parking_lot",
+ "pin-project 1.0.8",
+ "rand 0.8.4",
+ "serde",
+ "serde_json",
+ "snafu",
+ "tower",
+]
 
 [[package]]
 name = "tracing"
