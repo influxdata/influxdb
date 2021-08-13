@@ -2130,7 +2130,7 @@ mod tests {
 
         // verify chunk size updated (chunk moved from closing to moving to moved)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
-        let expected_read_buffer_size = 1724;
+        let expected_read_buffer_size = 1820;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -2381,7 +2381,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated (chunk moved from moved to writing to written)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1724).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1820).unwrap();
 
         // drop, the chunk from the read buffer
         db.drop_chunk("cpu", partition_key, mb_chunk.id())
@@ -2531,7 +2531,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3436.0)
+            .sample_sum_eq(3532.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk).await;
@@ -2641,7 +2641,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2403.0)
+            .sample_sum_eq(2499.0)
             .unwrap();
 
         // while MB and RB chunk are identical, the PQ chunk is a new one (split off)
@@ -2761,7 +2761,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2403.0)
+            .sample_sum_eq(2499.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -3400,7 +3400,7 @@ mod tests {
                 id: 2,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                memory_bytes: 3448,       // size of RB and OS chunks
+                memory_bytes: 3544,       // size of RB and OS chunks
                 object_store_bytes: 1577, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
@@ -3451,7 +3451,7 @@ mod tests {
         }
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 87);
-        assert_eq!(db.catalog.metrics().memory().read_buffer(), 2574);
+        assert_eq!(db.catalog.metrics().memory().read_buffer(), 2670);
         assert_eq!(db.catalog.metrics().memory().object_store(), 874);
     }
 
