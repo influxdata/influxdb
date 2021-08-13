@@ -1,4 +1,4 @@
-use influxdb_iox_client::{connection::Builder, management};
+use influxdb_iox_client::{connection::Connection, management};
 use structopt::StructOpt;
 use thiserror::Error;
 
@@ -7,9 +7,6 @@ use prettytable::{format, Cell, Row, Table};
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error connecting to IOx: {0}")]
-    ConnectionError(#[from] influxdb_iox_client::connection::Error),
-
     #[error("Update remote error: {0}")]
     UpdateError(#[from] management::UpdateRemoteError),
 
@@ -33,9 +30,7 @@ pub enum Config {
     List,
 }
 
-pub async fn command(url: String, config: Config) -> Result<()> {
-    let connection = Builder::default().build(url).await?;
-
+pub async fn command(connection: Connection, config: Config) -> Result<()> {
     match config {
         Config::Set {
             id,

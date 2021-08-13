@@ -19,9 +19,6 @@ pub enum Error {
     #[error("Error updating server ID: {0}")]
     UpdateServerIdError(#[from] UpdateServerIdError),
 
-    #[error("Error connecting to IOx: {0}")]
-    ConnectionError(#[from] influxdb_iox_client::connection::Error),
-
     #[error("Error checking if databases are loded: {0}")]
     AreDatabasesLoadedError(#[from] GetServerStatusError),
 
@@ -67,24 +64,24 @@ struct WaitSeverInitialized {
     timeout: u64,
 }
 
-use influxdb_iox_client::{connection::Builder, management::*};
+use influxdb_iox_client::{connection::Connection, management::*};
 
-pub async fn command(url: String, config: Config) -> Result<()> {
-    let connection = Builder::default().build(&url).await?;
-    let mut client = Client::new(connection);
-
+pub async fn command(connection: Connection, config: Config) -> Result<()> {
     match config.command {
         Command::Set(command) => {
+            let mut client = Client::new(connection);
             client.update_server_id(command.id).await?;
             println!("Ok");
             Ok(())
         }
         Command::Get => {
+            let mut client = Client::new(connection);
             let id = client.get_server_id().await?;
             println!("{}", id);
             Ok(())
         }
         Command::WaitServerInitialized(command) => {
+            let mut client = Client::new(connection);
             let end = Instant::now() + Duration::from_secs(command.timeout);
             loop {
                 let status = client.get_server_status().await?;
@@ -104,6 +101,6 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
         }
-        Command::Remote(config) => Ok(server_remote::command(url, config).await?),
+        Command::Remote(config) => Ok(server_remote::command(connection, config).await?),
     }
 }

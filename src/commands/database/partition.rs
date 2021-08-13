@@ -3,7 +3,7 @@ use data_types::chunk_metadata::ChunkSummary;
 use data_types::job::Operation;
 use generated_types::google::FieldViolation;
 use influxdb_iox_client::{
-    connection::Builder,
+    connection::Connection,
     management::{
         self, ClosePartitionChunkError, GetPartitionError, ListPartitionChunksError,
         ListPartitionsError, NewPartitionChunkError, UnloadPartitionChunkError,
@@ -39,9 +39,6 @@ pub enum Error {
 
     #[error("Received invalid response: {0}")]
     InvalidResponse(#[from] FieldViolation),
-
-    #[error("Error connecting to IOx: {0}")]
-    ConnectionError(#[from] influxdb_iox_client::connection::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -149,8 +146,7 @@ enum Command {
     UnloadChunk(UnloadChunk),
 }
 
-pub async fn command(url: String, config: Config) -> Result<()> {
-    let connection = Builder::default().build(url).await?;
+pub async fn command(connection: Connection, config: Config) -> Result<()> {
     let mut client = management::Client::new(connection);
 
     match config.command {

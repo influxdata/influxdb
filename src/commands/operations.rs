@@ -1,7 +1,7 @@
 use data_types::job::Operation;
 use generated_types::google::FieldViolation;
 use influxdb_iox_client::{
-    connection::Builder,
+    connection::Connection,
     management,
     operations::{self, Client},
 };
@@ -12,9 +12,6 @@ use thiserror::Error;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error connecting to IOx: {0}")]
-    ConnectionError(#[from] influxdb_iox_client::connection::Error),
-
     #[error("Client error: {0}")]
     ClientError(#[from] operations::Error),
 
@@ -68,9 +65,7 @@ enum Command {
     Test { nanos: Vec<u64> },
 }
 
-pub async fn command(url: String, config: Config) -> Result<()> {
-    let connection = Builder::default().build(url).await?;
-
+pub async fn command(connection: Connection, config: Config) -> Result<()> {
     match config.command {
         Command::List => {
             let result: Result<Vec<Operation>, _> = Client::new(connection)
