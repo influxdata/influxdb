@@ -18,6 +18,7 @@ use observability_deps::tracing::warn;
 
 use crate::commands::tracing::TracingGuard;
 use influxdb_iox_client::connection::Builder;
+use std::str::FromStr;
 use tikv_jemallocator::Jemalloc;
 
 mod commands {
@@ -119,7 +120,13 @@ struct Config {
         env = "IOX_ADDR",
         default_value = "http://127.0.0.1:8082"
     )]
-    host: String, /* TODO: This must be on the root due to https://github.com/clap-rs/clap/pull/2253 */
+    host: String,
+
+    /// Additional headers to add to CLI requests
+    ///
+    /// Values should be key value pairs separated by ':'
+    #[structopt(long, global = true)]
+    header: Vec<KeyValue<http::header::HeaderName, http::HeaderValue>>,
 
     #[structopt(long)]
     /// Set the maximum number of threads to use. Defaults to the number of
@@ -151,10 +158,15 @@ fn main() -> Result<(), std::io::Error> {
     let tokio_runtime = get_runtime(config.num_threads)?;
     tokio_runtime.block_on(async move {
         let host = config.host;
+        let headers = config.header;
         let log_verbose_count = config.log_verbose_count;
 
         let connection = || async move {
-            match Builder::default().build(&host).await {
+            let builder = headers.into_iter().fold(Builder::default(), |builder, kv| {
+                builder.header(kv.key, kv.value)
+            });
+
+            match builder.build(&host).await {
                 Ok(connection) => connection,
                 Err(e) => {
                     eprintln!("Error connecting to {}: {}", host, e);
@@ -321,5 +333,37 @@ unsafe fn set_signal_handler(signal: libc::c_int, handler: unsafe extern "C" fn(
         action.sa_sigaction = handler as sighandler_t;
 
         sigaction(signal, &action, std::ptr::null_mut());
+    }
+}
+
+/// A ':' separated key value pair
+#[derive(Debug, Clone)]
+struct KeyValue<K, V> {
+    pub key: K,
+    pub value: V,
+}
+
+impl<K, V> std::str::FromStr for KeyValue<K, V>
+where
+    K: FromStr,
+    V: FromStr,
+    K::Err: std::fmt::Display,
+    V::Err: std::fmt::Display,
+{
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use itertools::Itertools;
+        match s.split(':').collect_tuple() {
+            Some((key, value)) => {
+                let key = K::from_str(key).map_err(|e| e.to_string())?;
+                let value = V::from_str(value).map_err(|e| e.to_string())?;
+                Ok(Self { key, value })
+            }
+            None => Err(format!(
+                "Invalid key value pair - expected 'KEY:VALUE' got '{}'",
+                s
+            )),
+        }
     }
 }

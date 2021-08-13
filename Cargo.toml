@@ -25,6 +25,7 @@ members = [
     "influxdb_line_protocol",
     "influxdb_tsm",
     "internal_types",
+    "iox_object_store",
     "logfmt",
     "lifecycle",
     "mem_qe",
@@ -74,6 +75,7 @@ panic_logging = { path = "panic_logging" }
 query = { path = "query" }
 read_buffer = { path = "read_buffer" }
 server = { path = "server" }
+trace = { path = "trace" }
 tracker = { path = "tracker" }
 trogging = { path = "trogging", default-features = false, features = ["structopt"] }
 
@@ -110,6 +112,7 @@ serde_urlencoded = "0.7.0"
 snafu = "0.6.9"
 structopt = "0.3.21"
 thiserror = "1.0.23"
+# remember to put "unprefixed_malloc_on_supported_platforms" if you disable heappy
 tikv-jemallocator = {version = "0.4.0" }
 tikv-jemalloc-ctl = "0.4.0"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "parking_lot", "signal"] }

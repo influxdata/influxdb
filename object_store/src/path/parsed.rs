@@ -130,7 +130,7 @@ impl DirsAndFileName {
     }
 
     /// Add a `PathPart` to the end of the path's directories.
-    pub(crate) fn push_part_as_dir(&mut self, part: &PathPart) {
+    pub fn push_part_as_dir(&mut self, part: &PathPart) {
         self.directories.push(part.to_owned());
     }
 
