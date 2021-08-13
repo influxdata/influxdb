@@ -4,7 +4,7 @@ use observability_deps::tracing::debug;
 use snafu::{ResultExt, Snafu};
 use structopt::StructOpt;
 
-use influxdb_iox_client::connection::{Builder, Connection};
+use influxdb_iox_client::connection::Connection;
 
 mod observer;
 mod repl;
@@ -29,12 +29,6 @@ pub struct Config {
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Error connecting to {}: {}", url, source))]
-    Connecting {
-        url: String,
-        source: influxdb_iox_client::connection::Error,
-    },
-
     #[snafu(display("Storage health check failed: {}", source))]
     HealthCheck {
         source: influxdb_iox_client::health::Error,
@@ -47,16 +41,12 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Fire up the interactive REPL
-pub async fn command(url: String, config: Config) -> Result<()> {
+pub async fn command(connection: Connection, config: Config) -> Result<()> {
     debug!("Starting interactive SQL prompt with {:?}", config);
 
-    let connection = Builder::default()
-        .build(&url)
-        .await
-        .context(Connecting { url: &url })?;
-
-    println!("Connected to IOx Server at {}", url);
     check_health(connection.clone()).await?;
+
+    println!("Connected to IOx Server");
 
     let mut repl = repl::Repl::new(connection);
 
