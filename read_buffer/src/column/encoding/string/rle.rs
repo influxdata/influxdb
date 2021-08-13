@@ -87,9 +87,18 @@ impl RLE {
         index_entries_size += self.index_entries.iter().map(|k| k.len()).sum::<usize>();
 
         // The total size (an upper bound estimate) of all the bitmaps
-        // in the column.
-        let row_ids_bitmaps_size = self
-            .index_row_ids
+        // in the column - only set if including allocated capacity, otherwise
+        // ignore because not required for RLE compression.
+        let row_ids_bitmaps_size = match buffers {
+            true => self
+                .index_row_ids
+                .values()
+                .map(|row_ids| row_ids.size())
+                .sum::<usize>(),
+            false => 0,
+        };
+
+        self.index_row_ids
             .values()
             .map(|row_ids| row_ids.size())
             .sum::<usize>();
@@ -1007,11 +1016,10 @@ mod test {
 
         // * Self: 24 + 24 + 24 + 1 + (padding 3b) + 4 = 80b
         // * index entries: (4) are is (24*4) + 14 == 110
-        // * index row ids: (bitmaps) is (4 * 4) + (108b for bitmaps) == 124
+        // * index row ids: (bitmaps) not included in calc
         // * run lengths: (8*5) == 40
         //
-        // 354
-        // assert_eq!(enc.size(false), 354);
+        assert_eq!(enc.size(false), 246);
 
         // check allocated size
         let mut enc = RLE::default();

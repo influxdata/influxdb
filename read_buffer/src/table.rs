@@ -1203,11 +1203,11 @@ mod test {
         let expected = vec![
             ChunkColumnSummary {
                 name: "count".into(),
-                memory_bytes: 110,
+                memory_bytes: 229,
             },
             ChunkColumnSummary {
                 name: "time".into(),
-                memory_bytes: 107,
+                memory_bytes: 225,
             },
         ];
         assert_eq!(table.column_sizes(), expected);

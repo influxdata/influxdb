@@ -28,10 +28,10 @@ impl Encoding {
         }
     }
 
-    pub fn size(&self) -> usize {
+    pub fn size(&self, buffers: bool) -> usize {
         match &self {
-            Self::RLE(enc) => enc.size(false),
-            Self::Plain(enc) => enc.size(false),
+            Self::RLE(enc) => enc.size(buffers),
+            Self::Plain(enc) => enc.size(buffers),
         }
     }
 

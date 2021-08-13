@@ -303,19 +303,25 @@ impl std::fmt::Debug for Chunk {
 
 #[derive(Debug)]
 pub struct ChunkMetrics {
-    // This metric tracks the total number of columns in read buffer.
+    /// This metric tracks the total number of columns in read buffer.
     columns_total: Gauge,
 
-    // This metric tracks the total number of values stored in read buffer
-    // column encodings further segmented by nullness.
+    /// This metric tracks the total number of values stored in read buffer
+    /// column encodings further segmented by nullness.
     column_values_total: Gauge,
 
-    // This metric tracks the total number of bytes used by read buffer columns
-    column_bytes_total: Gauge,
+    /// This metric tracks the total number of bytes used by read buffer columns
+    /// including any allocated but unused buffers.
+    column_allocated_bytes_total: Gauge,
 
-    // This metric tracks an estimated uncompressed data size for read buffer
-    // columns, further segmented by nullness. It is a building block for
-    // tracking a measure of overall compression.
+    /// This metric tracks the minimal number of bytes required by read buffer
+    /// columns but not including allocated but unused buffers. It's primarily
+    /// of interest to the development of the Read Buffer.
+    column_required_bytes_total: Gauge,
+
+    /// This metric tracks an estimated uncompressed data size for read buffer
+    /// columns, further segmented by nullness. It is a building block for
+    /// tracking a measure of overall compression.
     column_raw_bytes_total: metrics::Gauge,
 }
 
@@ -332,10 +338,15 @@ impl ChunkMetrics {
                 Some("values"),
                 "The number of values within columns in the Read Buffer",
             ),
-            column_bytes_total: domain.register_gauge_metric(
-                "column",
+            column_allocated_bytes_total: domain.register_gauge_metric(
+                "column_allocated",
                 Some("bytes"),
-                "The number of bytes used by all columns in the Read Buffer",
+                "The number of bytes used by all data in the Read Buffer including allocated by unused buffers",
+            ),
+            column_required_bytes_total: domain.register_gauge_metric(
+                "column_required",
+                Some("bytes"),
+                "The number of bytes currently required to store data in the Read Buffer excluding allocated by unused buffers",
             ),
             column_raw_bytes_total: domain.register_gauge_metric(
                 "column_raw",
@@ -353,7 +364,8 @@ impl ChunkMetrics {
         Self {
             columns_total: Gauge::new_unregistered(),
             column_values_total: Gauge::new_unregistered(),
-            column_bytes_total: Gauge::new_unregistered(),
+            column_allocated_bytes_total: Gauge::new_unregistered(),
+            column_required_bytes_total: Gauge::new_unregistered(),
             column_raw_bytes_total: Gauge::new_unregistered(),
         }
     }
@@ -369,8 +381,13 @@ impl ChunkMetrics {
             // update number of columns
             self.columns_total.inc(1, labels);
 
-            // update bytes associated with columns
-            self.column_bytes_total.inc(stat.bytes, labels);
+            // update bytes allocated associated with columns
+            self.column_allocated_bytes_total
+                .inc(stat.allocated_bytes, labels);
+
+            // update bytes in use but excluded unused
+            self.column_required_bytes_total
+                .inc(stat.required_bytes, labels);
 
             // update raw estimated bytes of NULL values
             self.column_raw_bytes_total.inc(
@@ -656,13 +673,13 @@ mod test {
         let actual_lines = actual.lines();
 
         let expected_lines = vec![
-                "# HELP read_buffer_column_bytes The number of bytes used by all columns in the Read Buffer",
-        "# TYPE read_buffer_column_bytes gauge",
-        r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 72"#,
-        r#"read_buffer_column_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 512"#,
-        r#"read_buffer_column_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 96"#,
-        r#"read_buffer_column_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 384"#,
-        r#"read_buffer_column_bytes{db="mydb",encoding="RLE",log_data_type="string"} 506"#,
+        "# HELP read_buffer_column_allocated_bytes The number of bytes used by all data in the Read Buffer including allocated by unused buffers",
+        "# TYPE read_buffer_column_allocated_bytes gauge",
+        r#"read_buffer_column_allocated_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 192"#,
+        r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 906"#,
+        r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 186"#,
+        r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 672"#,
+        r#"read_buffer_column_allocated_bytes{db="mydb",encoding="RLE",log_data_type="string"} 586"#,
         "# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer",
         "# TYPE read_buffer_column_raw_bytes gauge",
         r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 96"#,
@@ -675,6 +692,13 @@ mod test {
         r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
         r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="false"} 216"#,
         r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
+        "# HELP read_buffer_column_required_bytes The number of bytes currently required to store data in the Read Buffer excluding allocated by unused buffers",
+        "# TYPE read_buffer_column_required_bytes gauge",
+        r#"read_buffer_column_required_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 192"#,
+        r#"read_buffer_column_required_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 906"#,
+        r#"read_buffer_column_required_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 186"#,
+        r#"read_buffer_column_required_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 672"#,
+        r#"read_buffer_column_required_bytes{db="mydb",encoding="RLE",log_data_type="string"} 376"#,
         "# HELP read_buffer_column_total The number of columns within the Read Buffer",
         "# TYPE read_buffer_column_total gauge",
         r#"read_buffer_column_total{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 2"#,
@@ -703,51 +727,60 @@ mod test {
 
         // when the chunk is dropped the metrics are all correctly decreased
         std::mem::drop(chunk);
-        assert_eq!(
-            String::from_utf8(reg.registry().metrics_as_text()).unwrap(),
-            vec![
-                "# HELP read_buffer_column_bytes The number of bytes used by all columns in the Read Buffer",
-                "# TYPE read_buffer_column_bytes gauge",
-                r#"read_buffer_column_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 0"#,
-                r#"read_buffer_column_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 0"#,
-                r#"read_buffer_column_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 0"#,
-                r#"read_buffer_column_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 0"#,
-                r#"read_buffer_column_bytes{db="mydb",encoding="RLE",log_data_type="string"} 0"#,
-                "# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer",
-                "# TYPE read_buffer_column_raw_bytes gauge",
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 0"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="true"} 0"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="false"} 0"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="true"} 0"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 0"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="true"} 0"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 0"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="false"} 0"#,
-                r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
-                "# HELP read_buffer_column_total The number of columns within the Read Buffer",
-                "# TYPE read_buffer_column_total gauge",
-                r#"read_buffer_column_total{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 0"#,
-                r#"read_buffer_column_total{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 0"#,
-                r#"read_buffer_column_total{db="mydb",encoding="FIXED",log_data_type="f64"} 0"#,
-                r#"read_buffer_column_total{db="mydb",encoding="FIXEDN",log_data_type="bool"} 0"#,
-                r#"read_buffer_column_total{db="mydb",encoding="RLE",log_data_type="string"} 0"#,
-                "# HELP read_buffer_column_values The number of values within columns in the Read Buffer",
-                "# TYPE read_buffer_column_values gauge",
-                r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 0"#,
-                r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="true"} 0"#,
-                r#"read_buffer_column_values{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="false"} 0"#,
-                r#"read_buffer_column_values{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="true"} 0"#,
-                r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 0"#,
-                r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="true"} 0"#,
-                r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 0"#,
-                r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
-                r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 0"#,
-                r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
-                "",
-            ]
-            .join("\n")
-        );
+        let actual = String::from_utf8(reg.registry().metrics_as_text()).unwrap();
+        let actual_lines = actual.lines();
+        let expected_lines = vec![
+            "# HELP read_buffer_column_allocated_bytes The number of bytes used by all data in the Read Buffer including allocated by unused buffers",
+            "# TYPE read_buffer_column_allocated_bytes gauge",
+            r#"read_buffer_column_allocated_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 0"#,
+            r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 0"#,
+            r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 0"#,
+            r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 0"#,
+            r#"read_buffer_column_allocated_bytes{db="mydb",encoding="RLE",log_data_type="string"} 0"#,
+            "# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer",
+            "# TYPE read_buffer_column_raw_bytes gauge",
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 0"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="true"} 0"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="false"} 0"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="true"} 0"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 0"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="true"} 0"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 0"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="false"} 0"#,
+            r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
+            "# HELP read_buffer_column_required_bytes The number of bytes currently required to store data in the Read Buffer excluding allocated by unused buffers",
+            "# TYPE read_buffer_column_required_bytes gauge",
+            r#"read_buffer_column_required_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 0"#,
+            r#"read_buffer_column_required_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 0"#,
+            r#"read_buffer_column_required_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 0"#,
+            r#"read_buffer_column_required_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 0"#,
+            r#"read_buffer_column_required_bytes{db="mydb",encoding="RLE",log_data_type="string"} 0"#,
+            "# HELP read_buffer_column_total The number of columns within the Read Buffer",
+            "# TYPE read_buffer_column_total gauge",
+            r#"read_buffer_column_total{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 0"#,
+            r#"read_buffer_column_total{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 0"#,
+            r#"read_buffer_column_total{db="mydb",encoding="FIXED",log_data_type="f64"} 0"#,
+            r#"read_buffer_column_total{db="mydb",encoding="FIXEDN",log_data_type="bool"} 0"#,
+            r#"read_buffer_column_total{db="mydb",encoding="RLE",log_data_type="string"} 0"#,
+            "# HELP read_buffer_column_values The number of values within columns in the Read Buffer",
+            "# TYPE read_buffer_column_values gauge",
+            r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 0"#,
+            r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="true"} 0"#,
+            r#"read_buffer_column_values{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="false"} 0"#,
+            r#"read_buffer_column_values{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="true"} 0"#,
+            r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 0"#,
+            r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="true"} 0"#,
+            r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 0"#,
+            r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
+            r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 0"#,
+            r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
+            "",
+        ];
+
+        for (actual_line, &expected_line) in actual_lines.zip(expected_lines.iter()) {
+            assert_eq!(actual_line, expected_line);
+        }
     }
 
     #[test]

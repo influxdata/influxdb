@@ -8,10 +8,11 @@ pub enum BooleanEncoding {
 }
 
 impl BooleanEncoding {
-    /// The total size in bytes of the store columnar data.
+    /// The total size in bytes of the encoding and all its data, including
+    /// allocated buffers.
     pub fn size(&self) -> usize {
         match self {
-            Self::BooleanNull(enc) => enc.size(false),
+            Self::BooleanNull(enc) => enc.size(),
         }
     }
 
@@ -40,7 +41,8 @@ impl BooleanEncoding {
             log_data_type: "bool",
             values: self.num_rows(),
             nulls: self.null_count(),
-            bytes: self.size(),
+            allocated_bytes: self.size(),
+            required_bytes: self.size(),
             raw_bytes: self.size_raw(true),
             raw_bytes_no_null: self.size_raw(false),
         }
