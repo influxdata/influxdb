@@ -897,7 +897,6 @@ async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'stat
 async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
-    #[cfg(not(feature = "heappy"))]
     HeappyIsNotCompiled {}.fail()
 }
 
