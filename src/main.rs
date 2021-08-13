@@ -29,6 +29,8 @@ mod commands {
     pub mod tracing;
 }
 
+mod object_store;
+
 pub mod influxdb_ioxd;
 
 #[global_allocator]
