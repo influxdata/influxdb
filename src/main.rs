@@ -35,6 +35,7 @@ mod object_store;
 
 pub mod influxdb_ioxd;
 
+#[cfg(not(feature = "heappy"))]
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 

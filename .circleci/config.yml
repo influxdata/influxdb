@@ -131,6 +131,27 @@ jobs:
           command: cargo test --workspace
       - cache_save
 
+  # end to end tests with Heappy (heap profiling enabled)
+  test_heappy:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    resource_class: xlarge # use of a smaller executor tends crashes on link
+    environment:
+        # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+        CARGO_INCREMENTAL: "0"
+        # Disable full debug symbol generation to speed up CI build
+        # "1" means line tables only, which is useful for panic tracebacks.
+        RUSTFLAGS: "-C debuginfo=1"
+        RUST_BACKTRACE: "1"
+    steps:
+      - checkout
+      - rust_components
+      - cache_restore
+      - run:
+          name: End to end tests (with heappy)
+          command: cargo test --features=heappy end_to_end
+      - cache_save
+
   test_kafka_integration:
     machine: true
     resource_class: xlarge
@@ -192,8 +213,8 @@ jobs:
           name: Build benches
           command: cargo test --workspace --benches --no-run
       - run:
-          name: Build with object store + exporter support
-          command: cargo build --features="aws,gcp,azure,jaeger,otlp"
+          name: Build with object store + exporter support + HEAP profiling
+          command: cargo build --features="aws,gcp,azure,jaeger,otlp,heappy"
       - cache_save
 
   # Lint protobufs.
@@ -252,10 +273,10 @@ jobs:
       - cache_restore
       - run:
           name: Print rustc target CPU options
-          command: cargo run --release --features="aws,gcp,azure,jaeger,otlp" --bin print_cpu
+          command: cargo run --release --features="aws,gcp,azure,jaeger,otlp,heappy" --bin print_cpu
       - run:
           name: Cargo release build with target arch set for CRoaring
-          command: cargo build --release --features="aws,gcp,azure,jaeger,otlp"
+          command: cargo build --release --features="aws,gcp,azure,jaeger,otlp,heappy"
       - run: |
           echo sha256sum after build is
           sha256sum target/release/influxdb_iox
@@ -314,6 +335,7 @@ workflows:
       - lint
       - protobuf-lint
       - test
+      - test_heappy
       - test_kafka_integration
       - test_influxdb2_client
       - build

@@ -10,13 +10,15 @@
 //! Long term, we expect to create IOx specific api in terms of
 //! database names and may remove this quasi /v2 API.
 
+#[cfg(feature = "heappy")]
+mod heappy;
+
 // Influx crates
 use super::planner::Planner;
 use data_types::{
     names::{org_and_bucket_to_database, OrgBucketMappingError},
     DatabaseName,
 };
-use heappy::{self, HeapReport};
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
 use query::{exec::ExecutorType, QueryDatabase};
@@ -220,7 +222,12 @@ pub enum ApplicationError {
 
     #[snafu(display("Internal server error"))]
     InternalServerError,
+
+    #[snafu(display("Heappy is not compiled"))]
+    HeappyIsNotCompiled,
 }
+
+type Result<T, E = ApplicationError> = std::result::Result<T, E>;
 
 impl ApplicationError {
     pub fn response(&self) -> Response<Body> {
@@ -258,6 +265,7 @@ impl ApplicationError {
             Self::ServerNotInitialized => self.bad_request(),
             Self::DatabaseNotInitialized { .. } => self.bad_request(),
             Self::InternalServerError => self.internal_error(),
+            Self::HeappyIsNotCompiled => self.internal_error(),
         }
     }
 
@@ -794,22 +802,6 @@ async fn dump_rsprof(seconds: u64, frequency: i32) -> pprof::Result<pprof::Repor
     guard.report().build()
 }
 
-async fn dump_heappy_rsprof(seconds: u64, frequency: i32) -> HeapReport {
-    let guard = heappy::HeapProfilerGuard::new(frequency as usize);
-    info!(
-        "start heappy profiling {} seconds with frequency {} /s",
-        seconds, frequency
-    );
-
-    tokio::time::sleep(Duration::from_secs(seconds)).await;
-
-    info!(
-        "done heappy  profiling {} seconds with frequency {} /s",
-        seconds, frequency
-    );
-    guard.report()
-}
-
 #[derive(Debug, Deserialize)]
 struct PProfArgs {
     #[serde(default = "PProfArgs::default_seconds")]
@@ -864,6 +856,8 @@ async fn pprof_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
     Ok(Response::new(Body::from(body)))
 }
 
+// If heappy support is enabled, call it
+#[cfg(feature = "heappy")]
 #[tracing::instrument(level = "debug")]
 async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
@@ -872,13 +866,13 @@ async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'stat
     let query: PProfArgs =
         serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
 
-    let report: HeapReport = dump_heappy_rsprof(query.seconds, query.frequency.get()).await;
-    //.context(PProf)?;
+    let report = self::heappy::dump_heappy_rsprof(query.seconds, query.frequency.get()).await;
 
     let mut body: Vec<u8> = Vec::new();
 
     // render flamegraph when opening in the browser
-    // otherwise render as protobuf; works great with: go tool pprof http://..../debug/pprof/allocs
+    // otherwise render as protobuf;
+    // works great with: go tool pprof http://..../debug/pprof/allocs
     if req
         .headers()
         .get_all("Accept")
@@ -895,6 +889,15 @@ async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'stat
     }
 
     Ok(Response::new(Body::from(body)))
+}
+
+//  Return error if heappy not enabled
+#[cfg(not(feature = "heappy"))]
+#[tracing::instrument(level = "debug")]
+async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    HeappyIsNotCompiled {}.fail()
 }
 
 pub async fn serve<M>(
@@ -1221,7 +1224,7 @@ mod tests {
         let response = client
             .get(&format!(
                 "{}/iox/api/v1/databases/MyOrg_MyBucket/query?q={}&format=json",
-                server_url, "select%20*%20from%20h2o_temperature"
+                server_url, "select%20*%20from%20h2o_temperature%20order%20by%20surface_degrees"
             ))
             .send()
             .await;
