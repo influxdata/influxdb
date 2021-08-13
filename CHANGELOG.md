@@ -1,4 +1,7 @@
-## v2.0.8 [unreleased]
+## v2.0.9 [unreleased]
+----------------------
+
+## v2.0.8 [2021-08-13]
 ----------------------
 
 ### WARNING: Upcoming changes to CLI packaging
