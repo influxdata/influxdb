@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use data_types::job::Operation;
 use generated_types::google::FieldViolation;
 use influxdb_iox_client::{
-    connection::Builder,
+    connection::Connection,
     management::{self, WipePersistedCatalogError},
 };
 use snafu::{ResultExt, Snafu};
@@ -12,11 +12,6 @@ use structopt::StructOpt;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Error connection to IOx: {}", source))]
-    ConnectionError {
-        source: influxdb_iox_client::connection::Error,
-    },
-
     #[snafu(display("Need to pass `--force`"))]
     NeedsTheForceError,
 
@@ -56,11 +51,7 @@ struct Wipe {
     db_name: String,
 }
 
-pub async fn command(url: String, config: Config) -> Result<()> {
-    let connection = Builder::default()
-        .build(url)
-        .await
-        .context(ConnectionError)?;
+pub async fn command(connection: Connection, config: Config) -> Result<()> {
     let mut client = management::Client::new(connection);
 
     match config.command {

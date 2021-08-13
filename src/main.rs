@@ -17,6 +17,7 @@ use commands::tracing::{init_logs_and_tracing, init_simple_logs};
 use observability_deps::tracing::warn;
 
 use crate::commands::tracing::TracingGuard;
+use influxdb_iox_client::connection::Builder;
 use tikv_jemallocator::Jemalloc;
 
 mod commands {
@@ -28,6 +29,8 @@ mod commands {
     pub mod sql;
     pub mod tracing;
 }
+
+mod object_store;
 
 pub mod influxdb_ioxd;
 
@@ -149,6 +152,16 @@ fn main() -> Result<(), std::io::Error> {
         let host = config.host;
         let log_verbose_count = config.log_verbose_count;
 
+        let connection = || async move {
+            match Builder::default().build(&host).await {
+                Ok(connection) => connection,
+                Err(e) => {
+                    eprintln!("Error connecting to {}: {}", host, e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+        };
+
         fn handle_init_logs(r: Result<TracingGuard, trogging::Error>) -> TracingGuard {
             match r {
                 Ok(guard) => guard,
@@ -162,21 +175,24 @@ fn main() -> Result<(), std::io::Error> {
         match config.command {
             Command::Database(config) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                if let Err(e) = commands::database::command(host, config).await {
+                let connection = connection().await;
+                if let Err(e) = commands::database::command(connection, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Command::Operation(config) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                if let Err(e) = commands::operations::command(host, config).await {
+                let connection = connection().await;
+                if let Err(e) = commands::operations::command(connection, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Command::Server(config) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                if let Err(e) = commands::server::command(host, config).await {
+                let connection = connection().await;
+                if let Err(e) = commands::server::command(connection, config).await {
                     eprintln!("Server command failed: {}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
@@ -191,7 +207,8 @@ fn main() -> Result<(), std::io::Error> {
             }
             Command::Sql(config) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                if let Err(e) = commands::sql::command(host, config).await {
+                let connection = connection().await;
+                if let Err(e) = commands::sql::command(connection, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }

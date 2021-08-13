@@ -1,7 +1,6 @@
 //! This module contains structs that describe the metadata for a partition
 //! including schema, summary statistics, and file locations in storage.
 
-use observability_deps::tracing::warn;
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::{Borrow, Cow},
@@ -107,12 +106,15 @@ impl TableSummary {
 
         // Validate that the counts are consistent across columns
         for c in &self.columns {
-            // Restore to assert when https://github.com/influxdata/influxdb_iox/issues/2124 is fixed
-            if c.total_count() != count {
-                warn!(table_name=%self.name, column_name=%c.name,
-                      column_count=c.total_count(), previous_count=count,
-                      "Mismatch in statistics count, see #2124");
-            }
+            assert_eq!(
+                c.total_count(),
+                count,
+                "Mismatch counts in table {} column {}, expected {} got {}",
+                self.name,
+                c.name,
+                count,
+                c.total_count()
+            )
         }
         count
     }

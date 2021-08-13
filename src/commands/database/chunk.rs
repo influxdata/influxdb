@@ -2,7 +2,7 @@
 use data_types::chunk_metadata::ChunkSummary;
 use generated_types::google::FieldViolation;
 use influxdb_iox_client::{
-    connection::Builder,
+    connection::Connection,
     management::{self, ListChunksError},
 };
 use std::convert::TryFrom;
@@ -47,9 +47,7 @@ enum Command {
     List(List),
 }
 
-pub async fn command(url: String, config: Config) -> Result<()> {
-    let connection = Builder::default().build(url).await?;
-
+pub async fn command(connection: Connection, config: Config) -> Result<()> {
     match config.command {
         Command::List(get) => {
             let List { db_name } = get;

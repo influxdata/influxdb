@@ -5,7 +5,7 @@ use structopt::StructOpt;
 use thiserror::Error;
 
 use influxdb_iox_client::{
-    connection::Builder,
+    connection::Connection,
     flight,
     format::QueryOutputFormat,
     management::{
@@ -29,9 +29,6 @@ pub enum Error {
 
     #[error("Error listing databases: {0}")]
     ListDatabaseError(#[from] ListDatabaseError),
-
-    #[error("Error connecting to IOx: {0}")]
-    ConnectionError(#[from] influxdb_iox_client::connection::Error),
 
     #[error("Error reading file {:?}: {}", file_name, source)]
     ReadingFile {
@@ -175,9 +172,7 @@ enum Command {
     Catalog(catalog::Config),
 }
 
-pub async fn command(url: String, config: Config) -> Result<()> {
-    let connection = Builder::default().build(url.clone()).await?;
-
+pub async fn command(connection: Connection, config: Config) -> Result<()> {
     match config.command {
         Command::Create(command) => {
             let mut client = management::Client::new(connection);
@@ -272,13 +267,13 @@ pub async fn command(url: String, config: Config) -> Result<()> {
             println!("{}", formatted_result);
         }
         Command::Chunk(config) => {
-            chunk::command(url, config).await?;
+            chunk::command(connection, config).await?;
         }
         Command::Partition(config) => {
-            partition::command(url, config).await?;
+            partition::command(connection, config).await?;
         }
         Command::Catalog(config) => {
-            catalog::command(url, config).await?;
+            catalog::command(connection, config).await?;
         }
     }
 

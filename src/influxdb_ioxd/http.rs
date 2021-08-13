@@ -373,7 +373,7 @@ where
         .get("/api/v1/partitions", list_partitions::<M>)
         .get("/debug/pprof", pprof_home::<M>)
         .get("/debug/pprof/profile", pprof_profile::<M>)
-        .get("/debug/pprof/heappy/profile", pprof_heappy_profile::<M>)
+        .get("/debug/pprof/allocs", pprof_heappy_profile::<M>)
         // Specify the error handler to handle any errors caused by
         // a route or any middleware.
         .err_handler_with_info(error_handler)
@@ -770,13 +770,17 @@ async fn pprof_home<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .unwrap_or(&default_host)
         .to_str()
         .unwrap_or_default();
-    let cmd = format!(
+    let profile_cmd = format!(
         "/debug/pprof/profile?seconds={}",
         PProfArgs::default_seconds()
     );
+    let allocs_cmd = format!(
+        "/debug/pprof/allocs?seconds={}",
+        PProfArgs::default_seconds()
+    );
     Ok(Response::new(Body::from(format!(
-        r#"<a href="{}">http://{}{}</a>"#,
-        cmd, host, cmd
+        r#"<a href="{}">http://{}{}</a><br><a href="{}">http://{}{}</a>"#,
+        profile_cmd, host, profile_cmd, allocs_cmd, host, allocs_cmd,
     ))))
 }
 
@@ -886,7 +890,7 @@ async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'stat
     let mut body: Vec<u8> = Vec::new();
 
     // render flamegraph when opening in the browser
-    // otherwise render as protobuf; works great with: go tool pprof http://..../debug/pprof/heappy/profile
+    // otherwise render as protobuf; works great with: go tool pprof http://..../debug/pprof/allocs
     if req
         .headers()
         .get_all("Accept")
