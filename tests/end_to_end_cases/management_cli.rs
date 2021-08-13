@@ -9,6 +9,7 @@ use data_types::{
     job::{Job, Operation},
 };
 use test_helpers::make_temp_file;
+use write_buffer::maybe_skip_kafka_integration;
 
 use crate::{
     common::server_fixture::ServerFixture,
@@ -16,7 +17,7 @@ use crate::{
 };
 
 use super::scenario::{create_readable_database, rand_name};
-use crate::end_to_end_cases::scenario::fixture_broken_catalog;
+use crate::end_to_end_cases::scenario::{fixture_broken_catalog, fixture_replay_broken};
 
 #[tokio::test]
 async fn test_server_id() {
@@ -690,6 +691,26 @@ async fn test_wipe_persisted_catalog_error_db_exists() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(&expected_err));
+}
+
+#[tokio::test]
+async fn test_skip_replay() {
+    let kafka_connection = maybe_skip_kafka_integration!();
+    let db_name = rand_name();
+    let server_fixture = fixture_replay_broken(&db_name, &kafka_connection).await;
+    let addr = server_fixture.grpc_base();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("recover")
+        .arg("skip-replay")
+        .arg(&db_name)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Ok"));
 }
 
 #[tokio::test]
