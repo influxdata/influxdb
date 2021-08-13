@@ -170,6 +170,14 @@ start_time() {
     iot|window-agg|group-agg|bare-agg)
       echo 2018-01-01T00:00:00Z
       ;;
+    group-window-transpose)
+      cardinality=$(echo $2 | cut -d '-' -f2)
+      if [ "$cardinality" = "low" ]; then
+        echo 2018-01-01T00:00:00Z
+      else
+        echo 2019-01-01T00:00:00Z
+      fi
+      ;;
     metaquery)
       echo 2019-01-01T00:00:00Z
       ;;
@@ -183,6 +191,14 @@ end_time() {
   case $1 in
     iot|window-agg|group-agg|bare-agg)
       echo 2018-01-01T12:00:00Z
+      ;;
+    group-window-transpose)
+      cardinality=$(echo $2 | cut -d '-' -f2)
+      if [ "$cardinality" = "low" ]; then
+        echo 2018-01-01T12:00:00Z
+      else
+        echo 2020-01-01T00:00:00Z
+      fi
       ;;
     metaquery)
       echo 2020-01-01T00:00:00Z
@@ -230,6 +246,12 @@ query_types() {
     window-agg|group-agg|bare-agg)
       echo min mean max first last count sum
       ;;
+    group-window-transpose)
+      echo min-high-card mean-high-card max-high-card first-high-card last-high-card count-high-card sum-high-card min-low-card mean-low-card max-low-card first-low-card last-low-card count-low-card sum-low-card
+      ;;
+    iot)
+      echo 1-home-12-hours light-level-8-hr aggregate-keep sorted-pivot
+      ;;
     metaquery)
       echo field-keys tag-values
       ;;
@@ -245,16 +267,15 @@ query_types() {
 
 # Generate queries to test.
 query_files=""
-# Aggregate queries
-for usecase in window-agg group-agg bare-agg metaquery iot; do
+for usecase in window-agg group-agg bare-agg group-window-transpose iot metaquery; do
   for type in $(query_types $usecase); do
     query_fname="${TEST_FORMAT}_${usecase}_${type}"
     $GOPATH/bin/bulk_query_gen \
         -use-case=$usecase \
         -query-type=$type \
         -format=influx-${TEST_FORMAT} \
-        -timestamp-start=$(start_time $usecase) \
-        -timestamp-end=$(end_time $usecase) \
+        -timestamp-start=$(start_time $usecase $type) \
+        -timestamp-end=$(end_time $usecase $type) \
         -queries=$queries \
         -scale-var=$scale_var > \
       ${DATASET_DIR}/$query_fname
