@@ -59,7 +59,7 @@ pub struct Client {
 
 impl Client {
     /// Creates a new client with the provided connection
-    pub fn new(channel: tonic::transport::Channel) -> Self {
+    pub fn new(channel: Connection) -> Self {
         Self {
             inner: OperationsClient::new(channel),
         }

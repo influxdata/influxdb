@@ -14,9 +14,9 @@ use generated_types::{
     MeasurementTagValuesRequest, Node, Predicate, ReadFilterRequest, ReadGroupRequest,
     ReadWindowAggregateRequest, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
+use influxdb_iox_client::connection::Connection;
 use std::str;
 use test_helpers::tag_key_bytes_to_strings;
-use tonic::transport::Channel;
 
 #[tokio::test]
 pub async fn test() {
@@ -41,7 +41,7 @@ pub async fn test() {
 }
 
 /// Validate that capabilities storage endpoint is hooked up
-async fn capabilities_endpoint(storage_client: &mut StorageClient<Channel>) {
+async fn capabilities_endpoint(storage_client: &mut StorageClient<Connection>) {
     let capabilities_response = storage_client.capabilities(Empty {}).await.unwrap();
     let capabilities_response = capabilities_response.into_inner();
     assert_eq!(
@@ -52,7 +52,7 @@ async fn capabilities_endpoint(storage_client: &mut StorageClient<Channel>) {
     );
 }
 
-async fn read_filter_endpoint(storage_client: &mut StorageClient<Channel>, scenario: &Scenario) {
+async fn read_filter_endpoint(storage_client: &mut StorageClient<Connection>, scenario: &Scenario) {
     let read_source = scenario.read_source();
     let range = scenario.timestamp_range();
 
@@ -100,7 +100,7 @@ async fn read_filter_endpoint(storage_client: &mut StorageClient<Channel>, scena
     );
 }
 
-async fn tag_keys_endpoint(storage_client: &mut StorageClient<Channel>, scenario: &Scenario) {
+async fn tag_keys_endpoint(storage_client: &mut StorageClient<Connection>, scenario: &Scenario) {
     let read_source = scenario.read_source();
     let range = scenario.timestamp_range();
     let predicate = make_tag_predicate("host", "server01");
@@ -124,7 +124,7 @@ async fn tag_keys_endpoint(storage_client: &mut StorageClient<Channel>, scenario
     assert_eq!(keys, vec!["_m(0x00)", "host", "name", "region", "_f(0xff)"]);
 }
 
-async fn tag_values_endpoint(storage_client: &mut StorageClient<Channel>, scenario: &Scenario) {
+async fn tag_values_endpoint(storage_client: &mut StorageClient<Connection>, scenario: &Scenario) {
     let read_source = scenario.read_source();
     let range = scenario.timestamp_range();
     let predicate = make_tag_predicate("host", "server01");
@@ -154,7 +154,7 @@ async fn tag_values_endpoint(storage_client: &mut StorageClient<Channel>, scenar
 }
 
 async fn measurement_names_endpoint(
-    storage_client: &mut StorageClient<Channel>,
+    storage_client: &mut StorageClient<Connection>,
     scenario: &Scenario,
 ) {
     let read_source = scenario.read_source();
@@ -186,7 +186,7 @@ async fn measurement_names_endpoint(
 }
 
 async fn measurement_tag_keys_endpoint(
-    storage_client: &mut StorageClient<Channel>,
+    storage_client: &mut StorageClient<Connection>,
     scenario: &Scenario,
 ) {
     let read_source = scenario.read_source();
@@ -222,7 +222,7 @@ async fn measurement_tag_keys_endpoint(
 }
 
 async fn measurement_tag_values_endpoint(
-    storage_client: &mut StorageClient<Channel>,
+    storage_client: &mut StorageClient<Connection>,
     scenario: &Scenario,
 ) {
     let read_source = scenario.read_source();
@@ -259,7 +259,7 @@ async fn measurement_tag_values_endpoint(
 }
 
 async fn measurement_fields_endpoint(
-    storage_client: &mut StorageClient<Channel>,
+    storage_client: &mut StorageClient<Connection>,
     scenario: &Scenario,
 ) {
     let read_source = scenario.read_source();
@@ -381,7 +381,7 @@ async fn load_read_group_data(client: &influxdb2_client::Client, scenario: &Scen
 // Standalone test for read_group with group keys and no aggregate
 // assumes that load_read_group_data has been previously run
 async fn test_read_group_none_agg(
-    storage_client: &mut StorageClient<tonic::transport::Channel>,
+    storage_client: &mut StorageClient<Connection>,
     read_source: &std::option::Option<Any>,
 ) {
     // read_group(group_keys: region, agg: None)
@@ -434,7 +434,7 @@ async fn test_read_group_none_agg(
 
 /// Test that predicates make it through
 async fn test_read_group_none_agg_with_predicate(
-    storage_client: &mut StorageClient<tonic::transport::Channel>,
+    storage_client: &mut StorageClient<Connection>,
     read_source: &std::option::Option<Any>,
 ) {
     let read_group_request = ReadGroupRequest {
@@ -480,7 +480,7 @@ async fn test_read_group_none_agg_with_predicate(
 // "aggregate" (not a "selector" style).  assumes that
 // load_read_group_data has been previously run
 async fn test_read_group_sum_agg(
-    storage_client: &mut StorageClient<tonic::transport::Channel>,
+    storage_client: &mut StorageClient<Connection>,
     read_source: &std::option::Option<Any>,
 ) {
     // read_group(group_keys: region, agg: Sum)
@@ -535,7 +535,7 @@ async fn test_read_group_sum_agg(
 // "selector" function last.  assumes that
 // load_read_group_data has been previously run
 async fn test_read_group_last_agg(
-    storage_client: &mut StorageClient<tonic::transport::Channel>,
+    storage_client: &mut StorageClient<Connection>,
     read_source: &std::option::Option<Any>,
 ) {
     // read_group(group_keys: region, agg: Last)
@@ -754,7 +754,7 @@ fn make_field_predicate(field_name: impl Into<String>) -> Predicate {
 
 /// Make a read_group request and returns the results in a comparable format
 async fn do_read_filter_request(
-    storage_client: &mut StorageClient<tonic::transport::Channel>,
+    storage_client: &mut StorageClient<Connection>,
     request: ReadFilterRequest,
 ) -> Vec<String> {
     let request = tonic::Request::new(request);
@@ -781,7 +781,7 @@ async fn do_read_filter_request(
 
 /// Make a read_group request and returns the results in a comparable format
 async fn do_read_group_request(
-    storage_client: &mut StorageClient<tonic::transport::Channel>,
+    storage_client: &mut StorageClient<Connection>,
     request: ReadGroupRequest,
 ) -> Vec<String> {
     let request = tonic::Request::new(request);

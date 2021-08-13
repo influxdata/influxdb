@@ -1,11 +1,13 @@
-use http::{uri::InvalidUri, Uri};
+use crate::tower::{SetRequestHeadersLayer, SetRequestHeadersService};
+use http::header::HeaderName;
+use http::{uri::InvalidUri, HeaderValue, Uri};
 use std::convert::TryInto;
 use std::time::Duration;
 use thiserror::Error;
 use tonic::transport::Endpoint;
 
 /// The connection type used for clients
-pub type Connection = tonic::transport::Channel;
+pub type Connection = SetRequestHeadersService<tonic::transport::Channel>;
 
 /// The default User-Agent header sent by the HTTP client.
 pub const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -51,6 +53,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct Builder {
     user_agent: String,
+    headers: Vec<(HeaderName, HeaderValue)>,
     connect_timeout: Duration,
     timeout: Duration,
 }
@@ -61,6 +64,7 @@ impl std::default::Default for Builder {
             user_agent: USER_AGENT.into(),
             connect_timeout: DEFAULT_CONNECT_TIMEOUT,
             timeout: DEFAULT_TIMEOUT,
+            headers: Default::default(),
         }
     }
 }
@@ -73,18 +77,17 @@ impl Builder {
     {
         let endpoint = Endpoint::from(dst.try_into()?)
             .user_agent(self.user_agent)?
+            .connect_timeout(self.connect_timeout)
             .timeout(self.timeout);
 
-        // Manually construct connector to workaround https://github.com/hyperium/tonic/issues/498
-        let mut connector = hyper::client::HttpConnector::new();
-        connector.set_connect_timeout(Some(self.connect_timeout));
+        let channel = endpoint.connect().await?;
 
-        // Defaults from from tonic::channel::Endpoint
-        connector.enforce_http(false);
-        connector.set_nodelay(true);
-        connector.set_keepalive(None);
+        // Compose channel with new tower middleware stack
+        let channel = tower::ServiceBuilder::new()
+            .layer(SetRequestHeadersLayer::new(self.headers))
+            .service(channel);
 
-        Ok(endpoint.connect_with_connector(connector).await?)
+        Ok(channel)
     }
 
     /// Set the `User-Agent` header sent by this client.
@@ -93,6 +96,13 @@ impl Builder {
             user_agent: user_agent.into(),
             ..self
         }
+    }
+
+    /// Sets a header to be included on all requests
+    pub fn header(self, header: impl Into<HeaderName>, value: impl Into<HeaderValue>) -> Self {
+        let mut headers = self.headers;
+        headers.push((header.into(), value.into()));
+        Self { headers, ..self }
     }
 
     /// Sets the maximum duration of time the client will wait for the IOx
