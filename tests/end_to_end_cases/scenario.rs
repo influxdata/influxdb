@@ -550,8 +550,15 @@ where
 pub async fn list_chunks(fixture: &ServerFixture, db_name: &str) -> Vec<ChunkSummary> {
     let mut management_client = fixture.management_client();
     let chunks = management_client.list_chunks(db_name).await.unwrap();
-
-    chunks.into_iter().map(|c| c.try_into().unwrap()).collect()
+    let mut chunks: Vec<ChunkSummary> = chunks.into_iter().map(|c| c.try_into().unwrap()).collect();
+    chunks.sort_by_key(|summary| {
+        (
+            Arc::clone(&summary.table_name),
+            Arc::clone(&summary.partition_key),
+            summary.id,
+        )
+    });
+    chunks
 }
 
 /// Creates a database with a broken catalog
