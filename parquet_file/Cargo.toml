@@ -14,9 +14,10 @@ datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3.7"
 generated_types = { path = "../generated_types" }
-internal_types = {path = "../internal_types"}
+internal_types = { path = "../internal_types" }
+iox_object_store = { path = "../iox_object_store" }
 metrics = { path = "../metrics" }
-object_store = {path = "../object_store"}
+object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 parquet = "5.0"
 parquet-format = "2.6"

@@ -28,9 +28,10 @@ use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use entry::{Entry, Sequence, SequencedEntry, TableBatch};
 use futures::{stream::BoxStream, StreamExt};
 use internal_types::schema::Schema;
+use iox_object_store::IoxObjectStore;
 use metrics::KeyValue;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
-use object_store::{path::parsed::DirsAndFileName, ObjectStore};
+use object_store::path::parsed::DirsAndFileName;
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::{Mutex, RwLock};
 use parquet_file::{
@@ -317,7 +318,7 @@ pub struct Db {
     server_id: ServerId, // this is also the Query Server ID
 
     /// Interface to use for persistence
-    store: Arc<ObjectStore>,
+    iox_object_store: Arc<IoxObjectStore>,
 
     /// Executor for running queries
     exec: Arc<Executor>,
@@ -394,7 +395,7 @@ pub struct Db {
 #[derive(Debug)]
 pub(crate) struct DatabaseToCommit {
     pub(crate) server_id: ServerId,
-    pub(crate) object_store: Arc<ObjectStore>,
+    pub(crate) iox_object_store: Arc<IoxObjectStore>,
     pub(crate) exec: Arc<Executor>,
     pub(crate) preserved_catalog: PreservedCatalog,
     pub(crate) catalog: Catalog,
@@ -408,7 +409,7 @@ impl Db {
 
         let rules = RwLock::new(database_to_commit.rules);
         let server_id = database_to_commit.server_id;
-        let store = Arc::clone(&database_to_commit.object_store);
+        let iox_object_store = Arc::clone(&database_to_commit.iox_object_store);
         let metrics_registry = Arc::clone(&database_to_commit.catalog.metrics_registry);
         let metric_labels = database_to_commit.catalog.metric_labels.clone();
 
@@ -432,7 +433,7 @@ impl Db {
         let this = Self {
             rules,
             server_id,
-            store,
+            iox_object_store,
             exec: database_to_commit.exec,
             preserved_catalog: Arc::new(database_to_commit.preserved_catalog),
             catalog,
@@ -2666,9 +2667,10 @@ mod tests {
         assert_eq!(path_list[0], path);
 
         // Now read data from that path
-        let parquet_data = load_parquet_from_store_for_path(&path_list[0], object_store)
-            .await
-            .unwrap();
+        let parquet_data =
+            load_parquet_from_store_for_path(&path_list[0], Arc::clone(&db.iox_object_store))
+                .await
+                .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
         // Read metadata at file level
         let schema = parquet_metadata.read_schema().unwrap();
@@ -2808,9 +2810,10 @@ mod tests {
         assert_eq!(path_list[0], path);
 
         // Now read data from that path
-        let parquet_data = load_parquet_from_store_for_path(&path_list[0], object_store)
-            .await
-            .unwrap();
+        let parquet_data =
+            load_parquet_from_store_for_path(&path_list[0], Arc::clone(&db.iox_object_store))
+                .await
+                .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
         // Read metadata at file level
         let schema = parquet_metadata.read_schema().unwrap();
@@ -3864,14 +3867,10 @@ mod tests {
 
         // ==================== check: empty catalog created ====================
         // at this point, an empty preserved catalog exists
-        let maybe_preserved_catalog = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+        let maybe_preserved_catalog =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&db.iox_object_store), ())
+                .await
+                .unwrap();
         assert!(maybe_preserved_catalog.is_some());
 
         // ==================== do: write data to parquet ====================
@@ -3901,15 +3900,11 @@ mod tests {
             }
         }
         paths_expected.sort();
-        let (_preserved_catalog, catalog) = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let (_preserved_catalog, catalog) =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&db.iox_object_store), ())
+                .await
+                .unwrap()
+                .unwrap();
         let paths_actual = {
             let mut tmp: Vec<String> = catalog.parquet_files.keys().map(|p| p.display()).collect();
             tmp.sort();

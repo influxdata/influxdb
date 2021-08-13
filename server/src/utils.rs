@@ -1,21 +1,19 @@
-use std::{borrow::Cow, convert::TryFrom, num::NonZeroU32, sync::Arc, time::Duration};
-
-use data_types::{
-    chunk_metadata::{ChunkStorage, ChunkSummary},
-    database_rules::{DatabaseRules, PartitionTemplate, TemplatePart},
-    server_id::ServerId,
-    DatabaseName,
-};
-use object_store::ObjectStore;
-use persistence_windows::checkpoint::ReplayPlan;
-use query::{exec::Executor, QueryDatabase};
-use write_buffer::config::WriteBufferConfig;
-
 use crate::{
     db::{load::load_or_create_preserved_catalog, DatabaseToCommit, Db},
     JobRegistry,
 };
-use data_types::database_rules::LifecycleRules;
+use data_types::{
+    chunk_metadata::{ChunkStorage, ChunkSummary},
+    database_rules::{DatabaseRules, LifecycleRules, PartitionTemplate, TemplatePart},
+    server_id::ServerId,
+    DatabaseName,
+};
+use iox_object_store::IoxObjectStore;
+use object_store::ObjectStore;
+use persistence_windows::checkpoint::ReplayPlan;
+use query::{exec::Executor, QueryDatabase};
+use std::{borrow::Cow, convert::TryFrom, num::NonZeroU32, sync::Arc, time::Duration};
+use write_buffer::config::WriteBufferConfig;
 
 // A wrapper around a Db and a metrics registry allowing for isolated testing
 // of a Db and its metrics.
@@ -55,9 +53,12 @@ impl TestDbBuilder {
         let db_name = self
             .db_name
             .unwrap_or_else(|| DatabaseName::new("placeholder").unwrap());
-        let object_store = self
-            .object_store
-            .unwrap_or_else(|| Arc::new(ObjectStore::new_in_memory()));
+        let iox_object_store = Arc::new(IoxObjectStore::new(
+            self.object_store
+                .unwrap_or_else(|| Arc::new(ObjectStore::new_in_memory())),
+            server_id,
+            &db_name,
+        ));
 
         // deterministic thread and concurrency count
         let mut exec = Executor::new(1);
@@ -68,7 +69,7 @@ impl TestDbBuilder {
 
         let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
             db_name.as_str(),
-            Arc::clone(&object_store),
+            Arc::clone(&iox_object_store),
             server_id,
             Arc::clone(&metrics_registry),
             false,
@@ -103,7 +104,7 @@ impl TestDbBuilder {
         let database_to_commit = DatabaseToCommit {
             rules: Arc::new(rules),
             server_id,
-            object_store,
+            iox_object_store,
             preserved_catalog,
             catalog,
             write_buffer: self.write_buffer,

@@ -1,4 +1,18 @@
 //! Catalog preservation and transaction handling.
+use crate::metadata::IoxParquetMetaData;
+use bytes::Bytes;
+use chrono::{DateTime, Utc};
+use futures::TryStreamExt;
+use generated_types::influxdata::iox::catalog::v1 as proto;
+use iox_object_store::IoxObjectStore;
+use object_store::{
+    path::{parsed::DirsAndFileName, parts::PathPart, ObjectStorePath, Path},
+    ObjectStore, ObjectStoreApi,
+};
+use observability_deps::tracing::{info, warn};
+use parking_lot::RwLock;
+use prost::{DecodeError, EncodeError, Message};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{
         hash_map::Entry::{Occupied, Vacant},
@@ -10,21 +24,6 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
-
-use crate::metadata::IoxParquetMetaData;
-use bytes::Bytes;
-use chrono::{DateTime, Utc};
-use data_types::server_id::ServerId;
-use futures::TryStreamExt;
-use generated_types::influxdata::iox::catalog::v1 as proto;
-use object_store::{
-    path::{parsed::DirsAndFileName, parts::PathPart, ObjectStorePath, Path},
-    ObjectStore, ObjectStoreApi,
-};
-use observability_deps::tracing::{info, warn};
-use parking_lot::RwLock;
-use prost::{DecodeError, EncodeError, Message};
-use snafu::{OptionExt, ResultExt, Snafu};
 use tokio::sync::{Semaphore, SemaphorePermit};
 use uuid::Uuid;
 
@@ -208,7 +207,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Struct containing all information that a catalog received for a new parquet file.
 #[derive(Debug, Clone)]
 pub struct CatalogParquetInfo {
-    /// Full path.
+    /// Path within this database.
     pub path: DirsAndFileName,
 
     /// Size of the parquet file, in bytes
@@ -229,7 +228,11 @@ pub trait CatalogState {
     fn new_empty(db_name: &str, data: Self::EmptyInput) -> Self;
 
     /// Add parquet file to state.
-    fn add(&mut self, object_store: Arc<ObjectStore>, info: CatalogParquetInfo) -> Result<()>;
+    fn add(
+        &mut self,
+        iox_object_store: Arc<IoxObjectStore>,
+        info: CatalogParquetInfo,
+    ) -> Result<()>;
 
     /// Remove parquet file from state.
     fn remove(&mut self, path: DirsAndFileName) -> Result<()>;
@@ -258,35 +261,25 @@ pub struct PreservedCatalog {
     previous_tkey: RwLock<Option<TransactionKey>>,
     transaction_semaphore: Semaphore,
 
-    object_store: Arc<ObjectStore>,
-    server_id: ServerId,
-    db_name: String,
+    iox_object_store: Arc<IoxObjectStore>,
 }
 
 impl PreservedCatalog {
     /// Checks if a preserved catalog exists.
-    pub async fn exists(
-        object_store: &ObjectStore,
-        server_id: ServerId,
-        db_name: &str,
-    ) -> Result<bool> {
-        Ok(!list_files(object_store, server_id, db_name)
-            .await?
-            .is_empty())
+    pub async fn exists(iox_object_store: &IoxObjectStore) -> Result<bool> {
+        Ok(!list_files(iox_object_store).await?.is_empty())
     }
 
     /// Find last transaction-start-timestamp.
     ///
     /// This method is designed to read and verify as little as possible and should also work on most broken catalogs.
     pub async fn find_last_transaction_timestamp(
-        object_store: &ObjectStore,
-        server_id: ServerId,
-        db_name: &str,
+        iox_object_store: &IoxObjectStore,
     ) -> Result<Option<DateTime<Utc>>> {
         let mut res = None;
-        for transaction in list_files(object_store, server_id, db_name).await? {
+        for transaction in list_files(iox_object_store).await? {
             let path = transaction.file_path();
-            match load_transaction_proto(object_store, &path).await {
+            match load_transaction_proto(iox_object_store, &path).await {
                 Ok(proto) => match parse_timestamp(&proto.start_timestamp) {
                     Ok(ts) => {
                         res = Some(res.map_or(ts, |res: DateTime<Utc>| res.max(ts)));
@@ -310,14 +303,10 @@ impl PreservedCatalog {
     /// This also works for broken catalogs. Also succeeds if no catalog is present.
     ///
     /// Note that wiping the catalog will NOT wipe any referenced parquet files.
-    pub async fn wipe(
-        object_store: &ObjectStore,
-        server_id: ServerId,
-        db_name: &str,
-    ) -> Result<()> {
-        for transaction in list_files(object_store, server_id, db_name).await? {
+    pub async fn wipe(iox_object_store: &IoxObjectStore) -> Result<()> {
+        for transaction in list_files(iox_object_store).await? {
             let path = transaction.file_path();
-            object_store.delete(&path).await.context(Write)?;
+            iox_object_store.delete(&path).await.context(Write)?;
         }
 
         Ok(())
@@ -328,25 +317,21 @@ impl PreservedCatalog {
     /// An empty transaction will be used to mark the catalog start so that concurrent open but still-empty catalogs can
     /// easily be detected.
     pub async fn new_empty<S>(
-        object_store: Arc<ObjectStore>,
-        server_id: ServerId,
-        db_name: String,
+        iox_object_store: Arc<IoxObjectStore>,
         state_data: S::EmptyInput,
     ) -> Result<(Self, S)>
     where
         S: CatalogState + Send + Sync,
     {
-        if Self::exists(&object_store, server_id, &db_name).await? {
+        if Self::exists(&iox_object_store).await? {
             return Err(Error::AlreadyExists {});
         }
-        let state = S::new_empty(&db_name, state_data);
+        let state = S::new_empty(iox_object_store.database_name(), state_data);
 
         let catalog = Self {
             previous_tkey: RwLock::new(None),
             transaction_semaphore: Semaphore::new(1),
-            object_store,
-            server_id,
-            db_name,
+            iox_object_store,
         };
 
         // add empty transaction
@@ -365,9 +350,7 @@ impl PreservedCatalog {
     /// Loading starts at the latest checkpoint or -- if none exists -- at transaction `0`. Transactions before that
     /// point are neither verified nor are they required to exist.
     pub async fn load<S>(
-        object_store: Arc<ObjectStore>,
-        server_id: ServerId,
-        db_name: String,
+        iox_object_store: Arc<IoxObjectStore>,
         state_data: S::EmptyInput,
     ) -> Result<Option<(Self, S)>>
     where
@@ -377,7 +360,7 @@ impl PreservedCatalog {
         let mut transactions: HashMap<u64, Uuid> = HashMap::new();
         let mut max_revision = None;
         let mut last_checkpoint = None;
-        for transaction in list_files(&object_store, server_id, &db_name).await? {
+        for transaction in list_files(&iox_object_store).await? {
             // keep track of the max
             max_revision = Some(
                 max_revision
@@ -425,7 +408,7 @@ impl PreservedCatalog {
         }
 
         // setup empty state
-        let mut state = S::new_empty(&db_name, state_data);
+        let mut state = S::new_empty(iox_object_store.database_name(), state_data);
         let mut last_tkey = None;
 
         // detect replay start
@@ -449,9 +432,7 @@ impl PreservedCatalog {
                 FileType::Transaction
             };
             OpenTransaction::load_and_apply(
-                &object_store,
-                server_id,
-                &db_name,
+                &iox_object_store,
                 tkey,
                 &mut state,
                 &last_tkey,
@@ -465,9 +446,7 @@ impl PreservedCatalog {
             Self {
                 previous_tkey: RwLock::new(last_tkey),
                 transaction_semaphore: Semaphore::new(1),
-                object_store,
-                server_id,
-                db_name,
+                iox_object_store,
             },
             state,
         )))
@@ -498,18 +477,8 @@ impl PreservedCatalog {
     }
 
     /// Object store used by this catalog.
-    pub fn object_store(&self) -> Arc<ObjectStore> {
-        Arc::clone(&self.object_store)
-    }
-
-    /// Server ID used by this catalog.
-    pub fn server_id(&self) -> ServerId {
-        self.server_id
-    }
-
-    /// Database name used by this catalog.
-    pub fn db_name(&self) -> &str {
-        &self.db_name
+    pub fn iox_object_store(&self) -> Arc<IoxObjectStore> {
+        Arc::clone(&self.iox_object_store)
     }
 }
 
@@ -517,22 +486,6 @@ impl Debug for PreservedCatalog {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PreservedCatalog{{..}}")
     }
-}
-
-/// Creates object store path where transactions are stored.
-///
-/// The format is:
-///
-/// ```text
-/// <server_id>/<db_name>/transactions/
-/// ```
-fn catalog_path(object_store: &ObjectStore, server_id: ServerId, db_name: &str) -> Path {
-    let mut path = object_store.new_path();
-    path.push_dir(server_id.to_string());
-    path.push_dir(db_name.to_string());
-    path.push_dir("transactions");
-
-    path
 }
 
 /// Type of catalog file.
@@ -578,14 +531,8 @@ impl FileType {
 /// ```text
 /// <server_id>/<db_name>/transactions/<revision_counter>/<uuid>.{txn,ckpt}
 /// ```
-fn file_path(
-    object_store: &ObjectStore,
-    server_id: ServerId,
-    db_name: &str,
-    tkey: TransactionKey,
-    file_type: FileType,
-) -> Path {
-    let path = catalog_path(object_store, server_id, db_name);
+fn file_path(iox_object_store: &IoxObjectStore, tkey: TransactionKey, file_type: FileType) -> Path {
+    let path = iox_object_store.catalog_path();
 
     let transaction = TransactionFile {
         catalog_root: Some(path),
@@ -669,14 +616,9 @@ impl TransactionFile {
 /// Load a list of all transaction file from object store. Also parse revision counter and transaction UUID.
 ///
 /// The files are in no particular order!
-async fn list_files(
-    object_store: &ObjectStore,
-    server_id: ServerId,
-    db_name: &str,
-) -> Result<Vec<TransactionFile>> {
-    let list_path = catalog_path(object_store, server_id, db_name);
-    let paths = object_store
-        .list(Some(&list_path))
+async fn list_files(iox_object_store: &IoxObjectStore) -> Result<Vec<TransactionFile>> {
+    let paths = iox_object_store
+        .catalog_transaction_files()
         .await
         .context(Read {})?
         .map_ok(|paths| {
@@ -693,7 +635,7 @@ async fn list_files(
 
 /// Serialize and store protobuf-encoded transaction.
 async fn store_transaction_proto(
-    object_store: &ObjectStore,
+    iox_object_store: &IoxObjectStore,
     path: &Path,
     proto: &proto::Transaction,
 ) -> Result<()> {
@@ -702,7 +644,7 @@ async fn store_transaction_proto(
     let data = Bytes::from(data);
     let len = data.len();
 
-    object_store
+    iox_object_store
         .put(
             path,
             futures::stream::once(async move { Ok(data) }),
@@ -716,10 +658,10 @@ async fn store_transaction_proto(
 
 /// Load and deserialize protobuf-encoded transaction from store.
 async fn load_transaction_proto(
-    object_store: &ObjectStore,
+    iox_object_store: &IoxObjectStore,
     path: &Path,
 ) -> Result<proto::Transaction> {
-    let data = object_store
+    let data = iox_object_store
         .get(path)
         .await
         .context(Read {})?
@@ -853,7 +795,7 @@ impl OpenTransaction {
     fn handle_action<S>(
         state: &mut S,
         action: &proto::transaction::action::Action,
-        object_store: &Arc<ObjectStore>,
+        iox_object_store: &Arc<IoxObjectStore>,
     ) -> Result<()>
     where
         S: CatalogState,
@@ -874,7 +816,7 @@ impl OpenTransaction {
                 let metadata = Arc::new(metadata);
 
                 state.add(
-                    Arc::clone(object_store),
+                    Arc::clone(iox_object_store),
                     CatalogParquetInfo {
                         path,
                         file_size_bytes,
@@ -907,27 +849,14 @@ impl OpenTransaction {
     /// Abort transaction
     fn abort(self) {}
 
-    async fn store(
-        &self,
-        object_store: &ObjectStore,
-        server_id: ServerId,
-        db_name: &str,
-    ) -> Result<()> {
-        let path = file_path(
-            object_store,
-            server_id,
-            db_name,
-            self.tkey(),
-            FileType::Transaction,
-        );
-        store_transaction_proto(object_store, &path, &self.proto).await?;
+    async fn store(&self, iox_object_store: &IoxObjectStore) -> Result<()> {
+        let path = file_path(iox_object_store, self.tkey(), FileType::Transaction);
+        store_transaction_proto(iox_object_store, &path, &self.proto).await?;
         Ok(())
     }
 
     async fn load_and_apply<S>(
-        object_store: &Arc<ObjectStore>,
-        server_id: ServerId,
-        db_name: &str,
+        iox_object_store: &Arc<IoxObjectStore>,
         tkey: TransactionKey,
         state: &mut S,
         last_tkey: &Option<TransactionKey>,
@@ -937,8 +866,8 @@ impl OpenTransaction {
         S: CatalogState + Send,
     {
         // recover state from store
-        let path = file_path(object_store, server_id, db_name, tkey, file_type);
-        let proto = load_transaction_proto(object_store, &path).await?;
+        let path = file_path(iox_object_store, tkey, file_type);
+        let proto = load_transaction_proto(iox_object_store, &path).await?;
 
         // sanity-check file content
         if proto.version != TRANSACTION_VERSION {
@@ -993,7 +922,7 @@ impl OpenTransaction {
         // apply
         for action in &proto.actions {
             if let Some(action) = action.action.as_ref() {
-                Self::handle_action(state, action, object_store)?;
+                Self::handle_action(state, action, iox_object_store)?;
             }
         }
 
@@ -1083,14 +1012,7 @@ impl<'c> TransactionHandle<'c> {
         let tkey = t.tkey();
 
         // write to object store
-        match t
-            .store(
-                &self.catalog.object_store,
-                self.catalog.server_id,
-                &self.catalog.db_name,
-            )
-            .await
-        {
+        match t.store(&self.catalog.iox_object_store).await {
             Ok(()) => {
                 // commit to catalog
                 let previous_tkey = self.commit_inner(t);
@@ -1215,9 +1137,7 @@ impl<'c> CheckpointHandle<'c> {
     /// If the checkpoint creation fails, the commit will still be treated as completed since the checkpoint is a mere
     /// optimization to speed up transaction replay and allow to prune the history.
     pub async fn create_checkpoint(self, checkpoint_data: CheckpointData) -> Result<()> {
-        let object_store = self.catalog.object_store();
-        let server_id = self.catalog.server_id();
-        let db_name = self.catalog.db_name();
+        let iox_object_store = self.catalog.iox_object_store();
 
         // sort by key (= path) for deterministic output
         let files = {
@@ -1261,14 +1181,8 @@ impl<'c> CheckpointHandle<'c> {
             start_timestamp: Some(Utc::now().into()),
             encoding: proto::transaction::Encoding::Full.into(),
         };
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            self.tkey,
-            FileType::Checkpoint,
-        );
-        store_transaction_proto(&object_store, &path, &proto).await?;
+        let path = file_path(&iox_object_store, self.tkey, FileType::Checkpoint);
+        store_transaction_proto(&iox_object_store, &path, &proto).await?;
 
         Ok(())
     }
@@ -1293,12 +1207,9 @@ impl<'c> Debug for CheckpointHandle<'c> {
 }
 
 pub mod test_helpers {
-    use object_store::parsed_path;
-
-    use crate::test_utils::{chunk_addr, make_metadata, make_object_store};
-
     use super::*;
-    use std::convert::TryFrom;
+    use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata};
+    use object_store::parsed_path;
 
     /// In-memory catalog state, for testing.
     #[derive(Clone, Debug)]
@@ -1325,7 +1236,11 @@ pub mod test_helpers {
             }
         }
 
-        fn add(&mut self, _object_store: Arc<ObjectStore>, info: CatalogParquetInfo) -> Result<()> {
+        fn add(
+            &mut self,
+            _iox_object_store: Arc<IoxObjectStore>,
+            info: CatalogParquetInfo,
+        ) -> Result<()> {
             match self.parquet_files.entry(info.path.clone()) {
                 Occupied(o) => {
                     return Err(Error::ParquetFileAlreadyExists {
@@ -1357,18 +1272,12 @@ pub mod test_helpers {
     /// Break preserved catalog by moving one of the transaction files into a weird unknown version.
     pub async fn break_catalog_with_weird_version(catalog: &PreservedCatalog) {
         let tkey = get_tkey(catalog);
-        let path = file_path(
-            &catalog.object_store,
-            catalog.server_id,
-            &catalog.db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&catalog.object_store, &path)
+        let path = file_path(&catalog.iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&catalog.iox_object_store, &path)
             .await
             .unwrap();
         proto.version = 42;
-        store_transaction_proto(&catalog.object_store, &path, &proto)
+        store_transaction_proto(&catalog.iox_object_store, &path, &proto)
             .await
             .unwrap();
     }
@@ -1388,15 +1297,11 @@ pub mod test_helpers {
         F: Fn(&S) -> CheckpointData + Send,
     {
         // empty state
-        let object_store = make_object_store();
-        let (_catalog, mut state) = PreservedCatalog::new_empty::<S>(
-            Arc::clone(&object_store),
-            ServerId::try_from(1).unwrap(),
-            "db1".to_string(),
-            state_data,
-        )
-        .await
-        .unwrap();
+        let iox_object_store = make_iox_object_store();
+        let (_catalog, mut state) =
+            PreservedCatalog::new_empty::<S>(Arc::clone(&iox_object_store), state_data)
+                .await
+                .unwrap();
         let mut expected = HashMap::new();
         assert_checkpoint(&state, &f, &expected);
 
@@ -1405,10 +1310,11 @@ pub mod test_helpers {
         {
             for chunk_id in 0..chunk_id_watermark {
                 let path = parsed_path!(format!("chunk_{}", chunk_id).as_ref());
-                let (_, metadata) = make_metadata(&object_store, "ok", chunk_addr(chunk_id)).await;
+                let (_, metadata) =
+                    make_metadata(&iox_object_store, "ok", chunk_addr(chunk_id)).await;
                 state
                     .add(
-                        Arc::clone(&object_store),
+                        Arc::clone(&iox_object_store),
                         CatalogParquetInfo {
                             path: path.clone(),
                             file_size_bytes: 33,
@@ -1433,10 +1339,10 @@ pub mod test_helpers {
         {
             let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
             let (_, metadata) =
-                make_metadata(&object_store, "ok", chunk_addr(chunk_id_watermark)).await;
+                make_metadata(&iox_object_store, "ok", chunk_addr(chunk_id_watermark)).await;
             state
                 .add(
-                    Arc::clone(&object_store),
+                    Arc::clone(&iox_object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
                         file_size_bytes: 33,
@@ -1452,11 +1358,11 @@ pub mod test_helpers {
         // remove and add in the same transaction
         {
             let path = parsed_path!("chunk_2");
-            let (_, metadata) = make_metadata(&object_store, "ok", chunk_addr(2)).await;
+            let (_, metadata) = make_metadata(&iox_object_store, "ok", chunk_addr(2)).await;
             state.remove(path.clone()).unwrap();
             state
                 .add(
-                    Arc::clone(&object_store),
+                    Arc::clone(&iox_object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
                         file_size_bytes: 33,
@@ -1471,10 +1377,10 @@ pub mod test_helpers {
         {
             let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
             let (_, metadata) =
-                make_metadata(&object_store, "ok", chunk_addr(chunk_id_watermark)).await;
+                make_metadata(&iox_object_store, "ok", chunk_addr(chunk_id_watermark)).await;
             state
                 .add(
-                    Arc::clone(&object_store),
+                    Arc::clone(&iox_object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
                         file_size_bytes: 33,
@@ -1485,7 +1391,7 @@ pub mod test_helpers {
             state.remove(path.clone()).unwrap();
             state
                 .add(
-                    Arc::clone(&object_store),
+                    Arc::clone(&iox_object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
                         file_size_bytes: 33,
@@ -1501,11 +1407,11 @@ pub mod test_helpers {
         // remove, add, remove in same transaction
         {
             let path = parsed_path!("chunk_2");
-            let (_, metadata) = make_metadata(&object_store, "ok", chunk_addr(2)).await;
+            let (_, metadata) = make_metadata(&iox_object_store, "ok", chunk_addr(2)).await;
             state.remove(path.clone()).unwrap();
             state
                 .add(
-                    Arc::clone(&object_store),
+                    Arc::clone(&iox_object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
                         file_size_bytes: 33,
@@ -1522,10 +1428,10 @@ pub mod test_helpers {
         {
             // already exists (should also not change the metadata)
             let path = parsed_path!("chunk_0");
-            let (_, metadata) = make_metadata(&object_store, "fail", chunk_addr(0)).await;
+            let (_, metadata) = make_metadata(&iox_object_store, "fail", chunk_addr(0)).await;
             let err = state
                 .add(
-                    Arc::clone(&object_store),
+                    Arc::clone(&iox_object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
                         file_size_bytes: 33,
@@ -1547,10 +1453,10 @@ pub mod test_helpers {
         {
             // already exists (should also not change the metadata)
             let path = parsed_path!("chunk_0");
-            let (_, metadata) = make_metadata(&object_store, "fail", chunk_addr(0)).await;
+            let (_, metadata) = make_metadata(&iox_object_store, "fail", chunk_addr(0)).await;
             let err = state
                 .add(
-                    Arc::clone(&object_store),
+                    Arc::clone(&iox_object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
                         file_size_bytes: 33,
@@ -1563,10 +1469,10 @@ pub mod test_helpers {
             // this transaction will still work
             let path = parsed_path!(format!("chunk_{}", chunk_id_watermark).as_ref());
             let (_, metadata) =
-                make_metadata(&object_store, "ok", chunk_addr(chunk_id_watermark)).await;
+                make_metadata(&iox_object_store, "ok", chunk_addr(chunk_id_watermark)).await;
             state
                 .add(
-                    Arc::clone(&object_store),
+                    Arc::clone(&iox_object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
                         file_size_bytes: 33,
@@ -1580,7 +1486,7 @@ pub mod test_helpers {
             // recently added
             let err = state
                 .add(
-                    Arc::clone(&object_store),
+                    Arc::clone(&iox_object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
                         file_size_bytes: 33,
@@ -1656,200 +1562,144 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU32;
-
-    use crate::test_utils::{chunk_addr, make_metadata, make_object_store};
-    use object_store::parsed_path;
-
-    use super::test_helpers::{
-        assert_catalog_state_implementation, break_catalog_with_weird_version, TestCatalogState,
+    use super::{
+        test_helpers::{
+            assert_catalog_state_implementation, break_catalog_with_weird_version, TestCatalogState,
+        },
+        *,
     };
-    use super::*;
+    use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata};
+    use object_store::parsed_path;
 
     #[tokio::test]
     async fn test_create_empty() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
+        let iox_object_store = make_iox_object_store();
 
+        assert!(!PreservedCatalog::exists(&iox_object_store).await.unwrap());
         assert!(
-            !PreservedCatalog::exists(&object_store, server_id, db_name,)
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ())
                 .await
                 .unwrap()
+                .is_none()
         );
-        assert!(PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            ()
-        )
-        .await
-        .unwrap()
-        .is_none());
 
-        PreservedCatalog::new_empty::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap();
-
-        assert!(PreservedCatalog::exists(&object_store, server_id, db_name,)
+        PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
             .await
-            .unwrap());
-        assert!(PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            ()
-        )
-        .await
-        .unwrap()
-        .is_some());
+            .unwrap();
+
+        assert!(PreservedCatalog::exists(&iox_object_store).await.unwrap());
+        assert!(
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap()
+                .is_some()
+        );
     }
 
     #[tokio::test]
     async fn test_inmem_commit_semantics() {
-        let object_store = make_object_store();
-        assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
+        let iox_object_store = make_iox_object_store();
+        assert_single_catalog_inmem_works(&iox_object_store).await;
     }
 
     #[tokio::test]
     async fn test_store_roundtrip() {
-        let object_store = make_object_store();
-        assert_catalog_roundtrip_works(&object_store, make_server_id(), "db1").await;
+        let iox_object_store = make_iox_object_store();
+        assert_catalog_roundtrip_works(&iox_object_store).await;
     }
 
     #[tokio::test]
     async fn test_load_from_empty_store() {
-        let object_store = make_object_store();
-        let option = PreservedCatalog::load::<TestCatalogState>(
-            object_store,
-            make_server_id(),
-            "db1".to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+        let iox_object_store = make_iox_object_store();
+        let option = PreservedCatalog::load::<TestCatalogState>(iox_object_store, ())
+            .await
+            .unwrap();
         assert!(option.is_none());
     }
 
     #[tokio::test]
     async fn test_load_from_dirty_store() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1".to_string();
+        let iox_object_store = make_iox_object_store();
 
         // wrong file extension
-        let mut path = catalog_path(&object_store, server_id, &db_name);
+        let mut path = iox_object_store.catalog_path();
         path.push_dir("0");
         path.set_file_name(format!("{}.foo", Uuid::new_v4()));
-        create_empty_file(&object_store, &path).await;
+        create_empty_file(&iox_object_store, &path).await;
 
         // no file extension
-        let mut path = catalog_path(&object_store, server_id, &db_name);
+        let mut path = iox_object_store.catalog_path();
         path.push_dir("0");
         path.set_file_name(Uuid::new_v4().to_string());
-        create_empty_file(&object_store, &path).await;
+        create_empty_file(&iox_object_store, &path).await;
 
         // broken UUID
-        let mut path = catalog_path(&object_store, server_id, &db_name);
+        let mut path = iox_object_store.catalog_path();
         path.push_dir("0");
         path.set_file_name(format!("foo.{}", TRANSACTION_FILE_SUFFIX));
-        create_empty_file(&object_store, &path).await;
+        create_empty_file(&iox_object_store, &path).await;
 
         // broken revision counter
-        let mut path = catalog_path(&object_store, server_id, &db_name);
+        let mut path = iox_object_store.catalog_path();
         path.push_dir("foo");
         path.set_file_name(format!("{}.{}", Uuid::new_v4(), TRANSACTION_FILE_SUFFIX));
-        create_empty_file(&object_store, &path).await;
+        create_empty_file(&iox_object_store, &path).await;
 
         // file is folder
-        let mut path = catalog_path(&object_store, server_id, &db_name);
+        let mut path = iox_object_store.catalog_path();
         path.push_dir("0");
         path.push_dir(format!("{}.{}", Uuid::new_v4(), TRANSACTION_FILE_SUFFIX));
         path.set_file_name("foo");
-        create_empty_file(&object_store, &path).await;
+        create_empty_file(&iox_object_store, &path).await;
 
         // top-level file
-        let mut path = catalog_path(&object_store, server_id, &db_name);
+        let mut path = iox_object_store.catalog_path();
         path.set_file_name(format!("{}.{}", Uuid::new_v4(), TRANSACTION_FILE_SUFFIX));
-        create_empty_file(&object_store, &path).await;
+        create_empty_file(&iox_object_store, &path).await;
 
         // no data present
-        let option = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.clone(),
-            (),
-        )
-        .await
-        .unwrap();
+        let option = PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+            .await
+            .unwrap();
         assert!(option.is_none());
 
         // can still write + read
-        assert_catalog_roundtrip_works(&object_store, server_id, &db_name).await;
+        assert_catalog_roundtrip_works(&iox_object_store).await;
     }
 
     #[tokio::test]
     async fn test_missing_transaction() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // remove transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        checked_delete(&object_store, &path).await;
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        checked_delete(&iox_object_store, &path).await;
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(res.unwrap_err().to_string(), "Missing transaction: 0",);
     }
 
     #[tokio::test]
     async fn test_transaction_version_mismatch() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
-        let (catalog, _state) = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let (catalog, _state) =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap()
+                .unwrap();
         break_catalog_with_weird_version(&catalog).await;
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
             format!("Format version of transaction file for revision 2 is 42 but only [{}] are supported", TRANSACTION_VERSION)
@@ -1858,35 +1708,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_transaction_revision() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         proto.revision_counter = 42;
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
             "Wrong revision counter in transaction file: expected 0 but found 42"
@@ -1895,37 +1734,26 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_transaction_uuid() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         let uuid_expected = Uuid::parse_str(&proto.uuid).unwrap();
         let uuid_actual = Uuid::nil();
         proto.uuid = uuid_actual.to_string();
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
             format!(
@@ -1937,35 +1765,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_missing_transaction_uuid() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         proto.uuid = String::new();
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
             "UUID required but not provided"
@@ -1974,35 +1791,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_broken_transaction_uuid() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         proto.uuid = "foo".to_string();
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
             "Cannot parse UUID: invalid length: expected one of [36, 32], found 3"
@@ -2011,103 +1817,70 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_transaction_link_start() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         proto.previous_uuid = Uuid::nil().to_string();
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(res.unwrap_err().to_string(), "Wrong link to previous UUID in revision 0: expected None but found Some(00000000-0000-0000-0000-000000000000)");
     }
 
     #[tokio::test]
     async fn test_wrong_transaction_link_middle() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[1];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         proto.previous_uuid = Uuid::nil().to_string();
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(res.unwrap_err().to_string(), format!("Wrong link to previous UUID in revision 1: expected Some({}) but found Some(00000000-0000-0000-0000-000000000000)", trace.tkeys[0].uuid));
     }
 
     #[tokio::test]
     async fn test_wrong_transaction_link_broken() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         proto.previous_uuid = "foo".to_string();
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
             "Cannot parse UUID: invalid length: expected one of [36, 32], found 3"
@@ -2116,24 +1889,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_broken_protobuf() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
         let data = Bytes::from("foo");
         let len = data.len();
-        object_store
+        iox_object_store
             .put(
                 &path,
                 futures::stream::once(async move { Ok(data) }),
@@ -2143,13 +1908,8 @@ mod tests {
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
             "Error during deserialization: failed to decode Protobuf message: invalid wire type value: 6"
@@ -2158,15 +1918,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_transaction_handle_debug() {
-        let object_store = make_object_store();
-        let (catalog, _state) = PreservedCatalog::new_empty::<TestCatalogState>(
-            object_store,
-            make_server_id(),
-            "db1".to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+        let iox_object_store = make_iox_object_store();
+        let (catalog, _state) =
+            PreservedCatalog::new_empty::<TestCatalogState>(iox_object_store, ())
+                .await
+                .unwrap();
         let mut t = catalog.open_transaction().await;
 
         // open transaction
@@ -2183,46 +1939,29 @@ mod tests {
 
     #[tokio::test]
     async fn test_fork_transaction() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // re-create transaction file with different UUID
         assert!(trace.tkeys.len() >= 2);
         let mut tkey = trace.tkeys[1];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         let old_uuid = tkey.uuid;
 
         let new_uuid = Uuid::new_v4();
         tkey.uuid = new_uuid;
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
         proto.uuid = new_uuid.to_string();
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         let (uuid1, uuid2) = if old_uuid < new_uuid {
             (old_uuid, new_uuid)
         } else {
@@ -2233,47 +1972,30 @@ mod tests {
 
     #[tokio::test]
     async fn test_fork_checkpoint() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // create checkpoint file with different UUID
         assert!(trace.tkeys.len() >= 2);
         let mut tkey = trace.tkeys[1];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         let old_uuid = tkey.uuid;
 
         let new_uuid = Uuid::new_v4();
         tkey.uuid = new_uuid;
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Checkpoint,
-        );
+        let path = file_path(&iox_object_store, tkey, FileType::Checkpoint);
         proto.uuid = new_uuid.to_string();
         proto.encoding = proto::transaction::Encoding::Full.into();
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         let (uuid1, uuid2) = if old_uuid < new_uuid {
             (old_uuid, new_uuid)
         } else {
@@ -2284,22 +2006,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_unsupported_upgrade() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         proto.actions.push(proto::transaction::Action {
             action: Some(proto::transaction::action::Action::Upgrade(
                 proto::Upgrade {
@@ -2307,18 +2023,13 @@ mod tests {
                 },
             )),
         });
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
             "Upgrade path not implemented/supported: foo",
@@ -2327,35 +2038,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_missing_start_timestamp() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         proto.start_timestamp = None;
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
             "Internal: Datetime required but missing in serialized catalog"
@@ -2364,38 +2064,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_broken_start_timestamp() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         proto.start_timestamp = Some(generated_types::google::protobuf::Timestamp {
             seconds: 0,
             nanos: -1,
         });
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
             "Internal: Cannot parse datetime in serialized catalog: out of range integral type conversion attempted"
@@ -2404,35 +2093,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_broken_encoding() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         proto.encoding = -1;
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
             "Internal: Cannot parse encoding in serialized catalog: -1 is not a valid, specified variant"
@@ -2441,35 +2119,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_encoding_in_transaction_file() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         proto.encoding = proto::transaction::Encoding::Full.into();
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
             "Internal: Found wrong encoding in serialized catalog file: Expected Delta but got Full"
@@ -2478,35 +2145,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_missing_encoding_in_transaction_file() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         proto.encoding = 0;
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
             "Internal: Cannot parse encoding in serialized catalog: 0 is not a valid, specified variant"
@@ -2515,41 +2171,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_encoding_in_checkpoint_file() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let proto = load_transaction_proto(&object_store, &path).await.unwrap();
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Checkpoint,
-        );
-        store_transaction_proto(&object_store, &path, &proto)
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Checkpoint);
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let res = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
             "Internal: Found wrong encoding in serialized catalog file: Expected Full but got Delta"
@@ -2558,26 +2197,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_checkpoint() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
+        let iox_object_store = make_iox_object_store();
         let addr = chunk_addr(1337);
-        let db_name = &addr.db_name;
-        let (_, metadata) = make_metadata(&object_store, "foo", addr.clone()).await;
+        let (_, metadata) = make_metadata(&iox_object_store, "foo", addr.clone()).await;
         let metadata = Arc::new(metadata);
 
         // use common test as baseline
-        let mut trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let mut trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // re-open catalog
-        let (catalog, mut state) = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let (catalog, mut state) =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap()
+                .unwrap();
 
         // create empty transaction w/ checkpoint (the delta transaction file is not required for catalog loading)
         {
@@ -2618,26 +2251,15 @@ mod tests {
                 continue;
             }
             let tkey = trace.tkeys[i];
-            let path = file_path(
-                &object_store,
-                server_id,
-                db_name,
-                tkey,
-                FileType::Transaction,
-            );
-            checked_delete(&object_store, &path).await;
+            let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+            checked_delete(&iox_object_store, &path).await;
         }
 
         // load catalog from store and check replayed state
-        let (catalog, state) = PreservedCatalog::load(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let (catalog, state) = PreservedCatalog::load(Arc::clone(&iox_object_store), ())
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(
             catalog.revision_counter(),
             trace.tkeys.last().unwrap().revision_counter
@@ -2682,16 +2304,11 @@ mod tests {
         }
     }
 
-    /// Creates new test server ID
-    fn make_server_id() -> ServerId {
-        ServerId::new(NonZeroU32::new(1).unwrap())
-    }
-
-    async fn create_empty_file(object_store: &ObjectStore, path: &Path) {
+    async fn create_empty_file(iox_object_store: &IoxObjectStore, path: &Path) {
         let data = Bytes::default();
         let len = data.len();
 
-        object_store
+        iox_object_store
             .put(
                 path,
                 futures::stream::once(async move { Ok(data) }),
@@ -2701,9 +2318,9 @@ mod tests {
             .unwrap();
     }
 
-    async fn checked_delete(object_store: &ObjectStore, path: &Path) {
+    async fn checked_delete(iox_object_store: &IoxObjectStore, path: &Path) {
         // issue full GET operation to check if object is preset
-        object_store
+        iox_object_store
             .get(path)
             .await
             .unwrap()
@@ -2713,7 +2330,7 @@ mod tests {
             .unwrap();
 
         // delete it
-        object_store.delete(path).await.unwrap();
+        iox_object_store.delete(path).await.unwrap();
     }
 
     /// Result of [`assert_single_catalog_inmem_works`].
@@ -2750,23 +2367,16 @@ mod tests {
     }
 
     async fn assert_single_catalog_inmem_works(
-        object_store: &Arc<ObjectStore>,
-        server_id: ServerId,
-        db_name: &str,
+        iox_object_store: &Arc<IoxObjectStore>,
     ) -> TestTrace {
-        let (catalog, mut state) = PreservedCatalog::new_empty(
-            Arc::clone(object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+        let (catalog, mut state) = PreservedCatalog::new_empty(Arc::clone(iox_object_store), ())
+            .await
+            .unwrap();
 
         // get some test metadata
-        let (_, metadata1) = make_metadata(object_store, "foo", chunk_addr(1)).await;
+        let (_, metadata1) = make_metadata(iox_object_store, "foo", chunk_addr(1)).await;
         let metadata1 = Arc::new(metadata1);
-        let (_, metadata2) = make_metadata(object_store, "bar", chunk_addr(1)).await;
+        let (_, metadata2) = make_metadata(iox_object_store, "bar", chunk_addr(1)).await;
         let metadata2 = Arc::new(metadata2);
 
         // track all the intermediate results
@@ -2895,157 +2505,102 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_twice() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
+        let iox_object_store = make_iox_object_store();
 
-        PreservedCatalog::new_empty::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+        PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+            .await
+            .unwrap();
 
-        let res = PreservedCatalog::new_empty::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await;
+        let res =
+            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await;
         assert_eq!(res.unwrap_err().to_string(), "Catalog already exists");
     }
 
     #[tokio::test]
     async fn test_wipe_nothing() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
+        let iox_object_store = make_iox_object_store();
 
-        PreservedCatalog::wipe(&object_store, server_id, db_name)
-            .await
-            .unwrap();
+        PreservedCatalog::wipe(&iox_object_store).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_wipe_normal() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
+        let iox_object_store = make_iox_object_store();
 
         // create a real catalog
-        assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
+        assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // wipe
-        PreservedCatalog::wipe(&object_store, server_id, db_name)
-            .await
-            .unwrap();
+        PreservedCatalog::wipe(&iox_object_store).await.unwrap();
 
         // `exists` and `load` both report "no data"
+        assert!(!PreservedCatalog::exists(&iox_object_store).await.unwrap());
         assert!(
-            !PreservedCatalog::exists(&object_store, server_id, db_name,)
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ())
                 .await
                 .unwrap()
+                .is_none()
         );
-        assert!(PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            ()
-        )
-        .await
-        .unwrap()
-        .is_none());
 
         // can create new catalog
-        PreservedCatalog::new_empty::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+        PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
     async fn test_wipe_broken_catalog() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
+        let iox_object_store = make_iox_object_store();
 
         // create a real catalog
-        assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
+        assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break
-        let (catalog, _state) = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let (catalog, _state) =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap()
+                .unwrap();
         break_catalog_with_weird_version(&catalog).await;
 
         // wipe
-        PreservedCatalog::wipe(&object_store, server_id, db_name)
-            .await
-            .unwrap();
+        PreservedCatalog::wipe(&iox_object_store).await.unwrap();
 
         // `exists` and `load` both report "no data"
+        assert!(!PreservedCatalog::exists(&iox_object_store).await.unwrap());
         assert!(
-            !PreservedCatalog::exists(&object_store, server_id, db_name,)
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ())
                 .await
                 .unwrap()
+                .is_none()
         );
-        assert!(PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            ()
-        )
-        .await
-        .unwrap()
-        .is_none());
 
         // can create new catalog
-        PreservedCatalog::new_empty::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+        PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
     async fn test_wipe_ignores_unknown_files() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
+        let iox_object_store = make_iox_object_store();
 
         // create a real catalog
-        assert_single_catalog_inmem_works(&object_store, make_server_id(), "db1").await;
+        assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // create junk
-        let mut path = catalog_path(&object_store, server_id, db_name);
+        let mut path = iox_object_store.catalog_path();
         path.push_dir("0");
         path.set_file_name(format!("{}.foo", Uuid::new_v4()));
-        create_empty_file(&object_store, &path).await;
+        create_empty_file(&iox_object_store, &path).await;
 
         // wipe
-        PreservedCatalog::wipe(&object_store, server_id, db_name)
-            .await
-            .unwrap();
+        PreservedCatalog::wipe(&iox_object_store).await.unwrap();
 
         // check file is still there
-        let prefix = catalog_path(&object_store, server_id, db_name);
-        let files = object_store
+        let prefix = iox_object_store.catalog_path();
+        let files = iox_object_store
             .list(Some(&prefix))
             .await
             .unwrap()
@@ -3059,15 +2614,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_transaction_handle_revision_counter() {
-        let object_store = make_object_store();
-        let (catalog, _state) = PreservedCatalog::new_empty::<TestCatalogState>(
-            object_store,
-            make_server_id(),
-            "db1".to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+        let iox_object_store = make_iox_object_store();
+        let (catalog, _state) =
+            PreservedCatalog::new_empty::<TestCatalogState>(iox_object_store, ())
+                .await
+                .unwrap();
         let t = catalog.open_transaction().await;
 
         assert_eq!(t.revision_counter(), 1);
@@ -3075,15 +2626,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_transaction_handle_uuid() {
-        let object_store = make_object_store();
-        let (catalog, _state) = PreservedCatalog::new_empty::<TestCatalogState>(
-            object_store,
-            make_server_id(),
-            "db1".to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+        let iox_object_store = make_iox_object_store();
+        let (catalog, _state) =
+            PreservedCatalog::new_empty::<TestCatalogState>(iox_object_store, ())
+                .await
+                .unwrap();
         let mut t = catalog.open_transaction().await;
 
         t.transaction.as_mut().unwrap().proto.uuid = Uuid::nil().to_string();
@@ -3092,16 +2639,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_transaction_timestamp_ok() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
-        let ts =
-            PreservedCatalog::find_last_transaction_timestamp(&object_store, server_id, db_name)
-                .await
-                .unwrap()
-                .unwrap();
+        let ts = PreservedCatalog::find_last_transaction_timestamp(&iox_object_store)
+            .await
+            .unwrap()
+            .unwrap();
 
         // last trace entry is an aborted transaction, so the valid transaction timestamp is the third last
         assert!(trace.aborted[trace.aborted.len() - 1]);
@@ -3124,48 +2668,37 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_transaction_timestamp_empty() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
+        let iox_object_store = make_iox_object_store();
 
-        assert!(PreservedCatalog::find_last_transaction_timestamp(
-            &object_store,
-            server_id,
-            db_name
-        )
-        .await
-        .unwrap()
-        .is_none());
+        assert!(
+            PreservedCatalog::find_last_transaction_timestamp(&iox_object_store)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[tokio::test]
     async fn test_find_last_transaction_timestamp_datetime_broken() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        let mut proto = load_transaction_proto(&object_store, &path).await.unwrap();
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let mut proto = load_transaction_proto(&iox_object_store, &path)
+            .await
+            .unwrap();
         proto.start_timestamp = None;
-        store_transaction_proto(&object_store, &path, &proto)
+        store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
 
-        let ts =
-            PreservedCatalog::find_last_transaction_timestamp(&object_store, server_id, db_name)
-                .await
-                .unwrap()
-                .unwrap();
+        let ts = PreservedCatalog::find_last_transaction_timestamp(&iox_object_store)
+            .await
+            .unwrap()
+            .unwrap();
 
         // last trace entry is an aborted transaction, so the valid transaction timestamp is the third last
         assert!(trace.aborted[trace.aborted.len() - 1]);
@@ -3188,24 +2721,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_transaction_timestamp_protobuf_broken() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
         let data = Bytes::from("foo");
         let len = data.len();
-        object_store
+        iox_object_store
             .put(
                 &path,
                 futures::stream::once(async move { Ok(data) }),
@@ -3214,11 +2739,10 @@ mod tests {
             .await
             .unwrap();
 
-        let ts =
-            PreservedCatalog::find_last_transaction_timestamp(&object_store, server_id, db_name)
-                .await
-                .unwrap()
-                .unwrap();
+        let ts = PreservedCatalog::find_last_transaction_timestamp(&iox_object_store)
+            .await
+            .unwrap()
+            .unwrap();
 
         // last trace entry is an aborted transaction, so the valid transaction timestamp is the third last
         assert!(trace.aborted[trace.aborted.len() - 1]);
@@ -3241,20 +2765,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_transaction_timestamp_checkpoints_only() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
-        let mut trace = assert_single_catalog_inmem_works(&object_store, server_id, db_name).await;
+        let iox_object_store = make_iox_object_store();
+        let mut trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
-        let (catalog, state) = PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let (catalog, state) =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap()
+                .unwrap();
 
         // create empty transaction w/ checkpoint
         {
@@ -3272,22 +2790,15 @@ mod tests {
             if *aborted {
                 continue;
             }
-            let path = file_path(
-                &object_store,
-                server_id,
-                db_name,
-                tkey,
-                FileType::Transaction,
-            );
-            checked_delete(&object_store, &path).await;
+            let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+            checked_delete(&iox_object_store, &path).await;
         }
         drop(catalog);
 
-        let ts =
-            PreservedCatalog::find_last_transaction_timestamp(&object_store, server_id, db_name)
-                .await
-                .unwrap()
-                .unwrap();
+        let ts = PreservedCatalog::find_last_transaction_timestamp(&iox_object_store)
+            .await
+            .unwrap()
+            .unwrap();
 
         // check timestamps
         assert!(!trace.aborted[trace.aborted.len() - 1]);
@@ -3308,20 +2819,15 @@ mod tests {
         );
     }
 
-    async fn assert_catalog_roundtrip_works(
-        object_store: &Arc<ObjectStore>,
-        server_id: ServerId,
-        db_name: &str,
-    ) {
+    async fn assert_catalog_roundtrip_works(iox_object_store: &Arc<IoxObjectStore>) {
         // use single-catalog test case as base
-        let trace = assert_single_catalog_inmem_works(object_store, server_id, db_name).await;
+        let trace = assert_single_catalog_inmem_works(iox_object_store).await;
 
         // load catalog from store and check replayed state
-        let (catalog, state) =
-            PreservedCatalog::load(Arc::clone(object_store), server_id, db_name.to_string(), ())
-                .await
-                .unwrap()
-                .unwrap();
+        let (catalog, state) = PreservedCatalog::load(Arc::clone(iox_object_store), ())
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(
             catalog.revision_counter(),
             trace.tkeys.last().unwrap().revision_counter
@@ -3334,35 +2840,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_exists_considers_checkpoints() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-        let db_name = "db1";
+        let iox_object_store = make_iox_object_store();
 
-        assert!(
-            !PreservedCatalog::exists(&object_store, server_id, db_name,)
+        assert!(!PreservedCatalog::exists(&iox_object_store).await.unwrap());
+
+        let (catalog, state) =
+            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
                 .await
-                .unwrap()
-        );
-
-        let (catalog, state) = PreservedCatalog::new_empty::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+                .unwrap();
 
         // delete transaction file
         let tkey = catalog.previous_tkey.read().unwrap();
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        checked_delete(&object_store, &path).await;
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        checked_delete(&iox_object_store, &path).await;
 
         // create empty transaction w/ checkpoint
         {
@@ -3376,29 +2866,18 @@ mod tests {
 
         // delete transaction file
         let tkey = catalog.previous_tkey.read().unwrap();
-        let path = file_path(
-            &object_store,
-            server_id,
-            db_name,
-            tkey,
-            FileType::Transaction,
-        );
-        checked_delete(&object_store, &path).await;
+        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        checked_delete(&iox_object_store, &path).await;
 
         drop(catalog);
 
-        assert!(PreservedCatalog::exists(&object_store, server_id, db_name,)
-            .await
-            .unwrap());
-        assert!(PreservedCatalog::load::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            ()
-        )
-        .await
-        .unwrap()
-        .is_some());
+        assert!(PreservedCatalog::exists(&iox_object_store).await.unwrap());
+        assert!(
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap()
+                .is_some()
+        );
     }
 
     #[tokio::test]

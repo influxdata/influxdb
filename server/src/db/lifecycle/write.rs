@@ -74,7 +74,7 @@ pub(super) fn write_chunk_to_object_store(
     let partition = partition.into_data().partition;
 
     // Create a storage to save data of this chunk
-    let storage = Storage::new(Arc::clone(&db.store), db.server_id);
+    let storage = Storage::new(Arc::clone(&db.iox_object_store));
 
     let catalog_transactions_until_checkpoint = db
         .rules
@@ -140,7 +140,7 @@ pub(super) fn write_chunk_to_object_store(
             let parquet_chunk = Arc::new(
                 ParquetChunk::new(
                     path.clone(),
-                    Arc::clone(&db.store),
+                    Arc::clone(&db.iox_object_store),
                     file_size_bytes,
                     Arc::clone(&parquet_metadata),
                     Arc::clone(&table_name),

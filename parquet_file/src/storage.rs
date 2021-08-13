@@ -5,16 +5,18 @@ use arrow::{
     error::{ArrowError, Result as ArrowResult},
     record_batch::RecordBatch,
 };
+use bytes::Bytes;
+use data_types::chunk_metadata::ChunkAddr;
 use datafusion::{
     logical_plan::Expr,
     physical_plan::{parquet::ParquetExec, ExecutionPlan, Partitioning, SendableRecordBatchStream},
 };
+use futures::StreamExt;
 use internal_types::selection::Selection;
-use object_store::{
-    path::{parsed::DirsAndFileName, ObjectStorePath, Path},
-    ObjectStore, ObjectStoreApi,
-};
+use iox_object_store::IoxObjectStore;
+use object_store::path::{parsed::DirsAndFileName, ObjectStorePath, Path};
 use observability_deps::tracing::debug;
+use parking_lot::Mutex;
 use parquet::{
     self,
     arrow::ArrowWriter,
@@ -22,11 +24,6 @@ use parquet::{
     file::{metadata::KeyValue, properties::WriterProperties, writer::TryClone},
 };
 use query::{exec::stream::AdapterStream, predicate::Predicate};
-
-use bytes::Bytes;
-use data_types::{chunk_metadata::ChunkAddr, server_id::ServerId};
-use futures::StreamExt;
-use parking_lot::Mutex;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     io::{Cursor, Seek, SeekFrom, Write},
@@ -132,16 +129,12 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone)]
 pub struct Storage {
-    object_store: Arc<ObjectStore>,
-    server_id: ServerId,
+    iox_object_store: Arc<IoxObjectStore>,
 }
 
 impl Storage {
-    pub fn new(object_store: Arc<ObjectStore>, server_id: ServerId) -> Self {
-        Self {
-            object_store,
-            server_id,
-        }
+    pub fn new(iox_object_store: Arc<IoxObjectStore>) -> Self {
+        Self { iox_object_store }
     }
 
     /// Return full path including filename in the object store to save a chunk
@@ -156,7 +149,7 @@ impl Storage {
         // generate random UUID so that files are unique and never overwritten
         let uuid = Uuid::new_v4();
 
-        let mut path = data_location(&self.object_store, self.server_id, &chunk_addr.db_name);
+        let mut path = self.iox_object_store.data_path();
         path.push_dir(chunk_addr.table_name.as_ref());
         path.push_dir(chunk_addr.partition_key.as_ref());
         path.set_file_name(format!(
@@ -236,7 +229,7 @@ impl Storage {
         let data = Bytes::from(data);
         let stream_data = Result::Ok(data);
 
-        self.object_store
+        self.iox_object_store
             .put(
                 file_name,
                 futures::stream::once(async move { stream_data }),
@@ -274,7 +267,7 @@ impl Storage {
         predicate: Option<Expr>,
         projection: Vec<usize>,
         path: Path,
-        store: Arc<ObjectStore>,
+        store: Arc<IoxObjectStore>,
         tx: tokio::sync::mpsc::Sender<ArrowResult<RecordBatch>>,
     ) -> Result<()> {
         // Size of each batch
@@ -353,7 +346,7 @@ impl Storage {
         selection: Selection<'_>,
         schema: SchemaRef,
         path: Path,
-        store: Arc<ObjectStore>,
+        store: Arc<IoxObjectStore>,
     ) -> Result<SendableRecordBatchStream> {
         // fire up a async task that will fetch the parquet file
         // locally, start it executing and send results
@@ -439,32 +432,11 @@ impl TryClone for MemWriter {
     }
 }
 
-/// Location where parquet data goes to.
-///
-/// Schema currently is:
-///
-/// ```text
-/// <writer_id>/<database>/data
-/// ```
-pub(crate) fn data_location(
-    object_store: &ObjectStore,
-    server_id: ServerId,
-    db_name: &str,
-) -> Path {
-    let mut path = object_store.new_path();
-    path.push_dir(server_id.to_string());
-    path.push_dir(db_name.to_string());
-    path.push_dir("data");
-    path
-}
-
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
-
     use super::*;
     use crate::test_utils::{
-        create_partition_and_database_checkpoint, make_object_store, make_record_batch,
+        create_partition_and_database_checkpoint, make_iox_object_store, make_record_batch,
     };
     use arrow::array::{ArrayRef, StringArray};
     use arrow_util::assert_batches_eq;
@@ -538,12 +510,11 @@ mod tests {
         assert_batches_eq!(&expected, &input_batches);
 
         // create Storage
-        let server_id = ServerId::try_from(1).unwrap();
-        let db_name = Arc::from("my_db");
         let table_name = Arc::from("my_table");
         let partition_key = Arc::from("my_partition");
         let chunk_id = 33;
-        let storage = Storage::new(make_object_store(), server_id);
+        let iox_object_store = make_iox_object_store();
+        let storage = Storage::new(Arc::clone(&iox_object_store));
 
         // write the data in
         let schema = batch.schema();
@@ -569,7 +540,7 @@ mod tests {
         let (path, _file_size_bytes, _metadata) = storage
             .write_to_object_store(
                 ChunkAddr {
-                    db_name,
+                    db_name: iox_object_store.database_name().into(),
                     table_name,
                     partition_key,
                     chunk_id,
@@ -580,13 +551,13 @@ mod tests {
             .await
             .expect("successfully wrote to object store");
 
-        let object_store = Arc::clone(&storage.object_store);
+        let iox_object_store = Arc::clone(&storage.iox_object_store);
         let read_stream = Storage::read_filter(
             &Predicate::default(),
             Selection::All,
             schema,
             path,
-            object_store,
+            iox_object_store,
         )
         .expect("successfully called read_filter");
 
@@ -599,10 +570,10 @@ mod tests {
 
     #[test]
     fn test_locations_are_unique() {
-        let server_id = ServerId::try_from(1).unwrap();
-        let storage = Storage::new(make_object_store(), server_id);
+        let iox_object_store = make_iox_object_store();
+        let storage = Storage::new(Arc::clone(&iox_object_store));
         let chunk_addr = ChunkAddr {
-            db_name: Arc::from("my_db"),
+            db_name: iox_object_store.database_name().into(),
             table_name: Arc::from("my_table"),
             partition_key: Arc::from("my_partition"),
             chunk_id: 13,

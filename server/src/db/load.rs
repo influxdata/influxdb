@@ -1,11 +1,11 @@
 //! Functionality to load a [`Catalog`](crate::db::catalog::Catalog) and other information from a
 //! [`PreservedCatalog`](parquet_file::catalog::PreservedCatalog).
 
-use std::sync::Arc;
-
+use super::catalog::{chunk::ChunkStage, table::TableSchemaUpsertHandle, Catalog};
 use data_types::server_id::ServerId;
+use iox_object_store::IoxObjectStore;
 use metrics::{KeyValue, MetricRegistry};
-use object_store::{path::parsed::DirsAndFileName, ObjectStore};
+use object_store::path::parsed::DirsAndFileName;
 use observability_deps::tracing::{error, info};
 use parquet_file::{
     catalog::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
@@ -13,8 +13,7 @@ use parquet_file::{
 };
 use persistence_windows::checkpoint::{ReplayPlan, ReplayPlanner};
 use snafu::{ResultExt, Snafu};
-
-use super::catalog::{chunk::ChunkStage, table::TableSchemaUpsertHandle, Catalog};
+use std::sync::Arc;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -48,7 +47,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// <https://github.com/influxdata/influxdb_iox/issues/1522>
 pub async fn load_or_create_preserved_catalog(
     db_name: &str,
-    object_store: Arc<ObjectStore>,
+    iox_object_store: Arc<IoxObjectStore>,
     server_id: ServerId,
     metrics_registry: Arc<MetricRegistry>,
     wipe_on_error: bool,
@@ -56,9 +55,7 @@ pub async fn load_or_create_preserved_catalog(
 ) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
     // first try to load existing catalogs
     match PreservedCatalog::load(
-        Arc::clone(&object_store),
-        server_id,
-        db_name.to_string(),
+        Arc::clone(&iox_object_store),
         LoaderEmptyInput::new(
             db_name,
             server_id,
@@ -87,7 +84,7 @@ pub async fn load_or_create_preserved_catalog(
 
             create_preserved_catalog(
                 db_name,
-                Arc::clone(&object_store),
+                Arc::clone(&iox_object_store),
                 server_id,
                 Arc::clone(&metrics_registry),
                 skip_replay,
@@ -100,13 +97,13 @@ pub async fn load_or_create_preserved_catalog(
                 // broken => wipe for now (at least during early iterations)
                 error!("cannot load catalog, so wipe it: {}", e);
 
-                PreservedCatalog::wipe(&object_store, server_id, db_name)
+                PreservedCatalog::wipe(&iox_object_store)
                     .await
                     .context(CannotWipeCatalog)?;
 
                 create_preserved_catalog(
                     db_name,
-                    Arc::clone(&object_store),
+                    Arc::clone(&iox_object_store),
                     server_id,
                     Arc::clone(&metrics_registry),
                     skip_replay,
@@ -124,15 +121,13 @@ pub async fn load_or_create_preserved_catalog(
 /// This will fail if a preserved catalog already exists.
 pub async fn create_preserved_catalog(
     db_name: &str,
-    object_store: Arc<ObjectStore>,
+    iox_object_store: Arc<IoxObjectStore>,
     server_id: ServerId,
     metrics_registry: Arc<MetricRegistry>,
     skip_replay: bool,
 ) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
     let (preserved_catalog, loader) = PreservedCatalog::new_empty(
-        Arc::clone(&object_store),
-        server_id,
-        db_name.to_string(),
+        Arc::clone(&iox_object_store),
         LoaderEmptyInput::new(
             db_name,
             server_id,
@@ -206,7 +201,7 @@ impl CatalogState for Loader {
 
     fn add(
         &mut self,
-        object_store: Arc<ObjectStore>,
+        iox_object_store: Arc<IoxObjectStore>,
         info: CatalogParquetInfo,
     ) -> parquet_file::catalog::Result<()> {
         use parquet_file::catalog::{MetadataExtractFailed, ReplayPlanError, SchemaError};
@@ -237,8 +232,8 @@ impl CatalogState for Loader {
 
         let metrics = ParquetChunkMetrics::new(&metrics);
         let parquet_chunk = ParquetChunk::new(
-            object_store.path_from_dirs_and_filename(info.path.clone()),
-            object_store,
+            iox_object_store.path_from_dirs_and_filename(info.path.clone()),
+            iox_object_store,
             info.file_size_bytes,
             info.metadata,
             Arc::clone(&iox_md.table_name),
@@ -308,38 +303,34 @@ impl CatalogState for Loader {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
-
+    use super::*;
+    use crate::db::checkpoint_data_from_catalog;
+    use data_types::DatabaseName;
+    use object_store::ObjectStore;
     use parquet_file::catalog::{
         test_helpers::{assert_catalog_state_implementation, TestCatalogState},
         CheckpointData,
     };
-
-    use crate::db::checkpoint_data_from_catalog;
-
-    use super::*;
+    use std::convert::TryFrom;
 
     #[tokio::test]
     async fn load_or_create_preserved_catalog_recovers_from_error() {
         let object_store = Arc::new(ObjectStore::new_in_memory());
         let server_id = ServerId::try_from(1).unwrap();
-        let db_name = "preserved_catalog_test";
+        let db_name = DatabaseName::new("preserved_catalog_test").unwrap();
+        let iox_object_store = Arc::new(IoxObjectStore::new(object_store, server_id, &db_name));
 
-        let (preserved_catalog, _catalog) = PreservedCatalog::new_empty::<TestCatalogState>(
-            Arc::clone(&object_store),
-            server_id,
-            db_name.to_string(),
-            (),
-        )
-        .await
-        .unwrap();
+        let (preserved_catalog, _catalog) =
+            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap();
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
 
         let metrics_registry = Arc::new(metrics::MetricRegistry::new());
         load_or_create_preserved_catalog(
-            db_name,
-            object_store,
+            &db_name,
+            iox_object_store,
             server_id,
             metrics_registry,
             true,

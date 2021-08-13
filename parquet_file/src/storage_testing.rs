@@ -12,8 +12,8 @@ mod tests {
     use crate::{
         metadata::IoxParquetMetaData,
         test_utils::{
-            chunk_addr, load_parquet_from_store, make_chunk_given_record_batch, make_object_store,
-            make_record_batch, read_data_from_parquet_data,
+            chunk_addr, load_parquet_from_store, make_chunk_given_record_batch,
+            make_iox_object_store, make_record_batch, read_data_from_parquet_data,
         },
     };
 
@@ -31,7 +31,7 @@ mod tests {
 
         ////////////////////
         // Make an OS in memory
-        let store = make_object_store();
+        let store = make_iox_object_store();
 
         ////////////////////
         // Store the data as a chunk and write it to in the object store
