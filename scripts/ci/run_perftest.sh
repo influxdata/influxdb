@@ -242,7 +242,7 @@ query_types() {
       echo min mean max first last count sum
       ;;
     iot)
-      echo 1-home-12-hours light-level-8-hr
+      echo 1-home-12-hours light-level-8-hr aggregate-keep sorted-pivot
       ;;
     metaquery)
       echo field-keys tag-values
