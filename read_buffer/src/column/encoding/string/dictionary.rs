@@ -47,7 +47,7 @@ impl Default for Dictionary {
 }
 
 impl Dictionary {
-    /// Initialises an Dictionar encoding with a set of logical values.
+    /// Initialises a Dictionary encoding with a set of logical values.
     /// Creating an encoding using `with_dictionary` ensures that the dictionary
     /// is in the correct order, and will allow values to be inserted with any
     /// value in the dictionary.
@@ -61,22 +61,33 @@ impl Dictionary {
     }
 
     /// A reasonable estimation of the on-heap size this encoding takes up.
-    pub fn size(&self) -> usize {
-        // the total size of all decoded values in the column.
-        let decoded_keys_size = self
+    /// If `buffers` is true then all allocated buffers in the encoding are
+    /// accounted for.
+    pub fn size(&self, buffers: bool) -> usize {
+        let base_size = size_of::<Self>();
+
+        // Total size of all decoded values in the column.
+        let mut decoded_keys_size = self
             .entries
             .iter()
             .map(|k| match k {
-                Some(v) =>  v.len(),
+                Some(v) => v.len(),
                 None => 0,
             } + size_of::<Option<String>>())
             .sum::<usize>();
 
-        let entries_size = size_of::<Vec<Option<String>>>() + decoded_keys_size;
-        let encoded_ids_size = size_of::<Vec<u32>>() + (size_of::<u32>() * self.encoded_data.len());
+        if buffers {
+            decoded_keys_size +=
+                (self.entries.capacity() - self.entries.len()) * size_of::<Option<String>>();
+        }
 
-        // + 1 for contains_null field
-        entries_size + encoded_ids_size + 1
+        let encoded_ids_size = size_of::<u32>()
+            * match buffers {
+                true => self.encoded_data.capacity(),
+                false => self.encoded_data.len(),
+            };
+
+        base_size + decoded_keys_size + encoded_ids_size
     }
 
     /// A reasonable estimation of the on-heap size of the underlying string
@@ -837,7 +848,7 @@ impl std::fmt::Display for Dictionary {
             f,
             "[{}] size: {:?} rows: {:?} cardinality: {}",
             ENCODING_NAME,
-            self.size(),
+            self.size(false),
             self.num_rows(),
             self.cardinality(),
         )
@@ -873,17 +884,13 @@ mod test {
         enc.push_none();
         enc.push_none();
 
-        // keys - 14 bytes.
-
-        // 3 string entries in dictionary
-        // entries is 24 + (24*4) + 14 == 134
-
+        // Self - 24+24+8 = 56 bytes (two vectors, a bool and padding)
+        // 4 string entries (inc NULL) in vec = 4 * 24 = 96
+        // 3 string entries with length 4+5+5 = 14
         // 15 rows.
-        // encoded ids is 24 + (4 * 15) == 84
-
-        // 134 + 84 + 1 == 219
-
-        assert_eq!(enc.size(), 219);
+        // encoded ids is (4 * 15) == 60
+        // 56 + 96 + 14 + 60 = 226
+        assert_eq!(enc.size(false), 226);
 
         // check dictionary
         assert_eq!(
@@ -899,6 +906,24 @@ mod test {
             enc.encoded_data,
             vec![1, 1, 1, 2, 1, 1, 1, 1, 1, 3, 3, NULL_ID, NULL_ID, NULL_ID, NULL_ID]
         );
+
+        // check for allocated size
+        let mut enc = Dictionary::default();
+        enc.encoded_data.reserve_exact(40);
+        enc.entries.reserve_exact(39); // account for already-allocated NULL element
+        enc.push_additional(Some("east".to_string()), 3);
+        enc.push_additional(Some("north".to_string()), 1);
+        enc.push_additional(Some("east".to_string()), 5);
+        enc.push_additional(Some("south".to_string()), 2);
+        enc.push_additional(None, 4);
+
+        // Self - 24+24+8 = 56 bytes (two vectors, a bool and padding)
+        // 40 string entries (inc NULL) in vec = 40 * 24 = 960
+        // 3 string entries with lengths 4+5+5 = 14
+        // 15 rows but 40 elements allocated
+        // encoded ids is (40 * 4) == 160
+        // 56 + 960 + 14 + 160 = 1190
+        assert_eq!(enc.size(true), 1190);
     }
 
     #[test]

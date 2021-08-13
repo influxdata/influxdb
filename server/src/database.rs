@@ -10,7 +10,7 @@ use futures::{FutureExt, TryFutureExt};
 use generated_types::database_rules::encode_database_rules;
 use internal_types::freezable::Freezable;
 use object_store::path::{ObjectStorePath, Path};
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use persistence_windows::checkpoint::ReplayPlan;
 use snafu::{ResultExt, Snafu};
@@ -297,6 +297,20 @@ impl Database {
 
             Ok(())
         })
+    }
+}
+
+impl Drop for Database {
+    fn drop(&mut self) {
+        let db_name = &self.shared.config.name;
+        if !self.shared.shutdown.is_cancelled() {
+            warn!(%db_name, "database dropped without calling shutdown()");
+            self.shared.shutdown.cancel();
+        }
+
+        if self.join.clone().now_or_never().is_none() {
+            warn!(%db_name, "database dropped without waiting for worker termination");
+        }
     }
 }
 

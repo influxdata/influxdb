@@ -366,6 +366,19 @@ pub struct Server<M: ConnectionManager> {
     shared: Arc<ServerShared>,
 }
 
+impl<M: ConnectionManager> Drop for Server<M> {
+    fn drop(&mut self) {
+        if !self.shared.shutdown.is_cancelled() {
+            warn!("server dropped without calling shutdown()");
+            self.shared.shutdown.cancel();
+        }
+
+        if self.join.clone().now_or_never().is_none() {
+            warn!("server dropped without waiting for worker termination");
+        }
+    }
+}
+
 #[derive(Debug)]
 struct ServerShared {
     /// A token that is used to trigger shutdown of the background worker

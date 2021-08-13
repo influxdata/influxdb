@@ -2531,7 +2531,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3191.0)
+            .sample_sum_eq(3197.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk).await;
@@ -3400,7 +3400,7 @@ mod tests {
                 id: 2,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                memory_bytes: 3284,       // size of RB and OS chunks
+                memory_bytes: 3140,       // size of RB and OS chunks
                 object_store_bytes: 1577, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
@@ -3451,7 +3451,7 @@ mod tests {
         }
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 87);
-        assert_eq!(db.catalog.metrics().memory().read_buffer(), 2410);
+        assert_eq!(db.catalog.metrics().memory().read_buffer(), 2266);
         assert_eq!(db.catalog.metrics().memory().object_store(), 874);
     }
 

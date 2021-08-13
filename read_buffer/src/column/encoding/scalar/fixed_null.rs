@@ -52,7 +52,7 @@ where
             self.name(),
             self.arr.len(),
             self.arr.null_count(),
-            self.size()
+            self.size(false)
         )
     }
 }
@@ -260,8 +260,12 @@ where
         self.arr.null_count() as u32
     }
 
-    fn size(&self) -> usize {
-        size_of::<Self>() + self.arr.get_array_memory_size()
+    fn size(&self, buffers: bool) -> usize {
+        size_of::<Self>()
+            + match buffers {
+                true => self.arr.get_array_memory_size(),
+                false => self.arr.get_buffer_memory_size(),
+            }
     }
 
     /// The estimated total size in bytes of the underlying values in the
@@ -478,7 +482,8 @@ mod test {
     #[test]
     fn size() {
         let (v, _) = new_encoding(vec![None, None, Some(100), Some(2222)]);
-        assert_eq!(v.size(), 408);
+        assert_eq!(v.size(false), 264);
+        assert_eq!(v.size(true), 408); // includes allocated buffers
     }
 
     #[test]

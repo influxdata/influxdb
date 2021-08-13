@@ -18,8 +18,10 @@ pub trait ScalarEncoding<L>: Debug + Display + Send + Sync {
     /// A useful name for the encoding, likely used in instrumentation.
     fn name(&self) -> &'static str;
 
-    /// The total size in bytes to store encoded data in memory.
-    fn size(&self) -> usize;
+    /// The total size in bytes to store encoded data in memory. If `buffers`
+    /// is true then the returned size should account for any allocated buffers
+    /// within the contained encoding structures.
+    fn size(&self, buffers: bool) -> usize;
 
     /// The estimated total size in bytes of the underlying encoded values if
     /// they were stored contiguously as a vector of `L`. `include_null` should
