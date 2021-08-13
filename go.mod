@@ -42,7 +42,7 @@ require (
 	github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe
 	github.com/influxdata/flux v0.125.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
-	github.com/influxdata/influx-cli/v2 v2.0.0-20210713195937-a69f06b41b45
+	github.com/influxdata/influx-cli/v2 v2.1.1-0.20210813175002-13799e7662c0
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/pkg-config v0.2.8
 	github.com/jmoiron/sqlx v1.3.4
