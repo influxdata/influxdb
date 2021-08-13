@@ -90,3 +90,10 @@
   expose: true
   lifetime: temporary
 
+- name: Replication Stream Backend
+  description: Enable replication-stream APIs and underlying synchronization queues
+  key: replicationStreamBackend
+  default: false
+  contact: Edge Team
+  expose: true
+  lifetime: temporary

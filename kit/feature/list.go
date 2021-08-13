@@ -156,6 +156,20 @@ func RefreshSingleCell() BoolFlag {
 	return refreshSingleCell
 }
 
+var replicationStreamBackend = MakeBoolFlag(
+	"Replication Stream Backend",
+	"replicationStreamBackend",
+	"Edge Team",
+	false,
+	Temporary,
+	true,
+)
+
+// ReplicationStreamBackend - Enable replication-stream APIs and underlying synchronization queues
+func ReplicationStreamBackend() BoolFlag {
+	return replicationStreamBackend
+}
+
 var all = []Flag{
 	appMetrics,
 	groupWindowAggregateTranspose,
@@ -168,6 +182,7 @@ var all = []Flag{
 	timeFilterFlags,
 	cursorAtEOF,
 	refreshSingleCell,
+	replicationStreamBackend,
 }
 
 var byKey = map[string]Flag{
@@ -182,4 +197,5 @@ var byKey = map[string]Flag{
 	"timeFilterFlags":               timeFilterFlags,
 	"cursorAtEOF":                   cursorAtEOF,
 	"refreshSingleCell":             refreshSingleCell,
+	"replicationStreamBackend":      replicationStreamBackend,
 }
