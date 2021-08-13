@@ -624,7 +624,7 @@ async fn test_wipe_persisted_catalog() {
         &Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("database")
-            .arg("catalog")
+            .arg("recover")
             .arg("wipe")
             .arg(&db_name)
             .arg("--host")
@@ -658,7 +658,7 @@ async fn test_wipe_persisted_catalog_error_force() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
-        .arg("catalog")
+        .arg("recover")
         .arg("wipe")
         .arg(&db_name)
         .arg("--host")
@@ -681,12 +681,35 @@ async fn test_wipe_persisted_catalog_error_db_exists() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
-        .arg("catalog")
+        .arg("recover")
         .arg("wipe")
         .arg(&db_name)
         .arg("--host")
         .arg(addr)
         .arg("--force")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(&expected_err));
+}
+
+#[tokio::test]
+async fn test_skip_replay_error_db_exists() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+
+    create_readable_database(&db_name, server_fixture.grpc_channel()).await;
+
+    let expected_err = format!("Failed precondition: database ({}) in invalid state (Initialized) for transition (SkipReplay)", db_name);
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("recover")
+        .arg("skip-replay")
+        .arg(&db_name)
+        .arg("--host")
+        .arg(addr)
         .assert()
         .failure()
         .stderr(predicate::str::contains(&expected_err));

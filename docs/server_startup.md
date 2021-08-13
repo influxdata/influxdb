@@ -49,7 +49,7 @@ collection / clean up) or the database has to be in an error state. Either use t
 or the CLI:
 
 ```shell
-influxdb_iox database catalog wipe ...
+influxdb_iox database recover wipe ...
 ```
 
 Once the catalog is wiped, the server will retry to initialize the database. Process will be logged. If the database

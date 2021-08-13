@@ -3,7 +3,7 @@ use generated_types::google::{
 };
 use observability_deps::tracing::error;
 
-/// map common `server::Error` errors  to the appropriate tonic Status
+/// map common [`server::Error`] errors  to the appropriate tonic Status
 pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
     use server::Error;
 
@@ -45,14 +45,7 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         }
         .into(),
         Error::RemoteError { source } => tonic::Status::unavailable(source.to_string()),
-        Error::WipePreservedCatalog { source } => match source {
-            server::database::Error::TransitionInProgress { .. } => tonic::Status::unavailable("recovery operation already in progress"),
-            server::database::Error::InvalidState { .. } => tonic::Status::failed_precondition(source.to_string()),
-            error => {
-                error!(?error, "Unexpected error wiping catalog");
-                InternalError {}.into()
-            }
-        }
+        Error::WipePreservedCatalog { source } => default_database_error_handler(source),
         error => {
             error!(?error, "Unexpected error");
             InternalError {}.into()
@@ -60,7 +53,7 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
     }
 }
 
-/// map common `catalog::Error` errors to the appropriate tonic Status
+/// map common [`catalog::Error`](server::db::catalog::Error) errors to the appropriate tonic Status
 pub fn default_catalog_error_handler(error: server::db::catalog::Error) -> tonic::Status {
     use server::db::catalog::Error;
     match error {
@@ -89,7 +82,26 @@ pub fn default_catalog_error_handler(error: server::db::catalog::Error) -> tonic
     }
 }
 
-/// map common `server::db::Error` errors  to the appropriate tonic Status
+/// map common [`database::Error`](server::database::Error) errors  to the appropriate tonic Status
+pub fn default_database_error_handler(error: server::database::Error) -> tonic::Status {
+    use server::database::Error;
+    match error {
+        Error::TransitionInProgress { .. } => {
+            tonic::Status::unavailable("another operation already in progress")
+        }
+        Error::InvalidState { .. } => tonic::Status::failed_precondition(error.to_string()),
+        Error::WipePreservedCatalog { source, .. } => {
+            error!(%source, "Unexpected error while wiping catalog");
+            InternalError {}.into()
+        }
+        Error::SkipReplay { source, .. } => {
+            error!(%source, "Unexpected error skipping replay");
+            InternalError {}.into()
+        }
+    }
+}
+
+/// map common [`db::Error`](server::db::Error) errors  to the appropriate tonic Status
 pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
     use server::db::Error;
     match error {

@@ -301,6 +301,22 @@ pub enum WipePersistedCatalogError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by [`Client::skip_replay`]
+#[derive(Debug, Error)]
+pub enum SkipReplayError {
+    /// Server ID is not set
+    #[error("Failed precondition: {}", .0.message())]
+    FailedPrecondition(tonic::Status),
+
+    /// Server returned an invalid argument error
+    #[error("Invalid argument: {}", .0.message())]
+    InvalidArgument(tonic::Status),
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
 /// An IOx Management API client.
 ///
 /// This client wraps the underlying `tonic` generated client with a
@@ -742,5 +758,24 @@ impl Client {
             .into_inner()
             .operation
             .ok_or(WipePersistedCatalogError::EmptyResponse)?)
+    }
+
+    /// Skip replay of an uninitialized database.
+    pub async fn skip_replay(
+        &mut self,
+        db_name: impl Into<String> + Send,
+    ) -> Result<(), SkipReplayError> {
+        let db_name = db_name.into();
+
+        self.inner
+            .skip_replay(SkipReplayRequest { db_name })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::FailedPrecondition => SkipReplayError::FailedPrecondition(status),
+                tonic::Code::InvalidArgument => SkipReplayError::InvalidArgument(status),
+                _ => SkipReplayError::ServerError(status),
+            })?;
+
+        Ok(())
     }
 }

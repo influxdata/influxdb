@@ -14,9 +14,9 @@ use influxdb_iox_client::{
     write::{self, WriteError},
 };
 
-mod catalog;
 mod chunk;
 mod partition;
+mod recover;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
@@ -55,7 +55,7 @@ pub enum Error {
     Serde(#[from] serde_json::Error),
 
     #[error("Error in partition subcommand: {0}")]
-    Catalog(#[from] catalog::Error),
+    Catalog(#[from] recover::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -169,7 +169,7 @@ enum Command {
     Query(Query),
     Chunk(chunk::Config),
     Partition(partition::Config),
-    Catalog(catalog::Config),
+    Recover(recover::Config),
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
@@ -272,8 +272,8 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         Command::Partition(config) => {
             partition::command(connection, config).await?;
         }
-        Command::Catalog(config) => {
-            catalog::command(connection, config).await?;
+        Command::Recover(config) => {
+            recover::command(connection, config).await?;
         }
     }
 
