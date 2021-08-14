@@ -10,6 +10,7 @@ use tonic::transport::NamedService;
 
 use crate::influxdb_ioxd::serving_readiness::ServingReadiness;
 use server::{ApplicationState, ConnectionManager, Server};
+use trace::TraceCollector;
 
 pub mod error;
 mod flight;
@@ -70,15 +71,13 @@ pub async fn serve<M>(
     socket: TcpListener,
     application: Arc<ApplicationState>,
     server: Arc<Server<M>>,
+    trace_collector: Arc<dyn TraceCollector>,
     shutdown: CancellationToken,
     serving_readiness: ServingReadiness,
 ) -> Result<()>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    // TODO: Replace this with a jaeger collector
-    let trace_collector = Arc::new(trace::LogTraceCollector::new());
-
     let stream = TcpListenerStream::new(socket);
 
     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();

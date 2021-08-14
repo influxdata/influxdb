@@ -47,7 +47,7 @@ pub enum DecodeError {
     ZeroError,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TraceId(pub NonZeroU128);
 
 impl<'a> FromStr for TraceId {
@@ -64,7 +64,7 @@ impl<'a> FromStr for TraceId {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpanId(pub NonZeroU64);
 
 impl SpanId {
