@@ -130,6 +130,11 @@ func (c *Coordinator) TaskUpdated(ctx context.Context, from, to *taskmodel.Task)
 		return err
 	}
 
+	// if the tasks is already inactive, we don't do anything
+	if to.Status == from.Status && to.Status == string(taskmodel.TaskInactive) {
+		return nil
+	}
+
 	// if disabling the task, release it before schedule update
 	if to.Status != from.Status && to.Status == string(taskmodel.TaskInactive) {
 		if err := c.sch.Release(sid); err != nil && err != taskmodel.ErrTaskNotClaimed {
