@@ -2436,7 +2436,7 @@ dependencies = [
  "percent-encoding",
  "reqwest",
  "rusoto_core",
- "rusoto_credential",
+ "rusoto_credential 0.47.0",
  "rusoto_s3",
  "snafu",
  "tempfile",
@@ -3540,7 +3540,7 @@ dependencies = [
  "hyper-tls",
  "lazy_static",
  "log",
- "rusoto_credential",
+ "rusoto_credential 0.46.0",
  "rusoto_signature",
  "rustc_version 0.2.3",
  "serde",
@@ -3563,6 +3563,24 @@ dependencies = [
  "serde",
  "serde_json",
  "shlex 0.1.1",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
+name = "rusoto_credential"
+version = "0.47.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a46b67db7bb66f5541e44db22b0a02fed59c9603e146db3a9e633272d3bac2f"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "dirs-next",
+ "futures",
+ "hyper",
+ "serde",
+ "serde_json",
+ "shlex 1.0.0",
  "tokio",
  "zeroize",
 ]
@@ -3597,7 +3615,7 @@ dependencies = [
  "md5",
  "percent-encoding",
  "pin-project-lite",
- "rusoto_credential",
+ "rusoto_credential 0.46.0",
  "rustc_version 0.2.3",
  "serde",
  "sha2",
