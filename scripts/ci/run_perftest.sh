@@ -261,7 +261,7 @@ query_types() {
       echo min-high-card mean-high-card max-high-card first-high-card last-high-card count-high-card sum-high-card min-low-card mean-low-card max-low-card first-low-card last-low-card count-low-card sum-low-card
       ;;
     iot)
-      echo 1-home-12-hours light-level-8-hr aggregate-keep sorted-pivot
+      echo 1-home-12-hours light-level-8-hr aggregate-keep sorted-pivot battery-levels
       ;;
     metaquery)
       echo field-keys tag-values
@@ -269,6 +269,17 @@ query_types() {
     *)
       echo "unknown use-case: $1"
       exit 1
+      ;;
+  esac
+}
+
+query_interval() {
+  case $1 in
+    battery-levels)
+      echo -query-interval=5m
+      ;;
+    *)
+      echo ""
       ;;
   esac
 }
@@ -285,7 +296,8 @@ for usecase in window-agg group-agg bare-agg group-window-transpose iot metaquer
         -timestamp-start=$(start_time $usecase $type) \
         -timestamp-end=$(end_time $usecase $type) \
         -queries=$queries \
-        -scale-var=$scale_var > \
+        -scale-var=$scale_var \
+        $(query_interval $type) > \
       ${DATASET_DIR}/$query_fname
     query_files="$query_files $query_fname"
   done
