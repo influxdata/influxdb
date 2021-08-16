@@ -548,7 +548,7 @@ mod tests {
 
         assert_eq!(trace_collector.spans().len(), 0);
 
-        let tracing_client = influxdb_iox_client::connection::Builder::default()
+        let b3_tracing_client = influxdb_iox_client::connection::Builder::default()
             .header(
                 HeaderName::from_static("x-b3-sampled"),
                 HeaderValue::from_static("1"),
@@ -565,13 +565,27 @@ mod tests {
             .await
             .unwrap();
 
-        let mut tracing_client = influxdb_iox_client::management::Client::new(tracing_client);
+        let mut b3_tracing_client = influxdb_iox_client::management::Client::new(b3_tracing_client);
 
-        tracing_client.list_databases().await.unwrap();
-        tracing_client.get_server_status().await.unwrap();
+        b3_tracing_client.list_databases().await.unwrap();
+        b3_tracing_client.get_server_status().await.unwrap();
+
+        let jaeger_tracing_client = influxdb_iox_client::connection::Builder::default()
+            .header(
+                HeaderName::from_static("uber-trace-id"),
+                HeaderValue::from_static("3459495:30434:0:1"),
+            )
+            .build(format!("http://{}", addr))
+            .await
+            .unwrap();
+
+        influxdb_iox_client::management::Client::new(jaeger_tracing_client)
+            .list_databases()
+            .await
+            .unwrap();
 
         let spans = trace_collector.spans();
-        assert_eq!(spans.len(), 2);
+        assert_eq!(spans.len(), 3);
 
         let spans: Vec<trace::span::Span<'_>> = spans
             .iter()
@@ -589,6 +603,12 @@ mod tests {
         assert_eq!(spans[1].ctx.trace_id.0.get(), 999999999);
         assert!(spans[1].start.is_some());
         assert!(spans[1].end.is_some());
+
+        assert_eq!(spans[2].name, "IOx");
+        assert_eq!(spans[2].ctx.parent_span_id.unwrap().0.get(), 30434);
+        assert_eq!(spans[2].ctx.trace_id.0.get(), 3459495);
+        assert!(spans[2].start.is_some());
+        assert!(spans[2].end.is_some());
 
         assert_ne!(spans[0].ctx.span_id, spans[1].ctx.span_id);
         server.shutdown();

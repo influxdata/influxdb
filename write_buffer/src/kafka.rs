@@ -323,6 +323,16 @@ impl KafkaBufferConsumer {
 }
 
 pub mod test_utils {
+    use std::time::Duration;
+
+    use rdkafka::{
+        admin::{
+            AdminClient, AdminOptions, AlterConfig, NewTopic, ResourceSpecifier, TopicReplication,
+        },
+        client::DefaultClientContext,
+        ClientConfig,
+    };
+
     /// Get the testing Kafka connection string or return current scope.
     ///
     /// If `TEST_INTEGRATION` and `KAFKA_CONNECT` are set, return the Kafka connection URL to the
@@ -369,20 +379,64 @@ pub mod test_utils {
             }
         }};
     }
+
+    fn admin_client(kafka_connection: &str) -> AdminClient<DefaultClientContext> {
+        let mut cfg = ClientConfig::new();
+        cfg.set("bootstrap.servers", kafka_connection);
+        cfg.set("message.timeout.ms", "5000");
+        cfg.create().unwrap()
+    }
+
+    /// Create Kafka topic for testing.
+    pub async fn create_kafka_topic(
+        kafka_connection: &str,
+        database_name: &str,
+        n_sequencers: u32,
+    ) {
+        let admin = admin_client(kafka_connection);
+
+        let topic = NewTopic::new(
+            database_name,
+            n_sequencers as i32,
+            TopicReplication::Fixed(1),
+        )
+        .set("cleanup.policy", "delete")
+        .set("retention.ms", "-1")
+        .set("segment.ms", "10");
+
+        let opts = AdminOptions::default();
+        admin.create_topics([&topic], &opts).await.unwrap();
+    }
+
+    /// Purge all records from given topic.
+    ///
+    /// **WARNING: Until <https://github.com/fede1024/rust-rdkafka/issues/385> is fixed, this requires a server-wide
+    ///            `log.retention.check.interval.ms` of 100ms!**
+    pub async fn purge_kafka_topic(kafka_connection: &str, database_name: &str) {
+        let admin = admin_client(kafka_connection);
+        let opts = AdminOptions::default();
+
+        let cfg =
+            AlterConfig::new(ResourceSpecifier::Topic(database_name)).set("retention.ms", "1");
+        admin.alter_configs([&cfg], &opts).await.unwrap();
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let cfg =
+            AlterConfig::new(ResourceSpecifier::Topic(database_name)).set("retention.ms", "-1");
+        admin.alter_configs([&cfg], &opts).await.unwrap();
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
 
-    use rdkafka::{
-        admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
-        client::DefaultClientContext,
-    };
     use uuid::Uuid;
 
     use crate::{
         core::test_utils::{perform_generic_tests, TestAdapter, TestContext},
+        kafka::test_utils::create_kafka_topic,
         maybe_skip_kafka_integration,
     };
 
@@ -403,21 +457,8 @@ mod tests {
         type Context = KafkaTestContext;
 
         async fn new_context(&self, n_sequencers: u32) -> Self::Context {
-            // Common Kafka config
-            let mut cfg = ClientConfig::new();
-            cfg.set("bootstrap.servers", &self.conn);
-            cfg.set("message.timeout.ms", "5000");
-
-            // Create a topic with `n_partitions` partitions in Kafka
             let database_name = format!("test_topic_{}", Uuid::new_v4());
-            let admin: AdminClient<DefaultClientContext> = cfg.clone().create().unwrap();
-            let topic = NewTopic::new(
-                &database_name,
-                n_sequencers as i32,
-                TopicReplication::Fixed(1),
-            );
-            let opts = AdminOptions::default();
-            admin.create_topics(&[topic], &opts).await.unwrap();
+            create_kafka_topic(&self.conn, &database_name, n_sequencers).await;
 
             KafkaTestContext {
                 conn: self.conn.clone(),
