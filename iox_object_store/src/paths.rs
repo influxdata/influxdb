@@ -6,6 +6,9 @@ use object_store::path::{ObjectStorePath, Path};
 pub mod parquet_file;
 use parquet_file::Path as ParquetFilePath;
 
+pub mod transaction_file;
+use transaction_file::Path as TransactionFilePath;
+
 /// A database-specific object store path that all `IoxPath`s should be within.
 /// This should not be leaked outside this crate.
 #[derive(Debug, Clone)]
@@ -40,6 +43,21 @@ impl TransactionsPath {
         Self {
             inner: root_path.join("transactions"),
         }
+    }
+
+    pub fn join(&self, transaction_file_path: &TransactionFilePath) -> Path {
+        let mut result = self.inner.clone();
+        let relative = transaction_file_path.relative_dirs_and_file_name();
+        for part in relative.directories {
+            result.push_dir(part.to_string());
+        }
+        result.set_file_name(
+            relative
+                .file_name
+                .expect("Transaction file paths have filenames")
+                .to_string(),
+        );
+        result
     }
 }
 

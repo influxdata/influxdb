@@ -160,24 +160,21 @@ async fn read_parquet(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::{
+        catalog::{test_helpers::TestCatalogState, PreservedCatalog},
+        metadata::IoxMetadata,
+        storage::{MemWriter, Storage},
+        test_utils::{
+            create_partition_and_database_checkpoint, make_iox_object_store, make_record_batch,
+        },
+    };
     use chrono::Utc;
     use data_types::chunk_metadata::ChunkAddr;
     use datafusion::physical_plan::SendableRecordBatchStream;
     use datafusion_util::MemoryStream;
     use parquet::arrow::ArrowWriter;
     use tokio_stream::StreamExt;
-
-    use super::*;
-
-    use crate::metadata::IoxMetadata;
-    use crate::test_utils::create_partition_and_database_checkpoint;
-    use crate::{catalog::test_helpers::TestCatalogState, storage::MemWriter};
-    use crate::{
-        catalog::PreservedCatalog,
-        storage::Storage,
-        test_utils::{make_iox_object_store, make_record_batch},
-    };
-    use object_store::path::parsed::DirsAndFileName;
 
     #[tokio::test]
     async fn test_rebuild_successfull() {
@@ -303,9 +300,10 @@ mod tests {
         // 1. an empty one (done by `PreservedCatalog::new_empty`)
         // 2. an "add all the files"
         //
-        // There is no real need to create a checkpoint in this case. So here we delete all transaction files and then
-        // check that rebuilt catalog will be gone afterwards. Note the difference to the `test_rebuild_empty` case
-        // where we can indeed proof the existence of a catalog (even though it is empty aka has no files).
+        // There is no real need to create a checkpoint in this case. So here we delete all
+        // transaction files and then check that rebuilt catalog will be gone afterwards. Note the
+        // difference to the `test_rebuild_empty` case where we can indeed proof the existence of a
+        // catalog (even though it is empty aka has no files).
         let iox_object_store = make_iox_object_store();
 
         // build catalog with some data (2 transactions + initial empty one)
@@ -327,7 +325,7 @@ mod tests {
 
         // delete transaction files
         let paths = iox_object_store
-            .list(None)
+            .catalog_transaction_files()
             .await
             .unwrap()
             .try_concat()
@@ -335,18 +333,17 @@ mod tests {
             .unwrap();
         let mut deleted = false;
         for path in paths {
-            let parsed: DirsAndFileName = path.clone().into();
-            if parsed
-                .file_name
-                .map_or(false, |part| part.encoded().ends_with(".txn"))
-            {
-                iox_object_store.delete(&path).await.unwrap();
+            if !path.is_checkpoint() {
+                iox_object_store
+                    .delete_catalog_transaction_file(&path)
+                    .await
+                    .unwrap();
                 deleted = true;
             }
         }
         assert!(deleted);
 
-        // catalog gone
+        // the catalog should be gone because there should have been no checkpoint files remaining
         assert!(!PreservedCatalog::exists(&iox_object_store).await.unwrap());
     }
 

@@ -1,12 +1,15 @@
 //! Catalog preservation and transaction handling.
+
 use crate::metadata::IoxParquetMetaData;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use futures::TryStreamExt;
+use futures::{StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::catalog::v1 as proto;
-use iox_object_store::{IoxObjectStore, ParquetFilePath, ParquetFilePathParseError};
+use iox_object_store::{
+    IoxObjectStore, ParquetFilePath, ParquetFilePathParseError, TransactionFilePath,
+};
 use object_store::{
-    path::{parsed::DirsAndFileName, parts::PathPart, ObjectStorePath, Path},
+    path::{parsed::DirsAndFileName, parts::PathPart},
     ObjectStore, ObjectStoreApi,
 };
 use observability_deps::tracing::{info, warn};
@@ -31,12 +34,6 @@ use uuid::Uuid;
 ///
 /// For breaking changes, this will change.
 pub const TRANSACTION_VERSION: u32 = 11;
-
-/// File suffix for transaction files in object store.
-pub const TRANSACTION_FILE_SUFFIX: &str = "txn";
-
-/// File suffix for checkpoint files in object store.
-pub const CHECKPOINT_FILE_SUFFIX: &str = "ckpt";
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -271,8 +268,8 @@ pub trait CatalogState {
 
 /// In-memory view of the preserved catalog.
 pub struct PreservedCatalog {
-    // We need an RWLock AND a semaphore, so that readers are NOT blocked during an open transactions. Note that this
-    // requires a new transaction to:
+    // We need an RWLock AND a semaphore, so that readers are NOT blocked during an open
+    // transactions. Note that this requires a new transaction to:
     //
     // 1. acquire the semaphore
     //
@@ -298,30 +295,47 @@ pub struct PreservedCatalog {
 impl PreservedCatalog {
     /// Checks if a preserved catalog exists.
     pub async fn exists(iox_object_store: &IoxObjectStore) -> Result<bool> {
-        Ok(!list_files(iox_object_store).await?.is_empty())
+        let list = iox_object_store
+            .catalog_transaction_files()
+            .await
+            .context(Read)?
+            .next()
+            .await;
+        match list {
+            Some(l) => Ok(!l.context(Read)?.is_empty()),
+            None => Ok(false),
+        }
     }
 
     /// Find last transaction-start-timestamp.
     ///
-    /// This method is designed to read and verify as little as possible and should also work on most broken catalogs.
+    /// This method is designed to read and verify as little as possible and should also work on
+    /// most broken catalogs.
     pub async fn find_last_transaction_timestamp(
         iox_object_store: &IoxObjectStore,
     ) -> Result<Option<DateTime<Utc>>> {
         let mut res = None;
-        for transaction in list_files(iox_object_store).await? {
-            let path = transaction.file_path();
-            match load_transaction_proto(iox_object_store, &path).await {
-                Ok(proto) => match parse_timestamp(&proto.start_timestamp) {
-                    Ok(ts) => {
-                        res = Some(res.map_or(ts, |res: DateTime<Utc>| res.max(ts)));
+
+        let mut stream = iox_object_store
+            .catalog_transaction_files()
+            .await
+            .context(Read)?;
+
+        while let Some(transaction_file_list) = stream.try_next().await.context(Read)? {
+            for transaction_file_path in &transaction_file_list {
+                match load_transaction_proto(iox_object_store, transaction_file_path).await {
+                    Ok(proto) => match parse_timestamp(&proto.start_timestamp) {
+                        Ok(ts) => {
+                            res = Some(res.map_or(ts, |res: DateTime<Utc>| res.max(ts)));
+                        }
+                        Err(e) => warn!(%e, ?transaction_file_path, "Cannot parse timestamp"),
+                    },
+                    Err(e @ Error::Read { .. }) => {
+                        // bubble up IO error
+                        return Err(e);
                     }
-                    Err(e) => warn!(%e, ?path, "Cannot parse timestamp"),
-                },
-                Err(e @ Error::Read { .. }) => {
-                    // bubble up IO error
-                    return Err(e);
+                    Err(e) => warn!(%e, ?transaction_file_path, "Cannot read transaction"),
                 }
-                Err(e) => warn!(%e, ?path, "Cannot read transaction"),
             }
         }
         Ok(res)
@@ -335,12 +349,7 @@ impl PreservedCatalog {
     ///
     /// Note that wiping the catalog will NOT wipe any referenced parquet files.
     pub async fn wipe(iox_object_store: &IoxObjectStore) -> Result<()> {
-        for transaction in list_files(iox_object_store).await? {
-            let path = transaction.file_path();
-            iox_object_store.delete(&path).await.context(Write)?;
-        }
-
-        Ok(())
+        Ok(iox_object_store.wipe_catalog().await.context(Write)?)
     }
 
     /// Create new catalog w/o any data.
@@ -378,8 +387,8 @@ impl PreservedCatalog {
 
     /// Load existing catalog from store, if it exists.
     ///
-    /// Loading starts at the latest checkpoint or -- if none exists -- at transaction `0`. Transactions before that
-    /// point are neither verified nor are they required to exist.
+    /// Loading starts at the latest checkpoint or -- if none exists -- at transaction `0`.
+    /// Transactions before that point are neither verified nor are they required to exist.
     pub async fn load<S>(
         iox_object_store: Arc<IoxObjectStore>,
         state_data: S::EmptyInput,
@@ -391,44 +400,52 @@ impl PreservedCatalog {
         let mut transactions: HashMap<u64, Uuid> = HashMap::new();
         let mut max_revision = None;
         let mut last_checkpoint = None;
-        for transaction in list_files(&iox_object_store).await? {
-            // keep track of the max
-            max_revision = Some(
-                max_revision
-                    .map(|m: u64| m.max(transaction.tkey.revision_counter))
-                    .unwrap_or(transaction.tkey.revision_counter),
-            );
 
-            // keep track of latest checkpoint
-            if matches!(transaction.file_type, FileType::Checkpoint) {
-                last_checkpoint = Some(
-                    last_checkpoint
-                        .map(|m: u64| m.max(transaction.tkey.revision_counter))
-                        .unwrap_or(transaction.tkey.revision_counter),
+        let mut stream = iox_object_store
+            .catalog_transaction_files()
+            .await
+            .context(Read)?;
+
+        while let Some(transaction_file_list) = stream.try_next().await.context(Read)? {
+            for transaction_file_path in &transaction_file_list {
+                // keep track of the max
+                max_revision = Some(
+                    max_revision
+                        .map(|m: u64| m.max(transaction_file_path.revision_counter))
+                        .unwrap_or(transaction_file_path.revision_counter),
                 );
-            }
 
-            // insert but check for duplicates
-            match transactions.entry(transaction.tkey.revision_counter) {
-                Occupied(o) => {
-                    // sort for determinism
-                    let (uuid1, uuid2) = if *o.get() < transaction.tkey.uuid {
-                        (*o.get(), transaction.tkey.uuid)
-                    } else {
-                        (transaction.tkey.uuid, *o.get())
-                    };
-
-                    if uuid1 != uuid2 {
-                        Fork {
-                            revision_counter: transaction.tkey.revision_counter,
-                            uuid1,
-                            uuid2,
-                        }
-                        .fail()?;
-                    }
+                // keep track of latest checkpoint
+                if transaction_file_path.is_checkpoint() {
+                    last_checkpoint = Some(
+                        last_checkpoint
+                            .map(|m: u64| m.max(transaction_file_path.revision_counter))
+                            .unwrap_or(transaction_file_path.revision_counter),
+                    );
                 }
-                Vacant(v) => {
-                    v.insert(transaction.tkey.uuid);
+
+                // insert but check for duplicates
+                match transactions.entry(transaction_file_path.revision_counter) {
+                    Occupied(o) => {
+                        // sort for determinism
+                        let (uuid1, uuid2) = if *o.get() < transaction_file_path.uuid {
+                            (*o.get(), transaction_file_path.uuid)
+                        } else {
+                            (transaction_file_path.uuid, *o.get())
+                        };
+
+                        if uuid1 != uuid2 {
+                            Fork {
+                                revision_counter: transaction_file_path.revision_counter,
+                                uuid1,
+                                uuid2,
+                            }
+                            .fail()?;
+                        }
+                    }
+                    Vacant(v) => {
+                        v.insert(transaction_file_path.uuid);
+                    }
                 }
             }
         }
@@ -485,16 +502,16 @@ impl PreservedCatalog {
 
     /// Open a new transaction.
     ///
-    /// Note that only a single transaction can be open at any time. This call will `await` until any outstanding
-    /// transaction handle is dropped. The newly created transaction will contain the state after `await` (esp.
-    /// post-blocking). This system is fair, which means that transactions are given out in the order they were
-    /// requested.
+    /// Note that only a single transaction can be open at any time. This call will `await` until
+    /// any outstanding transaction handle is dropped. The newly created transaction will contain
+    /// the state after `await` (esp. post-blocking). This system is fair, which means that
+    /// transactions are given out in the order they were requested.
     pub async fn open_transaction(&self) -> TransactionHandle<'_> {
         self.open_transaction_with_uuid(Uuid::new_v4()).await
     }
 
-    /// Crate-private API to open an transaction with a specified UUID. Should only be used for catalog rebuilding or
-    /// with a fresh V4-UUID!
+    /// Crate-private API to open an transaction with a specified UUID. Should only be used for
+    /// catalog rebuilding or with a fresh V4-UUID!
     pub(crate) async fn open_transaction_with_uuid(&self, uuid: Uuid) -> TransactionHandle<'_> {
         TransactionHandle::new(self, uuid).await
     }
@@ -530,14 +547,6 @@ enum FileType {
 }
 
 impl FileType {
-    /// Get file suffix for this file type.
-    fn suffix(&self) -> &'static str {
-        match self {
-            Self::Transaction => TRANSACTION_FILE_SUFFIX,
-            Self::Checkpoint => CHECKPOINT_FILE_SUFFIX,
-        }
-    }
-
     /// Get encoding that should be used for this file.
     fn encoding(&self) -> proto::transaction::Encoding {
         match self {
@@ -545,129 +554,12 @@ impl FileType {
             Self::Checkpoint => proto::transaction::Encoding::Full,
         }
     }
-
-    fn parse_str(suffix: &str) -> Option<Self> {
-        match suffix {
-            TRANSACTION_FILE_SUFFIX => Some(Self::Transaction),
-            CHECKPOINT_FILE_SUFFIX => Some(Self::Checkpoint),
-            _ => None,
-        }
-    }
-}
-
-/// Creates object store path for given transaction or checkpoint.
-///
-/// The format is:
-///
-/// ```text
-/// <server_id>/<db_name>/transactions/<revision_counter>/<uuid>.{txn,ckpt}
-/// ```
-fn file_path(iox_object_store: &IoxObjectStore, tkey: TransactionKey, file_type: FileType) -> Path {
-    let path = iox_object_store.catalog_path();
-
-    let transaction = TransactionFile {
-        catalog_root: Some(path),
-        file_path: None,
-        tkey,
-        file_type,
-    };
-
-    transaction.file_path()
-}
-
-struct TransactionFile {
-    /// catalog_root will be stored elsewhere when all parquet file paths are relative
-    catalog_root: Option<Path>,
-    /// full path including catalog root; this will become a relative path only
-    file_path: Option<Path>,
-
-    tkey: TransactionKey,
-    file_type: FileType,
-}
-
-impl TransactionFile {
-    fn parse(path: Path) -> Option<Self> {
-        let file_path = path.clone();
-
-        let parsed: DirsAndFileName = path.into();
-        if parsed.directories.len() != 4 {
-            return None;
-        };
-
-        let revision_counter = parsed.directories[3].encoded().parse().ok()?;
-
-        let name_parts: Vec<_> = parsed
-            .file_name
-            .as_ref()
-            .expect("got file from object store w/o file name (aka only a directory?)")
-            .encoded()
-            .split('.')
-            .collect();
-        if name_parts.len() != 2 {
-            return None;
-        }
-        let uuid = Uuid::parse_str(name_parts[0]).ok()?;
-
-        let file_type = FileType::parse_str(name_parts[1])?;
-
-        Some(Self {
-            catalog_root: None,
-            file_path: Some(file_path),
-            tkey: TransactionKey {
-                revision_counter,
-                uuid,
-            },
-            file_type,
-        })
-    }
-
-    fn file_path(&self) -> Path {
-        if let Some(file_path) = &self.file_path {
-            file_path.clone()
-        } else {
-            // If we don't have the full path, we must have the catalog path. This will be
-            // simplified soon
-            let mut path = self
-                .catalog_root
-                .as_ref()
-                .expect("must have catalog_root when there is no file_path")
-                .clone();
-
-            // pad number: `u64::MAX.to_string().len()` is 20
-            path.push_dir(format!("{:0>20}", self.tkey.revision_counter));
-
-            let file_name = format!("{}.{}", self.tkey.uuid, self.file_type.suffix());
-            path.set_file_name(file_name);
-
-            path
-        }
-    }
-}
-
-/// Load a list of all transaction file from object store. Also parse revision counter and transaction UUID.
-///
-/// The files are in no particular order!
-async fn list_files(iox_object_store: &IoxObjectStore) -> Result<Vec<TransactionFile>> {
-    let paths = iox_object_store
-        .catalog_transaction_files()
-        .await
-        .context(Read {})?
-        .map_ok(|paths| {
-            paths
-                .into_iter()
-                .filter_map(TransactionFile::parse)
-                .collect()
-        })
-        .try_concat()
-        .await
-        .context(Read {})?;
-    Ok(paths)
 }
 
 /// Serialize and store protobuf-encoded transaction.
 async fn store_transaction_proto(
     iox_object_store: &IoxObjectStore,
-    path: &Path,
+    path: &TransactionFilePath,
     proto: &proto::Transaction,
 ) -> Result<()> {
     let mut data = Vec::new();
@@ -676,7 +568,7 @@ async fn store_transaction_proto(
     let len = data.len();
 
     iox_object_store
-        .put(
+        .put_catalog_transaction_file(
             path,
             futures::stream::once(async move { Ok(data) }),
             Some(len),
@@ -690,10 +582,10 @@ async fn store_transaction_proto(
 /// Load and deserialize protobuf-encoded transaction from store.
 async fn load_transaction_proto(
     iox_object_store: &IoxObjectStore,
-    path: &Path,
+    path: &TransactionFilePath,
 ) -> Result<proto::Transaction> {
     let data = iox_object_store
-        .get(path)
+        .get_catalog_transaction_file(path)
         .await
         .context(Read {})?
         .map_ok(|bytes| bytes.to_vec())
@@ -791,7 +683,8 @@ struct OpenTransaction {
 }
 
 impl OpenTransaction {
-    /// Private API to create new transaction, users should always use [`PreservedCatalog::open_transaction`].
+    /// Private API to create new transaction, users should always use
+    /// [`PreservedCatalog::open_transaction`].
     fn new(previous_tkey: &Option<TransactionKey>, uuid: Uuid) -> Self {
         let (revision_counter, previous_uuid) = match previous_tkey {
             Some(tkey) => (tkey.revision_counter + 1, tkey.uuid.to_string()),
@@ -883,7 +776,8 @@ impl OpenTransaction {
     fn abort(self) {}
 
     async fn store(&self, iox_object_store: &IoxObjectStore) -> Result<()> {
-        let path = file_path(iox_object_store, self.tkey(), FileType::Transaction);
+        let path =
+            TransactionFilePath::new_transaction(self.tkey().revision_counter, self.tkey().uuid);
         store_transaction_proto(iox_object_store, &path, &self.proto).await?;
         Ok(())
     }
@@ -899,7 +793,14 @@ impl OpenTransaction {
         S: CatalogState + Send,
     {
         // recover state from store
-        let path = file_path(iox_object_store, tkey, file_type);
+        let path = match file_type {
+            FileType::Transaction => {
+                TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid)
+            }
+            FileType::Checkpoint => {
+                TransactionFilePath::new_checkpoint(tkey.revision_counter, tkey.uuid)
+            }
+        };
         let proto = load_transaction_proto(iox_object_store, &path).await?;
 
         // sanity-check file content
@@ -1034,13 +935,13 @@ impl<'c> TransactionHandle<'c> {
     /// Write data to object store and commit transaction to underlying catalog.
     ///
     /// # Checkpointing
-    /// A [`CheckpointHandle`] will be returned that allows the caller to create a checkpoint. Note that this handle
-    /// holds a transaction lock, so it's safe to assume that no other transaction is in-progress while the caller
-    /// prepares the checkpoint.
+    /// A [`CheckpointHandle`] will be returned that allows the caller to create a checkpoint. Note
+    /// that this handle holds a transaction lock, so it's safe to assume that no other transaction
+    /// is in-progress while the caller prepares the checkpoint.
     ///
     /// # Error Handling
-    /// When this function returns with an error, it MUST be assumed that the commit has failed and all actions
-    /// recorded with this handle are NOT preserved.
+    /// When this function returns with an error, it MUST be assumed that the commit has failed and
+    /// all actions recorded with this handle are NOT preserved.
     pub async fn commit(mut self) -> Result<CheckpointHandle<'c>> {
         let t = std::mem::take(&mut self.transaction)
             .expect("calling .commit on a closed transaction?!");
@@ -1054,8 +955,9 @@ impl<'c> TransactionHandle<'c> {
                 info!(?tkey, "transaction committed");
 
                 // maybe create a checkpoint
-                // IMPORTANT: Create the checkpoint AFTER commiting the transaction to object store and to the in-memory state.
-                //            Checkpoints are an optional optimization and are not required to materialize a transaction.
+                // IMPORTANT: Create the checkpoint AFTER commiting the transaction to object store
+                //            and to the in-memory state. Checkpoints are an optional optimization
+                //            and are not required to materialize a transaction.
                 Ok(CheckpointHandle {
                     catalog: self.catalog,
                     tkey,
@@ -1075,9 +977,11 @@ impl<'c> TransactionHandle<'c> {
     ///
     /// This function mostly exists for the following reasons:
     ///
-    /// - the read-write guard for the inner catalog state should be limited in scope to avoid long write-locks
-    /// - rustc seems to fold the guard into the async generator state even when we `drop` it quickly, making the
-    ///   resulting future `!Send`. However tokio requires our futures to be `Send`.
+    /// - the read-write guard for the inner catalog state should be limited in scope to avoid long
+    ///   write-locks
+    /// - rustc seems to fold the guard into the async generator state even when we `drop` it
+    ///   quickly, making the resulting future `!Send`. However tokio requires our futures to be
+    ///   `Send`.
     fn commit_inner(&self, t: OpenTransaction) -> Option<TransactionKey> {
         let mut previous_tkey_guard = self.catalog.previous_tkey.write();
         t.commit(&mut previous_tkey_guard)
@@ -1157,8 +1061,8 @@ pub struct CheckpointHandle<'c> {
     tkey: TransactionKey,
     previous_tkey: Option<TransactionKey>,
 
-    // NOTE: The permit is technically used since we use it to reference the semaphore. It implements `drop` which we
-    //       rely on.
+    // NOTE: The permit is technically used since we use it to reference the semaphore. It
+    //       implements `drop` which we rely on.
     #[allow(dead_code)]
     permit: SemaphorePermit<'c>,
 }
@@ -1169,8 +1073,9 @@ impl<'c> CheckpointHandle<'c> {
     /// Note that `checkpoint_data` must contain the state INCLUDING the just-committed transaction.
     ///
     /// # Error Handling
-    /// If the checkpoint creation fails, the commit will still be treated as completed since the checkpoint is a mere
-    /// optimization to speed up transaction replay and allow to prune the history.
+    /// If the checkpoint creation fails, the commit will still be treated as completed since the
+    /// checkpoint is a mere optimization to speed up transaction replay and allow to prune the
+    /// history.
     pub async fn create_checkpoint(self, checkpoint_data: CheckpointData) -> Result<()> {
         let iox_object_store = self.catalog.iox_object_store();
 
@@ -1216,7 +1121,7 @@ impl<'c> CheckpointHandle<'c> {
             start_timestamp: Some(Utc::now().into()),
             encoding: proto::transaction::Encoding::Full.into(),
         };
-        let path = file_path(&iox_object_store, self.tkey, FileType::Checkpoint);
+        let path = TransactionFilePath::new_checkpoint(self.tkey.revision_counter, self.tkey.uuid);
         store_transaction_proto(&iox_object_store, &path, &proto).await?;
 
         Ok(())
@@ -1308,7 +1213,7 @@ pub mod test_helpers {
     /// Break preserved catalog by moving one of the transaction files into a weird unknown version.
     pub async fn break_catalog_with_weird_version(catalog: &PreservedCatalog) {
         let tkey = get_tkey(catalog);
-        let path = file_path(&catalog.iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&catalog.iox_object_store, &path)
             .await
             .unwrap();
@@ -1651,56 +1556,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_load_from_dirty_store() {
-        let iox_object_store = make_iox_object_store();
-
-        // wrong file extension
-        let mut path = iox_object_store.catalog_path();
-        path.push_dir("0");
-        path.set_file_name(format!("{}.foo", Uuid::new_v4()));
-        create_empty_file(&iox_object_store, &path).await;
-
-        // no file extension
-        let mut path = iox_object_store.catalog_path();
-        path.push_dir("0");
-        path.set_file_name(Uuid::new_v4().to_string());
-        create_empty_file(&iox_object_store, &path).await;
-
-        // broken UUID
-        let mut path = iox_object_store.catalog_path();
-        path.push_dir("0");
-        path.set_file_name(format!("foo.{}", TRANSACTION_FILE_SUFFIX));
-        create_empty_file(&iox_object_store, &path).await;
-
-        // broken revision counter
-        let mut path = iox_object_store.catalog_path();
-        path.push_dir("foo");
-        path.set_file_name(format!("{}.{}", Uuid::new_v4(), TRANSACTION_FILE_SUFFIX));
-        create_empty_file(&iox_object_store, &path).await;
-
-        // file is folder
-        let mut path = iox_object_store.catalog_path();
-        path.push_dir("0");
-        path.push_dir(format!("{}.{}", Uuid::new_v4(), TRANSACTION_FILE_SUFFIX));
-        path.set_file_name("foo");
-        create_empty_file(&iox_object_store, &path).await;
-
-        // top-level file
-        let mut path = iox_object_store.catalog_path();
-        path.set_file_name(format!("{}.{}", Uuid::new_v4(), TRANSACTION_FILE_SUFFIX));
-        create_empty_file(&iox_object_store, &path).await;
-
-        // no data present
-        let option = PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-            .await
-            .unwrap();
-        assert!(option.is_none());
-
-        // can still write + read
-        assert_catalog_roundtrip_works(&iox_object_store).await;
-    }
-
-    #[tokio::test]
     async fn test_missing_transaction() {
         let iox_object_store = make_iox_object_store();
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
@@ -1708,7 +1563,7 @@ mod tests {
         // remove transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         checked_delete(&iox_object_store, &path).await;
 
         // loading catalog should fail now
@@ -1747,7 +1602,7 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -1773,7 +1628,7 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -1804,7 +1659,7 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -1830,7 +1685,7 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -1856,7 +1711,7 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -1879,7 +1734,7 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[1];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -1902,7 +1757,7 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -1928,11 +1783,11 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let data = Bytes::from("foo");
         let len = data.len();
         iox_object_store
-            .put(
+            .put_catalog_transaction_file(
                 &path,
                 futures::stream::once(async move { Ok(data) }),
                 Some(len),
@@ -1978,7 +1833,7 @@ mod tests {
         // re-create transaction file with different UUID
         assert!(trace.tkeys.len() >= 2);
         let mut tkey = trace.tkeys[1];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -1986,7 +1841,7 @@ mod tests {
 
         let new_uuid = Uuid::new_v4();
         tkey.uuid = new_uuid;
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         proto.uuid = new_uuid.to_string();
         store_transaction_proto(&iox_object_store, &path, &proto)
             .await
@@ -2011,7 +1866,7 @@ mod tests {
         // create checkpoint file with different UUID
         assert!(trace.tkeys.len() >= 2);
         let mut tkey = trace.tkeys[1];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -2019,7 +1874,7 @@ mod tests {
 
         let new_uuid = Uuid::new_v4();
         tkey.uuid = new_uuid;
-        let path = file_path(&iox_object_store, tkey, FileType::Checkpoint);
+        let path = TransactionFilePath::new_checkpoint(tkey.revision_counter, tkey.uuid);
         proto.uuid = new_uuid.to_string();
         proto.encoding = proto::transaction::Encoding::Full.into();
         store_transaction_proto(&iox_object_store, &path, &proto)
@@ -2045,7 +1900,7 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -2077,7 +1932,7 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -2103,7 +1958,7 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -2132,7 +1987,7 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -2158,7 +2013,7 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -2184,7 +2039,7 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -2210,11 +2065,11 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
-        let path = file_path(&iox_object_store, tkey, FileType::Checkpoint);
+        let path = TransactionFilePath::new_checkpoint(tkey.revision_counter, tkey.uuid);
         store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
@@ -2284,7 +2139,7 @@ mod tests {
                 continue;
             }
             let tkey = trace.tkeys[i];
-            let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+            let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
             checked_delete(&iox_object_store, &path).await;
         }
 
@@ -2342,24 +2197,10 @@ mod tests {
         }
     }
 
-    async fn create_empty_file(iox_object_store: &IoxObjectStore, path: &Path) {
-        let data = Bytes::default();
-        let len = data.len();
-
-        iox_object_store
-            .put(
-                path,
-                futures::stream::once(async move { Ok(data) }),
-                Some(len),
-            )
-            .await
-            .unwrap();
-    }
-
-    async fn checked_delete(iox_object_store: &IoxObjectStore, path: &Path) {
+    async fn checked_delete(iox_object_store: &IoxObjectStore, path: &TransactionFilePath) {
         // issue full GET operation to check if object is preset
         iox_object_store
-            .get(path)
+            .get_catalog_transaction_file(path)
             .await
             .unwrap()
             .map_ok(|bytes| bytes.to_vec())
@@ -2368,7 +2209,10 @@ mod tests {
             .unwrap();
 
         // delete it
-        iox_object_store.delete(path).await.unwrap();
+        iox_object_store
+            .delete_catalog_transaction_file(path)
+            .await
+            .unwrap();
     }
 
     /// Result of [`assert_single_catalog_inmem_works`].
@@ -2620,36 +2464,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_wipe_ignores_unknown_files() {
-        let iox_object_store = make_iox_object_store();
-
-        // create a real catalog
-        assert_single_catalog_inmem_works(&iox_object_store).await;
-
-        // create junk
-        let mut path = iox_object_store.catalog_path();
-        path.push_dir("0");
-        path.set_file_name(format!("{}.foo", Uuid::new_v4()));
-        create_empty_file(&iox_object_store, &path).await;
-
-        // wipe
-        PreservedCatalog::wipe(&iox_object_store).await.unwrap();
-
-        // check file is still there
-        let prefix = iox_object_store.catalog_path();
-        let files = iox_object_store
-            .list(Some(&prefix))
-            .await
-            .unwrap()
-            .try_concat()
-            .await
-            .unwrap();
-        let mut files: Vec<_> = files.iter().map(|path| path.to_string()).collect();
-        files.sort();
-        assert_eq!(files, vec![path.to_string()]);
-    }
-
-    #[tokio::test]
     async fn test_transaction_handle_revision_counter() {
         let iox_object_store = make_iox_object_store();
         let (catalog, _state) =
@@ -2723,7 +2537,7 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
@@ -2764,11 +2578,11 @@ mod tests {
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let data = Bytes::from("foo");
         let len = data.len();
         iox_object_store
-            .put(
+            .put_catalog_transaction_file(
                 &path,
                 futures::stream::once(async move { Ok(data) }),
                 Some(len),
@@ -2827,7 +2641,7 @@ mod tests {
             if *aborted {
                 continue;
             }
-            let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+            let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
             checked_delete(&iox_object_store, &path).await;
         }
         drop(catalog);
@@ -2888,7 +2702,7 @@ mod tests {
 
         // delete transaction file
         let tkey = catalog.previous_tkey.read().unwrap();
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         checked_delete(&iox_object_store, &path).await;
 
         // create empty transaction w/ checkpoint
@@ -2903,7 +2717,7 @@ mod tests {
 
         // delete transaction file
         let tkey = catalog.previous_tkey.read().unwrap();
-        let path = file_path(&iox_object_store, tkey, FileType::Transaction);
+        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         checked_delete(&iox_object_store, &path).await;
 
         drop(catalog);
