@@ -29,8 +29,10 @@ impl ObjectStorePath for DirsAndFileName {
         self.directories
             .extend(parts.as_ref().iter().map(|&v| v.into()));
     }
+}
 
-    fn display(&self) -> String {
+impl fmt::Display for DirsAndFileName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         let mut s = self
             .directories
             .iter()
@@ -43,13 +45,8 @@ impl ObjectStorePath for DirsAndFileName {
         if let Some(file_name) = &self.file_name {
             s.push_str(file_name.encoded());
         }
-        s
-    }
-}
 
-impl fmt::Display for DirsAndFileName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", self.display())
+        write!(f, "{}", s)
     }
 }
 

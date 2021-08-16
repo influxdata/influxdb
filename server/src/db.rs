@@ -1500,7 +1500,7 @@ mod tests {
     use futures::{stream, StreamExt, TryStreamExt};
     use internal_types::{schema::Schema, selection::Selection};
     use object_store::{
-        path::{parts::PathPart, ObjectStorePath, Path},
+        path::{parts::PathPart, Path},
         ObjectStore, ObjectStoreApi,
     };
     use parquet_file::{
@@ -3894,7 +3894,7 @@ mod tests {
             let chunk = db.chunk(table_name, partition_key, *chunk_id).unwrap();
             let chunk = chunk.read();
             if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
-                paths_expected.push(parquet.path().display());
+                paths_expected.push(parquet.path().to_string());
             } else {
                 panic!("Wrong chunk state.");
             }
@@ -3906,7 +3906,15 @@ mod tests {
                 .unwrap()
                 .unwrap();
         let paths_actual = {
-            let mut tmp: Vec<String> = catalog.parquet_files.keys().map(|p| p.display()).collect();
+            let mut tmp: Vec<String> = catalog
+                .parquet_files
+                .keys()
+                .map(|p| {
+                    object_store
+                        .path_from_dirs_and_filename(p.clone())
+                        .to_string()
+                })
+                .collect();
             tmp.sort();
             tmp
         };
@@ -4009,12 +4017,12 @@ mod tests {
         ));
         let path_delete = object_store.path_from_dirs_and_filename(path);
         create_empty_file(&object_store, &path_delete).await;
-        let path_delete = path_delete.display();
+        let path_delete = path_delete.to_string();
 
         // ==================== check: all files are there ====================
         let all_files = get_object_store_files(&object_store).await;
         for path in &paths_keep {
-            assert!(all_files.contains(&path.display()));
+            assert!(all_files.contains(&path.to_string()));
         }
 
         // ==================== do: start background task loop ====================
@@ -4043,7 +4051,7 @@ mod tests {
         let all_files = get_object_store_files(&object_store).await;
         assert!(!all_files.contains(&path_delete));
         for path in &paths_keep {
-            assert!(all_files.contains(&path.display()));
+            assert!(all_files.contains(&path.to_string()));
         }
     }
 
@@ -4295,7 +4303,7 @@ mod tests {
             .await
             .unwrap()
             .iter()
-            .map(|p| p.display())
+            .map(|p| p.to_string())
             .collect()
     }
 

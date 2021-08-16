@@ -5,7 +5,7 @@ use crate::catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog};
 use futures::TryStreamExt;
 use iox_object_store::IoxObjectStore;
 use object_store::{
-    path::{parsed::DirsAndFileName, ObjectStorePath, Path},
+    path::{parsed::DirsAndFileName, Path},
     ObjectStore, ObjectStoreApi,
 };
 use observability_deps::tracing::info;
@@ -109,7 +109,7 @@ pub async fn delete_files(catalog: &PreservedCatalog, files: &[Path]) -> Result<
     let store = catalog.iox_object_store();
 
     for path in files {
-        info!(path = %path.display(), "Delete file");
+        info!(%path, "Delete file");
         store.delete(path).await.context(WriteError)?;
     }
 
@@ -152,7 +152,7 @@ mod tests {
     use std::{collections::HashSet, sync::Arc};
 
     use bytes::Bytes;
-    use object_store::path::{ObjectStorePath, Path};
+    use object_store::path::Path;
     use tokio::sync::RwLock;
 
     use super::*;
@@ -195,6 +195,7 @@ mod tests {
             // an ordinary tracked parquet file => keep
             let (path, metadata) = make_metadata(&iox_object_store, "foo", chunk_addr(1)).await;
             let metadata = Arc::new(metadata);
+            paths_keep.push(path.to_string());
             let path = path.into();
             let info = CatalogParquetInfo {
                 path,
@@ -203,7 +204,6 @@ mod tests {
             };
 
             transaction.add_parquet(&info).unwrap();
-            paths_keep.push(info.path.display());
 
             // another ordinary tracked parquet file that was added and removed => keep (for time travel)
             let (path, metadata) = make_metadata(&iox_object_store, "foo", chunk_addr(2)).await;
@@ -216,18 +216,21 @@ mod tests {
             };
             transaction.add_parquet(&info).unwrap();
             transaction.remove_parquet(&info.path);
-            paths_keep.push(info.path.display());
+            let path_string = iox_object_store
+                .path_from_dirs_and_filename(info.path.clone())
+                .to_string();
+            paths_keep.push(path_string);
 
             // not a parquet file => keep
             let mut path = info.path;
             path.file_name = Some("foo.txt".into());
             let path = iox_object_store.path_from_dirs_and_filename(path);
             create_empty_file(&iox_object_store, &path).await;
-            paths_keep.push(path.display());
+            paths_keep.push(path.to_string());
 
             // an untracked parquet file => delete
             let (path, _md) = make_metadata(&iox_object_store, "foo", chunk_addr(3)).await;
-            paths_delete.push(path.display());
+            paths_delete.push(path.to_string());
 
             transaction.commit().await.unwrap();
         }
@@ -288,7 +291,9 @@ mod tests {
 
                     drop(guard);
 
-                    info.path.display()
+                    iox_object_store
+                        .path_from_dirs_and_filename(info.path)
+                        .to_string()
                 },
                 async {
                     let guard = lock.write().await;
@@ -302,7 +307,7 @@ mod tests {
             );
 
             let all_files = list_all_files(&iox_object_store).await;
-            assert!(all_files.contains(&path));
+            assert!(dbg!(all_files).contains(dbg!(&path)));
         }
     }
 
@@ -319,7 +324,7 @@ mod tests {
         let mut to_remove: HashSet<String> = Default::default();
         for chunk_id in 0..3 {
             let (path, _md) = make_metadata(&iox_object_store, "foo", chunk_addr(chunk_id)).await;
-            to_remove.insert(path.display());
+            to_remove.insert(path.to_string());
         }
 
         // run clean-up
@@ -366,7 +371,7 @@ mod tests {
             .await
             .unwrap()
             .iter()
-            .map(|p| p.display())
+            .map(|p| p.to_string())
             .collect()
     }
 }

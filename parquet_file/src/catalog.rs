@@ -2275,7 +2275,7 @@ mod tests {
         let mut files: Vec<(String, IoxParquetMetaData)> = state
             .parquet_files
             .values()
-            .map(|info| (info.path.display(), info.metadata.as_ref().clone()))
+            .map(|info| (info.path.to_string(), info.metadata.as_ref().clone()))
             .collect();
         files.sort_by_key(|(path, _)| path.clone());
         files
@@ -2607,9 +2607,9 @@ mod tests {
             .try_concat()
             .await
             .unwrap();
-        let mut files: Vec<_> = files.iter().map(|path| path.display()).collect();
+        let mut files: Vec<_> = files.iter().map(|path| path.to_string()).collect();
         files.sort();
-        assert_eq!(files, vec![path.display()]);
+        assert_eq!(files, vec![path.to_string()]);
     }
 
     #[tokio::test]
