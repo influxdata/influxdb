@@ -115,7 +115,10 @@ mod tests {
         let database_name = DatabaseName::new("clouds").unwrap();
         let iox_object_store = IoxObjectStore::new(make_object_store(), server_id, &database_name);
 
-        assert_eq!(iox_object_store.root_path.inner.to_string(), "1/clouds/")
+        assert_eq!(
+            iox_object_store.root_path.inner.to_string(),
+            "mem:1/clouds/"
+        )
     }
 
     #[test]
@@ -125,7 +128,7 @@ mod tests {
         let iox_object_store = IoxObjectStore::new(make_object_store(), server_id, &database_name);
 
         let path = iox_object_store.root_path.join("foo");
-        assert_eq!(path.to_string(), "1/clouds/foo/");
+        assert_eq!(path.to_string(), "mem:1/clouds/foo/");
     }
 
     #[test]
@@ -135,7 +138,7 @@ mod tests {
         let iox_object_store = IoxObjectStore::new(make_object_store(), server_id, &database_name);
         assert_eq!(
             iox_object_store.transactions_path.inner.to_string(),
-            "1/clouds/transactions/"
+            "mem:1/clouds/transactions/"
         );
     }
 
@@ -146,7 +149,7 @@ mod tests {
         let iox_object_store = IoxObjectStore::new(make_object_store(), server_id, &database_name);
         assert_eq!(
             iox_object_store.data_path.inner.to_string(),
-            "1/clouds/data/"
+            "mem:1/clouds/data/"
         );
     }
 }
