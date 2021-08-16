@@ -9,7 +9,6 @@ use internal_types::{
     selection::Selection,
 };
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
-use object_store::path::Path;
 use query::predicate::Predicate;
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, mem, sync::Arc};
@@ -25,15 +24,6 @@ pub enum Error {
     #[snafu(display("Failed to select columns: {}", source))]
     SelectColumns {
         source: internal_types::schema::Error,
-    },
-
-    #[snafu(
-        display("Cannot read IOx metadata from {:?}: {}", path, source),
-        visibility(pub)
-    )]
-    IoxMetadataReadFailed {
-        source: crate::metadata::Error,
-        path: Path,
     },
 
     #[snafu(

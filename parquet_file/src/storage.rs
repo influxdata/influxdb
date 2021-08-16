@@ -14,7 +14,6 @@ use datafusion::{
 use futures::StreamExt;
 use internal_types::selection::Selection;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
-use object_store::path::parsed::DirsAndFileName;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use parquet::{
@@ -117,9 +116,6 @@ pub enum Error {
 
     #[snafu(display("Cannot extract Parquet metadata from byte array: {}", source))]
     ExtractingMetadataFailure { source: crate::metadata::Error },
-
-    #[snafu(display("Cannot parse location: {:?}", path))]
-    LocationParsingFailure { path: DirsAndFileName },
 
     #[snafu(display("Cannot encode metadata: {}", source))]
     MetadataEncodeFailure { source: prost::EncodeError },
