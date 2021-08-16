@@ -233,6 +233,9 @@ query_types() {
     metaquery)
       echo field-keys tag-values
       ;;
+    iot)
+      echo aggregate-keep light-level-8-hr sorted-pivot
+      ;;
     *)
       echo "unknown use-case: $1"
       exit 1
@@ -243,7 +246,7 @@ query_types() {
 # Generate queries to test.
 query_files=""
 # Aggregate queries
-for usecase in window-agg group-agg bare-agg metaquery; do
+for usecase in window-agg group-agg bare-agg metaquery iot; do
   for type in $(query_types $usecase); do
     query_fname="${TEST_FORMAT}_${usecase}_${type}"
     $GOPATH/bin/bulk_query_gen \
