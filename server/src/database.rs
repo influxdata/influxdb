@@ -17,7 +17,6 @@ use futures::{
 use generated_types::database_rules::encode_database_rules;
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
-use object_store::path::Path;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use parquet_file::catalog::PreservedCatalog;
@@ -91,7 +90,6 @@ pub struct Database {
 pub struct DatabaseConfig {
     pub name: DatabaseName<'static>,
     pub server_id: ServerId,
-    pub store_prefix: Path,
     pub wipe_catalog_on_error: bool,
     pub skip_replay: bool,
 }
@@ -101,7 +99,7 @@ impl Database {
     ///
     /// This is backed by an existing database, which was [created](Self::create) some time in the past.
     pub fn new(application: Arc<ApplicationState>, config: DatabaseConfig) -> Self {
-        info!(db_name=%config.name, store_prefix=%config.store_prefix.to_string(), "new database");
+        info!(db_name=%config.name, "new database");
 
         let iox_object_store = Arc::new(IoxObjectStore::new(
             Arc::clone(application.object_store()),
@@ -728,7 +726,7 @@ mod tests {
     use chrono::Utc;
     use data_types::database_rules::{PartitionTemplate, TemplatePart, WriteBufferConnection};
     use entry::{test_helpers::lp_to_entries, Sequence, SequencedEntry};
-    use object_store::{ObjectStore, ObjectStoreApi};
+    use object_store::ObjectStore;
     use write_buffer::{config::WriteBufferConfigFactory, mock::MockBufferSharedState};
 
     use super::*;
@@ -746,7 +744,6 @@ mod tests {
             DatabaseConfig {
                 name: DatabaseName::new("test").unwrap(),
                 server_id: ServerId::new(NonZeroU32::new(23).unwrap()),
-                store_prefix: application.object_store().new_path(),
                 wipe_catalog_on_error: false,
                 skip_replay: false,
             },
@@ -839,14 +836,12 @@ mod tests {
                 "mock://my_mock".to_string(),
             )),
         };
-        let store_prefix = application.object_store().new_path();
         Database::create(Arc::clone(&application), rules, server_id)
             .await
             .unwrap();
         let db_config = DatabaseConfig {
             name: db_name,
             server_id,
-            store_prefix,
             wipe_catalog_on_error: false,
             skip_replay: false,
         };

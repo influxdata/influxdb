@@ -86,7 +86,7 @@ use internal_types::freezable::Freezable;
 use lifecycle::LockableChunk;
 use metrics::{KeyValue, MetricObserverBuilder};
 use object_store::{
-    path::{parsed::DirsAndFileName, ObjectStorePath, Path},
+    path::{parsed::DirsAndFileName, ObjectStorePath},
     ObjectStore, ObjectStoreApi,
 };
 use observability_deps::tracing::{error, info, warn};
@@ -670,7 +670,6 @@ where
     /// Waits until the database has initialized or failed to do so
     pub async fn create_database(&self, rules: DatabaseRules) -> Result<Arc<Database>> {
         let db_name = rules.name.clone();
-        let object_store = self.shared.application.object_store().as_ref();
 
         // Wait for exclusive access to mutate server state
         let handle_fut = self.shared.state.read().freeze();
@@ -688,7 +687,6 @@ where
             initialized.server_id
         };
 
-        let store_prefix = database_store_prefix(object_store, server_id, &db_name);
         Database::create(Arc::clone(&self.shared.application), rules, server_id)
             .await
             .context(CannotCreateDatabase)?;
@@ -706,7 +704,6 @@ where
                         DatabaseConfig {
                             name: db_name,
                             server_id,
-                            store_prefix,
                             wipe_catalog_on_error: false,
                             skip_replay: false,
                         },
@@ -1132,14 +1129,13 @@ async fn maybe_initialize_server(shared: &ServerShared) {
                 databases: HashMap::with_capacity(databases.len()),
             };
 
-            for (db_name, store_prefix) in databases {
+            for db_name in databases {
                 state
                     .new_database(
                         shared,
                         DatabaseConfig {
                             name: db_name,
                             server_id: init_ready.server_id,
-                            store_prefix,
                             wipe_catalog_on_error: init_ready.wipe_catalog_on_error,
                             skip_replay: init_ready.skip_replay_and_seek_instead,
                         },
@@ -1217,11 +1213,11 @@ where
     }
 }
 
-/// Returns a list of database names and their prefix in object storage
+/// Returns a list of database names
 async fn list_databases(
     object_store: &ObjectStore,
     server_id: ServerId,
-) -> Result<Vec<(DatabaseName<'static>, Path)>, InitError> {
+) -> Result<Vec<DatabaseName<'static>>, InitError> {
     let mut path = object_store.new_path();
     path.push_dir(server_id.to_string());
 
@@ -1240,22 +1236,9 @@ async fn list_databases(
                 .log_if_error("invalid database directory")
                 .ok()?;
 
-            Some((db_name, path))
+            Some(db_name)
         })
         .collect())
-}
-
-/// Returns the path to the prefix of a `Database` in object storage
-fn database_store_prefix(
-    object_store: &ObjectStore,
-    server_id: ServerId,
-    db_name: &DatabaseName<'_>,
-) -> Path {
-    // TODO: Use fresh path for database (i.e. add generation) (#1881)
-    let mut path = object_store.new_path();
-    path.push_dir(server_id.to_string());
-    path.push_dir(db_name);
-    path
 }
 
 #[cfg(test)]
