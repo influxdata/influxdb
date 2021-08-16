@@ -9,7 +9,7 @@ use snafu::ResultExt;
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 use super::{
-    error::{CommitError, Result},
+    error::{CannotDropUnpersistedChunk, CommitError, Result},
     LockableCatalogChunk, LockableCatalogPartition,
 };
 use crate::db::catalog::{
@@ -33,6 +33,16 @@ pub fn drop_chunk(
     let (tracker, registration) = db.jobs.register(Job::DropChunk {
         chunk: guard.addr().clone(),
     });
+
+    // check if we're dropping an unpersisted chunk in a persisted DB
+    // See https://github.com/influxdata/influxdb_iox/issues/2291
+    if db.rules().lifecycle_rules.persist && !matches!(guard.stage(), ChunkStage::Persisted { .. })
+    {
+        return CannotDropUnpersistedChunk {
+            addr: guard.addr().clone(),
+        }
+        .fail();
+    }
 
     guard.set_dropping(&registration)?;
 

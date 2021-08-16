@@ -59,6 +59,9 @@ pub enum Error {
 
     #[snafu(display("Cannot write chunk: {}", addr))]
     CannotWriteChunk { addr: ChunkAddr },
+
+    #[snafu(display("Cannot drop unpersisted chunk: {}", addr))]
+    CannotDropUnpersistedChunk { addr: ChunkAddr },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
