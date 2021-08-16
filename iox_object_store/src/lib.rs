@@ -12,13 +12,16 @@
 //! Wraps the object_store crate with IOx-specific semantics.
 
 use bytes::{Bytes, BytesMut};
-use data_types::{server_id::ServerId, DatabaseName};
+use data_types::{error::ErrorLogger, server_id::ServerId, DatabaseName};
 use futures::{
     stream::{self, BoxStream},
     Stream, StreamExt, TryStreamExt,
 };
-use object_store::{path::Path, ObjectStore, ObjectStoreApi, Result};
-use std::{io, sync::Arc};
+use object_store::{
+    path::{parsed::DirsAndFileName, Path},
+    ObjectStore, ObjectStoreApi, Result,
+};
+use std::{collections::HashSet, io, sync::Arc};
 use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -45,6 +48,31 @@ pub struct IoxObjectStore {
 }
 
 impl IoxObjectStore {
+    /// List all valid, unique database names in object storage that could be used to build
+    /// an `IoxObjectStore` on this server.
+    pub async fn list_databases(
+        inner: &ObjectStore,
+        server_id: ServerId,
+    ) -> Result<HashSet<DatabaseName<'static>>> {
+        let path = paths::all_databases_path(inner, server_id);
+
+        let list_result = inner.list_with_delimiter(&path).await?;
+
+        Ok(list_result
+            .common_prefixes
+            .into_iter()
+            .filter_map(|path| {
+                let path_parsed: DirsAndFileName = path.into();
+                let last = path_parsed.directories.last().expect("path can't be empty");
+                let db_name = DatabaseName::new(last.encoded().to_string())
+                    .log_if_error("invalid database directory")
+                    .ok()?;
+
+                Some(db_name)
+            })
+            .collect())
+    }
+
     /// Create a database-specific wrapper. Takes all the information needed to create the
     /// root directory of a database.
     pub fn new(
@@ -52,7 +80,7 @@ impl IoxObjectStore {
         server_id: ServerId,
         database_name: &DatabaseName<'static>,
     ) -> Self {
-        let root_path = RootPath::new(inner.new_path(), server_id, database_name);
+        let root_path = RootPath::new(inner.as_ref(), server_id, database_name);
         let data_path = DataPath::new(&root_path);
         let transactions_path = TransactionsPath::new(&root_path);
         Self {

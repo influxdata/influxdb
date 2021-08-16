@@ -1,13 +1,24 @@
 //! Paths for specific types of files within a database's object storage.
 
 use data_types::{server_id::ServerId, DatabaseName};
-use object_store::path::{ObjectStorePath, Path};
+use object_store::{
+    path::{ObjectStorePath, Path},
+    ObjectStore, ObjectStoreApi,
+};
 
 pub mod parquet_file;
 use parquet_file::Path as ParquetFilePath;
 
 pub mod transaction_file;
 use transaction_file::Path as TransactionFilePath;
+
+/// The path all database root paths should be in. Used for listing all databases and building
+/// database `RootPath`s in the same way. Not its own type because it's only needed ephemerally.
+pub fn all_databases_path(object_store: &ObjectStore, server_id: ServerId) -> Path {
+    let mut path = object_store.new_path();
+    path.push_dir(server_id.to_string());
+    path
+}
 
 /// A database-specific object store path that all `IoxPath`s should be within.
 /// This should not be leaked outside this crate.
@@ -18,10 +29,14 @@ pub struct RootPath {
 
 impl RootPath {
     /// How the root of a database is defined in object storage.
-    pub fn new(mut root: Path, server_id: ServerId, database_name: &DatabaseName<'_>) -> Self {
-        root.push_dir(server_id.to_string());
-        root.push_dir(database_name.as_str());
-        Self { inner: root }
+    pub fn new(
+        object_store: &ObjectStore,
+        server_id: ServerId,
+        database_name: &DatabaseName<'_>,
+    ) -> Self {
+        let mut inner = all_databases_path(object_store, server_id);
+        inner.push_dir(database_name.as_str());
+        Self { inner }
     }
 
     pub fn join(&self, dir: &str) -> Path {

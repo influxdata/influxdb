@@ -83,12 +83,9 @@ use generated_types::influxdata::pbdata::v1 as pb;
 use hashbrown::HashMap;
 use influxdb_line_protocol::ParsedLine;
 use internal_types::freezable::Freezable;
+use iox_object_store::IoxObjectStore;
 use lifecycle::LockableChunk;
 use metrics::{KeyValue, MetricObserverBuilder};
-use object_store::{
-    path::{parsed::DirsAndFileName, ObjectStorePath},
-    ObjectStore, ObjectStoreApi,
-};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use query::exec::Executor;
@@ -1116,7 +1113,7 @@ async fn maybe_initialize_server(shared: &ServerShared) {
         (init_ready, handle)
     };
 
-    let maybe_databases = list_databases(
+    let maybe_databases = IoxObjectStore::list_databases(
         shared.application.object_store().as_ref(),
         init_ready.server_id,
     )
@@ -1148,7 +1145,7 @@ async fn maybe_initialize_server(shared: &ServerShared) {
         }
         Err(e) => {
             error!(server_id=%init_ready.server_id, %e, "error initializing server");
-            ServerState::InitError(init_ready, Arc::new(e))
+            ServerState::InitError(init_ready, Arc::new(InitError::ListRules { source: e }))
         }
     };
 
@@ -1211,34 +1208,6 @@ where
     fn executor(&self) -> Arc<Executor> {
         Arc::clone(self.shared.application.executor())
     }
-}
-
-/// Returns a list of database names
-async fn list_databases(
-    object_store: &ObjectStore,
-    server_id: ServerId,
-) -> Result<Vec<DatabaseName<'static>>, InitError> {
-    let mut path = object_store.new_path();
-    path.push_dir(server_id.to_string());
-
-    let list_result = object_store
-        .list_with_delimiter(&path)
-        .await
-        .context(ListRules)?;
-
-    Ok(list_result
-        .common_prefixes
-        .into_iter()
-        .filter_map(|path| {
-            let path_parsed: DirsAndFileName = path.clone().into();
-            let last = path_parsed.directories.last().expect("path can't be empty");
-            let db_name = DatabaseName::new(last.encoded().to_string())
-                .log_if_error("invalid database directory")
-                .ok()?;
-
-            Some(db_name)
-        })
-        .collect())
 }
 
 #[cfg(test)]
@@ -1350,12 +1319,6 @@ mod tests {
             .create_database(DatabaseRules::new(db2.clone()))
             .await
             .expect("failed to create 2nd db");
-
-        application
-            .object_store()
-            .list_with_delimiter(&application.object_store().new_path())
-            .await
-            .unwrap();
 
         let server2 = make_server(application);
         server2.set_id(ServerId::try_from(1).unwrap()).unwrap();
