@@ -1518,7 +1518,7 @@ mod tests {
     use futures::{stream, StreamExt, TryStreamExt};
     use internal_types::{schema::Schema, selection::Selection};
     use iox_object_store::ParquetFilePath;
-    use object_store::{path::parsed::DirsAndFileName, ObjectStore, ObjectStoreApi};
+    use object_store::ObjectStore;
     use parquet_file::{
         catalog::test_helpers::TestCatalogState,
         metadata::IoxParquetMetaData,
@@ -4089,9 +4089,9 @@ mod tests {
         }
 
         // ==================== do: remove .txn files ====================
-        drop(db);
-        let files = object_store
-            .list(None)
+        let files = db
+            .iox_object_store
+            .catalog_transaction_files()
             .await
             .unwrap()
             .try_concat()
@@ -4099,16 +4099,16 @@ mod tests {
             .unwrap();
         let mut deleted_one = false;
         for file in files {
-            let parsed: DirsAndFileName = file.clone().into();
-            if parsed
-                .file_name
-                .map_or(false, |part| part.encoded().ends_with(".txn"))
-            {
-                object_store.delete(&file).await.unwrap();
+            if !file.is_checkpoint() {
+                db.iox_object_store
+                    .delete_catalog_transaction_file(&file)
+                    .await
+                    .unwrap();
                 deleted_one = true;
             }
         }
         assert!(deleted_one);
+        drop(db);
 
         // ==================== do: re-load DB ====================
         // Re-create database with same store, serverID, and DB name
