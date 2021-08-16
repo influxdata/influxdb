@@ -2095,24 +2095,28 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			}
 
 			// Find our compaction plans
-			level1Groups := e.CompactionPlan.PlanLevel(1)
-			level2Groups := e.CompactionPlan.PlanLevel(2)
-			level3Groups := e.CompactionPlan.PlanLevel(3)
-			level4Groups := e.CompactionPlan.Plan(e.LastModified())
-			atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, int64(len(level4Groups)))
+			level1Groups, len1 := e.CompactionPlan.PlanLevel(1)
+			level2Groups, len2 := e.CompactionPlan.PlanLevel(2)
+			level3Groups, len3 := e.CompactionPlan.PlanLevel(3)
+			level4Groups, len4 := e.CompactionPlan.Plan(e.LastModified())
+			atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, len4)
 
 			// If no full compactions are need, see if an optimize is needed
 			if len(level4Groups) == 0 {
-				level4Groups = e.CompactionPlan.PlanOptimize()
-				atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, int64(len(level4Groups)))
+				level4Groups, len4 = e.CompactionPlan.PlanOptimize()
+				atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, len4)
 			}
 
 			// Update the level plan queue stats
-			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[0], int64(len(level1Groups)))
-			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[1], int64(len(level2Groups)))
-			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[2], int64(len(level3Groups)))
+			// For stats, use the length needed, even if the lock was
+			// not acquired
+			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[0], len1)
+			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[1], len2)
+			atomic.StoreInt64(&e.stats.TSMCompactionsQueue[2], len3)
 
 			// Set the queue depths on the scheduler
+			// Use the real queue depth, dependent on acquiring
+			// the file locks.
 			e.scheduler.setDepth(1, len(level1Groups))
 			e.scheduler.setDepth(2, len(level2Groups))
 			e.scheduler.setDepth(3, len(level3Groups))

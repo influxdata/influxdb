@@ -30,7 +30,8 @@
 -	[#22019](https://github.com/influxdata/influxdb/pull/22019): fix: error instead of panic when enterprise tries to restore with OSS
 -	[#22040](https://github.com/influxdata/influxdb/pull/22040): fix: copy names from mmapped memory before closing iterator
 -	[#22106](https://github.com/influxdata/influxdb/pull/22106): fix: ensure log formatting (JSON) is respected
-- [#22090](https://github.com/influxdata/influxdb/pull/22090): fix: systemd service -- handle https, 40x, and block indefinitely
+- 	[#22090](https://github.com/influxdata/influxdb/pull/22090): fix: systemd service -- handle https, 40x, and block indefinitely
+-	[#22195](https://github.com/influxdata/influxdb/pull/22195): fix: avoid compaction queue stats flutter
 
 v1.9.2 [unreleased]
 -	[#21631](https://github.com/influxdata/influxdb/pull/21631): fix: group by returns multiple results per group in some circumstances
