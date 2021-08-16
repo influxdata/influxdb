@@ -4218,6 +4218,39 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn drop_unpersisted_chunk_on_persisted_db() {
+        // We don't support dropping unpersisted chunks from a persisted DB because we would forget the write buffer
+        // progress (partition checkpoints are only created when new parquet files are stored).
+        // See https://github.com/influxdata/influxdb_iox/issues/2291
+        let test_db = TestDb::builder()
+            .lifecycle_rules(LifecycleRules {
+                persist: true,
+                ..Default::default()
+            })
+            .build()
+            .await;
+        let db = Arc::new(test_db.db);
+
+        write_lp(db.as_ref(), "cpu bar=1 10").await;
+
+        let partition_key = "1970-01-01T00";
+        let chunks = db.partition_chunk_summaries(partition_key);
+        assert_eq!(chunks.len(), 1);
+        let chunk_id = chunks[0].id;
+
+        let err = db
+            .drop_chunk("cpu", partition_key, chunk_id)
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            Error::LifecycleError {
+                source: super::lifecycle::Error::CannotDropUnpersistedChunk { .. }
+            }
+        ));
+    }
+
     async fn create_parquet_chunk(db: &Arc<Db>) -> (String, String, u32) {
         write_lp(db, "cpu bar=1 10").await;
         let partition_key = "1970-01-01T00";
