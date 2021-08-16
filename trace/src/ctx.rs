@@ -3,6 +3,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use http::HeaderMap;
+use observability_deps::tracing::info;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
@@ -176,13 +177,27 @@ fn decode_b3(
         // Debug implies an accept decision
         true => true,
         false => decoded_header(headers, B3_SAMPLED_HEADER)?
-            .map(|value| value == "1" || value == "true")
+            .map(|value| {
+                // TEMPORARY (#2297)
+                info!(sampled=%value, "traced request");
+                value == "1" || value == "true"
+            })
             .unwrap_or(false),
     };
 
     if !sampled {
         return Ok(None);
     }
+
+    let ctx = SpanContext {
+        trace_id: required_header(headers, B3_TRACE_ID_HEADER)?,
+        parent_span_id: parsed_header(headers, B3_PARENT_SPAN_ID_HEADER)?,
+        span_id: required_header(headers, B3_SPAN_ID_HEADER)?,
+        collector: Some(Arc::clone(collector)),
+    };
+
+    // TEMPORARY (#2297)
+    info!(?ctx, "tracing request");
 
     Ok(Some(SpanContext {
         trace_id: required_header(headers, B3_TRACE_ID_HEADER)?,

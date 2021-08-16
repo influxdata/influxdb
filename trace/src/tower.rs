@@ -16,7 +16,7 @@ use crate::{ctx::SpanContext, span::EnteredSpan, TraceCollector};
 use futures::ready;
 use http::{Request, Response};
 use http_body::SizeHint;
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::error;
 use pin_project::pin_project;
 use std::future::Future;
 use std::pin::Pin;
@@ -69,9 +69,6 @@ where
     }
 
     fn call(&mut self, mut request: Request<ReqBody>) -> Self::Future {
-        use itertools::Itertools;
-        // TEMPORARY
-        info!(headers=%request.headers().keys().join(","), "gRPC request with headers");
         let span = match SpanContext::from_headers(&self.collector, request.headers()) {
             Ok(Some(ctx)) => {
                 let span = ctx.child("IOx");
