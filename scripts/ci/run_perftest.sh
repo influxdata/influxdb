@@ -234,7 +234,7 @@ query_types() {
       echo field-keys tag-values
       ;;
     iot)
-      echo aggregate-keep light-level-8-hr sorted-pivot
+      echo 1-home-12-hours light-level-8-hr aggregate-keep sorted-pivot
       ;;
     *)
       echo "unknown use-case: $1"
