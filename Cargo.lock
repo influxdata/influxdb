@@ -4721,6 +4721,7 @@ dependencies = [
  "futures",
  "http",
  "http-body",
+ "itertools 0.10.1",
  "observability_deps",
  "parking_lot",
  "pin-project 1.0.8",

@@ -354,7 +354,7 @@ where
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use itertools::Itertools;
-        match s.split(':').collect_tuple() {
+        match s.splitn(2, ':').collect_tuple() {
             Some((key, value)) => {
                 let key = K::from_str(key).map_err(|e| e.to_string())?;
                 let value = V::from_str(value).map_err(|e| e.to_string())?;
