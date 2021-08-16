@@ -1,5 +1,5 @@
 use std::iter::once;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::{convert::TryInto, str, u32};
 use std::{sync::Arc, time::SystemTime};
 
@@ -705,28 +705,14 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
         .await
         .unwrap();
 
-    // wait for ingest
-    let t_0 = Instant::now();
-    loop {
-        // use later partition here so that we can implicitely wait for both entries
-        if fixture
-            .management_client()
-            .get_partition(db_name, "partition_by_b")
-            .await
-            .is_ok()
-        {
-            break;
-        }
-
-        assert!(t_0.elapsed() < Duration::from_secs(10));
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
-
+    // wait for ingest, compaction and persistence
     wait_for_exact_chunk_states(
         &fixture,
         db_name,
         vec![
+            // that's the single entry from partition a
             ChunkStorage::ReadBuffer,
+            // these are the two entries from partition b that got persisted due to the row limit
             ChunkStorage::ReadBufferAndObjectStore,
         ],
         Duration::from_secs(10),
