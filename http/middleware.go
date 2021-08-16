@@ -150,6 +150,8 @@ var blacklistEndpoints = map[string]isValidMethodFn{
 	restoreSqlPath:                   ignoreMethod(),
 	restoreBucketPath:                ignoreMethod(),
 	restoreShardPath:                 ignoreMethod(),
+	"/api/v2/remotes":                ignoreMethod("POST"),
+	"/api/v2/remotes/:id":            ignoreMethod("PATCH"),
 }
 
 type bodyEchoer struct {

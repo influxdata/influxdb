@@ -10,7 +10,7 @@ declare -r ROOT_DIR=$(dirname ${SCRIPT_DIR})
 declare -r STATIC_DIR="$ROOT_DIR/static"
 
 # Pins the swagger that will be downloaded to a specific commit
-declare -r OPENAPI_SHA=20706d0876987520eb2c57cfc5364005ad4bcbed
+declare -r OPENAPI_SHA=146f28ef6e74e0eb41a4943a46fadb8909d02fba
 
 # Don't do a shallow clone since the commit we want might be several commits
 # back; but do only clone the main branch.
