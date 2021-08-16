@@ -74,15 +74,6 @@ Examples:
     # Run InfluxDB IOx with full debug logging specified with RUST_LOG
     RUST_LOG=debug influxdb_iox run
 
-    # converts line protocol formatted data in temperature.lp to out.parquet
-    influxdb_iox convert temperature.lp out.parquet
-
-    # Dumps metadata information about 000000000013.tsm to stdout
-    influxdb_iox meta 000000000013.tsm
-
-    # Dumps storage statistics about out.parquet to stdout
-    influxdb_iox stats out.parquet
-
 Command are generally structured in the form:
     <type of object> <action> <arguments>
 
