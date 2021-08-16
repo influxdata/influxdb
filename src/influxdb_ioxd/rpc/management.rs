@@ -18,7 +18,9 @@ struct ManagementService<M: ConnectionManager> {
     serving_readiness: ServingReadiness,
 }
 
-use super::error::{default_db_error_handler, default_server_error_handler};
+use super::error::{
+    default_database_error_handler, default_db_error_handler, default_server_error_handler,
+};
 use crate::influxdb_ioxd::serving_readiness::ServingReadiness;
 
 #[derive(Debug)]
@@ -458,6 +460,29 @@ where
         let operation = Some(super::operations::encode_tracker(tracker)?);
 
         Ok(Response::new(WipePreservedCatalogResponse { operation }))
+    }
+
+    async fn skip_replay(
+        &self,
+        request: Request<SkipReplayRequest>,
+    ) -> Result<Response<SkipReplayResponse>, Status> {
+        let SkipReplayRequest { db_name } = request.into_inner();
+
+        // Validate that the database name is legit
+        let db_name = DatabaseName::new(db_name).field("db_name")?;
+
+        let database = self
+            .server
+            .database(&db_name)
+            .map_err(default_server_error_handler)?;
+
+        database
+            .skip_replay()
+            .map_err(default_database_error_handler)?
+            .await
+            .map_err(default_database_error_handler)?;
+
+        Ok(Response::new(SkipReplayResponse {}))
     }
 }
 

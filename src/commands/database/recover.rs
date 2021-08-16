@@ -2,10 +2,7 @@ use std::convert::TryInto;
 
 use data_types::job::Operation;
 use generated_types::google::FieldViolation;
-use influxdb_iox_client::{
-    connection::Connection,
-    management::{self, WipePersistedCatalogError},
-};
+use influxdb_iox_client::{connection::Connection, management};
 use snafu::{ResultExt, Snafu};
 use structopt::StructOpt;
 
@@ -16,7 +13,12 @@ pub enum Error {
     NeedsTheForceError,
 
     #[snafu(display("Error wiping persisted catalog: {}", source))]
-    WipeError { source: WipePersistedCatalogError },
+    WipeError {
+        source: management::WipePersistedCatalogError,
+    },
+
+    #[snafu(display("Error skipping replay: {}", source))]
+    SkipReplayError { source: management::SkipReplayError },
 
     #[snafu(display("Received invalid response: {}", source))]
     InvalidResponse { source: FieldViolation },
@@ -26,7 +28,7 @@ pub enum Error {
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Manage IOx persisted catalog
+/// Recover broken databases.
 #[derive(Debug, StructOpt)]
 pub struct Config {
     #[structopt(subcommand)]
@@ -38,6 +40,9 @@ pub struct Config {
 enum Command {
     /// Wipe persisted catalog
     Wipe(Wipe),
+
+    /// Skip replay
+    SkipReplay(SkipReplay),
 }
 
 /// Wipe persisted catalog.
@@ -47,6 +52,13 @@ struct Wipe {
     #[structopt(long)]
     force: bool,
 
+    /// The name of the database
+    db_name: String,
+}
+
+/// Skip replay
+#[derive(Debug, StructOpt)]
+struct SkipReplay {
     /// The name of the database
     db_name: String,
 }
@@ -70,6 +82,13 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 .context(InvalidResponse)?;
 
             serde_json::to_writer_pretty(std::io::stdout(), &operation).context(WritingJson)?;
+        }
+        Command::SkipReplay(skip_replay) => {
+            let SkipReplay { db_name } = skip_replay;
+
+            client.skip_replay(db_name).await.context(SkipReplayError)?;
+
+            println!("Ok");
         }
     }
 

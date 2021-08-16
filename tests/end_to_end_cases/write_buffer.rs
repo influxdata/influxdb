@@ -7,15 +7,13 @@ use entry::{test_helpers::lp_to_entry, Entry};
 use generated_types::influxdata::iox::management::v1::database_rules::WriteBufferConnection;
 use influxdb_iox_client::write::WriteError;
 use rdkafka::{
-    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
-    client::DefaultClientContext,
     consumer::{Consumer, StreamConsumer},
     producer::{FutureProducer, FutureRecord},
     ClientConfig, Message, Offset, TopicPartitionList,
 };
 use std::convert::TryFrom;
 use test_helpers::assert_contains;
-use write_buffer::maybe_skip_kafka_integration;
+use write_buffer::{kafka::test_utils::create_kafka_topic, maybe_skip_kafka_integration};
 
 #[tokio::test]
 async fn writes_go_to_kafka() {
@@ -155,15 +153,11 @@ async fn reads_come_from_kafka() {
 
     // Common Kafka config
     let mut cfg = ClientConfig::new();
-    cfg.set("bootstrap.servers", kafka_connection);
+    cfg.set("bootstrap.servers", &kafka_connection);
     cfg.set("message.timeout.ms", "5000");
 
     // Create a partition with 2 topics in Kafka BEFORE creating the DB
-    let num_partitions = 2;
-    let admin: AdminClient<DefaultClientContext> = cfg.clone().create().unwrap();
-    let topic = NewTopic::new(&db_name, num_partitions, TopicReplication::Fixed(1));
-    let opts = AdminOptions::default();
-    admin.create_topics(&[topic], &opts).await.unwrap();
+    create_kafka_topic(&kafka_connection, &db_name, 2).await;
 
     DatabaseBuilder::new(db_name.clone())
         .write_buffer(write_buffer_connection)

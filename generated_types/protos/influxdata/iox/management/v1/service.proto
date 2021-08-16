@@ -70,6 +70,9 @@ service ManagementService {
 
   // Wipe preserved catalog for given DB.
   rpc WipePreservedCatalog(WipePreservedCatalogRequest) returns (WipePreservedCatalogResponse);
+
+  // Skip replay for given DB.
+  rpc SkipReplay(SkipReplayRequest) returns (SkipReplayResponse);
 }
 
 message GetServerIdRequest {}
@@ -332,4 +335,13 @@ message WipePreservedCatalogRequest {
 message WipePreservedCatalogResponse {
   // The operation that tracks the work for wiping the catalog.
   google.longrunning.Operation operation = 1;
+}
+
+// Request to skip replay.
+message SkipReplayRequest {
+  // the name of the database
+  string db_name = 1;
+}
+
+message SkipReplayResponse {
 }
