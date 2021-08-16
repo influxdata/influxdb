@@ -158,6 +158,7 @@ impl WriteBufferWriting for MockBufferForWriting {
     }
 }
 
+/// A [`WriteBufferWriting`] that will error for every action.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MockBufferForWritingThatAlwaysErrors;
 
@@ -175,7 +176,7 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
     }
 
     fn type_name(&self) -> &'static str {
-        "mock"
+        "mock_failing"
     }
 }
 
@@ -328,6 +329,48 @@ impl WriteBufferReading for MockBufferForReading {
 
     fn type_name(&self) -> &'static str {
         "mock"
+    }
+}
+/// A [`WriteBufferReading`] that will error for every action.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct MockBufferForReadingThatAlwaysErrors;
+
+#[async_trait]
+impl WriteBufferReading for MockBufferForReadingThatAlwaysErrors {
+    fn streams(&mut self) -> Vec<(u32, EntryStream<'_>)> {
+        let stream = stream::poll_fn(|_ctx| {
+            Poll::Ready(Some(Err(String::from(
+                "Something bad happened while reading from stream",
+            )
+            .into())))
+        })
+        .boxed();
+        let fetch_high_watermark = move || {
+            let fut = async move {
+                Err(String::from("Something bad happened while fetching the high watermark").into())
+            };
+            fut.boxed() as FetchHighWatermarkFut<'_>
+        };
+        let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
+        vec![(
+            0,
+            EntryStream {
+                stream,
+                fetch_high_watermark,
+            },
+        )]
+    }
+
+    async fn seek(
+        &mut self,
+        _sequencer_id: u32,
+        _sequence_number: u64,
+    ) -> Result<(), WriteBufferError> {
+        Err(String::from("Something bad happened while seeking the stream").into())
+    }
+
+    fn type_name(&self) -> &'static str {
+        "mock_failing"
     }
 }
 
@@ -485,5 +528,40 @@ mod tests {
 
         assert_eq!(state.get_messages(0).len(), 0);
         assert_eq!(state.get_messages(1).len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_always_error_read() {
+        let mut reader = MockBufferForReadingThatAlwaysErrors {};
+
+        assert_eq!(
+            reader.seek(0, 0).await.unwrap_err().to_string(),
+            "Something bad happened while seeking the stream"
+        );
+
+        let mut streams = reader.streams();
+        let (_id, mut stream) = streams.pop().unwrap();
+        assert_eq!(
+            stream.stream.next().await.unwrap().unwrap_err().to_string(),
+            "Something bad happened while reading from stream"
+        );
+        assert_eq!(
+            (stream.fetch_high_watermark)()
+                .await
+                .unwrap_err()
+                .to_string(),
+            "Something bad happened while fetching the high watermark"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_always_error_write() {
+        let writer = MockBufferForWritingThatAlwaysErrors {};
+
+        let entry = lp_to_entry("upc user=1 100");
+        assert_eq!(
+            writer.store_entry(&entry, 0).await.unwrap_err().to_string(),
+            "Something bad happened on the way to writing an entry in the write buffer"
+        );
     }
 }
