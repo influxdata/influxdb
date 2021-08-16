@@ -29,8 +29,10 @@ use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
 
 mod paths;
+pub use paths::parquet_file::{
+    Path as ParquetFilePath, PathParseError as ParquetFilePathParseError,
+};
 use paths::{DataPath, RootPath, TransactionsPath};
-pub use paths::{ParquetFilePath, ParquetFilePathParseError};
 
 const DB_RULES_FILE_NAME: &str = "rules.pb";
 
