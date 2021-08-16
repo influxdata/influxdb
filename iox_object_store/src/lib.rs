@@ -38,7 +38,7 @@ const DB_RULES_FILE_NAME: &str = "rules.pb";
 pub struct IoxObjectStore {
     inner: Arc<ObjectStore>,
     server_id: ServerId,
-    database_name: String, // TODO: use data_types DatabaseName?
+    database_name: DatabaseName<'static>,
     root_path: RootPath,
     data_path: DataPath,
     transactions_path: TransactionsPath,
@@ -50,7 +50,7 @@ impl IoxObjectStore {
     pub fn new(
         inner: Arc<ObjectStore>,
         server_id: ServerId,
-        database_name: &DatabaseName<'_>,
+        database_name: &DatabaseName<'static>,
     ) -> Self {
         let root_path = RootPath::new(inner.new_path(), server_id, database_name);
         let data_path = DataPath::new(&root_path);
@@ -58,7 +58,7 @@ impl IoxObjectStore {
         Self {
             inner,
             server_id,
-            database_name: database_name.into(),
+            database_name: database_name.to_owned(),
             root_path,
             data_path,
             transactions_path,
