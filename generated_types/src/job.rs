@@ -53,6 +53,11 @@ impl From<Job> for management::operation_metadata::Job {
                 table_name: chunk.table_name.to_string(),
                 chunk_id: chunk.chunk_id,
             }),
+            Job::DropPartition { partition } => Self::DropPartition(management::DropPartition {
+                db_name: partition.db_name.to_string(),
+                partition_key: partition.partition_key.to_string(),
+                table_name: partition.table_name.to_string(),
+            }),
         }
     }
 }
@@ -133,6 +138,17 @@ impl From<management::operation_metadata::Job> for Job {
                     table_name: Arc::from(table_name.as_str()),
                     partition_key: Arc::from(partition_key.as_str()),
                     chunk_id,
+                },
+            },
+            Job::DropPartition(management::DropPartition {
+                db_name,
+                partition_key,
+                table_name,
+            }) => Self::DropPartition {
+                partition: PartitionAddr {
+                    db_name: Arc::from(db_name.as_str()),
+                    table_name: Arc::from(table_name.as_str()),
+                    partition_key: Arc::from(partition_key.as_str()),
                 },
             },
         }

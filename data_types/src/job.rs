@@ -37,6 +37,9 @@ pub enum Job {
     /// Drop chunk from memory and (if persisted) from object store.
     DropChunk { chunk: ChunkAddr },
 
+    /// Drop partition from memory and (if persisted) from object store.
+    DropPartition { partition: PartitionAddr },
+
     /// Wipe preserved catalog
     WipePreservedCatalog { db_name: Arc<str> },
 }
@@ -51,6 +54,7 @@ impl Job {
             Self::CompactChunks { partition, .. } => Some(&partition.db_name),
             Self::PersistChunks { partition, .. } => Some(&partition.db_name),
             Self::DropChunk { chunk, .. } => Some(&chunk.db_name),
+            Self::DropPartition { partition, .. } => Some(&partition.db_name),
             Self::WipePreservedCatalog { db_name, .. } => Some(db_name),
         }
     }
@@ -64,6 +68,7 @@ impl Job {
             Self::CompactChunks { partition, .. } => Some(&partition.partition_key),
             Self::PersistChunks { partition, .. } => Some(&partition.partition_key),
             Self::DropChunk { chunk, .. } => Some(&chunk.partition_key),
+            Self::DropPartition { partition, .. } => Some(&partition.partition_key),
             Self::WipePreservedCatalog { .. } => None,
         }
     }
@@ -77,6 +82,7 @@ impl Job {
             Self::CompactChunks { partition, .. } => Some(&partition.table_name),
             Self::PersistChunks { partition, .. } => Some(&partition.table_name),
             Self::DropChunk { chunk, .. } => Some(&chunk.table_name),
+            Self::DropPartition { partition, .. } => Some(&partition.table_name),
             Self::WipePreservedCatalog { .. } => None,
         }
     }
@@ -90,6 +96,7 @@ impl Job {
             Self::CompactChunks { chunks, .. } => Some(chunks.clone()),
             Self::PersistChunks { chunks, .. } => Some(chunks.clone()),
             Self::DropChunk { chunk, .. } => Some(vec![chunk.chunk_id]),
+            Self::DropPartition { .. } => None,
             Self::WipePreservedCatalog { .. } => None,
         }
     }
@@ -103,6 +110,9 @@ impl Job {
             Self::CompactChunks { .. } => "Compacting chunks to ReadBuffer",
             Self::PersistChunks { .. } => "Persisting chunks to object storage",
             Self::DropChunk { .. } => "Drop chunk from memory and (if persisted) from object store",
+            Self::DropPartition { .. } => {
+                "Drop partition from memory and (if persisted) from object store"
+            }
             Self::WipePreservedCatalog { .. } => "Wipe preserved catalog",
         }
     }

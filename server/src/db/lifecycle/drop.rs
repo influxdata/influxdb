@@ -2,14 +2,14 @@ use std::sync::Arc;
 
 use data_types::job::Job;
 use futures::Future;
-use lifecycle::LifecycleWriteGuard;
+use lifecycle::{LifecycleWriteGuard, LockableChunk};
 use object_store::path::parsed::DirsAndFileName;
 use observability_deps::tracing::debug;
 use snafu::ResultExt;
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 use super::{
-    error::{CannotDropUnpersistedChunk, CommitError, Result},
+    error::{CannotDropUnpersistedChunk, CommitError, Error, Result},
     LockableCatalogChunk, LockableCatalogPartition,
 };
 use crate::db::catalog::{
@@ -74,6 +74,113 @@ pub fn drop_chunk(
         partition
             .drop_chunk(chunk_id)
             .expect("how did we end up dropping a chunk that cannot be dropped?!");
+
+        Ok(())
+    };
+
+    Ok((tracker, fut.track(registration)))
+}
+
+pub fn drop_partition(
+    partition: LifecycleWriteGuard<'_, Partition, LockableCatalogPartition>,
+) -> Result<(
+    TaskTracker<Job>,
+    TrackedFuture<impl Future<Output = Result<()>> + Send>,
+)> {
+    let db = Arc::clone(&partition.data().db);
+    let preserved_catalog = Arc::clone(&db.preserved_catalog);
+    let table_name = partition.table_name().to_string();
+    let partition_key = partition.key().to_string();
+
+    let (tracker, registration) = db.jobs.register(Job::DropPartition {
+        partition: partition.addr().clone(),
+    });
+
+    // get locks for all chunks
+    let lockable_chunks: Vec<_> = partition
+        .chunks()
+        .map(|chunk| LockableCatalogChunk {
+            db: Arc::clone(&db),
+            chunk: Arc::clone(chunk),
+        })
+        .collect();
+    let mut guards: Vec<_> = lockable_chunks
+        .iter()
+        .map(|lockable_chunk| lockable_chunk.write())
+        .collect();
+
+    // NOTE: here we could just use `drop_chunk` for every chunk, but that would lead to a large number of catalog
+    // transactions and is rather inefficient.
+
+    // pre-check all chunks before touching any
+    for guard in &guards {
+        // check if we're dropping an unpersisted chunk in a persisted DB
+        // See https://github.com/influxdata/influxdb_iox/issues/2291
+        if db.rules().lifecycle_rules.persist
+            && !matches!(guard.stage(), ChunkStage::Persisted { .. })
+        {
+            return CannotDropUnpersistedChunk {
+                addr: guard.addr().clone(),
+            }
+            .fail();
+        }
+
+        if let Some(action) = guard.lifecycle_action() {
+            return Err(Error::ChunkError {
+                source: crate::db::catalog::chunk::Error::LifecycleActionAlreadyInProgress {
+                    chunk: guard.addr().clone(),
+                    lifecycle_action: action.metadata().name().to_string(),
+                },
+            });
+        }
+    }
+
+    // start lifecycle action
+    for guard in &mut guards {
+        guard.set_dropping(&registration)?;
+    }
+
+    // Drop locks
+    let chunks: Vec<_> = guards
+        .into_iter()
+        .map(|guard| guard.into_data().chunk)
+        .collect();
+    let partition = partition.into_data().partition;
+
+    let fut = async move {
+        debug!(%table_name, %partition_key, "dropping partition");
+
+        // collect parquet files that we need to remove
+        let mut paths = vec![];
+        for chunk in &chunks {
+            let chunk_read = chunk.read();
+
+            if let ChunkStage::Persisted { parquet, .. } = chunk_read.stage() {
+                let path: DirsAndFileName = parquet.path().into();
+                paths.push(path);
+            }
+        }
+
+        // only create catalog transaction when there's anything to do
+        if !paths.is_empty() {
+            let mut transaction = preserved_catalog.open_transaction().await;
+            for path in paths {
+                transaction.remove_parquet(&path);
+            }
+            transaction.commit().await.context(CommitError)?;
+        }
+
+        let mut partition = partition.write();
+        for chunk in &chunks {
+            let chunk_id = {
+                let chunk_read = chunk.read();
+                chunk_read.id()
+            };
+
+            partition
+                .drop_chunk(chunk_id)
+                .expect("how did we end up dropping a chunk that cannot be dropped?!");
+        }
 
         Ok(())
     };
