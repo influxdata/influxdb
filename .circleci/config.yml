@@ -200,10 +200,10 @@ workflows:
           record_ingest_results: true
           requires:
             - build_and_test
-          # filters:
-          #   branches:
-          #     only:
-          #       - "1.8"
+          filters:
+            branches:
+              only:
+                - "1.8"
   aws_destroy_daily:
     triggers:
       - schedule:
