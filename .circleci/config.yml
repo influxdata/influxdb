@@ -52,6 +52,9 @@ workflows:
           requires:
             - build
       - pkg_run_test:
+          filters:
+            branches:
+              ignore: /pull\/[0-9]+/
           requires:
             - cross_build
       - perf_test:
