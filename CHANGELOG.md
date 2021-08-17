@@ -1,5 +1,12 @@
 ## v2.0.9 [unreleased]
-----------------------
+---------------------- 
+
+### Features
+
+### Bug Fixes
+
+1. [XXXXX](https://github.com/influxdata/influxdb/pull/XXXXX): Updating an inactive task will not schedule it.
+
 
 ### Bug Fixes
 

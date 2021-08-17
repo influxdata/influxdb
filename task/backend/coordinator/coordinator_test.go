@@ -226,6 +226,15 @@ func Test_Coordinator_Scheduler_Methods(t *testing.T) {
 			},
 		},
 		{
+			name: "TaskUpdated - inactive task is not scheduled",
+			call: func(t *testing.T, c *Coordinator) {
+				if err := c.TaskUpdated(context.Background(), taskTwoInactive, taskTwoInactive); err != nil {
+					t.Errorf("expected nil error found %q", err)
+				}
+			},
+			scheduler: &schedulerC{},
+		},
+		{
 			name: "TaskDeleted",
 			call: func(t *testing.T, c *Coordinator) {
 				if err := c.TaskDeleted(context.Background(), runOne.ID); err != nil {
