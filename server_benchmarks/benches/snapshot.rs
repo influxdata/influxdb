@@ -23,11 +23,12 @@ fn chunk(count: usize) -> MBChunk {
                 for batch in write.table_batches() {
                     match chunk {
                         Some(ref mut c) => {
-                            c.write_table_batch(batch).unwrap();
+                            c.write_table_batch(batch, None).unwrap();
                         }
                         None => {
                             chunk = Some(
-                                MBChunk::new(ChunkMetrics::new_unregistered(), batch).unwrap(),
+                                MBChunk::new(ChunkMetrics::new_unregistered(), batch, None)
+                                    .unwrap(),
                             );
                         }
                     }

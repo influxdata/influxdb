@@ -41,6 +41,9 @@ pub enum Error {
 
     #[snafu(display("Column not found: {}", column))]
     ColumnNotFound { column: String },
+
+    #[snafu(display("Mask had {} rows, expected {}", expected, actual))]
+    IncorrectMaskLength { expected: usize, actual: usize },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -88,7 +91,13 @@ pub struct MBChunk {
 impl MBChunk {
     /// Create a new batch and write the contents of the [`TableBatch`] into it. Chunks
     /// shouldn't exist without some data.
-    pub fn new(metrics: ChunkMetrics, batch: TableBatch<'_>) -> Result<Self> {
+    ///
+    /// If `mask` is provided, only entries that are marked w/ `true` are written.
+    pub fn new(
+        metrics: ChunkMetrics,
+        batch: TableBatch<'_>,
+        mask: Option<&[bool]>,
+    ) -> Result<Self> {
         let table_name = Arc::from(batch.name());
 
         let mut chunk = Self {
@@ -99,15 +108,21 @@ impl MBChunk {
         };
 
         let columns = batch.columns();
-        chunk.write_columns(columns)?;
+        chunk.write_columns(columns, mask)?;
 
         Ok(chunk)
     }
 
     /// Write the contents of a [`TableBatch`] into this Chunk.
     ///
+    /// If `mask` is provided, only entries that are marked w/ `true` are written.
+    ///
     /// Panics if the batch specifies a different name for the table in this Chunk
-    pub fn write_table_batch(&mut self, batch: TableBatch<'_>) -> Result<()> {
+    pub fn write_table_batch(
+        &mut self,
+        batch: TableBatch<'_>,
+        mask: Option<&[bool]>,
+    ) -> Result<()> {
         let table_name = batch.name();
         assert_eq!(
             table_name,
@@ -115,7 +130,7 @@ impl MBChunk {
             "can only insert table batch for a single table to chunk"
         );
 
-        self.write_columns(batch.columns())?;
+        self.write_columns(batch.columns(), mask)?;
 
         // Invalidate chunk snapshot
         *self
@@ -273,10 +288,28 @@ impl MBChunk {
 
     /// Validates the schema of the passed in columns, then adds their values to
     /// the associated columns in the table and updates summary statistics.
-    fn write_columns(&mut self, columns: Vec<entry::Column<'_>>) -> Result<()> {
+    ///
+    /// If `mask` is provided, only entries that are marked w/ `true` are written.
+    fn write_columns(
+        &mut self,
+        columns: Vec<entry::Column<'_>>,
+        mask: Option<&[bool]>,
+    ) -> Result<()> {
         let row_count_before_insert = self.rows();
         let additional_rows = columns.first().map(|x| x.row_count).unwrap_or_default();
-        let final_row_count = row_count_before_insert + additional_rows;
+        let masked_values = if let Some(mask) = mask {
+            ensure!(
+                additional_rows == mask.len(),
+                IncorrectMaskLength {
+                    expected: additional_rows,
+                    actual: mask.len(),
+                }
+            );
+            mask.iter().filter(|x| !*x).count()
+        } else {
+            0
+        };
+        let final_row_count = row_count_before_insert + additional_rows - masked_values;
 
         // get the column ids and validate schema for those that already exist
         columns.iter().try_for_each(|column| {
@@ -313,7 +346,7 @@ impl MBChunk {
                 })
                 .1;
 
-            column.append(&fb_column).context(ColumnError {
+            column.append(&fb_column, mask).context(ColumnError {
                 column: fb_column.name(),
             })?;
 
@@ -353,7 +386,7 @@ pub mod test_helpers {
             );
 
             for batch in table_batches {
-                chunk.write_table_batch(batch)?;
+                chunk.write_table_batch(batch, None)?;
             }
         }
 
@@ -378,9 +411,9 @@ pub mod test_helpers {
 
             for batch in table_batches {
                 match chunk {
-                    Some(ref mut c) => c.write_table_batch(batch)?,
+                    Some(ref mut c) => c.write_table_batch(batch, None)?,
                     None => {
-                        chunk = Some(MBChunk::new(ChunkMetrics::new_unregistered(), batch)?);
+                        chunk = Some(MBChunk::new(ChunkMetrics::new_unregistered(), batch, None)?);
                     }
                 }
             }
@@ -403,7 +436,7 @@ mod tests {
     };
     use entry::test_helpers::lp_to_entry;
     use internal_types::schema::{InfluxColumnType, InfluxFieldType};
-    use std::num::NonZeroU64;
+    use std::{convert::TryFrom, num::NonZeroU64, vec};
 
     #[test]
     fn writes_table_batches() {
@@ -933,6 +966,7 @@ mod tests {
                     .first()
                     .unwrap()
                     .columns(),
+                None,
             )
             .err()
             .unwrap();
@@ -964,6 +998,7 @@ mod tests {
                     .first()
                     .unwrap()
                     .columns(),
+                None,
             )
             .err()
             .unwrap();
@@ -995,6 +1030,7 @@ mod tests {
                     .first()
                     .unwrap()
                     .columns(),
+                None,
             )
             .err()
             .unwrap();
@@ -1026,6 +1062,7 @@ mod tests {
                     .first()
                     .unwrap()
                     .columns(),
+                None,
             )
             .err()
             .unwrap();
@@ -1057,6 +1094,7 @@ mod tests {
                     .first()
                     .unwrap()
                     .columns(),
+                None,
             )
             .err()
             .unwrap();
@@ -1088,6 +1126,7 @@ mod tests {
                     .first()
                     .unwrap()
                     .columns(),
+                None,
             )
             .err()
             .unwrap();
@@ -1105,5 +1144,168 @@ mod tests {
             "didn't match returned error: {:?}",
             response
         );
+    }
+
+    #[test]
+    fn test_mask() {
+        let mut entries = vec![];
+        let mut masks = vec![];
+
+        let lp = [
+            "table,tag=a float_field=1.1,int_field=11i,uint_field=111u,bool_field=t,string_field=\"axx\" 100",
+            "table,tag=b float_field=2.2,int_field=22i,uint_field=222u,bool_field=f,string_field=\"bxx\" 200",
+            "table,tag=c float_field=3.3,int_field=33i,uint_field=333u,bool_field=f,string_field=\"cxx\" 300",
+            "table,tag=d float_field=4.4,int_field=44i,uint_field=444u,bool_field=t,string_field=\"dxx\" 400",
+        ].join("\n");
+        masks.push(vec![false, true, true, false]);
+        entries.push(lp_to_entry(&lp));
+
+        let lp = [
+            "table,tag=e float_field=5.5,int_field=55i,uint_field=555u,bool_field=f,string_field=\"exx\" 500",
+            "table,tag=f float_field=6.6,int_field=66i,uint_field=666u,bool_field=t,string_field=\"fxx\" 600",
+            "table foo=1 700",
+            "table foo=2 800",
+            "table foo=3 900",
+        ].join("\n");
+        masks.push(vec![true, false, true, false, false]);
+        entries.push(lp_to_entry(&lp));
+
+        let mut chunk: Option<MBChunk> = None;
+        for (entry, mask) in entries.into_iter().zip(masks.into_iter()) {
+            for w in entry.partition_writes().unwrap() {
+                for batch in w.table_batches() {
+                    match chunk {
+                        Some(ref mut c) => c.write_table_batch(batch, Some(mask.as_ref())).unwrap(),
+                        None => {
+                            chunk = Some(
+                                MBChunk::new(
+                                    ChunkMetrics::new_unregistered(),
+                                    batch,
+                                    Some(mask.as_ref()),
+                                )
+                                .unwrap(),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        let chunk = chunk.unwrap();
+
+        let expected = ColumnSummary {
+            name: "float_field".into(),
+            influxdb_type: Some(InfluxDbType::Field),
+            stats: Statistics::F64(StatValues {
+                min: Some(2.2),
+                max: Some(5.5),
+                total_count: 4,
+                null_count: 1,
+                distinct_count: None,
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "float_field");
+
+        let expected = ColumnSummary {
+            name: "int_field".into(),
+            influxdb_type: Some(InfluxDbType::Field),
+            stats: Statistics::I64(StatValues {
+                min: Some(22),
+                max: Some(55),
+                total_count: 4,
+                null_count: 1,
+                distinct_count: None,
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "int_field");
+
+        let expected = ColumnSummary {
+            name: "uint_field".into(),
+            influxdb_type: Some(InfluxDbType::Field),
+            stats: Statistics::U64(StatValues {
+                min: Some(222),
+                max: Some(555),
+                total_count: 4,
+                null_count: 1,
+                distinct_count: None,
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "uint_field");
+
+        let expected = ColumnSummary {
+            name: "bool_field".into(),
+            influxdb_type: Some(InfluxDbType::Field),
+            stats: Statistics::Bool(StatValues {
+                min: Some(false),
+                max: Some(false),
+                total_count: 4,
+                null_count: 1,
+                distinct_count: None,
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "bool_field");
+
+        let expected = ColumnSummary {
+            name: "string_field".into(),
+            influxdb_type: Some(InfluxDbType::Field),
+            stats: Statistics::String(StatValues {
+                min: Some("bxx".into()),
+                max: Some("exx".into()),
+                total_count: 4,
+                null_count: 1,
+                distinct_count: None,
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "string_field");
+
+        let expected = ColumnSummary {
+            name: "time".into(),
+            influxdb_type: Some(InfluxDbType::Timestamp),
+            stats: Statistics::I64(StatValues {
+                min: Some(200),
+                max: Some(700),
+                total_count: 4,
+                null_count: 0,
+                distinct_count: None,
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "time");
+
+        let expected = ColumnSummary {
+            name: "tag".into(),
+            influxdb_type: Some(InfluxDbType::Tag),
+            stats: Statistics::String(StatValues {
+                min: Some("b".into()),
+                max: Some("e".into()),
+                total_count: 4,
+                null_count: 1,
+                distinct_count: Some(NonZeroU64::try_from(4).unwrap()),
+            }),
+        };
+        assert_summary_eq!(expected, chunk, "tag");
+    }
+
+    #[test]
+    fn test_mask_wrong_length() {
+        let lp = [
+            "table,tag=a float_field=1.1,int_field=11i,uint_field=111u,bool_field=t,string_field=\"axx\" 100",
+            "table,tag=b float_field=2.2,int_field=22i,uint_field=222u,bool_field=f,string_field=\"bxx\" 200",
+        ].join("\n");
+        let entry = lp_to_entry(&lp);
+        let partition_write = entry.partition_writes().unwrap().pop().unwrap();
+        let mask = vec![false, true, true, false];
+
+        let batch = partition_write.table_batches().pop().unwrap();
+        let err =
+            MBChunk::new(ChunkMetrics::new_unregistered(), batch, Some(mask.as_ref())).unwrap_err();
+        assert!(matches!(err, Error::IncorrectMaskLength { .. }));
+
+        let batch = partition_write.table_batches().pop().unwrap();
+        let mut chunk = MBChunk::new(ChunkMetrics::new_unregistered(), batch, None).unwrap();
+
+        let batch = partition_write.table_batches().pop().unwrap();
+        let err = chunk
+            .write_table_batch(batch, Some(mask.as_ref()))
+            .unwrap_err();
+        assert!(matches!(err, Error::IncorrectMaskLength { .. }));
     }
 }
