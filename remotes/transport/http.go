@@ -186,7 +186,7 @@ func (h *RemoteConnectionHandler) handlePatchRemote(w http.ResponseWriter, r *ht
 		return
 	}
 
-	remote, err := h.remotesService.UpdateRemoteConnection(r.Context(), *id, req)
+	remote, err := h.remotesService.UpdateRemoteConnection(ctx, *id, req)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return

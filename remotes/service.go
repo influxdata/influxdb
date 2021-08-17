@@ -9,8 +9,7 @@ import (
 )
 
 var (
-	_                 influxdb.RemoteConnectionService = (*service)(nil)
-	errNotImplemented                                  = &errors.Error{
+	errNotImplemented = &errors.Error{
 		Code: errors.ENotImplemented,
 		Msg:  "remote connection APIs not yet implemented",
 	}
@@ -21,6 +20,8 @@ func NewService() *service {
 }
 
 type service struct{}
+
+var _ influxdb.RemoteConnectionService = (*service)(nil)
 
 func (s service) ListRemoteConnections(ctx context.Context, filter influxdb.RemoteConnectionListFilter) (*influxdb.RemoteConnections, error) {
 	return nil, errNotImplemented

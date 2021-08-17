@@ -7,32 +7,31 @@ import (
 )
 
 type RemoteConnectionService interface {
-	// ListRemoteConnections returns all info about registered remote InfluxDB instances matching a filter.
+	// ListRemoteConnections returns all info about registered remote InfluxDB connections matching a filter.
 	ListRemoteConnections(context.Context, RemoteConnectionListFilter) (*RemoteConnections, error)
 
-	// CreateRemoteConnection registers a new remote InfluxDB instance.
-	// Before persisting the new connection info, the service verifies that the remote instance can be reached.
+	// CreateRemoteConnection registers a new remote InfluxDB connection.
 	CreateRemoteConnection(context.Context, CreateRemoteConnectionRequest) (*RemoteConnection, error)
 
-	// ValidateNewRemoteConnection validates that a remote InfluxDB instance can be reached via the given connection
-	// info, but doesn't persist the info.
+	// ValidateNewRemoteConnection validates that the given settings for a remote InfluxDB connection are usable,
+	// without persisting the connection info.
 	ValidateNewRemoteConnection(context.Context, CreateRemoteConnectionRequest) error
 
-	// GetRemoteConnection returns metadata about the remote InfluxDB instance with the given ID.
+	// GetRemoteConnection returns metadata about the remote InfluxDB connection with the given ID.
 	GetRemoteConnection(context.Context, platform.ID) (*RemoteConnection, error)
 
-	// UpdateRemoteConnection updates the connection details for the remote InfluxDB instance with the given ID.
+	// UpdateRemoteConnection updates the settings for the remote InfluxDB connection with the given ID.
 	UpdateRemoteConnection(context.Context, platform.ID, UpdateRemoteConnectionRequest) (*RemoteConnection, error)
 
-	// ValidateUpdatedRemoteConnection validates that a remote InfluxDB instance can be reached after applying the
-	// given update, but doesn't persist the new info.
+	// ValidateUpdatedRemoteConnection validates that a remote InfluxDB connection is still usable after applying the
+	// given update, without persisting the new info.
 	ValidateUpdatedRemoteConnection(context.Context, platform.ID, UpdateRemoteConnectionRequest) error
 
-	// DeleteRemoteConnection deletes all connection info for the remote InfluxDB instance with the given ID.
+	// DeleteRemoteConnection deletes all info for the remote InfluxDB connection with the given ID.
 	DeleteRemoteConnection(context.Context, platform.ID) error
 
-	// ValidateRemoteConnection checks that the remote InfluxDB instance with the given ID is still reachable
-	// using its persisted settings.
+	// ValidateRemoteConnection checks that the remote InfluxDB connection with the given ID is still usable
+	// with its persisted settings.
 	ValidateRemoteConnection(context.Context, platform.ID) error
 }
 
