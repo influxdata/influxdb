@@ -144,10 +144,10 @@ workflows:
             branches:
               only:
                 - master
-      - litmus_nightly:
+      - litmus_integration:
           requires:
             - deploy_nightly
-      - grace_nightly:
+      - grace_daily:
           requires:
             - deploy_nightly
 
@@ -717,6 +717,7 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
+            - dist/influxd_linux_amd64/influxd
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
 
@@ -782,38 +783,6 @@ jobs:
           destination: raw-daily-output
       - store_test_results:
           path: ~/project
-
-  litmus_nightly:
-    machine: true
-    steps:
-      - attach_workspace:
-          at: ~/project
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e DOCKERIMAGE=true --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
-      - run:
-          name: Litmus Nightly Tests Success
-          when: on_success
-          command: bash ~/project/etc/litmus_success_notify.sh Nightly
-      - run:
-          name: Litmus Nightly Tests Fail
-          when: on_fail
-          command: bash ~/project/etc/litmus_fail_notify.sh Nightly
-      - store_artifacts:
-          path: ~/project
-          destination: raw-nightly-output
-      - store_test_results:
-          path: ~/project
-
-  grace_nightly:
-    machine: true
-    steps:
-      - attach_workspace:
-          at: ~/project
-      - run: mkdir -p ~/project/results
-      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project/results:/grace/test-results/grace-results -e TEST_RESULTS=~/project/results quay.io/influxdb/grace:latest
-      - store_artifacts:
-          path: ~/project/results
-      - store_test_results:
-          path: ~/project/results
 
   grace_daily:
     machine: true
