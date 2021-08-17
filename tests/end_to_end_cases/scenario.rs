@@ -327,6 +327,16 @@ impl DatabaseBuilder {
         }
     }
 
+    pub fn buffer_size_hard(mut self, buffer_size_hard: u64) -> Self {
+        self.lifecycle_rules.buffer_size_hard = buffer_size_hard;
+        self
+    }
+
+    pub fn buffer_size_soft(mut self, buffer_size_soft: u64) -> Self {
+        self.lifecycle_rules.buffer_size_soft = buffer_size_soft;
+        self
+    }
+
     pub fn persist(mut self, persist: bool) -> Self {
         self.lifecycle_rules.persist = persist;
         self

@@ -1,7 +1,7 @@
 use influxdb_iox_client::write::WriteError;
 use test_helpers::assert_contains;
 
-use crate::common::server_fixture::ServerFixture;
+use crate::{common::server_fixture::ServerFixture, end_to_end_cases::scenario::DatabaseBuilder};
 
 use super::scenario::{create_readable_database, rand_name};
 use arrow_util::assert_batches_sorted_eq;
@@ -22,8 +22,18 @@ async fn test_write() {
     let fixture = ServerFixture::create_shared().await;
     let mut write_client = fixture.write_client();
 
+    // need a database that is easy to get into the hard buffer limit:
+    // 1. turn persist on so we cannot drop unpersisted data
+    // 2. set mutable buffer threshold high so IOx will keep the MUB growing
+    // 3. use small buffer limits to speed up the test
     let db_name = rand_name();
-    create_readable_database(&db_name, fixture.grpc_channel()).await;
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        .mub_row_threshold(1_000_000)
+        .buffer_size_soft(100_000)
+        .buffer_size_hard(200_000)
+        .build(fixture.grpc_channel())
+        .await;
 
     // ---- test successful writes ----
     let lp_lines = vec![
