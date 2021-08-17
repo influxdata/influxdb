@@ -279,6 +279,9 @@ query_interval() {
       echo -query-interval=5m
       ;;
     *)
+      # If a query interval is not matched in the cases above, do not pass this
+      # flag at all to the query generation tool so that the default value from
+      # the query generation tool can be used.
       echo ""
       ;;
   esac
