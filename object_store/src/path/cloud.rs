@@ -23,10 +23,6 @@ impl ObjectStorePath for CloudPath {
     fn push_all_dirs<'a>(&mut self, parts: impl AsRef<[&'a str]>) {
         self.inner = mem::take(&mut self.inner).push_all_dirs(parts);
     }
-
-    fn display(&self) -> String {
-        self.to_raw()
-    }
 }
 
 impl CloudPath {

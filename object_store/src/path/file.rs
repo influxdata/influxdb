@@ -24,10 +24,6 @@ impl ObjectStorePath for FilePath {
     fn push_all_dirs<'a>(&mut self, parts: impl AsRef<[&'a str]>) {
         self.inner = mem::take(&mut self.inner).push_all_dirs(parts);
     }
-
-    fn display(&self) -> String {
-        self.to_raw().display().to_string()
-    }
 }
 
 impl Ord for FilePath {
@@ -129,7 +125,7 @@ impl From<DirsAndFileName> for FilePath {
 
 impl fmt::Display for FilePath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", self.display())
+        write!(f, "{}", self.to_raw().display().to_string())
     }
 }
 
@@ -489,12 +485,12 @@ mod tests {
         let expected_display = a_path_buf.display().to_string();
         let a_file_path = FilePath::raw(&a_path_buf, false);
 
-        assert_eq!(a_file_path.display(), expected_display);
+        assert_eq!(a_file_path.to_string(), expected_display);
 
         let a_parts: DirsAndFileName = a_file_path.into();
         let a_parsed: FilePath = a_parts.into();
 
-        assert_eq!(a_parsed.display(), expected_display);
+        assert_eq!(a_parsed.to_string(), expected_display);
     }
 
     #[test]

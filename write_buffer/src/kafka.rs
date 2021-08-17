@@ -101,6 +101,7 @@ impl KafkaBufferProducer {
         cfg.set("queue.buffering.max.kbytes", "31457280");
         cfg.set("request.required.acks", "all"); // equivalent to acks=-1
         cfg.set("compression.type", "snappy");
+        cfg.set("statistics.interval.ms", "15000");
 
         let producer: FutureProducer = cfg.create()?;
 
@@ -253,6 +254,7 @@ impl KafkaBufferConsumer {
         cfg.set("bootstrap.servers", &conn);
         cfg.set("session.timeout.ms", "6000");
         cfg.set("enable.auto.commit", "false");
+        cfg.set("statistics.interval.ms", "15000");
 
         // Create a unique group ID for this database's consumer as we don't want to create
         // consumer groups.

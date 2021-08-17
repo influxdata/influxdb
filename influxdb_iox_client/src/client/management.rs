@@ -317,6 +317,26 @@ pub enum SkipReplayError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by [`Client::drop_partition`]
+#[derive(Debug, Error)]
+pub enum DropPartitionError {
+    /// Database not found
+    #[error("Not found: {}", .0)]
+    NotFound(String),
+
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
+    /// Server indicated some other action was active for this partition
+    #[error("Cannot perform operation due to wrong chunk lifecycle state: {}", .0.message())]
+    LifecycleError(tonic::Status),
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
 /// An IOx Management API client.
 ///
 /// This client wraps the underlying `tonic` generated client with a
@@ -774,6 +794,34 @@ impl Client {
                 tonic::Code::FailedPrecondition => SkipReplayError::FailedPrecondition(status),
                 tonic::Code::InvalidArgument => SkipReplayError::InvalidArgument(status),
                 _ => SkipReplayError::ServerError(status),
+            })?;
+
+        Ok(())
+    }
+
+    /// Drop partition from memory and (if persisted) from object store.
+    pub async fn drop_partition(
+        &mut self,
+        db_name: impl Into<String> + Send,
+        table_name: impl Into<String> + Send,
+        partition_key: impl Into<String> + Send,
+    ) -> Result<(), DropPartitionError> {
+        let db_name = db_name.into();
+        let partition_key = partition_key.into();
+        let table_name = table_name.into();
+
+        self.inner
+            .drop_partition(DropPartitionRequest {
+                db_name,
+                partition_key,
+                table_name,
+            })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => DropPartitionError::NotFound(status.message().to_string()),
+                tonic::Code::Unavailable => DropPartitionError::Unavailable(status),
+                tonic::Code::FailedPrecondition => DropPartitionError::LifecycleError(status),
+                _ => DropPartitionError::ServerError(status),
             })?;
 
         Ok(())

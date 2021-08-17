@@ -104,7 +104,7 @@ impl Database {
     ///
     /// This is backed by an existing database, which was [created](Self::create) some time in the past.
     pub fn new(application: Arc<ApplicationState>, config: DatabaseConfig) -> Self {
-        info!(db_name=%config.name, store_prefix=%config.store_prefix.display(), "new database");
+        info!(db_name=%config.name, store_prefix=%config.store_prefix.to_string(), "new database");
 
         let iox_object_store = Arc::new(IoxObjectStore::new(
             Arc::clone(application.object_store()),

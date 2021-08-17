@@ -1,8 +1,6 @@
 //! This module contains the IOx implementation for using memory as the object
 //! store.
-use crate::{
-    path::parsed::DirsAndFileName, ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
-};
+use crate::{path::parsed::DirsAndFileName, ListResult, ObjectMeta, ObjectStoreApi};
 use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
@@ -82,7 +80,7 @@ impl ObjectStoreApi for InMemory {
             .get(location)
             .cloned()
             .context(NoDataInMemory {
-                location: location.display(),
+                location: location.to_string(),
             })?;
 
         Ok(futures::stream::once(async move { Ok(data) }).boxed())

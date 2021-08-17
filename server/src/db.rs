@@ -609,6 +609,25 @@ impl Db {
         fut.await.context(TaskCancelled)?.context(LifecycleError)
     }
 
+    /// Drops the specified partition from the catalog and all storage systems
+    pub async fn drop_partition(
+        self: &Arc<Self>,
+        table_name: &str,
+        partition_key: &str,
+    ) -> Result<()> {
+        // Use explicit scope to ensure the async generator doesn't
+        // assume the locks have to possibly live across the `await`
+        let fut = {
+            let partition = self.partition(table_name, partition_key)?;
+            let partition = LockableCatalogPartition::new(Arc::clone(self), partition);
+            let partition = partition.write();
+            let (_, fut) = lifecycle::drop_partition(partition).context(LifecycleError)?;
+            fut
+        };
+
+        fut.await.context(TaskCancelled)?.context(LifecycleError)
+    }
+
     /// Copies a chunk in the Closed state into the ReadBuffer from
     /// the mutable buffer and marks the chunk with `Moved` state
     ///
@@ -1500,7 +1519,7 @@ mod tests {
     use futures::{stream, StreamExt, TryStreamExt};
     use internal_types::{schema::Schema, selection::Selection};
     use object_store::{
-        path::{parts::PathPart, ObjectStorePath, Path},
+        path::{parts::PathPart, Path},
         ObjectStore, ObjectStoreApi,
     };
     use parquet_file::{
@@ -3894,7 +3913,7 @@ mod tests {
             let chunk = db.chunk(table_name, partition_key, *chunk_id).unwrap();
             let chunk = chunk.read();
             if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
-                paths_expected.push(parquet.path().display());
+                paths_expected.push(parquet.path().to_string());
             } else {
                 panic!("Wrong chunk state.");
             }
@@ -3906,7 +3925,15 @@ mod tests {
                 .unwrap()
                 .unwrap();
         let paths_actual = {
-            let mut tmp: Vec<String> = catalog.parquet_files.keys().map(|p| p.display()).collect();
+            let mut tmp: Vec<String> = catalog
+                .parquet_files
+                .keys()
+                .map(|p| {
+                    object_store
+                        .path_from_dirs_and_filename(p.clone())
+                        .to_string()
+                })
+                .collect();
             tmp.sort();
             tmp
         };
@@ -4009,12 +4036,12 @@ mod tests {
         ));
         let path_delete = object_store.path_from_dirs_and_filename(path);
         create_empty_file(&object_store, &path_delete).await;
-        let path_delete = path_delete.display();
+        let path_delete = path_delete.to_string();
 
         // ==================== check: all files are there ====================
         let all_files = get_object_store_files(&object_store).await;
         for path in &paths_keep {
-            assert!(all_files.contains(&path.display()));
+            assert!(all_files.contains(&path.to_string()));
         }
 
         // ==================== do: start background task loop ====================
@@ -4043,7 +4070,7 @@ mod tests {
         let all_files = get_object_store_files(&object_store).await;
         assert!(!all_files.contains(&path_delete));
         for path in &paths_keep {
-            assert!(all_files.contains(&path.display()));
+            assert!(all_files.contains(&path.to_string()));
         }
     }
 
@@ -4251,6 +4278,52 @@ mod tests {
         ));
     }
 
+    #[tokio::test]
+    async fn drop_unpersisted_partition_on_persisted_db() {
+        let test_db = TestDb::builder()
+            .lifecycle_rules(LifecycleRules {
+                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+                mub_row_threshold: NonZeroUsize::try_from(1).unwrap(),
+                persist: true,
+                ..Default::default()
+            })
+            .build()
+            .await;
+        let db = Arc::new(test_db.db);
+
+        write_lp(db.as_ref(), "cpu bar=1 10").await;
+        write_lp(db.as_ref(), "cpu bar=2 20").await;
+
+        let partition_key = "1970-01-01T00";
+
+        // two chunks created
+        assert_eq!(db.partition_chunk_summaries(partition_key).len(), 2);
+
+        // We don't support dropping unpersisted chunks from a persisted DB because we would forget the write buffer
+        // progress (partition checkpoints are only created when new parquet files are stored).
+        // See https://github.com/influxdata/influxdb_iox/issues/2291
+        let err = db.drop_partition("cpu", partition_key).await.unwrap_err();
+        assert!(matches!(
+            err,
+            Error::LifecycleError {
+                source: super::lifecycle::Error::CannotDropUnpersistedChunk { .. }
+            }
+        ));
+
+        // once persisted drop should work
+        db.persist_partition(
+            "cpu",
+            partition_key,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
+        db.drop_partition("cpu", partition_key).await.unwrap();
+
+        // no chunks left
+        assert_eq!(db.partition_chunk_summaries(partition_key), vec![]);
+    }
+
     async fn create_parquet_chunk(db: &Arc<Db>) -> (String, String, u32) {
         write_lp(db, "cpu bar=1 10").await;
         let partition_key = "1970-01-01T00";
@@ -4295,7 +4368,7 @@ mod tests {
             .await
             .unwrap()
             .iter()
-            .map(|p| p.display())
+            .map(|p| p.to_string())
             .collect()
     }
 

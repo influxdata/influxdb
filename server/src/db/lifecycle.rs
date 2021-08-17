@@ -34,7 +34,7 @@ use std::{
 use tracker::{RwLock, TaskTracker};
 
 pub(crate) use compact::compact_chunks;
-pub(crate) use drop::drop_chunk;
+pub(crate) use drop::{drop_chunk, drop_partition};
 pub(crate) use error::{Error, Result};
 pub(crate) use move_chunk::move_chunk_to_read_buffer;
 pub(crate) use persist::persist_chunks;
