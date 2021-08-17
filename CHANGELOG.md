@@ -1,6 +1,10 @@
 ## v2.0.9 [unreleased]
 ----------------------
 
+### Bug Fixes
+
+1. [22236](https://github.com/influxdata/influxdb/pull/22236): influxdb2 packages should depend on curl
+
 ## v2.0.8 [2021-08-13]
 ----------------------
 
