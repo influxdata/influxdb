@@ -555,11 +555,11 @@ mod tests {
             )
             .header(
                 HeaderName::from_static("x-b3-traceid"),
-                HeaderValue::from_static("999999999"),
+                HeaderValue::from_static("fea24902"),
             )
             .header(
                 HeaderName::from_static("x-b3-spanid"),
-                HeaderValue::from_static("111111"),
+                HeaderValue::from_static("ab3409"),
             )
             .build(format!("http://{}", addr))
             .await
@@ -573,7 +573,7 @@ mod tests {
         let jaeger_tracing_client = influxdb_iox_client::connection::Builder::default()
             .header(
                 HeaderName::from_static("uber-trace-id"),
-                HeaderValue::from_static("3459495:30434:0:1"),
+                HeaderValue::from_static("34f9495:30e34:0:1"),
             )
             .build(format!("http://{}", addr))
             .await
@@ -593,20 +593,20 @@ mod tests {
             .collect();
 
         assert_eq!(spans[0].name, "IOx");
-        assert_eq!(spans[0].ctx.parent_span_id.unwrap().0.get(), 111111);
-        assert_eq!(spans[0].ctx.trace_id.0.get(), 999999999);
+        assert_eq!(spans[0].ctx.parent_span_id.unwrap().0.get(), 0xab3409);
+        assert_eq!(spans[0].ctx.trace_id.0.get(), 0xfea24902);
         assert!(spans[0].start.is_some());
         assert!(spans[0].end.is_some());
 
         assert_eq!(spans[1].name, "IOx");
-        assert_eq!(spans[1].ctx.parent_span_id.unwrap().0.get(), 111111);
-        assert_eq!(spans[1].ctx.trace_id.0.get(), 999999999);
+        assert_eq!(spans[1].ctx.parent_span_id.unwrap().0.get(), 0xab3409);
+        assert_eq!(spans[1].ctx.trace_id.0.get(), 0xfea24902);
         assert!(spans[1].start.is_some());
         assert!(spans[1].end.is_some());
 
         assert_eq!(spans[2].name, "IOx");
-        assert_eq!(spans[2].ctx.parent_span_id.unwrap().0.get(), 30434);
-        assert_eq!(spans[2].ctx.trace_id.0.get(), 3459495);
+        assert_eq!(spans[2].ctx.parent_span_id.unwrap().0.get(), 0x30e34);
+        assert_eq!(spans[2].ctx.trace_id.0.get(), 0x34f9495);
         assert!(spans[2].start.is_some());
         assert!(spans[2].end.is_some());
 

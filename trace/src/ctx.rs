@@ -69,7 +69,7 @@ impl<'a> FromStr for TraceId {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(
-            NonZeroU128::new(s.parse()?).ok_or(DecodeError::ZeroError)?,
+            NonZeroU128::new(u128::from_str_radix(s, 16)?).ok_or(DecodeError::ZeroError)?,
         ))
     }
 }
@@ -89,7 +89,7 @@ impl<'a> FromStr for SpanId {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(
-            NonZeroU64::new(s.parse()?).ok_or(DecodeError::ZeroError)?,
+            NonZeroU64::new(u64::from_str_radix(s, 16)?).ok_or(DecodeError::ZeroError)?,
         ))
     }
 }
@@ -219,7 +219,7 @@ impl FromStr for JaegerCtx {
             "0" => None,
             _ => Some(parent_span_id.parse()?),
         };
-        let flags = flags.parse()?;
+        let flags = u8::from_str_radix(flags, 16)?;
 
         Ok(Self {
             trace_id,
@@ -308,7 +308,7 @@ mod tests {
             .unwrap()
             .is_none());
 
-        headers.insert(B3_TRACE_ID_HEADER, HeaderValue::from_static("99999999"));
+        headers.insert(B3_TRACE_ID_HEADER, HeaderValue::from_static("ee25f"));
         headers.insert(B3_SAMPLED_HEADER, HeaderValue::from_static("0"));
 
         // Not sampled
@@ -326,14 +326,14 @@ mod tests {
             "header 'X-B3-SpanId' not found"
         );
 
-        headers.insert(B3_SPAN_ID_HEADER, HeaderValue::from_static("69559"));
+        headers.insert(B3_SPAN_ID_HEADER, HeaderValue::from_static("34e"));
 
         let span = SpanContext::from_headers(&collector, &headers)
             .unwrap()
             .unwrap();
 
-        assert_eq!(span.span_id.0.get(), 69559);
-        assert_eq!(span.trace_id.0.get(), 99999999);
+        assert_eq!(span.span_id.0.get(), 0x34e);
+        assert_eq!(span.trace_id.0.get(), 0xee25f);
         assert!(span.parent_span_id.is_none());
 
         headers.insert(
@@ -345,9 +345,9 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert_eq!(span.span_id.0.get(), 69559);
-        assert_eq!(span.trace_id.0.get(), 99999999);
-        assert_eq!(span.parent_span_id.unwrap().0.get(), 4595945);
+        assert_eq!(span.span_id.0.get(), 0x34e);
+        assert_eq!(span.trace_id.0.get(), 0xee25f);
+        assert_eq!(span.parent_span_id.unwrap().0.get(), 0x4595945);
 
         headers.insert(B3_SPAN_ID_HEADER, HeaderValue::from_static("not a number"));
 
@@ -394,28 +394,28 @@ mod tests {
         // Sampled
         headers.insert(
             JAEGER_TRACE_HEADER,
-            HeaderValue::from_static("343:4325345:0:1"),
+            HeaderValue::from_static("3a43:432e345:0:1"),
         );
         let span = SpanContext::from_headers(&collector, &headers)
             .unwrap()
             .unwrap();
 
-        assert_eq!(span.trace_id.0.get(), 343);
-        assert_eq!(span.span_id.0.get(), 4325345);
+        assert_eq!(span.trace_id.0.get(), 0x3a43);
+        assert_eq!(span.span_id.0.get(), 0x432e345);
         assert!(span.parent_span_id.is_none());
 
         // Parent span
         headers.insert(
             JAEGER_TRACE_HEADER,
-            HeaderValue::from_static("343:4325345:3434:1"),
+            HeaderValue::from_static("343:4325345:3434:F"),
         );
         let span = SpanContext::from_headers(&collector, &headers)
             .unwrap()
             .unwrap();
 
-        assert_eq!(span.trace_id.0.get(), 343);
-        assert_eq!(span.span_id.0.get(), 4325345);
-        assert_eq!(span.parent_span_id.unwrap().0.get(), 3434);
+        assert_eq!(span.trace_id.0.get(), 0x343);
+        assert_eq!(span.span_id.0.get(), 0x4325345);
+        assert_eq!(span.parent_span_id.unwrap().0.get(), 0x3434);
 
         // Invalid trace id
         headers.insert(
