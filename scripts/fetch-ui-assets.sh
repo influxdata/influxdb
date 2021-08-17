@@ -27,8 +27,17 @@ curl -Ls https://github.com/influxdata/ui/releases/download/OSS-Master/sha256.tx
 curl -L https://github.com/influxdata/ui/releases/download/OSS-Master/build.tar.gz --output build.tar.gz
 
 # Verify the checksums match; exit if they don't.
-echo "$(cat sha256.txt)" | sha256sum --check -- \
-    || { echo "Checksums did not match for downloaded UI assets!"; exit 1; }
+case "$(uname -s)" in
+    FreeBSD | Darwin)
+        echo "$(cat sha256.txt)" | shasum --algorithm 256 --check \
+            || { echo "Checksums did not match for downloaded UI assets!"; exit 1; } ;;
+    Linux)
+        echo "$(cat sha256.txt)" | sha256sum --check -- \
+            || { echo "Checksums did not match for downloaded UI assets!"; exit 1; } ;;
+    *)
+        echo "The '$(uname -s)' operating system is not supported" >&2
+        exit 1
+esac
 
 # Extract the assets and clean up.
 mkdir -p "$STATIC_DIR/data"
