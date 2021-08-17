@@ -9,11 +9,13 @@ import (
 
 	"github.com/andreyvit/diff"
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/astutil"
 	"github.com/influxdata/flux/parser"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query/influxql"
 	platformtesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/stretchr/testify/require"
 )
 
 var dbrpMappingSvc = &mock.DBRPMappingServiceV2{}
@@ -82,7 +84,8 @@ func (f *fixture) Run(t *testing.T) {
 			err := ast.GetError(wantAST)
 			t.Fatalf("found parser errors in the want text: %s", err.Error())
 		}
-		want := ast.Format(wantAST)
+		want, err := astutil.Format(wantAST.Files[0])
+		require.NoError(t, err)
 
 		transpiler := influxql.NewTranspilerWithConfig(
 			dbrpMappingSvc,
@@ -96,7 +99,8 @@ func (f *fixture) Run(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s:%d: unexpected error: %s", f.file, f.line, err)
 		}
-		got := ast.Format(pkg)
+		got, err := astutil.Format(pkg.Files[0])
+		require.NoError(t, err)
 
 		// Encode both of these to JSON and compare the results.
 		if want != got {

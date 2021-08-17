@@ -3834,15 +3834,12 @@ spec:
 				expectedQuery := expectedParams + `
 
 from(bucket: params.bucket)
-	|> range(start: params.start, end: params.stop)
-	|> filter(fn: (r) =>
-		(r._measurement == "processes"))
-	|> filter(fn: (r) =>
-		(r.floater == params.floatVal))
-	|> filter(fn: (r) =>
-		(r._value > params.minVal))
-	|> aggregateWindow(every: v.windowPeriod, fn: max)
-	|> yield(name: params.name)`
+    |> range(start: params.start, end: params.stop)
+    |> filter(fn: (r) => r._measurement == "processes")
+    |> filter(fn: (r) => r.floater == params.floatVal)
+    |> filter(fn: (r) => r._value > params.minVal)
+    |> aggregateWindow(every: v.windowPeriod, fn: max)
+    |> yield(name: params.name)`
 
 				assert.Equal(t, expectedQuery, props.Queries[0].Text)
 				assert.Equal(t, "advanced", props.Queries[0].EditMode)
@@ -3871,12 +3868,12 @@ from(bucket: params.bucket)
 				actual := impact.Summary.Dashboards[0]
 
 				expectedParams := `option params = {
-	bucket: "bar",
-	start: -24h0m0s,
-	stop: now(),
-	name: "max",
-	floatVal: 37.2,
-	minVal: 10,
+    bucket: "bar",
+    start: -24h0m0s,
+    stop: now(),
+    name: "max",
+    floatVal: 37.2,
+    minVal: 10,
 }`
 				isExpectedQuery(t, actual, expectedParams)
 
@@ -3957,12 +3954,12 @@ from(bucket: params.bucket)
 				actual := impact.Summary.Dashboards[0]
 
 				expectedParams := `option params = {
-	bucket: "foobar",
-	start: -5d,
-	stop: now(),
-	name: "min",
-	floatVal: 33.3,
-	minVal: 3,
+    bucket: "foobar",
+    start: -5d,
+    stop: now(),
+    name: "min",
+    floatVal: 33.3,
+    minVal: 3,
 }`
 				isExpectedQuery(t, actual, expectedParams)
 
@@ -4086,15 +4083,12 @@ spec:
 				expectedQuery := expectedParams + `
 
 from(bucket: params.bucket)
-	|> range(start: params.start, stop: params.stop)
-	|> filter(fn: (r) =>
-		(r._measurement == "processes"))
-	|> filter(fn: (r) =>
-		(r.floater == params.floatVal))
-	|> filter(fn: (r) =>
-		(r._value > params.minVal))
-	|> aggregateWindow(every: 1m, fn: max)
-	|> yield(name: params.name)`
+    |> range(start: params.start, stop: params.stop)
+    |> filter(fn: (r) => r._measurement == "processes")
+    |> filter(fn: (r) => r.floater == params.floatVal)
+    |> filter(fn: (r) => r._value > params.minVal)
+    |> aggregateWindow(every: 1m, fn: max)
+    |> yield(name: params.name)`
 
 				assert.Equal(t, expectedQuery, actual.Query)
 			}
@@ -4122,12 +4116,12 @@ from(bucket: params.bucket)
 				actual := impact.Summary.Tasks[0]
 
 				expectedParams := `option params = {
-	bucket: "bar",
-	start: -24h0m0s,
-	stop: now(),
-	name: "max",
-	floatVal: 37.2,
-	minVal: 10,
+    bucket: "bar",
+    start: -24h0m0s,
+    stop: now(),
+    name: "max",
+    floatVal: 37.2,
+    minVal: 10,
 }`
 				isExpectedQuery(t, actual, expectedParams)
 
@@ -4208,12 +4202,12 @@ from(bucket: params.bucket)
 				actual := impact.Summary.Tasks[0]
 
 				expectedParams := `option params = {
-	bucket: "foobar",
-	start: -5d,
-	stop: now(),
-	name: "min",
-	floatVal: 33.3,
-	minVal: 3,
+    bucket: "foobar",
+    start: -5d,
+    stop: now(),
+    name: "min",
+    floatVal: 33.3,
+    minVal: 3,
 }`
 				isExpectedQuery(t, actual, expectedParams)
 

@@ -101,9 +101,7 @@ func TestTelegram_GenerateFlux(t *testing.T) {
 					},
 				},
 			},
-			script: `package main
-// foo
-import "influxdata/influxdb/monitor"
+			script: `import "influxdata/influxdb/monitor"
 import "contrib/sranka/telegram"
 import "influxdata/influxdb/secrets"
 import "experimental"
@@ -112,24 +110,12 @@ option task = {name: "foo", every: 1h}
 
 telegram_secret = secrets["get"](key: "3-key")
 telegram_endpoint = telegram["endpoint"](token: telegram_secret, disableWebPagePreview: false)
-notification = {
-	_notification_rule_id: "0000000000000001",
-	_notification_rule_name: "foo",
-	_notification_endpoint_id: "0000000000000003",
-	_notification_endpoint_name: "foo",
-}
-statuses = monitor["from"](start: -2h, fn: (r) =>
-	(r["foo"] == "bar" and r["baz"] == "bang"))
-crit = statuses
-	|> filter(fn: (r) =>
-		(r["_level"] == "crit"))
-all_statuses = crit
-	|> filter(fn: (r) =>
-		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
+notification = {_notification_rule_id: "0000000000000001", _notification_rule_name: "foo", _notification_endpoint_id: "0000000000000003", _notification_endpoint_name: "foo"}
+statuses = monitor["from"](start: -2h, fn: (r) => r["foo"] == "bar" and r["baz"] == "bang")
+crit = statuses |> filter(fn: (r) => r["_level"] == "crit")
+all_statuses = crit |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses
-	|> monitor["notify"](data: notification, endpoint: telegram_endpoint(mapFn: (r) =>
-		({channel: "-12345", text: "blah", silent: if r["_level"] == "crit" then true else if r["_level"] == "warn" then true else false})))`,
+all_statuses |> monitor["notify"](data: notification, endpoint: telegram_endpoint(mapFn: (r) => ({channel: "-12345", text: "blah", silent: if r["_level"] == "crit" then true else if r["_level"] == "warn" then true else false})))`,
 		},
 		{
 			name: "with DisableWebPagePreview and ParseMode",
@@ -173,9 +159,7 @@ all_statuses
 					},
 				},
 			},
-			script: `package main
-// foo
-import "influxdata/influxdb/monitor"
+			script: `import "influxdata/influxdb/monitor"
 import "contrib/sranka/telegram"
 import "influxdata/influxdb/secrets"
 import "experimental"
@@ -184,24 +168,12 @@ option task = {name: "foo", every: 1h}
 
 telegram_secret = secrets["get"](key: "3-key")
 telegram_endpoint = telegram["endpoint"](token: telegram_secret, parseMode: "HTML", disableWebPagePreview: true)
-notification = {
-	_notification_rule_id: "0000000000000001",
-	_notification_rule_name: "foo",
-	_notification_endpoint_id: "0000000000000003",
-	_notification_endpoint_name: "foo",
-}
-statuses = monitor["from"](start: -2h, fn: (r) =>
-	(r["foo"] == "bar" and r["baz"] == "bang"))
-any = statuses
-	|> filter(fn: (r) =>
-		(true))
-all_statuses = any
-	|> filter(fn: (r) =>
-		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
+notification = {_notification_rule_id: "0000000000000001", _notification_rule_name: "foo", _notification_endpoint_id: "0000000000000003", _notification_endpoint_name: "foo"}
+statuses = monitor["from"](start: -2h, fn: (r) => r["foo"] == "bar" and r["baz"] == "bang")
+any = statuses |> filter(fn: (r) => true)
+all_statuses = any |> filter(fn: (r) => r["_time"] >= experimental["subDuration"](from: now(), d: 1h))
 
-all_statuses
-	|> monitor["notify"](data: notification, endpoint: telegram_endpoint(mapFn: (r) =>
-		({channel: "-12345", text: "blah", silent: if r["_level"] == "crit" then true else if r["_level"] == "warn" then true else false})))`,
+all_statuses |> monitor["notify"](data: notification, endpoint: telegram_endpoint(mapFn: (r) => ({channel: "-12345", text: "blah", silent: if r["_level"] == "crit" then true else if r["_level"] == "warn" then true else false})))`,
 		},
 	}
 

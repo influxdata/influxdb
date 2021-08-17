@@ -67,8 +67,7 @@ func TestOptionsEditWithAST(t *testing.T) {
 	t.Run("fmt string", func(t *testing.T) {
 		expected := `option task = {every: 10s, name: "foo"}
 
-from(bucket: "x")
-	|> range(start: -1h)`
+from(bucket: "x") |> range(start: -1h)`
 		if *tu.Flux != expected {
 			t.Errorf("got the wrong task back, expected %s,\n got %s\n diff: %s", expected, *tu.Flux, cmp.Diff(expected, *tu.Flux))
 		}
@@ -136,8 +135,7 @@ from(bucket: "x")
 		tu.Options.Offset = &options.Duration{}
 		expscript := `option task = {cron: "* * * * *", name: "foo"}
 
-from(bucket: "x")
-	|> range(start: -1h)`
+from(bucket: "x") |> range(start: -1h)`
 		if err := tu.UpdateFlux(fluxlang.DefaultService, `option task = {cron: "* * * * *", name: "foo", offset: 10s} from(bucket:"x") |> range(start:-1h)`); err != nil {
 			t.Fatal(err)
 		}
