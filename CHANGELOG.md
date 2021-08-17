@@ -80,6 +80,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [22059](https://github.com/influxdata/influxdb/pull/22059): Copy names from mmapped memory before closing iterator
 1. [22186](https://github.com/influxdata/influxdb/pull/22186): Preserve comments in flux queries when saving task definitions
 1. [#22174](https://github.com/influxdata/influxdb/pull/22174): systemd service -- handle 40x and block indefinitely
+1. [#22228](https://github.com/influxdata/influxdb/pull/22228): influxdb2 packages should depend on curl
 
 ## v2.0.7 [2021-06-04]
 
