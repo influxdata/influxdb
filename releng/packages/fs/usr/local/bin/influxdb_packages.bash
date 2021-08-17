@@ -127,6 +127,7 @@ elif [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
       fpm \
         -s dir \
         $typeargs \
+        --depends curl \
         --log error \
         --vendor InfluxData \
         --url "https://influxdata.com" \
