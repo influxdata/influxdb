@@ -130,7 +130,7 @@ func (c *Coordinator) TaskUpdated(ctx context.Context, from, to *influxdb.Task) 
 	}
 
 	// if the tasks is already inactive, we don't do anything
-	if to.Status == from.Status && to.Status == string(taskmodel.TaskInactive) {
+	if to.Status == from.Status && to.Status == string(influxdb.TaskInactive) {
 		return nil
 	}
 
