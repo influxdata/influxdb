@@ -75,13 +75,12 @@ where
         self.suppress_persistence = false;
     }
 
-    /// Check if database exceeds memory limits and free memory if necessary
+    /// Check if database exceeds memory limits and free memory if necessary.
     ///
-    /// The policy will first try to unload persisted chunks in order of creation
-    /// time, starting with the oldest.
+    /// The behavior depends on the `persist` flag from the lifecycle rules:
     ///
-    /// If permitted by the lifecycle policy, it will then drop unpersisted chunks,
-    /// also in order of creation time, starting with the oldest.
+    /// - If persist is `true` it will only unload persisted chunks in order of creation time, starting with the oldest.
+    /// - If persist is `false` it will consider all chunks, also in order of creation time, starting with the oldest.
     ///
     /// TODO: use LRU instead of creation time
     ///
@@ -90,7 +89,7 @@ where
         db_name: &DatabaseName<'static>,
         partitions: &[P],
         soft_limit: usize,
-        drop_non_persisted: bool,
+        persist: bool,
     ) {
         let buffer_size = self.db.buffer_size();
         if buffer_size < soft_limit {
@@ -109,9 +108,7 @@ where
                 }
 
                 let action = match chunk.storage() {
-                    ChunkStorage::ReadBuffer | ChunkStorage::ClosedMutableBuffer
-                        if drop_non_persisted =>
-                    {
+                    ChunkStorage::ReadBuffer | ChunkStorage::ClosedMutableBuffer if !persist => {
                         FreeAction::Drop
                     }
                     ChunkStorage::ReadBufferAndObjectStore => FreeAction::Unload,
@@ -545,12 +542,7 @@ where
         }
 
         if let Some(soft_limit) = rules.buffer_size_soft {
-            self.maybe_free_memory(
-                &db_name,
-                &partitions,
-                soft_limit.get(),
-                rules.drop_non_persisted,
-            )
+            self.maybe_free_memory(&db_name, &partitions, soft_limit.get(), rules.persist)
         }
 
         // Clear out completed tasks
@@ -1280,7 +1272,7 @@ mod tests {
         // "write" events will be triggered
         let rules = LifecycleRules {
             buffer_size_soft: Some(NonZeroUsize::new(5).unwrap()),
-            drop_non_persisted: true,
+            persist: false,
             ..Default::default()
         };
 
@@ -1337,15 +1329,12 @@ mod tests {
     #[tokio::test]
     async fn test_buffer_size_soft_dont_drop_non_persisted() {
         // test that chunk mover unloads written chunks and can't drop
-        // unpersisted chunks when the persist flag is false
-
-        // IMPORTANT: the lifecycle rules have the default `persist` flag (false) so NOT
-        // "write" events will be triggered
+        // unpersisted chunks when the persist flag is true
         let rules = LifecycleRules {
             buffer_size_soft: Some(NonZeroUsize::new(5).unwrap()),
+            persist: true,
             ..Default::default()
         };
-        assert!(!rules.drop_non_persisted);
 
         let chunks = vec![TestChunk::new(0, 0, ChunkStorage::OpenMutableBuffer)];
 

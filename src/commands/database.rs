@@ -82,11 +82,6 @@ struct Create {
     #[structopt(long, default_value = "104857600")] // 104857600 = 100*1024*1024
     buffer_size_hard: usize,
 
-    /// Allow dropping data that has not been persisted to object storage
-    /// once the database size has exceeded the configured limits
-    #[structopt(long = "drop-persisted-only", parse(from_flag = std::ops::Not::not))]
-    drop_non_persisted: bool,
-
     /// Persists chunks to object storage.
     #[structopt(long = "skip-persist", parse(from_flag = std::ops::Not::not))]
     persist: bool,
@@ -182,7 +177,6 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 lifecycle_rules: Some(LifecycleRules {
                     buffer_size_soft: command.buffer_size_soft as _,
                     buffer_size_hard: command.buffer_size_hard as _,
-                    drop_non_persisted: command.drop_non_persisted,
                     persist: command.persist,
                     immutable: command.immutable,
                     worker_backoff_millis: Default::default(),

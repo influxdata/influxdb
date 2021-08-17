@@ -23,7 +23,6 @@ impl From<LifecycleRules> for management::LifecycleRules {
                 .buffer_size_hard
                 .map(|x| x.get() as u64)
                 .unwrap_or_default(),
-            drop_non_persisted: config.drop_non_persisted,
             persist: config.persist,
             immutable: config.immutable,
             worker_backoff_millis: config.worker_backoff_millis.get(),
@@ -61,7 +60,6 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
         Ok(Self {
             buffer_size_soft: (proto.buffer_size_soft as usize).try_into().ok(),
             buffer_size_hard: (proto.buffer_size_hard as usize).try_into().ok(),
-            drop_non_persisted: proto.drop_non_persisted,
             persist: proto.persist,
             immutable: proto.immutable,
             worker_backoff_millis: NonZeroU64::new(proto.worker_backoff_millis)
@@ -119,7 +117,6 @@ mod tests {
         let protobuf = management::LifecycleRules {
             buffer_size_soft: 353,
             buffer_size_hard: 232,
-            drop_non_persisted: true,
             persist: true,
             immutable: true,
             worker_backoff_millis: 1000,
@@ -145,12 +142,10 @@ mod tests {
             config.buffer_size_hard.unwrap().get(),
             protobuf.buffer_size_hard as usize
         );
-        assert_eq!(config.drop_non_persisted, protobuf.drop_non_persisted);
         assert_eq!(config.immutable, protobuf.immutable);
 
         assert_eq!(back.buffer_size_soft, protobuf.buffer_size_soft);
         assert_eq!(back.buffer_size_hard, protobuf.buffer_size_hard);
-        assert_eq!(back.drop_non_persisted, protobuf.drop_non_persisted);
         assert_eq!(back.immutable, protobuf.immutable);
         assert_eq!(back.worker_backoff_millis, protobuf.worker_backoff_millis);
         assert_eq!(
