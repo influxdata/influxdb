@@ -38,13 +38,22 @@ type RemoteConnectionService interface {
 // RemoteConnection contains all info about a remote InfluxDB instance that should be returned to users.
 // Note that the auth token used by the request is *not* included here.
 type RemoteConnection struct {
-	ID               platform.ID `json:"id"`
-	OrgID            platform.ID `json:"orgID"`
-	Name             string      `json:"name"`
-	Description      *string     `json:"description,omitempty"`
-	RemoteURL        string      `json:"remoteURL"`
-	RemoteOrgID      platform.ID `json:"remoteOrgID"`
-	AllowInsecureTLS bool        `json:"allowInsecureTLS"`
+	ID               platform.ID `json:"id" db:"id"`
+	OrgID            platform.ID `json:"orgID" db:"org_id"`
+	Name             string      `json:"name" db:"name"`
+	Description      *string     `json:"description,omitempty" db:"description"`
+	RemoteURL        string      `json:"remoteURL" db:"remote_url"`
+	RemoteOrgID      platform.ID `json:"remoteOrgID" db:"remote_org_id"`
+	AllowInsecureTLS bool        `json:"allowInsecureTLS" db:"allow_insecure_tls"`
+}
+
+// RemoteConnectionHTTPConfig contains all info needed by a client to make HTTP requests against a
+// remote InfluxDB API.
+type RemoteConnectionHTTPConfig struct {
+	RemoteURL        string      `db:"remote_url"`
+	RemoteToken      string      `db:"remote_api_token"`
+	RemoteOrgID      platform.ID `db:"remote_org_id"`
+	AllowInsecureTLS bool        `db:"allow_insecure_tls"`
 }
 
 // RemoteConnectionListFilter is a selection filter for listing remote InfluxDB instances.
