@@ -131,10 +131,6 @@ pub struct LifecycleRules {
     /// rejecting writes
     pub buffer_size_hard: Option<NonZeroUsize>,
 
-    /// Allow dropping data that has not been persisted to object storage
-    /// once the database size has exceeded the configured limits
-    pub drop_non_persisted: bool,
-
     /// Persists chunks to object storage.
     pub persist: bool,
 
@@ -229,7 +225,6 @@ impl Default for LifecycleRules {
         Self {
             buffer_size_soft: None,
             buffer_size_hard: None,
-            drop_non_persisted: false,
             persist: false,
             immutable: false,
             worker_backoff_millis: NonZeroU64::new(DEFAULT_WORKER_BACKOFF_MILLIS).unwrap(),

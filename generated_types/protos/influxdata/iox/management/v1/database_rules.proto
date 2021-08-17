@@ -41,9 +41,8 @@ message LifecycleRules {
   // rejecting writes
   uint64 buffer_size_hard = 5;
 
-  // Allow dropping data that has not been persisted to object storage
-  // once the database size has exceeded the configured limits
-  bool drop_non_persisted = 7;
+  // 7 once was `drop_non_persisted`
+  reserved 7;
 
   // Persists chunks to object storage.
   bool persist = 9;
