@@ -505,6 +505,14 @@ mod tests {
         /// The partitions are by table name and partition key.
         Persist(Vec<(&'static str, &'static str)>),
 
+        /// Drop partitions.
+        ///
+        /// Note that this only works for fully persisted partitions if
+        /// the database is configured for persistence.
+        ///
+        /// The partitions are by table name and partition key.
+        Drop(Vec<(&'static str, &'static str)>),
+
         /// Advance clock far enough that all ingested entries become persistable.
         MakeWritesPersistable,
 
@@ -634,6 +642,27 @@ mod tests {
                                     Ok(_) => break,
                                     Err(crate::db::Error::LifecycleError { .. }) => {
                                         // cannot persist right now because of some lifecycle action, so wait a bit
+                                        tokio::time::sleep(Duration::from_millis(100)).await;
+                                        continue;
+                                    }
+                                    e => {
+                                        e.unwrap();
+                                        unreachable!();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Step::Drop(partitions) => {
+                        let db = &test_db.db;
+
+                        for (table_name, partition_key) in partitions {
+                            println!("Drop {}:{}", table_name, partition_key);
+                            loop {
+                                match db.drop_partition(table_name, partition_key).await {
+                                    Ok(_) => break,
+                                    Err(crate::db::Error::LifecycleError { .. }) => {
+                                        // cannot drop right now because of some lifecycle action, so wait a bit
                                         tokio::time::sleep(Duration::from_millis(100)).await;
                                         continue;
                                     }
@@ -2335,6 +2364,108 @@ mod tests {
         }
         .run()
         .await
+    }
+
+    #[tokio::test]
+    async fn replay_after_drop() {
+        ReplayTest {
+            steps: vec![
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 0,
+                        lp: "table_1,tag_partition_by=a bar=10 10",
+                    },
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 1,
+                        lp: "table_1,tag_partition_by=b bar=20 20",
+                    },
+                ]),
+                Step::Await(vec![
+                    Check::Partitions(vec![
+                        ("table_1", "tag_partition_by_a"),
+                        ("table_1", "tag_partition_by_b"),
+                    ]),
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+--------------------------------+",
+                            "| bar | tag_partition_by | time                           |",
+                            "+-----+------------------+--------------------------------+",
+                            "| 10  | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 20  | b                | 1970-01-01T00:00:00.000000020Z |",
+                            "+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                ]),
+                Step::MakeWritesPersistable,
+                Step::Persist(vec![("table_1", "tag_partition_by_b")]),
+                Step::Drop(vec![("table_1", "tag_partition_by_b")]),
+                Step::Assert(vec![
+                    // note that at the moment the dropped partition still exists but has no chunks
+                    Check::Partitions(vec![
+                        ("table_1", "tag_partition_by_a"),
+                        ("table_1", "tag_partition_by_b"),
+                    ]),
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+--------------------------------+",
+                            "| bar | tag_partition_by | time                           |",
+                            "+-----+------------------+--------------------------------+",
+                            "| 10  | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                ]),
+                Step::Restart,
+                Step::Assert(vec![
+                    // partition also exists after restart but still has no data
+                    Check::Partitions(vec![("table_1", "tag_partition_by_b")]),
+                    // Note that currently this edge case also leads to "no columns" because the query executor does not
+                    // return any record batches.
+                    Check::Query("select * from table_1 order by bar", vec!["++", "++"]),
+                ]),
+                Step::Ingest(vec![TestSequencedEntry {
+                    sequencer_id: 0,
+                    sequence_number: 2,
+                    lp: "table_1,tag_partition_by=b bar=30 30",
+                }]),
+                Step::Replay,
+                Step::Assert(vec![
+                    Check::Partitions(vec![
+                        ("table_1", "tag_partition_by_a"),
+                        ("table_1", "tag_partition_by_b"),
+                    ]),
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+------------------+--------------------------------+",
+                            "| bar | tag_partition_by | time                           |",
+                            "+-----+------------------+--------------------------------+",
+                            "| 10  | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                ]),
+                // new data can still be ingested into the dropped partition
+                Step::Await(vec![Check::Query(
+                    "select * from table_1 order by bar",
+                    vec![
+                        "+-----+------------------+--------------------------------+",
+                        "| bar | tag_partition_by | time                           |",
+                        "+-----+------------------+--------------------------------+",
+                        "| 10  | a                | 1970-01-01T00:00:00.000000010Z |",
+                        "| 30  | b                | 1970-01-01T00:00:00.000000030Z |",
+                        "+-----+------------------+--------------------------------+",
+                    ],
+                )]),
+            ],
+            ..Default::default()
+        }
+        .run()
+        .await;
     }
 
     #[tokio::test]

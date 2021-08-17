@@ -5,8 +5,9 @@ use generated_types::google::FieldViolation;
 use influxdb_iox_client::{
     connection::Connection,
     management::{
-        self, ClosePartitionChunkError, GetPartitionError, ListPartitionChunksError,
-        ListPartitionsError, NewPartitionChunkError, UnloadPartitionChunkError,
+        self, ClosePartitionChunkError, DropPartitionError, GetPartitionError,
+        ListPartitionChunksError, ListPartitionsError, NewPartitionChunkError,
+        UnloadPartitionChunkError,
     },
 };
 use std::convert::{TryFrom, TryInto};
@@ -21,6 +22,9 @@ pub enum Error {
 
     #[error("Error getting partition: {0}")]
     GetPartitionsError(#[from] GetPartitionError),
+
+    #[error("Error dropping partition: {0}")]
+    DropPartitionError(#[from] DropPartitionError),
 
     #[error("Error listing partition chunks: {0}")]
     ListPartitionChunksError(#[from] ListPartitionChunksError),
@@ -124,6 +128,19 @@ struct UnloadChunk {
     chunk_id: u32,
 }
 
+/// Drop partition from memory and (if persisted) from object store.
+#[derive(Debug, StructOpt)]
+struct DropPartition {
+    /// The name of the database
+    db_name: String,
+
+    /// The partition key
+    partition_key: String,
+
+    /// The table name
+    table_name: String,
+}
+
 /// All possible subcommands for partition
 #[derive(Debug, StructOpt)]
 enum Command {
@@ -132,6 +149,9 @@ enum Command {
 
     /// Get details about a particular partition
     Get(Get),
+
+    /// Drop partition from memory and (if persisted) from object store.
+    Drop(DropPartition),
 
     /// List chunks in a partition
     ListChunks(ListChunks),
@@ -177,6 +197,18 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             let partition_detail = PartitionDetail { key };
 
             serde_json::to_writer_pretty(std::io::stdout(), &partition_detail)?;
+        }
+        Command::Drop(drop_partition) => {
+            let DropPartition {
+                db_name,
+                partition_key,
+                table_name,
+            } = drop_partition;
+
+            client
+                .drop_partition(db_name, table_name, partition_key)
+                .await?;
+            println!("Ok");
         }
         Command::ListChunks(list_chunks) => {
             let ListChunks {

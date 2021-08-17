@@ -73,6 +73,9 @@ service ManagementService {
 
   // Skip replay for given DB.
   rpc SkipReplay(SkipReplayRequest) returns (SkipReplayResponse);
+
+  // Drop partition from memory and (if persisted) from object store.
+  rpc DropPartition(DropPartitionRequest) returns (DropPartitionResponse);
 }
 
 message GetServerIdRequest {}
@@ -344,4 +347,20 @@ message SkipReplayRequest {
 }
 
 message SkipReplayResponse {
+}
+
+
+// Request to drop partition from memory and (if persisted) from object store.
+message DropPartitionRequest {
+  // the name of the database
+  string db_name = 1;
+
+  // the partition key
+  string partition_key = 2;
+
+  // the table name
+  string table_name = 3;
+}
+
+message DropPartitionResponse {
 }
