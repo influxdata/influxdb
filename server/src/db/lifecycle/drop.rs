@@ -96,7 +96,13 @@ pub fn drop_partition(
         partition: partition.addr().clone(),
     });
 
-    // get locks for all chunks
+    // Get locks for all chunks.
+    //
+    // Note that deadlocks cannot occur here for the following reasons:
+    //
+    // 1. We have a partition-level write lock (`partition`) at this point, so there can only be a single
+    //    `drop_partition` for the same partition at the same time.
+    // 2. `partition.chunks()` returns chunks ordered by their IDs, so the lock acquisition order is fixed.
     let lockable_chunks: Vec<_> = partition
         .chunks()
         .map(|chunk| LockableCatalogChunk {
