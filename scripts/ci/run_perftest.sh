@@ -37,7 +37,6 @@ cat << EOF > /etc/telegraf/telegraf.conf
   token = "${DB_TOKEN}"
   organization = "${CLOUD2_ORG}"
   bucket = "${CLOUD2_BUCKET}"
-
 [[inputs.file]]
   name_override = "ingest"
   files = ["$working_dir/test-ingest-*.json"]
@@ -58,7 +57,6 @@ cat << EOF > /etc/telegraf/telegraf.conf
     "use_case",
     "branch"
   ]
-
 [[inputs.file]]
   name_override = "query"
   files = ["$working_dir/test-query-*.json"]
