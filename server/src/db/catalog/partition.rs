@@ -48,7 +48,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct Partition {
     addr: PartitionAddr,
 
-    /// The chunks that make up this partition, indexed by id
+    /// The chunks that make up this partition, indexed by id. Stored
+    /// using BTreeMap to ensure consistent iteration order (by id)
     chunks: BTreeMap<u32, Arc<RwLock<CatalogChunk>>>,
 
     /// When this partition was created
@@ -256,19 +257,22 @@ impl Partition {
             .cloned()
     }
 
-    /// Return an immutable chunk reference by chunk id
+    /// Return an immutable chunk reference by chunk id.
     pub fn chunk(&self, chunk_id: u32) -> Option<&Arc<RwLock<CatalogChunk>>> {
         self.chunks.get(&chunk_id)
     }
 
     /// Return a iterator over chunks in this partition.
     ///
-    /// Chunks are ordered by chunk ID.
+    /// Note that chunks are guaranteed ordered by chunk ID.
     pub fn chunks(&self) -> impl Iterator<Item = &Arc<RwLock<CatalogChunk>>> {
         self.chunks.values()
     }
 
-    /// Return a iterator over chunks in this partition with their ids
+    /// Return a iterator over chunks in this partition with their
+    ///  ids.
+    ///
+    /// Note that chunks are guaranteed ordered by chunk ID.
     pub fn keyed_chunks(&self) -> impl Iterator<Item = (u32, &Arc<RwLock<CatalogChunk>>)> {
         self.chunks.iter().map(|(a, b)| (*a, b))
     }
@@ -319,5 +323,79 @@ impl Partition {
 impl Display for Partition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.addr.fmt(f)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use arrow::{array::TimestampNanosecondArray, record_batch::RecordBatch};
+    use internal_types::schema::builder::SchemaBuilder;
+    use metrics::MetricRegistry;
+    use read_buffer::{ChunkMetrics, RBChunk};
+
+    use crate::db::catalog::metrics::CatalogMetrics;
+
+    use super::*;
+    #[test]
+    fn chunks_are_returned_in_order() {
+        let addr = PartitionAddr {
+            db_name: "d".into(),
+            table_name: "t".into(),
+            partition_key: "p".into(),
+        };
+        let domain = MetricRegistry::default().register_domain("test");
+
+        let metrics = CatalogMetrics::new(domain)
+            .new_table_metrics("t")
+            .new_partition_metrics();
+
+        let domain = MetricRegistry::default().register_domain("test2");
+
+        let t = Utc::now();
+        let schema = SchemaBuilder::new().timestamp().build().unwrap();
+        let schema = Arc::new(schema);
+        let rb = RecordBatch::try_new(
+            schema.as_arrow(),
+            vec![Arc::new(TimestampNanosecondArray::from_iter_values([
+                10, 20, 30,
+            ]))],
+        )
+        .unwrap();
+
+        // Make three chunks
+        let mut partition = Partition::new(addr, metrics);
+        partition.create_rub_chunk(
+            RBChunk::new("t", rb.clone(), ChunkMetrics::new(&domain)),
+            t,
+            t,
+            Arc::clone(&schema),
+        );
+        partition.create_rub_chunk(
+            RBChunk::new("t", rb.clone(), ChunkMetrics::new(&domain)),
+            t,
+            t,
+            Arc::clone(&schema),
+        );
+        partition.create_rub_chunk(
+            RBChunk::new("t", rb, ChunkMetrics::new(&domain)),
+            t,
+            t,
+            Arc::clone(&schema),
+        );
+
+        // should be in ascending order
+        let expected_ids = vec![0, 1, 2];
+
+        let ids = partition
+            .chunks()
+            .map(|c| c.read().id())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, expected_ids);
+
+        let ids = partition
+            .keyed_chunks()
+            .map(|(id, _)| id)
+            .collect::<Vec<_>>();
+        assert_eq!(ids, expected_ids);
     }
 }
