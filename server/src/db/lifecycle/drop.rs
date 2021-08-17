@@ -104,7 +104,8 @@ pub fn drop_partition(
     // Note that deadlocks cannot occur here for the following reasons:
     //
     // 1. We have a partition-level write lock (`partition`) at this point, so there can only be a single
-    //    `drop_partition` for the same partition at the same time.
+    //    `drop_partition` within this critical section (it starts at the start of the method and ends where we drop the
+    //    locks) for the same partition at the same time.
     // 2. `partition.chunks()` returns chunks ordered by their IDs, so the lock acquisition order is fixed.
     let lockable_chunks: Vec<_> = partition
         .chunks()
@@ -154,6 +155,10 @@ pub fn drop_partition(
         .collect();
     let partition = partition.into_data().partition;
 
+    // Since after this point we don't have any locks, there might be a second `drop_partition` instance starting.
+    // However since we check for active lifecycle actions above, the second run might fail until the future (that is
+    // linked to the task registration) finishes (either succeeds or fails).
+
     let fut = async move {
         debug!(%table_name, %partition_key, "dropping partition");
 
@@ -179,6 +184,8 @@ pub fn drop_partition(
             transaction.commit().await.context(CommitError)?;
         }
 
+        // AFTER the transaction completes successfully (the involved IO might just fail), finally drop the chunks that
+        // we have marked using `chunk.set_dropping`.
         let mut partition = partition.write();
         for chunk in &chunks {
             let chunk_id = {
