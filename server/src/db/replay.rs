@@ -507,7 +507,8 @@ mod tests {
 
         /// Drop partitions.
         ///
-        /// Note that this only works for fully persisted partitions.
+        /// Note that this only works for fully persisted partitions if
+        /// the database is configured for persistence.
         ///
         /// The partitions are by table name and partition key.
         Drop(Vec<(&'static str, &'static str)>),
