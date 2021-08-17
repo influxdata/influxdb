@@ -29,6 +29,7 @@ pub fn drop_chunk(
     let table_name = partition.table_name().to_string();
     let partition_key = partition.key().to_string();
     let chunk_id = guard.id();
+    let lifecycle_persist = db.rules().lifecycle_rules.persist;
 
     let (tracker, registration) = db.jobs.register(Job::DropChunk {
         chunk: guard.addr().clone(),
@@ -36,8 +37,7 @@ pub fn drop_chunk(
 
     // check if we're dropping an unpersisted chunk in a persisted DB
     // See https://github.com/influxdata/influxdb_iox/issues/2291
-    if db.rules().lifecycle_rules.persist && !matches!(guard.stage(), ChunkStage::Persisted { .. })
-    {
+    if lifecycle_persist && !matches!(guard.stage(), ChunkStage::Persisted { .. }) {
         return CannotDropUnpersistedChunk {
             addr: guard.addr().clone(),
         }
@@ -60,6 +60,8 @@ pub fn drop_chunk(
             if let ChunkStage::Persisted { parquet, .. } = chunk_read.stage() {
                 let path: DirsAndFileName = parquet.path().into();
                 Some(path)
+            } else if lifecycle_persist {
+                unreachable!("Unpersisted chunks in a persisted DB should be ruled out before doing any work.")
             } else {
                 None
             }
@@ -91,6 +93,7 @@ pub fn drop_partition(
     let preserved_catalog = Arc::clone(&db.preserved_catalog);
     let table_name = partition.table_name().to_string();
     let partition_key = partition.key().to_string();
+    let lifecycle_persist = db.rules().lifecycle_rules.persist;
 
     let (tracker, registration) = db.jobs.register(Job::DropPartition {
         partition: partition.addr().clone(),
@@ -122,9 +125,7 @@ pub fn drop_partition(
     for guard in &guards {
         // check if we're dropping an unpersisted chunk in a persisted DB
         // See https://github.com/influxdata/influxdb_iox/issues/2291
-        if db.rules().lifecycle_rules.persist
-            && !matches!(guard.stage(), ChunkStage::Persisted { .. })
-        {
+        if lifecycle_persist && !matches!(guard.stage(), ChunkStage::Persisted { .. }) {
             return CannotDropUnpersistedChunk {
                 addr: guard.addr().clone(),
             }
@@ -164,6 +165,8 @@ pub fn drop_partition(
             if let ChunkStage::Persisted { parquet, .. } = chunk_read.stage() {
                 let path: DirsAndFileName = parquet.path().into();
                 paths.push(path);
+            } else if lifecycle_persist {
+                unreachable!("Unpersisted chunks in a persisted DB should be ruled out before doing any work.")
             }
         }
 
