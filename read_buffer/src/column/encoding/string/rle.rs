@@ -1040,7 +1040,7 @@ mod test {
         // * index row ids: (bitmaps) is (4 * 4) + (204b for bitmaps) == 220
         // * run lengths: (40 * 8) == 320
         //
-        assert_eq!(enc.size(true), 1594);
+        assert_eq!(enc.size(true), 1544);
     }
 
     #[test]
