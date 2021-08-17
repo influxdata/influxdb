@@ -301,8 +301,14 @@ impl std::fmt::Debug for Chunk {
     }
 }
 
+/// The collection of metrics exposed by the Read Buffer. Note: several of these
+/// be better represented as distributions, but the histogram story in IOx is not
+/// yet figured out.
 #[derive(Debug)]
 pub struct ChunkMetrics {
+    /// The total number of row groups in the chunk.
+    row_groups_total: Gauge,
+
     /// This metric tracks the total number of columns in read buffer.
     columns_total: Gauge,
 
@@ -328,6 +334,11 @@ pub struct ChunkMetrics {
 impl ChunkMetrics {
     pub fn new(domain: &metrics::Domain) -> Self {
         Self {
+            row_groups_total: domain.register_gauge_metric(
+                "row_group",
+                Some("total"),
+                "The number of row groups within the Read Buffer",
+            ),
             columns_total: domain.register_gauge_metric(
                 "column",
                 Some("total"),
@@ -362,6 +373,7 @@ impl ChunkMetrics {
     /// created on a metrics domain, and vice versa
     pub fn new_unregistered() -> Self {
         Self {
+            row_groups_total: Gauge::new_unregistered(),
             columns_total: Gauge::new_unregistered(),
             column_values_total: Gauge::new_unregistered(),
             column_allocated_bytes_total: Gauge::new_unregistered(),
@@ -372,6 +384,9 @@ impl ChunkMetrics {
 
     // Updates column storage statistics for the Read Buffer.
     fn update_column_storage_statistics(&mut self, statistics: &[Statistics]) {
+        // increase number of row groups in chunk.
+        self.row_groups_total.inc(1, &[]);
+
         for stat in statistics {
             let labels = &[
                 KeyValue::new("encoding", stat.enc_type.clone()),
@@ -718,11 +733,14 @@ mod test {
         r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
         r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 6"#,
         r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
+        "# HELP read_buffer_row_group_total The number of row groups within the Read Buffer",
+        "# TYPE read_buffer_row_group_total gauge",
+        r#"read_buffer_row_group_total{db="mydb"} 2"#,
         "",
-            ];
+        ];
 
-        for (actual_line, &expected_line) in actual_lines.zip(expected_lines.iter()) {
-            assert_eq!(actual_line, expected_line);
+        for (actual_line, &expected_line) in actual_lines.clone().zip(expected_lines.iter()) {
+            assert_eq!(actual_line, expected_line, "{:?}", actual_lines);
         }
 
         // when the chunk is dropped the metrics are all correctly decreased
@@ -775,7 +793,10 @@ mod test {
             r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
             r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 0"#,
             r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
-            "",
+            "# HELP read_buffer_row_group_total The number of row groups within the Read Buffer",
+            "# TYPE read_buffer_row_group_total gauge",
+            r#"read_buffer_row_group_total{db="mydb"} 0"#,
+        "",
         ];
 
         for (actual_line, &expected_line) in actual_lines.zip(expected_lines.iter()) {
