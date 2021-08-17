@@ -4283,6 +4283,7 @@ mod tests {
         let test_db = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
                 late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+                mub_row_threshold: NonZeroUsize::try_from(1).unwrap(),
                 persist: true,
                 ..Default::default()
             })
@@ -4291,8 +4292,12 @@ mod tests {
         let db = Arc::new(test_db.db);
 
         write_lp(db.as_ref(), "cpu bar=1 10").await;
+        write_lp(db.as_ref(), "cpu bar=2 20").await;
 
         let partition_key = "1970-01-01T00";
+
+        // two chunks created
+        assert_eq!(db.partition_chunk_summaries(partition_key).len(), 2);
 
         // We don't support dropping unpersisted chunks from a persisted DB because we would forget the write buffer
         // progress (partition checkpoints are only created when new parquet files are stored).
