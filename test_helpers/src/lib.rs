@@ -99,7 +99,7 @@ pub fn start_logging() {
         // Configure the logger to write to stderr and install it
         let output_stream = std::io::stderr;
 
-        use observability_deps::tracing_subscriber::{self, prelude::*, EnvFilter};
+        use tracing_subscriber::{prelude::*, EnvFilter};
 
         tracing_subscriber::registry()
             .with(EnvFilter::from_default_env())

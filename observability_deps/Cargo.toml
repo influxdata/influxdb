@@ -8,4 +8,3 @@ description = "Observability ecosystem dependencies for InfluxDB IOx, to ensure 
 [dependencies] # In alphabetical order
 opentelemetry = { version = "0.15", default-features = false, features = ["trace", "metrics", "rt-tokio"] }
 tracing = { version = "0.1", features = ["max_level_trace", "release_max_level_debug"] }
-tracing-subscriber = { version = "0.2", default-features = false, features = ["env-filter", "smallvec", "chrono", "parking_lot", "registry", "fmt", "ansi", "json"] }

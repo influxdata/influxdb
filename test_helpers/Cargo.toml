@@ -8,4 +8,5 @@ edition = "2018"
 dotenv = "0.15.0"
 parking_lot = "0.11.1"
 tempfile = "3.1.0"
+tracing-subscriber = "0.2"
 observability_deps = { path = "../observability_deps" }

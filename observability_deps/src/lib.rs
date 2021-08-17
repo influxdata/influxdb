@@ -6,4 +6,3 @@
 pub use opentelemetry;
 pub use tracing;
 pub use tracing::instrument;
-pub use tracing_subscriber;

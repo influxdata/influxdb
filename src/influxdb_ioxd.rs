@@ -229,7 +229,8 @@ async fn serve(
     .fuse();
     info!("HTTP server listening");
 
-    info!("InfluxDB IOx server ready");
+    // Purposefully use log not tokio-tracing to ensure correctly hooked up
+    log::info!("InfluxDB IOx server ready");
 
     // Get IOx background worker task
     let server_worker = app_server.join().fuse();

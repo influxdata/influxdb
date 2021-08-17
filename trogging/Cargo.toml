@@ -13,6 +13,8 @@ observability_deps = { path = "../observability_deps" }
 opentelemetry-jaeger = { version = "0.14", features = ["tokio"], optional = true }
 opentelemetry-otlp = { version = "0.8", optional = true }
 thiserror = "1.0.23"
+tracing-log = "0.1"
+tracing-subscriber = "0.2"
 tracing-opentelemetry = { version = "0.14", default-features = false }
 structopt = { version = "0.3.21", optional = true }
 

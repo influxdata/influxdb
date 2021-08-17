@@ -1,6 +1,7 @@
 mod flight_api;
 mod freeze;
 mod http;
+mod influxdb_ioxd;
 mod management_api;
 mod management_cli;
 mod metrics;

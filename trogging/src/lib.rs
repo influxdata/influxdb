@@ -18,23 +18,25 @@ pub mod layered_tracing;
 use crate::layered_tracing::{CloneableEnvFilter, FilteredLayer, UnionFilter};
 pub use config::*;
 
+// Re-export tracing_subscriber
+pub use tracing_subscriber;
+
 use observability_deps::{
     opentelemetry,
     opentelemetry::sdk::trace,
     opentelemetry::sdk::Resource,
     opentelemetry::KeyValue,
     tracing::{self, Subscriber},
-    tracing_subscriber::{
-        self,
-        fmt::{self, writer::BoxMakeWriter, MakeWriter},
-        layer::SubscriberExt,
-        EnvFilter, Layer,
-    },
 };
 use std::cmp::min;
 use std::io;
 use std::io::Write;
 use thiserror::Error;
+use tracing_subscriber::{
+    fmt::{self, writer::BoxMakeWriter, MakeWriter},
+    layer::SubscriberExt,
+    EnvFilter, Layer,
+};
 
 /// Maximum length of a log line.
 /// Space for a final trailing newline if truncated.
@@ -62,6 +64,9 @@ pub enum Error {
 
     #[error("Cannot set global tracing subscriber")]
     SetGlobalDefaultError(#[from] tracing::dispatcher::SetGlobalDefaultError),
+
+    #[error("Cannot set global log subscriber")]
+    SetLoggerError(#[from] tracing_log::log_tracer::SetLoggerError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -213,7 +218,7 @@ where
 
     /// Sets whether or not an event’s target and location are displayed.
     ///
-    /// Defaults to true. See [observability_deps::tracing_subscriber::fmt::Layer::with_target]
+    /// Defaults to true. See [tracing_subscriber::fmt::Layer::with_target]
     pub fn with_target(self, with_target: bool) -> Self {
         Self {
             with_target,
@@ -223,14 +228,14 @@ where
 
     /// Enable/disable ANSI encoding for formatted events (i.e. colors).
     ///
-    /// Defaults to true. See [observability_deps::tracing_subscriber::fmt::Layer::with_ansi]
+    /// Defaults to true. See [tracing_subscriber::fmt::Layer::with_ansi]
     pub fn with_ansi(self, with_ansi: bool) -> Self {
         Self { with_ansi, ..self }
     }
 
     /// Sets an optional event filter for the tracing pipeline.
     ///
-    /// The filter will be parsed with [observability_deps::tracing_subscriber::EnvFilter]
+    /// The filter will be parsed with [tracing_subscriber::EnvFilter]
     /// and applied to all events before they reach the tracing exporter.
     pub fn with_traces_filter(self, traces_filter: &Option<String>) -> Self {
         if let Some(traces_filter) = traces_filter {
@@ -457,6 +462,7 @@ where
     pub fn install_global(self) -> Result<TracingGuard> {
         let subscriber = self.build()?;
         tracing::subscriber::set_global_default(subscriber)?;
+        tracing_log::LogTracer::init()?;
         Ok(TracingGuard)
     }
 }
@@ -516,9 +522,9 @@ pub mod test_util {
     use super::*;
 
     use observability_deps::tracing::{self, debug, error, info, trace, warn};
-    use observability_deps::tracing_subscriber::fmt::MakeWriter;
     use std::sync::{Arc, Mutex};
     use synchronized_writer::SynchronizedWriter;
+    use tracing_subscriber::fmt::MakeWriter;
 
     /// Log writer suitable for using in tests.
     /// It captures log output in a buffer and provides ways to filter out

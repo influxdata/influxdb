@@ -1445,7 +1445,7 @@ dependencies = [
 [[package]]
 name = "heappy"
 version = "0.1.0"
-source = "git+https://github.com/mkmik/heappy?rev=39530c987aecda0b2d76503e8b5bb33d8a93f384#39530c987aecda0b2d76503e8b5bb33d8a93f384"
+source = "git+https://github.com/mkmik/heappy?rev=aed37ab50a70c3f0a7a8bd1c51d28d3d8050461f#aed37ab50a70c3f0a7a8bd1c51d28d3d8050461f"
 dependencies = [
  "backtrace",
  "bytes",
@@ -1692,6 +1692,7 @@ dependencies = [
  "internal_types",
  "itertools 0.10.1",
  "libc",
+ "log",
  "logfmt",
  "metrics",
  "mutable_buffer",
@@ -1987,6 +1988,7 @@ dependencies = [
  "once_cell",
  "parking_lot",
  "regex",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -2462,7 +2464,6 @@ version = "0.1.0"
 dependencies = [
  "opentelemetry",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -4295,6 +4296,7 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "tempfile",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -4767,6 +4769,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-log"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6923477a48e41c1951f1999ef8bb5a3023eb723ceadafe78ffb65dc366761e3"
+dependencies = [
+ "lazy_static",
+ "log",
+ "tracing-core",
+]
+
+[[package]]
 name = "tracing-opentelemetry"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4798,7 +4811,6 @@ dependencies = [
  "chrono",
  "lazy_static",
  "matchers",
- "parking_lot",
  "regex",
  "serde",
  "serde_json",
@@ -4807,6 +4819,7 @@ dependencies = [
  "thread_local",
  "tracing",
  "tracing-core",
+ "tracing-log",
  "tracing-serde",
 ]
 
@@ -4843,7 +4856,9 @@ dependencies = [
  "structopt",
  "synchronized-writer",
  "thiserror",
+ "tracing-log",
  "tracing-opentelemetry",
+ "tracing-subscriber",
 ]
 
 [[package]]

@@ -1,8 +1,8 @@
 ///! Common CLI flags for logging and tracing
 use crate::{config::*, Builder, Result, TracingGuard};
-use observability_deps::tracing_subscriber::fmt::{writer::BoxMakeWriter, MakeWriter};
 use std::num::NonZeroU16;
 use structopt::StructOpt;
+use tracing_subscriber::fmt::{writer::BoxMakeWriter, MakeWriter};
 
 /// CLI config for the logging related subset of options.
 #[derive(Debug, StructOpt, Clone)]
