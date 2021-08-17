@@ -261,7 +261,9 @@ impl Partition {
         self.chunks.get(&chunk_id)
     }
 
-    /// Return a iterator over chunks in this partition
+    /// Return a iterator over chunks in this partition.
+    ///
+    /// Chunks are ordered by chunk ID.
     pub fn chunks(&self) -> impl Iterator<Item = &Arc<RwLock<CatalogChunk>>> {
         self.chunks.values()
     }
