@@ -1273,12 +1273,11 @@ impl RowIDs {
 
     /// An estimation of the size in bytes needed to store `self`.
     pub fn size(&self) -> usize {
-        match self {
-            Self::Bitmap(bm) => std::mem::size_of::<Bitmap>() + bm.get_serialized_size_in_bytes(),
-            Self::Vector(v) => {
-                std::mem::size_of::<Vec<u32>>() + (std::mem::size_of::<u32>() * v.len())
+        std::mem::size_of::<Self>()
+            + match self {
+                Self::Bitmap(bm) => bm.get_serialized_size_in_bytes(),
+                Self::Vector(v) => std::mem::size_of::<u32>() * v.len(),
             }
-        }
     }
 
     /// Returns an iterator over the contents of the RowIDs.
