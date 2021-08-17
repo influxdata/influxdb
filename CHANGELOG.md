@@ -3,6 +3,7 @@
 
 ### Bug Fixes
 
+1. [22242](https://github.com/influxdata/influxdb/pull/22242): Preserve comments in flux queries when saving task definitions
 1. [22236](https://github.com/influxdata/influxdb/pull/22236): influxdb2 packages should depend on curl
 
 ## v2.0.8 [2021-08-13]

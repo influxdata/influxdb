@@ -413,7 +413,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	// Update task: just update an option.
 	newStatus = string(influxdb.TaskActive)
-	newFlux = "option task = {\n\tname: \"task-changed #98\",\n\tcron: \"* * * * *\",\n\toffset: 5s,\n\tconcurrency: 100,\n}\n\nfrom(bucket: \"b\")\n\t|> to(bucket: \"two\", orgID: \"000000000000000\")"
+	newFlux = "option task = {name: \"task-changed #98\", cron: \"* * * * *\", offset: 5s, concurrency: 100}\n\n// This comment should persist.\nfrom(bucket: \"b\")\n    |> to(bucket: \"two\", orgID: \"000000000000000\")"
 	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Options: options.Options{Name: "task-changed #98"}})
 	if err != nil {
 		t.Fatal(err)
@@ -428,7 +428,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	// Update task: switch to every.
 	newStatus = string(influxdb.TaskActive)
-	newFlux = "option task = {\n\tname: \"task-changed #98\",\n\tevery: 30s,\n\toffset: 5s,\n\tconcurrency: 100,\n}\n\nfrom(bucket: \"b\")\n\t|> to(bucket: \"two\", orgID: \"000000000000000\")"
+	newFlux = "option task = {name: \"task-changed #98\", every: 30s, offset: 5s, concurrency: 100}\n\n// This comment should persist.\nfrom(bucket: \"b\")\n    |> to(bucket: \"two\", orgID: \"000000000000000\")"
 	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Options: options.Options{Every: *(options.MustParseDuration("30s"))}})
 	if err != nil {
 		t.Fatal(err)
@@ -495,15 +495,10 @@ func testTaskCRUD(t *testing.T, sys *System) {
 }
 
 func testTaskFindTasksPaging(t *testing.T, sys *System) {
-	script := `option task = {
-	name: "Task %03d",
-	cron: "* * * * *",
-	concurrency: 100,
-	offset: 10s,
-}
+	script := `option task = {name: "Task %03d", cron: "* * * * *", concurrency: 100, offset: 10s}
 
-from(bucket: "b")
-	|> to(bucket: "two", orgID: "000000000000000")`
+from(bucket: "b") 
+    |> to(bucket: "two", orgID: "000000000000000")`
 
 	cr := creds(t, sys)
 
@@ -552,15 +547,10 @@ from(bucket: "b")
 
 func testTaskFindTasksAfterPaging(t *testing.T, sys *System) {
 	var (
-		script = `option task = {
-	name: "some-unique-task-name",
-	cron: "* * * * *",
-	concurrency: 100,
-	offset: 10s,
-}
+		script = `option task = {name: "some-unique-task-name", cron: "* * * * *", concurrency: 100, offset: 10s}
 
 from(bucket: "b")
-	|> to(bucket: "two", orgID: "000000000000000")`
+    |> to(bucket: "two", orgID: "000000000000000")`
 		cr = creds(t, sys)
 		tc = influxdb.TaskCreate{
 			OrganizationID: cr.OrgID,
@@ -634,15 +624,10 @@ from(bucket: "b")
 //Retrieve the task again to ensure the options are now Every, without Cron or Offset
 func testTaskOptionsUpdateFull(t *testing.T, sys *System) {
 
-	script := `option task = {
-	name: "task-Options-Update",
-	cron: "* * * * *",
-	concurrency: 100,
-	offset: 10s,
-}
+	script := `option task = {name: "task-Options-Update", cron: "* * * * *", concurrency: 100, offset: 10s}
 
 from(bucket: "b")
-	|> to(bucket: "two", orgID: "000000000000000")`
+    |> to(bucket: "two", orgID: "000000000000000")`
 
 	cr := creds(t, sys)
 
@@ -660,7 +645,7 @@ from(bucket: "b")
 		expectedFlux := `option task = {name: "task-Options-Update", every: 10s, concurrency: 100}
 
 from(bucket: "b")
-	|> to(bucket: "two", orgID: "000000000000000")`
+    |> to(bucket: "two", orgID: "000000000000000")`
 		f, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{Options: options.Options{Offset: &options.Duration{}, Every: *(options.MustParseDuration("10s"))}})
 		if err != nil {
 			t.Fatal(err)
@@ -675,15 +660,10 @@ from(bucket: "b")
 		}
 	})
 	t.Run("update task with different offset option", func(t *testing.T) {
-		expectedFlux := `option task = {
-	name: "task-Options-Update",
-	every: 10s,
-	concurrency: 100,
-	offset: 10s,
-}
+		expectedFlux := `option task = {name: "task-Options-Update", every: 10s, concurrency: 100, offset: 10s}
 
 from(bucket: "b")
-	|> to(bucket: "two", orgID: "000000000000000")`
+    |> to(bucket: "two", orgID: "000000000000000")`
 		f, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{Options: options.Options{Offset: options.MustParseDuration("10s")}})
 		if err != nil {
 			t.Fatal(err)
@@ -697,14 +677,10 @@ from(bucket: "b")
 			t.Fatalf("flux unexpected updated: %s", diff)
 		}
 
-		withoutOffset := `option task = {
-	name: "task-Options-Update",
-	every: 10s,
-	concurrency: 100,
-}
+		withoutOffset := `option task = {name: "task-Options-Update", every: 10s, concurrency: 100}
 
 from(bucket: "b")
-	|> to(bucket: "two", orgID: "000000000000000")`
+    |> to(bucket: "two", orgID: "000000000000000")`
 		fNoOffset, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{Flux: &withoutOffset})
 		if err != nil {
 			t.Fatal(err)
@@ -1802,25 +1778,17 @@ func creds(t *testing.T, s *System) TestCreds {
 }
 
 const (
-	scriptFmt = `option task = {
-	name: "task #%d",
-	cron: "* * * * *",
-	offset: 5s,
-	concurrency: 100,
-}
+	scriptFmt = `option task = {name: "task #%d", cron: "* * * * *", offset: 5s, concurrency: 100}
 
+// This comment should persist.
 from(bucket: "b")
-	|> to(bucket: "two", orgID: "000000000000000")`
+    |> to(bucket: "two", orgID: "000000000000000")`
 
-	scriptDifferentName = `option task = {
-	name: "task-changed #%d",
-	cron: "* * * * *",
-	offset: 5s,
-	concurrency: 100,
-}
+	scriptDifferentName = `option task = {name: "task-changed #%d", cron: "* * * * *", offset: 5s, concurrency: 100}
 
+// This comment should persist.
 from(bucket: "b")
-	|> to(bucket: "two", orgID: "000000000000000")`
+    |> to(bucket: "two", orgID: "000000000000000")`
 )
 
 func testTaskType(t *testing.T, sys *System) {

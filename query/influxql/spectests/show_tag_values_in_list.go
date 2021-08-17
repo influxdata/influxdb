@@ -6,9 +6,7 @@ func init() {
 			`SHOW TAG VALUES ON "db0" WITH KEY IN ("host", "region")`,
 			`package main
 
-from(bucketID: "")
-	|> range(start: -1h)
-	|> keyValues(keyColumns: ["host", "region"])
+from(bucketID: "") |> range(start: -1h) |> keyValues(keyColumns: ["host", "region"])
 	|> group(columns: ["_measurement", "_key"], mode: "by")
 	|> distinct()
 	|> group(columns: ["_measurement"], mode: "by")

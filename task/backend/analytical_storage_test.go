@@ -115,7 +115,7 @@ func TestDeduplicateRuns(t *testing.T) {
 		},
 		FindRunsFn: func(context.Context, influxdb.RunFilter) ([]*influxdb.Run, int, error) {
 			return []*influxdb.Run{
-				&influxdb.Run{ID: 2, Status: "started"},
+				{ID: 2, Status: "started"},
 			}, 1, nil
 		},
 	}

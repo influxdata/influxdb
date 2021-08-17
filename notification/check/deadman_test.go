@@ -7,6 +7,8 @@ import (
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDeadman_GenerateFlux(t *testing.T) {
@@ -58,31 +60,20 @@ func TestDeadman_GenerateFlux(t *testing.T) {
 				},
 			},
 			wants: wants{
-				script: `package main
-import "influxdata/influxdb/monitor"
+				script: `import "influxdata/influxdb/monitor"
 import "experimental"
 import "influxdata/influxdb/v1"
 
-data = from(bucket: "foo")
-	|> range(start: -10m)
+data = from(bucket: "foo") |> range(start: -10m)
 
 option task = {name: "moo", every: 1h}
 
-check = {
-	_check_id: "000000000000000a",
-	_check_name: "moo",
-	_type: "deadman",
-	tags: {aaa: "vaaa", bbb: "vbbb"},
-}
-info = (r) =>
-	(r["dead"])
-messageFn = (r) =>
-	("whoa! {r[\"dead\"]}")
+check = {_check_id: "000000000000000a", _check_name: "moo", _type: "deadman", tags: {aaa: "vaaa", bbb: "vbbb"}}
+info = (r) => r["dead"]
+messageFn = (r) => "whoa! {r[\"dead\"]}"
 
-data
-	|> v1["fieldsAsCols"]()
-	|> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
-	|> monitor["check"](data: check, messageFn: messageFn, info: info)`,
+data |> v1["fieldsAsCols"]() |> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
+    |> monitor["check"](data: check, messageFn: messageFn, info: info)`,
 			},
 		},
 		{
@@ -121,31 +112,20 @@ data
 				},
 			},
 			wants: wants{
-				script: `package main
-import "influxdata/influxdb/monitor"
+				script: `import "influxdata/influxdb/monitor"
 import "experimental"
 import "influxdata/influxdb/v1"
 
-data = from(bucket: "foo")
-	|> range(start: -10m)
+data = from(bucket: "foo") |> range(start: -10m)
 
 option task = {name: "moo", every: 1h}
 
-check = {
-	_check_id: "000000000000000a",
-	_check_name: "moo",
-	_type: "deadman",
-	tags: {aaa: "vaaa", bbb: "vbbb"},
-}
-info = (r) =>
-	(r["dead"])
-messageFn = (r) =>
-	("whoa! {r[\"dead\"]}")
+check = {_check_id: "000000000000000a", _check_name: "moo", _type: "deadman", tags: {aaa: "vaaa", bbb: "vbbb"}}
+info = (r) => r["dead"]
+messageFn = (r) => "whoa! {r[\"dead\"]}"
 
-data
-	|> v1["fieldsAsCols"]()
-	|> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
-	|> monitor["check"](data: check, messageFn: messageFn, info: info)`,
+data |> v1["fieldsAsCols"]() |> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
+    |> monitor["check"](data: check, messageFn: messageFn, info: info)`,
 			},
 		},
 		{
@@ -184,33 +164,20 @@ data
 				},
 			},
 			wants: wants{
-				script: `package main
-import "influxdata/influxdb/monitor"
+				script: `import "influxdata/influxdb/monitor"
 import "experimental"
 import "influxdata/influxdb/v1"
 
-data = from(bucket: "foo")
-	|> range(start: -10m)
-	|> filter(fn: (r) =>
-		(r._field == "usage user"))
+data = from(bucket: "foo") |> range(start: -10m) |> filter(fn: (r) => r._field == "usage user")
 
 option task = {name: "moo", every: 1h}
 
-check = {
-	_check_id: "000000000000000a",
-	_check_name: "moo",
-	_type: "deadman",
-	tags: {aaa: "vaaa", bbb: "vbbb"},
-}
-info = (r) =>
-	(r["dead"])
-messageFn = (r) =>
-	("whoa! {r[\"dead\"]}")
+check = {_check_id: "000000000000000a", _check_name: "moo", _type: "deadman", tags: {aaa: "vaaa", bbb: "vbbb"}}
+info = (r) => r["dead"]
+messageFn = (r) => "whoa! {r[\"dead\"]}"
 
-data
-	|> v1["fieldsAsCols"]()
-	|> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
-	|> monitor["check"](data: check, messageFn: messageFn, info: info)`,
+data |> v1["fieldsAsCols"]() |> monitor["deadman"](t: experimental["subDuration"](from: now(), d: 60s))
+    |> monitor["check"](data: check, messageFn: messageFn, info: info)`,
 			},
 		},
 	}
@@ -218,13 +185,8 @@ data
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s, err := tt.args.deadman.GenerateFlux(fluxlang.DefaultService)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			if exp, got := tt.wants.script, s; exp != got {
-				t.Errorf("expected:\n%v\n\ngot:\n%v\n", exp, got)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wants.script, s)
 		})
 	}
 
