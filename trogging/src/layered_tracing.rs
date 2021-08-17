@@ -1,16 +1,14 @@
 use observability_deps::tracing::Metadata;
-use observability_deps::tracing_subscriber::EnvFilter;
-use observability_deps::{
-    tracing::{
-        event::Event,
-        span::{Attributes, Id, Record},
-        subscriber::Subscriber,
-    },
-    tracing_subscriber::layer::{Context, Layer},
+use observability_deps::tracing::{
+    event::Event,
+    span::{Attributes, Id, Record},
+    subscriber::Subscriber,
 };
 use std::fmt::Formatter;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use tracing_subscriber::layer::{Context, Layer};
+use tracing_subscriber::EnvFilter;
 
 /// A FilteredLayer wraps a tracing subscriber Layer and passes events only
 /// if the provided EnvFilter accepts the event.
@@ -102,7 +100,7 @@ where
 /// Unfortunately the [`EnvFilter`][envfilter] doesn't implement [`Clone`].
 /// See [`CloneableEnvFilter`] for a workaround.
 ///
-/// [envfilter]: observability_deps::tracing_subscriber::EnvFilter
+/// [envfilter]: tracing_subscriber::EnvFilter
 /// [option]: std::option::Option
 pub struct UnionFilter<S>
 where
@@ -175,12 +173,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use observability_deps::{
-        tracing::{self, debug, error, info},
-        tracing_subscriber::{self, fmt, layer::SubscriberExt, EnvFilter},
-    };
+    use observability_deps::tracing::{self, debug, error, info};
     use std::sync::{Arc, Mutex};
     use synchronized_writer::SynchronizedWriter;
+    use tracing_subscriber::{self, fmt, layer::SubscriberExt, EnvFilter};
 
     // capture_two_streams is a test helper that sets up two independent tracing subscribers, each with
     // a different filtering level and returns a tuple of the emitted lines for the respective streams.

@@ -1,16 +1,14 @@
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 
-use observability_deps::{
-    tracing::{
-        self,
-        field::{Field, Visit},
-        subscriber::Interest,
-        Id, Level, Subscriber,
-    },
-    tracing_subscriber::{fmt::MakeWriter, layer::Context, registry::LookupSpan, Layer},
+use observability_deps::tracing::{
+    self,
+    field::{Field, Visit},
+    subscriber::Interest,
+    Id, Level, Subscriber,
 };
 use std::borrow::Cow;
 use std::{io::Write, time::SystemTime};
+use tracing_subscriber::{fmt::MakeWriter, layer::Context, registry::LookupSpan, Layer};
 
 /// Implements a `tracing_subscriber::Layer` which generates
 /// [logfmt] formatted log entries, suitable for log ingestion
@@ -36,7 +34,7 @@ impl<W: MakeWriter> LogFmtLayer<W> {
     /// For example:
     /// ```
     ///  use logfmt::LogFmtLayer;
-    ///  use observability_deps::tracing_subscriber::{EnvFilter, prelude::*, self};
+    ///  use tracing_subscriber::{EnvFilter, prelude::*, self};
     ///
     ///  // setup debug logging level
     ///  std::env::set_var("RUST_LOG", "debug");

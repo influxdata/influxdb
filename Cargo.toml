@@ -95,6 +95,7 @@ futures = "0.3"
 http = "0.2.0"
 hyper = "0.14"
 libc = { version = "0.2" }
+log = "0.4"
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
 parking_lot = "0.11.1"
 itertools = "0.10.1"

@@ -2,11 +2,12 @@
 name = "logfmt"
 version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
-description="tracing_subscriber layer for writing out logfmt formatted events"
+description = "tracing_subscriber layer for writing out logfmt formatted events"
 edition = "2018"
 
 [dependencies] # In alphabetical order
 observability_deps = { path = "../observability_deps" }
+tracing-subscriber = "0.2"
 
 [dev-dependencies] # In alphabetical order
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
