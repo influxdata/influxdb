@@ -328,7 +328,7 @@ pub enum DropPartitionError {
     #[error("Server unavailable: {}", .0.message())]
     Unavailable(tonic::Status),
 
-    /// Server indicated that it is not (yet) available
+    /// Server indicated some other action was active for this partition
     #[error("Cannot perform operation due to wrong chunk lifecycle state: {}", .0.message())]
     LifecycleError(tonic::Status),
 
