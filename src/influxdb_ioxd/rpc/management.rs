@@ -484,6 +484,30 @@ where
 
         Ok(Response::new(SkipReplayResponse {}))
     }
+
+    async fn drop_partition(
+        &self,
+        request: tonic::Request<DropPartitionRequest>,
+    ) -> Result<tonic::Response<DropPartitionResponse>, tonic::Status> {
+        let DropPartitionRequest {
+            db_name,
+            partition_key,
+            table_name,
+        } = request.into_inner();
+
+        // Validate that the database name is legit
+        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db = self
+            .server
+            .db(&db_name)
+            .map_err(default_server_error_handler)?;
+
+        db.drop_partition(&table_name, &partition_key)
+            .await
+            .map_err(default_db_error_handler)?;
+
+        Ok(Response::new(DropPartitionResponse {}))
+    }
 }
 
 pub fn make_server<M>(

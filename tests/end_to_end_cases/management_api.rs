@@ -1126,3 +1126,103 @@ async fn test_chunk_access_time() {
     assert!(t2 < t3, "{} {}", t2, t3);
     assert_eq!(t3, t4)
 }
+
+#[tokio::test]
+async fn test_drop_partition() {
+    use data_types::chunk_metadata::ChunkStorage;
+
+    let fixture = ServerFixture::create_shared().await;
+    let mut write_client = fixture.write_client();
+    let mut management_client = fixture.management_client();
+
+    let db_name = rand_name();
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        .persist_age_threshold_seconds(1)
+        .late_arrive_window_seconds(1)
+        .build(fixture.grpc_channel())
+        .await;
+
+    let lp_lines: Vec<_> = (0..1_000)
+        .map(|i| format!("data,tag1=val{} x={} {}", i, i * 10, i))
+        .collect();
+
+    let num_lines_written = write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("successful write");
+    assert_eq!(num_lines_written, 1000);
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::ReadBufferAndObjectStore],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    let partition_key = &chunks[0].partition_key;
+
+    management_client
+        .drop_partition(&db_name, "data", &partition_key[..])
+        .await
+        .unwrap();
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 0);
+}
+
+#[tokio::test]
+async fn test_drop_partition_error() {
+    use data_types::chunk_metadata::ChunkStorage;
+
+    let fixture = ServerFixture::create_shared().await;
+    let mut write_client = fixture.write_client();
+    let mut management_client = fixture.management_client();
+
+    let db_name = rand_name();
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        .persist_age_threshold_seconds(1_000)
+        .late_arrive_window_seconds(1_000)
+        .build(fixture.grpc_channel())
+        .await;
+
+    let lp_lines: Vec<_> = (0..1_000)
+        .map(|i| format!("data,tag1=val{} x={} {}", i, i * 10, i))
+        .collect();
+
+    let num_lines_written = write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("successful write");
+    assert_eq!(num_lines_written, 1000);
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::OpenMutableBuffer],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    let partition_key = &chunks[0].partition_key;
+
+    let err = management_client
+        .drop_partition(&db_name, "data", &partition_key[..])
+        .await
+        .unwrap_err();
+    assert_contains!(err.to_string(), "Cannot drop unpersisted chunk");
+}
