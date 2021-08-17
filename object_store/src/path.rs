@@ -27,8 +27,6 @@ pub const DELIMITER: &str = "/";
 ///
 /// It allows IOx to be completely decoupled from the underlying object store
 /// implementations.
-///
-/// Deliberately does not implement `Display` or `ToString`!
 pub trait ObjectStorePath:
     std::fmt::Debug + Clone + PartialEq + Eq + Send + Sync + 'static
 {
