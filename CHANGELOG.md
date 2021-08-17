@@ -3,7 +3,7 @@
 
 ### Bug Fixes
 
-1. [22186](https://github.com/influxdata/influxdb/pull/22186): Preserve comments in flux queries when saving task definitions
+1. [22242](https://github.com/influxdata/influxdb/pull/22242): Preserve comments in flux queries when saving task definitions
 
 ## v2.0.8 [2021-08-13]
 ----------------------
