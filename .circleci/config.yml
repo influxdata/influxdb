@@ -31,10 +31,10 @@ commands:
       - run:
           name: Verify installed components
           command: |
-              rustup --version
-              rustup show
-              cargo fmt --version
-              cargo clippy --version
+            rustup --version
+            rustup show
+            cargo fmt --version
+            cargo clippy --version
 
   cache_restore:
     description: Restore Cargo Cache
@@ -59,11 +59,11 @@ jobs:
     docker:
       - image: quay.io/influxdb/rust:ci
     environment:
-        # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-        CARGO_INCREMENTAL: "0"
-        # Disable full debug symbol generation to speed up CI build
-        # "1" means line tables only, which is useful for panic tracebacks.
-        RUSTFLAGS: "-C debuginfo=1"
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
       - rust_components
@@ -76,11 +76,11 @@ jobs:
     docker:
       - image: quay.io/influxdb/rust:ci
     environment:
-        # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-        CARGO_INCREMENTAL: "0"
-        # Disable full debug symbol generation to speed up CI build
-        # "1" means line tables only, which is useful for panic tracebacks.
-        RUSTFLAGS: "-C debuginfo=1"
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
       - rust_components
@@ -93,11 +93,11 @@ jobs:
     docker:
       - image: quay.io/influxdb/rust:ci
     environment:
-        # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-        CARGO_INCREMENTAL: "0"
-        # Disable full debug symbol generation to speed up CI build
-        # "1" means line tables only, which is useful for panic tracebacks.
-        RUSTFLAGS: "-C debuginfo=1"
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
       - rust_components
@@ -116,12 +116,12 @@ jobs:
       - image: quay.io/influxdb/rust:ci
     resource_class: xlarge # use of a smaller executor tends crashes on link
     environment:
-        # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-        CARGO_INCREMENTAL: "0"
-        # Disable full debug symbol generation to speed up CI build
-        # "1" means line tables only, which is useful for panic tracebacks.
-        RUSTFLAGS: "-C debuginfo=1"
-        RUST_BACKTRACE: "1"
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      RUSTFLAGS: "-C debuginfo=1"
+      RUST_BACKTRACE: "1"
     steps:
       - checkout
       - rust_components
@@ -137,12 +137,12 @@ jobs:
       - image: quay.io/influxdb/rust:ci
     resource_class: xlarge # use of a smaller executor tends crashes on link
     environment:
-        # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-        CARGO_INCREMENTAL: "0"
-        # Disable full debug symbol generation to speed up CI build
-        # "1" means line tables only, which is useful for panic tracebacks.
-        RUSTFLAGS: "-C debuginfo=1"
-        RUST_BACKTRACE: "1"
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      RUSTFLAGS: "-C debuginfo=1"
+      RUST_BACKTRACE: "1"
     steps:
       - checkout
       - rust_components
@@ -156,12 +156,12 @@ jobs:
     machine: true
     resource_class: xlarge
     environment:
-        # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-        CARGO_INCREMENTAL: "0"
-        # Disable full debug symbol generation to speed up CI build
-        # "1" means line tables only, which is useful for panic tracebacks.
-        RUSTFLAGS: "-C debuginfo=1"
-        RUST_BACKTRACE: "1"
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      RUSTFLAGS: "-C debuginfo=1"
+      RUST_BACKTRACE: "1"
     steps:
       - checkout
       - run:
@@ -173,12 +173,12 @@ jobs:
     docker:
       - image: quay.io/influxdb/rust:ci
     environment:
-        # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-        CARGO_INCREMENTAL: "0"
-        # Disable full debug symbol generation to speed up CI build
-        # "1" means line tables only, which is useful for panic tracebacks.
-        RUSTFLAGS: "-C debuginfo=1"
-        RUST_BACKTRACE: "1"
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      RUSTFLAGS: "-C debuginfo=1"
+      RUST_BACKTRACE: "1"
     steps:
       - checkout
       - rust_components
@@ -197,11 +197,11 @@ jobs:
       - image: quay.io/influxdb/rust:ci
     resource_class: xlarge # use of a smaller executor tends crashes on link
     environment:
-        # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-        CARGO_INCREMENTAL: "0"
-        # Disable full debug symbol generation to speed up CI build
-        # "1" means line tables only, which is useful for panic tracebacks.
-        RUSTFLAGS: "-C debuginfo=1"
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
       - rust_components
@@ -259,14 +259,14 @@ jobs:
       - image: quay.io/influxdb/rust:ci
     resource_class: xlarge # use of a smaller executor tends crashes on link
     environment:
-        # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-        CARGO_INCREMENTAL: "0"
-        # We keep the debug symbols (Enabled in Cargo.toml as debug = true)
-        # workaround dynamic CPU detection bug in croaring
-        # https://github.com/influxdata/influxdb_iox/pull/2119
-        ROARING_ARCH: "haswell"
-        # Use avx512 instructions to take full advantage of the CPUs instruction set
-        RUSTFLAGS: "-C target-feature=+avx2"
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # We keep the debug symbols (Enabled in Cargo.toml as debug = true)
+      # workaround dynamic CPU detection bug in croaring
+      # https://github.com/influxdata/influxdb_iox/pull/2119
+      ROARING_ARCH: "haswell"
+      # Use avx512 instructions to take full advantage of the CPUs instruction set
+      RUSTFLAGS: "-C target-feature=+avx2"
     steps:
       - checkout
       - rust_components
@@ -286,11 +286,20 @@ jobs:
           # Disabling for now, and tracked further investigations
           # in https://github.com/influxdata/k8s-idpe/issues/3038
           docker_layer_caching: false
+          version: 19.03.14
       - run: |
           sudo apt-get update
           sudo apt-get install -y docker.io
       - run: |
           echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
+      - run:
+          # Docker has functionality to support per-Dockerfile .dockerignore
+          # This was added in https://github.com/moby/buildkit/pull/901
+          # And included in 19.03 - https://docs.docker.com/engine/release-notes/19.03/#19030
+          # Unfortunately CircleCI only seems to understand a root-level .dockerignore
+          # So we need to move it into position for it to not send ~10GB of build context
+          name: Fudge CircleCI Docker Context
+          command: mv docker/Dockerfile.iox.dockerignore .dockerignore
       - run: |
           BRANCH=$(git rev-parse --abbrev-ref HEAD | tr '/' '.')
           echo sha256sum after build is
