@@ -121,14 +121,14 @@ func (h *RemoteConnectionHandler) handlePostRemote(w http.ResponseWriter, r *htt
 	ctx := r.Context()
 	q := r.URL.Query()
 
-	dryRun := q.Get("dryRun") == "true"
+	validate := q.Get("validate") == "true"
 	var req influxdb.CreateRemoteConnectionRequest
 	if err := h.api.DecodeJSON(r.Body, &req); err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	if dryRun {
+	if validate {
 		if err := h.remotesService.ValidateNewRemoteConnection(ctx, req); err != nil {
 			h.api.Err(w, r, err)
 			return
@@ -170,14 +170,14 @@ func (h *RemoteConnectionHandler) handlePatchRemote(w http.ResponseWriter, r *ht
 	ctx := r.Context()
 	q := r.URL.Query()
 
-	dryRun := q.Get("dryRun") == "true"
+	validate := q.Get("validate") == "true"
 	var req influxdb.UpdateRemoteConnectionRequest
 	if err := h.api.DecodeJSON(r.Body, &req); err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	if dryRun {
+	if validate {
 		if err := h.remotesService.ValidateUpdatedRemoteConnection(ctx, *id, req); err != nil {
 			h.api.Err(w, r, err)
 			return

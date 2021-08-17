@@ -104,7 +104,7 @@ func TestRemoteConnectionHandler(t *testing.T) {
 
 		req := newTestRequest(t, "POST", ts.URL, &body)
 		q := req.URL.Query()
-		q.Add("dryRun", "true")
+		q.Add("validate", "true")
 		req.URL.RawQuery = q.Encode()
 
 		svc.EXPECT().ValidateNewRemoteConnection(gomock.Any(), body).Return(nil)
@@ -165,7 +165,7 @@ func TestRemoteConnectionHandler(t *testing.T) {
 
 		req := newTestRequest(t, "PATCH", ts.URL+"/"+id.String(), &body)
 		q := req.URL.Query()
-		q.Add("dryRun", "true")
+		q.Add("validate", "true")
 		req.URL.RawQuery = q.Encode()
 
 		svc.EXPECT().ValidateUpdatedRemoteConnection(gomock.Any(), *id, body).Return(nil)
