@@ -215,9 +215,10 @@ impl FromStr for JaegerCtx {
 
         let trace_id = trace_id.parse()?;
         let span_id = span_id.parse()?;
-        let parent_span_id = match parent_span_id {
-            "0" => None,
-            _ => Some(parent_span_id.parse()?),
+        let parent_span_id = match parent_span_id.parse() {
+            Ok(span_id) => Some(span_id),
+            Err(DecodeError::ZeroError) => None,
+            Err(e) => return Err(e),
         };
         let flags = u8::from_str_radix(flags, 16)?;
 
@@ -428,5 +429,18 @@ mod tests {
                 .to_string(),
             "error decoding header 'uber-trace-id': value cannot be 0"
         );
+
+        headers.insert(
+            JAEGER_TRACE_HEADER,
+            HeaderValue::from_static("008e813572f53b3a:008e813572f53b3a:0000000000000000:1"),
+        );
+
+        let span = SpanContext::from_headers(&collector, &headers)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(span.trace_id.0.get(), 0x008e813572f53b3a);
+        assert_eq!(span.span_id.0.get(), 0x008e813572f53b3a);
+        assert!(span.parent_span_id.is_none());
     }
 }
