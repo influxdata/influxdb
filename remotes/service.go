@@ -11,7 +11,6 @@ import (
 	ierrors "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/sqlite"
-	"go.uber.org/zap"
 )
 
 var (
@@ -29,10 +28,9 @@ type RemoteConnectionValidator interface {
 	ValidateRemoteConnectionHTTPConfig(context.Context, *influxdb.RemoteConnectionHTTPConfig) error
 }
 
-func NewService(logger *zap.Logger, store *sqlite.SqlStore) *service {
+func NewService(store *sqlite.SqlStore) *service {
 	return &service{
 		store:       store,
-		log:         logger,
 		idGenerator: snowflake.NewIDGenerator(),
 		validator:   &stubValidator{},
 	}
@@ -40,7 +38,6 @@ func NewService(logger *zap.Logger, store *sqlite.SqlStore) *service {
 
 type service struct {
 	store       *sqlite.SqlStore
-	log         *zap.Logger
 	idGenerator platform.IDGenerator
 	validator   RemoteConnectionValidator
 }

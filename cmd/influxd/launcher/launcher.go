@@ -959,13 +959,13 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		authorizer.NewAnnotationService(annotationSvc),
 	)
 
-	remotesSvc := remotes.NewService(
-		m.log.With(zap.String("service", "remotes")),
-		m.sqlStore,
-	)
+	remotesSvc := remotes.NewService(m.sqlStore)
 	remotesServer := remotesTransport.NewRemoteConnectionHandler(
 		m.log.With(zap.String("handler", "remotes")),
-		remotesSvc,
+		remotes.NewLoggingService(
+			m.log.With(zap.String("service", "remotes")),
+			remotes.NewMetricCollectingService(m.reg, remotesSvc),
+		),
 	)
 
 	platformHandler := http.NewPlatformHandler(
