@@ -778,7 +778,7 @@ async fn pprof_home<M: ConnectionManager + Send + Sync + Debug + 'static>(
     );
     let allocs_cmd = format!(
         "/debug/pprof/allocs?seconds={}",
-        PProfArgs::default_seconds()
+        PProfAllocsArgs::default_seconds()
     );
     Ok(Response::new(Body::from(format!(
         r#"<a href="{}">http://{}{}</a><br><a href="{}">http://{}{}</a>"#,
@@ -818,6 +818,30 @@ impl PProfArgs {
     // 99Hz to avoid coinciding with special periods
     fn default_frequency() -> NonZeroI32 {
         NonZeroI32::new(99).unwrap()
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct PProfAllocsArgs {
+    #[serde(default = "PProfAllocsArgs::default_seconds")]
+    seconds: u64,
+    // The sampling interval is a number of bytes that have to cumulatively allocated for a sample to be taken.
+    //
+    // For example if the sampling interval is 99, and you're doing a million of 40 bytes allocations,
+    // the allocations profile will account for 16MB instead of 40MB.
+    // Heappy will adjust the estimate for sampled recordings, but now that feature is not yet implemented.
+    #[serde(default = "PProfAllocsArgs::default_interval")]
+    interval: NonZeroI32,
+}
+
+impl PProfAllocsArgs {
+    fn default_seconds() -> u64 {
+        30
+    }
+
+    // 1 means: sample every allocation.
+    fn default_interval() -> NonZeroI32 {
+        NonZeroI32::new(1).unwrap()
     }
 }
 
@@ -863,10 +887,10 @@ async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'stat
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
     let query_string = req.uri().query().unwrap_or_default();
-    let query: PProfArgs =
+    let query: PProfAllocsArgs =
         serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
 
-    let report = self::heappy::dump_heappy_rsprof(query.seconds, query.frequency.get()).await;
+    let report = self::heappy::dump_heappy_rsprof(query.seconds, query.interval.get()).await;
 
     let mut body: Vec<u8> = Vec::new();
 
