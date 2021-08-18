@@ -964,7 +964,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		m.log.With(zap.String("handler", "remotes")),
 		remotes.NewLoggingService(
 			m.log.With(zap.String("service", "remotes")),
-			remotesSvc,
+			remotes.NewMetricCollectingService(m.reg, remotesSvc),
 		),
 	)
 

@@ -27,10 +27,10 @@ func (l loggingService) ListRemoteConnections(ctx context.Context, filter influx
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Debug("failed to list remotes", zap.Error(err), dur)
+			l.logger.Debug("failed to find remotes", zap.Error(err), dur)
 			return
 		}
-		l.logger.Debug("remotes list", dur)
+		l.logger.Debug("remotes find", dur)
 	}(time.Now())
 	return l.underlying.ListRemoteConnections(ctx, filter)
 }
@@ -63,10 +63,10 @@ func (l loggingService) GetRemoteConnection(ctx context.Context, id platform.ID)
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
-			l.logger.Debug("failed to get remote", zap.Error(err), dur)
+			l.logger.Debug("failed to find remote by ID", zap.Error(err), dur)
 			return
 		}
-		l.logger.Debug("remote get", dur)
+		l.logger.Debug("remote find by ID", dur)
 	}(time.Now())
 	return l.underlying.GetRemoteConnection(ctx, id)
 }
