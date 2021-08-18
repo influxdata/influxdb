@@ -1445,7 +1445,7 @@ dependencies = [
 [[package]]
 name = "heappy"
 version = "0.1.0"
-source = "git+https://github.com/mkmik/heappy?rev=aed37ab50a70c3f0a7a8bd1c51d28d3d8050461f#aed37ab50a70c3f0a7a8bd1c51d28d3d8050461f"
+source = "git+https://github.com/mkmik/heappy?rev=c8fe1fefbaefd536b0137435fce8d90a98a184de#c8fe1fefbaefd536b0137435fce8d90a98a184de"
 dependencies = [
  "backtrace",
  "bytes",
