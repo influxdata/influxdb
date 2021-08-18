@@ -46,9 +46,7 @@ var Migration0017_AddAnnotationsNotebooksToAllAccessTokens = UpOnlyMigration(
 			return err
 		}
 
-		// Go through the list of operator tokens found and update their permissions
-		// list. There should be only 1, but if there are somehow more this will
-		// update all of them.
+		// Go through the list of all-access tokens found and update their permissions list.
 		for _, t := range tokens {
 			encodedID, err := t.ID.Encode()
 			if err != nil {

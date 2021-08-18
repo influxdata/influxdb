@@ -22,25 +22,7 @@ func TestMigration_AnnotationsNotebooksAllAccessToken(t *testing.T) {
 	// Auth bucket contains the authorizations AKA tokens
 	authBucket := []byte("authorizationsv1")
 
-	// The store returned by newService will include an operator token with the
-	// current system's entire list of resources already, so remove that before
-	// proceeding with the tests.
-	err := ts.Store.Update(context.Background(), func(tx kv.Tx) error {
-		bkt, err := tx.Bucket(authBucket)
-		require.NoError(t, err)
-
-		cursor, err := bkt.ForwardCursor(nil)
-		require.NoError(t, err)
-
-		return kv.WalkCursor(ctx, cursor, func(k, _ []byte) (bool, error) {
-			err := bkt.Delete(k)
-			require.NoError(t, err)
-			return true, nil
-		})
-	})
-	require.NoError(t, err)
-
-	// Verify that running the migration in the absence of an operator token will
+	// Verify that running the migration in the absence of an all-access token will
 	// not crash influxdb.
 	require.NoError(t, Migration0017_AddAnnotationsNotebooksToAllAccessTokens.Up(context.Background(), ts.Store))
 
