@@ -129,6 +129,11 @@ func (c *Coordinator) TaskUpdated(ctx context.Context, from, to *influxdb.Task) 
 		return err
 	}
 
+	// if the tasks is already inactive, we don't do anything
+	if to.Status == from.Status && to.Status == string(influxdb.TaskInactive) {
+		return nil
+	}
+
 	// if disabling the task, release it before schedule update
 	if to.Status != from.Status && to.Status == string(influxdb.TaskInactive) {
 		if err := c.sch.Release(sid); err != nil && err != influxdb.ErrTaskNotClaimed {
