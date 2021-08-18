@@ -25,8 +25,8 @@ use internal_types::{
     schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME},
     selection::Selection,
 };
-use iox_object_store::IoxObjectStore;
-use object_store::{path::Path, ObjectStore};
+use iox_object_store::{IoxObjectStore, ParquetFilePath};
+use object_store::ObjectStore;
 use parquet::{
     arrow::{ArrowReader, ParquetFileArrowReader},
     file::serialized_reader::{SerializedFileReader, SliceableCursor},
@@ -65,15 +65,15 @@ pub async fn load_parquet_from_store_for_chunk(
     store: Arc<IoxObjectStore>,
 ) -> Result<Vec<u8>> {
     let path = chunk.path();
-    Ok(load_parquet_from_store_for_path(&path, store).await?)
+    Ok(load_parquet_from_store_for_path(path, store).await?)
 }
 
 pub async fn load_parquet_from_store_for_path(
-    path: &Path,
+    path: &ParquetFilePath,
     store: Arc<IoxObjectStore>,
 ) -> Result<Vec<u8>> {
     let parquet_data = store
-        .get(path)
+        .get_parquet_file(path)
         .await
         .context(GettingDataFromObjectStore)?
         .map_ok(|bytes| bytes.to_vec())
@@ -173,7 +173,7 @@ pub async fn make_chunk_given_record_batch(
         addr.partition_key,
         Arc::new(table_summary),
         Arc::new(schema),
-        path,
+        &path,
         Arc::clone(&iox_object_store),
         file_size_bytes,
         Arc::new(parquet_metadata),
@@ -764,6 +764,12 @@ pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> 
     record_batches
 }
 
+/// Create an arbitrary ParquetFilePath
+pub fn make_parquet_file_path() -> ParquetFilePath {
+    let chunk_addr = chunk_addr(3);
+    ParquetFilePath::new(&chunk_addr)
+}
+
 /// Create test metadata by creating a parquet file and reading it back into memory.
 ///
 /// See [`make_chunk`] for details.
@@ -771,13 +777,13 @@ pub async fn make_metadata(
     iox_object_store: &Arc<IoxObjectStore>,
     column_prefix: &str,
     addr: ChunkAddr,
-) -> (Path, IoxParquetMetaData) {
+) -> (ParquetFilePath, IoxParquetMetaData) {
     let chunk = make_chunk(Arc::clone(iox_object_store), column_prefix, addr).await;
     let parquet_data = load_parquet_from_store(&chunk, Arc::clone(iox_object_store))
         .await
         .unwrap();
     (
-        chunk.path(),
+        chunk.path().clone(),
         IoxParquetMetaData::from_file_bytes(parquet_data).unwrap(),
     )
 }

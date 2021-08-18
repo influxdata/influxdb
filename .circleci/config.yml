@@ -214,7 +214,7 @@ jobs:
           command: cargo test --workspace --benches --no-run
       - run:
           name: Build with object store + exporter support + HEAP profiling
-          command: cargo build --features="aws,gcp,azure,jaeger,otlp,heappy"
+          command: cargo build --features="aws,gcp,azure,jaeger,otlp,heappy,pprof"
       - cache_save
 
   # Lint protobufs.

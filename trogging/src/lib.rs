@@ -21,12 +21,11 @@ pub use config::*;
 // Re-export tracing_subscriber
 pub use tracing_subscriber;
 
-use observability_deps::{
-    opentelemetry,
-    opentelemetry::sdk::trace,
-    opentelemetry::sdk::Resource,
-    opentelemetry::KeyValue,
-    tracing::{self, Subscriber},
+use observability_deps::tracing::{self, Subscriber};
+use opentelemetry::{
+    self,
+    sdk::{trace, Resource},
+    KeyValue,
 };
 use std::cmp::min;
 use std::io;

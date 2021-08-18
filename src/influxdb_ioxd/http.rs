@@ -13,6 +13,9 @@
 #[cfg(feature = "heappy")]
 mod heappy;
 
+#[cfg(feature = "pprof")]
+mod pprof;
+
 // Influx crates
 use super::planner::Planner;
 use data_types::{
@@ -30,23 +33,19 @@ use chrono::Utc;
 use futures::{self, StreamExt};
 use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use hyper::{http::HeaderValue, Body, Method, Request, Response, StatusCode};
-use observability_deps::{
-    opentelemetry::KeyValue,
-    tracing::{self, debug, error, info},
-};
+use metrics::KeyValue;
+use observability_deps::tracing::{self, debug, error};
 use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError, RouterService};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use hyper::server::conn::AddrIncoming;
-use pprof::protos::Message;
 use std::num::NonZeroI32;
 use std::{
     fmt::Debug,
     str::{self, FromStr},
     sync::Arc,
 };
-use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 /// Constants used in API error codes.
@@ -200,7 +199,9 @@ pub enum ApplicationError {
     Planning { source: super::planner::Error },
 
     #[snafu(display("PProf error: {}", source))]
-    PProf { source: pprof::Error },
+    PProf {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
 
     #[snafu(display("Protobuf error: {}", source))]
     Prost { source: prost::EncodeError },
@@ -223,8 +224,11 @@ pub enum ApplicationError {
     #[snafu(display("Internal server error"))]
     InternalServerError,
 
-    #[snafu(display("Heappy is not compiled"))]
+    #[snafu(display("heappy support is not compiled"))]
     HeappyIsNotCompiled,
+
+    #[snafu(display("pprof support is not compiled"))]
+    PProfIsNotCompiled,
 }
 
 type Result<T, E = ApplicationError> = std::result::Result<T, E>;
@@ -266,6 +270,7 @@ impl ApplicationError {
             Self::DatabaseNotInitialized { .. } => self.bad_request(),
             Self::InternalServerError => self.internal_error(),
             Self::HeappyIsNotCompiled => self.internal_error(),
+            Self::PProfIsNotCompiled => self.internal_error(),
         }
     }
 
@@ -778,28 +783,12 @@ async fn pprof_home<M: ConnectionManager + Send + Sync + Debug + 'static>(
     );
     let allocs_cmd = format!(
         "/debug/pprof/allocs?seconds={}",
-        PProfArgs::default_seconds()
+        PProfAllocsArgs::default_seconds()
     );
     Ok(Response::new(Body::from(format!(
         r#"<a href="{}">http://{}{}</a><br><a href="{}">http://{}{}</a>"#,
         profile_cmd, host, profile_cmd, allocs_cmd, host, allocs_cmd,
     ))))
-}
-
-async fn dump_rsprof(seconds: u64, frequency: i32) -> pprof::Result<pprof::Report> {
-    let guard = pprof::ProfilerGuard::new(frequency)?;
-    info!(
-        "start profiling {} seconds with frequency {} /s",
-        seconds, frequency
-    );
-
-    tokio::time::sleep(Duration::from_secs(seconds)).await;
-
-    info!(
-        "done profiling {} seconds with frequency {} /s",
-        seconds, frequency
-    );
-    guard.report().build()
 }
 
 #[derive(Debug, Deserialize)]
@@ -821,16 +810,43 @@ impl PProfArgs {
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct PProfAllocsArgs {
+    #[serde(default = "PProfAllocsArgs::default_seconds")]
+    seconds: u64,
+    // The sampling interval is a number of bytes that have to cumulatively allocated for a sample to be taken.
+    //
+    // For example if the sampling interval is 99, and you're doing a million of 40 bytes allocations,
+    // the allocations profile will account for 16MB instead of 40MB.
+    // Heappy will adjust the estimate for sampled recordings, but now that feature is not yet implemented.
+    #[serde(default = "PProfAllocsArgs::default_interval")]
+    interval: NonZeroI32,
+}
+
+impl PProfAllocsArgs {
+    fn default_seconds() -> u64 {
+        30
+    }
+
+    // 1 means: sample every allocation.
+    fn default_interval() -> NonZeroI32 {
+        NonZeroI32::new(1).unwrap()
+    }
+}
+
+#[cfg(feature = "pprof")]
 #[tracing::instrument(level = "debug")]
 async fn pprof_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
+    use ::pprof::protos::Message;
     let query_string = req.uri().query().unwrap_or_default();
     let query: PProfArgs =
         serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
 
-    let report = dump_rsprof(query.seconds, query.frequency.get())
+    let report = self::pprof::dump_rsprof(query.seconds, query.frequency.get())
         .await
+        .map_err(|e| Box::new(e) as _)
         .context(PProf)?;
 
     let mut body: Vec<u8> = Vec::new();
@@ -844,16 +860,30 @@ async fn pprof_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .flat_map(|i| i.to_str().unwrap_or_default().split(','))
         .any(|i| i == "text/html" || i == "image/svg+xml")
     {
-        report.flamegraph(&mut body).context(PProf)?;
+        report
+            .flamegraph(&mut body)
+            .map_err(|e| Box::new(e) as _)
+            .context(PProf)?;
         if body.is_empty() {
             return EmptyFlamegraph.fail();
         }
     } else {
-        let profile = report.pprof().context(PProf)?;
+        let profile = report
+            .pprof()
+            .map_err(|e| Box::new(e) as _)
+            .context(PProf)?;
         profile.encode(&mut body).context(Prost)?;
     }
 
     Ok(Response::new(Body::from(body)))
+}
+
+#[cfg(not(feature = "pprof"))]
+#[tracing::instrument(level = "debug")]
+async fn pprof_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    PProfIsNotCompiled {}.fail()
 }
 
 // If heappy support is enabled, call it
@@ -863,10 +893,10 @@ async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'stat
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
     let query_string = req.uri().query().unwrap_or_default();
-    let query: PProfArgs =
+    let query: PProfAllocsArgs =
         serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
 
-    let report = self::heappy::dump_heappy_rsprof(query.seconds, query.frequency.get()).await;
+    let report = self::heappy::dump_heappy_rsprof(query.seconds, query.interval.get()).await;
 
     let mut body: Vec<u8> = Vec::new();
 

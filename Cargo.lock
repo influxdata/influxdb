@@ -1445,7 +1445,7 @@ dependencies = [
 [[package]]
 name = "heappy"
 version = "0.1.0"
-source = "git+https://github.com/mkmik/heappy?rev=aed37ab50a70c3f0a7a8bd1c51d28d3d8050461f#aed37ab50a70c3f0a7a8bd1c51d28d3d8050461f"
+source = "git+https://github.com/mkmik/heappy?rev=82a383128e484039cc2f31476e6289bed48a6701#82a383128e484039cc2f31476e6289bed48a6701"
 dependencies = [
  "backtrace",
  "bytes",
@@ -1823,8 +1823,10 @@ dependencies = [
  "data_types",
  "futures",
  "object_store",
+ "snafu",
  "tokio",
  "tokio-stream",
+ "uuid",
 ]
 
 [[package]]
@@ -2092,6 +2094,7 @@ dependencies = [
  "dashmap",
  "hashbrown",
  "observability_deps",
+ "opentelemetry",
  "opentelemetry-prometheus",
  "parking_lot",
  "prometheus",
@@ -2462,7 +2465,6 @@ dependencies = [
 name = "observability_deps"
 version = "0.1.0"
 dependencies = [
- "opentelemetry",
  "tracing",
 ]
 
@@ -4717,6 +4719,7 @@ dependencies = [
  "http-body",
  "itertools 0.10.1",
  "observability_deps",
+ "opentelemetry",
  "parking_lot",
  "pin-project 1.0.8",
  "rand 0.8.4",
@@ -4853,6 +4856,7 @@ version = "0.1.0"
 dependencies = [
  "logfmt",
  "observability_deps",
+ "opentelemetry",
  "opentelemetry-jaeger",
  "opentelemetry-otlp",
  "regex",

@@ -11,10 +11,8 @@ use tokio::sync::mpsc;
 use tokio::task::JoinError;
 use tokio_util::sync::CancellationToken;
 
-use observability_deps::{
-    opentelemetry::sdk::export::trace::{ExportResult, SpanData, SpanExporter},
-    tracing::{error, info, warn},
-};
+use observability_deps::tracing::{error, info, warn};
+use opentelemetry::sdk::export::trace::{ExportResult, SpanData, SpanExporter};
 
 use crate::ctx::{SpanContext, SpanId, TraceId};
 use crate::span::{MetaValue, SpanEvent, SpanStatus};
@@ -148,10 +146,10 @@ async fn exporter_loop<T: SpanExporter + 'static>(
 
 impl From<Span> for SpanData {
     fn from(span: Span) -> Self {
-        use observability_deps::opentelemetry::sdk::trace::{EvictedHashMap, EvictedQueue};
-        use observability_deps::opentelemetry::sdk::InstrumentationLibrary;
-        use observability_deps::opentelemetry::trace::{SpanId, SpanKind};
-        use observability_deps::opentelemetry::{Key, KeyValue};
+        use opentelemetry::sdk::trace::{EvictedHashMap, EvictedQueue};
+        use opentelemetry::sdk::InstrumentationLibrary;
+        use opentelemetry::trace::{SpanId, SpanKind};
+        use opentelemetry::{Key, KeyValue};
 
         let parent_span_id = match span.ctx.parent_span_id {
             Some(id) => id.into(),
@@ -187,7 +185,7 @@ impl From<Span> for SpanData {
     }
 }
 
-impl<'a> From<&'a SpanContext> for observability_deps::opentelemetry::trace::SpanContext {
+impl<'a> From<&'a SpanContext> for opentelemetry::trace::SpanContext {
     fn from(ctx: &'a SpanContext) -> Self {
         Self::new(
             ctx.trace_id.into(),
@@ -199,7 +197,7 @@ impl<'a> From<&'a SpanContext> for observability_deps::opentelemetry::trace::Spa
     }
 }
 
-impl From<SpanEvent> for observability_deps::opentelemetry::trace::Event {
+impl From<SpanEvent> for opentelemetry::trace::Event {
     fn from(event: SpanEvent) -> Self {
         Self {
             name: event.msg,
@@ -210,7 +208,7 @@ impl From<SpanEvent> for observability_deps::opentelemetry::trace::Event {
     }
 }
 
-impl From<SpanStatus> for observability_deps::opentelemetry::trace::StatusCode {
+impl From<SpanStatus> for opentelemetry::trace::StatusCode {
     fn from(status: SpanStatus) -> Self {
         match status {
             SpanStatus::Unknown => Self::Unset,
@@ -220,19 +218,19 @@ impl From<SpanStatus> for observability_deps::opentelemetry::trace::StatusCode {
     }
 }
 
-impl From<SpanId> for observability_deps::opentelemetry::trace::SpanId {
+impl From<SpanId> for opentelemetry::trace::SpanId {
     fn from(id: SpanId) -> Self {
         Self::from_u64(id.0.get())
     }
 }
 
-impl From<TraceId> for observability_deps::opentelemetry::trace::TraceId {
+impl From<TraceId> for opentelemetry::trace::TraceId {
     fn from(id: TraceId) -> Self {
         Self::from_u128(id.0.get())
     }
 }
 
-impl From<MetaValue> for observability_deps::opentelemetry::Value {
+impl From<MetaValue> for opentelemetry::Value {
     fn from(v: MetaValue) -> Self {
         match v {
             MetaValue::String(v) => Self::String(v),
@@ -246,7 +244,7 @@ impl From<MetaValue> for observability_deps::opentelemetry::Value {
 mod tests {
     use super::*;
     use chrono::{TimeZone, Utc};
-    use observability_deps::opentelemetry::{Key, Value};
+    use opentelemetry::{Key, Value};
     use std::time::{Duration, UNIX_EPOCH};
 
     #[test]

@@ -6,7 +6,7 @@ use hashbrown::HashMap;
 
 use crate::KeyValue;
 use hashbrown::hash_map::RawEntryMut;
-use observability_deps::opentelemetry::labels::{DefaultLabelEncoder, LabelSet};
+use opentelemetry::labels::{DefaultLabelEncoder, LabelSet};
 
 /// A `Gauge` allows tracking multiple usize values by label set
 ///

@@ -14,18 +14,16 @@ use opentelemetry_prometheus::PrometheusExporter;
 use parking_lot::Mutex;
 use prometheus::{Encoder, Registry, TextEncoder};
 
-use observability_deps::{
-    opentelemetry::metrics::Meter as OTMeter,
-    opentelemetry::{
-        metrics::{
-            registry::RegistryMeterProvider, MeterProvider, ObserverResult, ValueRecorderBuilder,
-        },
-        sdk::{
-            export::metrics::ExportKindSelector,
-            metrics::{controllers, selectors::simple::Selector},
-        },
+use observability_deps::tracing::*;
+use opentelemetry::{
+    metrics::{
+        registry::RegistryMeterProvider, Meter as OTMeter, MeterProvider, ObserverResult,
+        ValueRecorderBuilder,
     },
-    tracing::*,
+    sdk::{
+        export::metrics::ExportKindSelector,
+        metrics::{controllers, selectors::simple::Selector},
+    },
 };
 
 pub use crate::gauge::*;
@@ -537,7 +535,7 @@ pub struct TaggedObserverResult<'a, T> {
 
 impl<'a, T> TaggedObserverResult<'a, T>
 where
-    T: Into<observability_deps::opentelemetry::metrics::Number>,
+    T: Into<opentelemetry::metrics::Number>,
 {
     fn with_callback<F>(
         labels: Vec<KeyValue>,

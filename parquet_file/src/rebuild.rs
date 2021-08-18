@@ -2,8 +2,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use futures::TryStreamExt;
-use iox_object_store::IoxObjectStore;
-use object_store::path::{parsed::DirsAndFileName, Path};
+use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use observability_deps::tracing::error;
 use snafu::{ResultExt, Snafu};
 
@@ -22,7 +21,7 @@ pub enum Error {
     #[snafu(display("Cannot read IOx metadata from parquet file ({:?}): {}", path, source))]
     MetadataReadFailure {
         source: crate::metadata::Error,
-        path: Path,
+        path: ParquetFilePath,
     },
 
     #[snafu(display("Cannot add file to transaction: {}", source))]
@@ -103,15 +102,17 @@ async fn collect_files(
     iox_object_store: &IoxObjectStore,
     ignore_metadata_read_failure: bool,
 ) -> Result<Vec<CatalogParquetInfo>> {
-    let mut stream = iox_object_store.list(None).await.context(ReadFailure)?;
+    let mut stream = iox_object_store
+        .parquet_files()
+        .await
+        .context(ReadFailure)?;
 
     let mut files = vec![];
 
     while let Some(paths) = stream.try_next().await.context(ReadFailure)? {
-        for path in paths.into_iter().filter(is_parquet) {
+        for path in paths {
             match read_parquet(iox_object_store, &path).await {
                 Ok((file_size_bytes, metadata)) => {
-                    let path = path.into();
                     files.push(CatalogParquetInfo {
                         path,
                         file_size_bytes,
@@ -130,23 +131,13 @@ async fn collect_files(
     Ok(files)
 }
 
-/// Checks if the given path is (likely) a parquet file.
-fn is_parquet(path: &Path) -> bool {
-    let path: DirsAndFileName = path.clone().into();
-    if let Some(filename) = path.file_name {
-        filename.encoded().ends_with(".parquet")
-    } else {
-        false
-    }
-}
-
 /// Read Parquet and IOx metadata from given path.
 async fn read_parquet(
     iox_object_store: &IoxObjectStore,
-    path: &Path,
+    path: &ParquetFilePath,
 ) -> Result<(usize, Arc<IoxParquetMetaData>)> {
     let data = iox_object_store
-        .get(path)
+        .get_parquet_file(path)
         .await
         .context(ReadFailure)?
         .map_ok(|bytes| bytes.to_vec())
@@ -169,23 +160,21 @@ async fn read_parquet(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::{
+        catalog::{test_helpers::TestCatalogState, PreservedCatalog},
+        metadata::IoxMetadata,
+        storage::{MemWriter, Storage},
+        test_utils::{
+            create_partition_and_database_checkpoint, make_iox_object_store, make_record_batch,
+        },
+    };
     use chrono::Utc;
     use data_types::chunk_metadata::ChunkAddr;
     use datafusion::physical_plan::SendableRecordBatchStream;
     use datafusion_util::MemoryStream;
     use parquet::arrow::ArrowWriter;
     use tokio_stream::StreamExt;
-
-    use super::*;
-
-    use crate::metadata::IoxMetadata;
-    use crate::test_utils::create_partition_and_database_checkpoint;
-    use crate::{catalog::test_helpers::TestCatalogState, storage::MemWriter};
-    use crate::{
-        catalog::PreservedCatalog,
-        storage::Storage,
-        test_utils::{make_iox_object_store, make_record_batch},
-    };
 
     #[tokio::test]
     async fn test_rebuild_successfull() {
@@ -311,9 +300,10 @@ mod tests {
         // 1. an empty one (done by `PreservedCatalog::new_empty`)
         // 2. an "add all the files"
         //
-        // There is no real need to create a checkpoint in this case. So here we delete all transaction files and then
-        // check that rebuilt catalog will be gone afterwards. Note the difference to the `test_rebuild_empty` case
-        // where we can indeed proof the existence of a catalog (even though it is empty aka has no files).
+        // There is no real need to create a checkpoint in this case. So here we delete all
+        // transaction files and then check that rebuilt catalog will be gone afterwards. Note the
+        // difference to the `test_rebuild_empty` case where we can indeed proof the existence of a
+        // catalog (even though it is empty aka has no files).
         let iox_object_store = make_iox_object_store();
 
         // build catalog with some data (2 transactions + initial empty one)
@@ -335,7 +325,7 @@ mod tests {
 
         // delete transaction files
         let paths = iox_object_store
-            .list(None)
+            .catalog_transaction_files()
             .await
             .unwrap()
             .try_concat()
@@ -343,18 +333,17 @@ mod tests {
             .unwrap();
         let mut deleted = false;
         for path in paths {
-            let parsed: DirsAndFileName = path.clone().into();
-            if parsed
-                .file_name
-                .map_or(false, |part| part.encoded().ends_with(".txn"))
-            {
-                iox_object_store.delete(&path).await.unwrap();
+            if !path.is_checkpoint() {
+                iox_object_store
+                    .delete_catalog_transaction_file(&path)
+                    .await
+                    .unwrap();
                 deleted = true;
             }
         }
         assert!(deleted);
 
-        // catalog gone
+        // the catalog should be gone because there should have been no checkpoint files remaining
         assert!(!PreservedCatalog::exists(&iox_object_store).await.unwrap());
     }
 
@@ -397,7 +386,7 @@ mod tests {
             .unwrap();
 
         CatalogParquetInfo {
-            path: path.into(),
+            path,
             file_size_bytes,
             metadata: Arc::new(metadata),
         }
@@ -406,7 +395,7 @@ mod tests {
     pub async fn create_parquet_file_without_metadata(
         iox_object_store: &Arc<IoxObjectStore>,
         chunk_id: u32,
-    ) -> (DirsAndFileName, IoxParquetMetaData) {
+    ) -> (ParquetFilePath, IoxParquetMetaData) {
         let (record_batches, schema, _column_summaries, _num_rows) = make_record_batch("foo");
         let mut stream: SendableRecordBatchStream = Box::pin(MemoryStream::new(record_batches));
 
@@ -424,15 +413,15 @@ mod tests {
         let data = mem_writer.into_inner().unwrap();
         let md = IoxParquetMetaData::from_file_bytes(data.clone()).unwrap();
         let storage = Storage::new(Arc::clone(iox_object_store));
-        let path = storage.location(&ChunkAddr {
+        let chunk_addr = ChunkAddr {
             db_name: Arc::from(iox_object_store.database_name()),
             table_name: Arc::from("table1"),
             partition_key: Arc::from("part1"),
             chunk_id,
-        });
+        };
+        let path = ParquetFilePath::new(&chunk_addr);
         storage.to_object_store(data, &path).await.unwrap();
 
-        let path: DirsAndFileName = path.into();
         (path, md)
     }
 }

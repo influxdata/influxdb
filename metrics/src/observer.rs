@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use parking_lot::Mutex;
 
-use observability_deps::opentelemetry::metrics::{Meter, ObserverResult};
+use opentelemetry::metrics::{Meter, ObserverResult};
 
 type CallbackFunc<T> = Box<dyn Fn(&ObserverResult<T>) + Send + Sync + 'static>;
 

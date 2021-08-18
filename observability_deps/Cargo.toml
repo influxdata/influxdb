@@ -6,5 +6,4 @@ edition = "2018"
 description = "Observability ecosystem dependencies for InfluxDB IOx, to ensure consistent versions and unified updates"
 
 [dependencies] # In alphabetical order
-opentelemetry = { version = "0.15", default-features = false, features = ["trace", "metrics", "rt-tokio"] }
 tracing = { version = "0.1", features = ["max_level_trace", "release_max_level_debug"] }
