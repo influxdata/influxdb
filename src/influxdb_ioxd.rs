@@ -323,8 +323,10 @@ mod tests {
     use super::*;
     use ::http::{header::HeaderName, HeaderValue};
     use data_types::{database_rules::DatabaseRules, DatabaseName};
+    use influxdb_iox_client::connection::Connection;
     use std::convert::TryInto;
     use structopt::StructOpt;
+    use trace::otel::{OtelExporter, TestOtelExporter};
     use trace::RingBufferTraceCollector;
 
     fn test_config(server_id: Option<u32>) -> Config {
@@ -513,6 +515,17 @@ mod tests {
         )
     }
 
+    async fn jaeger_client(addr: SocketAddr, trace: &'static str) -> Connection {
+        influxdb_iox_client::connection::Builder::default()
+            .header(
+                HeaderName::from_static("uber-trace-id"),
+                HeaderValue::from_static(trace),
+            )
+            .build(format!("http://{}", addr))
+            .await
+            .unwrap()
+    }
+
     #[tokio::test]
     async fn test_tracing() {
         let config = test_config(Some(23));
@@ -571,16 +584,8 @@ mod tests {
         b3_tracing_client.list_databases().await.unwrap();
         b3_tracing_client.get_server_status().await.unwrap();
 
-        let jaeger_tracing_client = influxdb_iox_client::connection::Builder::default()
-            .header(
-                HeaderName::from_static("uber-trace-id"),
-                HeaderValue::from_static("34f9495:30e34:0:1"),
-            )
-            .build(format!("http://{}", addr))
-            .await
-            .unwrap();
-
-        influxdb_iox_client::management::Client::new(jaeger_tracing_client)
+        let conn = jaeger_client(addr, "34f9495:30e34:0:1").await;
+        influxdb_iox_client::management::Client::new(conn)
             .list_databases()
             .await
             .unwrap();
@@ -588,7 +593,7 @@ mod tests {
         let spans = trace_collector.spans();
         assert_eq!(spans.len(), 3);
 
-        let spans: Vec<trace::span::Span<'_>> = spans
+        let spans: Vec<trace::span::Span> = spans
             .iter()
             .map(|x| serde_json::from_str(x.as_str()).unwrap())
             .collect();
@@ -614,5 +619,51 @@ mod tests {
         assert_ne!(spans[0].ctx.span_id, spans[1].ctx.span_id);
         server.shutdown();
         join.await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_otel_exporter() {
+        let config = test_config(Some(23));
+        let application = make_application(&config).await.unwrap();
+        let server = make_server(Arc::clone(&application), &config);
+        server.wait_for_init().await.unwrap();
+
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(20);
+
+        let collector = Arc::new(trace::otel::OtelExporter::new(TestOtelExporter::new(
+            sender,
+        )));
+
+        let grpc_listener = grpc_listener(config.grpc_bind_address).await.unwrap();
+        let http_listener = http_listener(config.grpc_bind_address).await.unwrap();
+
+        let addr = grpc_listener.local_addr().unwrap();
+
+        let fut = serve(
+            config,
+            application,
+            grpc_listener,
+            http_listener,
+            Arc::<OtelExporter>::clone(&collector),
+            Arc::clone(&server),
+        );
+
+        let join = tokio::spawn(fut);
+
+        let conn = jaeger_client(addr, "34f8495:30e34:0:1").await;
+        influxdb_iox_client::management::Client::new(conn)
+            .list_databases()
+            .await
+            .unwrap();
+
+        collector.shutdown();
+        collector.join().await.unwrap();
+
+        server.shutdown();
+        join.await.unwrap().unwrap();
+
+        let span = receiver.recv().await.unwrap();
+        assert_eq!(span.span_context.trace_id().to_u128(), 0x34f8495);
+        assert_eq!(span.parent_span_id.to_u64(), 0x30e34);
     }
 }

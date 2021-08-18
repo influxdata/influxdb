@@ -41,6 +41,7 @@ members = [
     "server",
     "server_benchmarks",
     "test_helpers",
+    "trace",
     "tracker",
     "trogging",
     "grpc-router",
@@ -60,7 +61,7 @@ datafusion = { path = "datafusion" }
 data_types = { path = "data_types" }
 entry = { path = "entry" }
 generated_types = { path = "generated_types" }
-heappy = { git = "https://github.com/mkmik/heappy", rev = "aed37ab50a70c3f0a7a8bd1c51d28d3d8050461f", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true}
+heappy = { git = "https://github.com/mkmik/heappy", rev = "aed37ab50a70c3f0a7a8bd1c51d28d3d8050461f", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
 
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
@@ -114,7 +115,7 @@ snafu = "0.6.9"
 structopt = "0.3.21"
 thiserror = "1.0.23"
 # remember to put "unprefixed_malloc_on_supported_platforms" if you disable heappy
-tikv-jemallocator = {version = "0.4.0" }
+tikv-jemallocator = { version = "0.4.0" }
 tikv-jemalloc-ctl = "0.4.0"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "parking_lot", "signal"] }
 tokio-stream = { version = "0.1.2", features = ["net"] }

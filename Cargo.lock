@@ -4710,6 +4710,7 @@ checksum = "360dfd1d6d30e05fda32ace2c8c70e9c0a9da713275777f5a4dbb8a1893930c6"
 name = "trace"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "chrono",
  "futures",
  "http",
@@ -4722,6 +4723,8 @@ dependencies = [
  "serde",
  "serde_json",
  "snafu",
+ "tokio",
+ "tokio-util",
  "tower",
 ]
 
