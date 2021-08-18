@@ -1227,3 +1227,103 @@ async fn test_drop_partition_error() {
         .unwrap_err();
     assert_contains!(err.to_string(), "Cannot drop unpersisted chunk");
 }
+
+#[tokio::test]
+async fn test_persist_partition() {
+    use data_types::chunk_metadata::ChunkStorage;
+
+    let fixture = ServerFixture::create_shared().await;
+    let mut write_client = fixture.write_client();
+    let mut management_client = fixture.management_client();
+
+    let db_name = rand_name();
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        .persist_age_threshold_seconds(1_000)
+        .late_arrive_window_seconds(1)
+        .build(fixture.grpc_channel())
+        .await;
+
+    let num_lines_written = write_client
+        .write(&db_name, "data foo=1 10")
+        .await
+        .expect("successful write");
+    assert_eq!(num_lines_written, 1);
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::OpenMutableBuffer],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    let partition_key = &chunks[0].partition_key;
+
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+    management_client
+        .persist_partition(&db_name, "data", &partition_key[..])
+        .await
+        .unwrap();
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(
+        chunks[0].storage,
+        generated_types::influxdata::iox::management::v1::ChunkStorage::ReadBufferAndObjectStore
+            as i32
+    );
+}
+
+#[tokio::test]
+async fn test_persist_partition_error() {
+    use data_types::chunk_metadata::ChunkStorage;
+
+    let fixture = ServerFixture::create_shared().await;
+    let mut write_client = fixture.write_client();
+    let mut management_client = fixture.management_client();
+
+    let db_name = rand_name();
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        .persist_age_threshold_seconds(1_000)
+        .late_arrive_window_seconds(1_000)
+        .build(fixture.grpc_channel())
+        .await;
+
+    let num_lines_written = write_client
+        .write(&db_name, "data foo=1 10")
+        .await
+        .expect("successful write");
+    assert_eq!(num_lines_written, 1);
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::OpenMutableBuffer],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    let partition_key = &chunks[0].partition_key;
+
+    let err = management_client
+        .persist_partition(&db_name, "data", &partition_key[..])
+        .await
+        .unwrap_err();
+    assert_contains!(err.to_string(), "Cannot flush partition");
+}
