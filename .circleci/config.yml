@@ -57,20 +57,20 @@ workflows:
           record_ingest_results: true
           requires:
             - cross_build
-          filters:
-            branches:
-              only:
-                - "2.0"
+          # filters:
+          #   branches:
+          #     only:
+          #       - "2.0"
       - perf_test:
           name: perf-test-influxql
           format: http
           record_ingest_results: false
           requires:
             - cross_build
-          filters:
-            branches:
-              only:
-                - "2.0"
+          # filters:
+          #   branches:
+          #     only:
+          #       - "2.0"
       - e2e:
           requires:
             - build
