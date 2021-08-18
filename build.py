@@ -727,7 +727,7 @@ def package(build_output, pkg_name, version, nightly=False, iteration=1, static=
                                 package_arch = "armv7hl"
                             elif package_arch == "arm64":
                                 package_arch = "aarch64"
-                        fpm_command = "fpm {} --name {} -a {} -t {} --version {} --iteration {} -C {} -p {} ".format(
+                        fpm_command = "fpm {} --name {} -a {} -t {} --version {} --iteration {} -C {} -p {} --depends curl ".format(
                             fpm_common_args,
                             name,
                             package_arch,
