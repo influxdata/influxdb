@@ -97,15 +97,21 @@ pub struct DatabaseConfig {
 impl Database {
     /// Create in-mem database object.
     ///
-    /// This is backed by an existing database, which was [created](Self::create) some time in the past.
+    /// This is backed by an existing database, which was [created](Self::create) some time in the
+    /// past.
     pub fn new(application: Arc<ApplicationState>, config: DatabaseConfig) -> Self {
-        info!(db_name=%config.name, "new database");
-
         let iox_object_store = Arc::new(IoxObjectStore::new(
             Arc::clone(application.object_store()),
             config.server_id,
             &config.name,
         ));
+
+        info!(
+            db_name=%config.name,
+            store_prefix=%iox_object_store.debug_database_path(),
+            "new database"
+        );
+
         let shared = Arc::new(DatabaseShared {
             config,
             application,

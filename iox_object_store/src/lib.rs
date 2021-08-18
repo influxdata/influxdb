@@ -101,6 +101,12 @@ impl IoxObjectStore {
         &self.database_name
     }
 
+    /// The location in object storage for all files for this database, suitable for logging
+    /// or debugging purposes only. Do not parse this, as its format is subject to change!
+    pub fn debug_database_path(&self) -> String {
+        self.root_path.inner.to_string()
+    }
+
     // Catalog transaction file methods ===========================================================
 
     /// List all the catalog transaction files in object storage for this database.

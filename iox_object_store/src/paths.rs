@@ -24,7 +24,7 @@ pub(crate) fn all_databases_path(object_store: &ObjectStore, server_id: ServerId
 /// This should not be leaked outside this crate.
 #[derive(Debug, Clone)]
 pub(crate) struct RootPath {
-    inner: Path,
+    pub(crate) inner: Path,
 }
 
 impl RootPath {
