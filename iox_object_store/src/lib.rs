@@ -30,8 +30,8 @@ use tokio_stream::wrappers::ReceiverStream;
 
 mod paths;
 pub use paths::{
-    parquet_file::{Path as ParquetFilePath, PathParseError as ParquetFilePathParseError},
-    transaction_file::Path as TransactionFilePath,
+    parquet_file::{ParquetFilePath, ParquetFilePathParseError},
+    transaction_file::TransactionFilePath,
 };
 use paths::{DataPath, RootPath, TransactionsPath};
 

@@ -7,10 +7,10 @@ use object_store::{
 };
 
 pub mod parquet_file;
-use parquet_file::Path as ParquetFilePath;
+use parquet_file::ParquetFilePath;
 
 pub mod transaction_file;
-use transaction_file::Path as TransactionFilePath;
+use transaction_file::TransactionFilePath;
 
 /// The path all database root paths should be in. Used for listing all databases and building
 /// database `RootPath`s in the same way. Not its own type because it's only needed ephemerally.

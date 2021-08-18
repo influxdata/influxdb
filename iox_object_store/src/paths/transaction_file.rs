@@ -15,7 +15,7 @@ const CHECKPOINT_FILE_SUFFIX: &str = "ckpt";
 /// Location of a catalog transaction file within a database's object store.
 /// The exact format is an implementation detail and is subject to change.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Path {
+pub struct TransactionFilePath {
     /// Transaction revision
     pub revision_counter: u64,
     /// Transaction identifier
@@ -23,7 +23,7 @@ pub struct Path {
     suffix: TransactionFileSuffix,
 }
 
-impl Path {
+impl TransactionFilePath {
     /// Create a new file path to store transaction info.
     pub fn new_transaction(revision_counter: u64, uuid: Uuid) -> Self {
         Self {
@@ -62,7 +62,7 @@ impl Path {
     /// Create from serialized protobuf strings.
     pub fn from_relative_dirs_and_file_name(
         dirs_and_file_name: &DirsAndFileName,
-    ) -> Result<Self, PathParseError> {
+    ) -> Result<Self, TransactionFilePathParseError> {
         let mut directories = dirs_and_file_name.directories.iter();
 
         let revision_counter = directories
@@ -103,7 +103,9 @@ impl Path {
     }
 
     // Deliberately pub(crate); this transformation should only happen within this crate
-    pub(crate) fn from_absolute(absolute_path: ObjStoPath) -> Result<Self, PathParseError> {
+    pub(crate) fn from_absolute(
+        absolute_path: ObjStoPath,
+    ) -> Result<Self, TransactionFilePathParseError> {
         let absolute_path: DirsAndFileName = absolute_path.into();
 
         let mut absolute_dirs = absolute_path.directories.into_iter().fuse();
@@ -125,7 +127,7 @@ impl Path {
 
 #[derive(Snafu, Debug, PartialEq)]
 #[allow(missing_docs)]
-pub enum PathParseError {
+pub enum TransactionFilePathParseError {
     #[snafu(display("Could not find required revision counter"))]
     MissingRevisionCounter,
 
@@ -213,20 +215,20 @@ mod tests {
     fn is_checkpoint_works() {
         let uuid = Uuid::new_v4();
 
-        let transaction = Path::new_transaction(0, uuid);
+        let transaction = TransactionFilePath::new_transaction(0, uuid);
         assert!(!transaction.is_checkpoint());
 
-        let checkpoint = Path::new_checkpoint(0, uuid);
+        let checkpoint = TransactionFilePath::new_checkpoint(0, uuid);
         assert!(checkpoint.is_checkpoint());
     }
 
     #[test]
     fn test_transaction_file_path_deserialization() {
         // Error cases
-        use PathParseError::*;
+        use TransactionFilePathParseError::*;
 
         let mut df = DirsAndFileName::default();
-        let result = Path::from_relative_dirs_and_file_name(&df);
+        let result = TransactionFilePath::from_relative_dirs_and_file_name(&df);
         assert!(
             matches!(result, Err(MissingRevisionCounter)),
             "got {:?}",
@@ -234,7 +236,7 @@ mod tests {
         );
 
         df.push_dir("foo");
-        let result = Path::from_relative_dirs_and_file_name(&df);
+        let result = TransactionFilePath::from_relative_dirs_and_file_name(&df);
         assert!(
             matches!(result, Err(InvalidRevisionCounter { .. })),
             "got {:?}",
@@ -244,7 +246,7 @@ mod tests {
         let mut df = DirsAndFileName::default();
         df.push_dir("00000000000000000123");
         df.push_dir("foo");
-        let result = Path::from_relative_dirs_and_file_name(&df);
+        let result = TransactionFilePath::from_relative_dirs_and_file_name(&df);
         assert!(
             matches!(result, Err(UnexpectedDirectory)),
             "got {:?}",
@@ -253,11 +255,11 @@ mod tests {
 
         let mut df = DirsAndFileName::default();
         df.push_dir("00000000000000000123");
-        let result = Path::from_relative_dirs_and_file_name(&df);
+        let result = TransactionFilePath::from_relative_dirs_and_file_name(&df);
         assert!(matches!(result, Err(MissingFileName)), "got {:?}", result);
 
         df.set_file_name("foo");
-        let result = Path::from_relative_dirs_and_file_name(&df);
+        let result = TransactionFilePath::from_relative_dirs_and_file_name(&df);
         assert!(
             matches!(result, Err(InvalidUuid { .. })),
             "got {:?}",
@@ -267,11 +269,11 @@ mod tests {
         let uuid = Uuid::new_v4();
 
         df.set_file_name(&format!("{}", uuid));
-        let result = Path::from_relative_dirs_and_file_name(&df);
+        let result = TransactionFilePath::from_relative_dirs_and_file_name(&df);
         assert!(matches!(result, Err(MissingSuffix)), "got {:?}", result);
 
         df.set_file_name(&format!("{}.exe", uuid));
-        let result = Path::from_relative_dirs_and_file_name(&df);
+        let result = TransactionFilePath::from_relative_dirs_and_file_name(&df);
         assert!(
             matches!(result, Err(InvalidSuffix { .. })),
             "got {:?}",
@@ -279,7 +281,7 @@ mod tests {
         );
 
         df.set_file_name(&format!("{}.{}.foo", uuid, TRANSACTION_FILE_SUFFIX));
-        let result = Path::from_relative_dirs_and_file_name(&df);
+        let result = TransactionFilePath::from_relative_dirs_and_file_name(&df);
         assert!(
             matches!(result, Err(UnexpectedExtension)),
             "got {:?}",
@@ -288,10 +290,10 @@ mod tests {
 
         // Success case
         df.set_file_name(&format!("{}.{}", uuid, TRANSACTION_FILE_SUFFIX));
-        let result = Path::from_relative_dirs_and_file_name(&df).unwrap();
+        let result = TransactionFilePath::from_relative_dirs_and_file_name(&df).unwrap();
         assert_eq!(
             result,
-            Path {
+            TransactionFilePath {
                 revision_counter: 123,
                 uuid,
                 suffix: TransactionFileSuffix::Transaction,
@@ -306,14 +308,14 @@ mod tests {
         let object_store = make_object_store();
 
         // Error cases
-        use PathParseError::*;
+        use TransactionFilePathParseError::*;
 
         let mut path = object_store.new_path();
         // incorrect directories are fine, we're assuming that list(transactions_path) scoped to the
         // right directories so we don't check again on the way out
         path.push_all_dirs(&["foo", "bar", "baz", "}*", "aoeu"]);
         path.set_file_name("rules.pb");
-        let result = Path::from_absolute(path);
+        let result = TransactionFilePath::from_absolute(path);
         assert!(
             matches!(result, Err(InvalidRevisionCounter { .. })),
             "got: {:?}",
@@ -323,7 +325,7 @@ mod tests {
         let mut path = object_store.new_path();
         path.push_all_dirs(&["foo", "bar", "baz", "00000000000000000123"]);
         // missing file name
-        let result = Path::from_absolute(path);
+        let result = TransactionFilePath::from_absolute(path);
         assert!(matches!(result, Err(MissingFileName)), "got: {:?}", result);
 
         // Success case
@@ -331,10 +333,10 @@ mod tests {
         let mut path = object_store.new_path();
         path.push_all_dirs(&["foo", "bar", "baz", "00000000000000000123"]);
         path.set_file_name(&format!("{}.{}", uuid, CHECKPOINT_FILE_SUFFIX));
-        let result = Path::from_absolute(path);
+        let result = TransactionFilePath::from_absolute(path);
         assert_eq!(
             result.unwrap(),
-            Path {
+            TransactionFilePath {
                 revision_counter: 123,
                 uuid,
                 suffix: TransactionFileSuffix::Checkpoint,
@@ -345,7 +347,7 @@ mod tests {
     #[test]
     fn transaction_file_relative_dirs_and_file_path() {
         let uuid = Uuid::new_v4();
-        let tfp = Path {
+        let tfp = TransactionFilePath {
             revision_counter: 555,
             uuid,
             suffix: TransactionFileSuffix::Transaction,
@@ -355,7 +357,8 @@ mod tests {
             dirs_and_file_name.to_string(),
             format!("00000000000000000555/{}.{}", uuid, TRANSACTION_FILE_SUFFIX)
         );
-        let round_trip = Path::from_relative_dirs_and_file_name(&dirs_and_file_name).unwrap();
+        let round_trip =
+            TransactionFilePath::from_relative_dirs_and_file_name(&dirs_and_file_name).unwrap();
         assert_eq!(tfp, round_trip);
     }
 
@@ -368,7 +371,7 @@ mod tests {
             IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name);
 
         let uuid = Uuid::new_v4();
-        let tfp = Path {
+        let tfp = TransactionFilePath {
             revision_counter: 555,
             uuid,
             suffix: TransactionFileSuffix::Checkpoint,
