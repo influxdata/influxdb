@@ -84,7 +84,7 @@ func TestCreateAndGetConnection(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, connection, *created)
 
-	// Read the created notebook and assert it matches the creation response.
+	// Read the created connection and assert it matches the creation response.
 	got, err = svc.GetRemoteConnection(ctx, initID)
 	require.NoError(t, err)
 	require.Equal(t, connection, *got)
