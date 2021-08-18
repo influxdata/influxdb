@@ -2,6 +2,7 @@ v1.8.10 [unreleased]
 -------------------
 
 - [#22076](https://github.com/influxdata/influxdb/pull/22076): fix: systemd service -- handle 40x and block indefinitely
+- [#22253](https://github.com/influxdata/influxdb/pull/22253): fix: influxdb packages should depend on curl
 
 v1.8.9 [2021-08-04]
 -------------------
