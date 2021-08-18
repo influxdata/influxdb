@@ -4,6 +4,7 @@
 ### Bug Fixes
 
 1. [22242](https://github.com/influxdata/influxdb/pull/22242): Preserve comments in flux queries when saving task definitions
+1. [22245](https://github.com/influxdata/influxdb/pull/22245): Avoid compaction queue stats flutter
 1. [22236](https://github.com/influxdata/influxdb/pull/22236): influxdb2 packages should depend on curl
 1. [22243](https://github.com/influxdata/influxdb/pull/22243): Updating an inactive task will not schedule it. Thanks @raffs!
 
