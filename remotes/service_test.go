@@ -313,7 +313,6 @@ func newTestService(t *testing.T) (*service, *mock.MockRemoteConnectionValidator
 	mockValidator := mock.NewMockRemoteConnectionValidator(gomock.NewController(t))
 	svc := service{
 		store:       store,
-		log:         logger,
 		idGenerator: mock.NewIncrementingIDGenerator(platform.ID(1)),
 		validator:   mockValidator,
 	}
