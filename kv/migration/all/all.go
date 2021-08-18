@@ -39,5 +39,7 @@ var Migrations = [...]migration.Spec{
 	Migration0015_RecordShardGroupDurationsInBucketMetadata,
 	// add annotations and notebooks resource types to the operator token
 	Migration0016_AddAnnotationsNotebooksToOperToken,
+	// add annotations and notebooks resource types to all-access tokens
+	Migration0017_AddAnnotationsNotebooksToAllAccessTokens,
 	// {{ do_not_edit . }}
 }
