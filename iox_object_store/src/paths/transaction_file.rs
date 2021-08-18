@@ -114,6 +114,7 @@ impl TransactionFilePath {
         // iox_object_store transactions_path
         absolute_dirs.next(); // server id
         absolute_dirs.next(); // database name
+        absolute_dirs.next(); // generation
         absolute_dirs.next(); // "transactions"
 
         let remaining = DirsAndFileName {
@@ -310,7 +311,13 @@ mod tests {
         // Success case
         let uuid = Uuid::new_v4();
         let mut path = object_store.new_path();
-        path.push_all_dirs(&["foo", "bar", "baz", "00000000000000000123"]);
+        path.push_all_dirs(&[
+            "server",
+            "database",
+            "generation",
+            "data",
+            "00000000000000000123",
+        ]);
         path.set_file_name(&format!("{}.{}", uuid, CHECKPOINT_FILE_SUFFIX));
         let result = TransactionFilePath::from_absolute(path);
         assert_eq!(
@@ -328,7 +335,7 @@ mod tests {
         let mut path = object_store.new_path();
         // incorrect directories are fine, we're assuming that list(transactions_path) scoped to the
         // right directories so we don't check again on the way out
-        path.push_all_dirs(&["foo", "bar", "baz", "}*", "aoeu"]);
+        path.push_all_dirs(&["foo", "bar", "baz", "}*", "aoeu", "blah"]);
         path.set_file_name("rules.pb");
         let result = TransactionFilePath::from_absolute(path);
         assert!(
@@ -338,7 +345,13 @@ mod tests {
         );
 
         let mut path = object_store.new_path();
-        path.push_all_dirs(&["foo", "bar", "baz", "00000000000000000123"]);
+        path.push_all_dirs(&[
+            "server",
+            "database",
+            "generation",
+            "data",
+            "00000000000000000123",
+        ]);
         // missing file name
         let result = TransactionFilePath::from_absolute(path);
         assert!(matches!(result, Err(MissingFileName)), "got: {:?}", result);
@@ -366,9 +379,14 @@ mod tests {
     fn transactions_path_join_with_parquet_file_path() {
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
+        let generation_id = 3;
         let object_store = make_object_store();
-        let iox_object_store =
-            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name);
+        let iox_object_store = IoxObjectStore::existing(
+            Arc::clone(&object_store),
+            server_id,
+            &database_name,
+            generation_id,
+        );
 
         let uuid = Uuid::new_v4();
         let tfp = TransactionFilePath {
@@ -383,6 +401,7 @@ mod tests {
         expected_path.push_all_dirs(&[
             &server_id.to_string(),
             database_name.as_str(),
+            &generation_id.to_string(),
             "transactions",
             "00000000000000000555",
         ]);

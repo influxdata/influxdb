@@ -611,6 +611,21 @@ pub async fn fixture_broken_catalog(db_name: &str) -> ServerFixture {
     let mut path = fixture.dir().to_path_buf();
     path.push(server_id.to_string());
     path.push(db_name);
+    let mut generations: Vec<_> = std::fs::read_dir(path.clone())
+        .unwrap()
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            path.is_dir().then(|| path)
+        })
+        .collect();
+    assert_eq!(
+        generations.len(),
+        1,
+        "unexpected database generations {:?}",
+        generations
+    );
+    let mut path = generations.pop().unwrap();
     path.push("transactions");
     path.push("00000000000000000001");
     std::fs::create_dir(path.clone()).unwrap();

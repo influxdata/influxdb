@@ -724,14 +724,18 @@ pub fn make_server_id() -> ServerId {
 }
 
 /// Creates new in-memory database iox_object_store for testing.
-pub fn make_iox_object_store() -> Arc<IoxObjectStore> {
+pub async fn make_iox_object_store() -> Arc<IoxObjectStore> {
     let server_id = make_server_id();
     let database_name = DatabaseName::new("db1").unwrap();
-    Arc::new(IoxObjectStore::new(
-        Arc::new(ObjectStore::new_in_memory()),
-        server_id,
-        &database_name,
-    ))
+    Arc::new(
+        IoxObjectStore::new(
+            Arc::new(ObjectStore::new_in_memory()),
+            server_id,
+            &database_name,
+        )
+        .await
+        .unwrap(),
+    )
 }
 
 pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> Vec<RecordBatch> {

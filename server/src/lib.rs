@@ -684,9 +684,10 @@ where
             initialized.server_id
         };
 
-        Database::create(Arc::clone(&self.shared.application), rules, server_id)
-            .await
-            .context(CannotCreateDatabase)?;
+        let generation_id =
+            Database::create(Arc::clone(&self.shared.application), rules, server_id)
+                .await
+                .context(CannotCreateDatabase)?;
 
         let database = {
             let mut state = self.shared.state.write();
@@ -701,6 +702,7 @@ where
                         DatabaseConfig {
                             name: db_name,
                             server_id,
+                            generation_id,
                             wipe_catalog_on_error: false,
                             skip_replay: false,
                         },
@@ -1113,7 +1115,7 @@ async fn maybe_initialize_server(shared: &ServerShared) {
         (init_ready, handle)
     };
 
-    let maybe_databases = IoxObjectStore::list_databases(
+    let maybe_databases = IoxObjectStore::list_active_databases(
         shared.application.object_store().as_ref(),
         init_ready.server_id,
     )
@@ -1126,13 +1128,14 @@ async fn maybe_initialize_server(shared: &ServerShared) {
                 databases: HashMap::with_capacity(databases.len()),
             };
 
-            for db_name in databases {
+            for (db_name, generation_id) in databases {
                 state
                     .new_database(
                         shared,
                         DatabaseConfig {
                             name: db_name,
                             server_id: init_ready.server_id,
+                            generation_id,
                             wipe_catalog_on_error: init_ready.wipe_catalog_on_error,
                             skip_replay: init_ready.skip_replay_and_seek_instead,
                         },
@@ -1846,7 +1849,6 @@ mod tests {
     #[tokio::test]
     async fn init_error_database() {
         let application = make_application();
-        let store = Arc::clone(application.object_store());
         let server_id = ServerId::try_from(1).unwrap();
 
         let server = make_server(Arc::clone(&application));
@@ -1856,12 +1858,19 @@ mod tests {
         let foo_db_name = DatabaseName::new("foo").unwrap();
         let bar_db_name = DatabaseName::new("bar").unwrap();
 
+        // create database foo
         create_simple_database(&server, "foo")
             .await
             .expect("failed to create database");
 
-        // tamper store
-        let iox_object_store = IoxObjectStore::new(store, server_id, &bar_db_name);
+        // create invalid db rules for bar
+        let iox_object_store = IoxObjectStore::new(
+            Arc::clone(application.object_store()),
+            server_id,
+            &bar_db_name,
+        )
+        .await
+        .unwrap();
         iox_object_store
             .put_database_rules_file(Bytes::from("x"))
             .await
@@ -2031,11 +2040,15 @@ mod tests {
             server.database(&db_name_non_existing).unwrap_err(),
             Error::DatabaseNotFound { .. }
         ));
-        let non_existing_iox_object_store = Arc::new(IoxObjectStore::new(
-            Arc::clone(application.object_store()),
-            server_id,
-            &db_name_non_existing,
-        ));
+        let non_existing_iox_object_store = Arc::new(
+            IoxObjectStore::new(
+                Arc::clone(application.object_store()),
+                server_id,
+                &db_name_non_existing,
+            )
+            .await
+            .unwrap(),
+        );
         PreservedCatalog::new_empty::<TestCatalogState>(non_existing_iox_object_store, ())
             .await
             .unwrap();
@@ -2121,11 +2134,11 @@ mod tests {
         server.set_id(server_id).unwrap();
         server.wait_for_init().await.unwrap();
 
-        let iox_object_store = Arc::new(IoxObjectStore::new(
-            Arc::clone(application.object_store()),
-            server_id,
-            &db_name,
-        ));
+        let iox_object_store = Arc::new(
+            IoxObjectStore::new(Arc::clone(application.object_store()), server_id, &db_name)
+                .await
+                .unwrap(),
+        );
 
         // create catalog
         PreservedCatalog::new_empty::<TestCatalogState>(iox_object_store, ())

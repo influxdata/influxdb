@@ -484,7 +484,7 @@ mod tests {
         let table_name = Arc::from("my_table");
         let partition_key = Arc::from("my_partition");
         let chunk_id = 33;
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let storage = Storage::new(Arc::clone(&iox_object_store));
 
         // write the data in

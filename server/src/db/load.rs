@@ -318,7 +318,11 @@ mod tests {
         let object_store = Arc::new(ObjectStore::new_in_memory());
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = DatabaseName::new("preserved_catalog_test").unwrap();
-        let iox_object_store = Arc::new(IoxObjectStore::new(object_store, server_id, &db_name));
+        let iox_object_store = Arc::new(
+            IoxObjectStore::new(object_store, server_id, &db_name)
+                .await
+                .unwrap(),
+        );
 
         let (preserved_catalog, _catalog) =
             PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())

@@ -147,7 +147,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup_empty() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         let (catalog, _state) =
             PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
@@ -163,7 +163,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup_rules() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         let (catalog, _state) =
             PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
@@ -229,7 +229,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup_with_parallel_transaction() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let lock: RwLock<()> = Default::default();
 
         let (catalog, _state) =
@@ -284,7 +284,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup_max_files() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         let (catalog, _state) =
             PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())

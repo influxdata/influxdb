@@ -90,6 +90,7 @@ pub struct Database {
 pub struct DatabaseConfig {
     pub name: DatabaseName<'static>,
     pub server_id: ServerId,
+    pub generation_id: usize,
     pub wipe_catalog_on_error: bool,
     pub skip_replay: bool,
 }
@@ -100,10 +101,11 @@ impl Database {
     /// This is backed by an existing database, which was [created](Self::create) some time in the
     /// past.
     pub fn new(application: Arc<ApplicationState>, config: DatabaseConfig) -> Self {
-        let iox_object_store = Arc::new(IoxObjectStore::new(
+        let iox_object_store = Arc::new(IoxObjectStore::existing(
             Arc::clone(application.object_store()),
             config.server_id,
             &config.name,
+            config.generation_id,
         ));
 
         info!(
@@ -132,16 +134,19 @@ impl Database {
         application: Arc<ApplicationState>,
         rules: DatabaseRules,
         server_id: ServerId,
-    ) -> Result<(), InitError> {
+    ) -> Result<usize, InitError> {
         let db_name = rules.name.clone();
-        let object_store =
-            IoxObjectStore::new(Arc::clone(application.object_store()), server_id, &db_name);
+        let iox_object_store = Arc::new(
+            IoxObjectStore::new(Arc::clone(application.object_store()), server_id, &db_name)
+                .await
+                .context(IoxObjectStoreError)?,
+        );
 
-        persist_database_rules(&object_store, rules).await?;
+        persist_database_rules(&iox_object_store, rules).await?;
 
         create_preserved_catalog(
             db_name.as_str(),
-            Arc::new(object_store),
+            Arc::clone(&iox_object_store),
             server_id,
             Arc::clone(application.metric_registry()),
             true,
@@ -149,7 +154,7 @@ impl Database {
         .await
         .context(CannotCreatePreservedCatalog)?;
 
-        Ok(())
+        Ok(iox_object_store.generation_id())
     }
 
     /// Triggers shutdown of this `Database`
@@ -518,6 +523,11 @@ pub enum InitError {
     #[snafu(display("store error: {}", source))]
     StoreError { source: object_store::Error },
 
+    #[snafu(display("{}", source))]
+    IoxObjectStoreError {
+        source: iox_object_store::IoxObjectStoreError,
+    },
+
     #[snafu(display("error serializing database rules to protobuf: {}", source))]
     ErrorSerializingRulesProtobuf {
         source: generated_types::database_rules::EncodeError,
@@ -660,11 +670,7 @@ impl DatabaseStateRulesLoaded {
 
         let database_to_commit = DatabaseToCommit {
             server_id: shared.config.server_id,
-            iox_object_store: Arc::new(IoxObjectStore::new(
-                Arc::clone(shared.application.object_store()),
-                shared.config.server_id,
-                &shared.config.name,
-            )),
+            iox_object_store: Arc::clone(&shared.iox_object_store),
             exec: Arc::clone(shared.application.executor()),
             rules: Arc::clone(&self.rules),
             preserved_catalog,
@@ -750,6 +756,7 @@ mod tests {
             DatabaseConfig {
                 name: DatabaseName::new("test").unwrap(),
                 server_id: ServerId::new(NonZeroU32::new(23).unwrap()),
+                generation_id: 0,
                 wipe_catalog_on_error: false,
                 skip_replay: false,
             },
@@ -842,12 +849,13 @@ mod tests {
                 "mock://my_mock".to_string(),
             )),
         };
-        Database::create(Arc::clone(&application), rules, server_id)
+        let generation_id = Database::create(Arc::clone(&application), rules, server_id)
             .await
             .unwrap();
         let db_config = DatabaseConfig {
             name: db_name,
             server_id,
+            generation_id,
             wipe_catalog_on_error: false,
             skip_replay: false,
         };

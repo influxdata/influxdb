@@ -97,6 +97,7 @@ impl ParquetFilePath {
         // iox_object_store data_paths
         absolute_dirs.next(); // server id
         absolute_dirs.next(); // database name
+        absolute_dirs.next(); // generation
         absolute_dirs.next(); // "data"
 
         let remaining = DirsAndFileName {
@@ -283,7 +284,7 @@ mod tests {
         // Success case
         let uuid = Uuid::new_v4();
         let mut path = object_store.new_path();
-        path.push_all_dirs(&["foo", "bar", "baz", "}*", "aoeu"]);
+        path.push_all_dirs(&["server", "database", "generation", "data", "}*", "aoeu"]);
         path.set_file_name(&format!("10.{}.parquet", uuid));
         let result = ParquetFilePath::from_absolute(path);
         assert_eq!(
@@ -302,7 +303,8 @@ mod tests {
         let mut path = object_store.new_path();
         // incorrect directories are fine, we're assuming that list(data_path) scoped to the
         // right directories so we don't check again on the way out
-        path.push_all_dirs(&["foo", "bar", "baz", "}*", "aoeu"]);
+        path.push_all_dirs(&["server", "database", "generation", "data", "}*", "aoeu"]);
+        // but this file name doesn't contain a chunk id
         path.set_file_name("rules.pb");
         let result = ParquetFilePath::from_absolute(path);
         assert!(
@@ -312,7 +314,7 @@ mod tests {
         );
 
         let mut path = object_store.new_path();
-        path.push_all_dirs(&["foo", "bar", "baz", "}*", "aoeu"]);
+        path.push_all_dirs(&["server", "database", "generation", "data", "}*", "aoeu"]);
         // missing file name
         let result = ParquetFilePath::from_absolute(path);
         assert!(matches!(result, Err(MissingChunkId)), "got: {:?}", result);
@@ -341,9 +343,14 @@ mod tests {
     fn data_path_join_with_parquet_file_path() {
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
+        let generation_id = 3;
         let object_store = make_object_store();
-        let iox_object_store =
-            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name);
+        let iox_object_store = IoxObjectStore::existing(
+            Arc::clone(&object_store),
+            server_id,
+            &database_name,
+            generation_id,
+        );
 
         let uuid = Uuid::new_v4();
         let pfp = ParquetFilePath {
@@ -359,6 +366,7 @@ mod tests {
         expected_path.push_all_dirs(&[
             &server_id.to_string(),
             database_name.as_str(),
+            &generation_id.to_string(),
             "data",
             "}*",
             "aoeu",

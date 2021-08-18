@@ -31,7 +31,7 @@ mod tests {
 
         ////////////////////
         // Make an OS in memory
-        let store = make_iox_object_store();
+        let store = make_iox_object_store().await;
 
         ////////////////////
         // Store the data as a chunk and write it to in the object store

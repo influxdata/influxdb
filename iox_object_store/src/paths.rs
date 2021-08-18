@@ -46,6 +46,28 @@ impl RootPath {
     }
 }
 
+/// A database- and generation-specific object store path that all `IoxPath`s should be within.
+/// This should not be leaked outside this crate.
+#[derive(Debug, Clone)]
+pub(crate) struct GenerationPath {
+    pub(crate) inner: Path,
+}
+
+impl GenerationPath {
+    /// How the generation path of a database is defined in object storage.
+    pub(crate) fn new(root_path: &RootPath, generation: usize) -> Self {
+        Self {
+            inner: root_path.join(&generation.to_string()),
+        }
+    }
+
+    pub(crate) fn join(&self, dir: &str) -> Path {
+        let mut result = self.inner.clone();
+        result.push_dir(dir);
+        result
+    }
+}
+
 /// A database-specific object store path for all catalog transaction files. This should not be
 /// leaked outside this crate.
 #[derive(Debug, Clone)]
@@ -54,9 +76,9 @@ pub(crate) struct TransactionsPath {
 }
 
 impl TransactionsPath {
-    pub(crate) fn new(root_path: &RootPath) -> Self {
+    pub(crate) fn new(generation_path: &GenerationPath) -> Self {
         Self {
-            inner: root_path.join("transactions"),
+            inner: generation_path.join("transactions"),
         }
     }
 
@@ -84,9 +106,9 @@ pub(crate) struct DataPath {
 }
 
 impl DataPath {
-    pub(crate) fn new(root_path: &RootPath) -> Self {
+    pub(crate) fn new(generation_path: &GenerationPath) -> Self {
         Self {
-            inner: root_path.join("data"),
+            inner: generation_path.join("data"),
         }
     }
 
@@ -126,45 +148,73 @@ mod tests {
 
     #[test]
     fn root_path_contains_server_id_and_db_name() {
+        let object_store = make_object_store();
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
-        let iox_object_store = IoxObjectStore::new(make_object_store(), server_id, &database_name);
+        let root_path = RootPath::new(&object_store, server_id, &database_name);
 
-        assert_eq!(
-            iox_object_store.root_path.inner.to_string(),
-            "mem:1/clouds/"
-        )
+        assert_eq!(root_path.inner.to_string(), "mem:1/clouds/")
     }
 
     #[test]
     fn root_path_join_concatenates() {
+        let object_store = make_object_store();
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
-        let iox_object_store = IoxObjectStore::new(make_object_store(), server_id, &database_name);
+        let root_path = RootPath::new(&object_store, server_id, &database_name);
 
-        let path = iox_object_store.root_path.join("foo");
+        let path = root_path.join("foo");
         assert_eq!(path.to_string(), "mem:1/clouds/foo/");
     }
 
     #[test]
-    fn transactions_path_is_relative_to_db_root() {
+    fn generation_path_is_relative_to_root_path() {
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
-        let iox_object_store = IoxObjectStore::new(make_object_store(), server_id, &database_name);
+        let generation_id = 3;
+        let iox_object_store = IoxObjectStore::existing(
+            make_object_store(),
+            server_id,
+            &database_name,
+            generation_id,
+        );
         assert_eq!(
-            iox_object_store.transactions_path.inner.to_string(),
-            "mem:1/clouds/transactions/"
+            iox_object_store.generation_path.inner.to_string(),
+            "mem:1/clouds/3/"
         );
     }
 
     #[test]
-    fn data_path_is_relative_to_db_root() {
+    fn transactions_path_is_relative_to_generation_path() {
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
-        let iox_object_store = IoxObjectStore::new(make_object_store(), server_id, &database_name);
+        let generation_id = 3;
+        let iox_object_store = IoxObjectStore::existing(
+            make_object_store(),
+            server_id,
+            &database_name,
+            generation_id,
+        );
+        assert_eq!(
+            iox_object_store.transactions_path.inner.to_string(),
+            "mem:1/clouds/3/transactions/"
+        );
+    }
+
+    #[test]
+    fn data_path_is_relative_to_generation_path() {
+        let server_id = make_server_id();
+        let database_name = DatabaseName::new("clouds").unwrap();
+        let generation_id = 3;
+        let iox_object_store = IoxObjectStore::existing(
+            make_object_store(),
+            server_id,
+            &database_name,
+            generation_id,
+        );
         assert_eq!(
             iox_object_store.data_path.inner.to_string(),
-            "mem:1/clouds/data/"
+            "mem:1/clouds/3/data/"
         );
     }
 }
