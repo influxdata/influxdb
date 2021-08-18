@@ -23,8 +23,11 @@ mod write_pb;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("gRPC transport error: {}", source))]
-    TransportError { source: tonic::transport::Error },
+    #[snafu(display("gRPC transport error: {}{}", source, details))]
+    TransportError {
+        source: tonic::transport::Error,
+        details: String,
+    },
 
     #[snafu(display("gRPC reflection error: {}", source))]
     ReflectionError {
@@ -33,6 +36,20 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+// Custom impl to include underlying source (not included in tonic
+// transport error)
+impl From<tonic::transport::Error> for Error {
+    fn from(source: tonic::transport::Error) -> Self {
+        use std::error::Error;
+        let details = source
+            .source()
+            .map(|e| format!(" ({})", e))
+            .unwrap_or_else(|| "".to_string());
+
+        Self::TransportError { source, details }
+    }
+}
 
 /// Returns the name of the gRPC service S.
 fn service_name<S: NamedService>(_: &S) -> &'static str {
@@ -139,6 +156,7 @@ where
 
     builder
         .serve_with_incoming_shutdown(stream, shutdown.cancelled())
-        .await
-        .context(TransportError)
+        .await?;
+
+    Ok(())
 }

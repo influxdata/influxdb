@@ -15,10 +15,6 @@ pub enum Error {
     #[error("Received invalid response: {}", .0)]
     InvalidResponse(i32),
 
-    /// Error connecting to the server
-    #[error("Connection error: {}", .0)]
-    ConnectionError(#[from] tonic::transport::Error),
-
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     UnexpectedError(#[from] tonic::Status),

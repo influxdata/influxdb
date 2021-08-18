@@ -20,12 +20,31 @@ pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 #[derive(Debug, Error)]
 pub enum Error {
     /// Server returned an invalid argument error
-    #[error("Connection error: {}", .0)]
-    TransportError(#[from] tonic::transport::Error),
+    #[error("Connection error: {}{}", source, details)]
+    TransportError {
+        /// underlying [`tonic::transport::Error`]
+        source: tonic::transport::Error,
+        /// stringified version of the tonic error's source
+        details: String,
+    },
 
     /// Client received an unexpected error from the server
     #[error("Invalid URI: {}", .0)]
     InvalidUri(#[from] InvalidUri),
+}
+
+// Custom impl to include underlying source (not included in tonic
+// transport error)
+impl From<tonic::transport::Error> for Error {
+    fn from(source: tonic::transport::Error) -> Self {
+        use std::error::Error;
+        let details = source
+            .source()
+            .map(|e| format!(" ({})", e))
+            .unwrap_or_else(|| "".to_string());
+
+        Self::TransportError { source, details }
+    }
 }
 
 /// Result type for the ConnectionBuilder
