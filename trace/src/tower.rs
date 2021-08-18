@@ -98,7 +98,7 @@ where
 #[pin_project]
 #[derive(Debug)]
 pub struct TracedFuture<F> {
-    span: Option<EnteredSpan<'static>>,
+    span: Option<EnteredSpan>,
     #[pin]
     inner: F,
 }
@@ -133,7 +133,7 @@ where
 #[pin_project]
 #[derive(Debug)]
 pub struct TracedBody<B> {
-    span: Option<EnteredSpan<'static>>,
+    span: Option<EnteredSpan>,
     #[pin]
     inner: B,
 }

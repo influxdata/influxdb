@@ -16,12 +16,13 @@ use observability_deps::tracing::info;
 use crate::span::Span;
 
 pub mod ctx;
+pub mod otel;
 pub mod span;
 pub mod tower;
 
 /// A TraceCollector is a sink for completed `Span`
 pub trait TraceCollector: std::fmt::Debug + Send + Sync {
-    fn export(&self, span: &span::Span<'_>);
+    fn export(&self, span: Span);
 }
 
 /// A basic trace collector that prints to stdout
@@ -41,7 +42,7 @@ impl Default for LogTraceCollector {
 }
 
 impl TraceCollector for LogTraceCollector {
-    fn export(&self, span: &Span<'_>) {
+    fn export(&self, span: Span) {
         info!("completed span {}", span.json())
     }
 }
@@ -65,7 +66,7 @@ impl RingBufferTraceCollector {
 }
 
 impl TraceCollector for RingBufferTraceCollector {
-    fn export(&self, span: &Span<'_>) {
+    fn export(&self, span: Span) {
         let serialized = span.json();
         let mut buffer = self.buffer.lock();
         if buffer.len() == buffer.capacity() {

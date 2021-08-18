@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
@@ -20,11 +21,10 @@ pub enum SpanStatus {
 /// A `Span` has a name, metadata, a start and end time and a unique ID. Additionally they
 /// have relationships with other Spans that together comprise a Trace
 ///
-/// On Drop a `Span` is published to the registered collector
 ///
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Span<'a> {
-    pub name: &'a str,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Span {
+    pub name: Cow<'static, str>,
 
     //#[serde(flatten)] - https://github.com/serde-rs/json/issues/505
     pub ctx: SpanContext,
@@ -35,15 +35,14 @@ pub struct Span<'a> {
 
     pub status: SpanStatus,
 
-    #[serde(borrow)]
-    pub metadata: HashMap<&'a str, MetaValue<'a>>,
+    pub metadata: HashMap<Cow<'static, str>, MetaValue>,
 
-    #[serde(borrow)]
-    pub events: Vec<SpanEvent<'a>>,
+    pub events: Vec<SpanEvent>,
 }
 
-impl<'a> Span<'a> {
-    pub fn event(&mut self, meta: impl Into<MetaValue<'a>>) {
+impl Span {
+    /// Record an event on this `Span`
+    pub fn event(&mut self, meta: impl Into<Cow<'static, str>>) {
         let event = SpanEvent {
             time: Utc::now(),
             msg: meta.into(),
@@ -51,11 +50,13 @@ impl<'a> Span<'a> {
         self.events.push(event)
     }
 
-    pub fn error(&mut self, meta: impl Into<MetaValue<'a>>) {
+    /// Record an error on this `Span`
+    pub fn error(&mut self, meta: impl Into<Cow<'static, str>>) {
         self.event(meta);
         self.status = SpanStatus::Err;
     }
 
+    /// Returns a JSON representation of this `Span`
     pub fn json(&self) -> String {
         match serde_json::to_string(self) {
             Ok(serialized) => serialized,
@@ -65,46 +66,50 @@ impl<'a> Span<'a> {
             }
         }
     }
-}
 
-impl<'a> Drop for Span<'a> {
-    fn drop(&mut self) {
-        if let Some(collector) = &self.ctx.collector {
+    /// Exports this `Span` to its registered collector if any
+    pub fn export(mut self) {
+        if let Some(collector) = self.ctx.collector.take() {
             collector.export(self)
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SpanEvent<'a> {
+pub struct SpanEvent {
     pub time: DateTime<Utc>,
 
-    #[serde(borrow)]
-    pub msg: MetaValue<'a>,
+    pub msg: Cow<'static, str>,
 }
 
 /// Values that can be stored in a Span's metadata and events
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum MetaValue<'a> {
-    String(&'a str),
+pub enum MetaValue {
+    String(Cow<'static, str>),
     Float(f64),
     Int(i64),
 }
 
-impl<'a> From<&'a str> for MetaValue<'a> {
-    fn from(v: &'a str) -> Self {
-        Self::String(v)
+impl From<&'static str> for MetaValue {
+    fn from(v: &'static str) -> Self {
+        Self::String(Cow::Borrowed(v))
     }
 }
 
-impl<'a> From<f64> for MetaValue<'a> {
+impl From<String> for MetaValue {
+    fn from(v: String) -> Self {
+        Self::String(Cow::Owned(v))
+    }
+}
+
+impl From<f64> for MetaValue {
     fn from(v: f64) -> Self {
         Self::Float(v)
     }
 }
 
-impl<'a> From<i64> for MetaValue<'a> {
+impl From<i64> for MetaValue {
     fn from(v: i64) -> Self {
         Self::Int(v)
     }
@@ -112,46 +117,50 @@ impl<'a> From<i64> for MetaValue<'a> {
 
 /// Updates the start and end times on the provided Span
 #[derive(Debug)]
-pub struct EnteredSpan<'a> {
-    span: Span<'a>,
+pub struct EnteredSpan {
+    /// Option so we can take out of it on drop / publish
+    span: Option<Span>,
 }
 
-impl<'a> Deref for EnteredSpan<'a> {
-    type Target = Span<'a>;
+impl<'a> Deref for EnteredSpan {
+    type Target = Span;
 
     fn deref(&self) -> &Self::Target {
-        &self.span
+        self.span.as_ref().expect("dropped")
     }
 }
 
-impl<'a> DerefMut for EnteredSpan<'a> {
+impl<'a> DerefMut for EnteredSpan {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.span
+        self.span.as_mut().expect("dropped")
     }
 }
 
-impl<'a> EnteredSpan<'a> {
-    pub fn new(mut span: Span<'a>) -> Self {
+impl<'a> EnteredSpan {
+    pub fn new(mut span: Span) -> Self {
         span.start = Some(Utc::now());
-        Self { span }
+        Self { span: Some(span) }
     }
 }
 
-impl<'a> Drop for EnteredSpan<'a> {
+impl<'a> Drop for EnteredSpan {
     fn drop(&mut self) {
         let now = Utc::now();
 
-        // SystemTime is not monotonic so must also check min
+        let mut span = self.span.take().expect("dropped");
 
-        self.span.start = Some(match self.span.start {
+        // SystemTime is not monotonic so must also check min
+        span.start = Some(match span.start {
             Some(a) => a.min(now),
             None => now,
         });
 
-        self.span.end = Some(match self.span.end {
+        span.end = Some(match span.end {
             Some(a) => a.max(now),
             None => now,
         });
+
+        span.export()
     }
 }
 
@@ -167,9 +176,9 @@ mod tests {
 
     use super::*;
 
-    fn make_span(collector: Arc<dyn TraceCollector>) -> Span<'static> {
+    fn make_span(collector: Arc<dyn TraceCollector>) -> Span {
         Span {
-            name: "foo",
+            name: "foo".into(),
             ctx: SpanContext {
                 trace_id: TraceId(NonZeroU128::new(23948923).unwrap()),
                 parent_span_id: None,
@@ -197,7 +206,7 @@ mod tests {
 
         span.events.push(SpanEvent {
             time: Utc.timestamp_nanos(1000),
-            msg: MetaValue::String("this is a test event"),
+            msg: "this is a test event".into(),
         });
 
         assert_eq!(
@@ -205,7 +214,7 @@ mod tests {
             r#"{"name":"foo","ctx":{"trace_id":23948923,"parent_span_id":null,"span_id":3498394},"start":null,"end":null,"status":"Unknown","metadata":{},"events":[{"time":"1970-01-01T00:00:00.000001Z","msg":"this is a test event"}]}"#
         );
 
-        span.metadata.insert("foo", MetaValue::String("bar"));
+        span.metadata.insert("foo".into(), "bar".into());
         span.start = Some(Utc.timestamp_nanos(100));
 
         assert_eq!(
@@ -219,7 +228,7 @@ mod tests {
         let expected = r#"{"name":"foo","ctx":{"trace_id":23948923,"parent_span_id":23493,"span_id":3498394},"start":"1970-01-01T00:00:00.000000100Z","end":null,"status":"Ok","metadata":{"foo":"bar"},"events":[{"time":"1970-01-01T00:00:00.000001Z","msg":"this is a test event"}]}"#;
         assert_eq!(span.json(), expected);
 
-        std::mem::drop(span);
+        span.export();
 
         // Should publish span
         let spans = collector.spans();
@@ -243,7 +252,7 @@ mod tests {
         let spans = collector.spans();
         assert_eq!(spans.len(), 1);
 
-        let span: Span<'_> = serde_json::from_str(spans[0].as_str()).unwrap();
+        let span: Span = serde_json::from_str(spans[0].as_str()).unwrap();
 
         assert!(span.start.is_some());
         assert!(span.end.is_some());

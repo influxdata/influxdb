@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::num::{NonZeroU128, NonZeroU64, ParseIntError};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -8,8 +9,8 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
 
-use crate::ctx::ContextCodec::{Jaeger, B3};
 use crate::{
+    ctx::ContextCodec::{Jaeger, B3},
     span::{Span, SpanStatus},
     TraceCollector,
 };
@@ -64,6 +65,16 @@ impl From<ParseIntError> for DecodeError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TraceId(pub NonZeroU128);
 
+impl TraceId {
+    pub fn new(val: u128) -> Option<Self> {
+        Some(Self(NonZeroU128::new(val)?))
+    }
+
+    pub fn get(self) -> u128 {
+        self.0.get()
+    }
+}
+
 impl<'a> FromStr for TraceId {
     type Err = DecodeError;
 
@@ -78,9 +89,17 @@ impl<'a> FromStr for TraceId {
 pub struct SpanId(pub NonZeroU64);
 
 impl SpanId {
+    pub fn new(val: u64) -> Option<Self> {
+        Some(Self(NonZeroU64::new(val)?))
+    }
+
     pub fn gen() -> Self {
         // Should this be a UUID?
         Self(rand::thread_rng().gen())
+    }
+
+    pub fn get(self) -> u64 {
+        self.0.get()
     }
 }
 
@@ -111,9 +130,9 @@ pub struct SpanContext {
 
 impl SpanContext {
     /// Creates a new child of the Span described by this TraceContext
-    pub fn child<'a>(&self, name: &'a str) -> Span<'a> {
+    pub fn child(&self, name: impl Into<Cow<'static, str>>) -> Span {
         Span {
-            name,
+            name: name.into(),
             ctx: Self {
                 trace_id: self.trace_id,
                 span_id: SpanId::gen(),
@@ -296,8 +315,9 @@ fn required_header<T: FromStr<Err = DecodeError>>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use http::HeaderValue;
+
+    use super::*;
 
     #[test]
     fn test_decode_b3() {
