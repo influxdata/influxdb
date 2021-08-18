@@ -9,7 +9,10 @@
     clippy::clone_on_ref_ptr
 )]
 
-//! Wraps the object_store crate with IOx-specific semantics.
+//! Wraps the object_store crate with IOx-specific semantics. The main responsibility of this crate
+//! is to be the single source of truth for the paths of files in object storage. There is a
+//! specific path type for each IOx-specific reason an object storage file exists. Content of the
+//! files is managed outside of this crate.
 
 use bytes::{Bytes, BytesMut};
 use data_types::{error::ErrorLogger, server_id::ServerId, DatabaseName};
@@ -218,6 +221,8 @@ impl IoxObjectStore {
     // Database rule file methods =================================================================
 
     // Deliberately private; this should not leak outside this crate
+    // so assumptions about the object store organization are confined
+    // (and can be changed) in this crate
     fn db_rules_path(&self) -> Path {
         self.root_path.join(DB_RULES_FILE_NAME)
     }
@@ -251,7 +256,9 @@ impl IoxObjectStore {
 
     /// List the relative paths in this database's object store.
     ///
-    /// Deliberately private!
+    // Deliberately private; this should not leak outside this crate
+    // so assumptions about the object store organization are confined
+    // (and can be changed) in this crate
     /// All outside calls should go to one of the more specific listing methods.
     async fn list(&self, prefix: Option<&Path>) -> Result<BoxStream<'static, Result<Vec<Path>>>> {
         let (tx, rx) = channel(4);
