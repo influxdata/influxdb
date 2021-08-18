@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use assert_cmd::Command;
 use predicates::prelude::*;
@@ -897,4 +898,84 @@ async fn test_drop_partition_error() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("Cannot drop unpersisted chunk"));
+}
+
+#[tokio::test]
+async fn test_persist_partition() {
+    let fixture = ServerFixture::create_shared().await;
+    let addr = fixture.grpc_base();
+    let db_name = rand_name();
+
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        .persist_age_threshold_seconds(1_000)
+        .late_arrive_window_seconds(1)
+        .build(fixture.grpc_channel())
+        .await;
+
+    let lp_data = vec!["cpu,region=west user=23.2 10"];
+    load_lp(addr, &db_name, lp_data);
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::OpenMutableBuffer],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("persist")
+        .arg(&db_name)
+        .arg("cpu")
+        .arg("cpu")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Ok"));
+}
+
+#[tokio::test]
+async fn test_persist_partition_error() {
+    let fixture = ServerFixture::create_shared().await;
+    let addr = fixture.grpc_base();
+    let db_name = rand_name();
+
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        .persist_age_threshold_seconds(1_000)
+        .late_arrive_window_seconds(1_000)
+        .build(fixture.grpc_channel())
+        .await;
+
+    let lp_data = vec!["cpu,region=west user=23.2 10"];
+    load_lp(addr, &db_name, lp_data);
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::OpenMutableBuffer],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("persist")
+        .arg(&db_name)
+        .arg("cpu")
+        .arg("cpu")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Cannot flush partition"));
 }
