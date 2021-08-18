@@ -820,81 +820,87 @@ impl Db {
     ) {
         info!("started background worker");
 
-        tokio::join!(
-            // lifecycle policy loop
-            async {
-                while !shutdown.is_cancelled() {
-                    self.worker_iterations_lifecycle
-                        .fetch_add(1, Ordering::Relaxed);
-                    tokio::select! {
-                        _ = async {
-                            let mut guard = self.lifecycle_policy.lock().await;
-                            let policy = guard.as_mut().expect("lifecycle policy should be initialized");
-                            policy.check_for_work(Utc::now(), self.background_worker_now()).await
-                        } => {},
-                        _ = shutdown.cancelled() => break,
-                    }
-                }
-            },
-            // object store cleanup loop
-            async {
-                while !shutdown.is_cancelled() {
-                    self.worker_iterations_cleanup
-                        .fetch_add(1, Ordering::Relaxed);
-                    tokio::select! {
-                        _ = async {
-                            // Sleep for a duration drawn from a poisson distribution to de-correlate workers.
-                            // Perform this sleep BEFORE the actual clean-up so that we don't immediately run a clean-up
-                            // on startup.
-                            let avg_sleep_secs = self.rules.read().worker_cleanup_avg_sleep.as_secs_f32().max(1.0);
-                            let dist = Poisson::new(avg_sleep_secs).expect("parameter should be positive and finite");
-                            let duration = Duration::from_secs_f32(dist.sample(&mut rand::thread_rng()));
-                            debug!(?duration, "cleanup worker sleeps");
-                            tokio::time::sleep(duration).await;
+        // Loop that drives the lifecycle for this database
+        let lifecycle_loop = async {
+            loop {
+                self.worker_iterations_lifecycle
+                    .fetch_add(1, Ordering::Relaxed);
+                let mut guard = self.lifecycle_policy.lock().await;
 
-                            if let Err(e) = self.cleanup_unreferenced_parquet_files().await {
-                                error!(%e, "error in background cleanup task");
-                            }
-                        } => {},
-                        _ = shutdown.cancelled() => break,
-                    }
-                }
-            },
-            // streaming from the write buffer loop
-            async {
-                if let Some(WriteBufferConfig::Reading(write_buffer)) = &self.write_buffer {
-                    // wait for permission
-                    tokio::select! {
-                        _ = async {
-                            while self.no_write_buffer_read.load(Ordering::SeqCst) {
-                                tokio::time::sleep(Duration::from_millis(10)).await;
-                            }
-                        } => {},
-                        _ = shutdown.cancelled() => return,
-                    }
+                let policy = guard
+                    .as_mut()
+                    .expect("lifecycle policy should be initialized");
 
-                    let mut write_buffer = write_buffer
-                        .try_lock()
-                        .expect("no streams should exist at this point");
-                    let mut futures = vec![];
-                    for (sequencer_id, stream) in write_buffer.streams() {
-                        let metrics = self.ingest_metrics.new_sequencer_metrics(sequencer_id);
-                        let fut = self.stream_in_sequenced_entries(
-                            sequencer_id,
-                            stream.stream,
-                            stream.fetch_high_watermark,
-                            metrics,
-                        );
-                        futures.push(fut);
-                    }
+                policy
+                    .check_for_work(Utc::now(), self.background_worker_now())
+                    .await
+            }
+        };
 
-                    tokio::select! {
-                        _ = futures::future::join_all(futures) => {},
-                        _ = shutdown.cancelled() => {},
-                    }
+        // object store cleanup loop
+        let object_store_cleanup_loop = async {
+            loop {
+                self.worker_iterations_cleanup
+                    .fetch_add(1, Ordering::Relaxed);
+
+                // Sleep for a duration drawn from a poisson distribution to de-correlate workers.
+                // Perform this sleep BEFORE the actual clean-up so that we don't immediately run a clean-up
+                // on startup.
+                let avg_sleep_secs = self
+                    .rules
+                    .read()
+                    .worker_cleanup_avg_sleep
+                    .as_secs_f32()
+                    .max(1.0);
+                let dist =
+                    Poisson::new(avg_sleep_secs).expect("parameter should be positive and finite");
+                let duration = Duration::from_secs_f32(dist.sample(&mut rand::thread_rng()));
+                debug!(?duration, "cleanup worker sleeps");
+                tokio::time::sleep(duration).await;
+
+                if let Err(e) = self.cleanup_unreferenced_parquet_files().await {
+                    error!(%e, "error in background cleanup task");
                 }
-            },
-        );
+            }
+        };
+
+        // streaming from the write buffer loop
+        let write_buffer = async {
+            if let Some(WriteBufferConfig::Reading(write_buffer)) = &self.write_buffer {
+                // wait for permission
+                while self.no_write_buffer_read.load(Ordering::SeqCst) {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+
+                let mut write_buffer = write_buffer
+                    .try_lock()
+                    .expect("no streams should exist at this point");
+                let mut futures = vec![];
+                for (sequencer_id, stream) in write_buffer.streams() {
+                    let metrics = self.ingest_metrics.new_sequencer_metrics(sequencer_id);
+                    let fut = self.stream_in_sequenced_entries(
+                        sequencer_id,
+                        stream.stream,
+                        stream.fetch_high_watermark,
+                        metrics,
+                    );
+                    futures.push(fut);
+                }
+
+                futures::future::join_all(futures).await;
+            } else {
+                futures::future::pending::<()>().await;
+            }
+        };
+
+        // None of the futures need to perform drain logic on shutdown.
+        // When the first one finishes, all of them are dropped
+        tokio::select! {
+            _ = lifecycle_loop => error!("lifecycle loop exited - database worker bailing out"),
+            _ = write_buffer => error!("write buffer loop exited - database worker bailing out"),
+            _ = object_store_cleanup_loop => error!("object store cleanup exited - database worker bailing out"),
+            _ = shutdown.cancelled() => info!("database worker shutting down"),
+        }
 
         info!("finished background worker");
     }
