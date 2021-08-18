@@ -4,6 +4,7 @@
 ### Bug Fixes
 
 1. [22242](https://github.com/influxdata/influxdb/pull/22242): Preserve comments in flux queries when saving task definitions
+1. [22245](https://github.com/influxdata/influxdb/pull/22245): Avoid compaction queue stats flutter
 
 ## v2.0.8 [2021-08-13]
 ----------------------
