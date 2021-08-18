@@ -2094,6 +2094,7 @@ dependencies = [
  "dashmap",
  "hashbrown",
  "observability_deps",
+ "opentelemetry",
  "opentelemetry-prometheus",
  "parking_lot",
  "prometheus",
@@ -2464,7 +2465,6 @@ dependencies = [
 name = "observability_deps"
 version = "0.1.0"
 dependencies = [
- "opentelemetry",
  "tracing",
 ]
 
@@ -4719,6 +4719,7 @@ dependencies = [
  "http-body",
  "itertools 0.10.1",
  "observability_deps",
+ "opentelemetry",
  "parking_lot",
  "pin-project 1.0.8",
  "rand 0.8.4",
@@ -4855,6 +4856,7 @@ version = "0.1.0"
 dependencies = [
  "logfmt",
  "observability_deps",
+ "opentelemetry",
  "opentelemetry-jaeger",
  "opentelemetry-otlp",
  "regex",

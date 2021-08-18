@@ -33,10 +33,8 @@ use chrono::Utc;
 use futures::{self, StreamExt};
 use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use hyper::{http::HeaderValue, Body, Method, Request, Response, StatusCode};
-use observability_deps::{
-    opentelemetry::KeyValue,
-    tracing::{self, debug, error},
-};
+use metrics::KeyValue;
+use observability_deps::tracing::{self, debug, error};
 use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError, RouterService};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};

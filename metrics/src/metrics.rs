@@ -4,11 +4,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use observability_deps::opentelemetry::metrics::{
-    Counter as OTCounter, ValueRecorder as OTHistogram,
-};
+use opentelemetry::metrics::{Counter as OTCounter, ValueRecorder as OTHistogram};
 
-pub use observability_deps::opentelemetry::KeyValue;
+pub use opentelemetry::KeyValue;
 
 const RED_REQUEST_STATUS_LABEL: &str = "status";
 
