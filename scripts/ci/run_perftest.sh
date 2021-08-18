@@ -259,7 +259,7 @@ query_types() {
       echo min-high-card mean-high-card max-high-card first-high-card last-high-card count-high-card sum-high-card min-low-card mean-low-card max-low-card first-low-card last-low-card count-low-card sum-low-card
       ;;
     iot)
-      echo 1-home-12-hours light-level-8-hr aggregate-keep sorted-pivot battery-levels
+      echo fast-query-small-data standalone-filter aggregate-keep sorted-pivot multi-measurement-or
       ;;
     metaquery)
       echo field-keys tag-values
@@ -273,7 +273,7 @@ query_types() {
 
 query_interval() {
   case $1 in
-    battery-levels)
+    multi-measurement-or)
       echo -query-interval=5m
       ;;
     *)
