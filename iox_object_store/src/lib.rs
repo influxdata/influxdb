@@ -9,21 +9,33 @@
     clippy::clone_on_ref_ptr
 )]
 
-//! Wraps the object_store crate with IOx-specific semantics.
+//! Wraps the object_store crate with IOx-specific semantics. The main responsibility of this crate
+//! is to be the single source of truth for the paths of files in object storage. There is a
+//! specific path type for each IOx-specific reason an object storage file exists. Content of the
+//! files is managed outside of this crate.
 
-// TODO: Create an IoxPath type and only take/return paths of those types, and wrap in the
-// database's root path before sending to the underlying object_store.
-
-use bytes::Bytes;
-use data_types::{server_id::ServerId, DatabaseName};
-use futures::{stream::BoxStream, Stream, StreamExt};
+use bytes::{Bytes, BytesMut};
+use data_types::{error::ErrorLogger, server_id::ServerId, DatabaseName};
+use futures::{
+    stream::{self, BoxStream},
+    Stream, StreamExt, TryStreamExt,
+};
 use object_store::{
-    path::{parsed::DirsAndFileName, ObjectStorePath, Path},
+    path::{parsed::DirsAndFileName, Path},
     ObjectStore, ObjectStoreApi, Result,
 };
-use std::{io, sync::Arc};
+use std::{collections::HashSet, io, sync::Arc};
 use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
+
+mod paths;
+pub use paths::{
+    parquet_file::{ParquetFilePath, ParquetFilePathParseError},
+    transaction_file::TransactionFilePath,
+};
+use paths::{DataPath, RootPath, TransactionsPath};
+
+const DB_RULES_FILE_NAME: &str = "rules.pb";
 
 /// Handles persistence of data for a particular database. Writes within its directory/prefix.
 ///
@@ -32,24 +44,55 @@ use tokio_stream::wrappers::ReceiverStream;
 pub struct IoxObjectStore {
     inner: Arc<ObjectStore>,
     server_id: ServerId,
-    database_name: String, // TODO: use data_types DatabaseName?
+    database_name: DatabaseName<'static>,
     root_path: RootPath,
+    data_path: DataPath,
+    transactions_path: TransactionsPath,
 }
 
 impl IoxObjectStore {
+    /// List all valid, unique database names in object storage that could be used to build
+    /// an `IoxObjectStore` on this server.
+    pub async fn list_databases(
+        inner: &ObjectStore,
+        server_id: ServerId,
+    ) -> Result<HashSet<DatabaseName<'static>>> {
+        let path = paths::all_databases_path(inner, server_id);
+
+        let list_result = inner.list_with_delimiter(&path).await?;
+
+        Ok(list_result
+            .common_prefixes
+            .into_iter()
+            .filter_map(|path| {
+                let path_parsed: DirsAndFileName = path.into();
+                let last = path_parsed.directories.last().expect("path can't be empty");
+                let db_name = DatabaseName::new(last.encoded().to_string())
+                    .log_if_error("invalid database directory")
+                    .ok()?;
+
+                Some(db_name)
+            })
+            .collect())
+    }
+
     /// Create a database-specific wrapper. Takes all the information needed to create the
     /// root directory of a database.
     pub fn new(
         inner: Arc<ObjectStore>,
         server_id: ServerId,
-        database_name: &DatabaseName<'_>,
+        database_name: &DatabaseName<'static>,
     ) -> Self {
-        let root_path = RootPath::new(inner.new_path(), server_id, database_name);
+        let root_path = RootPath::new(inner.as_ref(), server_id, database_name);
+        let data_path = DataPath::new(&root_path);
+        let transactions_path = TransactionsPath::new(&root_path);
         Self {
             inner,
             server_id,
-            database_name: database_name.into(),
+            database_name: database_name.to_owned(),
             root_path,
+            data_path,
+            transactions_path,
         }
     }
 
@@ -58,56 +101,172 @@ impl IoxObjectStore {
         &self.database_name
     }
 
-    /// Path where transactions are stored.
-    ///
-    /// The format is:
-    ///
-    /// ```text
-    /// <server_id>/<db_name>/transactions/
-    /// ```
-    // TODO: avoid leaking this outside this crate
-    pub fn catalog_path(&self) -> Path {
-        let mut path = self.inner.new_path();
-        path.push_dir(self.server_id.to_string());
-        path.push_dir(&self.database_name);
-        path.push_dir("transactions");
-        path
+    /// The location in object storage for all files for this database, suitable for logging
+    /// or debugging purposes only. Do not parse this, as its format is subject to change!
+    pub fn debug_database_path(&self) -> String {
+        self.root_path.inner.to_string()
     }
 
-    /// Location where parquet data goes to.
-    ///
-    /// Schema currently is:
-    ///
-    /// ```text
-    /// <server_id>/<db_name>/data/
-    /// ```
-    // TODO: avoid leaking this outside this crate
-    pub fn data_path(&self) -> Path {
-        let mut path = self.inner.new_path();
-        path.push_dir(self.server_id.to_string());
-        path.push_dir(&self.database_name);
-        path.push_dir("data");
-        path
+    // Catalog transaction file methods ===========================================================
+
+    /// List all the catalog transaction files in object storage for this database.
+    pub async fn catalog_transaction_files(
+        &self,
+    ) -> Result<BoxStream<'static, Result<Vec<TransactionFilePath>>>> {
+        Ok(self
+            .list(Some(&self.transactions_path.inner))
+            .await?
+            .map_ok(move |list| {
+                list.into_iter()
+                    // This `flat_map` ignores any filename in the transactions_path we couldn't
+                    // parse as a TransactionFilePath
+                    .flat_map(TransactionFilePath::from_absolute)
+                    .collect()
+            })
+            .boxed())
     }
 
-    /// Store this data in this database's object store.
-    pub async fn put<S>(&self, location: &Path, bytes: S, length: Option<usize>) -> Result<()>
+    /// Get the catalog transaction data in this relative path in this database's object store.
+    pub async fn get_catalog_transaction_file(
+        &self,
+        location: &TransactionFilePath,
+    ) -> Result<BoxStream<'static, Result<Bytes>>> {
+        let full_path = self.transactions_path.join(location);
+
+        self.inner.get(&full_path).await
+    }
+
+    /// Store the data for this parquet file in this database's object store.
+    pub async fn put_catalog_transaction_file<S>(
+        &self,
+        location: &TransactionFilePath,
+        bytes: S,
+        length: Option<usize>,
+    ) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
-        self.inner.put(location, bytes, length).await
+        let full_path = self.transactions_path.join(location);
+
+        self.inner.put(&full_path, bytes, length).await
     }
 
-    /// List all the catalog transaction files in object storage for this database.
-    pub async fn catalog_transaction_files(&self) -> Result<BoxStream<'static, Result<Vec<Path>>>> {
-        Ok(self.list(Some(&self.catalog_path())).await?.boxed())
+    /// Delete all catalog transaction files for this database.
+    pub async fn wipe_catalog(&self) -> Result<()> {
+        let mut stream = self.catalog_transaction_files().await?;
+
+        while let Some(transaction_file_list) = stream.try_next().await? {
+            for transaction_file_path in &transaction_file_list {
+                self.delete_catalog_transaction_file(transaction_file_path)
+                    .await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Remove the data for this catalog transaction file from this database's object store
+    pub async fn delete_catalog_transaction_file(
+        &self,
+        location: &TransactionFilePath,
+    ) -> Result<()> {
+        let full_path = self.transactions_path.join(location);
+
+        self.inner.delete(&full_path).await
+    }
+
+    // Parquet file methods =======================================================================
+
+    /// List all parquet file paths in object storage for this database.
+    pub async fn parquet_files(&self) -> Result<BoxStream<'static, Result<Vec<ParquetFilePath>>>> {
+        Ok(self
+            .list(Some(&self.data_path.inner))
+            .await?
+            .map_ok(move |list| {
+                list.into_iter()
+                    // This `flat_map` ignores any filename in the data_path we couldn't parse as
+                    // a ParquetFilePath
+                    .flat_map(ParquetFilePath::from_absolute)
+                    .collect()
+            })
+            .boxed())
+    }
+
+    /// Get the parquet file data in this relative path in this database's object store.
+    pub async fn get_parquet_file(
+        &self,
+        location: &ParquetFilePath,
+    ) -> Result<BoxStream<'static, Result<Bytes>>> {
+        let full_path = self.data_path.join(location);
+
+        self.inner.get(&full_path).await
+    }
+
+    /// Store the data for this parquet file in this database's object store.
+    pub async fn put_parquet_file<S>(
+        &self,
+        location: &ParquetFilePath,
+        bytes: S,
+        length: Option<usize>,
+    ) -> Result<()>
+    where
+        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
+    {
+        let full_path = self.data_path.join(location);
+
+        self.inner.put(&full_path, bytes, length).await
+    }
+
+    /// Remove the data for this parquet file from this database's object store
+    pub async fn delete_parquet_file(&self, location: &ParquetFilePath) -> Result<()> {
+        let full_path = self.data_path.join(location);
+
+        self.inner.delete(&full_path).await
+    }
+
+    // Database rule file methods =================================================================
+
+    // Deliberately private; this should not leak outside this crate
+    // so assumptions about the object store organization are confined
+    // (and can be changed) in this crate
+    fn db_rules_path(&self) -> Path {
+        self.root_path.join(DB_RULES_FILE_NAME)
+    }
+
+    /// Get the data for the database rules
+    pub async fn get_database_rules_file(&self) -> Result<bytes::Bytes> {
+        let mut stream = self.inner.get(&self.db_rules_path()).await?;
+        let mut bytes = BytesMut::new();
+
+        while let Some(buf) = stream.next().await {
+            bytes.extend(buf?);
+        }
+
+        Ok(bytes.freeze())
+    }
+
+    /// Store the data for the database rules
+    pub async fn put_database_rules_file(&self, bytes: bytes::Bytes) -> Result<()> {
+        let len = bytes.len();
+        let stream = stream::once(async move { Ok(bytes) });
+
+        self.inner
+            .put(&self.db_rules_path(), stream, Some(len))
+            .await
+    }
+
+    /// Delete the data for the database rules
+    pub async fn delete_database_rules_file(&self) -> Result<()> {
+        self.inner.delete(&self.db_rules_path()).await
     }
 
     /// List the relative paths in this database's object store.
-    pub async fn list(
-        &self,
-        prefix: Option<&Path>,
-    ) -> Result<BoxStream<'static, Result<Vec<Path>>>> {
+    ///
+    // Deliberately private; this should not leak outside this crate
+    // so assumptions about the object store organization are confined
+    // (and can be changed) in this crate
+    /// All outside calls should go to one of the more specific listing methods.
+    async fn list(&self, prefix: Option<&Path>) -> Result<BoxStream<'static, Result<Vec<Path>>>> {
         let (tx, rx) = channel(4);
         let inner = Arc::clone(&self.inner);
         let prefix = prefix.cloned();
@@ -130,74 +289,215 @@ impl IoxObjectStore {
 
         Ok(ReceiverStream::new(rx).boxed())
     }
-
-    /// Get the data in this relative path in this database's object store.
-    pub async fn get(&self, location: &Path) -> Result<BoxStream<'static, Result<Bytes>>> {
-        self.inner.get(location).await
-    }
-
-    /// Delete the relative paths in this database's object store.
-    pub async fn delete(&self, location: &Path) -> Result<()> {
-        self.inner.delete(location).await
-    }
-
-    /// Create implementation-specific path from parsed representation.
-    /// This might not be needed eventually
-    pub fn path_from_dirs_and_filename(&self, path: DirsAndFileName) -> Path {
-        self.inner.path_from_dirs_and_filename(path)
-    }
-}
-
-/// A database-specific object store path that all `IoxPath`s should be within.
-#[derive(Debug, Clone)]
-struct RootPath {
-    root: Path,
-}
-
-impl RootPath {
-    /// How the root of a database is defined in object storage.
-    fn new(mut root: Path, server_id: ServerId, database_name: &DatabaseName<'_>) -> Self {
-        root.push_dir(server_id.to_string());
-        root.push_dir(database_name.as_str());
-        Self { root }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use data_types::chunk_metadata::ChunkAddr;
+    use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
     use std::num::NonZeroU32;
+    use uuid::Uuid;
 
     /// Creates new test server ID
     fn make_server_id() -> ServerId {
         ServerId::new(NonZeroU32::new(1).unwrap())
     }
 
-    /// Creates a new in-memory object store. These tests rely on the `Path`s being of type
-    /// `DirsAndFileName` and thus using object_store::path::DELIMITER as the separator
+    /// Creates a new in-memory object store
     fn make_object_store() -> Arc<ObjectStore> {
         Arc::new(ObjectStore::new_in_memory())
     }
 
-    #[test]
-    fn catalog_path_is_relative_to_db_root() {
-        let server_id = make_server_id();
-        let database_name = DatabaseName::new("clouds").unwrap();
-        let iox_object_store = IoxObjectStore::new(make_object_store(), server_id, &database_name);
-        assert_eq!(
-            iox_object_store.catalog_path().to_string(),
-            "mem:1/clouds/transactions/"
-        );
+    async fn add_file(object_store: &ObjectStore, location: &Path) {
+        let data = Bytes::from("arbitrary data");
+        let stream_data = std::io::Result::Ok(data.clone());
+
+        object_store
+            .put(
+                location,
+                futures::stream::once(async move { stream_data }),
+                None,
+            )
+            .await
+            .unwrap();
     }
 
-    #[test]
-    fn data_path_is_relative_to_db_root() {
+    async fn parquet_files(iox_object_store: &IoxObjectStore) -> Vec<ParquetFilePath> {
+        iox_object_store
+            .parquet_files()
+            .await
+            .unwrap()
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect()
+    }
+
+    async fn add_parquet_file(iox_object_store: &IoxObjectStore, location: &ParquetFilePath) {
+        let data = Bytes::from("arbitrary data");
+        let stream_data = std::io::Result::Ok(data.clone());
+
+        iox_object_store
+            .put_parquet_file(
+                location,
+                futures::stream::once(async move { stream_data }),
+                None,
+            )
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn only_lists_relevant_parquet_files() {
+        let object_store = make_object_store();
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
-        let iox_object_store = IoxObjectStore::new(make_object_store(), server_id, &database_name);
-        assert_eq!(
-            iox_object_store.data_path().to_string(),
-            "mem:1/clouds/data/"
-        );
+        let iox_object_store =
+            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name);
+        let uuid = Uuid::new_v4();
+
+        // Put a non-database file in
+        let mut path = object_store.new_path();
+        path.push_dir("foo");
+        add_file(&object_store, &path).await;
+
+        // Put a file for some other server in
+        let mut path = object_store.new_path();
+        path.push_dir("12345");
+        add_file(&object_store, &path).await;
+
+        // Put a file for some other database in
+        let mut path = object_store.new_path();
+        path.push_dir(server_id.to_string());
+        path.push_dir("thunder");
+        add_file(&object_store, &path).await;
+
+        // Put a file in the database dir but not the data dir
+        let mut path = object_store.new_path();
+        path.push_dir(server_id.to_string());
+        path.push_dir(database_name.to_string());
+        path.set_file_name(&format!("111.{}.parquet", uuid));
+        add_file(&object_store, &path).await;
+
+        // Put files in the data dir whose names are in the wrong format
+        let mut path = object_store.new_path();
+        path.push_dir(server_id.to_string());
+        path.push_dir(database_name.to_string());
+        path.set_file_name("111.parquet");
+        add_file(&object_store, &path).await;
+        path.set_file_name(&format!("111.{}.xls", uuid));
+        add_file(&object_store, &path).await;
+
+        // Parquet files should be empty
+        let pf = parquet_files(&iox_object_store).await;
+        assert!(pf.is_empty(), "{:?}", pf);
+
+        // Add a real parquet file
+        let chunk_addr = ChunkAddr {
+            db_name: "clouds".into(),
+            table_name: "my_table".into(),
+            partition_key: "my_partition".into(),
+            chunk_id: 13,
+        };
+        let p1 = ParquetFilePath::new(&chunk_addr);
+        add_parquet_file(&iox_object_store, &p1).await;
+
+        // Only the real file should be returned
+        let pf = parquet_files(&iox_object_store).await;
+        assert_eq!(&pf, &[p1]);
+    }
+
+    async fn catalog_transaction_files(
+        iox_object_store: &IoxObjectStore,
+    ) -> Vec<TransactionFilePath> {
+        iox_object_store
+            .catalog_transaction_files()
+            .await
+            .unwrap()
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect()
+    }
+
+    async fn add_catalog_transaction_file(
+        iox_object_store: &IoxObjectStore,
+        location: &TransactionFilePath,
+    ) {
+        let data = Bytes::from("arbitrary data");
+        let stream_data = std::io::Result::Ok(data.clone());
+
+        iox_object_store
+            .put_catalog_transaction_file(
+                location,
+                futures::stream::once(async move { stream_data }),
+                None,
+            )
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn only_lists_relevant_catalog_transaction_files() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let database_name = DatabaseName::new("clouds").unwrap();
+        let iox_object_store =
+            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name);
+        let uuid = Uuid::new_v4();
+
+        // Put a non-database file in
+        let mut path = object_store.new_path();
+        path.push_dir("foo");
+        add_file(&object_store, &path).await;
+
+        // Put a file for some other server in
+        let mut path = object_store.new_path();
+        path.push_dir("12345");
+        add_file(&object_store, &path).await;
+
+        // Put a file for some other database in
+        let mut path = object_store.new_path();
+        path.push_dir(server_id.to_string());
+        path.push_dir("thunder");
+        add_file(&object_store, &path).await;
+
+        // Put a file in the database dir but not the transactions dir
+        let mut path = object_store.new_path();
+        path.push_dir(server_id.to_string());
+        path.push_dir(database_name.to_string());
+        path.set_file_name(&format!("{}.txn", uuid));
+        add_file(&object_store, &path).await;
+
+        // Put files in the transactions dir whose names are in the wrong format
+        let mut path = object_store.new_path();
+        path.push_dir(server_id.to_string());
+        path.push_dir(database_name.to_string());
+        path.set_file_name("111.parquet");
+        add_file(&object_store, &path).await;
+        path.set_file_name(&format!("{}.xls", uuid));
+        add_file(&object_store, &path).await;
+
+        // Catalog transaction files should be empty
+        let ctf = catalog_transaction_files(&iox_object_store).await;
+        assert!(ctf.is_empty(), "{:?}", ctf);
+
+        // Add a real transaction file
+        let t1 = TransactionFilePath::new_transaction(123, uuid);
+        add_catalog_transaction_file(&iox_object_store, &t1).await;
+        // Add a real checkpoint file
+        let t2 = TransactionFilePath::new_checkpoint(123, uuid);
+        add_catalog_transaction_file(&iox_object_store, &t2).await;
+
+        // Only the real files should be returned
+        let ctf = catalog_transaction_files(&iox_object_store).await;
+        assert_eq!(ctf.len(), 2);
+        assert!(ctf.contains(&t1));
+        assert!(ctf.contains(&t2));
     }
 }

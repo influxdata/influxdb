@@ -8,8 +8,7 @@ use internal_types::{
     schema::{Schema, TIME_COLUMN_NAME},
     selection::Selection,
 };
-use iox_object_store::IoxObjectStore;
-use object_store::path::Path;
+use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use query::predicate::Predicate;
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, mem, sync::Arc};
@@ -28,21 +27,12 @@ pub enum Error {
     },
 
     #[snafu(
-        display("Cannot read IOx metadata from {:?}: {}", path, source),
-        visibility(pub)
-    )]
-    IoxMetadataReadFailed {
-        source: crate::metadata::Error,
-        path: Path,
-    },
-
-    #[snafu(
         display("Cannot read schema from {:?}: {}", path, source),
         visibility(pub)
     )]
     SchemaReadFailed {
         source: crate::metadata::Error,
-        path: Path,
+        path: ParquetFilePath,
     },
 
     #[snafu(
@@ -51,7 +41,7 @@ pub enum Error {
     )]
     StatisticsReadFailed {
         source: crate::metadata::Error,
-        path: Path,
+        path: ParquetFilePath,
     },
 }
 
@@ -95,10 +85,8 @@ pub struct ParquetChunk {
     /// Persists the parquet file within a database's relative path
     iox_object_store: Arc<IoxObjectStore>,
 
-    /// Path in the object store. Format:
-    ///  <writer id>/<database>/data/<partition key>/<chunk
-    /// id>/<tablename>.parquet
-    object_store_path: Path,
+    /// Path in the database's object store.
+    path: ParquetFilePath,
 
     /// Size of the data, in object store
     file_size_bytes: usize,
@@ -112,7 +100,7 @@ pub struct ParquetChunk {
 impl ParquetChunk {
     /// Creates new chunk from given parquet metadata.
     pub fn new(
-        file_location: Path,
+        path: &ParquetFilePath,
         iox_object_store: Arc<IoxObjectStore>,
         file_size_bytes: usize,
         parquet_metadata: Arc<IoxParquetMetaData>,
@@ -120,14 +108,12 @@ impl ParquetChunk {
         partition_key: Arc<str>,
         metrics: ChunkMetrics,
     ) -> Result<Self> {
-        let schema = parquet_metadata.read_schema().context(SchemaReadFailed {
-            path: &file_location,
-        })?;
+        let schema = parquet_metadata
+            .read_schema()
+            .context(SchemaReadFailed { path })?;
         let columns = parquet_metadata
             .read_statistics(&schema)
-            .context(StatisticsReadFailed {
-                path: &file_location,
-            })?;
+            .context(StatisticsReadFailed { path })?;
         let table_summary = TableSummary {
             name: table_name.to_string(),
             columns,
@@ -137,7 +123,7 @@ impl ParquetChunk {
             partition_key,
             Arc::new(table_summary),
             schema,
-            file_location,
+            path,
             iox_object_store,
             file_size_bytes,
             parquet_metadata,
@@ -152,7 +138,7 @@ impl ParquetChunk {
         partition_key: Arc<str>,
         table_summary: Arc<TableSummary>,
         schema: Arc<Schema>,
-        file_location: Path,
+        path: &ParquetFilePath,
         iox_object_store: Arc<IoxObjectStore>,
         file_size_bytes: usize,
         parquet_metadata: Arc<IoxParquetMetaData>,
@@ -166,7 +152,7 @@ impl ParquetChunk {
             schema,
             timestamp_range,
             iox_object_store,
-            object_store_path: file_location,
+            path: path.into(),
             file_size_bytes,
             parquet_metadata,
             metrics,
@@ -179,8 +165,8 @@ impl ParquetChunk {
     }
 
     /// Return object store path for this chunk
-    pub fn path(&self) -> Path {
-        self.object_store_path.clone()
+    pub fn path(&self) -> &ParquetFilePath {
+        &self.path
     }
 
     /// Returns the summary statistics for this chunk
@@ -200,7 +186,7 @@ impl ParquetChunk {
             + self.partition_key.len()
             + self.table_summary.size()
             + mem::size_of_val(&self.schema.as_ref())
-            + mem::size_of_val(&self.object_store_path)
+            + mem::size_of_val(&self.path)
             + mem::size_of_val(&self.parquet_metadata)
     }
 
@@ -247,7 +233,7 @@ impl ParquetChunk {
             predicate,
             selection,
             Arc::clone(&self.schema.as_arrow()),
-            self.object_store_path.clone(),
+            self.path.clone(),
             Arc::clone(&self.iox_object_store),
         )
         .context(ReadParquet)

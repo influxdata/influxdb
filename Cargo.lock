@@ -1445,7 +1445,7 @@ dependencies = [
 [[package]]
 name = "heappy"
 version = "0.1.0"
-source = "git+https://github.com/mkmik/heappy?rev=c8fe1fefbaefd536b0137435fce8d90a98a184de#c8fe1fefbaefd536b0137435fce8d90a98a184de"
+source = "git+https://github.com/mkmik/heappy?rev=82a383128e484039cc2f31476e6289bed48a6701#82a383128e484039cc2f31476e6289bed48a6701"
 dependencies = [
  "backtrace",
  "bytes",
@@ -1823,8 +1823,10 @@ dependencies = [
  "data_types",
  "futures",
  "object_store",
+ "snafu",
  "tokio",
  "tokio-stream",
+ "uuid",
 ]
 
 [[package]]

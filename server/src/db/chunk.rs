@@ -10,8 +10,8 @@ use internal_types::{
     schema::{sort::SortKey, Schema},
     selection::Selection,
 };
+use iox_object_store::ParquetFilePath;
 use mutable_buffer::chunk::snapshot::ChunkSnapshot;
-use object_store::path::Path;
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use partition_metadata::TableSummary;
@@ -198,7 +198,7 @@ impl DbChunk {
 
     /// Return the Path in ObjectStorage where this chunk is
     /// persisted, if any
-    pub fn object_store_path(&self) -> Option<Path> {
+    pub fn object_store_path(&self) -> Option<&ParquetFilePath> {
         match &self.state {
             State::ParquetFile { chunk } => Some(chunk.path()),
             _ => None,

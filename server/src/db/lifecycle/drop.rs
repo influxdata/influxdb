@@ -3,7 +3,6 @@ use std::sync::Arc;
 use data_types::job::Job;
 use futures::Future;
 use lifecycle::{LifecycleWriteGuard, LockableChunk};
-use object_store::path::parsed::DirsAndFileName;
 use observability_deps::tracing::debug;
 use snafu::ResultExt;
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
@@ -58,10 +57,12 @@ pub fn drop_chunk(
             let chunk_read = chunk.read();
 
             if let ChunkStage::Persisted { parquet, .. } = chunk_read.stage() {
-                let path: DirsAndFileName = parquet.path().into();
-                Some(path)
+                Some(parquet.path().clone())
             } else if lifecycle_persist {
-                unreachable!("Unpersisted chunks in a persisted DB should be ruled out before doing any work.")
+                unreachable!(
+                    "Unpersisted chunks in a persisted DB should be ruled out \
+                    before doing any work."
+                )
             } else {
                 None
             }
@@ -168,10 +169,12 @@ pub fn drop_partition(
             let chunk_read = chunk.read();
 
             if let ChunkStage::Persisted { parquet, .. } = chunk_read.stage() {
-                let path: DirsAndFileName = parquet.path().into();
-                paths.push(path);
+                paths.push(parquet.path().clone());
             } else if lifecycle_persist {
-                unreachable!("Unpersisted chunks in a persisted DB should be ruled out before doing any work.")
+                unreachable!(
+                    "Unpersisted chunks in a persisted DB should be ruled out \
+                    before doing any work."
+                )
             }
         }
 

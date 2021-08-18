@@ -83,12 +83,9 @@ use generated_types::influxdata::pbdata::v1 as pb;
 use hashbrown::HashMap;
 use influxdb_line_protocol::ParsedLine;
 use internal_types::freezable::Freezable;
+use iox_object_store::IoxObjectStore;
 use lifecycle::LockableChunk;
 use metrics::{KeyValue, MetricObserverBuilder};
-use object_store::{
-    path::{parsed::DirsAndFileName, ObjectStorePath, Path},
-    ObjectStore, ObjectStoreApi,
-};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use query::exec::Executor;
@@ -670,7 +667,6 @@ where
     /// Waits until the database has initialized or failed to do so
     pub async fn create_database(&self, rules: DatabaseRules) -> Result<Arc<Database>> {
         let db_name = rules.name.clone();
-        let object_store = self.shared.application.object_store().as_ref();
 
         // Wait for exclusive access to mutate server state
         let handle_fut = self.shared.state.read().freeze();
@@ -688,15 +684,9 @@ where
             initialized.server_id
         };
 
-        let store_prefix = database_store_prefix(object_store, server_id, &db_name);
-        Database::create(
-            Arc::clone(&self.shared.application),
-            &store_prefix,
-            rules,
-            server_id,
-        )
-        .await
-        .map_err(|e| Error::CannotCreateDatabase { source: e })?;
+        Database::create(Arc::clone(&self.shared.application), rules, server_id)
+            .await
+            .context(CannotCreateDatabase)?;
 
         let database = {
             let mut state = self.shared.state.write();
@@ -711,7 +701,6 @@ where
                         DatabaseConfig {
                             name: db_name,
                             server_id,
-                            store_prefix,
                             wipe_catalog_on_error: false,
                             skip_replay: false,
                         },
@@ -964,13 +953,9 @@ where
         let rules = db.update_rules(update).map_err(UpdateError::Closure)?;
 
         // TODO: Handle failure
-        persist_database_rules(
-            self.shared.application.object_store().as_ref(),
-            &database.config().store_prefix,
-            rules.as_ref().clone(),
-        )
-        .await
-        .map_err(|e| Error::CannotPersistUpdatedRules { source: e })?;
+        persist_database_rules(&database.iox_object_store(), rules.as_ref().clone())
+            .await
+            .context(CannotPersistUpdatedRules)?;
         Ok(rules)
     }
 
@@ -1128,7 +1113,7 @@ async fn maybe_initialize_server(shared: &ServerShared) {
         (init_ready, handle)
     };
 
-    let maybe_databases = list_databases(
+    let maybe_databases = IoxObjectStore::list_databases(
         shared.application.object_store().as_ref(),
         init_ready.server_id,
     )
@@ -1141,14 +1126,13 @@ async fn maybe_initialize_server(shared: &ServerShared) {
                 databases: HashMap::with_capacity(databases.len()),
             };
 
-            for (db_name, store_prefix) in databases {
+            for db_name in databases {
                 state
                     .new_database(
                         shared,
                         DatabaseConfig {
                             name: db_name,
                             server_id: init_ready.server_id,
-                            store_prefix,
                             wipe_catalog_on_error: init_ready.wipe_catalog_on_error,
                             skip_replay: init_ready.skip_replay_and_seek_instead,
                         },
@@ -1161,7 +1145,7 @@ async fn maybe_initialize_server(shared: &ServerShared) {
         }
         Err(e) => {
             error!(server_id=%init_ready.server_id, %e, "error initializing server");
-            ServerState::InitError(init_ready, Arc::new(e))
+            ServerState::InitError(init_ready, Arc::new(InitError::ListRules { source: e }))
         }
     };
 
@@ -1226,49 +1210,6 @@ where
     }
 }
 
-pub(crate) const DB_RULES_FILE_NAME: &str = "rules.pb";
-
-/// Returns a list of database names and their prefix in object storage
-async fn list_databases(
-    object_store: &ObjectStore,
-    server_id: ServerId,
-) -> Result<Vec<(DatabaseName<'static>, Path)>, InitError> {
-    let mut path = object_store.new_path();
-    path.push_dir(server_id.to_string());
-
-    let list_result = object_store
-        .list_with_delimiter(&path)
-        .await
-        .context(ListRules)?;
-
-    Ok(list_result
-        .common_prefixes
-        .into_iter()
-        .filter_map(|path| {
-            let path_parsed: DirsAndFileName = path.clone().into();
-            let last = path_parsed.directories.last().expect("path can't be empty");
-            let db_name = DatabaseName::new(last.encoded().to_string())
-                .log_if_error("invalid database directory")
-                .ok()?;
-
-            Some((db_name, path))
-        })
-        .collect())
-}
-
-/// Returns the path to the prefix of a `Database` in object storage
-fn database_store_prefix(
-    object_store: &ObjectStore,
-    server_id: ServerId,
-    db_name: &DatabaseName<'_>,
-) -> Path {
-    // TODO: Use fresh path for database (i.e. add generation) (#1881)
-    let mut path = object_store.new_path();
-    path.push_dir(server_id.to_string());
-    path.push_dir(db_name);
-    path
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1284,12 +1225,11 @@ mod tests {
         },
     };
     use entry::test_helpers::lp_to_entry;
-    use futures::TryStreamExt;
     use generated_types::database_rules::decode_database_rules;
     use influxdb_line_protocol::parse_lines;
     use iox_object_store::IoxObjectStore;
     use metrics::TestMetricRegistry;
-    use object_store::{path::ObjectStorePath, ObjectStore};
+    use object_store::ObjectStore;
     use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
     use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryDatabase};
     use std::{
@@ -1360,26 +1300,16 @@ mod tests {
         };
 
         // Create a database
-        server
+        let bananas = server
             .create_database(rules.clone())
             .await
             .expect("failed to create database");
 
-        let mut rules_path = application.object_store().new_path();
-        rules_path.push_all_dirs(&["1", name.as_str()]);
-        rules_path.set_file_name("rules.pb");
-
-        let read_data = application
-            .object_store()
-            .get(&rules_path)
+        let read_data = bananas
+            .iox_object_store()
+            .get_database_rules_file()
             .await
-            .unwrap()
-            .map_ok(|b| bytes::BytesMut::from(&b[..]))
-            .try_concat()
-            .await
-            .unwrap()
-            .freeze();
-
+            .unwrap();
         let read_rules = decode_database_rules(read_data).unwrap();
 
         assert_eq!(rules, read_rules);
@@ -1389,12 +1319,6 @@ mod tests {
             .create_database(DatabaseRules::new(db2.clone()))
             .await
             .expect("failed to create 2nd db");
-
-        application
-            .object_store()
-            .list_with_delimiter(&application.object_store().new_path())
-            .await
-            .unwrap();
 
         let server2 = make_server(application);
         server2.set_id(ServerId::try_from(1).unwrap()).unwrap();
@@ -1464,18 +1388,13 @@ mod tests {
     #[tokio::test]
     async fn load_databases() {
         let application = make_application();
-        let store = application.object_store();
 
         let server = make_server(Arc::clone(&application));
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.wait_for_init().await.unwrap();
-        create_simple_database(&server, "bananas")
+        let bananas = create_simple_database(&server, "bananas")
             .await
             .expect("failed to create database");
-
-        let mut rules_path = store.new_path();
-        rules_path.push_all_dirs(&["1", "bananas"]);
-        rules_path.set_file_name("rules.pb");
 
         std::mem::drop(server);
 
@@ -1491,8 +1410,9 @@ mod tests {
 
         std::mem::drop(server);
 
-        store
-            .delete(&rules_path)
+        bananas
+            .iox_object_store()
+            .delete_database_rules_file()
             .await
             .expect("cannot delete rules file");
 
@@ -1941,21 +1861,12 @@ mod tests {
             .expect("failed to create database");
 
         // tamper store
-        let mut path = database_store_prefix(store.as_ref(), server_id, &bar_db_name);
-        path.set_file_name(DB_RULES_FILE_NAME);
-
-        let data = Bytes::from("x");
-        let len = data.len();
-        store
-            .put(
-                &path,
-                futures::stream::once(async move { Ok(data) }),
-                Some(len),
-            )
+        let iox_object_store = IoxObjectStore::new(store, server_id, &bar_db_name);
+        iox_object_store
+            .put_database_rules_file(Bytes::from("x"))
             .await
             .unwrap();
-
-        store.get(&path).await.unwrap();
+        iox_object_store.get_database_rules_file().await.unwrap();
 
         // start server
         let server = make_server(application);
@@ -2021,7 +1932,6 @@ mod tests {
 
         // setup
         let application = make_application();
-        let store = Arc::clone(application.object_store());
         let server_id = ServerId::try_from(1).unwrap();
 
         // Create temporary server to create existing databases
@@ -2033,7 +1943,7 @@ mod tests {
             .await
             .expect("failed to create database");
 
-        create_simple_database(&server, db_name_rules_broken.clone())
+        let rules_broken = create_simple_database(&server, db_name_rules_broken.clone())
             .await
             .expect("failed to create database");
 
@@ -2042,18 +1952,9 @@ mod tests {
             .expect("failed to create database");
 
         // tamper store to break one database
-        let mut path = database_store_prefix(store.as_ref(), server_id, &db_name_rules_broken);
-        path.set_file_name(DB_RULES_FILE_NAME);
-
-        let data = Bytes::from("x");
-        let len = data.len();
-
-        store
-            .put(
-                &path,
-                futures::stream::once(async move { Ok(data) }),
-                Some(len),
-            )
+        rules_broken
+            .iox_object_store()
+            .put_database_rules_file(Bytes::from("x"))
             .await
             .unwrap();
 
@@ -2067,7 +1968,11 @@ mod tests {
             .await;
         drop(preserved_catalog);
 
-        store.get(&path).await.unwrap();
+        rules_broken
+            .iox_object_store()
+            .get_database_rules_file()
+            .await
+            .unwrap();
 
         // boot actual test server
         let server = make_server(Arc::clone(&application));

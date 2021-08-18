@@ -9,5 +9,7 @@ bytes = "1.0"
 data_types = { path = "../data_types" }
 futures = "0.3"
 object_store = { path = "../object_store" }
+snafu = "0.6"
 tokio = { version = "1.0", features = ["macros", "time"] }
 tokio-stream = "0.1"
+uuid = { version = "0.8", features = ["serde", "v4"] }

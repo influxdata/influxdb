@@ -15,7 +15,6 @@ use ::lifecycle::LifecycleWriteGuard;
 use chrono::Utc;
 use data_types::{chunk_metadata::ChunkLifecycleAction, job::Job};
 use internal_types::selection::Selection;
-use object_store::path::parsed::DirsAndFileName;
 use observability_deps::tracing::{debug, warn};
 use parquet_file::{
     catalog::CatalogParquetInfo,
@@ -139,7 +138,7 @@ pub(super) fn write_chunk_to_object_store(
             let metrics = ParquetChunkMetrics::new(&metrics);
             let parquet_chunk = Arc::new(
                 ParquetChunk::new(
-                    path.clone(),
+                    &path,
                     Arc::clone(&db.iox_object_store),
                     file_size_bytes,
                     Arc::clone(&parquet_metadata),
@@ -150,12 +149,10 @@ pub(super) fn write_chunk_to_object_store(
                 .context(ParquetChunkError)?,
             );
 
-            let path: DirsAndFileName = path.into();
-
-            // IMPORTANT: Start transaction AFTER writing the actual parquet file so we do not hold the
-            //            transaction lock (that is part of the PreservedCatalog) for too long. By using the
-            //            cleanup lock (see above) it is ensured that the file that we have written is not deleted
-            //            in between.
+            // IMPORTANT: Start transaction AFTER writing the actual parquet file so we do not hold
+            //            the transaction lock (that is part of the PreservedCatalog) for too long.
+            //            By using the cleanup lock (see above) it is ensured that the file that we
+            //            have written is not deleted in between.
             let mut transaction = db.preserved_catalog.open_transaction().await;
             let info = CatalogParquetInfo {
                 path,
