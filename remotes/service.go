@@ -48,7 +48,7 @@ type service struct {
 var _ influxdb.RemoteConnectionService = (*service)(nil)
 
 func (s service) ListRemoteConnections(ctx context.Context, filter influxdb.RemoteConnectionListFilter) (*influxdb.RemoteConnections, error) {
-	q := sq.Select("id", "org_id", "name", "description", "remote_url", "remote_org_id").
+	q := sq.Select("id", "org_id", "name", "description", "remote_url", "remote_org_id", "allow_insecure_tls").
 		From("remotes").
 		Where(sq.Eq{"org_id": filter.OrgID})
 
@@ -65,7 +65,7 @@ func (s service) ListRemoteConnections(ctx context.Context, filter influxdb.Remo
 	}
 
 	var rcs influxdb.RemoteConnections
-	if err := s.store.DB.GetContext(ctx, &rcs.Remotes, query, args...); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err := s.store.DB.SelectContext(ctx, &rcs.Remotes, query, args...); err != nil {
 		return nil, err
 	}
 
@@ -118,7 +118,7 @@ func (s service) ValidateNewRemoteConnection(ctx context.Context, request influx
 }
 
 func (s service) GetRemoteConnection(ctx context.Context, id platform.ID) (*influxdb.RemoteConnection, error) {
-	q := sq.Select("id", "org_id", "name", "description", "remote_url", "remote_org_id").
+	q := sq.Select("id", "org_id", "name", "description", "remote_url", "remote_org_id", "allow_insecure_tls").
 		From("remotes").
 		Where(sq.Eq{"id": id})
 
