@@ -14,7 +14,7 @@ use transaction_file::Path as TransactionFilePath;
 
 /// The path all database root paths should be in. Used for listing all databases and building
 /// database `RootPath`s in the same way. Not its own type because it's only needed ephemerally.
-pub fn all_databases_path(object_store: &ObjectStore, server_id: ServerId) -> Path {
+pub(crate) fn all_databases_path(object_store: &ObjectStore, server_id: ServerId) -> Path {
     let mut path = object_store.new_path();
     path.push_dir(server_id.to_string());
     path
@@ -23,13 +23,13 @@ pub fn all_databases_path(object_store: &ObjectStore, server_id: ServerId) -> Pa
 /// A database-specific object store path that all `IoxPath`s should be within.
 /// This should not be leaked outside this crate.
 #[derive(Debug, Clone)]
-pub struct RootPath {
+pub(crate) struct RootPath {
     inner: Path,
 }
 
 impl RootPath {
     /// How the root of a database is defined in object storage.
-    pub fn new(
+    pub(crate) fn new(
         object_store: &ObjectStore,
         server_id: ServerId,
         database_name: &DatabaseName<'_>,
@@ -39,7 +39,7 @@ impl RootPath {
         Self { inner }
     }
 
-    pub fn join(&self, dir: &str) -> Path {
+    pub(crate) fn join(&self, dir: &str) -> Path {
         let mut result = self.inner.clone();
         result.push_dir(dir);
         result
@@ -49,18 +49,18 @@ impl RootPath {
 /// A database-specific object store path for all catalog transaction files. This should not be
 /// leaked outside this crate.
 #[derive(Debug, Clone)]
-pub struct TransactionsPath {
-    pub inner: Path,
+pub(crate) struct TransactionsPath {
+    pub(crate) inner: Path,
 }
 
 impl TransactionsPath {
-    pub fn new(root_path: &RootPath) -> Self {
+    pub(crate) fn new(root_path: &RootPath) -> Self {
         Self {
             inner: root_path.join("transactions"),
         }
     }
 
-    pub fn join(&self, transaction_file_path: &TransactionFilePath) -> Path {
+    pub(crate) fn join(&self, transaction_file_path: &TransactionFilePath) -> Path {
         let mut result = self.inner.clone();
         let relative = transaction_file_path.relative_dirs_and_file_name();
         for part in relative.directories {
@@ -79,18 +79,18 @@ impl TransactionsPath {
 /// A database-specific object store path for all data files. This should not be leaked outside
 /// this crate.
 #[derive(Debug, Clone)]
-pub struct DataPath {
-    pub inner: Path,
+pub(crate) struct DataPath {
+    pub(crate) inner: Path,
 }
 
 impl DataPath {
-    pub fn new(root_path: &RootPath) -> Self {
+    pub(crate) fn new(root_path: &RootPath) -> Self {
         Self {
             inner: root_path.join("data"),
         }
     }
 
-    pub fn join(&self, parquet_file_path: &ParquetFilePath) -> Path {
+    pub(crate) fn join(&self, parquet_file_path: &ParquetFilePath) -> Path {
         let mut result = self.inner.clone();
         let relative = parquet_file_path.relative_dirs_and_file_name();
         for part in relative.directories {
