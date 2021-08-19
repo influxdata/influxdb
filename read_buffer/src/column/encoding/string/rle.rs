@@ -1037,10 +1037,10 @@ mod test {
 
         // * Self: 24 + 24 + 24 + 1 + (padding 3b) + 4 = 80b
         // * index entries: (40 * 24) + 14 == 974
-        // * index row ids: (bitmaps) is (4 * 4) + (108b for bitmaps) == 124
+        // * index row ids: (bitmaps) is (4 * 4) + (204b for bitmaps) == 220
         // * run lengths: (40 * 8) == 320
         //
-        assert_eq!(enc.size(true), 1498);
+        assert_eq!(enc.size(true), 1544);
     }
 
     #[test]
