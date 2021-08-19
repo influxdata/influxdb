@@ -14,15 +14,15 @@ use tokio_util::sync::CancellationToken;
 use observability_deps::tracing::{error, info, warn};
 use opentelemetry::sdk::export::trace::{ExportResult, SpanData, SpanExporter};
 
-use crate::ctx::{SpanContext, SpanId, TraceId};
-use crate::span::{MetaValue, SpanEvent, SpanStatus};
-use crate::{span::Span, TraceCollector};
+use trace::ctx::{SpanContext, SpanId, TraceId};
+use trace::span::{MetaValue, SpanEvent, SpanStatus};
+use trace::{span::Span, TraceCollector};
 
 /// Size of the exporter buffer
 const CHANNEL_SIZE: usize = 1000;
 
 /// Maximum number of events that can be associated with a span
-const MAX_EVENTS: u32 = 10;
+const MAX_EVENTS: u32 = 100;
 
 /// Maximum number of attributes that can be associated with a span
 const MAX_ATTRIBUTES: u32 = 100;
@@ -73,7 +73,7 @@ impl TraceCollector for OtelExporter {
     fn export(&self, span: Span) {
         use mpsc::error::TrySendError;
 
-        match self.sender.try_send(span.into()) {
+        match self.sender.try_send(convert_span(span)) {
             Ok(_) => {
                 //TODO: Increment some metric
             }
@@ -144,99 +144,88 @@ async fn exporter_loop<T: SpanExporter + 'static>(
     warn!("sender-side of jaeger exporter dropped without waiting for shut down")
 }
 
-impl From<Span> for SpanData {
-    fn from(span: Span) -> Self {
-        use opentelemetry::sdk::trace::{EvictedHashMap, EvictedQueue};
-        use opentelemetry::sdk::InstrumentationLibrary;
-        use opentelemetry::trace::{SpanId, SpanKind};
-        use opentelemetry::{Key, KeyValue};
+fn convert_span(span: Span) -> SpanData {
+    use opentelemetry::sdk::trace::{EvictedHashMap, EvictedQueue};
+    use opentelemetry::sdk::InstrumentationLibrary;
+    use opentelemetry::trace::{SpanId, SpanKind};
+    use opentelemetry::{Key, KeyValue};
 
-        let parent_span_id = match span.ctx.parent_span_id {
-            Some(id) => id.into(),
-            None => SpanId::invalid(),
+    let parent_span_id = match span.ctx.parent_span_id {
+        Some(id) => convert_span_id(id),
+        None => SpanId::invalid(),
+    };
+
+    let mut ret = SpanData {
+        span_context: convert_ctx(&span.ctx),
+        parent_span_id,
+        span_kind: SpanKind::Server,
+        name: span.name,
+        start_time: span.start.map(Into::into).unwrap_or(std::time::UNIX_EPOCH),
+        end_time: span.end.map(Into::into).unwrap_or(std::time::UNIX_EPOCH),
+        attributes: EvictedHashMap::new(MAX_ATTRIBUTES, 0),
+        events: EvictedQueue::new(MAX_EVENTS),
+        links: EvictedQueue::new(0),
+        status_code: convert_status(span.status),
+        status_message: Default::default(),
+        resource: None,
+        instrumentation_lib: InstrumentationLibrary::new("iox-trace", None),
+    };
+
+    ret.events
+        .extend(span.events.into_iter().map(convert_event));
+    for (key, value) in span.metadata {
+        let key = match key {
+            Cow::Owned(key) => Key::new(key),
+            Cow::Borrowed(key) => Key::new(key),
         };
 
-        let mut ret = Self {
-            span_context: (&span.ctx).into(),
-            parent_span_id,
-            span_kind: SpanKind::Server,
-            name: span.name,
-            start_time: span.start.map(Into::into).unwrap_or(std::time::UNIX_EPOCH),
-            end_time: span.end.map(Into::into).unwrap_or(std::time::UNIX_EPOCH),
-            attributes: EvictedHashMap::new(MAX_ATTRIBUTES, 0),
-            events: EvictedQueue::new(MAX_EVENTS),
-            links: EvictedQueue::new(0),
-            status_code: span.status.into(),
-            status_message: Default::default(),
-            resource: None,
-            instrumentation_lib: InstrumentationLibrary::new("iox-trace", None),
-        };
+        let value = convert_meta_value(value);
+        ret.attributes.insert(KeyValue::new(key, value))
+    }
+    ret
+}
 
-        ret.events.extend(span.events.into_iter().map(Into::into));
-        for (key, value) in span.metadata {
-            let key = match key {
-                Cow::Owned(key) => Key::new(key),
-                Cow::Borrowed(key) => Key::new(key),
-            };
+fn convert_ctx(ctx: &SpanContext) -> opentelemetry::trace::SpanContext {
+    opentelemetry::trace::SpanContext::new(
+        convert_trace_id(ctx.trace_id),
+        convert_span_id(ctx.span_id),
+        Default::default(),
+        false,
+        Default::default(),
+    )
+}
 
-            ret.attributes.insert(KeyValue::new(key, value))
-        }
-        ret
+fn convert_event(event: SpanEvent) -> opentelemetry::trace::Event {
+    opentelemetry::trace::Event {
+        name: event.msg,
+        timestamp: event.time.into(),
+        attributes: vec![],
+        dropped_attributes_count: 0,
     }
 }
 
-impl<'a> From<&'a SpanContext> for opentelemetry::trace::SpanContext {
-    fn from(ctx: &'a SpanContext) -> Self {
-        Self::new(
-            ctx.trace_id.into(),
-            ctx.span_id.into(),
-            Default::default(),
-            false,
-            Default::default(),
-        )
+fn convert_status(status: SpanStatus) -> opentelemetry::trace::StatusCode {
+    use opentelemetry::trace::StatusCode;
+    match status {
+        SpanStatus::Unknown => StatusCode::Unset,
+        SpanStatus::Ok => StatusCode::Ok,
+        SpanStatus::Err => StatusCode::Error,
     }
 }
 
-impl From<SpanEvent> for opentelemetry::trace::Event {
-    fn from(event: SpanEvent) -> Self {
-        Self {
-            name: event.msg,
-            timestamp: event.time.into(),
-            attributes: vec![],
-            dropped_attributes_count: 0,
-        }
-    }
+fn convert_span_id(id: SpanId) -> opentelemetry::trace::SpanId {
+    opentelemetry::trace::SpanId::from_u64(id.0.get())
 }
 
-impl From<SpanStatus> for opentelemetry::trace::StatusCode {
-    fn from(status: SpanStatus) -> Self {
-        match status {
-            SpanStatus::Unknown => Self::Unset,
-            SpanStatus::Ok => Self::Ok,
-            SpanStatus::Err => Self::Error,
-        }
-    }
+fn convert_trace_id(id: TraceId) -> opentelemetry::trace::TraceId {
+    opentelemetry::trace::TraceId::from_u128(id.0.get())
 }
 
-impl From<SpanId> for opentelemetry::trace::SpanId {
-    fn from(id: SpanId) -> Self {
-        Self::from_u64(id.0.get())
-    }
-}
-
-impl From<TraceId> for opentelemetry::trace::TraceId {
-    fn from(id: TraceId) -> Self {
-        Self::from_u128(id.0.get())
-    }
-}
-
-impl From<MetaValue> for opentelemetry::Value {
-    fn from(v: MetaValue) -> Self {
-        match v {
-            MetaValue::String(v) => Self::String(v),
-            MetaValue::Float(v) => Self::F64(v),
-            MetaValue::Int(v) => Self::I64(v),
-        }
+fn convert_meta_value(v: MetaValue) -> opentelemetry::Value {
+    match v {
+        MetaValue::String(v) => opentelemetry::Value::String(v),
+        MetaValue::Float(v) => opentelemetry::Value::F64(v),
+        MetaValue::Int(v) => opentelemetry::Value::I64(v),
     }
 }
 
@@ -270,7 +259,7 @@ mod tests {
         span.start = Some(Utc.timestamp_nanos(1000));
         span.end = Some(Utc.timestamp_nanos(2000));
 
-        let span_data: SpanData = span.clone().into();
+        let span_data: SpanData = convert_span(span.clone());
 
         assert_eq!(
             span_data.span_context.span_id().to_u64(),
