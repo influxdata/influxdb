@@ -1,0 +1,428 @@
+# This config file aims to replicate the data produced by the capwrite tool:
+# https://github.com/influxdata/idpe/tree/e493a8e9b6b773e9374a8542ddcab7d8174d320d/performance/capacity/write
+name = "cap_write"
+base_seed = "correct horse battery staple"
+
+[[agents]]
+name = "cap_write_{{agent_id}}"
+count = 3
+sampling_interval = 10
+
+[[agents.measurements]]
+name = "system"
+    [[agents.measurements.tags]]
+    name = "host"
+    value = "host-{{agent_id}}"
+
+    [[agents.measurements.fields]]
+    name = "n_cpus"
+    i64_range = [8, 8]
+
+    [[agents.measurements.fields]]
+    name = "n_users"
+    i64_range = [2, 11]
+
+    [[agents.measurements.fields]]
+    name = "uptime"
+    uptime = "i64"
+
+    [[agents.measurements.fields]]
+    name = "uptime_format"
+    uptime = "telegraf"
+
+    [[agents.measurements.fields]]
+    name = "load1"
+    f64_range = [0.0, 8.0]
+
+    [[agents.measurements.fields]]
+    name = "load5"
+    f64_range = [0.0, 8.0]
+
+    [[agents.measurements.fields]]
+    name = "load15"
+    f64_range = [0.0, 8.0]
+
+
+[[agents.measurements]]
+name = "mem"
+    [[agents.measurements.tags]]
+    name = "host"
+    value = "host-{{agent_id}}"
+
+    [[agents.measurements.fields]]
+    name = "active"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "available"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "buffered"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "cached"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "free"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "inactive"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "slab"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "total"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "used"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "avaiable_percent"
+    f64_range = [0.0, 100.0]
+
+    [[agents.measurements.fields]]
+    name = "used_percent"
+    f64_range = [0.0, 100.0]
+
+    [[agents.measurements.fields]]
+    name = "wired"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "commit_limit"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "committed_as"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "dirty"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "high_free"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "high_total"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "huge_page_size"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "huge_pages_free"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "huge_pages_total"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "low_free"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "low_total"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "mapped"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "page_tables"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "shared"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "swap_cached"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "swap_free"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "swap_total"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "vmalloc_chunk"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "vmalloc_total"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "vmalloc_used"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "write_back"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "write_back_tmp"
+    i64_range = [0, 10000000]
+
+[[agents.measurements]]
+name = "disk"
+    [[agents.measurements.tags]]
+    name = "host"
+    value = "host-{{agent_id}}"
+
+    [[agents.measurements.fields]]
+    name = "free"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "total"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "used"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "used_percent"
+    f64_range = [0.0, 100.0]
+
+    [[agents.measurements.fields]]
+    name = "inodes_free"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "inodes_total"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "inodes_used"
+    i64_range = [0, 10000000]
+
+[[agents.measurements]]
+name = "swap"
+    [[agents.measurements.tags]]
+    name = "host"
+    value = "host-{{agent_id}}"
+
+    [[agents.measurements.fields]]
+    name = "free"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "total"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "used"
+    i64_range = [0, 1000000] # Note this is an order of magnitude less deliberately to match
+    # https://github.com/influxdata/idpe/blob/ffbceb04dd4b3aa0828d039135977a4f36f7b822/performance/capacity/write/swap.go#L17
+    # not sure if that value was intentional, perhaps it is to ensure used < total?
+
+    [[agents.measurements.fields]]
+    name = "used_percent"
+    f64_range = [0.0, 100.0]
+
+    [[agents.measurements.fields]]
+    name = "in"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "out"
+    i64_range = [0, 10000000]
+
+[[agents.measurements]]
+name = "cpu"
+    [[agents.measurements.tags]]
+    name = "host"
+    value = "host-{{agent_id}}"
+
+    [[agents.measurements.tags]]
+    name = "cpu"
+    value = "cpu-total"
+
+    [[agents.measurements.fields]]
+    name = "usage_user"
+    f64_range = [0.0, 100.0]
+
+    [[agents.measurements.fields]]
+    name = "usage_nice"
+    f64_range = [0.0, 100.0]
+
+    [[agents.measurements.fields]]
+    name = "usage_system"
+    f64_range = [0.0, 100.0]
+
+    [[agents.measurements.fields]]
+    name = "usage_idle"
+    f64_range = [0.0, 100.0]
+
+    [[agents.measurements.fields]]
+    name = "usage_irq"
+    f64_range = [0.0, 100.0]
+
+    [[agents.measurements.fields]]
+    name = "usage_softirq"
+    f64_range = [0.0, 100.0]
+
+    [[agents.measurements.fields]]
+    name = "usage_steal"
+    f64_range = [0.0, 100.0]
+
+    [[agents.measurements.fields]]
+    name = "usage_guest"
+    f64_range = [0.0, 100.0]
+
+    [[agents.measurements.fields]]
+    name = "usage_guest_nice"
+    f64_range = [0.0, 100.0]
+
+[[agents.measurements]]
+name = "processes"
+    [[agents.measurements.tags]]
+    name = "host"
+    value = "host-{{agent_id}}"
+
+    [[agents.measurements.fields]]
+    name = "blocked"
+    i64_range = [0, 255]
+
+    [[agents.measurements.fields]]
+    name = "running"
+    i64_range = [0, 255]
+
+    [[agents.measurements.fields]]
+    name = "sleeping"
+    i64_range = [0, 255]
+
+    [[agents.measurements.fields]]
+    name = "stopped"
+    i64_range = [0, 255]
+
+    [[agents.measurements.fields]]
+    name = "total"
+    i64_range = [0, 255]
+
+    [[agents.measurements.fields]]
+    name = "zombie"
+    i64_range = [0, 255]
+
+    [[agents.measurements.fields]]
+    name = "dead"
+    i64_range = [0, 255]
+
+    [[agents.measurements.fields]]
+    name = "wait"
+    i64_range = [0, 255]
+
+    [[agents.measurements.fields]]
+    name = "idle"
+    i64_range = [0, 255]
+
+    [[agents.measurements.fields]]
+    name = "paging"
+    i64_range = [0, 255]
+
+    [[agents.measurements.fields]]
+    name = "total_threads"
+    i64_range = [0, 255]
+
+    [[agents.measurements.fields]]
+    name = "unknown"
+    i64_range = [0, 255]
+
+[[agents.measurements]]
+name = "net"
+    [[agents.measurements.tags]]
+    name = "host"
+    value = "host-{{agent_id}}"
+
+    [[agents.measurements.fields]]
+    name = "bytes_recv"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "bytes_sent"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "packets_sent"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "packets_recv"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "err_in"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "err_out"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "drop_in"
+    i64_range = [0, 10000000]
+
+    [[agents.measurements.fields]]
+    name = "drop_out"
+    i64_range = [0, 10000000]
+
+[[agents.measurements]]
+name = "diskio"
+    [[agents.measurements.tags]]
+    name = "host"
+    value = "host-{{agent_id}}"
+
+    [[agents.measurements.fields]]
+    name = "reads"
+    i64_range = [0, 1000000]
+
+    [[agents.measurements.fields]]
+    name = "writes"
+    i64_range = [0, 1000000]
+
+    [[agents.measurements.fields]]
+    name = "read_bytes"
+    i64_range = [0, 1000000]
+
+    [[agents.measurements.fields]]
+    name = "write_bytes"
+    i64_range = [0, 1000000]
+
+    [[agents.measurements.fields]]
+    name = "read_time"
+    i64_range = [0, 1000000]
+
+    [[agents.measurements.fields]]
+    name = "write_time"
+    i64_range = [0, 1000000]
+
+    [[agents.measurements.fields]]
+    name = "io_time"
+    i64_range = [0, 1000000]
+
+    [[agents.measurements.fields]]
+    name = "weighted_io_time"
+    i64_range = [0, 1000000]
+
+    [[agents.measurements.fields]]
+    name = "iops_in_progress"
+    i64_range = [0, 1000000]
