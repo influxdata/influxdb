@@ -28,7 +28,7 @@ Examples:
         --bucket mybucket --token mytoken --create
 
     # Generate data points for the 24 hours between midnight 2020-01-01 and 2020-01-02
-    data_generator -s spec.toml -o lp --start 2020-01-01 --end 2020-01-02
+    iox_data_generator -s spec.toml -o lp --start 2020-01-01 --end 2020-01-02
 
     # Generate data points starting from an hour ago until now, generating the historical data as
     # fast as possible. Then generate data according to the sampling interval until terminated.
@@ -38,8 +38,8 @@ Logging:
     Use the RUST_LOG environment variable to configure the desired logging level.
     For example:
 
-    # Enable INFO level logging for all of data_generator
-    RUST_LOG=data_generator=info iox_data_generator -s spec.toml -o lp
+    # Enable INFO level logging for all of iox_data_generator
+    RUST_LOG=iox_data_generator=info iox_data_generator -s spec.toml -o lp
 
 
 "#;
@@ -47,7 +47,7 @@ Logging:
     let matches = App::new(help)
         .version(crate_version!())
         .author(crate_authors!())
-        .about("Fusion data point generator")
+        .about("IOx data point generator")
         .arg(
             Arg::with_name("SPECIFICATION")
                 .short("s")

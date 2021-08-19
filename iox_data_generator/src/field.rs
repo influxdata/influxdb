@@ -300,7 +300,7 @@ impl<T: DataGenRng> FieldGenerator for StringFieldGenerator<T> {
 }
 
 /// Generate an i64 field that has the name `uptime` and the value of the number
-/// of seconds since the data_generator started running
+/// of seconds since the data generator started running
 #[derive(Debug)]
 pub struct UptimeFieldGenerator {
     name: String,

@@ -12,7 +12,7 @@ cargo build --release
 And the built binary has command line help:
 
 ```
-./target/release/data_generator --help
+./target/release/iox_data_generator --help
 ```
 
 For examples of specifications see the [schemas folder](schemas)
@@ -67,7 +67,7 @@ instance to write to Kafka and the database in the "reader" IOx instance to read
 you run it with:
 
 ```
-cargo run --bin create_database -- --writer 127.0.0.1:8082 --reader 127.0.0.1:8086 mlb_pirates
+cargo run -p iox_data_generator --bin create_database -- --writer 127.0.0.1:8082 --reader 127.0.0.1:8086 mlb_pirates
 ```
 
 This script adds 3 rows to a `writer_test` table because [this issue with the Kafka Consumer
@@ -75,21 +75,21 @@ needing data before it can find partitions](https://github.com/influxdata/influx
 
 Once the database is created, decide what kind of data you would like to send it. You can use an
 existing data generation schema in the `schemas` directory or create a new one, perhaps starting
-from an existing schema as a guide. In this example, we're going to use `schemas/cap-write.toml`.
+from an existing schema as a guide. In this example, we're going to use
+`iox_data_generator/schemas/cap-write.toml`.
 
 Next, run the data generation tool as follows:
 
 ```
-# in your iox_data_generator checkout
-cargo run -- --spec iox_data_generator/schemas/cap-write.toml --continue --host 127.0.0.1:8080 --token arbitrary --org mlb --bucket pirates
+cargo run -p iox_data_generator -- --spec iox_data_generator/schemas/cap-write.toml --continue --host 127.0.0.1:8080 --token arbitrary --org mlb --bucket pirates
 ```
 
-- `--spec schemas/cap-write.toml` sets the schema you want to use to generate the data
+- `--spec iox_data_generator/schemas/cap-write.toml` sets the schema you want to use to generate the data
 - `--continue` means the data generation tool should generate data every `sampling_interval` (which
   is set in the schema) until we stop it
 - `--host 127.0.0.1:8080` means to write to the writer IOx server running at the default HTTP API address
   of `127.0.0.1:8080` (note this is NOT the gRPC address used by the `create_database` command)
-- `--token arbitrary` - the data_generator requires a token value but IOx doesn't use it, so this
+- `--token arbitrary` - the data generator requires a token value but IOx doesn't use it, so this
   can be any value.
 - `--org mlb` is the part of the database name you created before the `_`
 - `--bucket pirates` is the part of the database name you created after the `_`
