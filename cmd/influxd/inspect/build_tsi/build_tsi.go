@@ -27,7 +27,7 @@ import (
 
 const defaultBatchSize = 10000
 
-type buildTSICmd struct {
+type buildTSI struct {
 	// Data path options
 	dataPath string // optional. Defaults to <engine_path>/engine/data
 	walPath  string // optional. Defaults to <engine_path>/engine/wal
@@ -46,7 +46,7 @@ type buildTSICmd struct {
 
 // NewBuildTSICommand returns a new instance of Command with default settings applied.
 func NewBuildTSICommand() *cobra.Command {
-	var arguments buildTSICmd
+	var buildTSICmd buildTSI
 
 	cmd := &cobra.Command{
 		Use:   "build-tsi",
@@ -77,14 +77,14 @@ memory usage.
 		`,
 		Args: cobra.MaximumNArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if arguments.shardID != "" && arguments.bucketID == "" {
+			if buildTSICmd.shardID != "" && buildTSICmd.bucketID == "" {
 				return errors.New("if shard-id is specified, bucket-id must also be specified")
 			}
 
 			config := logger.NewConfig()
 
 			// Set logger level based on verbose flag
-			if arguments.verbose {
+			if buildTSICmd.verbose {
 				config.Level = zapcore.DebugLevel
 			} else {
 				config.Level = zapcore.InfoLevel
@@ -94,9 +94,9 @@ memory usage.
 			if err != nil {
 				return err
 			}
-			arguments.Logger = newLogger
+			buildTSICmd.Logger = newLogger
 
-			return arguments.run()
+			return buildTSICmd.run()
 		},
 	}
 
@@ -104,22 +104,22 @@ memory usage.
 	defaultDataPath := filepath.Join(defaultPath, "data")
 	defaultWALPath := filepath.Join(defaultPath, "wal")
 
-	cmd.Flags().StringVar(&arguments.dataPath, "data-path", defaultDataPath, "Path to the TSM data directory.")
-	cmd.Flags().StringVar(&arguments.walPath, "wal-path", defaultWALPath, "Path to the WAL data directory.")
-	cmd.Flags().StringVar(&arguments.bucketID, "bucket-id", "", "Bucket ID")
-	cmd.Flags().StringVar(&arguments.shardID, "shard-id", "", "Shard ID, if this is specified a bucket-id must also be specified")
-	cmd.Flags().BoolVar(&arguments.compactSeriesFile, "compact-series-file", false, "Compact existing series file. Does not rebuilt index.")
-	cmd.Flags().IntVar(&arguments.concurrency, "concurrency", runtime.GOMAXPROCS(0), "Number of workers to dedicate to shard index building.")
-	cmd.Flags().Int64Var(&arguments.maxLogFileSize, "max-log-file-size", tsdb.DefaultMaxIndexLogFileSize, "Maximum log file size")
-	cmd.Flags().Uint64Var(&arguments.maxCacheSize, "max-cache-size", tsdb.DefaultCacheMaxMemorySize, "Maximum cache size")
-	cmd.Flags().BoolVar(&arguments.verbose, "v", false, "Verbose output, includes debug-level logs")
-	cmd.Flags().IntVar(&arguments.batchSize, "batch-size", defaultBatchSize, "Set the size of the batches we write to the index. Setting this can have adverse affects on performance and heap requirements")
+	cmd.Flags().StringVar(&buildTSICmd.dataPath, "data-path", defaultDataPath, "Path to the TSM data directory.")
+	cmd.Flags().StringVar(&buildTSICmd.walPath, "wal-path", defaultWALPath, "Path to the WAL data directory.")
+	cmd.Flags().StringVar(&buildTSICmd.bucketID, "bucket-id", "", "Bucket ID")
+	cmd.Flags().StringVar(&buildTSICmd.shardID, "shard-id", "", "Shard ID, if this is specified a bucket-id must also be specified")
+	cmd.Flags().BoolVar(&buildTSICmd.compactSeriesFile, "compact-series-file", false, "Compact existing series file. Does not rebuilt index.")
+	cmd.Flags().IntVar(&buildTSICmd.concurrency, "concurrency", runtime.GOMAXPROCS(0), "Number of workers to dedicate to shard index building.")
+	cmd.Flags().Int64Var(&buildTSICmd.maxLogFileSize, "max-log-file-size", tsdb.DefaultMaxIndexLogFileSize, "Maximum log file size")
+	cmd.Flags().Uint64Var(&buildTSICmd.maxCacheSize, "max-cache-size", tsdb.DefaultCacheMaxMemorySize, "Maximum cache size")
+	cmd.Flags().BoolVar(&buildTSICmd.verbose, "v", false, "Verbose output, includes debug-level logs")
+	cmd.Flags().IntVar(&buildTSICmd.batchSize, "batch-size", defaultBatchSize, "Set the size of the batches we write to the index. Setting this can have adverse affects on performance and heap requirements")
 
 	return cmd
 }
 
 // Run executes the run command for BuildTSI.
-func (buildTSICmd *buildTSICmd) run() error {
+func (buildTSICmd *buildTSI) run() error {
 	// Verify the user actually wants to run as root.
 	if isRoot() {
 		cli := clients.CLI{StdIO: stdio.TerminalStdio}
@@ -169,7 +169,7 @@ Are you sure you want to continue?`); !confirmed {
 
 // compactBucketSeriesFile compacts the series file segments associated with
 // the series file for the provided bucket.
-func (buildTSICmd *buildTSICmd) compactBucketSeriesFile(path string) error {
+func (buildTSICmd *buildTSI) compactBucketSeriesFile(path string) error {
 	sfilePath := filepath.Join(path, tsdb.SeriesFileDirectory)
 	paths, err := buildTSICmd.seriesFilePartitionPaths(sfilePath)
 	if err != nil {
@@ -218,7 +218,7 @@ func (buildTSICmd *buildTSICmd) compactBucketSeriesFile(path string) error {
 	return nil
 }
 
-func (buildTSICmd *buildTSICmd) compactSeriesFilePartition(path string) error {
+func (buildTSICmd *buildTSI) compactSeriesFilePartition(path string) error {
 	const tmpExt = ".tmp"
 	buildTSICmd.Logger.Info("Processing partition", zap.String("path", path))
 
@@ -271,7 +271,7 @@ func (buildTSICmd *buildTSICmd) compactSeriesFilePartition(path string) error {
 }
 
 // seriesFilePartitionPaths returns the paths to each partition in the series file.
-func (buildTSICmd *buildTSICmd) seriesFilePartitionPaths(path string) ([]string, error) {
+func (buildTSICmd *buildTSI) seriesFilePartitionPaths(path string) ([]string, error) {
 	sfile := tsdb.NewSeriesFile(path)
 	sfile.Logger = buildTSICmd.Logger
 	if err := sfile.Open(); err != nil {
@@ -288,7 +288,7 @@ func (buildTSICmd *buildTSICmd) seriesFilePartitionPaths(path string) ([]string,
 	return paths, nil
 }
 
-func (buildTSICmd *buildTSICmd) processBucket(bucketID, dataDir, walDir string) error {
+func (buildTSICmd *buildTSI) processBucket(bucketID, dataDir, walDir string) error {
 	buildTSICmd.Logger.Info("Rebuilding bucket", zap.String("name", bucketID))
 
 	sfile := tsdb.NewSeriesFile(filepath.Join(dataDir, tsdb.SeriesFileDirectory))
@@ -319,7 +319,7 @@ func (buildTSICmd *buildTSICmd) processBucket(bucketID, dataDir, walDir string) 
 	return nil
 }
 
-func (buildTSICmd *buildTSICmd) processRetentionPolicy(sfile *tsdb.SeriesFile, bucketID, rpName, dataDir, walDir string) error {
+func (buildTSICmd *buildTSI) processRetentionPolicy(sfile *tsdb.SeriesFile, bucketID, rpName, dataDir, walDir string) error {
 	buildTSICmd.Logger.Info("Rebuilding retention policy", logger.Database(bucketID), logger.RetentionPolicy(rpName))
 
 	fis, err := os.ReadDir(dataDir)
