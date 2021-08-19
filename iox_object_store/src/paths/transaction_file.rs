@@ -307,6 +307,21 @@ mod tests {
     fn transaction_file_from_absolute() {
         let object_store = make_object_store();
 
+        // Success case
+        let uuid = Uuid::new_v4();
+        let mut path = object_store.new_path();
+        path.push_all_dirs(&["foo", "bar", "baz", "00000000000000000123"]);
+        path.set_file_name(&format!("{}.{}", uuid, CHECKPOINT_FILE_SUFFIX));
+        let result = TransactionFilePath::from_absolute(path);
+        assert_eq!(
+            result.unwrap(),
+            TransactionFilePath {
+                revision_counter: 123,
+                uuid,
+                suffix: TransactionFileSuffix::Checkpoint,
+            }
+        );
+
         // Error cases
         use TransactionFilePathParseError::*;
 
@@ -327,21 +342,6 @@ mod tests {
         // missing file name
         let result = TransactionFilePath::from_absolute(path);
         assert!(matches!(result, Err(MissingFileName)), "got: {:?}", result);
-
-        // Success case
-        let uuid = Uuid::new_v4();
-        let mut path = object_store.new_path();
-        path.push_all_dirs(&["foo", "bar", "baz", "00000000000000000123"]);
-        path.set_file_name(&format!("{}.{}", uuid, CHECKPOINT_FILE_SUFFIX));
-        let result = TransactionFilePath::from_absolute(path);
-        assert_eq!(
-            result.unwrap(),
-            TransactionFilePath {
-                revision_counter: 123,
-                uuid,
-                suffix: TransactionFileSuffix::Checkpoint,
-            }
-        );
     }
 
     #[test]

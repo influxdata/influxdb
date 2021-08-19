@@ -280,6 +280,22 @@ mod tests {
     fn parquet_file_from_absolute() {
         let object_store = make_object_store();
 
+        // Success case
+        let uuid = Uuid::new_v4();
+        let mut path = object_store.new_path();
+        path.push_all_dirs(&["foo", "bar", "baz", "}*", "aoeu"]);
+        path.set_file_name(&format!("10.{}.parquet", uuid));
+        let result = ParquetFilePath::from_absolute(path);
+        assert_eq!(
+            result.unwrap(),
+            ParquetFilePath {
+                table_name: "}*".into(),
+                partition_key: "aoeu".into(),
+                chunk_id: 10,
+                uuid
+            }
+        );
+
         // Error cases
         use ParquetFilePathParseError::*;
 
@@ -300,22 +316,6 @@ mod tests {
         // missing file name
         let result = ParquetFilePath::from_absolute(path);
         assert!(matches!(result, Err(MissingChunkId)), "got: {:?}", result);
-
-        // Success case
-        let uuid = Uuid::new_v4();
-        let mut path = object_store.new_path();
-        path.push_all_dirs(&["foo", "bar", "baz", "}*", "aoeu"]);
-        path.set_file_name(&format!("10.{}.parquet", uuid));
-        let result = ParquetFilePath::from_absolute(path);
-        assert_eq!(
-            result.unwrap(),
-            ParquetFilePath {
-                table_name: "}*".into(),
-                partition_key: "aoeu".into(),
-                chunk_id: 10,
-                uuid
-            }
-        );
     }
 
     #[test]
