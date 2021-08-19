@@ -1,0 +1,38 @@
+[package]
+name = "iox_data_generator"
+version = "0.1.0"
+authors = ["Paul Dix <paul@pauldix.net>"]
+edition = "2018"
+default-run = "iox_data_generator"
+
+[dependencies]
+chrono = "0.4.13"
+chrono-english = "0.1.4"
+clap = "2.33.1"
+futures = "0.3.5"
+handlebars = "3.3.0"
+data_types = { path = "../data_types" }
+generated_types = { path = "../generated_types" }
+influxdb2_client = { path = "../influxdb2_client" }
+influxdb_iox_client = { path = "../influxdb_iox_client" }
+packers = { path = "../packers" }
+itertools = "0.9.0"
+rand = { version = "0.8.3", features = ["small_rng"] }
+rand_core = "0.6.2"
+rand_seeder = "0.2.1"
+serde = { version = "1.0", features = ["derive"] }
+snafu = "0.6.8"
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+toml = "0.5.6"
+tracing = "0.1"
+tracing-futures = "0.2.4"
+tracing-subscriber = "0.2.11"
+uuid = { version = "0.8.1", default_features = false }
+
+[dev-dependencies]
+criterion = "0.3.3"
+test_helpers = { path = "../test_helpers" }
+
+[[bench]]
+name = "point_generation"
+harness = false

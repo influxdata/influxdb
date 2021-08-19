@@ -694,7 +694,7 @@ mod test {
         r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 906"#,
         r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 186"#,
         r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 672"#,
-        r#"read_buffer_column_allocated_bytes{db="mydb",encoding="RLE",log_data_type="string"} 586"#,
+        r#"read_buffer_column_allocated_bytes{db="mydb",encoding="RLE",log_data_type="string"} 664"#,
         "# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer",
         "# TYPE read_buffer_column_raw_bytes gauge",
         r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 96"#,

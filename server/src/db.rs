@@ -2554,7 +2554,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(3628.0)
+            .sample_sum_eq(3706.0)
             .unwrap();
 
         let rb = collect_read_filter(&rb_chunk).await;
@@ -3921,7 +3921,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
         let paths_actual = {
-            let mut tmp: Vec<_> = catalog.parquet_files.keys().cloned().collect();
+            let mut tmp: Vec<_> = catalog.files().map(|info| info.path.clone()).collect();
             tmp.sort();
             tmp
         };

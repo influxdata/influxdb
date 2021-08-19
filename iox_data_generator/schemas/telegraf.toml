@@ -1,0 +1,141 @@
+name = "demo_schema"
+base_seed = "correct horse battery staple"
+
+# the most basic spec with no auto generating of agents, measurements, tags or fields
+[[agents]]
+name = "demo"
+sampling_interval = 10
+
+  [[agents.measurements]]
+  name = "some_measurement"
+
+    [[agents.measurements.tags]]
+    name = "foo"
+    value = "bar"
+
+    [[agents.measurements.fields]]
+    name = "field1"
+    # it's a boolean field, the true means to generate the boolean randomly with equal probability
+    bool = true
+
+    [[agents.measurements.fields]]
+    name = "field2"
+    # it's an i64 field, values will be generated using a pseudo random number generator
+    # with a set seed and values in the range [3, 200). Setting it to [3, 3] or [3, 4] will
+    # make the value always be 3
+    i64_range = [3, 200]
+
+    [[agents.measurements.fields]]
+    name = "field3"
+    # it's an i64 field, values will be generated using a pseudo random number generator
+    # with a set seed  and values in the range in the range [1000, 5000)
+    i64_range = [1000, 5000]
+    # The value after each same will be incremented by the next random amount. This is
+    # useful when simulating a counter.
+    increment = true
+
+    [[agents.measurements.fields]]
+    name = "field4"
+    # it's an f64 field, values will be generated using a pseudo random number generator
+    # with a set seed with values in the range [0.0, 100.0). Setting both values to the same
+    # number will make every value that number.
+    f64_range = [0.0, 100.0]
+
+    [[agents.measurements.fields]]
+    name = "field5"
+    # this is a string field. Parts of the string will be replaced. {{agent_name}} will be replaced
+    # with the name of the agent, {{random 200}} will be replaced with a random alphanumeric string
+    # of the length specified. {{format-time "%Y-%m-%d %H:%M"}} will be replaced with the time for
+    # this line in the simulation (that is, the same value that this line will have for its
+    # timestamp) formatted using a strftime specifier. Other patterns will be looked for based on
+    # the keys in replacements.
+    pattern = "{{agent_name}} foo {{level}} {{format-time \"%Y-%m-%d %H:%M\"}} {{random 200}}"
+    # each key in string replacements will be replaced in the pattern with a value randomly
+    # selected from the array of strings. Specify a weight as an integer greater than 1 to change
+    # the probability that a given string will be selected.
+    replacements = [
+      {replace = "color", with = ["red", "blue", "green"]},
+      {replace = "level", with = [
+        ["info", 800],
+        ["warn", 195],
+        ["error", 5]
+      ]}
+    ]
+
+[[agents]]
+name = "some-server-{{agent_id}}"
+count = 10
+sampling_interval = 22
+
+# Optional: every measurement (row) this agent produces will include a tag with the agent_id filled
+# in:
+# agent_name=some-server-{{agent_id}}
+name_tag_key = "agent_name"
+
+# Optional: these values will be rotated through so that each agent that gets created will have one.
+# e.g: the first agent will always inject region=us-west and secnod will be region=us-east, etc.
+tags = [
+  {key = "region", values = ["us-west", "us-east", "dublin", "frankfurt"]},
+  {key = "foo", values = ["bar", "asdf"]},
+]
+
+  [[agents.measurements]]
+  name = "few-tags-measurement-{{measurement_id}}"
+  count = 20
+    [[agents.measurements.tags]]
+    # {{measurement_id}} will be replaced with the id of the measurement this tag is for
+    name = "tag-1-{{measurement_id}}"
+    value = "value-1"
+
+    [[agents.measurements.tags]]
+    name = "tag-2"
+    # {{cardinality}} will be replaced with the cardinality counter
+    value = "value-{{cardinality}}"
+    # Optional: This means each collection on this agent will have 4 rows of this measurement with
+    # unique values for this tag. This could be for things like org_id as a tag or for
+    # something like cpu measurements in Telegraf where you have a separate line for each cpu:
+    #   cpu,cpu=cpu-total,host=foo usage_user=23.2,usage_system=33.3
+    #   cpu,cpu=cpu-0,host=foo usage_user=22.2,usage_system=34.5
+    #   cpu,cpu=cpu-1,host=foo usage_user=11.2,usage_system=56.5
+    cardinality = 4
+
+    [[agents.measurements.tags]]
+    name = "tag-3"
+    # {{counter}} will be replaced with the increment counter
+    value = "value-{{counter}}"
+    # Optional: This means that {{counter}} will increase by 1 after every 10 samples that are
+    # pulled.
+    # This option simulates temporal tag values like process IDs or container IDs in tags
+    increment_every = 10
+
+    [[agents.measurements.tags]]
+    name = "tag-4"
+    # {{counter}} will be replaced with the increment counter and {{cardinality}} will be replaced
+    # with the cardinality counter
+    value = "value-{{counter}}-{{cardinality}}"
+    # Optional: This means that {{counter}} will increment by 1 after every 100 samples that are
+    # pulled.
+    # This option simulates temporal tag values like process IDs or container IDs in tags
+    increment_every = 100
+    # when paired with cardinality, this can simulate having many containers running on a single
+    # host
+    cardinality = 10
+
+    [[agents.measurements.fields]]
+    name = "field-2"
+    bool = true
+
+  # This example shows generating 10 different measurements that each have their own set of
+  # tags (10 of them) and each have their own set of fields (4 of them)
+  [[agents.measurements]]
+  name = "mid-tags-measurement-{{measurement_id}}"
+  count = 10
+    [[agents.measurements.tags]]
+    name = "tag-{{tag_id}}-{{measurement_id}}"
+    count = 10
+    value = "value-{{cardinality}}"
+    cardinality = 3
+
+    [[agents.measurements.fields]]
+    name = "field-1"
+    bool = true

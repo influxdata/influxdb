@@ -6,8 +6,7 @@
 # ./scripts/genlp.py | head -n 2000
 # ```
 #
-# Please use https://github.com/influxdata/iox_data_generator for anything
-# more complicated.
+# Please use iox_data_generator for anything more complicated.
 #
 
 from signal import signal, SIGPIPE, SIG_DFL
