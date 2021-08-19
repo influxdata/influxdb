@@ -255,6 +255,7 @@ impl KafkaBufferConsumer {
         cfg.set("session.timeout.ms", "6000");
         cfg.set("enable.auto.commit", "false");
         cfg.set("statistics.interval.ms", "15000");
+        cfg.set("queued.max.messages.kbytes", "100000");
 
         // Create a unique group ID for this database's consumer as we don't want to create
         // consumer groups.
