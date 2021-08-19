@@ -19,7 +19,6 @@ use observability_deps::tracing::warn;
 use crate::commands::tracing::TracingGuard;
 use influxdb_iox_client::connection::Builder;
 use std::str::FromStr;
-use tikv_jemallocator::Jemalloc;
 
 mod commands {
     pub mod database;
@@ -34,10 +33,6 @@ mod commands {
 mod object_store;
 
 pub mod influxdb_ioxd;
-
-#[cfg(not(feature = "heappy"))]
-#[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
 
 enum ReturnCode {
     Failure = 1,
