@@ -42,6 +42,7 @@ members = [
     "server_benchmarks",
     "test_helpers",
     "trace",
+    "trace_exporters",
     "tracker",
     "trogging",
     "grpc-router",
@@ -61,7 +62,7 @@ datafusion = { path = "datafusion" }
 data_types = { path = "data_types" }
 entry = { path = "entry" }
 generated_types = { path = "generated_types" }
-heappy = { git = "https://github.com/mkmik/heappy", rev = "82a383128e484039cc2f31476e6289bed48a6701", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true}
+heappy = { git = "https://github.com/mkmik/heappy", rev = "82a383128e484039cc2f31476e6289bed48a6701", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
 
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
@@ -77,6 +78,7 @@ query = { path = "query" }
 read_buffer = { path = "read_buffer" }
 server = { path = "server" }
 trace = { path = "trace" }
+trace_exporters = { path = "trace_exporters" }
 tracker = { path = "tracker" }
 trogging = { path = "trogging", default-features = false, features = ["structopt"] }
 
@@ -103,7 +105,7 @@ itertools = "0.10.1"
 parquet = "5.0"
 # used by arrow/datafusion anyway
 prettytable-rs = "0.8"
-pprof = { version = "^0.5", default-features = false, features = ["flamegraph", "protobuf"], optional = true}
+pprof = { version = "^0.5", default-features = false, features = ["flamegraph", "protobuf"], optional = true }
 prost = "0.8"
 # Forked to upgrade hyper and tokio
 routerify = { git = "https://github.com/influxdata/routerify", rev = "274e250" }

@@ -1,0 +1,19 @@
+[package]
+name = "trace_exporters"
+version = "0.1.0"
+authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
+edition = "2018"
+description = "Additional tracing exporters for IOx"
+
+[dependencies]
+
+async-trait = "0.1"
+chrono = { version = "0.4" }
+futures = "0.3"
+observability_deps = { path = "../observability_deps" }
+opentelemetry = "0.15"
+tokio = { version = "1.0", features = ["macros", "time", "sync", "rt"] }
+tokio-util = { version = "0.6.3" }
+trace = { path = "../trace" }
+
+[dev-dependencies]

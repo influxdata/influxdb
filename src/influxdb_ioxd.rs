@@ -326,8 +326,8 @@ mod tests {
     use influxdb_iox_client::connection::Connection;
     use std::convert::TryInto;
     use structopt::StructOpt;
-    use trace::otel::{OtelExporter, TestOtelExporter};
     use trace::RingBufferTraceCollector;
+    use trace_exporters::otel::{OtelExporter, TestOtelExporter};
 
     fn test_config(server_id: Option<u32>) -> Config {
         let mut config = Config::from_iter(&[
@@ -630,9 +630,7 @@ mod tests {
 
         let (sender, mut receiver) = tokio::sync::mpsc::channel(20);
 
-        let collector = Arc::new(trace::otel::OtelExporter::new(TestOtelExporter::new(
-            sender,
-        )));
+        let collector = Arc::new(OtelExporter::new(TestOtelExporter::new(sender)));
 
         let grpc_listener = grpc_listener(config.grpc_bind_address).await.unwrap();
         let http_listener = http_listener(config.grpc_bind_address).await.unwrap();

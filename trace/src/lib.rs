@@ -16,7 +16,6 @@ use observability_deps::tracing::info;
 use crate::span::Span;
 
 pub mod ctx;
-pub mod otel;
 pub mod span;
 pub mod tower;
 

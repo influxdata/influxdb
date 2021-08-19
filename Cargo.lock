@@ -1733,6 +1733,7 @@ dependencies = [
  "tonic-health",
  "tonic-reflection",
  "trace",
+ "trace_exporters",
  "tracker",
  "trogging",
  "uuid",
@@ -2631,6 +2632,7 @@ name = "packers"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "criterion",
  "human_format",
  "influxdb_tsm",
  "internal_types",
@@ -4712,23 +4714,33 @@ checksum = "360dfd1d6d30e05fda32ace2c8c70e9c0a9da713275777f5a4dbb8a1893930c6"
 name = "trace"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "chrono",
  "futures",
  "http",
  "http-body",
  "itertools 0.10.1",
  "observability_deps",
- "opentelemetry",
  "parking_lot",
  "pin-project 1.0.8",
  "rand 0.8.4",
  "serde",
  "serde_json",
  "snafu",
+ "tower",
+]
+
+[[package]]
+name = "trace_exporters"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "futures",
+ "observability_deps",
+ "opentelemetry",
  "tokio",
  "tokio-util",
- "tower",
+ "trace",
 ]
 
 [[package]]
