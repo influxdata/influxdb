@@ -406,6 +406,7 @@ fn field_spec_to_generator<T: DataGenRng>(
 mod test {
     use super::*;
     use crate::{DynamicRng, ZeroRng, TEST_SEED};
+    use test_helpers::approximately_equal;
 
     type Error = Box<dyn std::error::Error>;
     type Result<T = (), E = Error> = std::result::Result<T, E>;
@@ -566,7 +567,7 @@ mod test {
 
         // All the values generated will always be the same known value.
         assert!(
-            f64_fields.iter().all(|f| *f == start_and_end),
+            f64_fields.iter().all(|f| approximately_equal(*f, start_and_end)),
             "{:?}",
             f64_fields
         );
