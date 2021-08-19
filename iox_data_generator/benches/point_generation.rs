@@ -42,7 +42,7 @@ pub fn single_agent(c: &mut Criterion) {
     group.bench_function("single agent with basic configuration", |b| {
         b.iter(|| {
             let r = block_on({
-                data_generator::generate::<rand::rngs::SmallRng>(
+                iox_data_generator::generate::<rand::rngs::SmallRng>(
                     &spec,
                     &mut points_writer,
                     start_datetime,
