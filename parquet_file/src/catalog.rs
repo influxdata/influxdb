@@ -33,7 +33,7 @@ use uuid::Uuid;
 /// Current version for serialized transactions.
 ///
 /// For breaking changes, this will change.
-pub const TRANSACTION_VERSION: u32 = 11;
+pub const TRANSACTION_VERSION: u32 = 12;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
