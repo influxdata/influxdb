@@ -567,7 +567,9 @@ mod test {
 
         // All the values generated will always be the same known value.
         assert!(
-            f64_fields.iter().all(|f| approximately_equal(*f, start_and_end)),
+            f64_fields
+                .iter()
+                .all(|f| approximately_equal(*f, start_and_end)),
             "{:?}",
             f64_fields
         );
