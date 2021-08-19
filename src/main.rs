@@ -46,9 +46,6 @@ static VERSION_STRING: Lazy<String> = Lazy::new(|| {
     )
 });
 
-#[cfg(not(any(feature = "heappy", feature = "jemalloc_replacing_malloc")))]
-compile_error!("you need to pick either heappy or jemalloc_replacing_malloc feature, cargo can't pick a default out of a mutually exclusive set");
-
 #[cfg(all(feature = "heappy", feature = "jemalloc_replacing_malloc"))]
 compile_error!("heappy and jemalloc_replacing_malloc features are mutually exclusive");
 
