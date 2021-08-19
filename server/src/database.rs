@@ -72,6 +72,15 @@ pub enum Error {
 
     #[snafu(display("cannot persisted updated rules: {}", source))]
     CannotPersistUpdatedRules { source: crate::rules::Error },
+
+    #[snafu(display("cannot mark database deleted: {}", source))]
+    CannotMarkDatabaseDeleted {
+        db_name: String,
+        source: object_store::Error,
+    },
+
+    #[snafu(display("no active database named {} to delete", db_name))]
+    NoActiveDatabaseToDelete { db_name: String },
 }
 
 /// A `Database` represents a single configured IOx database - i.e. an
@@ -134,9 +143,15 @@ impl Database {
     ) -> Result<(), InitError> {
         let db_name = provided_rules.db_name();
         let iox_object_store = Arc::new(
-            IoxObjectStore::new(Arc::clone(application.object_store()), server_id, db_name)
+            match IoxObjectStore::new(Arc::clone(application.object_store()), server_id, db_name)
                 .await
-                .context(IoxObjectStoreError)?,
+            {
+                Ok(ios) => ios,
+                Err(iox_object_store::IoxObjectStoreError::DatabaseAlreadyExists { name }) => {
+                    return Err(InitError::DatabaseAlreadyExists { name })
+                }
+                Err(source) => return Err(InitError::IoxObjectStoreError { source }),
+            },
         );
 
         provided_rules
@@ -153,6 +168,51 @@ impl Database {
         )
         .await
         .context(CannotCreatePreservedCatalog)?;
+
+        Ok(())
+    }
+
+    /// Mark this database as deleted.
+    pub async fn delete(&self) -> Result<(), Error> {
+        let db_name = &self.shared.config.name;
+
+        let handle = {
+            let state = self.shared.state.read();
+
+            // Can't delete an already deleted database.
+            ensure!(
+                state.is_active(),
+                NoActiveDatabaseToDelete {
+                    db_name: db_name.to_string()
+                }
+            );
+
+            state.try_freeze().ok_or(Error::TransitionInProgress {
+                db_name: db_name.to_string(),
+                state: state.state_code(),
+            })?
+        };
+
+        // If there is an object store for this database, write out a tombstone file.
+        // Otherwise, we can't because there isn't anyplace to write.
+        if let Some(iox_object_store) = self.iox_object_store() {
+            iox_object_store
+                .write_tombstone()
+                .await
+                .context(CannotMarkDatabaseDeleted {
+                    db_name: db_name.to_string(),
+                })?;
+        }
+
+        let shared = Arc::clone(&self.shared);
+
+        {
+            let mut state = shared.state.write();
+            *state.unfreeze(handle) = DatabaseState::NoActiveDatabase(
+                DatabaseStateKnown {},
+                Arc::new(InitError::NoActiveDatabase),
+            );
+        }
 
         Ok(())
     }
@@ -626,6 +686,9 @@ pub enum InitError {
         source: iox_object_store::IoxObjectStoreError,
     },
 
+    #[snafu(display("cannot create database `{}`; it already exists", name))]
+    DatabaseAlreadyExists { name: String },
+
     #[snafu(display("cannot create preserved catalog: {}", source))]
     CannotCreatePreservedCatalog { source: crate::db::load::Error },
 }
@@ -724,6 +787,12 @@ impl DatabaseState {
             }
             DatabaseState::Initialized(state) => Some(state.db.iox_object_store()),
         }
+    }
+
+    /// Whether the end user would want to know about this database or whether they would consider
+    /// this database to be deleted
+    fn is_active(&self) -> bool {
+        !matches!(self, DatabaseState::NoActiveDatabase(_, _))
     }
 
     fn get_initialized(&self) -> Option<&DatabaseStateInitialized> {

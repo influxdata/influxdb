@@ -122,7 +122,9 @@ pub enum Error {
     IdNotSet,
 
     #[snafu(display(
-        "Server ID is set ({}) but server is not yet initialized (e.g. DBs and remotes are not loaded). Server is not yet ready to read/write data.", server_id
+        "Server ID is set ({}) but server is not yet initialized (e.g. DBs and remotes are not \
+         loaded). Server is not yet ready to read/write data.",
+        server_id
     ))]
     ServerNotInitialized { server_id: ServerId },
 
@@ -141,8 +143,11 @@ pub enum Error {
     #[snafu(display("cannot create database: {}", source))]
     CannotCreateDatabase { source: crate::database::InitError },
 
-    #[snafu(display("database not found"))]
+    #[snafu(display("database not found: {}", db_name))]
     DatabaseNotFound { db_name: String },
+
+    #[snafu(display("{}", source))]
+    CannotMarkDatabaseDeleted { source: crate::database::Error },
 
     #[snafu(display("database already exists: {}", db_name))]
     DatabaseAlreadyExists { db_name: String },
@@ -696,22 +701,25 @@ where
                             db_name: db_name.to_string(),
                         });
                     }
-                } else {
-                    return Err(Error::DatabaseAlreadyExists {
-                        db_name: db_name.to_string(),
-                    });
                 }
             }
             initialized.server_id
         };
 
-        Database::create(
+        let res = Database::create(
             Arc::clone(&self.shared.application),
             &provided_rules,
             server_id,
         )
-        .await
-        .context(CannotCreateDatabase)?;
+        .await;
+
+        if matches!(res, Err(database::InitError::DatabaseAlreadyExists { .. })) {
+            return Err(Error::DatabaseAlreadyExists {
+                db_name: db_name.to_string(),
+            });
+        }
+
+        res.context(CannotCreateDatabase)?;
 
         let database = {
             let mut state = self.shared.state.write();
@@ -739,6 +747,14 @@ where
         database.wait_for_init().await.context(DatabaseInit)?;
 
         Ok(database)
+    }
+
+    /// Delete an existing, active database with this name. Return an error if no active database
+    /// with this name can be found.
+    pub async fn delete_database(&self, db_name: &DatabaseName<'static>) -> Result<()> {
+        let database = self.database(db_name)?;
+        database.delete().await.context(CannotMarkDatabaseDeleted)?;
+        Ok(())
     }
 
     pub async fn write_pb(&self, database_batch: pb::DatabaseBatch) -> Result<()> {
@@ -1996,6 +2012,14 @@ mod tests {
         assert_eq!(server.db_names_sorted().len(), 1);
         assert!(server.db_names_sorted().contains(&String::from("foo")));
 
+        // can't delete an inactive database
+        let err = server.delete_database(&foo_db_name).await.unwrap_err();
+        assert!(
+            matches!(&err, Error::CannotMarkDatabaseDeleted { .. }),
+            "got {:?}",
+            err
+        );
+
         let foo_database = server.database(&foo_db_name).unwrap();
         let err = foo_database.wait_for_init().await.unwrap_err();
         assert!(
@@ -2011,6 +2035,22 @@ mod tests {
             .expect("failed to create database");
 
         // DB names contains foo
+        assert_eq!(server.db_names_sorted().len(), 1);
+        assert!(server.db_names_sorted().contains(&String::from("foo")));
+
+        // calling delete database works
+        server.delete_database(&foo_db_name).await.unwrap();
+
+        // DB names still contains foo
+        assert_eq!(server.db_names_sorted().len(), 1);
+        assert!(server.db_names_sorted().contains(&String::from("foo")));
+
+        // creating another new DB with the deleted db's name works
+        create_simple_database(&server, &foo_db_name)
+            .await
+            .expect("failed to create database");
+
+        // DB names still contains foo
         assert_eq!(server.db_names_sorted().len(), 1);
         assert!(server.db_names_sorted().contains(&String::from("foo")));
     }
@@ -2150,7 +2190,7 @@ mod tests {
                 .wipe_preserved_catalog(&db_name_non_existing)
                 .unwrap_err()
                 .to_string(),
-            "database not found"
+            "database not found: db_non_existing"
         );
 
         // 3. cannot wipe DB with broken rules file
@@ -2245,7 +2285,11 @@ mod tests {
 
         // creating database will now result in an error
         let err = create_simple_database(&server, db_name).await.unwrap_err();
-        assert!(matches!(err, Error::CannotCreateDatabase { .. }));
+        assert!(
+            matches!(err, Error::DatabaseAlreadyExists { .. }),
+            "got: {:?}",
+            err
+        );
     }
 
     #[tokio::test]

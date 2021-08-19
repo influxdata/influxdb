@@ -102,6 +102,16 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
             error!(%source, "Unexpected error skipping replay");
             InternalError {}.into()
         }
+        Error::CannotMarkDatabaseDeleted { source, .. } => {
+            error!(%source, "Unexpected error deleting database");
+            InternalError {}.into()
+        }
+        Error::NoActiveDatabaseToDelete { db_name } => NotFound {
+            resource_type: "database".to_string(),
+            resource_name: db_name,
+            ..Default::default()
+        }
+        .into(),
     }
 }
 

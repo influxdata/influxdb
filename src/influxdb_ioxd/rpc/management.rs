@@ -155,6 +155,20 @@ where
         }))
     }
 
+    async fn delete_database(
+        &self,
+        request: Request<DeleteDatabaseRequest>,
+    ) -> Result<Response<DeleteDatabaseResponse>, Status> {
+        let db_name = DatabaseName::new(request.into_inner().db_name).field("db_name")?;
+
+        self.server
+            .delete_database(&db_name)
+            .await
+            .map_err(default_server_error_handler)?;
+
+        Ok(Response::new(DeleteDatabaseResponse {}))
+    }
+
     async fn list_chunks(
         &self,
         request: Request<ListChunksRequest>,
