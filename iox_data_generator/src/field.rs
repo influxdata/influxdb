@@ -445,7 +445,7 @@ mod test {
     fn generate_boolean_field() {
         let mut bfg = BooleanFieldGenerator::<ZeroRng>::new("bfg", TEST_SEED);
 
-        assert_eq!(false, bfg.generate(1234).bool());
+        assert!(!bfg.generate(1234).bool());
     }
 
     #[test]
