@@ -189,11 +189,11 @@ mod tests {
             let mut transaction = catalog.open_transaction().await;
 
             let info = create_parquet_file(&iox_object_store, 0).await;
-            state.parquet_files.insert(info.path.clone(), info.clone());
+            state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info).unwrap();
 
             let info = create_parquet_file(&iox_object_store, 1).await;
-            state.parquet_files.insert(info.path.clone(), info.clone());
+            state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info).unwrap();
 
             transaction.commit().await.unwrap();
@@ -207,7 +207,7 @@ mod tests {
             let mut transaction = catalog.open_transaction().await;
 
             let info = create_parquet_file(&iox_object_store, 2).await;
-            state.parquet_files.insert(info.path.clone(), info.clone());
+            state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info).unwrap();
 
             transaction.commit().await.unwrap();
@@ -215,7 +215,7 @@ mod tests {
 
         // store catalog state
         let paths_expected = {
-            let mut tmp: Vec<_> = state.parquet_files.keys().cloned().collect();
+            let mut tmp: Vec<_> = state.files().map(|info| info.path.clone()).collect();
             tmp.sort();
             tmp
         };
@@ -231,7 +231,7 @@ mod tests {
 
         // check match
         let paths_actual = {
-            let mut tmp: Vec<_> = state.parquet_files.keys().cloned().collect();
+            let mut tmp: Vec<_> = state.files().map(|info| info.path.clone()).collect();
             tmp.sort();
             tmp
         };
@@ -259,7 +259,7 @@ mod tests {
             .unwrap();
 
         // check match
-        assert!(state.parquet_files.is_empty());
+        assert!(state.files().next().is_none());
         assert_eq!(catalog.revision_counter(), 0);
     }
 
@@ -290,7 +290,7 @@ mod tests {
         let (catalog, state) = rebuild_catalog::<TestCatalogState>(iox_object_store, (), true)
             .await
             .unwrap();
-        assert!(state.parquet_files.is_empty());
+        assert!(state.files().next().is_none());
         assert_eq!(catalog.revision_counter(), 0);
     }
 
