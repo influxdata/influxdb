@@ -10,21 +10,18 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/sqlite"
-	"go.uber.org/zap"
 )
 
 var _ influxdb.NotebookService = (*Service)(nil)
 
 type Service struct {
 	store       *sqlite.SqlStore
-	log         *zap.Logger
 	idGenerator platform.IDGenerator
 }
 
-func NewService(logger *zap.Logger, store *sqlite.SqlStore) *Service {
+func NewService(store *sqlite.SqlStore) *Service {
 	return &Service{
 		store:       store,
-		log:         logger,
 		idGenerator: snowflake.NewIDGenerator(),
 	}
 }
