@@ -941,13 +941,15 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 	}
 
-	notebookSvc := notebooks.NewService(
-		m.log.With(zap.String("service", "notebooks")),
-		m.sqlStore,
-	)
+	notebookSvc := notebooks.NewService(m.sqlStore)
 	notebookServer := notebookTransport.NewNotebookHandler(
 		m.log.With(zap.String("handler", "notebooks")),
-		authorizer.NewNotebookService(notebookSvc),
+		authorizer.NewNotebookService(
+			notebooks.NewLoggingService(
+				m.log.With(zap.String("service", "notebooks")),
+				notebooks.NewMetricCollectingService(m.reg, notebookSvc),
+			),
+		),
 	)
 
 	annotationSvc := annotations.NewService(
