@@ -25,6 +25,7 @@ members = [
     "influxdb_line_protocol",
     "influxdb_tsm",
     "internal_types",
+    "iox_data_generator",
     "iox_object_store",
     "logfmt",
     "lifecycle",

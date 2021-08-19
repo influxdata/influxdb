@@ -1,0 +1,52 @@
+name = "tracing_schema"
+base_seed = "this is a demo"
+
+[[agents]]
+name = "trace-sender"
+sampling_interval = 10 # in seconds. TODO: parse nice durations like "12m" and "30s"
+
+[[agents.measurements]]
+name = "traces"
+
+    [[agents.measurements.tags]]
+    name = "trace_id"
+    value = "{{guid}}"
+
+    [[agents.measurements.tags]]
+    name = "span_id"
+    value = "{{guid}}"
+    cardinality = 10
+
+    [[agents.measurements.tags]]
+    name = "host"
+    value = "{{host}}"
+    replacements = [
+      {replace = "host", with = ["serverA", "serverB", "serverC", "serverD"]},
+    ]
+    resample_every_line = true
+
+    [[agents.measurements.tags]]
+    name = "region"
+    value = "{{region}}"
+    replacements = [
+      {replace = "region", with = ["us-west", "us-east"]},
+    ]
+    resample_every_line = false
+
+    [[agents.measurements.tags]]
+    name = "service"
+    value = "{{service}}"
+    replacements = [
+      {replace = "service", with = ["nginx", "istio", "storage", "gateway", "redis", "mysql", "s3"]},
+    ]
+    resample_every_line = true
+
+[[agents.measurements.fields]]
+name = "timing"
+f64_range = [0.0, 500.0]
+
+[[agents.measurements.fields]]
+name = "depth"
+i64_range = [0, 3]
+increment = true
+reset_after = 10
