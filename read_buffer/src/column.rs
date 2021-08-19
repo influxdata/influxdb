@@ -1273,12 +1273,16 @@ impl RowIDs {
 
     /// An estimation of the size in bytes needed to store `self`.
     pub fn size(&self) -> usize {
-        match self {
-            Self::Bitmap(bm) => std::mem::size_of::<Bitmap>() + bm.get_serialized_size_in_bytes(),
-            Self::Vector(v) => {
-                std::mem::size_of::<Vec<u32>>() + (std::mem::size_of::<u32>() * v.len())
+        std::mem::size_of::<Self>()
+            + match self {
+                Self::Bitmap(bm) => {
+                    let stats = bm.statistics();
+                    (stats.n_bytes_array_containers
+                        + stats.n_bytes_bitset_containers
+                        + stats.n_bytes_run_containers) as usize
+                }
+                Self::Vector(v) => std::mem::size_of::<u32>() * v.len(),
             }
-        }
     }
 
     /// Returns an iterator over the contents of the RowIDs.
@@ -1317,6 +1321,12 @@ impl RowIDs {
         match self {
             Self::Bitmap(ids) => ids.is_empty(),
             Self::Vector(ids) => ids.is_empty(),
+        }
+    }
+
+    pub fn optimise_storage(&mut self) {
+        if let Self::Bitmap(ids) = self {
+            ids.run_optimize();
         }
     }
 
@@ -1419,6 +1429,41 @@ mod test {
 
         row_ids.intersect(&other);
         assert_eq!(row_ids.to_vec(), vec![2, 3, 4]);
+    }
+
+    #[test]
+    fn row_ids_size() {
+        // See example roaring bitmaps in the paper:
+        //      Roaring Bitmaps: Implementation of an Optimized Software Library
+        //          Daniel Lemire et al.
+
+        // The first 1000 multiples of 62 in the domain [0, 61938].
+        // These are stored as 1000 16-bit values in a sorted array container
+        // requiring 2,000 bytes. We need 32 bytes for the RowIDs enum.
+        let row_ids = RowIDs::Bitmap((0..61939).step_by(62).collect());
+        assert_eq!(row_ids.size(), 32 + 2000);
+
+        // Runs of values in the domain [2^16, 2^16 + 100) then [2^16 + 101, 2^16 + 201)
+        // and then [2^16 + 300, 2^16 + 400). Altogether 300 values stored in
+        // 3 run lengths (starting value and number of subsequent values).
+        //
+        // Note: the paper says we need 3 * 16 bits to store the runs but
+        // actually you need 3 * 32 bits because you need 16 bits to store the
+        // value and 16 bits to store the run.
+        //
+        // So we have 32 bytes for the RowIDs enum, 2 bytes for the starting
+        // value of the container (65536) and then 3 runs of 4 bytes each.
+        let mut row_ids = RowIDs::Bitmap((65536..65536 + 100).collect());
+        row_ids.add_range(65536 + 101, 65536 + 201);
+        row_ids.add_range(65536 + 300, 65536 + 400);
+        row_ids.optimise_storage();
+        assert_eq!(row_ids.size(), 32 + 2 + (3 * 4));
+
+        // All even numbers in the domain [2*2^16, 3*2^16].
+        // These will be stored using a bitset container. We need 32 bytes for
+        // the RowIDs enum and 2^16 bits (8,192 bytes) for the container.
+        let row_ids = RowIDs::Bitmap(((2 * 65536)..(3 * 65536)).step_by(2).collect());
+        assert_eq!(row_ids.size(), 32 + 8192);
     }
 
     #[test]
