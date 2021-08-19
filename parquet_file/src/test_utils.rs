@@ -764,12 +764,6 @@ pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> 
     record_batches
 }
 
-/// Create an arbitrary ParquetFilePath
-pub fn make_parquet_file_path() -> ParquetFilePath {
-    let chunk_addr = chunk_addr(3);
-    ParquetFilePath::new(&chunk_addr)
-}
-
 /// Create test metadata by creating a parquet file and reading it back into memory.
 ///
 /// See [`make_chunk`] for details.

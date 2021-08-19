@@ -3921,7 +3921,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
         let paths_actual = {
-            let mut tmp: Vec<_> = catalog.parquet_files.keys().cloned().collect();
+            let mut tmp: Vec<_> = catalog.files().map(|info| info.path.clone()).collect();
             tmp.sort();
             tmp
         };
