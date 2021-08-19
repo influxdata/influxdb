@@ -237,7 +237,7 @@ func (buildTSICmd *buildTSICmd) compactSeriesFilePartition(path string) error {
 	indexPath := p.IndexPath()
 	var segmentPaths []string
 	for _, segment := range p.Segments() {
-		buildTSICmd.Logger.Info("Processing segment", zap.String("path", segment.Path()), zap.Uint16("segment-id", segment.ID()))
+		buildTSICmd.Logger.Debug("Processing segment", zap.String("path", segment.Path()), zap.Uint16("segment-id", segment.ID()))
 
 		if err := segment.CompactToPath(segment.Path()+tmpExt, p.Index()); err != nil {
 			return err
@@ -254,14 +254,14 @@ func (buildTSICmd *buildTSICmd) compactSeriesFilePartition(path string) error {
 	for _, dst := range segmentPaths {
 		src := dst + tmpExt
 
-		buildTSICmd.Logger.Info("Renaming new segment", zap.String("prev", src), zap.String("new", dst))
+		buildTSICmd.Logger.Debug("Renaming new segment", zap.String("prev", src), zap.String("new", dst))
 		if err = file.RenameFile(src, dst); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("serious failure. Please rebuild index and series file: %w", err)
 		}
 	}
 
 	// Remove index file so it will be rebuilt when reopened.
-	buildTSICmd.Logger.Info("Removing index file", zap.String("path", indexPath))
+	buildTSICmd.Logger.Debug("Removing index file", zap.String("path", indexPath))
 
 	if err = os.Remove(indexPath); err != nil && !os.IsNotExist(err) { // index won't exist for low cardinality
 		return err
