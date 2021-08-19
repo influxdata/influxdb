@@ -126,11 +126,20 @@ impl<T: DataGenRng> Agent<T> {
 
     /// Generate and write points in batches until `generate` doesn't return any
     /// points. Meant to be called in a `tokio::task`.
-    pub async fn generate_all(&mut self, mut points_writer: PointsWriter) -> Result<usize> {
+    pub async fn generate_all(
+        &mut self,
+        mut points_writer: PointsWriter,
+        batch_size: u16,
+    ) -> Result<usize> {
         let mut total_points = 0;
 
         let mut points = self.generate().await?;
+        let mut batches = 1;
         while !points.is_empty() {
+            while batches < batch_size {
+                points.append(&mut self.generate().await?);
+                batches += 1;
+            }
             info!("[agent {}] sending {} points", self.name, points.len());
             total_points += points.len();
             points_writer
@@ -138,6 +147,7 @@ impl<T: DataGenRng> Agent<T> {
                 .await
                 .context(CouldNotWritePoints)?;
             points = self.generate().await?;
+            batches = 1;
         }
         Ok(total_points)
     }
