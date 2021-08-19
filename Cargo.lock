@@ -2632,6 +2632,7 @@ name = "packers"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "criterion",
  "human_format",
  "influxdb_tsm",
  "internal_types",

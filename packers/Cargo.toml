@@ -14,5 +14,10 @@ observability_deps = { path = "../observability_deps" }
 parquet = "5.0"
 
 [dev-dependencies] # In alphabetical order
+criterion = "0.3.3"
 rand = "0.8.3"
 test_helpers = { path = "../test_helpers" }
+
+[[bench]]
+name = "packers"
+harness = false
