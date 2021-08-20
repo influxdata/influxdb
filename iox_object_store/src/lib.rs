@@ -41,6 +41,9 @@ const DB_RULES_FILE_NAME: &str = "rules.pb";
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum IoxObjectStoreError {
+    #[snafu(display("{}", source))]
+    UnderlyingObjectStoreError { source: object_store::Error },
+
     #[snafu(display(
         "Cannot create database `{}`; it already exists with generation {}",
         name,
@@ -48,8 +51,11 @@ pub enum IoxObjectStoreError {
     ))]
     DatabaseAlreadyExists { name: String, generation: usize },
 
-    #[snafu(display("{}", source))]
-    UnderlyingObjectStoreError { source: object_store::Error },
+    #[snafu(display("No active database found in object storage"))]
+    ActiveDatabaseNotFound,
+
+    #[snafu(display("Multiple active databases found in object storage"))]
+    MultipleActiveDatabasesFound,
 }
 
 /// Handles persistence of data for a particular database. Writes within its directory/prefix.
@@ -194,6 +200,30 @@ impl IoxObjectStore {
             data_path,
             transactions_path,
         })
+    }
+
+    /// Look in object storage for an existing database with this name and a non-deleted
+    /// generation, and error if none is found.
+    pub async fn find_existing(
+        inner: Arc<ObjectStore>,
+        server_id: ServerId,
+        database_name: &DatabaseName<'static>,
+    ) -> Result<Self, IoxObjectStoreError> {
+        let root_path = RootPath::new(inner.as_ref(), server_id, database_name);
+
+        let generations = Self::list_generations(&inner, &root_path)
+            .await
+            .context(UnderlyingObjectStoreError)?;
+
+        let mut active_generations = generations.iter().filter(|g| g.is_active());
+
+        let active = active_generations.next().context(ActiveDatabaseNotFound)?;
+        ensure!(
+            active_generations.next().is_none(),
+            MultipleActiveDatabasesFound
+        );
+
+        Ok(Self::existing(inner, server_id, database_name, active.id))
     }
 
     /// Access the database-specific object storage files for an existing database that has
