@@ -952,13 +952,15 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		),
 	)
 
-	annotationSvc := annotations.NewService(
-		m.log.With(zap.String("service", "annotations")),
-		m.sqlStore,
-	)
+	annotationSvc := annotations.NewService(m.sqlStore)
 	annotationServer := annotationTransport.NewAnnotationHandler(
 		m.log.With(zap.String("handler", "annotations")),
-		authorizer.NewAnnotationService(annotationSvc),
+		authorizer.NewAnnotationService(
+			annotations.NewLoggingService(
+				m.log.With(zap.String("service", "annotations")),
+				annotations.NewMetricCollectingService(m.reg, annotationSvc),
+			),
+		),
 	)
 
 	remotesSvc := remotes.NewService(m.sqlStore)
