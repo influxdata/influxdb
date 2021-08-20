@@ -83,6 +83,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [#22228](https://github.com/influxdata/influxdb/pull/22228): influxdb2 packages should depend on curl
 1. [#22211](https://github.com/influxdata/influxdb/pull/22211): Prevent scheduling an inactivated tasks after updating it
 1. [#22235](https://github.com/influxdata/influxdb/pull/22235): Avoid compaction queue stats flutter
+1. [#22272](https://github.com/influxdata/influxdb/pull/22272): Requests to `/api/v2/authorizations` fillter correctly on `org` and `user` parameters
 
 ## v2.0.7 [2021-06-04]
 
