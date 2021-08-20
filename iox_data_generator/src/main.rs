@@ -148,7 +148,7 @@ Logging:
 
     let batch_size = matches
         .value_of("batch_size")
-        .map(|v| v.parse::<u16>().unwrap())
+        .map(|v| v.parse::<usize>().unwrap())
         .unwrap_or(1);
 
     info!(

@@ -125,11 +125,12 @@ impl<T: DataGenRng> Agent<T> {
     }
 
     /// Generate and write points in batches until `generate` doesn't return any
-    /// points. Meant to be called in a `tokio::task`.
+    /// points. Points will be written to the writer in batches where `generate` is
+    /// called `batch_size` times before writing. Meant to be called in a `tokio::task`.
     pub async fn generate_all(
         &mut self,
         mut points_writer: PointsWriter,
-        batch_size: u16,
+        batch_size: usize,
     ) -> Result<usize> {
         let mut total_points = 0;
 
