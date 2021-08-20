@@ -250,7 +250,7 @@ query_types() {
       echo min-high-card mean-high-card max-high-card first-high-card last-high-card count-high-card sum-high-card min-low-card mean-low-card max-low-card first-low-card last-low-card count-low-card sum-low-card
       ;;
     iot)
-      echo fast-query-small-data standalone-filter aggregate-keep sorted-pivot multi-measurement-or
+      echo fast-query-small-data standalone-filter aggregate-keep aggregate-drop sorted-pivot multi-measurement-or
       ;;
     metaquery)
       echo field-keys tag-values
