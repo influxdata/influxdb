@@ -49,6 +49,7 @@ pub fn single_agent(c: &mut Criterion) {
                     end_datetime,
                     0,
                     false,
+                    1,
                 )
             });
             let n_points = r.expect("Could not generate data");

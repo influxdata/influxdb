@@ -123,6 +123,12 @@ Logging:
             "Generate live data using the intervals from the spec after generating historical  \
               data. This option has no effect if you specify an end time.",
         ))
+        .arg(
+            Arg::with_name("batch_size")
+                .long("batch_size")
+                .help("Generate this many samplings to batch into a single API call. Good for sending a bunch of historical data in quickly if paired with a start time from long ago.")
+                .takes_value(true)
+        )
         .get_matches();
 
     let spec_filename = matches
@@ -139,6 +145,11 @@ Logging:
     let end_display = end_datetime.unwrap_or_else(|| execution_start_time.timestamp_nanos());
 
     let continue_on = matches.is_present("continue");
+
+    let batch_size = matches
+        .value_of("batch_size")
+        .map(|v| v.parse::<usize>().unwrap())
+        .unwrap_or(1);
 
     info!(
         "Starting at {}, ending at {} ({}){}",
@@ -177,6 +188,7 @@ Logging:
         end_datetime,
         execution_start_time.timestamp_nanos(),
         continue_on,
+        batch_size,
     )
     .await;
 

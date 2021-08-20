@@ -344,6 +344,7 @@ bool = true"#;
             Some(now),
             now,
             false,
+            1,
         )
         .await?;
 
@@ -352,6 +353,53 @@ bool = true"#;
         let expected_line_protocol = format!(
             r#"cpu,data_spec=demo_schema up=f {}
 "#,
+            now
+        );
+        assert_eq!(line_protocol, expected_line_protocol);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_generate_batches() -> Result<()> {
+        let toml = r#"
+name = "demo_schema"
+base_seed = "this is a demo"
+
+[[agents]]
+name = "basic"
+sampling_interval = 1
+
+[[agents.measurements]]
+name = "cpu"
+
+[[agents.measurements.fields]]
+name = "up"
+bool = true"#;
+
+        let data_spec = DataSpec::from_str(toml).unwrap();
+        let mut points_writer_builder = PointsWriterBuilder::new_vec();
+
+        let now = now_ns();
+
+        generate::<ZeroRng>(
+            &data_spec,
+            &mut points_writer_builder,
+            Some(now - 1_000_000_000),
+            Some(now),
+            now,
+            false,
+            2,
+        )
+        .await?;
+
+        let line_protocol = points_writer_builder.written_data("basic");
+
+        let expected_line_protocol = format!(
+            r#"cpu,data_spec=demo_schema up=f {}
+cpu,data_spec=demo_schema up=f {}
+"#,
+            now - 1_000_000_000,
             now
         );
         assert_eq!(line_protocol, expected_line_protocol);
