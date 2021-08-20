@@ -483,7 +483,7 @@ impl IoxObjectStore {
 mod tests {
     use super::*;
     use data_types::chunk_metadata::ChunkAddr;
-    use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
+    use object_store::{parsed_path, path::ObjectStorePath, ObjectStore, ObjectStoreApi};
     use std::num::NonZeroU32;
     use uuid::Uuid;
 
@@ -542,51 +542,50 @@ mod tests {
     async fn only_lists_relevant_parquet_files() {
         let object_store = make_object_store();
         let server_id = make_server_id();
+        let server_id_string = server_id.to_string();
+        let server_id_str = server_id_string.as_str();
         let database_name = DatabaseName::new("clouds").unwrap();
+        let database_name_str = database_name.as_str();
         let iox_object_store =
             IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
                 .await
                 .unwrap();
         let uuid = Uuid::new_v4();
+        let good_filename = format!("111.{}.parquet", uuid);
+        let good_filename_str = good_filename.as_str();
 
         // Put a non-database file in
-        let mut path = object_store.new_path();
-        path.push_dir("foo");
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(["foo"]));
         add_file(&object_store, &path).await;
 
         // Put a file for some other server in
-        let mut path = object_store.new_path();
-        path.push_dir("12345");
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(["12345"]));
         add_file(&object_store, &path).await;
 
         // Put a file for some other database in
-        let mut path = object_store.new_path();
-        path.push_dir(server_id.to_string());
-        path.push_dir("thunder");
+        let path =
+            object_store.path_from_dirs_and_filename(parsed_path!([server_id_str, "thunder"]));
         add_file(&object_store, &path).await;
 
         // Put a file in the database dir but not the generation dir
-        let mut path = object_store.new_path();
-        path.push_dir(server_id.to_string());
-        path.push_dir(database_name.to_string());
-        path.set_file_name(&format!("111.{}.parquet", uuid));
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(
+            [server_id_str, database_name_str],
+            good_filename_str
+        ));
         add_file(&object_store, &path).await;
 
         // Put a file in the generation dir but not the data dir
-        let mut path = object_store.new_path();
-        path.push_dir(server_id.to_string());
-        path.push_dir(database_name.to_string());
-        path.push_dir("0");
-        path.set_file_name(&format!("111.{}.parquet", uuid));
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(
+            [server_id_str, database_name_str, "0"],
+            good_filename_str
+        ));
         add_file(&object_store, &path).await;
 
         // Put files in the data dir whose names are in the wrong format
-        let mut path = object_store.new_path();
-        path.push_dir(server_id.to_string());
-        path.push_dir(database_name.to_string());
-        path.push_dir("0");
-        path.push_dir("data");
-        path.set_file_name("111.parquet");
+        let mut path = object_store.path_from_dirs_and_filename(parsed_path!(
+            [server_id_str, database_name_str, "0", "data"],
+            "111.parquet"
+        ));
         add_file(&object_store, &path).await;
         path.set_file_name(&format!("111.{}.xls", uuid));
         add_file(&object_store, &path).await;
@@ -646,50 +645,50 @@ mod tests {
     async fn only_lists_relevant_catalog_transaction_files() {
         let object_store = make_object_store();
         let server_id = make_server_id();
+        let server_id_string = server_id.to_string();
+        let server_id_str = server_id_string.as_str();
         let database_name = DatabaseName::new("clouds").unwrap();
+        let database_name_str = database_name.as_str();
         let iox_object_store =
             IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
                 .await
                 .unwrap();
         let uuid = Uuid::new_v4();
+        let good_txn_filename = format!("{}.txn", uuid);
+        let good_txn_filename_str = good_txn_filename.as_str();
 
         // Put a non-database file in
-        let mut path = object_store.new_path();
-        path.push_dir("foo");
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(["foo"]));
         add_file(&object_store, &path).await;
 
         // Put a file for some other server in
-        let mut path = object_store.new_path();
-        path.push_dir("12345");
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(["12345"]));
         add_file(&object_store, &path).await;
 
         // Put a file for some other database in
-        let mut path = object_store.new_path();
-        path.push_dir(server_id.to_string());
-        path.push_dir("thunder");
+        let path =
+            object_store.path_from_dirs_and_filename(parsed_path!([server_id_str, "thunder"]));
         add_file(&object_store, &path).await;
 
         // Put a file in the database dir but not the generation dir
-        let mut path = object_store.new_path();
-        path.push_dir(server_id.to_string());
-        path.push_dir(database_name.to_string());
-        path.set_file_name(&format!("{}.txn", uuid));
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(
+            [server_id_str, database_name_str],
+            good_txn_filename_str
+        ));
         add_file(&object_store, &path).await;
 
         // Put a file in the generation dir but not the transactions dir
-        let mut path = object_store.new_path();
-        path.push_dir(server_id.to_string());
-        path.push_dir(database_name.to_string());
-        path.push_dir("0");
-        path.set_file_name(&format!("{}.txn", uuid));
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(
+            [server_id_str, database_name_str, "0"],
+            good_txn_filename_str
+        ));
         add_file(&object_store, &path).await;
 
         // Put files in the transactions dir whose names are in the wrong format
-        let mut path = object_store.new_path();
-        path.push_dir(server_id.to_string());
-        path.push_dir(database_name.to_string());
-        path.push_dir("0");
-        path.set_file_name("111.parquet");
+        let mut path = object_store.path_from_dirs_and_filename(parsed_path!(
+            [server_id_str, database_name_str, "0"],
+            "111.parquet"
+        ));
         add_file(&object_store, &path).await;
         path.set_file_name(&format!("{}.xls", uuid));
         add_file(&object_store, &path).await;
