@@ -1116,7 +1116,7 @@ async fn maybe_initialize_server(shared: &ServerShared) {
     };
 
     let maybe_databases = IoxObjectStore::list_active_databases(
-        shared.application.object_store().as_ref(),
+        shared.application.object_store(),
         init_ready.server_id,
     )
     .await;

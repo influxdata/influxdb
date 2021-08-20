@@ -165,7 +165,7 @@ impl IoxObjectStore {
         server_id: ServerId,
         database_name: &DatabaseName<'static>,
     ) -> Result<Self, IoxObjectStoreError> {
-        let root_path = RootPath::new(inner.as_ref(), server_id, database_name);
+        let root_path = RootPath::new(&inner, server_id, database_name);
 
         let generations = Self::list_generations(&inner, &root_path)
             .await
@@ -209,7 +209,7 @@ impl IoxObjectStore {
         server_id: ServerId,
         database_name: &DatabaseName<'static>,
     ) -> Result<Self, IoxObjectStoreError> {
-        let root_path = RootPath::new(inner.as_ref(), server_id, database_name);
+        let root_path = RootPath::new(&inner, server_id, database_name);
 
         let generations = Self::list_generations(&inner, &root_path)
             .await
@@ -233,7 +233,7 @@ impl IoxObjectStore {
         server_id: ServerId,
         database_name: &DatabaseName<'static>,
     ) -> Result<Self, IoxObjectStoreError> {
-        let root_path = RootPath::new(inner.as_ref(), server_id, database_name);
+        let root_path = RootPath::new(&inner, server_id, database_name);
 
         let generations = Self::list_generations(&inner, &root_path)
             .await
@@ -261,7 +261,7 @@ impl IoxObjectStore {
         database_name: &DatabaseName<'static>,
         generation_id: usize,
     ) -> Self {
-        let root_path = RootPath::new(inner.as_ref(), server_id, database_name);
+        let root_path = RootPath::new(&inner, server_id, database_name);
         let generation_path = GenerationPath::new(&root_path, generation_id);
         let data_path = DataPath::new(&generation_path);
         let transactions_path = TransactionsPath::new(&generation_path);
