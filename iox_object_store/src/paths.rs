@@ -39,10 +39,14 @@ impl RootPath {
         Self { inner }
     }
 
-    pub(crate) fn join(&self, dir: &str) -> Path {
+    fn join(&self, dir: &str) -> Path {
         let mut result = self.inner.clone();
         result.push_dir(dir);
         result
+    }
+
+    pub(crate) fn generation_path(&self, generation_id: usize) -> GenerationPath {
+        GenerationPath::new(self, generation_id)
     }
 }
 
@@ -61,10 +65,18 @@ impl GenerationPath {
         }
     }
 
-    pub(crate) fn join(&self, dir: &str) -> Path {
+    fn join(&self, dir: &str) -> Path {
         let mut result = self.inner.clone();
         result.push_dir(dir);
         result
+    }
+
+    pub(crate) fn data_path(&self) -> DataPath {
+        DataPath::new(self)
+    }
+
+    pub(crate) fn transactions_path(&self) -> TransactionsPath {
+        TransactionsPath::new(self)
     }
 }
 

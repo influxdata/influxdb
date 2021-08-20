@@ -187,9 +187,9 @@ impl IoxObjectStore {
             .map(|max| max + 1)
             .unwrap_or(0);
 
-        let generation_path = GenerationPath::new(&root_path, next_generation);
-        let data_path = DataPath::new(&generation_path);
-        let transactions_path = TransactionsPath::new(&generation_path);
+        let generation_path = root_path.generation_path(next_generation);
+        let data_path = generation_path.data_path();
+        let transactions_path = generation_path.transactions_path();
 
         Ok(Self {
             inner,
