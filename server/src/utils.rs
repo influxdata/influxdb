@@ -55,7 +55,7 @@ impl TestDbBuilder {
             .db_name
             .unwrap_or_else(|| DatabaseName::new("placeholder").unwrap());
         let iox_object_store = Arc::new(
-            IoxObjectStore::new(
+            IoxObjectStore::find_or_create(
                 self.object_store
                     .unwrap_or_else(|| Arc::new(ObjectStore::new_in_memory())),
                 server_id,
