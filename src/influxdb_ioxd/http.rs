@@ -203,6 +203,10 @@ pub enum ApplicationError {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
+    #[cfg(feature = "heappy")]
+    #[snafu(display("Heappy error: {}", source))]
+    HeappyError { source: heappy::Error },
+
     #[snafu(display("Protobuf error: {}", source))]
     Prost { source: prost::EncodeError },
 
@@ -271,6 +275,8 @@ impl ApplicationError {
             Self::InternalServerError => self.internal_error(),
             Self::HeappyIsNotCompiled => self.internal_error(),
             Self::PProfIsNotCompiled => self.internal_error(),
+            #[cfg(feature = "heappy")]
+            Self::HeappyError { .. } => self.internal_error(),
         }
     }
 
@@ -896,7 +902,9 @@ async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'stat
     let query: PProfAllocsArgs =
         serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
 
-    let report = self::heappy::dump_heappy_rsprof(query.seconds, query.interval.get()).await;
+    let report = self::heappy::dump_heappy_rsprof(query.seconds, query.interval.get())
+        .await
+        .context(HeappyError)?;
 
     let mut body: Vec<u8> = Vec::new();
 

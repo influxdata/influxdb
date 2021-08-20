@@ -1521,7 +1521,7 @@ dependencies = [
 [[package]]
 name = "heappy"
 version = "0.1.0"
-source = "git+https://github.com/mkmik/heappy?rev=82a383128e484039cc2f31476e6289bed48a6701#82a383128e484039cc2f31476e6289bed48a6701"
+source = "git+https://github.com/mkmik/heappy?rev=20aa466524ac9ce34a4bae29f27ec11869b50e21#20aa466524ac9ce34a4bae29f27ec11869b50e21"
 dependencies = [
  "backtrace",
  "bytes",
@@ -1530,6 +1530,7 @@ dependencies = [
  "pprof",
  "prost 0.8.0",
  "spin 0.9.2",
+ "thiserror",
  "tikv-jemalloc-sys",
 ]
 
