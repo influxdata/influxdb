@@ -13,7 +13,7 @@ use server::{
 };
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, net::SocketAddr, sync::Arc};
-use trace::{LogTraceCollector, TraceCollector};
+use trace::TraceCollector;
 
 mod http;
 mod planner;
@@ -49,6 +49,9 @@ pub enum Error {
     ObjectStoreCheck {
         source: crate::object_store::CheckError,
     },
+
+    #[snafu(display("Cannot create tracing pipeline: {}", source))]
+    Tracing { source: trace_exporters::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -155,7 +158,7 @@ pub async fn main(config: Config) -> Result<()> {
 
     let grpc_listener = grpc_listener(config.grpc_bind_address).await?;
     let http_listener = http_listener(config.http_bind_address).await?;
-    let trace_collector = Arc::new(LogTraceCollector::new());
+    let trace_collector = config.tracing_config.build().context(Tracing)?;
 
     serve(
         config,
@@ -197,7 +200,7 @@ async fn serve(
     application: Arc<ApplicationState>,
     grpc_listener: tokio::net::TcpListener,
     http_listener: AddrIncoming,
-    trace_collector: Arc<dyn TraceCollector>,
+    trace_collector: Option<Arc<dyn TraceCollector>>,
     app_server: Arc<AppServer<ConnectionManager>>,
 ) -> Result<()> {
     // Construct a token to trigger shutdown of API services
@@ -354,7 +357,7 @@ mod tests {
             application,
             grpc_listener,
             http_listener,
-            Arc::new(LogTraceCollector::new()),
+            None,
             server,
         )
         .await
@@ -545,7 +548,7 @@ mod tests {
             application,
             grpc_listener,
             http_listener,
-            Arc::<RingBufferTraceCollector>::clone(&trace_collector),
+            Some(Arc::<RingBufferTraceCollector>::clone(&trace_collector)),
             Arc::clone(&server),
         );
 
@@ -642,7 +645,7 @@ mod tests {
             application,
             grpc_listener,
             http_listener,
-            Arc::<OtelExporter>::clone(&collector),
+            Some(Arc::<OtelExporter>::clone(&collector)),
             Arc::clone(&server),
         );
 

@@ -153,7 +153,7 @@ tempfile = "3.1.0"
 azure = ["object_store/azure"] # Optional Azure Object store support
 gcp = ["object_store/gcp"] # Optional GCP object store support
 aws = ["object_store/aws"] # Optional AWS / S3 object store support
-jaeger = ["trogging/jaeger"] # Enable optional jaeger tracing support
+jaeger = ["trogging/jaeger", "trace_exporters/jaeger"] # Enable optional jaeger tracing support
 otlp = ["trogging/otlp"] # Enable optional open telemetry collector
 # heappy is also an optional feature; Not on by default as it
 # runtime overhead on all allocations (calls to malloc)

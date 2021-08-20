@@ -28,11 +28,11 @@ use tower::{Layer, Service};
 /// `tower::Service` to collect information about requests flowing through it
 #[derive(Debug, Clone)]
 pub struct TraceLayer {
-    collector: Arc<dyn TraceCollector>,
+    collector: Option<Arc<dyn TraceCollector>>,
 }
 
 impl TraceLayer {
-    pub fn new(collector: Arc<dyn TraceCollector>) -> Self {
+    pub fn new(collector: Option<Arc<dyn TraceCollector>>) -> Self {
         Self { collector }
     }
 }
@@ -43,7 +43,7 @@ impl<S> Layer<S> for TraceLayer {
     fn layer(&self, service: S) -> Self::Service {
         TraceService {
             service,
-            collector: Arc::clone(&self.collector),
+            collector: self.collector.clone(),
         }
     }
 }
@@ -52,7 +52,7 @@ impl<S> Layer<S> for TraceLayer {
 #[derive(Debug, Clone)]
 pub struct TraceService<S> {
     service: S,
-    collector: Arc<dyn TraceCollector>,
+    collector: Option<Arc<dyn TraceCollector>>,
 }
 
 impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for TraceService<S>
@@ -69,7 +69,17 @@ where
     }
 
     fn call(&mut self, mut request: Request<ReqBody>) -> Self::Future {
-        let span = match SpanContext::from_headers(&self.collector, request.headers()) {
+        let collector = match self.collector.as_ref() {
+            Some(collector) => collector,
+            None => {
+                return TracedFuture {
+                    span: None,
+                    inner: self.service.call(request),
+                }
+            }
+        };
+
+        let span = match SpanContext::from_headers(collector, request.headers()) {
             Ok(Some(ctx)) => {
                 let span = ctx.child("IOx");
 

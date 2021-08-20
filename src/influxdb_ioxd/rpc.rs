@@ -88,7 +88,7 @@ pub async fn serve<M>(
     socket: TcpListener,
     application: Arc<ApplicationState>,
     server: Arc<Server<M>>,
-    trace_collector: Arc<dyn TraceCollector>,
+    trace_collector: Option<Arc<dyn TraceCollector>>,
     shutdown: CancellationToken,
     serving_readiness: ServingReadiness,
 ) -> Result<()>

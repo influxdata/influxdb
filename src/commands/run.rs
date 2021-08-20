@@ -8,7 +8,8 @@ use data_types::server_id::ServerId;
 use std::{net::SocketAddr, net::ToSocketAddrs};
 use structopt::StructOpt;
 use thiserror::Error;
-use trogging::cli::{LoggingConfig, TracingConfig};
+use trace_exporters::TracingConfig;
+use trogging::cli::LoggingConfig;
 
 /// The default bind address for the HTTP API.
 pub const DEFAULT_API_BIND_ADDR: &str = "127.0.0.1:8080";
