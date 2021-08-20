@@ -21,7 +21,7 @@ use futures::{
     Stream, StreamExt, TryStreamExt,
 };
 use object_store::{
-    path::{parsed::DirsAndFileName, Path},
+    path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi, Result,
 };
 use std::{collections::HashSet, io, sync::Arc};
@@ -230,7 +230,9 @@ impl IoxObjectStore {
     // so assumptions about the object store organization are confined
     // (and can be changed) in this crate
     fn db_rules_path(&self) -> Path {
-        self.root_path.join(DB_RULES_FILE_NAME)
+        let mut path = self.root_path.inner.clone();
+        path.set_file_name(DB_RULES_FILE_NAME);
+        path
     }
 
     /// Get the data for the database rules
@@ -499,5 +501,17 @@ mod tests {
         assert_eq!(ctf.len(), 2);
         assert!(ctf.contains(&t1));
         assert!(ctf.contains(&t2));
+    }
+
+    #[test]
+    fn db_rules_should_be_a_file() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let database_name = DatabaseName::new("clouds").unwrap();
+        let iox_object_store =
+            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name);
+
+        let db_rules = iox_object_store.db_rules_path();
+        assert_eq!(db_rules.to_string(), "mem:1/clouds/rules.pb");
     }
 }
