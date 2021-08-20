@@ -91,6 +91,7 @@ pub async fn generate<T: DataGenRng>(
     end_datetime: Option<i64>,
     execution_start_time: i64,
     continue_on: bool,
+    batch_size: usize,
 ) -> Result<usize> {
     let seed = spec.base_seed.to_owned().unwrap_or_else(|| {
         let mut rng = rand::thread_rng();
@@ -134,7 +135,7 @@ pub async fn generate<T: DataGenRng>(
             let agent_points_writer = points_writer_builder.build_for_agent(&agent_name);
 
             handles.push(tokio::task::spawn(async move {
-                agent.generate_all(agent_points_writer).await
+                agent.generate_all(agent_points_writer, batch_size).await
             }));
         }
     }
