@@ -127,7 +127,7 @@ uuid = { version = "0.8", features = ["v4"] }
 
 # jemalloc-sys with unprefixed_malloc_on_supported_platforms feature and heappy are mutually exclusive
 tikv-jemalloc-sys = { version = "0.4.0", optional = true, features = ["unprefixed_malloc_on_supported_platforms"]}
-heappy = { git = "https://github.com/mkmik/heappy", rev = "82a383128e484039cc2f31476e6289bed48a6701", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
+heappy = { git = "https://github.com/mkmik/heappy", rev = "20aa466524ac9ce34a4bae29f27ec11869b50e21", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
 
 
 [dev-dependencies]
@@ -166,3 +166,4 @@ otlp = ["trogging/otlp"] # Enable optional open telemetry collector
 # Cargo cannot currently implement mutually exclusive features so let's force every build
 # to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
 jemalloc_replacing_malloc = ["tikv-jemalloc-sys"]
+
