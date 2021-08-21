@@ -20,6 +20,14 @@ type StatementExecutor struct {
 func (e *StatementExecutor) ExecuteStatement(ctx *query.ExecutionContext, stmt influxql.Statement) error {
 	return e.ExecuteStatementFn(stmt, ctx)
 }
+type StatementNormalizerExecutor struct {
+	StatementExecutor
+	NormalizeStatementFn  func(stmt influxql.Statement, database, retentionPolicy string) error
+}
+
+func (e *StatementNormalizerExecutor) NormalizeStatement(stmt influxql.Statement, database, retentionPolicy string) error {
+	return e.NormalizeStatementFn(stmt, database, retentionPolicy)
+}
 
 func NewQueryExecutor() *query.Executor {
 	return query.NewExecutor()
@@ -475,6 +483,114 @@ func TestQueryExecutor_Panic(t *testing.T) {
 	}
 	if result.Err == nil || result.Err.Error() != "SELECT count(value) FROM cpu [panic:test error]" {
 		t.Errorf("unexpected error: %s", result.Err)
+	}
+}
+
+const goodStatement = `SELECT count(value) FROM cpu`
+
+func TestQueryExecutor_NotExecuted(t *testing.T) {
+	var executorFailIteration int
+	var normalizerFailIteration int
+	var executorCallCount int
+	var normalizerCallCount int
+	queryStatements := []string{goodStatement, goodStatement, goodStatement, goodStatement, goodStatement}
+	queryStr := strings.Join(queryStatements, ";")
+
+	q, err := influxql.ParseQuery(queryStr)
+	if err != nil {
+		t.Fatalf("parsing %s: %v", queryStr, err)
+	}
+
+	e := NewQueryExecutor()
+	e.StatementExecutor = &StatementNormalizerExecutor{
+		StatementExecutor: StatementExecutor{
+			ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+				executorCallCount++
+				if executorFailIteration == executorCallCount {
+					return fmt.Errorf("executor failure on call %d", executorCallCount)
+				} else {
+					return ctx.Send(&query.Result{Err: nil})
+				}
+			},
+		},
+		NormalizeStatementFn: func(stmt influxql.Statement, database, retentionPolicy string) error {
+			normalizerCallCount++
+			if normalizerFailIteration == normalizerCallCount {
+				return fmt.Errorf("normalizer failure on call %d", normalizerCallCount)
+			} else {
+				return nil
+			}
+		},
+	}
+	test := func(testName string, i int, failIter, ignoreIter *int) {
+		*failIter = i + 1
+		*ignoreIter = -1
+		executorCallCount = 0
+		normalizerCallCount = 0
+
+		results := e.ExecuteQuery(q, query.ExecutionOptions{}, nil)
+		j := 1
+		for result := range results {
+			if j < *failIter && result.Err != nil {
+				t.Fatalf("%s failed early: %v", testName, result.Err)
+			} else if j == *failIter && result.Err == nil {
+				t.Fatalf("%s unexpected success", testName)
+			} else if j > *failIter && result.Err != query.ErrNotExecuted {
+				t.Fatalf("expected ErrorNotExecuted from %s but got: %v", testName, result.Err)
+			}
+			j++
+		}
+		if j != (len(queryStatements) + 1) {
+			t.Fatalf("wrong number of results from %s - got: %d, expected: %d", testName, j, len(queryStatements))
+		}
+	}
+	for i := 0; i < len(queryStatements); i++ {
+
+		test("executor", i, &executorFailIteration, &normalizerFailIteration)
+		test("normalizer", i, &normalizerFailIteration, &executorFailIteration)
+	}
+}
+
+func TestQueryExecutor_SystemNameNotExecuted(t *testing.T) {
+	e := NewQueryExecutor()
+	e.StatementExecutor = &StatementNormalizerExecutor{
+		StatementExecutor: StatementExecutor{
+			ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+				return ctx.Send(&query.Result{Err: nil})
+			},
+		},
+		NormalizeStatementFn: func(stmt influxql.Statement, database, retentionPolicy string) error {
+			return nil
+		},
+	}
+	const metaTestCnt = 3
+	for j := 0; j < metaTestCnt; j++ {
+		stmt := make([]string, 0, metaTestCnt)
+		for i := 0; i < metaTestCnt; i++ {
+			if i != j {
+				stmt = append(stmt, goodStatement)
+			} else {
+				stmt = append(stmt, "SELECT * FROM _fieldKeys")
+			}
+		}
+		queryStr := strings.Join(stmt, ";")
+		q, err := influxql.ParseQuery(queryStr)
+		if err != nil {
+			t.Fatalf("parsing %s: %v", queryStr, err)
+		}
+		results := e.ExecuteQuery(q, query.ExecutionOptions{}, nil)
+		r := 0
+		const testName = "system measurement detection"
+		for result := range results {
+			if r < j && result.Err != nil {
+				t.Fatalf("%s failed early: %v", testName, result.Err)
+			} else if r == j && result.Err == nil {
+				t.Fatalf("%s unexpected success", testName)
+			} else if r > j && result.Err != query.ErrNotExecuted {
+				t.Fatalf("expected ErrorNotExecuted from %s but got: %v", testName, result.Err)
+			}
+			r++
+		}
 	}
 }
 
