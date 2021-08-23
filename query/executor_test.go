@@ -20,9 +20,10 @@ type StatementExecutor struct {
 func (e *StatementExecutor) ExecuteStatement(ctx *query.ExecutionContext, stmt influxql.Statement) error {
 	return e.ExecuteStatementFn(stmt, ctx)
 }
+
 type StatementNormalizerExecutor struct {
 	StatementExecutor
-	NormalizeStatementFn  func(stmt influxql.Statement, database, retentionPolicy string) error
+	NormalizeStatementFn func(stmt influxql.Statement, database, retentionPolicy string) error
 }
 
 func (e *StatementNormalizerExecutor) NormalizeStatement(stmt influxql.Statement, database, retentionPolicy string) error {
@@ -489,8 +490,8 @@ func TestQueryExecutor_Panic(t *testing.T) {
 const goodStatement = `SELECT count(value) FROM cpu`
 
 func TestQueryExecutor_NotExecuted(t *testing.T) {
-	var executorFailIteration int
-	var normalizerFailIteration int
+	var executorFailIndex int
+	var normalizerFailIndex int
 	var executorCallCount int
 	var normalizerCallCount int
 	queryStatements := []string{goodStatement, goodStatement, goodStatement, goodStatement, goodStatement}
@@ -505,8 +506,8 @@ func TestQueryExecutor_NotExecuted(t *testing.T) {
 	e.StatementExecutor = &StatementNormalizerExecutor{
 		StatementExecutor: StatementExecutor{
 			ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
-				executorCallCount++
-				if executorFailIteration == executorCallCount {
+				defer func() { executorCallCount++ }()
+				if executorFailIndex == executorCallCount {
 					return fmt.Errorf("executor failure on call %d", executorCallCount)
 				} else {
 					return ctx.Send(&query.Result{Err: nil})
@@ -514,40 +515,26 @@ func TestQueryExecutor_NotExecuted(t *testing.T) {
 			},
 		},
 		NormalizeStatementFn: func(stmt influxql.Statement, database, retentionPolicy string) error {
-			normalizerCallCount++
-			if normalizerFailIteration == normalizerCallCount {
+			defer func() { normalizerCallCount++ }()
+			if normalizerFailIndex == normalizerCallCount {
 				return fmt.Errorf("normalizer failure on call %d", normalizerCallCount)
 			} else {
 				return nil
 			}
 		},
 	}
-	test := func(testName string, i int, failIter, ignoreIter *int) {
-		*failIter = i + 1
-		*ignoreIter = -1
+	testFn := func(testName string, i int, failIndex, ignoreIndex *int) {
+		*failIndex = i
+		*ignoreIndex = -1
 		executorCallCount = 0
 		normalizerCallCount = 0
 
 		results := e.ExecuteQuery(q, query.ExecutionOptions{}, nil)
-		j := 1
-		for result := range results {
-			if j < *failIter && result.Err != nil {
-				t.Fatalf("%s failed early: %v", testName, result.Err)
-			} else if j == *failIter && result.Err == nil {
-				t.Fatalf("%s unexpected success", testName)
-			} else if j > *failIter && result.Err != query.ErrNotExecuted {
-				t.Fatalf("expected ErrorNotExecuted from %s but got: %v", testName, result.Err)
-			}
-			j++
-		}
-		if j != (len(queryStatements) + 1) {
-			t.Fatalf("wrong number of results from %s - got: %d, expected: %d", testName, j, len(queryStatements))
-		}
+		checkNotExecutedResults(t, results, testName, *failIndex, len(q.Statements))
 	}
-	for i := 0; i < len(queryStatements); i++ {
-
-		test("executor", i, &executorFailIteration, &normalizerFailIteration)
-		test("normalizer", i, &normalizerFailIteration, &executorFailIteration)
+	for i := 0; i < len(q.Statements); i++ {
+		testFn("executor", i, &executorFailIndex, &normalizerFailIndex)
+		testFn("normalizer", i, &normalizerFailIndex, &executorFailIndex)
 	}
 }
 
@@ -563,6 +550,7 @@ func TestQueryExecutor_SystemNameNotExecuted(t *testing.T) {
 			return nil
 		},
 	}
+	const testName = "system measurement detection"
 	const metaTestCnt = 3
 	for j := 0; j < metaTestCnt; j++ {
 		stmt := make([]string, 0, metaTestCnt)
@@ -579,18 +567,24 @@ func TestQueryExecutor_SystemNameNotExecuted(t *testing.T) {
 			t.Fatalf("parsing %s: %v", queryStr, err)
 		}
 		results := e.ExecuteQuery(q, query.ExecutionOptions{}, nil)
-		r := 0
-		const testName = "system measurement detection"
-		for result := range results {
-			if r < j && result.Err != nil {
-				t.Fatalf("%s failed early: %v", testName, result.Err)
-			} else if r == j && result.Err == nil {
-				t.Fatalf("%s unexpected success", testName)
-			} else if r > j && result.Err != query.ErrNotExecuted {
-				t.Fatalf("expected ErrorNotExecuted from %s but got: %v", testName, result.Err)
-			}
-			r++
+		checkNotExecutedResults(t, results, testName, j, len(q.Statements))
+	}
+}
+
+func checkNotExecutedResults(t *testing.T, results <-chan *query.Result, testName string, failIndex int, lenQuery int) {
+	r := 0
+	for result := range results {
+		if r < failIndex && result.Err != nil {
+			t.Fatalf("%s failed early: %v", testName, result.Err)
+		} else if r == failIndex && result.Err == nil {
+			t.Fatalf("%s unexpected success at %d", testName, r)
+		} else if r > failIndex && result.Err != query.ErrNotExecuted {
+			t.Fatalf("expected ErrorNotExecuted from %s but got: %v", testName, result.Err)
 		}
+		r++
+	}
+	if r != lenQuery {
+		t.Fatalf("wrong number of results from %s - got: %d, expected: %d", testName, r, lenQuery)
 	}
 }
 
