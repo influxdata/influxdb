@@ -537,6 +537,11 @@ impl Db {
         Ok(new_rules)
     }
 
+    /// Return the current database's object storage
+    pub fn iox_object_store(&self) -> Arc<IoxObjectStore> {
+        Arc::clone(&self.iox_object_store)
+    }
+
     /// Rolls over the active chunk in the database's specified
     /// partition. Returns the previously open (now closed) Chunk if
     /// there was any.

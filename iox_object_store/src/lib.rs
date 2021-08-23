@@ -24,7 +24,7 @@ use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi, Result,
 };
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use snafu::{ensure, ResultExt, Snafu};
 use std::{io, sync::Arc};
 use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
@@ -50,9 +50,6 @@ pub enum IoxObjectStoreError {
         generation
     ))]
     DatabaseAlreadyExists { name: String, generation: usize },
-
-    #[snafu(display("No active database found in object storage"))]
-    ActiveDatabaseNotFound,
 
     #[snafu(display("Multiple active databases found in object storage"))]
     MultipleActiveDatabasesFound,
@@ -85,13 +82,12 @@ impl Generation {
 }
 
 impl IoxObjectStore {
-    /// List valid, unique, active database names in object storage that could be used with
-    /// `IoxObjectStore::existing` on this server.
-    // TODO: this lies and lists all databases for now and assumes generation 0
-    pub async fn list_active_databases(
+    /// List database names in object storage that need to be further checked for generations
+    /// and whether they're marked as deleted or not.
+    pub async fn list_possible_databases(
         inner: &ObjectStore,
         server_id: ServerId,
-    ) -> Result<Vec<(DatabaseName<'static>, usize)>> {
+    ) -> Result<Vec<DatabaseName<'static>>> {
         let path = paths::all_databases_path(inner, server_id);
 
         let list_result = inner.list_with_delimiter(&path).await?;
@@ -109,11 +105,7 @@ impl IoxObjectStore {
                     .log_if_error("invalid database directory")
                     .ok()?;
 
-                // TODO: Check each generation directory and only return this database if there
-                // is a generation directory that does not contain a tombstone file, otherwise
-                // there is not actually an active database for this name
-                // See: https://github.com/influxdata/influxdb_iox/issues/2197
-                Some((db_name, 0))
+                Some(db_name)
             })
             .collect())
     }
@@ -208,7 +200,7 @@ impl IoxObjectStore {
         inner: Arc<ObjectStore>,
         server_id: ServerId,
         database_name: &DatabaseName<'static>,
-    ) -> Result<Self, IoxObjectStoreError> {
+    ) -> Result<Option<Self>, IoxObjectStoreError> {
         let root_path = RootPath::new(&inner, server_id, database_name);
 
         let generations = Self::list_generations(&inner, &root_path)
@@ -217,13 +209,22 @@ impl IoxObjectStore {
 
         let mut active_generations = generations.iter().filter(|g| g.is_active());
 
-        let active = active_generations.next().context(ActiveDatabaseNotFound)?;
+        let active = match active_generations.next() {
+            Some(a) => a,
+            None => return Ok(None),
+        };
+
         ensure!(
             active_generations.next().is_none(),
             MultipleActiveDatabasesFound
         );
 
-        Ok(Self::existing(inner, server_id, database_name, active.id))
+        Ok(Some(Self::existing(
+            inner,
+            server_id,
+            database_name,
+            active.id,
+        )))
     }
 
     /// Look in object storage for an existing database with this name and a non-deleted

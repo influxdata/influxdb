@@ -684,7 +684,7 @@ where
             initialized.server_id
         };
 
-        let generation_id =
+        let _generation_id =
             Database::create(Arc::clone(&self.shared.application), rules, server_id)
                 .await
                 .context(CannotCreateDatabase)?;
@@ -702,7 +702,6 @@ where
                         DatabaseConfig {
                             name: db_name,
                             server_id,
-                            generation_id,
                             wipe_catalog_on_error: false,
                             skip_replay: false,
                         },
@@ -955,7 +954,7 @@ where
         let rules = db.update_rules(update).map_err(UpdateError::Closure)?;
 
         // TODO: Handle failure
-        persist_database_rules(&database.iox_object_store(), rules.as_ref().clone())
+        persist_database_rules(&db.iox_object_store(), rules.as_ref().clone())
             .await
             .context(CannotPersistUpdatedRules)?;
         Ok(rules)
@@ -1115,7 +1114,7 @@ async fn maybe_initialize_server(shared: &ServerShared) {
         (init_ready, handle)
     };
 
-    let maybe_databases = IoxObjectStore::list_active_databases(
+    let maybe_databases = IoxObjectStore::list_possible_databases(
         shared.application.object_store(),
         init_ready.server_id,
     )
@@ -1128,14 +1127,13 @@ async fn maybe_initialize_server(shared: &ServerShared) {
                 databases: HashMap::with_capacity(databases.len()),
             };
 
-            for (db_name, generation_id) in databases {
+            for db_name in databases {
                 state
                     .new_database(
                         shared,
                         DatabaseConfig {
                             name: db_name,
                             server_id: init_ready.server_id,
-                            generation_id,
                             wipe_catalog_on_error: init_ready.wipe_catalog_on_error,
                             skip_replay: init_ready.skip_replay_and_seek_instead,
                         },
@@ -1310,6 +1308,7 @@ mod tests {
 
         let read_data = bananas
             .iox_object_store()
+            .unwrap()
             .get_database_rules_file()
             .await
             .unwrap();
@@ -1415,6 +1414,7 @@ mod tests {
 
         bananas
             .iox_object_store()
+            .unwrap()
             .delete_database_rules_file()
             .await
             .expect("cannot delete rules file");
@@ -1963,15 +1963,18 @@ mod tests {
         // tamper store to break one database
         rules_broken
             .iox_object_store()
+            .unwrap()
             .put_database_rules_file(Bytes::from("x"))
             .await
             .unwrap();
 
-        let (preserved_catalog, _catalog) =
-            PreservedCatalog::load::<TestCatalogState>(catalog_broken.iox_object_store(), ())
-                .await
-                .unwrap()
-                .unwrap();
+        let (preserved_catalog, _catalog) = PreservedCatalog::load::<TestCatalogState>(
+            catalog_broken.iox_object_store().unwrap(),
+            (),
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
@@ -1979,6 +1982,7 @@ mod tests {
 
         rules_broken
             .iox_object_store()
+            .unwrap()
             .get_database_rules_file()
             .await
             .unwrap();
@@ -2031,9 +2035,11 @@ mod tests {
                 .to_string(),
             "error wiping preserved catalog: database (db_existing) in invalid state (Initialized) for transition (WipePreservedCatalog)"
         );
-        assert!(PreservedCatalog::exists(&existing.iox_object_store(),)
-            .await
-            .unwrap());
+        assert!(
+            PreservedCatalog::exists(&existing.iox_object_store().unwrap())
+                .await
+                .unwrap()
+        );
 
         // 2. cannot wipe non-existent DB
         assert!(matches!(
@@ -2072,7 +2078,8 @@ mod tests {
                 .wipe_preserved_catalog(&db_name_rules_broken)
                 .unwrap_err()
                 .to_string(),
-            "error wiping preserved catalog: database (db_broken_rules) in invalid state (Known) for transition (WipePreservedCatalog)"
+            "error wiping preserved catalog: database (db_broken_rules) in invalid state \
+            (ObjectStoreFound) for transition (WipePreservedCatalog)"
         );
 
         // 4. wipe DB with broken catalog, this will bring the DB back to life
@@ -2092,9 +2099,11 @@ mod tests {
 
         database.wait_for_init().await.unwrap();
 
-        assert!(PreservedCatalog::exists(&catalog_broken.iox_object_store())
-            .await
-            .unwrap());
+        assert!(
+            PreservedCatalog::exists(&catalog_broken.iox_object_store().unwrap())
+                .await
+                .unwrap()
+        );
         assert!(database.init_error().is_none());
 
         assert!(server.db(&db_name_catalog_broken).is_ok());
@@ -2118,9 +2127,11 @@ mod tests {
                 .to_string(),
             "error wiping preserved catalog: database (db_created) in invalid state (Initialized) for transition (WipePreservedCatalog)"
         );
-        assert!(PreservedCatalog::exists(&created.iox_object_store())
-            .await
-            .unwrap());
+        assert!(
+            PreservedCatalog::exists(&created.iox_object_store().unwrap())
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]

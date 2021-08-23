@@ -301,6 +301,9 @@ message DatabaseStatus {
     // Database is known but nothing is loaded.
     DATABASE_STATE_KNOWN = 1;
 
+		// Database object storage has been found
+		DATABASE_STATE_OBJECT_STORE_FOUND = 8;
+
     // Rules are loaded
     DATABASE_STATE_RULES_LOADED = 2;
 
