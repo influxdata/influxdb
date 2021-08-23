@@ -109,11 +109,6 @@ impl RLE {
             false => 0,
         };
 
-        self.index_row_ids
-            .values()
-            .map(|row_ids| row_ids.size())
-            .sum::<usize>();
-
         let index_row_ids_size =
             (size_of::<u32>() * self.index_row_ids.len()) + row_ids_bitmaps_size;
 
