@@ -195,17 +195,11 @@ fn decode_rle(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
     let mut a: [u8; 8] = [0; 8];
     a.copy_from_slice(&src[i..i + 8]);
     i += 8;
-    let (mut delta, n) = u64::decode_var(&src[i..]);
-    if n == 0 {
-        return Err(From::from("unable to decode delta"));
-    }
+    let (mut delta, n) = u64::decode_var(&src[i..]).ok_or("unable to decode delta")?;
     i += n;
     delta *= scaler;
 
-    let (count, n) = usize::decode_var(&src[i..]);
-    if n == 0 {
-        return Err(From::from("unable to decode count"));
-    }
+    let (count, _n) = usize::decode_var(&src[i..]).ok_or("unable to decode count")?;
 
     if dst.capacity() < count {
         dst.reserve_exact(count - dst.capacity());
