@@ -734,7 +734,6 @@ pub struct ShardedEntry {
 /// Wrapper type for the flatbuffer Entry struct. Has convenience methods for
 /// iterating through the partitioned writes.
 #[self_referencing]
-#[derive(Debug, PartialEq)]
 pub struct Entry {
     data: Vec<u8>,
     #[borrows(data)]
@@ -786,6 +785,21 @@ impl Clone for Entry {
     fn clone(&self) -> Self {
         Self::try_from(self.data().to_vec())
             .expect("flatbuffer was valid, should not be broken now")
+    }
+}
+
+impl PartialEq for Entry {
+    fn eq(&self, other: &Self) -> bool {
+        // just compare the de-serialized entry, not the framebuffer-encoded data because the latter one is not normalized
+        self.fb() == other.fb()
+    }
+}
+
+impl std::fmt::Debug for Entry {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Entry")
+            .field("fb", &self.fb())
+            .finish_non_exhaustive()
     }
 }
 
