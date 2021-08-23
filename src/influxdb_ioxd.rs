@@ -130,18 +130,41 @@ fn make_server(
     app_server
 }
 
+#[cfg(all(not(feature = "heappy"), not(feature = "jemalloc_replacing_malloc")))]
+fn build_malloc_conf() -> String {
+    "system".to_string()
+}
+
+#[cfg(all(feature = "heappy", not(feature = "jemalloc_replacing_malloc")))]
+fn build_malloc_conf() -> String {
+    "heappy".to_string()
+}
+
+#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+fn build_malloc_conf() -> String {
+    tikv_jemalloc_ctl::config::malloc_conf::mib()
+        .unwrap()
+        .read()
+        .unwrap()
+        .to_string()
+}
+
+#[cfg(all(feature = "heappy", feature = "jemalloc_replacing_malloc"))]
+fn build_malloc_conf() -> String {
+    compile_error!("must use exactly one memory allocator")
+}
+
 /// This is the entry point for the IOx server. `config` represents
 /// command line arguments, if any.
 pub async fn main(config: Config) -> Result<()> {
     let git_hash = option_env!("GIT_HASH").unwrap_or("UNKNOWN");
     let num_cpus = num_cpus::get();
-    let build_malloc_conf = tikv_jemalloc_ctl::config::malloc_conf::mib()
-        .unwrap()
-        .read()
-        .unwrap();
+    let build_malloc_conf = build_malloc_conf();
     info!(
         git_hash,
-        num_cpus, build_malloc_conf, "InfluxDB IOx server starting"
+        num_cpus,
+        %build_malloc_conf,
+        "InfluxDB IOx server starting",
     );
 
     // Install custom panic handler and forget about it.
