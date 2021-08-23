@@ -2,7 +2,9 @@
 **/*.rs.bk
 .idea/
 .env
+.gdb_history
 *.tsm
 **/.DS_Store
 **/.vscode
 query_tests/cases/**/*.out
+valgrind-out.txt

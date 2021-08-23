@@ -1,6 +1,6 @@
 # InfluxDB SQL Repl Tips and Tricks
 
-InfluxDB IOx contains a built in SQL client you can use to interact with the server using SQL
+InfluxDB IOx contains a built in SQL client you can use to interact with the server using SQL.
 
 ## Quick Start
 
@@ -198,8 +198,12 @@ LIMIT 20;
 ### Total row count by table
 
 ```sql
-SELECT database_name, table_name, max(count) as total_rows
-FROM columns
+SELECT database_name, table_name, sum(total_rows) as total_rows
+FROM (
+  SELECT database_name, table_name, max(row_count) as total_rows
+  FROM chunk_columns
+  GROUP BY database_name, partition_key, table_name
+)
 GROUP BY database_name, table_name
 ORDER BY total_rows DESC
 LIMIT 20;
@@ -208,8 +212,8 @@ LIMIT 20;
 ### Total row count by partition and table
 
 ```sql
-SELECT database_name, partition_key, table_name, max(count) as total_rows
-FROM columns
+SELECT database_name, partition_key, table_name, max(row_count) as total_rows
+FROM chunk_columns
 GROUP BY database_name, partition_key, table_name
 ORDER BY total_rows DESC
 LIMIT 20;
@@ -229,9 +233,9 @@ total_rows
 from
 (select table_name,
         column_name,
-        sum(count) as total_rows,
+        sum(row_count) as total_rows,
         max(cast(max_value as double)) - min(cast(min_value as double)) as range
- from system.chunk_columns
+ from chunk_columns
  where column_name = 'time'
  group by table_name, column_name
 )

@@ -21,7 +21,7 @@ http = "0.2.3"
 hyper = "0.14"
 prost = "0.8"
 rand = "0.8.3"
-serde = "1.0.118"
+serde = "1.0.128"
 serde_json = { version = "1.0.44", optional = true }
 thiserror = "1.0.23"
 tokio = { version = "1.0", features = ["macros"] }
