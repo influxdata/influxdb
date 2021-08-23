@@ -3,10 +3,9 @@ package authorization_test
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"reflect"
 	"testing"
-
-	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
@@ -15,42 +14,6 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"go.uber.org/zap/zaptest"
 )
-
-// func TestListAuthorizations(t *testing.T) {
-// 	auths := []*influxdb.Authorization{
-// 		{
-// 			ID:     platform.ID(1),
-// 			Token:  fmt.Sprintf("randomtoken%d", 1),
-// 			OrgID:  platform.ID(1),
-// 			UserID: platform.ID(1),
-// 			Status: influxdb.Active,
-// 		},
-// 	}
-
-// 	store := inmem.NewKVStore()
-// 	require.NoError(t, all.Up(context.Background(), zaptest.NewLogger(t), store))
-
-// 	ts, err := authorization.NewStore(store)
-// 	require.NoError(t, err)
-
-// 	err = ts.Update(context.Background(), func(tx kv.Tx) error {
-// 		for i := 1; i <= 10; i++ {
-// 			err := ts.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
-// 				ID:     platform.ID(i),
-// 				Token:  fmt.Sprintf("randomtoken%d", i),
-// 				OrgID:  platform.ID(i),
-// 				UserID: platform.ID(i),
-// 				Status: influxdb.Active,
-// 			})
-
-// 			if err != nil {
-// 				return err
-// 			}
-// 		}
-// 		return nil
-// 	})
-// 	require.NoError(t, err)
-// }
 
 func TestAuth(t *testing.T) {
 	setup := func(t *testing.T, store *authorization.Store, tx kv.Tx) {
