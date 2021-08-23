@@ -162,16 +162,11 @@ fn decode_rle(src: &[u8], dst: &mut Vec<i64>) -> Result<(), Box<dyn Error>> {
     }
 
     let mut i = 8; // Skip first value
-    let (delta, n) = u64::decode_var(&src[i..]);
-    if n == 0 {
-        return Err(From::from("unable to decode delta"));
-    }
+    let (delta, n) = u64::decode_var(&src[i..]).ok_or("unable to decode delta")?;
+
     i += n;
 
-    let (count, n) = usize::decode_var(&src[i..]);
-    if n == 0 {
-        return Err(From::from("unable to decode count"));
-    }
+    let (count, _n) = usize::decode_var(&src[i..]).ok_or("unable to decode count")?;
 
     if dst.capacity() < count {
         dst.reserve_exact(count - dst.capacity());

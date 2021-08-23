@@ -90,11 +90,9 @@ pub fn decode(src: &[u8], dst: &mut Vec<Vec<u8>>) -> Result<(), Box<dyn Error>> 
     let mut i = 0;
 
     while i < num_decoded_bytes {
-        let (length, num_bytes_read) = u64::decode_var(&decoded_bytes[i..]);
+        let (length, num_bytes_read) =
+            u64::decode_var(&decoded_bytes[i..]).ok_or("invalid encoded string length")?;
         let length: usize = length.try_into()?;
-        if num_bytes_read == 0 {
-            return Err("invalid encoded string length".into());
-        }
 
         let lower = i + num_bytes_read;
         let upper = lower + length;
