@@ -29,7 +29,6 @@ members = [
     "iox_object_store",
     "logfmt",
     "lifecycle",
-    "mem_qe",
     "mutable_buffer",
     "object_store",
     "observability_deps",
