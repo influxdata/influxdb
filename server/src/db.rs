@@ -770,8 +770,8 @@ impl Db {
     ) -> Option<PartitionSummary> {
         self.catalog
             .partition(table_name, partition_key)
-            .map(|partition| partition.read().summary())
             .ok()
+            .and_then(|partition| partition.read().summary())
     }
 
     /// Return table summary information for the given chunk in the specified
@@ -2941,7 +2941,7 @@ mod tests {
         let partition = db.catalog.partition("cpu", partition_key).unwrap();
         let partition = partition.write();
         // validate it has data
-        let table_summary = partition.summary().table;
+        let table_summary = partition.summary().unwrap().table;
         assert_eq!(&table_summary.name, "cpu");
         assert_eq!(table_summary.total_count(), 2);
         let windows = partition.persistence_windows().unwrap();
@@ -4305,6 +4305,57 @@ mod tests {
 
         // no chunks left
         assert_eq!(db.partition_chunk_summaries(partition_key), vec![]);
+    }
+
+    #[tokio::test]
+    async fn query_after_drop_partition_on_persisted_db() {
+        let test_db = TestDb::builder()
+            .lifecycle_rules(LifecycleRules {
+                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+                mub_row_threshold: NonZeroUsize::try_from(1).unwrap(),
+                persist: true,
+                ..Default::default()
+            })
+            .build()
+            .await;
+        let db = Arc::new(test_db.db);
+
+        write_lp(db.as_ref(), "cpu bar=1 10").await;
+        write_lp(db.as_ref(), "cpu bar=2 20").await;
+
+        let partition_key = "1970-01-01T00";
+        db.persist_partition(
+            "cpu",
+            partition_key,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
+
+        // query data before drop
+        let expected = vec![
+            "+-----------------+",
+            "| COUNT(UInt8(1)) |",
+            "+-----------------+",
+            "| 2               |",
+            "+-----------------+",
+        ];
+        let batches = run_query(Arc::clone(&db), "select count(*) from system.columns").await;
+        assert_batches_sorted_eq!(&expected, &batches);
+
+        // Drop the partition (avoid data)
+        db.drop_partition("cpu", partition_key).await.unwrap();
+
+        // query data after drop -- should have no rows and also no error
+        let expected = vec![
+            "+-----------------+",
+            "| COUNT(UInt8(1)) |",
+            "+-----------------+",
+            "| 0               |",
+            "+-----------------+",
+        ];
+        let batches = run_query(Arc::clone(&db), "select count(*) from system.columns").await;
+        assert_batches_sorted_eq!(&expected, &batches);
     }
 
     async fn create_parquet_chunk(db: &Arc<Db>) -> (String, String, u32) {

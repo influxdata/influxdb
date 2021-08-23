@@ -277,14 +277,19 @@ impl Partition {
         self.chunks.iter().map(|(a, b)| (*a, b))
     }
 
-    /// Return a PartitionSummary for this partition
-    pub fn summary(&self) -> PartitionSummary {
-        PartitionSummary::from_table_summaries(
-            self.addr.partition_key.to_string(),
-            self.chunks
-                .values()
-                .map(|x| x.read().table_summary().as_ref().clone()),
-        )
+    /// Return a PartitionSummary for this partition. If the partition
+    /// has no chunks, returns None.
+    pub fn summary(&self) -> Option<PartitionSummary> {
+        if self.chunks.is_empty() {
+            None
+        } else {
+            Some(PartitionSummary::from_table_summaries(
+                self.addr.partition_key.to_string(),
+                self.chunks
+                    .values()
+                    .map(|x| x.read().table_summary().as_ref().clone()),
+            ))
+        }
     }
 
     /// Return chunk summaries for all chunks in this partition

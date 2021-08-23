@@ -96,7 +96,7 @@ impl Table {
     }
 
     pub fn partition_summaries(&self) -> impl Iterator<Item = PartitionSummary> + '_ {
-        self.partitions.values().map(|x| x.read().summary())
+        self.partitions.values().filter_map(|x| x.read().summary())
     }
 
     pub fn schema(&self) -> Arc<RwLock<Arc<Schema>>> {
