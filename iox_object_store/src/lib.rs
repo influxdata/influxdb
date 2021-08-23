@@ -227,33 +227,6 @@ impl IoxObjectStore {
         )))
     }
 
-    /// Look in object storage for an existing database with this name and a non-deleted
-    /// generation, and create it if none is found. Useful for tests.
-    pub async fn find_or_create(
-        inner: Arc<ObjectStore>,
-        server_id: ServerId,
-        database_name: &DatabaseName<'static>,
-    ) -> Result<Self, IoxObjectStoreError> {
-        let root_path = RootPath::new(&inner, server_id, database_name);
-
-        let generations = Self::list_generations(&inner, &root_path)
-            .await
-            .context(UnderlyingObjectStoreError)?;
-
-        let active_generations: Vec<_> = generations.iter().filter(|g| g.is_active()).collect();
-
-        match active_generations[..] {
-            [one_generation] => Ok(Self::existing(
-                inner,
-                server_id,
-                database_name,
-                one_generation.id,
-            )),
-            [] => Ok(Self::new(inner, server_id, database_name).await?),
-            _ => MultipleActiveDatabasesFound {}.fail(),
-        }
-    }
-
     /// Access the database-specific object storage files for an existing database that has
     /// already been located and verified to be active. Does not check object storage.
     pub fn existing(
