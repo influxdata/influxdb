@@ -91,9 +91,9 @@ impl RLE {
         index_entries_size += self
             .index_entries
             .iter()
-            .map(|k| {
-                debug_assert_eq!(k.len(), k.capacity());
-                k.len()
+            .map(|k| match buffers {
+                true => k.capacity(),
+                false => k.len(),
             })
             .sum::<usize>();
 
