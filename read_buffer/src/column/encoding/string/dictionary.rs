@@ -55,9 +55,15 @@ impl Dictionary {
     /// Callers are not required to provide a logical NULL value as part of the
     /// dictionary. The encoding already reserves a representation for that.
     pub fn with_dictionary(dictionary: BTreeSet<String>) -> Self {
-        let mut _self = Self::default();
-        _self.entries.extend(dictionary.into_iter().map(Some));
-        _self
+        let mut enc_dict = Self::default();
+
+        enc_dict.entries.reserve_exact(dictionary.len());
+        for mut entry in dictionary {
+            entry.shrink_to_fit(); // ensure entry is minimally sized
+            enc_dict.entries.push(Some(entry));
+        }
+
+        enc_dict
     }
 
     /// A reasonable estimation of the on-heap size this encoding takes up.
@@ -139,7 +145,8 @@ impl Dictionary {
 
     /// Adds the provided string value to the encoded data. It is the caller's
     /// responsibility to ensure that the dictionary encoded remains sorted.
-    pub fn push(&mut self, v: String) {
+    pub fn push(&mut self, mut v: String) {
+        v.shrink_to_fit();
         self.push_additional(Some(v), 1);
     }
 
@@ -838,7 +845,9 @@ impl<'a> From<StringArray> for Dictionary {
             if arr.is_null(i) {
                 drle.push_none();
             } else {
-                drle.push(arr.value(i).to_string());
+                let mut value = String::from(arr.value(i));
+                value.shrink_to_fit();
+                drle.push(value);
             }
         }
         drle
