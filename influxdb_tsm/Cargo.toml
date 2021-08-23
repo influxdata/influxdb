@@ -5,7 +5,7 @@ authors = ["Edd Robinson <me@edd.io>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
-integer-encoding = "1.0.7"
+integer-encoding = "3.0.2"
 snafu = "0.6.2"
 snap = "1.0.0"
 observability_deps = { path = "../observability_deps" }
