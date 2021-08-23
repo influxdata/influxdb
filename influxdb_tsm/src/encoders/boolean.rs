@@ -66,10 +66,7 @@ pub fn decode(src: &[u8], dst: &mut Vec<bool>) -> Result<(), Box<dyn Error>> {
     assert_eq!(src[0], BOOLEAN_COMPRESSED_BIT_PACKED << 4);
     let src = &src[HEADER_LEN..];
 
-    let (count, num_bytes_read) = u64::decode_var(src);
-    if num_bytes_read == 0 {
-        return Err("boolean decoder: invalid count".into());
-    }
+    let (count, num_bytes_read) = u64::decode_var(src).ok_or("boolean decoder: invalid count")?;
 
     let mut count: usize = count.try_into()?;
     let src = &src[num_bytes_read..];

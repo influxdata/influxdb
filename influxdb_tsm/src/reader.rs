@@ -599,7 +599,11 @@ where
 
                 // first decode the timestamp block.
                 let mut ts = Vec::with_capacity(MAX_BLOCK_VALUES); // 1000 is the max block size
-                let (len, n) = u64::decode_var(&data[idx..]); // size of timestamp block
+                                                                   // size of timestamp block
+                let (len, n) = u64::decode_var(&data[idx..]).ok_or_else(|| TsmError {
+                    description: "unable to decode timestamp".into(),
+                })?;
+
                 idx += n;
                 encoders::timestamp::decode(&data[idx..idx + (len as usize)], &mut ts).map_err(
                     |e| TsmError {
