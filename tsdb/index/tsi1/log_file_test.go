@@ -548,7 +548,7 @@ func BenchmarkLogFile_WriteTo(b *testing.B) {
 	}
 }
 
-func benchmarkLogFile_MeasurementHasSeries(b *testing.B,  seriesKeyN, seriesValueN int) {
+func benchmarkLogFile_MeasurementHasSeries(b *testing.B, seriesKeyN, seriesValueN int) {
 	b.StopTimer()
 
 	sfile := MustOpenSeriesFile()
@@ -607,10 +607,18 @@ func benchmarkLogFile_MeasurementHasSeries(b *testing.B,  seriesKeyN, seriesValu
 	}
 }
 
-func BenchmarkLogFile_MeasurementHasSeries_2_10(b *testing.B) { benchmarkLogFile_MeasurementHasSeries(b,  2, 10) } // 100 series
-func BenchmarkLogFile_MeasurementHasSeries_3_10(b *testing.B) { benchmarkLogFile_MeasurementHasSeries(b,  3, 10) } // 1k series
-func BenchmarkLogFile_MeasurementHasSeries_4_10(b *testing.B) { benchmarkLogFile_MeasurementHasSeries(b,  4, 10) } // 10k series
-func BenchmarkLogFile_MeasurementHasSeries_5_10(b *testing.B) { benchmarkLogFile_MeasurementHasSeries(b,  5, 10) } // 100k series
+func BenchmarkLogFile_MeasurementHasSeries_2_10(b *testing.B) {
+	benchmarkLogFile_MeasurementHasSeries(b, 2, 10)
+} // 100 series
+func BenchmarkLogFile_MeasurementHasSeries_3_10(b *testing.B) {
+	benchmarkLogFile_MeasurementHasSeries(b, 3, 10)
+} // 1k series
+func BenchmarkLogFile_MeasurementHasSeries_4_10(b *testing.B) {
+	benchmarkLogFile_MeasurementHasSeries(b, 4, 10)
+} // 10k series
+func BenchmarkLogFile_MeasurementHasSeries_5_10(b *testing.B) {
+	benchmarkLogFile_MeasurementHasSeries(b, 5, 10)
+} // 100k series
 
 // MustStartCPUProfile starts a cpu profile in a temporary path based on name.
 func MustStartCPUProfile(name string) {

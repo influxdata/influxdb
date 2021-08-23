@@ -35,7 +35,7 @@ func TestFixed_Canceled(t *testing.T) {
 	f := limiter.NewFixed(1)
 	require.NoError(t, f.Take(context.Background()))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	cancel()
 	err := f.Take(ctx)
 	require.Error(t, err)

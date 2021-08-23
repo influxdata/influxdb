@@ -80,7 +80,9 @@ func newMockServices() mockedSvc {
 	return mockedSvc{
 		taskSvc: &mock.TaskService{
 			FindTaskByIDFn: func(_ context.Context, id platform.ID) (*taskmodel.Task, error) { return &taskmodel.Task{ID: id}, nil },
-			CreateTaskFn:   func(context.Context, taskmodel.TaskCreate) (*taskmodel.Task, error) { return &taskmodel.Task{ID: 1}, nil },
+			CreateTaskFn: func(context.Context, taskmodel.TaskCreate) (*taskmodel.Task, error) {
+				return &taskmodel.Task{ID: 1}, nil
+			},
 			UpdateTaskFn: func(_ context.Context, id platform.ID, _ taskmodel.TaskUpdate) (*taskmodel.Task, error) {
 				return &taskmodel.Task{ID: id}, nil
 			},
