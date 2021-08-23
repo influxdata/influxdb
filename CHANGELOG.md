@@ -7,6 +7,7 @@
 1. [22245](https://github.com/influxdata/influxdb/pull/22245): Avoid compaction queue stats flutter
 1. [22236](https://github.com/influxdata/influxdb/pull/22236): influxdb2 packages should depend on curl
 1. [22243](https://github.com/influxdata/influxdb/pull/22243): Updating an inactive task will not schedule it. Thanks @raffs!
+1. [#22272](https://github.com/influxdata/influxdb/pull/22272): Requests to `/api/v2/authorizations` filter correctly on `org` and `user` parameters
 
 ## v2.0.8 [2021-08-13]
 ----------------------
