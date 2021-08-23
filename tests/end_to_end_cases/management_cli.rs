@@ -965,6 +965,7 @@ async fn test_persist_partition_error() {
     )
     .await;
 
+    // there is no old data (late arrival window is 1000s) that can be persisted
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
@@ -977,5 +978,8 @@ async fn test_persist_partition_error() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Cannot flush partition"));
+        .stderr(
+            predicate::str::contains("Error persisting partition:")
+                .and(predicate::str::contains("Cannot flush partition")),
+        );
 }

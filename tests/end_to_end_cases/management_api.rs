@@ -1321,6 +1321,7 @@ async fn test_persist_partition_error() {
     assert_eq!(chunks.len(), 1);
     let partition_key = &chunks[0].partition_key;
 
+    // there is no old data (late arrival window is 1000s) that can be persisted
     let err = management_client
         .persist_partition(&db_name, "data", &partition_key[..])
         .await

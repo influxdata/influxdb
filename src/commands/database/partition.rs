@@ -23,7 +23,7 @@ pub enum Error {
     #[error("Error getting partition: {0}")]
     GetPartitionsError(#[from] GetPartitionError),
 
-    #[error("Error dropping partition: {0}")]
+    #[error("Error persisting partition: {0}")]
     PersistPartitionError(#[from] PersistPartitionError),
 
     #[error("Error dropping partition: {0}")]
