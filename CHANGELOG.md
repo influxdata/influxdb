@@ -14,14 +14,6 @@ produced by `influxdb` are impacted as follows:
 With this change, versions of the `influx` CLI and `influxd` server are not guaranteed to exactly match. Please use
 `influxd version` or `curl <your-server-url>/health` when checking the version of the installed/running server.
 
-### Go Version
-
-This release upgrades the project to `go` version 1.16.
-
-#### Minimum macOS Version
-
-Because of the version bump to `go`, the macOS build for this release requires at least version 10.12 Sierra to run.
-
 ### Notebooks and Annotations
 
 Support for Notebooks and Annotations is included with this release.
@@ -49,41 +41,58 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21788](https://github.com/influxdata/influxdb/pull/21788): Ported the `influxd inspect report-tsi` command from 1.x.
 1. [21784](https://github.com/influxdata/influxdb/pull/21784): Ported the `influxd inspect dumptsi` command from 1.x.
 1. [21786](https://github.com/influxdata/influxdb/pull/21786): Ported the `influxd inspect deletetsm` command from 1.x.
-1. [21802](https://github.com/influxdata/influxdb/pull/21802): Removed unused `chronograf-migator` package & chronograf API service, and updated various "chronograf" references.
 1. [21888](https://github.com/influxdata/influxdb/pull/21888/): Ported the `influxd inspect dump-wal` command from 1.x.
 1. [21828](https://github.com/influxdata/influxdb/pull/21828): Added the command `influx inspect verify-wal`.
 1. [21814](https://github.com/influxdata/influxdb/pull/21814): Ported the `influxd inspect report-tsm` command from 1.x.
 1. [21936](https://github.com/influxdata/influxdb/pull/21936): Ported the `influxd inspect build-tsi` command from 1.x.
-1. [21910](https://github.com/influxdata/influxdb/pull/21910): Added `--ui-disabled` option to `influxd` to allow for running with the UI disabled.
 1. [21938](https://github.com/influxdata/influxdb/pull/21938): Added route to delete individual secret.
-1. [21958](https://github.com/influxdata/influxdb/pull/21958): Telemetry improvements: Do not record telemetry data for non-existant paths; replace invalid static asset paths with a slug.
 1. [21972](https://github.com/influxdata/influxdb/pull/21972): Added support for notebooks and annotations.
 1. [22135](https://github.com/influxdata/influxdb/pull/22135): Added route to return known resources.
 
 ### Bug Fixes
 
-1. [21610](https://github.com/influxdata/influxdb/pull/21610): Avoid rewriting `fields.idx` unnecessarily.
 1. [21648](https://github.com/influxdata/influxdb/pull/21648): Change static legend's `hide` to `show` to let users decide if they want it.
+1. [22186](https://github.com/influxdata/influxdb/pull/22186): Preserve comments in flux queries when saving task definitions.
+1. [22228](https://github.com/influxdata/influxdb/pull/22228): influxdb2 packages should depend on curl.
+1. [22211](https://github.com/influxdata/influxdb/pull/22211): Prevent scheduling an inactivated task after updating it.
+1. [22235](https://github.com/influxdata/influxdb/pull/22235): Avoid compaction queue stats flutter.
+1. [22272](https://github.com/influxdata/influxdb/pull/22272): Requests to `/api/v2/authorizations` filter correctly on `org` and `user` parameters.
+
+## v2.0.8 [2021-08-13]
+
+### Go Version
+
+This release upgrades the project to `go` version 1.16.
+
+#### Minimum macOS Version
+
+Because of the version bump to `go`, the macOS build for this release requires at least version 10.12 Sierra to run.
+
+### Features
+
+1. [21910](https://github.com/influxdata/influxdb/pull/21910): Added `--ui-disabled` option to `influxd` to allow for running with the UI disabled.
+1. [21958](https://github.com/influxdata/influxdb/pull/21958): Telemetry improvements: Do not record telemetry data for non-existant paths; replace invalid static asset paths with a slug.
+1. [22023](https://github.com/influxdata/influxdb/pull/22023): Upgrade Flux to v0.124.0.
+
+### Bug Fixes
+
+1. [21610](https://github.com/influxdata/influxdb/pull/21610): Avoid rewriting `fields.idx` unnecessarily.
 1. [21662](https://github.com/influxdata/influxdb/pull/21662): Do not close connection twice in DigestWithOptions.
 1. [21691](https://github.com/influxdata/influxdb/pull/21691): Remove incorrect optimization for group-by.
 1. [21747](https://github.com/influxdata/influxdb/pull/21747): Rename arm rpms with yum-compatible names.
 1. [21800](https://github.com/influxdata/influxdb/pull/21800): Return an error instead of panicking when InfluxQL statement rewrites fail.
-1. [21840](https://github.com/influxdata/influxdb/pull/21840): Run migrations on restored bolt & SQLite metadata databases as part of the restore process.
+1. [21802](https://github.com/influxdata/influxdb/pull/21802): Removed unused `chronograf-migator` package & chronograf API service, and updated various "chronograf" references.
+1. [21839](https://github.com/influxdata/influxdb/pull/21839): Fix display and parsing of `influxd upgrade` CLI prompts in PowerShell.
+1. [21840](https://github.com/influxdata/influxdb/pull/21840): Migrate restored KV snapshots to latest schema before using them.
 1. [21844](https://github.com/influxdata/influxdb/pull/21844): Upgrade to latest version of `influxdata/cron` so that tasks can be created with interval of `every: 1w`.
 1. [21849](https://github.com/influxdata/influxdb/pull/21849): Specify which fields are missing when rejecting an incomplete onboarding request.
-1. [21839](https://github.com/influxdata/influxdb/pull/21839): Fix display and parsing of `influxd upgrade` CLI prompts in PowerShell.
-1. [21850](https://github.com/influxdata/influxdb/pull/21850): Systemd unit should block on startup until http endpoint is ready
-1. [21925](https://github.com/influxdata/influxdb/pull/21925): Upgrade to golang-jwt 3.2.1.
+1. [21850](https://github.com/influxdata/influxdb/pull/21850): Systemd unit should block on startup until http endpoint is ready.
+1. [21925](https://github.com/influxdata/influxdb/pull/21925): Upgrade to golang-jwt 3.2.1..
 1. [21946](https://github.com/influxdata/influxdb/pull/21946): Prevent silently dropped writes when there are overlapping shards.
 1. [21950](https://github.com/influxdata/influxdb/pull/21950): Invalid requests to /api/v2 subroutes now return 404 instead of a list of links.
 1. [21962](https://github.com/influxdata/influxdb/pull/21962): Flux metaqueries for `_field` take fast path if `_measurement` is the only predicate.
-1. [22059](https://github.com/influxdata/influxdb/pull/22059): Copy names from mmapped memory before closing iterator
-1. [22186](https://github.com/influxdata/influxdb/pull/22186): Preserve comments in flux queries when saving task definitions
-1. [#22174](https://github.com/influxdata/influxdb/pull/22174): systemd service -- handle 40x and block indefinitely
-1. [#22228](https://github.com/influxdata/influxdb/pull/22228): influxdb2 packages should depend on curl
-1. [#22211](https://github.com/influxdata/influxdb/pull/22211): Prevent scheduling an inactivated tasks after updating it
-1. [#22235](https://github.com/influxdata/influxdb/pull/22235): Avoid compaction queue stats flutter
-1. [#22272](https://github.com/influxdata/influxdb/pull/22272): Requests to `/api/v2/authorizations` filter correctly on `org` and `user` parameters
+1. [22059](https://github.com/influxdata/influxdb/pull/22059): Copy names from mmapped memory before closing iterator.
+1. [22174](https://github.com/influxdata/influxdb/pull/22174): systemd service -- handle 40x and block indefinitely.
 
 ## v2.0.7 [2021-06-04]
 
