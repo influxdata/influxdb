@@ -44,9 +44,6 @@ pub enum TestError {
     #[snafu(display("Test database error: {}", message))]
     General { message: String },
 
-    #[snafu(display("Test database execution:  {:?}", source))]
-    Execution { source: crate::exec::Error },
-
     #[snafu(display("Test error writing to database: {}", source))]
     DatabaseWrite {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,

@@ -7,6 +7,7 @@ use datafusion::logical_plan::{col, lit};
 use flate2::read::GzDecoder;
 use tokio::runtime::Runtime;
 
+use query::exec::ExecutorType;
 use query::frontend::influxrpc::InfluxRpcPlanner;
 use query::predicate::PredicateBuilder;
 use query::{exec::Executor, predicate::Predicate};
@@ -110,9 +111,14 @@ async fn run_tag_values_query(
     let plan = planner
         .tag_values(db, tag_key, predicate)
         .expect("built plan successfully");
-    let names = executor.to_string_set(plan).await.expect(
-        "converted plan to strings
+
+    let names = executor
+        .new_context(ExecutorType::Query)
+        .to_string_set(plan)
+        .await
+        .expect(
+            "converted plan to strings
                             successfully",
-    );
+        );
     assert!(names.len() > 0);
 }

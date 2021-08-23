@@ -648,16 +648,16 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
 
     let db = server.db(&db_name)?;
 
-    let executor = db.executor();
-    let physical_plan = Planner::new(Arc::clone(&executor))
+    let ctx = db.executor().new_context(ExecutorType::Query);
+    let physical_plan = Planner::new(ctx.clone())
         .sql(db, &q)
         .await
         .context(Planning)?;
 
     // TODO: stream read results out rather than rendering the
     // whole thing in mem
-    let batches = executor
-        .collect(physical_plan, ExecutorType::Query)
+    let batches = ctx
+        .collect(physical_plan)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(Query { db_name })?;
@@ -1466,16 +1466,10 @@ mod tests {
 
     /// Run the specified SQL query and return formatted results as a string
     async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
-        let executor = db.executor();
-        let physical_plan = Planner::new(Arc::clone(&executor))
-            .sql(db, query)
-            .await
-            .unwrap();
+        let ctx = db.executor().new_context(ExecutorType::Query);
+        let physical_plan = Planner::new(ctx.clone()).sql(db, query).await.unwrap();
 
-        executor
-            .collect(physical_plan, ExecutorType::Query)
-            .await
-            .unwrap()
+        ctx.collect(physical_plan).await.unwrap()
     }
 
     /// return a test server and the url to contact it for `MyOrg_MyBucket`

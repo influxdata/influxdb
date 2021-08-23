@@ -70,14 +70,9 @@ async fn chunk_pruning_sql() {
     ];
     let query = "select * from cpu where bar < 3.0";
 
-    let executor = db.executor();
-    let physical_plan = SqlQueryPlanner::default()
-        .query(db, query, &executor)
-        .unwrap();
-    let batches = executor
-        .collect(physical_plan, ExecutorType::Query)
-        .await
-        .unwrap();
+    let ctx = db.executor().new_context(ExecutorType::Query);
+    let physical_plan = SqlQueryPlanner::default().query(db, query, &ctx).unwrap();
+    let batches = ctx.collect(physical_plan).await.unwrap();
 
     assert_batches_sorted_eq!(&expected, &batches);
 
@@ -124,11 +119,13 @@ async fn chunk_pruning_influxrpc() {
     let mut expected = StringSet::new();
     expected.insert("cpu".into());
 
+    let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
+
     let plan = InfluxRpcPlanner::new()
         .table_names(db.as_ref(), predicate)
         .unwrap();
 
-    let result = db.executor().to_string_set(plan).await.unwrap();
+    let result = ctx.to_string_set(plan).await.unwrap();
 
     assert_eq!(&expected, result.as_ref());
 

@@ -1,70 +1,7 @@
 use std::sync::Arc;
 
-use snafu::{ResultExt, Snafu};
-
-use crate::exec::{context::DEFAULT_CATALOG, Executor, ExecutorType};
-use datafusion::{
-    catalog::catalog::CatalogProvider, error::DataFusionError, physical_plan::ExecutionPlan,
-};
-
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("Error preparing query {}", source))]
-    Preparing { source: crate::exec::context::Error },
-
-    #[snafu(display("Internal Error creating memtable for table {}: {}", table, source))]
-    InternalMemTableCreation {
-        table: String,
-        source: DataFusionError,
-    },
-
-    #[snafu(display("Error listing partition keys: {}", source))]
-    GettingDatabasePartition {
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-
-    #[snafu(display(
-        "Error getting table schema for table '{}' in chunk {}: {}",
-        table_name,
-        chunk_id,
-        source
-    ))]
-    GettingTableSchema {
-        table_name: String,
-        chunk_id: u32,
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-
-    #[snafu(display(
-        "Error adding chunk to table provider for table '{}' in chunk {}: {}",
-        table_name,
-        chunk_id,
-        source
-    ))]
-    AddingChunkToProvider {
-        table_name: String,
-        chunk_id: u32,
-        source: crate::provider::Error,
-    },
-
-    #[snafu(display("Error creating table provider for table '{}': {}", table_name, source))]
-    CreatingTableProvider {
-        table_name: String,
-        source: crate::provider::Error,
-    },
-
-    #[snafu(display(
-        "Error registering table provider for table '{}': {}",
-        table_name,
-        source
-    ))]
-    RegisteringTableProvider {
-        table_name: String,
-        source: DataFusionError,
-    },
-}
-
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+use crate::exec::context::{IOxExecutionContext, DEFAULT_CATALOG};
+use datafusion::{catalog::catalog::CatalogProvider, error::Result, physical_plan::ExecutionPlan};
 
 /// This struct can create plans for running SQL queries against databases
 #[derive(Debug, Default)]
@@ -84,10 +21,9 @@ impl SqlQueryPlanner {
         &self,
         database: Arc<D>,
         query: &str,
-        executor: &Executor,
+        ctx: &IOxExecutionContext,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let mut ctx = executor.new_context(ExecutorType::Query);
         ctx.register_catalog(DEFAULT_CATALOG, database);
-        ctx.prepare_sql(query).context(Preparing)
+        ctx.prepare_sql(query)
     }
 }

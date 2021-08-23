@@ -15,6 +15,7 @@ use std::convert::Infallible;
 type Task = Pin<Box<dyn Future<Output = ()> + Send>>;
 
 /// The type of error that is returned from tasks in this module
+#[allow(dead_code)]
 pub type Error = tokio::sync::oneshot::error::RecvError;
 
 /// Runs futures (and any `tasks` that are `tokio::task::spawned` by
@@ -140,6 +141,7 @@ impl DedicatedExecutor {
     }
 
     /// signals shutdown of this executor and any Clones
+    #[allow(dead_code)] // https://github.com/influxdata/influxdb_iox/issues/2372
     pub fn shutdown(&self) {
         // hang up the channel which will cause the dedicated thread
         // to quit
@@ -154,6 +156,7 @@ impl DedicatedExecutor {
     /// Only the first all to `join` will actually wait for the
     /// executing thread to complete. All other calls to join will
     /// complete immediately.
+    #[allow(dead_code)] // https://github.com/influxdata/influxdb_iox/issues/2372
     pub fn join(&self) {
         self.shutdown();
 

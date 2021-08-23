@@ -173,16 +173,16 @@ where
             .db(&database)
             .map_err(default_server_error_handler)?;
 
-        let executor = db.executor();
+        let ctx = db.executor().new_context(ExecutorType::Query);
 
-        let physical_plan = Planner::new(Arc::clone(&executor))
+        let physical_plan = Planner::new(ctx.clone())
             .sql(db, &read_info.sql_query)
             .await
             .context(Planning)?;
 
         // execute the query
-        let results = executor
-            .collect(Arc::clone(&physical_plan), ExecutorType::Query)
+        let results = ctx
+            .collect(Arc::clone(&physical_plan))
             .await
             .map_err(|e| Box::new(e) as _)
             .context(Query {

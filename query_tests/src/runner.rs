@@ -273,16 +273,13 @@ impl<W: Write> Runner<W> {
             // hardcode concurrency in tests as by default is is the
             // number of cores, which varies across machines
             executor.config_mut().set_concurrency(4);
-            let executor = Arc::new(executor);
+            let ctx = Arc::new(executor).new_context(ExecutorType::Query);
 
             let physical_plan = planner
-                .query(db, sql, executor.as_ref())
+                .query(db, sql, &ctx)
                 .expect("built plan successfully");
 
-            let results: Vec<RecordBatch> = executor
-                .collect(physical_plan, ExecutorType::Query)
-                .await
-                .expect("Running plan");
+            let results: Vec<RecordBatch> = ctx.collect(physical_plan).await.expect("Running plan");
 
             let current_results = pretty_format_batches(&results)
                 .unwrap()

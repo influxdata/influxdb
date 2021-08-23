@@ -24,12 +24,12 @@ macro_rules! run_tag_keys_test_case {
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
             let planner = InfluxRpcPlanner::new();
+            let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
             let plan = planner
                 .tag_keys(db.as_ref(), predicate.clone())
                 .expect("built plan successfully");
-            let names = db
-                .executor()
+            let names = ctx
                 .to_string_set(plan)
                 .await
                 .expect("converted plan to strings successfully");

@@ -4,6 +4,7 @@
 use std::{fmt, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
+
 use datafusion::{
     catalog::catalog::CatalogProvider,
     execution::context::{ExecutionContextState, QueryPlanner},
@@ -16,13 +17,21 @@ use datafusion::{
     },
     prelude::*,
 };
+use observability_deps::tracing::{debug, trace};
 
 use crate::exec::{
+    fieldlist::{FieldList, IntoFieldList},
     schema_pivot::{SchemaPivotExec, SchemaPivotNode},
+    seriesset::{SeriesSetConverter, SeriesSetItem},
     split::StreamSplitExec,
+    stringset::{IntoStringSet, StringSetRef},
 };
 
-use observability_deps::tracing::{debug, trace};
+use crate::plan::{
+    fieldlist::FieldListPlan,
+    seriesset::{SeriesSetPlan, SeriesSetPlans},
+    stringset::StringSetPlan,
+};
 
 // Reuse DataFusion error and Result types for this module
 pub use datafusion::error::{DataFusionError as Error, Result};
@@ -155,6 +164,7 @@ impl IOxExecutionConfig {
 /// Eventually we envision this also managing additional resource
 /// types such as Memory and providing visibility into what plans are
 /// running
+#[derive(Clone)]
 pub struct IOxExecutionContext {
     inner: ExecutionContext,
 
@@ -177,7 +187,7 @@ impl fmt::Debug for IOxExecutionContext {
 
 impl IOxExecutionContext {
     /// Create an ExecutionContext suitable for executing DataFusion plans
-    pub fn new(exec: DedicatedExecutor, config: IOxExecutionConfig) -> Self {
+    pub(super) fn new(exec: DedicatedExecutor, config: IOxExecutionConfig) -> Self {
         let inner = ExecutionContext::with_config(config.inner);
 
         Self { inner, exec }
@@ -188,16 +198,16 @@ impl IOxExecutionContext {
         &self.inner
     }
 
-    /// registers a catalog with the inner context
-    pub fn register_catalog(&mut self, name: impl Into<String>, catalog: Arc<dyn CatalogProvider>) {
+    /// Registers a catalog with the inner context
+    ///
+    /// Note: This will also modify any IOxExecutionContext that are Clones of this
+    pub fn register_catalog(&self, name: impl Into<String>, catalog: Arc<dyn CatalogProvider>) {
         self.inner.register_catalog(name, catalog);
     }
 
-    ///
-
     /// Prepare a SQL statement for execution. This assumes that any
     /// tables referenced in the SQL have been registered with this context
-    pub fn prepare_sql(&mut self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
+    pub fn prepare_sql(&self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
         debug!(text=%sql, "planning SQL query");
         let logical_plan = self.inner.create_logical_plan(sql)?;
         self.prepare_plan(&logical_plan)
@@ -224,9 +234,7 @@ impl IOxExecutionContext {
             displayable(physical_plan.as_ref()).indent()
         );
 
-        self.exec.spawn(collect(physical_plan)).await.map_err(|e| {
-            Error::Execution(format!("Error running IOxExecutionContext::collect: {}", e))
-        })?
+        self.run(collect(physical_plan)).await
     }
 
     /// Executes the physical plan and produces a RecordBatchStream to stream
@@ -253,11 +261,171 @@ impl IOxExecutionContext {
         physical_plan: Arc<dyn ExecutionPlan>,
         partition: usize,
     ) -> Result<SendableRecordBatchStream> {
-        self.exec
-            .spawn(async move { physical_plan.execute(partition).await })
+        self.run(async move { physical_plan.execute(partition).await })
             .await
-            .map_err(|e| {
-                Error::Execution(format!("Error running IOxExecutionContext::execute: {}", e))
-            })?
+    }
+
+    /// Executes the SeriesSetPlans on the query executor, in
+    /// parallel, combining the results into the returned collection
+    /// of items.
+    ///
+    /// The SeriesSets are guaranteed to come back ordered by table_name.
+    pub async fn to_series_set(
+        &self,
+        series_set_plans: SeriesSetPlans,
+    ) -> Result<Vec<SeriesSetItem>> {
+        let SeriesSetPlans { mut plans } = series_set_plans;
+
+        if plans.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // sort plans by table name
+        plans.sort_by(|a, b| a.table_name.cmp(&b.table_name));
+
+        // Run the plans in parallel
+        let handles = plans
+            .into_iter()
+            .map(|plan| {
+                let ctx = self.clone();
+                self.run(async move {
+                    let SeriesSetPlan {
+                        table_name,
+                        plan,
+                        tag_columns,
+                        field_columns,
+                        num_prefix_tag_group_columns,
+                    } = plan;
+
+                    let tag_columns = Arc::new(tag_columns);
+
+                    let physical_plan = ctx.prepare_plan(&plan)?;
+
+                    let it = ctx.execute(physical_plan).await?;
+
+                    SeriesSetConverter::default()
+                        .convert(
+                            table_name,
+                            tag_columns,
+                            field_columns,
+                            num_prefix_tag_group_columns,
+                            it,
+                        )
+                        .await
+                        .map_err(|e| {
+                            Error::Execution(format!(
+                                "Error executing series set conversion: {}",
+                                e
+                            ))
+                        })
+                })
+            })
+            .collect::<Vec<_>>();
+
+        // join_all ensures that the results are consumed in the same order they
+        // were spawned maintaining the guarantee to return results ordered
+        // by the plan sort order.
+        let handles = futures::future::try_join_all(handles).await?;
+        let mut results = vec![];
+        for handle in handles {
+            results.extend(handle.into_iter());
+        }
+
+        Ok(results)
+    }
+
+    /// Executes `plan` and return the resulting FieldList on the query executor
+    pub async fn to_field_list(&self, plan: FieldListPlan) -> Result<FieldList> {
+        let FieldListPlan { plans } = plan;
+
+        // Run the plans in parallel
+        let handles = plans
+            .into_iter()
+            .map(|plan| {
+                let ctx = self.clone();
+                self.run(async move {
+                    let physical_plan = ctx.prepare_plan(&plan)?;
+
+                    // TODO: avoid this buffering
+                    let field_list =
+                        ctx.collect(physical_plan)
+                            .await?
+                            .into_fieldlist()
+                            .map_err(|e| {
+                                Error::Execution(format!("Error converting to field list: {}", e))
+                            })?;
+
+                    Ok(field_list)
+                })
+            })
+            .collect::<Vec<_>>();
+
+        // collect them all up and combine them
+        let mut results = Vec::new();
+        for join_handle in handles {
+            let fieldlist = join_handle.await?;
+
+            results.push(fieldlist);
+        }
+
+        // TODO: Stream this
+        results
+            .into_fieldlist()
+            .map_err(|e| Error::Execution(format!("Error converting to field list: {}", e)))
+    }
+
+    /// Executes this plan on the query pool, and returns the
+    /// resulting set of strings
+    pub async fn to_string_set(&self, plan: StringSetPlan) -> Result<StringSetRef> {
+        match plan {
+            StringSetPlan::Known(ss) => Ok(ss),
+            StringSetPlan::Plan(plans) => self
+                .run_logical_plans(plans)
+                .await?
+                .into_stringset()
+                .map_err(|e| Error::Execution(format!("Error converting to stringset: {}", e))),
+        }
+    }
+
+    /// Run the plan and return a record batch reader for reading the results
+    pub async fn run_logical_plan(&self, plan: LogicalPlan) -> Result<Vec<RecordBatch>> {
+        self.run_logical_plans(vec![plan]).await
+    }
+
+    /// plans and runs the plans in parallel and collects the results
+    /// run each plan in parallel and collect the results
+    async fn run_logical_plans(&self, plans: Vec<LogicalPlan>) -> Result<Vec<RecordBatch>> {
+        let value_futures = plans
+            .into_iter()
+            .map(|plan| {
+                let ctx = self.clone();
+                self.run(async move {
+                    let physical_plan = ctx.prepare_plan(&plan)?;
+
+                    // TODO: avoid this buffering
+                    ctx.collect(physical_plan).await
+                })
+            })
+            .collect::<Vec<_>>();
+
+        // now, wait for all the values to resolve and collect them together
+        let mut results = Vec::new();
+        for join_handle in value_futures {
+            let mut plan_result = join_handle.await?;
+            results.append(&mut plan_result);
+        }
+        Ok(results)
+    }
+
+    /// Runs the provided future using this execution context
+    pub async fn run<Fut, T>(&self, fut: Fut) -> Result<T>
+    where
+        Fut: std::future::Future<Output = Result<T>> + Send + 'static,
+        T: Send + 'static,
+    {
+        self.exec
+            .spawn(fut)
+            .await
+            .unwrap_or_else(|e| Err(Error::Execution(format!("Join Error: {}", e))))
     }
 }

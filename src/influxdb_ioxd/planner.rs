@@ -3,33 +3,15 @@ use std::sync::Arc;
 
 use datafusion::{catalog::catalog::CatalogProvider, physical_plan::ExecutionPlan};
 use query::{
-    exec::{Executor, ExecutorType},
+    exec::IOxExecutionContext,
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
     group_by::{Aggregate, WindowDuration},
     plan::{fieldlist::FieldListPlan, seriesset::SeriesSetPlans, stringset::StringSetPlan},
     predicate::Predicate,
     QueryDatabase,
 };
-use snafu::{ResultExt, Snafu};
 
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("Error planning sql query {}", source))]
-    Sql {
-        query: String,
-        source: query::frontend::sql::Error,
-    },
-
-    #[snafu(display("Error planning InfluxRPC query {}", source))]
-    InfluxRpc {
-        source: query::frontend::influxrpc::Error,
-    },
-
-    #[snafu(display("Internal executor error while planning query: {}", source))]
-    InternalExecutionWhilePlanning { source: query::exec::Error },
-}
-
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub use datafusion::error::{DataFusionError as Error, Result};
 
 /// Query planner that plans queries on a separate threadpool.
 ///
@@ -39,14 +21,13 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// pool.
 pub struct Planner {
     /// Executors (whose threadpool to use)
-    exec: Arc<Executor>,
+    ctx: IOxExecutionContext,
 }
 
 impl Planner {
-    /// Create a new planner that will plan queries using the threadpool of
-    /// `exec`
-    pub fn new(exec: Arc<Executor>) -> Self {
-        Self { exec }
+    /// Create a new planner that will plan queries using the provided context
+    pub fn new(ctx: IOxExecutionContext) -> Self {
+        Self { ctx }
     }
 
     /// Plan a SQL query against the data in `database`, and return a
@@ -57,20 +38,12 @@ impl Planner {
         query: impl Into<String> + Send,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let planner = SqlQueryPlanner::new();
-        let q_executor = Arc::clone(&self.exec);
         let query = query.into();
+        let ctx = self.ctx.clone();
 
-        self.exec
-            .run(
-                async move {
-                    planner
-                        .query(database, &query, q_executor.as_ref())
-                        .context(Sql { query })
-                },
-                ExecutorType::Query,
-            )
+        self.ctx
+            .run(async move { planner.query(database, &query, &ctx) })
             .await
-            .context(InternalExecutionWhilePlanning)?
     }
 
     /// Creates a plan as described on
@@ -85,17 +58,13 @@ impl Planner {
     {
         let planner = InfluxRpcPlanner::new();
 
-        self.exec
-            .run(
-                async move {
-                    planner
-                        .table_names(database.as_ref(), predicate)
-                        .context(InfluxRpc)
-                },
-                ExecutorType::Query,
-            )
+        self.ctx
+            .run(async move {
+                planner
+                    .table_names(database.as_ref(), predicate)
+                    .map_err(|e| Error::Plan(format!("table_names error: {}", e)))
+            })
             .await
-            .context(InternalExecutionWhilePlanning)?
     }
 
     /// Creates a plan as described on
@@ -106,17 +75,13 @@ impl Planner {
     {
         let planner = InfluxRpcPlanner::new();
 
-        self.exec
-            .run(
-                async move {
-                    planner
-                        .tag_keys(database.as_ref(), predicate)
-                        .context(InfluxRpc)
-                },
-                ExecutorType::Query,
-            )
+        self.ctx
+            .run(async move {
+                planner
+                    .tag_keys(database.as_ref(), predicate)
+                    .map_err(|e| Error::Plan(format!("tag_keys error: {}", e)))
+            })
             .await
-            .context(InternalExecutionWhilePlanning)?
     }
 
     /// Creates a plan as described on
@@ -133,17 +98,13 @@ impl Planner {
         let tag_name = tag_name.into();
         let planner = InfluxRpcPlanner::new();
 
-        self.exec
-            .run(
-                async move {
-                    planner
-                        .tag_values(database.as_ref(), &tag_name, predicate)
-                        .context(InfluxRpc)
-                },
-                ExecutorType::Query,
-            )
+        self.ctx
+            .run(async move {
+                planner
+                    .tag_values(database.as_ref(), &tag_name, predicate)
+                    .map_err(|e| Error::Plan(format!("tag_values error: {}", e)))
+            })
             .await
-            .context(InternalExecutionWhilePlanning)?
     }
 
     /// Creates a plan as described on
@@ -158,17 +119,13 @@ impl Planner {
     {
         let planner = InfluxRpcPlanner::new();
 
-        self.exec
-            .run(
-                async move {
-                    planner
-                        .field_columns(database.as_ref(), predicate)
-                        .context(InfluxRpc)
-                },
-                ExecutorType::Query,
-            )
+        self.ctx
+            .run(async move {
+                planner
+                    .field_columns(database.as_ref(), predicate)
+                    .map_err(|e| Error::Plan(format!("field_columns error: {}", e)))
+            })
             .await
-            .context(InternalExecutionWhilePlanning)?
     }
 
     /// Creates a plan as described on
@@ -183,17 +140,13 @@ impl Planner {
     {
         let planner = InfluxRpcPlanner::new();
 
-        self.exec
-            .run(
-                async move {
-                    planner
-                        .read_filter(database.as_ref(), predicate)
-                        .context(InfluxRpc)
-                },
-                ExecutorType::Query,
-            )
+        self.ctx
+            .run(async move {
+                planner
+                    .read_filter(database.as_ref(), predicate)
+                    .map_err(|e| Error::Plan(format!("read_filter error: {}", e)))
+            })
             .await
-            .context(InternalExecutionWhilePlanning)?
     }
 
     /// Creates a plan as described on
@@ -210,17 +163,13 @@ impl Planner {
     {
         let planner = InfluxRpcPlanner::new();
 
-        self.exec
-            .run(
-                async move {
-                    planner
-                        .read_group(database.as_ref(), predicate, agg, &group_columns)
-                        .context(InfluxRpc)
-                },
-                ExecutorType::Query,
-            )
+        self.ctx
+            .run(async move {
+                planner
+                    .read_group(database.as_ref(), predicate, agg, &group_columns)
+                    .map_err(|e| Error::Plan(format!("read_group error: {}", e)))
+            })
             .await
-            .context(InternalExecutionWhilePlanning)?
     }
 
     /// Creates a plan as described on
@@ -238,16 +187,12 @@ impl Planner {
     {
         let planner = InfluxRpcPlanner::new();
 
-        self.exec
-            .run(
-                async move {
-                    planner
-                        .read_window_aggregate(database.as_ref(), predicate, agg, every, offset)
-                        .context(InfluxRpc)
-                },
-                ExecutorType::Query,
-            )
+        self.ctx
+            .run(async move {
+                planner
+                    .read_window_aggregate(database.as_ref(), predicate, agg, every, offset)
+                    .map_err(|e| Error::Plan(format!("read_window_aggregate error: {}", e)))
+            })
             .await
-            .context(InternalExecutionWhilePlanning)?
     }
 }

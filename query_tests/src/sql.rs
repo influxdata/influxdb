@@ -6,7 +6,7 @@
 use super::scenarios::*;
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
-use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner};
+use query::frontend::sql::SqlQueryPlanner;
 
 /// runs table_names(predicate) and compares it to the expected
 /// output
@@ -22,17 +22,13 @@ macro_rules! run_sql_test_case {
             println!("Running scenario '{}'", scenario_name);
             println!("SQL: '{:#?}'", sql);
             let planner = SqlQueryPlanner::default();
-            let executor = db.executor();
+            let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
             let physical_plan = planner
-                .query(db, &sql, executor.as_ref())
+                .query(db, &sql, &ctx)
                 .expect("built plan successfully");
 
-            let results: Vec<RecordBatch> = executor
-                .collect(physical_plan, ExecutorType::Query)
-                .await
-                .expect("Running plan");
-
+            let results: Vec<RecordBatch> = ctx.collect(physical_plan).await.expect("Running plan");
             assert_batches_sorted_eq!($EXPECTED_LINES, &results);
         }
     };

@@ -29,12 +29,12 @@ macro_rules! run_field_columns_test_case {
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
             let planner = InfluxRpcPlanner::new();
-            let executor = db.executor();
+            let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
             let plan = planner
                 .field_columns(db.as_ref(), predicate.clone())
                 .expect("built plan successfully");
-            let fields = executor
+            let fields = ctx
                 .to_field_list(plan)
                 .await
                 .expect("converted plan to strings successfully");
@@ -130,6 +130,7 @@ async fn test_field_name_plan() {
         println!("Running scenario '{}'", scenario_name);
         println!("Predicate: '{:#?}'", predicate);
         let planner = InfluxRpcPlanner::new();
+        let ctx = db.executor().new_context(ExecutorType::Query);
 
         let plan = planner
             .field_columns(db.as_ref(), predicate.clone())
@@ -141,11 +142,7 @@ async fn test_field_name_plan() {
 
         // run the created plan directly, ensuring the output is as
         // expected (specifically that the column ordering is correct)
-        let results = db
-            .executor()
-            .run_logical_plan(plan, ExecutorType::Query)
-            .await
-            .expect("ok running plan");
+        let results = ctx.run_logical_plan(plan).await.expect("ok running plan");
 
         let expected = vec![
             "+--------+--------+--------+--------+--------------------------------+",

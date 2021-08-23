@@ -794,11 +794,11 @@ mod tests {
                     Check::Query(query, expected) => {
                         let db = Arc::clone(db);
                         let planner = SqlQueryPlanner::default();
-                        let executor = db.executor();
+                        let ctx = db.executor().new_context(ExecutorType::Query);
 
-                        match planner.query(db, query, &executor) {
+                        match planner.query(db, query, &ctx) {
                             Ok(physical_plan) => {
-                                match executor.collect(physical_plan, ExecutorType::Query).await {
+                                match ctx.collect(physical_plan).await {
                                     Ok(batches) => {
                                         // we are throwing away the record batches after the assert, so we don't care about interior
                                         // mutability

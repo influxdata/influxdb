@@ -1487,14 +1487,9 @@ pub mod test_helpers {
     /// Run a sql query against the database, returning the results as record batches.
     pub async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
         let planner = SqlQueryPlanner::default();
-        let executor = db.executor();
-
-        let physical_plan = planner.query(db, query, &executor).unwrap();
-
-        executor
-            .collect(physical_plan, ExecutorType::Query)
-            .await
-            .unwrap()
+        let ctx = db.executor().new_context(ExecutorType::Query);
+        let physical_plan = planner.query(db, query, &ctx).unwrap();
+        ctx.collect(physical_plan).await.unwrap()
     }
 }
 
@@ -1531,6 +1526,7 @@ mod tests {
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
     use persistence_windows::min_max_sequence::MinMaxSequence;
+    use query::exec::ExecutorType;
     use query::{frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
     use std::{
         collections::BTreeMap,
@@ -1687,9 +1683,8 @@ mod tests {
             let loop_db = Arc::clone(&db);
 
             let planner = SqlQueryPlanner::default();
-            let executor = loop_db.executor();
-
-            let physical_plan = planner.query(loop_db, query, &executor);
+            let ctx = loop_db.executor().new_context(ExecutorType::Query);
+            let physical_plan = planner.query(loop_db, query, &ctx);
 
             if physical_plan.is_ok() {
                 break;

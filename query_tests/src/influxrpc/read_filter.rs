@@ -53,7 +53,8 @@ macro_rules! run_read_filter_test_case {
                 .read_filter(db.as_ref(), predicate.clone())
                 .expect("built plan successfully");
 
-            let string_results = run_series_set_plan(db.executor(), plan).await;
+            let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
+            let string_results = run_series_set_plan(&ctx, plan).await;
 
             assert_eq!(
                 expected_results, string_results,

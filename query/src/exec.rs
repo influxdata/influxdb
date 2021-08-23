@@ -11,93 +11,18 @@ pub mod stream;
 pub mod stringset;
 mod task;
 pub use context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
-use futures::{future, Future};
 
 use std::sync::Arc;
 
-use arrow::record_batch::RecordBatch;
 use datafusion::{
     self,
     logical_plan::{normalize_col, Expr, LogicalPlan},
-    physical_plan::ExecutionPlan,
 };
 
-use context::IOxExecutionContext;
+pub use context::IOxExecutionContext;
 use schema_pivot::SchemaPivotNode;
 
-use fieldlist::{FieldList, IntoFieldList};
-use seriesset::{Error as SeriesSetError, SeriesSetConverter, SeriesSetItem};
-use stringset::{IntoStringSet, StringSetRef};
-use tokio::sync::mpsc::error::SendError;
-
-use snafu::{ResultExt, Snafu};
-
-use crate::plan::{
-    fieldlist::FieldListPlan,
-    seriesset::{SeriesSetPlan, SeriesSetPlans},
-    stringset::StringSetPlan,
-};
-
-use self::{
-    context::IOxExecutionConfig,
-    split::StreamSplitNode,
-    task::{DedicatedExecutor, Error as ExecutorError},
-};
-
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("Plan Execution Error: {}", source))]
-    Execution {
-        source: Box<dyn std::error::Error + Send + Sync + 'static>,
-    },
-
-    #[snafu(display("Internal error optimizing plan: {}", source))]
-    DataFusionOptimization {
-        source: datafusion::error::DataFusionError,
-    },
-
-    #[snafu(display("Internal error during physical planning: {}", source))]
-    DataFusionPhysicalPlanning {
-        source: datafusion::error::DataFusionError,
-    },
-
-    #[snafu(display("Internal error executing plan: {}", source))]
-    DataFusionExecution {
-        source: datafusion::error::DataFusionError,
-    },
-
-    #[snafu(display("Internal error executing series set set plan: {}", source))]
-    SeriesSetExecution {
-        source: datafusion::error::DataFusionError,
-    },
-
-    #[snafu(display("Internal error executing field set plan: {}", source))]
-    FieldListExectuor {
-        source: datafusion::error::DataFusionError,
-    },
-
-    #[snafu(display("Internal error extracting results from Record Batches: {}", message))]
-    InternalResultsExtraction { message: String },
-
-    #[snafu(display("Internal error creating StringSet: {}", source))]
-    StringSetConversion { source: stringset::Error },
-
-    #[snafu(display("Error converting results to SeriesSet: {}", source))]
-    SeriesSetConversion { source: seriesset::Error },
-
-    #[snafu(display("Internal error creating FieldList: {}", source))]
-    FieldListConversion { source: fieldlist::Error },
-
-    #[snafu(display("Sending series set results during conversion: {:?}", source))]
-    SendingDuringConversion {
-        source: Box<SendError<Result<SeriesSetItem, SeriesSetError>>>,
-    },
-
-    #[snafu(display("Error joining execution task: {}", source))]
-    TaskJoinError { source: ExecutorError },
-}
-
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+use self::{context::IOxExecutionConfig, split::StreamSplitNode, task::DedicatedExecutor};
 
 /// Handles executing DataFusion plans, and marshalling the results into rust
 /// native structures.
@@ -151,157 +76,6 @@ impl Executor {
         &mut self.config
     }
 
-    /// Executes this plan on the query pool, and returns the
-    /// resulting set of strings
-    pub async fn to_string_set(&self, plan: StringSetPlan) -> Result<StringSetRef> {
-        match plan {
-            StringSetPlan::Known(ss) => Ok(ss),
-            StringSetPlan::Plan(plans) => self
-                .run_logical_plans(plans, ExecutorType::Query)
-                .await?
-                .into_stringset()
-                .context(StringSetConversion),
-        }
-    }
-
-    /// Executes the SeriesSetPlans on the query exectutor, in
-    /// parallel, combining the results into the returned collection
-    /// of items.
-    ///
-    /// The SeriesSets are guaranteed to come back ordered by table_name.
-    pub async fn to_series_set(
-        &self,
-        series_set_plans: SeriesSetPlans,
-    ) -> Result<Vec<SeriesSetItem>, Error> {
-        let SeriesSetPlans { mut plans } = series_set_plans;
-
-        if plans.is_empty() {
-            return Ok(vec![]);
-        }
-
-        // sort plans by table name
-        plans.sort_by(|a, b| a.table_name.cmp(&b.table_name));
-
-        // Run the plans in parallel
-        let handles = plans
-            .into_iter()
-            .map(|plan| {
-                let executor_type = ExecutorType::Query;
-                let ctx = self.new_context(executor_type);
-
-                self.run(
-                    async move {
-                        let SeriesSetPlan {
-                            table_name,
-                            plan,
-                            tag_columns,
-                            field_columns,
-                            num_prefix_tag_group_columns,
-                        } = plan;
-
-                        let tag_columns = Arc::new(tag_columns);
-
-                        let physical_plan = ctx
-                            .prepare_plan(&plan)
-                            .context(DataFusionPhysicalPlanning)?;
-
-                        let it = ctx
-                            .execute(physical_plan)
-                            .await
-                            .context(SeriesSetExecution)?;
-
-                        SeriesSetConverter::default()
-                            .convert(
-                                table_name,
-                                tag_columns,
-                                field_columns,
-                                num_prefix_tag_group_columns,
-                                it,
-                            )
-                            .await
-                            .context(SeriesSetConversion)
-                    },
-                    executor_type,
-                )
-            })
-            .collect::<Vec<_>>();
-
-        // join_all ensures that the results are consumed in the same order they
-        // were spawned maintaining the guarantee to return results ordered
-        // by the plan sort order.
-        let handles = future::try_join_all(handles).await?;
-        let mut results = vec![];
-        for handle in handles {
-            results.extend(handle?.into_iter());
-        }
-
-        Ok(results)
-    }
-
-    /// Executes `plan` and return the resulting FieldList on the query executor
-    pub async fn to_field_list(&self, plan: FieldListPlan) -> Result<FieldList> {
-        let FieldListPlan { plans } = plan;
-
-        // Run the plans in parallel
-        let handles = plans
-            .into_iter()
-            .map(|plan| {
-                let executor_type = ExecutorType::Query;
-                let ctx = self.new_context(executor_type);
-                self.run(
-                    async move {
-                        let physical_plan = ctx
-                            .prepare_plan(&plan)
-                            .context(DataFusionPhysicalPlanning)?;
-
-                        // TODO: avoid this buffering
-                        let fieldlist = ctx
-                            .collect(physical_plan)
-                            .await
-                            .context(FieldListExectuor)?
-                            .into_fieldlist()
-                            .context(FieldListConversion);
-
-                        Ok(fieldlist)
-                    },
-                    executor_type,
-                )
-            })
-            .collect::<Vec<_>>();
-
-        // collect them all up and combine them
-        let mut results = Vec::new();
-        for join_handle in handles {
-            let fieldlist = join_handle.await???;
-
-            results.push(fieldlist);
-        }
-
-        results.into_fieldlist().context(FieldListConversion)
-    }
-
-    /// Run the plan and return a record batch reader for reading the results
-    pub async fn run_logical_plan(
-        &self,
-        plan: LogicalPlan,
-        executor_type: ExecutorType,
-    ) -> Result<Vec<RecordBatch>> {
-        self.run_logical_plans(vec![plan], executor_type).await
-    }
-
-    /// Executes the logical plan using DataFusion on a separate
-    /// thread pool and produces RecordBatches
-    pub async fn collect(
-        &self,
-        physical_plan: Arc<dyn ExecutionPlan>,
-        executor_type: ExecutorType,
-    ) -> Result<Vec<RecordBatch>> {
-        self.new_context(executor_type)
-            .collect(physical_plan)
-            .await
-            .context(DataFusionExecution)
-    }
-
     /// Create a new execution context, suitable for executing a new query or system task
     pub fn new_context(&self, executor_type: ExecutorType) -> IOxExecutionContext {
         let executor = self.executor(executor_type).clone();
@@ -315,58 +89,6 @@ impl Executor {
             ExecutorType::Query => &self.query_exec,
             ExecutorType::Reorg => &self.reorg_exec,
         }
-    }
-
-    /// plans and runs the plans in parallel and collects the results
-    /// run each plan in parallel and collect the results
-    async fn run_logical_plans(
-        &self,
-        plans: Vec<LogicalPlan>,
-        executor_type: ExecutorType,
-    ) -> Result<Vec<RecordBatch>> {
-        let value_futures = plans
-            .into_iter()
-            .map(|plan| {
-                let ctx = self.new_context(executor_type);
-
-                self.run(
-                    async move {
-                        let physical_plan = ctx
-                            .prepare_plan(&plan)
-                            .context(DataFusionPhysicalPlanning)?;
-
-                        // TODO: avoid this buffering
-                        ctx.collect(physical_plan)
-                            .await
-                            .context(DataFusionExecution)
-                    },
-                    executor_type,
-                )
-            })
-            .collect::<Vec<_>>();
-
-        // now, wait for all the values to resolve and collect them together
-        let mut results = Vec::new();
-        for join_handle in value_futures {
-            let mut plan_result = join_handle.await??;
-            results.append(&mut plan_result);
-        }
-        Ok(results)
-    }
-
-    /// Runs the specified Future (and any tasks it spawns) on the
-    /// specified executor, returning the result of the computation.
-    pub async fn run<T>(&self, task: T, executor_type: ExecutorType) -> Result<T::Output>
-    where
-        T: Future + Send + 'static,
-        T::Output: Send + 'static,
-    {
-        // run on the dedicated executor
-        self.executor(executor_type)
-            .spawn(task)
-            // wait on the *current* tokio executor
-            .await
-            .context(TaskJoinError)
     }
 }
 
@@ -436,14 +158,17 @@ mod tests {
     use stringset::StringSet;
 
     use super::*;
+    use crate::exec::stringset::StringSetRef;
+    use crate::plan::stringset::StringSetPlan;
+    use arrow::record_batch::RecordBatch;
 
     #[tokio::test]
     async fn executor_known_string_set_plan_ok() {
         let expected_strings = to_set(&["Foo", "Bar"]);
         let plan = StringSetPlan::Known(Arc::clone(&expected_strings));
 
-        let executor = Executor::new(1);
-        let result_strings = executor.to_string_set(plan).await.unwrap();
+        let ctx = Executor::new(1).new_context(ExecutorType::Query);
+        let result_strings = ctx.to_string_set(plan).await.unwrap();
         assert_eq!(result_strings, expected_strings);
     }
 
@@ -454,8 +179,8 @@ mod tests {
         let scan = make_plan(schema, vec![]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new(1);
-        let results = executor.to_string_set(plan).await.unwrap();
+        let ctx = Executor::new(1).new_context(ExecutorType::Query);
+        let results = ctx.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, StringSetRef::new(StringSet::new()));
     }
@@ -469,8 +194,8 @@ mod tests {
         let scan = make_plan(batch.schema(), vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new(1);
-        let results = executor.to_string_set(plan).await.unwrap();
+        let ctx = Executor::new(1).new_context(ExecutorType::Query);
+        let results = ctx.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
     }
@@ -488,8 +213,8 @@ mod tests {
         let scan = make_plan(schema, vec![batch1, batch2]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new(1);
-        let results = executor.to_string_set(plan).await.unwrap();
+        let ctx = Executor::new(1).new_context(ExecutorType::Query);
+        let results = ctx.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
     }
@@ -511,8 +236,8 @@ mod tests {
 
         let plan: StringSetPlan = vec![scan1, scan2].into();
 
-        let executor = Executor::new(1);
-        let results = executor.to_string_set(plan).await.unwrap();
+        let ctx = Executor::new(1).new_context(ExecutorType::Query);
+        let results = ctx.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
     }
@@ -531,8 +256,8 @@ mod tests {
         let scan = make_plan(schema, vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new(1);
-        let results = executor.to_string_set(plan).await;
+        let ctx = Executor::new(1).new_context(ExecutorType::Query);
+        let results = ctx.to_string_set(plan).await;
 
         let actual_error = match results {
             Ok(_) => "Unexpected Ok".into(),
@@ -556,8 +281,8 @@ mod tests {
         let scan = make_plan(batch.schema(), vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new(1);
-        let results = executor.to_string_set(plan).await;
+        let ctx = Executor::new(1).new_context(ExecutorType::Query);
+        let results = ctx.to_string_set(plan).await;
 
         let actual_error = match results {
             Ok(_) => "Unexpected Ok".into(),
@@ -587,8 +312,8 @@ mod tests {
         let pivot = make_schema_pivot(scan);
         let plan = vec![pivot].into();
 
-        let executor = Executor::new(1);
-        let results = executor.to_string_set(plan).await.expect("Executed plan");
+        let ctx = Executor::new(1).new_context(ExecutorType::Query);
+        let results = ctx.to_string_set(plan).await.expect("Executed plan");
 
         assert_eq!(results, to_set(&["f1", "f2"]));
     }

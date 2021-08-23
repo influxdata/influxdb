@@ -7,6 +7,7 @@ use datafusion::logical_plan::{col, lit};
 use flate2::read::GzDecoder;
 use tokio::runtime::Runtime;
 
+use query::exec::ExecutorType;
 use query::frontend::influxrpc::InfluxRpcPlanner;
 use query::predicate::PredicateBuilder;
 use query::{exec::Executor, predicate::Predicate};
@@ -113,6 +114,7 @@ async fn build_and_execute_plan(
         .expect("built plan successfully");
 
     let results = executor
+        .new_context(ExecutorType::Query)
         .to_series_set(plan)
         .await
         .expect("Running series set plan");

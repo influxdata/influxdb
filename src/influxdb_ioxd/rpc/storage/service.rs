@@ -26,7 +26,7 @@ use generated_types::{
 use metrics::KeyValue;
 use observability_deps::tracing::{error, info};
 use query::{
-    exec::fieldlist::FieldList, exec::seriesset::Error as SeriesSetError,
+    exec::{fieldlist::FieldList, seriesset::Error as SeriesSetError, ExecutorType},
     predicate::PredicateBuilder,
 };
 use server::DatabaseStore;
@@ -865,15 +865,15 @@ where
     let db_name = db_name.as_ref();
 
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let executor = db_store.executor();
+    let ctx = db_store.executor().new_context(ExecutorType::Query);
 
-    let plan = Planner::new(Arc::clone(&executor))
+    let plan = Planner::new(ctx.clone())
         .table_names(db, predicate)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingTables { db_name })?;
 
-    let table_names = executor
+    let table_names = ctx
         .to_string_set(plan)
         .await
         .map_err(|e| Box::new(e) as _)
@@ -915,9 +915,9 @@ where
         db_name: db_name.as_str(),
     })?;
 
-    let executor = db_store.executor();
+    let ctx = db_store.executor().new_context(ExecutorType::Query);
 
-    let tag_key_plan = Planner::new(Arc::clone(&executor))
+    let tag_key_plan = Planner::new(ctx.clone())
         .tag_keys(db, predicate)
         .await
         .map_err(|e| Box::new(e) as _)
@@ -925,7 +925,7 @@ where
             db_name: db_name.as_str(),
         })?;
 
-    let tag_keys = executor
+    let tag_keys = ctx
         .to_string_set(tag_key_plan)
         .await
         .map_err(|e| Box::new(e) as _)
@@ -970,15 +970,15 @@ where
     let tag_name = &tag_name;
 
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let executor = db_store.executor();
+    let ctx = db_store.executor().new_context(ExecutorType::Query);
 
-    let tag_value_plan = Planner::new(Arc::clone(&executor))
+    let tag_value_plan = Planner::new(ctx.clone())
         .tag_values(db, tag_name, predicate)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingTagValues { db_name, tag_name })?;
 
-    let tag_values = executor
+    let tag_values = ctx
         .to_string_set(tag_value_plan)
         .await
         .map_err(|e| Box::new(e) as _)
@@ -1023,21 +1023,21 @@ where
 
     let db_name = owned_db_name.as_str();
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let executor = db_store.executor();
+    let ctx = db_store.executor().new_context(ExecutorType::Query);
 
     // PERF - This used to send responses to the client before execution had
     // completed, but now it doesn't. We may need to revisit this in the future
     // if big queries are causing a significant latency in TTFB.
 
     // Build the plans
-    let series_plan = Planner::new(Arc::clone(&executor))
+    let series_plan = Planner::new(ctx.clone())
         .read_filter(db, predicate)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(PlanningFilteringSeries { db_name })?;
 
     // Execute the plans.
-    let ss_items = executor
+    let ss_items = ctx
         .to_series_set(series_plan)
         .await
         .map_err(|e| Box::new(e) as _)
@@ -1080,9 +1080,9 @@ where
     let db_name = owned_db_name.as_str();
 
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let executor = db_store.executor();
+    let ctx = db_store.executor().new_context(ExecutorType::Query);
 
-    let planner = Planner::new(Arc::clone(&executor));
+    let planner = Planner::new(ctx.clone());
     let grouped_series_set_plan = match gby_agg {
         GroupByAndAggregate::Columns { agg, group_columns } => {
             planner.read_group(db, predicate, agg, group_columns).await
@@ -1102,7 +1102,7 @@ where
     // if big queries are causing a significant latency in TTFB.
 
     // Execute the plans
-    let ss_items = executor
+    let ss_items = ctx
         .to_series_set(grouped_series_set_plan)
         .await
         .map_err(|e| Box::new(e) as _)
@@ -1143,15 +1143,15 @@ where
 
     let db_name = db_name.as_str();
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let executor = db_store.executor();
+    let ctx = db_store.executor().new_context(ExecutorType::Query);
 
-    let field_list_plan = Planner::new(Arc::clone(&executor))
+    let field_list_plan = Planner::new(ctx.clone())
         .field_columns(db, predicate)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingFields { db_name })?;
 
-    let field_list = executor
+    let field_list = ctx
         .to_field_list(field_list_plan)
         .await
         .map_err(|e| Box::new(e) as _)

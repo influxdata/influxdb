@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use arrow_util::display::pretty_format_batches;
+use query::exec::IOxExecutionContext;
 use query::{
     exec::{
         field::FieldIndexes,
         seriesset::{SeriesSet, SeriesSetItem},
-        Executor,
     },
     plan::seriesset::SeriesSetPlans,
 };
@@ -54,8 +54,8 @@ pub fn dump_series_set(s: SeriesSet) -> Vec<String> {
 /// Panics if there is an error executing a plan, or if unexpected series set
 /// items are returned.
 #[cfg(test)]
-pub async fn run_series_set_plan(executor: Arc<Executor>, plans: SeriesSetPlans) -> Vec<String> {
-    let results = executor.to_series_set(plans).await;
+pub async fn run_series_set_plan(ctx: &IOxExecutionContext, plans: SeriesSetPlans) -> Vec<String> {
+    let results = ctx.to_series_set(plans).await;
 
     let mut results = results
         .unwrap()
