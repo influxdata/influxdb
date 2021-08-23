@@ -124,7 +124,7 @@ impl Database {
         application: Arc<ApplicationState>,
         rules: DatabaseRules,
         server_id: ServerId,
-    ) -> Result<usize, InitError> {
+    ) -> Result<(), InitError> {
         let db_name = rules.name.clone();
         let iox_object_store = Arc::new(
             IoxObjectStore::new(Arc::clone(application.object_store()), server_id, &db_name)
@@ -144,7 +144,7 @@ impl Database {
         .await
         .context(CannotCreatePreservedCatalog)?;
 
-        Ok(iox_object_store.generation_id())
+        Ok(())
     }
 
     /// Triggers shutdown of this `Database`
@@ -214,6 +214,7 @@ impl Database {
                 | DatabaseState::CatalogLoaded(_) => {} // Non-terminal state
                 DatabaseState::Initialized(_) => return Ok(()),
                 DatabaseState::ObjectStoreLookupError(_, e)
+                | DatabaseState::NoActiveDatabase(_, e)
                 | DatabaseState::RulesLoadError(_, e)
                 | DatabaseState::CatalogLoadError(_, e)
                 | DatabaseState::ReplayError(_, e) => return Err(Arc::clone(e)),
@@ -432,12 +433,22 @@ async fn initialize_database(shared: &DatabaseShared) {
                         }
                     }
                 }
+                // No active database found, was probably deleted
+                DatabaseState::NoActiveDatabase(_, _) => {
+                    info!(%db_name, "no active database found");
+                    None
+                }
                 // Operator intervention required
                 DatabaseState::ObjectStoreLookupError(_, e)
                 | DatabaseState::RulesLoadError(_, e)
                 | DatabaseState::CatalogLoadError(_, e)
                 | DatabaseState::ReplayError(_, e) => {
-                    error!(%db_name, %e, %state, "database in error state - operator intervention required");
+                    error!(
+                        %db_name,
+                        %e,
+                        %state,
+                        "database in error state - operator intervention required"
+                    );
                     None
                 }
             }
@@ -459,6 +470,9 @@ async fn initialize_database(shared: &DatabaseShared) {
         let next_state = match state {
             DatabaseState::Known(state) => match state.advance(shared).await {
                 Ok(state) => DatabaseState::ObjectStoreFound(state),
+                Err(InitError::NoActiveDatabase) => {
+                    DatabaseState::NoActiveDatabase(state, Arc::new(InitError::NoActiveDatabase))
+                }
                 Err(e) => DatabaseState::ObjectStoreLookupError(state, Arc::new(e)),
             },
             DatabaseState::ObjectStoreFound(state) => match state.advance(shared).await {
@@ -559,6 +573,7 @@ enum DatabaseState {
     Initialized(DatabaseStateInitialized),
 
     ObjectStoreLookupError(DatabaseStateKnown, Arc<InitError>),
+    NoActiveDatabase(DatabaseStateKnown, Arc<InitError>),
     RulesLoadError(DatabaseStateObjectStoreFound, Arc<InitError>),
     CatalogLoadError(DatabaseStateRulesLoaded, Arc<InitError>),
     ReplayError(DatabaseStateCatalogLoaded, Arc<InitError>),
@@ -579,6 +594,7 @@ impl DatabaseState {
             DatabaseState::CatalogLoaded(_) => DatabaseStateCode::CatalogLoaded,
             DatabaseState::Initialized(_) => DatabaseStateCode::Initialized,
             DatabaseState::ObjectStoreLookupError(_, _) => DatabaseStateCode::Known,
+            DatabaseState::NoActiveDatabase(_, _) => DatabaseStateCode::Known,
             DatabaseState::RulesLoadError(_, _) => DatabaseStateCode::ObjectStoreFound,
             DatabaseState::CatalogLoadError(_, _) => DatabaseStateCode::RulesLoaded,
             DatabaseState::ReplayError(_, _) => DatabaseStateCode::CatalogLoaded,
@@ -593,6 +609,7 @@ impl DatabaseState {
             | DatabaseState::CatalogLoaded(_)
             | DatabaseState::Initialized(_) => None,
             DatabaseState::ObjectStoreLookupError(_, e)
+            | DatabaseState::NoActiveDatabase(_, e)
             | DatabaseState::RulesLoadError(_, e)
             | DatabaseState::CatalogLoadError(_, e)
             | DatabaseState::ReplayError(_, e) => Some(e),
@@ -604,6 +621,7 @@ impl DatabaseState {
             DatabaseState::Known(_)
             | DatabaseState::ObjectStoreFound(_)
             | DatabaseState::ObjectStoreLookupError(_, _)
+            | DatabaseState::NoActiveDatabase(_, _)
             | DatabaseState::RulesLoadError(_, _) => None,
             DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
                 Some(Arc::clone(&state.rules))
@@ -619,6 +637,7 @@ impl DatabaseState {
         match self {
             DatabaseState::Known(_)
             | DatabaseState::ObjectStoreLookupError(_, _)
+            | DatabaseState::NoActiveDatabase(_, _)
             | DatabaseState::RulesLoadError(_, _) => None,
             DatabaseState::ObjectStoreFound(state) => Some(Arc::clone(&state.iox_object_store)),
             DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
@@ -912,7 +931,7 @@ mod tests {
                 "mock://my_mock".to_string(),
             )),
         };
-        let generation_id = Database::create(Arc::clone(&application), rules, server_id)
+        Database::create(Arc::clone(&application), rules, server_id)
             .await
             .unwrap();
         let db_config = DatabaseConfig {

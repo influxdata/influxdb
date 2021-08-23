@@ -465,7 +465,8 @@ struct ServerStateInitialized {
 impl ServerStateInitialized {
     /// Add a new database to the state
     ///
-    /// Returns an error if a database with the same name already exists
+    /// Returns an error if an active database (either initialized or errored, but not deleted)
+    /// with the same name already exists
     fn new_database(
         &mut self,
         shared: &ServerShared,
@@ -477,10 +478,24 @@ impl ServerStateInitialized {
                 Arc::clone(&shared.application),
                 config,
             ))),
-            hashbrown::hash_map::Entry::Occupied(_) => {
-                return Err(Error::DatabaseAlreadyExists {
-                    db_name: config.name.to_string(),
-                })
+            hashbrown::hash_map::Entry::Occupied(mut existing) => {
+                if let Some(init_error) = existing.get().init_error() {
+                    if matches!(&*init_error, database::InitError::NoActiveDatabase) {
+                        existing.insert(Arc::new(Database::new(
+                            Arc::clone(&shared.application),
+                            config,
+                        )));
+                        existing.into_mut()
+                    } else {
+                        return Err(Error::DatabaseAlreadyExists {
+                            db_name: config.name.to_string(),
+                        });
+                    }
+                } else {
+                    return Err(Error::DatabaseAlreadyExists {
+                        db_name: config.name.to_string(),
+                    });
+                }
             }
         };
 
@@ -676,18 +691,25 @@ where
             let state = self.shared.state.read();
             let initialized = state.initialized()?;
 
-            if initialized.databases.contains_key(&rules.name) {
-                return Err(Error::DatabaseAlreadyExists {
-                    db_name: db_name.to_string(),
-                });
+            if let Some(existing) = initialized.databases.get(&rules.name) {
+                if let Some(init_error) = existing.init_error() {
+                    if !matches!(&*init_error, database::InitError::NoActiveDatabase) {
+                        return Err(Error::DatabaseAlreadyExists {
+                            db_name: db_name.to_string(),
+                        });
+                    }
+                } else {
+                    return Err(Error::DatabaseAlreadyExists {
+                        db_name: db_name.to_string(),
+                    });
+                }
             }
             initialized.server_id
         };
 
-        let _generation_id =
-            Database::create(Arc::clone(&self.shared.application), rules, server_id)
-                .await
-                .context(CannotCreateDatabase)?;
+        Database::create(Arc::clone(&self.shared.application), rules, server_id)
+            .await
+            .context(CannotCreateDatabase)?;
 
         let database = {
             let mut state = self.shared.state.write();
@@ -1230,7 +1252,7 @@ mod tests {
     use influxdb_line_protocol::parse_lines;
     use iox_object_store::IoxObjectStore;
     use metrics::TestMetricRegistry;
-    use object_store::ObjectStore;
+    use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
     use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
     use query::{frontend::sql::SqlQueryPlanner, QueryDatabase};
     use std::{
@@ -1923,6 +1945,68 @@ mod tests {
         // creating failed DBs does not work
         let err = create_simple_database(&server, "bar").await.unwrap_err();
         assert!(matches!(err, Error::DatabaseAlreadyExists { .. }));
+    }
+
+    #[tokio::test]
+    async fn init_deleted_database() {
+        test_helpers::maybe_start_logging();
+        let application = make_application();
+        let server_id = ServerId::try_from(1).unwrap();
+
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        let foo_db_name = DatabaseName::new("foo").unwrap();
+
+        // create a directory in object storage that looks like it could
+        // be a database directory, but doesn't have any valid generation
+        // directories in it
+        let mut fake_db_path = application.object_store().new_path();
+        fake_db_path.push_all_dirs(&[server_id.to_string().as_str(), foo_db_name.as_str()]);
+        fake_db_path.set_file_name("not-a-generation");
+        application
+            .object_store()
+            .put(
+                &fake_db_path,
+                futures::stream::once(async move { Ok(Bytes::new()) }),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // start server
+        let server = make_server(application);
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        // generic error MUST NOT be set
+        assert!(server.server_init_error().is_none());
+
+        // server is initialized
+        assert!(server.initialized());
+
+        // DB names contains foo
+        assert_eq!(server.db_names_sorted().len(), 1);
+        assert!(server.db_names_sorted().contains(&String::from("foo")));
+
+        let foo_database = server.database(&foo_db_name).unwrap();
+        let err = foo_database.wait_for_init().await.unwrap_err();
+        assert!(
+            matches!(err.as_ref(), database::InitError::NoActiveDatabase),
+            "got {:?}",
+            err
+        );
+        assert!(Arc::ptr_eq(&err, &foo_database.init_error().unwrap()));
+
+        // creating a new DB with the deleted db's name works
+        create_simple_database(&server, &foo_db_name)
+            .await
+            .expect("failed to create database");
+
+        // DB names contains foo
+        assert_eq!(server.db_names_sorted().len(), 1);
+        assert!(server.db_names_sorted().contains(&String::from("foo")));
     }
 
     #[tokio::test]
