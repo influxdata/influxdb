@@ -331,7 +331,7 @@ LOOP:
 		// Normalize each statement if possible.
 		if normalizer, ok := e.StatementExecutor.(StatementNormalizer); ok {
 			if err := normalizer.NormalizeStatement(stmt, defaultDB, opt.RetentionPolicy); err != nil {
-				if err := ctx.send(&Result{Err: err}); err == ErrQueryAborted {
+				if err := ctx.send(&Result{Err: err, StatementID: i}); err == ErrQueryAborted {
 					return
 				}
 				break

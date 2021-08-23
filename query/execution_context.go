@@ -91,7 +91,6 @@ func (ctx *ExecutionContext) Value(key interface{}) interface{} {
 // send sends a Result to the Results channel and will exit if the query has
 // been aborted.
 func (ctx *ExecutionContext) send(result *Result) error {
-	result.StatementID = ctx.statementID
 	select {
 	case <-ctx.AbortCh:
 		return ErrQueryAborted
