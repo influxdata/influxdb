@@ -231,7 +231,7 @@ impl RLE {
                     panic!("out of order dictionary insertion");
                 }
                 v.shrink_to_fit();
-                self.index_entries.push(v.clone());
+                self.index_entries.push(v);
 
                 self.index_row_ids.insert(next_id, RowIDs::new_bitmap());
 
