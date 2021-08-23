@@ -62,8 +62,12 @@ impl RLE {
     pub fn with_dictionary(dictionary: BTreeSet<String>) -> Self {
         let mut _self = Self::default();
 
-        for entry in dictionary.into_iter() {
+        for mut entry in dictionary.into_iter() {
             let next_id = _self.next_encoded_id();
+
+            // Depending on how the string was created, the backing vector might have more capacity than the actual
+            // data. Shrink it (this is a no-op if the capacity already matches).
+            entry.shrink_to_fit();
 
             _self.index_entries.push(entry);
             _self.index_row_ids.insert(next_id, RowIDs::new_bitmap());
@@ -84,7 +88,14 @@ impl RLE {
                 false => self.index_entries.len(),
             };
         // the total size of all decoded values in the column.
-        index_entries_size += self.index_entries.iter().map(|k| k.len()).sum::<usize>();
+        index_entries_size += self
+            .index_entries
+            .iter()
+            .map(|k| {
+                debug_assert_eq!(k.len(), k.capacity());
+                k.len()
+            })
+            .sum::<usize>();
 
         // The total size (an upper bound estimate) of all the bitmaps
         // in the column - only set if including allocated capacity, otherwise
