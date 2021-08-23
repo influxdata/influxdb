@@ -71,7 +71,10 @@ impl Dictionary {
             .entries
             .iter()
             .map(|k| match k {
-                Some(v) => v.len(),
+                Some(v) =>  match buffers {
+                    true => v.capacity(),
+                    false => v.len(),
+                },
                 None => 0,
             } + size_of::<Option<String>>())
             .sum::<usize>();
