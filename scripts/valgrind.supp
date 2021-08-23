@@ -1,0 +1,31 @@
+{
+    dlopen
+    Memcheck:Leak
+    ...
+    fun:do_dlopen
+    ...
+}
+
+{
+    lazystatic
+    Memcheck:Leak
+    ...
+    fun:__static_ref_initialize
+    ...
+}
+
+{
+    oncecell
+    Memcheck:Leak
+    ...
+    fun:*once_cell*imp*initialize_inner*
+    ...
+}
+
+{
+    init_logs_and_tracing
+    Memcheck:Leak
+    ...
+    fun:*init_logs_and_tracing*
+    ...
+}

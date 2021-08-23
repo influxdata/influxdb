@@ -1,0 +1,14 @@
+#!/bin/bash
+set -eu -o pipefail
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+exec valgrind \
+    --leak-check=full \
+    --log-file=valgrind-out.txt \
+    --num-callers=50 \
+    --show-leak-kinds=all \
+    --suppressions="$SCRIPT_DIR/valgrind.supp" \
+    --track-origins=yes \
+    --verbose \
+    $@
