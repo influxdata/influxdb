@@ -158,7 +158,8 @@ impl RLE {
 
     /// Adds the provided string value to the encoded data. It is the caller's
     /// responsibility to ensure that the dictionary encoded remains sorted.
-    pub fn push(&mut self, v: String) {
+    pub fn push(&mut self, mut v: String) {
+        v.shrink_to_fit();
         self.push_additional(Some(v), 1);
     }
 
@@ -194,7 +195,7 @@ impl RLE {
         self.index_entries.iter().skip(1)
     }
 
-    fn push_additional_some(&mut self, v: String, additional: u32) {
+    fn push_additional_some(&mut self, mut v: String, additional: u32) {
         match self.lookup_entry(&v) {
             // existing dictionary entry for value.
             Some(id) => {
@@ -229,6 +230,7 @@ impl RLE {
                 {
                     panic!("out of order dictionary insertion");
                 }
+                v.shrink_to_fit();
                 self.index_entries.push(v.clone());
 
                 self.index_row_ids.insert(next_id, RowIDs::new_bitmap());
