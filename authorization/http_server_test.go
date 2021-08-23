@@ -22,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	itesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -389,6 +390,55 @@ func TestService_handleGetAuthorization(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetAuthorizationsWithNames(t *testing.T) {
+	t.Parallel()
+
+	testUserName := "user"
+	testUserID := itesting.MustIDBase16("6c7574652c206f6e")
+	testOrgName := "org"
+	testOrgID := itesting.MustIDBase16("9d70616e656d2076")
+
+	ts := &tenantService{
+		FindUserFn: func(ctx context.Context, f influxdb.UserFilter) (*influxdb.User, error) {
+			require.Equal(t, &testUserName, f.Name)
+
+			return &influxdb.User{
+				ID:   testUserID,
+				Name: testUserName,
+			}, nil
+		},
+
+		FindOrganizationF: func(ctx context.Context, f influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+			require.Equal(t, &testOrgName, f.Name)
+
+			return &influxdb.Organization{
+				ID:   testOrgID,
+				Name: testOrgName,
+			}, nil
+		},
+	}
+
+	as := &mock.AuthorizationService{
+		FindAuthorizationsFn: func(ctx context.Context, f influxdb.AuthorizationFilter, opts ...influxdb.FindOptions) ([]*influxdb.Authorization, int, error) {
+			require.Equal(t, &testOrgID, f.OrgID)
+			require.Equal(t, &testUserID, f.UserID)
+
+			return []*influxdb.Authorization{}, 0, nil
+		},
+	}
+
+	h := NewHTTPAuthHandler(zaptest.NewLogger(t), as, ts)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("get", "http://any.url", nil)
+	qp := r.URL.Query()
+	qp.Add("user", testUserName)
+	qp.Add("org", testOrgName)
+	r.URL.RawQuery = qp.Encode()
+
+	h.handleGetAuthorizations(w, r)
 }
 
 func TestService_handleGetAuthorizations(t *testing.T) {
