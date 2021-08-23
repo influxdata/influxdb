@@ -10,7 +10,6 @@ use std::num::NonZeroU32;
 
 /// Re-export generated_types
 pub mod generated_types {
-    pub use generated_types::google;
     pub use generated_types::influxdata::iox::management::v1::*;
 }
 

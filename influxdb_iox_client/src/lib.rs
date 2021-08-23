@@ -15,7 +15,7 @@
 )]
 #![allow(clippy::missing_docs_in_private_items)]
 
-pub use generated_types::{protobuf_type_url, protobuf_type_url_eq};
+pub use generated_types::{google, protobuf_type_url, protobuf_type_url_eq};
 
 pub use client::*;
 
