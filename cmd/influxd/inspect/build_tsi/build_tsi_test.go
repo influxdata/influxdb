@@ -302,7 +302,7 @@ func initCommand(t *testing.T, params cmdParams) *cobra.Command {
 		allArgs = append(allArgs, "--compact-series-file")
 	}
 	if params.verbose {
-		allArgs = append(allArgs, "--v")
+		allArgs = append(allArgs, "-v")
 	}
 	if params.concurrency != runtime.GOMAXPROCS(0) {
 		allArgs = append(allArgs, "--concurrency", strconv.Itoa(params.concurrency))
@@ -345,6 +345,14 @@ func runCommand(t *testing.T, params cmdParams, outs cmdOuts) {
 		isIndex, err := tsi1.IsIndexDir(filepath.Join(params.dataPath, "12345", "autogen", "1", "index"))
 		require.NoError(t, err)
 		require.True(t, isIndex)
+
+		// Check manifest files, at least one index file should be listed in each
+		for i := 0; i < 8; i++ {
+			currentPartition := strconv.Itoa(i)
+			manifest, _, err := tsi1.ReadManifestFile(filepath.Join(params.dataPath, "12345", "autogen", "1", "index", currentPartition, "MANIFEST"))
+			require.NoError(t, err)
+			require.NotNil(t, len(manifest.Files))
+		}
 	}
 
 	if outs.expectCompactSeries {
