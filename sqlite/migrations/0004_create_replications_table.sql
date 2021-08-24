@@ -15,9 +15,11 @@ CREATE TABLE replications
     current_queue_size_bytes INTEGER     NOT NULL,
     latest_response_code     INTEGER,
     latest_error_message     TEXT,
+    created_at               TIMESTAMP   NOT NULL,
+    updated_at               TIMESTAMP   NOT NULL,
 
     CONSTRAINT replications_uniq_orgid_name UNIQUE (org_id, name),
-    FOREIGN KEY (remote_id) REFERENCES remotes(id) ON DELETE CASCADE
+    FOREIGN KEY (remote_id) REFERENCES remotes (id) ON DELETE CASCADE
 );
 
 -- Create indexes on lookup patterns we expect to be common
