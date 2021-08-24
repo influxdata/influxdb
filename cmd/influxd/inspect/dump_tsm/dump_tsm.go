@@ -39,7 +39,7 @@ func NewDumpTSMCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&arguments.path, "file", "",
+	cmd.Flags().StringVar(&arguments.path, "file-path", "",
 		"Path to TSM file")
 	cmd.Flags().BoolVar(&arguments.dumpIndex, "index", false,
 		"Dump raw index data")

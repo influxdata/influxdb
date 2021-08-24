@@ -46,9 +46,9 @@ func NewVerifyTombstoneCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&arguments.dir, "dir", filepath.Join(os.Getenv("HOME"), ".influxdbv2"),
+	cmd.Flags().StringVar(&arguments.dir, "engine-path", filepath.Join(os.Getenv("HOME"), ".influxdbv2", "engine"),
 		"Path to find tombstone files.")
-	cmd.Flags().BoolVar(&arguments.v, "v", false,
+	cmd.Flags().BoolVarP(&arguments.v, "verbose", "v", false,
 		"Verbose: Emit periodic progress.")
 	cmd.Flags().BoolVar(&arguments.vv, "vv", false,
 		"Very verbose: Emit every tombstone entry key and time range.")

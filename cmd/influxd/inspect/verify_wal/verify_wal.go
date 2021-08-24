@@ -46,7 +46,7 @@ In the summary section, the following is printed:
 		panic(err)
 	}
 	dir = filepath.Join(dir, "engine/wal")
-	cmd.Flags().StringVar(&arguments.dir, "wal-dir", dir, "use provided WAL directory.")
+	cmd.Flags().StringVar(&arguments.dir, "wal-path", dir, "use provided WAL path.")
 	cmd.Flags().BoolVarP(&arguments.verbose, "verbose", "v", false, "enable verbose logging")
 	return cmd
 }

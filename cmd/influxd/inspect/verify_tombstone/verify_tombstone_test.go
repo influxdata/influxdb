@@ -29,7 +29,7 @@ func TestVerifies_InvalidFileType(t *testing.T) {
 	defer os.RemoveAll(path)
 
 	verify := NewVerifyTombstoneCommand()
-	verify.SetArgs([]string{"--dir", path})
+	verify.SetArgs([]string{"--engine-path", path})
 
 	b := bytes.NewBufferString("")
 	verify.SetOut(b)
@@ -46,7 +46,7 @@ func TestVerifies_InvalidEmptyFile(t *testing.T) {
 	defer os.RemoveAll(path)
 
 	verify := NewVerifyTombstoneCommand()
-	verify.SetArgs([]string{"--dir", path})
+	verify.SetArgs([]string{"--engine-path", path})
 
 	b := bytes.NewBufferString("")
 	verify.SetOut(b)
@@ -66,7 +66,7 @@ func TestVerifies_InvalidV2(t *testing.T) {
 	WriteBadData(t, file)
 
 	verify := NewVerifyTombstoneCommand()
-	verify.SetArgs([]string{"--dir", path})
+	verify.SetArgs([]string{"--engine-path", path})
 	verify.SetOut(bytes.NewBufferString(""))
 
 	require.Error(t, verify.Execute())
@@ -81,7 +81,7 @@ func TestVerifies_ValidTS(t *testing.T) {
 	require.NoError(t, ts.Flush())
 
 	verify := NewVerifyTombstoneCommand()
-	verify.SetArgs([]string{"--dir", path, "--vv"})
+	verify.SetArgs([]string{"--engine-path", path, "--vv"})
 	verify.SetOut(bytes.NewBufferString(""))
 
 	require.NoError(t, verify.Execute())
@@ -96,7 +96,7 @@ func TestVerifies_InvalidV3(t *testing.T) {
 	WriteBadData(t, file)
 
 	verify := NewVerifyTombstoneCommand()
-	verify.SetArgs([]string{"--dir", path})
+	verify.SetArgs([]string{"--engine-path", path})
 	verify.SetOut(bytes.NewBufferString(""))
 
 	require.Error(t, verify.Execute())
@@ -111,7 +111,7 @@ func TestVerifies_InvalidV4(t *testing.T) {
 	WriteBadData(t, file)
 
 	verify := NewVerifyTombstoneCommand()
-	verify.SetArgs([]string{"--dir", path})
+	verify.SetArgs([]string{"--engine-path", path})
 	verify.SetOut(bytes.NewBufferString(""))
 
 	require.Error(t, verify.Execute())
@@ -127,7 +127,7 @@ func TestTombstone_VeryVeryVerbose(t *testing.T) {
 	WriteBadData(t, file)
 
 	verify := NewVerifyTombstoneCommand()
-	verify.SetArgs([]string{"--dir", path, "--vvv"})
+	verify.SetArgs([]string{"--engine-path", path, "--vvv"})
 	verify.SetOut(bytes.NewBufferString(""))
 
 	require.Error(t, verify.Execute())

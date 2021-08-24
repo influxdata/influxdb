@@ -20,7 +20,7 @@ type args struct {
 func NewDeleteTSMCommand() *cobra.Command {
 	var arguments args
 	cmd := &cobra.Command{
-		Use:   "deletetsm",
+		Use:   "delete-tsm",
 		Short: "Deletes a measurement from a raw tsm file.",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -46,7 +46,7 @@ func NewDeleteTSMCommand() *cobra.Command {
 		"The name of the measurement to remove")
 	cmd.Flags().BoolVar(&arguments.sanitize, "sanitize", false,
 		"Remove all keys with non-printable unicode characters")
-	cmd.Flags().BoolVar(&arguments.verbose, "verbose", false,
+	cmd.Flags().BoolVarP(&arguments.verbose, "verbose", "v", false,
 		"Enable verbose logging")
 
 	return cmd

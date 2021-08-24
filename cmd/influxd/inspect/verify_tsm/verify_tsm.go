@@ -55,9 +55,9 @@ func NewTSMVerifyCommand() *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().StringVar(&dir, "dir", os.Getenv("HOME")+"/.influxdbv2", "Root storage path.")
+	cmd.Flags().StringVar(&dir, "engine-path", os.Getenv("HOME")+"/.influxdbv2"+"/engine", "Root storage path.")
 	cmd.Flags().BoolVar(&checkUTF8, "check-utf8", false, "Verify series keys are valid UTF-8. This check skips verification of block checksums.")
-	cmd.Flags().BoolVar(&verbose, "verbose", false, "Enable verbose logging")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging")
 	return cmd
 }
 

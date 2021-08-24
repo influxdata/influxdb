@@ -85,7 +85,7 @@ func TestVerifies_Valid(t *testing.T) {
 
 func runCommand(args testInfo) {
 	verify := NewVerifyWALCommand()
-	verify.SetArgs([]string{"--wal-dir", args.path, "--verbose"})
+	verify.SetArgs([]string{"--wal-path", args.path, "--verbose"})
 
 	b := bytes.NewBufferString("")
 	verify.SetOut(b)
