@@ -99,6 +99,20 @@ func newIndexSeriesCursorInfluxQLPred(ctx context.Context, predicate influxql.Ex
 		mitr = tsdb.NewMeasurementSliceIterator([][]byte{[]byte(name)})
 	}
 
+	var names []string
+	var multiMeasurement bool
+	if !singleMeasurement {
+		names, multiMeasurement = MeasurementOptimization(p.measurementCond)
+		if multiMeasurement {
+			byteNames := [][]byte{}
+			for _, n := range names {
+				byteNames = append(byteNames, []byte(n))
+			}
+			mitr = tsdb.NewMeasurementSliceIterator(byteNames)
+		}
+		// multiMeasurement = false
+	}
+
 	sg := tsdb.Shards(shards)
 	p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{Measurements: mitr}, opt.Condition)
 	if p.sqry != nil && err == nil {
@@ -117,6 +131,21 @@ func newIndexSeriesCursorInfluxQLPred(ctx context.Context, predicate influxql.Ex
 				fields = append(fields, field{n: key, nb: []byte(key)})
 			}
 			p.fields = map[string][]field{name: fields}
+			return p, nil
+		}
+
+		if multiMeasurement {
+			p.fields = make(map[string][]field)
+
+			for _, name := range names {
+				fkeys := sg.FieldKeysByMeasurement([]byte(name))
+				fields := make([]field, 0, len(fkeys))
+				for _, key := range fkeys {
+					fields = append(fields, field{n: key, nb: []byte(key)})
+				}
+				p.fields[name] = fields
+			}
+
 			return p, nil
 		}
 
