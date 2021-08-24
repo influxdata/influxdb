@@ -19,12 +19,12 @@ jobs:
             - influxdb-cache-v1-{{ checksum "go.mod" }}
             - influxdb-cache-v1
       - run:
-          name: Build tarball
+          name: Build source tarball
           command: |
             set -x
             mkdir -p ./tarball
             TARBALL_NAME="./tarball/influxdb-src-${CIRCLE_SHA1}.tar.gz"
-            tar --exclude-vcs --exclude './tarball' -vC . -czf "${TARBALL_NAME}" .
+            tar --exclude-vcs --exclude './tarball' -vczf "${TARBALL_NAME}" .
       - store_artifacts:
           path: tarball/
       - run:
