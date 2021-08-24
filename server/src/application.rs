@@ -76,4 +76,8 @@ impl ApplicationState {
     pub fn executor(&self) -> &Arc<Executor> {
         &self.executor
     }
+
+    pub fn join(&self) {
+        self.executor.join()
+    }
 }
