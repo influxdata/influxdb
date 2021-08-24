@@ -170,7 +170,7 @@ func (e *StatementExecutor) ExecuteStatement(ctx *query.ExecutionContext, stmt i
 		}
 		err = e.executeRevokeAdminStatement(stmt)
 	case *influxql.ShowContinuousQueriesStatement:
-		rows, err = e.executeShowContinuousQueriesStatement(stmt)
+		rows, err = e.executeShowContinuousQueriesStatement(ctx, stmt)
 	case *influxql.ShowDatabasesStatement:
 		rows, err = e.executeShowDatabasesStatement(ctx, stmt)
 	case *influxql.ShowDiagnosticsStatement:
@@ -645,16 +645,20 @@ func (e *StatementExecutor) createIterators(ctx context.Context, stmt *influxql.
 	return cur, nil
 }
 
-func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement) (models.Rows, error) {
+func (e *StatementExecutor) executeShowContinuousQueriesStatement(ctx *query.ExecutionContext, stmt *influxql.ShowContinuousQueriesStatement) (models.Rows, error) {
 	dis := e.MetaClient.Databases()
+	a := ctx.ExecutionOptions.CoarseAuthorizer
 
 	rows := []*models.Row{}
 	for _, di := range dis {
-		row := &models.Row{Columns: []string{"name", "query"}, Name: di.Name}
-		for _, cqi := range di.ContinuousQueries {
-			row.Values = append(row.Values, []interface{}{cqi.Name, cqi.Query})
+		// Only include databases that the user is authorized to read or write.
+		if a.AuthorizeDatabase(influxql.ReadPrivilege, di.Name) || a.AuthorizeDatabase(influxql.WritePrivilege, di.Name) {
+			row := &models.Row{Columns: []string{"name", "query"}, Name: di.Name}
+			for _, cqi := range di.ContinuousQueries {
+				row.Values = append(row.Values, []interface{}{cqi.Name, cqi.Query})
+			}
+			rows = append(rows, row)
 		}
-		rows = append(rows, row)
 	}
 	return rows, nil
 }
