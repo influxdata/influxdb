@@ -1776,6 +1776,7 @@ dependencies = [
  "tonic-reflection",
  "trace",
  "trace_exporters",
+ "trace_http",
  "tracker",
  "trogging",
  "uuid",
@@ -4743,18 +4744,9 @@ name = "trace"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "futures",
- "http",
- "http-body",
- "itertools 0.10.1",
  "observability_deps",
  "parking_lot",
- "pin-project 1.0.8",
  "rand 0.8.4",
- "serde",
- "serde_json",
- "snafu",
- "tower",
 ]
 
 [[package]]
@@ -4771,6 +4763,22 @@ dependencies = [
  "structopt",
  "tokio",
  "tokio-util",
+ "trace",
+]
+
+[[package]]
+name = "trace_http"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "http",
+ "http-body",
+ "itertools 0.10.1",
+ "observability_deps",
+ "parking_lot",
+ "pin-project 1.0.8",
+ "snafu",
+ "tower",
  "trace",
 ]
 

@@ -1,15 +1,21 @@
 [package]
-name = "trace"
+name = "trace_http"
 version = "0.1.0"
 authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
 edition = "2018"
-description = "Distributed tracing support within IOx"
+description = "Distributed tracing support for HTTP services"
 
 [dependencies]
 
-chrono = "0.4"
+trace = { path = "../trace" }
+futures = "0.3"
+http = "0.2"
+http-body = "0.4"
+itertools = "0.10"
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11"
-rand = "0.8"
+pin-project = "1.0"
+snafu = "0.6"
+tower = "0.4"
 
 [dev-dependencies]

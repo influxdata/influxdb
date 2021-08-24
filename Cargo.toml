@@ -43,6 +43,7 @@ members = [
     "test_helpers",
     "trace",
     "trace_exporters",
+    "trace_http",
     "tracker",
     "trogging",
     "grpc-router",
@@ -78,6 +79,7 @@ read_buffer = { path = "read_buffer" }
 server = { path = "server" }
 trace = { path = "trace" }
 trace_exporters = { path = "trace_exporters" }
+trace_http = { path = "trace_http" }
 tracker = { path = "tracker" }
 trogging = { path = "trogging", default-features = false, features = ["structopt"] }
 
@@ -125,7 +127,7 @@ tonic-reflection = "0.2.0"
 uuid = { version = "0.8", features = ["v4"] }
 
 # jemalloc-sys with unprefixed_malloc_on_supported_platforms feature and heappy are mutually exclusive
-tikv-jemalloc-sys = { version = "0.4.0", optional = true, features = ["unprefixed_malloc_on_supported_platforms"]}
+tikv-jemalloc-sys = { version = "0.4.0", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
 heappy = { git = "https://github.com/mkmik/heappy", rev = "20aa466524ac9ce34a4bae29f27ec11869b50e21", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
 
 
@@ -151,7 +153,7 @@ reqwest = "0.11"
 tempfile = "3.1.0"
 
 [features]
-default = [ "jemalloc_replacing_malloc" ]
+default = ["jemalloc_replacing_malloc"]
 
 azure = ["object_store/azure"] # Optional Azure Object store support
 gcp = ["object_store/gcp"] # Optional GCP object store support

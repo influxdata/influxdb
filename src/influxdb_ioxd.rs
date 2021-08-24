@@ -619,11 +619,6 @@ mod tests {
         let spans = trace_collector.spans();
         assert_eq!(spans.len(), 3);
 
-        let spans: Vec<trace::span::Span> = spans
-            .iter()
-            .map(|x| serde_json::from_str(x.as_str()).unwrap())
-            .collect();
-
         assert_eq!(spans[0].name, "IOx");
         assert_eq!(spans[0].ctx.parent_span_id.unwrap().0.get(), 0xab3409);
         assert_eq!(spans[0].ctx.trace_id.0.get(), 0xfea24902);

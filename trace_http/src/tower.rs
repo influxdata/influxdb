@@ -12,7 +12,7 @@
 //! - This Body contains the data payload (potentially streamed)
 //!
 
-use crate::{ctx::SpanContext, span::EnteredSpan, TraceCollector};
+use crate::ctx::parse_span_ctx;
 use futures::ready;
 use http::{Request, Response};
 use http_body::SizeHint;
@@ -23,6 +23,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
+use trace::{span::EnteredSpan, TraceCollector};
 
 /// `TraceLayer` implements `tower::Layer` and can be used to decorate a
 /// `tower::Service` to collect information about requests flowing through it
@@ -79,7 +80,7 @@ where
             }
         };
 
-        let span = match SpanContext::from_headers(collector, request.headers()) {
+        let span = match parse_span_ctx(collector, request.headers()) {
             Ok(Some(ctx)) => {
                 let span = ctx.child("IOx");
 

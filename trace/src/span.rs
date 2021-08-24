@@ -3,13 +3,10 @@ use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-
-use observability_deps::tracing::error;
 
 use crate::ctx::SpanContext;
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone)]
 pub enum SpanStatus {
     Unknown,
     Ok,
@@ -22,11 +19,10 @@ pub enum SpanStatus {
 /// have relationships with other Spans that together comprise a Trace
 ///
 ///
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Span {
     pub name: Cow<'static, str>,
 
-    //#[serde(flatten)] - https://github.com/serde-rs/json/issues/505
     pub ctx: SpanContext,
 
     pub start: Option<DateTime<Utc>>,
@@ -56,17 +52,6 @@ impl Span {
         self.status = SpanStatus::Err;
     }
 
-    /// Returns a JSON representation of this `Span`
-    pub fn json(&self) -> String {
-        match serde_json::to_string(self) {
-            Ok(serialized) => serialized,
-            Err(e) => {
-                error!(%e, "error serializing span to JSON");
-                format!("\"Invalid span: {}\"", e)
-            }
-        }
-    }
-
     /// Exports this `Span` to its registered collector if any
     pub fn export(mut self) {
         if let Some(collector) = self.ctx.collector.take() {
@@ -75,7 +60,7 @@ impl Span {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct SpanEvent {
     pub time: DateTime<Utc>,
 
@@ -83,8 +68,7 @@ pub struct SpanEvent {
 }
 
 /// Values that can be stored in a Span's metadata and events
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone)]
 pub enum MetaValue {
     String(Cow<'static, str>),
     Float(f64),
@@ -169,8 +153,6 @@ mod tests {
     use std::num::{NonZeroU128, NonZeroU64};
     use std::sync::Arc;
 
-    use chrono::TimeZone;
-
     use crate::ctx::{SpanId, TraceId};
     use crate::{RingBufferTraceCollector, TraceCollector};
 
@@ -197,43 +179,15 @@ mod tests {
     fn test_span() {
         let collector = Arc::new(RingBufferTraceCollector::new(5));
 
-        let mut span = make_span(Arc::<RingBufferTraceCollector>::clone(&collector));
+        let span = make_span(Arc::<RingBufferTraceCollector>::clone(&collector));
 
-        assert_eq!(
-            span.json(),
-            r#"{"name":"foo","ctx":{"trace_id":23948923,"parent_span_id":null,"span_id":3498394},"start":null,"end":null,"status":"Unknown","metadata":{},"events":[]}"#
-        );
-
-        span.events.push(SpanEvent {
-            time: Utc.timestamp_nanos(1000),
-            msg: "this is a test event".into(),
-        });
-
-        assert_eq!(
-            span.json(),
-            r#"{"name":"foo","ctx":{"trace_id":23948923,"parent_span_id":null,"span_id":3498394},"start":null,"end":null,"status":"Unknown","metadata":{},"events":[{"time":"1970-01-01T00:00:00.000001Z","msg":"this is a test event"}]}"#
-        );
-
-        span.metadata.insert("foo".into(), "bar".into());
-        span.start = Some(Utc.timestamp_nanos(100));
-
-        assert_eq!(
-            span.json(),
-            r#"{"name":"foo","ctx":{"trace_id":23948923,"parent_span_id":null,"span_id":3498394},"start":"1970-01-01T00:00:00.000000100Z","end":null,"status":"Unknown","metadata":{"foo":"bar"},"events":[{"time":"1970-01-01T00:00:00.000001Z","msg":"this is a test event"}]}"#
-        );
-
-        span.status = SpanStatus::Ok;
-        span.ctx.parent_span_id = Some(SpanId(NonZeroU64::new(23493).unwrap()));
-
-        let expected = r#"{"name":"foo","ctx":{"trace_id":23948923,"parent_span_id":23493,"span_id":3498394},"start":"1970-01-01T00:00:00.000000100Z","end":null,"status":"Ok","metadata":{"foo":"bar"},"events":[{"time":"1970-01-01T00:00:00.000001Z","msg":"this is a test event"}]}"#;
-        assert_eq!(span.json(), expected);
+        assert_eq!(collector.spans().len(), 0);
 
         span.export();
 
         // Should publish span
         let spans = collector.spans();
         assert_eq!(spans.len(), 1);
-        assert_eq!(spans[0], expected)
     }
 
     #[test]
@@ -252,7 +206,7 @@ mod tests {
         let spans = collector.spans();
         assert_eq!(spans.len(), 1);
 
-        let span: Span = serde_json::from_str(spans[0].as_str()).unwrap();
+        let span = &spans[0];
 
         assert!(span.start.is_some());
         assert!(span.end.is_some());

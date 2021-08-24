@@ -17,7 +17,6 @@ use crate::span::Span;
 
 pub mod ctx;
 pub mod span;
-pub mod tower;
 
 /// A TraceCollector is a sink for completed `Span`
 pub trait TraceCollector: std::fmt::Debug + Send + Sync {
@@ -42,14 +41,14 @@ impl Default for LogTraceCollector {
 
 impl TraceCollector for LogTraceCollector {
     fn export(&self, span: Span) {
-        info!("completed span {}", span.json())
+        info!("completed span {:?}", span)
     }
 }
 
 /// A trace collector that maintains a ring buffer of spans
 #[derive(Debug)]
 pub struct RingBufferTraceCollector {
-    buffer: Mutex<VecDeque<String>>,
+    buffer: Mutex<VecDeque<Span>>,
 }
 
 impl RingBufferTraceCollector {
@@ -59,18 +58,17 @@ impl RingBufferTraceCollector {
         }
     }
 
-    pub fn spans(&self) -> Vec<String> {
+    pub fn spans(&self) -> Vec<Span> {
         self.buffer.lock().iter().cloned().collect()
     }
 }
 
 impl TraceCollector for RingBufferTraceCollector {
     fn export(&self, span: Span) {
-        let serialized = span.json();
         let mut buffer = self.buffer.lock();
         if buffer.len() == buffer.capacity() {
             buffer.pop_front();
         }
-        buffer.push_back(serialized);
+        buffer.push_back(span);
     }
 }

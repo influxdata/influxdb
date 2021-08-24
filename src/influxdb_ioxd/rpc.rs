@@ -104,7 +104,7 @@ where
         .context(ReflectionError)?;
 
     let builder = tonic::transport::Server::builder();
-    let mut builder = builder.layer(trace::tower::TraceLayer::new(trace_collector));
+    let mut builder = builder.layer(trace_http::tower::TraceLayer::new(trace_collector));
 
     // important that this one is NOT gated so that it can answer health requests
     add_service!(builder, health_reporter, health_service);
