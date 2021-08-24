@@ -13,7 +13,7 @@ RUN \
   --mount=type=cache,id=influxdb_iox_git,sharing=locked,target=/usr/local/cargo/git \
   --mount=type=cache,id=influxdb_iox_target,sharing=locked,target=/influxdb_iox/target \
   du -cshx /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target && \
-  cargo build --target-dir /influxdb_iox/target --release --features azure,gcp,aws,jaeger,otlp,pprof && \
+  cargo build --target-dir /influxdb_iox/target --release --features azure,gcp,aws,jaeger,pprof && \
   cp /influxdb_iox/target/release/influxdb_iox /root/influxdb_iox && \
   du -cshx /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target
 

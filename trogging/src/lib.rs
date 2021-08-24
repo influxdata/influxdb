@@ -13,20 +13,13 @@
 #[cfg(feature = "structopt")]
 pub mod cli;
 pub mod config;
-pub mod layered_tracing;
 
-use crate::layered_tracing::{CloneableEnvFilter, FilteredLayer, UnionFilter};
 pub use config::*;
 
 // Re-export tracing_subscriber
 pub use tracing_subscriber;
 
 use observability_deps::tracing::{self, Subscriber};
-use opentelemetry::{
-    self,
-    sdk::{trace, Resource},
-    KeyValue,
-};
 use std::cmp::min;
 use std::io;
 use std::io::Write;
@@ -49,18 +42,6 @@ const MAX_LINE_LENGTH: usize = 16 * 1024 - 1;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Jaeger exporter selected but jaeger config passed to builder")]
-    JaegerConfigMissing,
-
-    #[error("'jaeger' not supported with this build. Hint: recompile with appropriate features")]
-    JaegerNotBuilt {},
-
-    #[error("OTLP exporter selected but OTLP config passed to builder")]
-    OtlpConfigMissing,
-
-    #[error("'otlp' not supported with this build. Hint: recompile with appropriate features")]
-    OtlpNotBuilt {},
-
     #[error("Cannot set global tracing subscriber")]
     SetGlobalDefaultError(#[from] tracing::dispatcher::SetGlobalDefaultError),
 
@@ -77,15 +58,9 @@ pub struct Builder<W = fn() -> io::Stdout> {
     log_filter: Option<EnvFilter>,
     // used when log_filter is none.
     default_log_filter: EnvFilter,
-    traces_filter: Option<EnvFilter>,
-    traces_exporter: TracesExporter,
-    traces_sampler: TracesSampler,
-    traces_sampler_arg: f64,
     make_writer: W,
     with_target: bool,
     with_ansi: bool,
-    jaeger_config: Option<JaegerConfig>,
-    otlp_config: Option<OtlpConfig>,
 }
 
 impl Default for Builder {
@@ -94,15 +69,9 @@ impl Default for Builder {
             log_format: LogFormat::Full,
             log_filter: None,
             default_log_filter: EnvFilter::try_new(Self::DEFAULT_LOG_FILTER).unwrap(),
-            traces_filter: None,
-            traces_exporter: TracesExporter::None,
-            traces_sampler: TracesSampler::ParentBasedTraceIdRatio,
-            traces_sampler_arg: 1.0,
             make_writer: io::stdout,
             with_target: true,
             with_ansi: true,
-            jaeger_config: None,
-            otlp_config: None,
         }
     }
 }
@@ -125,14 +94,8 @@ impl<W> Builder<W> {
             log_format: self.log_format,
             log_filter: self.log_filter,
             default_log_filter: self.default_log_filter,
-            traces_filter: self.traces_filter,
-            traces_exporter: self.traces_exporter,
-            traces_sampler: self.traces_sampler,
-            traces_sampler_arg: self.traces_sampler_arg,
             with_target: self.with_target,
             with_ansi: self.with_ansi,
-            jaeger_config: self.jaeger_config,
-            otlp_config: self.otlp_config,
         }
     }
 }
@@ -204,14 +167,8 @@ where
             log_format: self.log_format,
             log_filter: self.log_filter,
             default_log_filter: self.default_log_filter,
-            traces_filter: self.traces_filter,
-            traces_exporter: self.traces_exporter,
-            traces_sampler: self.traces_sampler,
-            traces_sampler_arg: self.traces_sampler_arg,
             with_target: self.with_target,
             with_ansi: self.with_ansi,
-            jaeger_config: self.jaeger_config,
-            otlp_config: self.otlp_config,
         }
     }
 
@@ -232,149 +189,7 @@ where
         Self { with_ansi, ..self }
     }
 
-    /// Sets an optional event filter for the tracing pipeline.
-    ///
-    /// The filter will be parsed with [tracing_subscriber::EnvFilter]
-    /// and applied to all events before they reach the tracing exporter.
-    pub fn with_traces_filter(self, traces_filter: &Option<String>) -> Self {
-        if let Some(traces_filter) = traces_filter {
-            let traces_filter = EnvFilter::try_new(traces_filter).unwrap();
-            Self {
-                traces_filter: Some(traces_filter),
-                ..self
-            }
-        } else {
-            self
-        }
-    }
-
-    pub fn with_traces_exporter(self, traces_exporter: TracesExporter) -> Self {
-        Self {
-            traces_exporter,
-            ..self
-        }
-    }
-
-    pub fn with_traces_sampler(
-        self,
-        traces_sampler: TracesSampler,
-        traces_sampler_arg: f64,
-    ) -> Self {
-        Self {
-            traces_sampler,
-            traces_sampler_arg,
-            ..self
-        }
-    }
-
-    pub fn with_jaeger_config(self, config: JaegerConfig) -> Self {
-        Self {
-            jaeger_config: Some(config),
-            ..self
-        }
-    }
-
-    pub fn with_oltp_config(self, config: OtlpConfig) -> Self {
-        Self {
-            otlp_config: Some(config),
-            ..self
-        }
-    }
-
-    fn construct_opentelemetry_tracer(&self) -> Result<Option<trace::Tracer>> {
-        let trace_config = {
-            let sampler = match self.traces_sampler {
-                TracesSampler::AlwaysOn => trace::Sampler::AlwaysOn,
-                TracesSampler::AlwaysOff => {
-                    return Ok(None);
-                }
-                TracesSampler::TraceIdRatio => {
-                    trace::Sampler::TraceIdRatioBased(self.traces_sampler_arg)
-                }
-                TracesSampler::ParentBasedAlwaysOn => {
-                    trace::Sampler::ParentBased(Box::new(trace::Sampler::AlwaysOn))
-                }
-                TracesSampler::ParentBasedAlwaysOff => {
-                    trace::Sampler::ParentBased(Box::new(trace::Sampler::AlwaysOff))
-                }
-                TracesSampler::ParentBasedTraceIdRatio => trace::Sampler::ParentBased(Box::new(
-                    trace::Sampler::TraceIdRatioBased(self.traces_sampler_arg),
-                )),
-            };
-            let resource = Resource::new(vec![KeyValue::new("service.name", "influxdb-iox")]);
-            trace::Config::default()
-                .with_sampler(sampler)
-                .with_resource(resource)
-        };
-
-        Ok(match self.traces_exporter {
-            TracesExporter::Jaeger => Some(self.construct_jaeger_tracer(trace_config)?),
-            TracesExporter::Otlp => Some(self.construct_otlp_tracer(trace_config)?),
-            TracesExporter::None => None,
-        })
-    }
-
-    #[cfg(feature = "jaeger")]
-    fn construct_jaeger_tracer(&self, trace_config: trace::Config) -> Result<trace::Tracer> {
-        let config = self
-            .jaeger_config
-            .as_ref()
-            .ok_or(Error::JaegerConfigMissing)?;
-        let agent_endpoint = format!("{}:{}", config.agent_host.trim(), config.agent_port);
-        opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
-        let builder = opentelemetry_jaeger::new_pipeline()
-            .with_trace_config(trace_config)
-            .with_agent_endpoint(agent_endpoint)
-            .with_service_name(&config.service_name)
-            .with_max_packet_size(config.max_packet_size);
-
-        // Batching is hard to tune because the max batch size
-        // is not currently exposed as a tunable from the trace config, and even then
-        // it's defined in terms of max number of spans, and not their size in bytes.
-        // Thus we enable batching only when the MTU size is 65000 which is the value suggested
-        // by jaeger when exporting to localhost.
-        let tracer = if config.max_packet_size >= 65_000 {
-            builder.install_batch(opentelemetry::runtime::Tokio)
-        } else {
-            builder.install_simple()
-        }
-        .unwrap();
-        Ok(tracer)
-    }
-
-    #[cfg(not(feature = "jaeger"))]
-    fn construct_jaeger_tracer(&self, _trace_config: trace::Config) -> Result<trace::Tracer> {
-        Err(Error::JaegerNotBuilt {})
-    }
-
-    #[cfg(feature = "otlp")]
-    fn construct_otlp_tracer(&self, trace_config: trace::Config) -> Result<trace::Tracer> {
-        let config = self.otlp_config.as_ref().ok_or(Error::OtlpConfigMissing)?;
-        let jaeger_endpoint = format!("{}:{}", config.host.trim(), config.port);
-        Ok(opentelemetry_otlp::new_pipeline()
-            .with_trace_config(trace_config)
-            .with_endpoint(jaeger_endpoint)
-            .with_protocol(opentelemetry_otlp::Protocol::Grpc)
-            .with_tonic()
-            .install_batch(opentelemetry::runtime::Tokio)
-            .unwrap())
-    }
-
-    #[cfg(not(feature = "otlp"))]
-    fn construct_otlp_tracer(&self, _trace_config: trace::Config) -> Result<trace::Tracer> {
-        Err(Error::OtlpNotBuilt {})
-    }
-
     pub fn build(self) -> Result<impl Subscriber> {
-        let (traces_layer_filter, traces_layer_otel) =
-            match self.construct_opentelemetry_tracer()? {
-                None => (None, None),
-                Some(tracer) => (
-                    self.traces_filter,
-                    Some(tracing_opentelemetry::OpenTelemetryLayer::new(tracer)),
-                ),
-            };
-
         let log_writer = self.make_writer;
         let log_format = self.log_format;
         let with_target = self.with_target;
@@ -427,53 +242,37 @@ where
 
         let log_filter = self.log_filter.unwrap_or(self.default_log_filter);
 
-        // construct the union filter which allows us to skip evaluating the expensive field values unless
-        // at least one of the filters is interested in the events.
-        // e.g. consider: `debug!(foo=bar(), "baz");`
-        // `bar()` will only be called if either the log_filter or the traces_layer_filter is at debug level for that module.
-        let log_filter = CloneableEnvFilter::new(log_filter);
-        let traces_layer_filter = traces_layer_filter.map(CloneableEnvFilter::new);
-        let union_filter = UnionFilter::new(vec![
-            Some(Box::new(log_filter.clone())),
-            traces_layer_filter.clone().map(|l| Box::new(l) as _),
-        ]);
-
-        let subscriber = tracing_subscriber::Registry::default()
-            .with(union_filter)
-            .with(FilteredLayer::new(
-                log_filter
-                    .and_then(log_format_full)
-                    .and_then(log_format_pretty)
-                    .and_then(log_format_json)
-                    .and_then(log_format_logfmt),
-            ))
-            .with(
-                traces_layer_filter
-                    .map(|filter| FilteredLayer::new(filter.and_then(traces_layer_otel))),
-            );
+        let subscriber = tracing_subscriber::Registry::default().with(
+            log_filter
+                .and_then(log_format_full)
+                .and_then(log_format_pretty)
+                .and_then(log_format_json)
+                .and_then(log_format_logfmt),
+        );
 
         Ok(subscriber)
     }
 
     /// Build a tracing subscriber and install it as a global default subscriber for all threads.
     ///
-    /// It returns a RAII guard that will ensure all events are flushed to the tracing exporter.
-    pub fn install_global(self) -> Result<TracingGuard> {
+    /// It returns a RAII guard that will ensure all events are flushed on drop
+    pub fn install_global(self) -> Result<TroggingGuard> {
         let subscriber = self.build()?;
         tracing::subscriber::set_global_default(subscriber)?;
         tracing_log::LogTracer::init()?;
-        Ok(TracingGuard)
+        Ok(TroggingGuard)
     }
 }
 
-/// A RAII guard. On Drop, tracing and OpenTelemetry are flushed and shut down.
+/// A RAII guard. On Drop, ensures all events are flushed
+///
+/// Note: This is currently unnecessary but has been kept in case we choose to
+/// switch to using tracing-appender which writes logs in a background worker
 #[derive(Debug)]
-pub struct TracingGuard;
+pub struct TroggingGuard;
 
-impl Drop for TracingGuard {
-    fn drop(&mut self) {
-        opentelemetry::global::shutdown_tracer_provider();
-    }
+impl Drop for TroggingGuard {
+    fn drop(&mut self) {}
 }
 
 fn make_writer<M>(m: M) -> BoxMakeWriter

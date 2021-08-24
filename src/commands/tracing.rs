@@ -3,10 +3,10 @@
 use std::cmp::max;
 use trogging::cli::LoggingConfigBuilderExt;
 pub use trogging::config::*;
-pub use trogging::TracingGuard;
+pub use trogging::TroggingGuard;
 
 /// Start simple logger. Panics on error.
-pub fn init_simple_logs(log_verbose_count: u8) -> Result<TracingGuard, trogging::Error> {
+pub fn init_simple_logs(log_verbose_count: u8) -> Result<TroggingGuard, trogging::Error> {
     trogging::Builder::new()
         .with_log_verbose_count(log_verbose_count)
         .install_global()
@@ -16,7 +16,7 @@ pub fn init_simple_logs(log_verbose_count: u8) -> Result<TracingGuard, trogging:
 pub fn init_logs_and_tracing(
     log_verbose_count: u8,
     config: &crate::commands::run::Config,
-) -> Result<TracingGuard, trogging::Error> {
+) -> Result<TroggingGuard, trogging::Error> {
     let mut logging_config = config.logging_config.clone();
 
     // Handle the case if -v/-vv is specified both before and after the server

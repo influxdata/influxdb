@@ -16,7 +16,7 @@ use tokio::runtime::Runtime;
 use commands::tracing::{init_logs_and_tracing, init_simple_logs};
 use observability_deps::tracing::warn;
 
-use crate::commands::tracing::TracingGuard;
+use crate::commands::tracing::TroggingGuard;
 use influxdb_iox_client::connection::Builder;
 use std::str::FromStr;
 
@@ -164,7 +164,7 @@ fn main() -> Result<(), std::io::Error> {
             }
         };
 
-        fn handle_init_logs(r: Result<TracingGuard, trogging::Error>) -> TracingGuard {
+        fn handle_init_logs(r: Result<TroggingGuard, trogging::Error>) -> TroggingGuard {
             match r {
                 Ok(guard) => guard,
                 Err(e) => {

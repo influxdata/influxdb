@@ -156,8 +156,7 @@ default = [ "jemalloc_replacing_malloc" ]
 azure = ["object_store/azure"] # Optional Azure Object store support
 gcp = ["object_store/gcp"] # Optional GCP object store support
 aws = ["object_store/aws"] # Optional AWS / S3 object store support
-jaeger = ["trogging/jaeger", "trace_exporters/jaeger"] # Enable optional jaeger tracing support
-otlp = ["trogging/otlp"] # Enable optional open telemetry collector
+jaeger = ["trace_exporters/jaeger"] # Enable optional jaeger tracing support
 # pprof is an optional feature for pprof support
 
 # heappy is an optional feature; Not on by default as it
