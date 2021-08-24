@@ -517,33 +517,31 @@ func TestQueryExecutor_NotExecuted(t *testing.T) {
 			}
 		},
 	}
-	testFn := func(testName string, i int, failIndex *int) {
-		*failIndex = i
-		executorCallCount = 0
+	testFn := func(testName string, i int) {
 		results := e.ExecuteQuery(q, query.ExecutionOptions{}, closing)
-
-		checkNotExecutedResults(t, results, testName, *failIndex, len(q.Statements))
+		checkNotExecutedResults(t, results, testName, i, len(q.Statements))
 	}
 	for i := 0; i < len(q.Statements); i++ {
 		closing = make(chan struct{})
-		testFn("executor", i, &executorFailIndex)
+		executorFailIndex = i
+		executorCallCount = 0
+		testFn("executor", i)
 	}
 }
 
 func checkNotExecutedResults(t *testing.T, results <-chan *query.Result, testName string, failIndex int, lenQuery int) {
-	r := 0
-	cnt := 0
+	notExecutedIndex := failIndex + 1
 	for result := range results {
 		if result.Err == query.ErrNotExecuted {
-			cnt++
-			if result.StatementID <= failIndex {
-				t.Fatalf("StatementID for ErrNotExecuted is wrong index: %d", result.StatementID)
+			if result.StatementID != notExecutedIndex {
+				t.Fatalf("StatementID for ErrNotExecuted in wrong order - expected: %d, got: %d", notExecutedIndex, result.StatementID)
+			} else {
+				notExecutedIndex++
 			}
 		}
-		r++
 	}
-	if cnt != (lenQuery - (1 + failIndex)) {
-		t.Fatalf("wrong number of results from %s with fail index of %d - got: %d, expected: %d", testName, failIndex, cnt, lenQuery-(1+failIndex))
+	if notExecutedIndex != lenQuery {
+		t.Fatalf("wrong number of results from %s with fail index of %d - got: %d, expected: %d", testName, failIndex, notExecutedIndex - (1 + failIndex), lenQuery-(1+failIndex))
 	}
 }
 
