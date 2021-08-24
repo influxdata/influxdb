@@ -178,7 +178,7 @@ type testInfo struct {
 
 func runCommand(t *testing.T, info testInfo) {
 	cmd := NewReportTSMCommand()
-	cmd.SetArgs([]string{"--data-dir", info.dir})
+	cmd.SetArgs([]string{"--data-path", info.dir})
 
 	b := bytes.NewBufferString("")
 	cmd.SetOut(b)

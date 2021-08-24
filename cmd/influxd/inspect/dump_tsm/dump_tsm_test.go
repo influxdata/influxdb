@@ -169,11 +169,11 @@ func runCommand(t *testing.T, params cmdParams) {
 
 func makeArgs(path string, meas string) (args map[string][]string) {
 	args = make(map[string][]string)
-	args[argsKeys[0]] = []string{"--file", path, "--index"}
-	args[argsKeys[1]] = []string{"--file", path, "--blocks"}
-	args[argsKeys[2]] = []string{"--file", path, "--all"}
+	args[argsKeys[0]] = []string{"--file-path", path, "--index"}
+	args[argsKeys[1]] = []string{"--file-path", path, "--blocks"}
+	args[argsKeys[2]] = []string{"--file-path", path, "--all"}
 	if meas != "" {
-		args[argsKeys[3]] = []string{"--file", path, "--filter-key", meas, "--all"}
+		args[argsKeys[3]] = []string{"--file-path", path, "--filter-key", meas, "--all"}
 	}
 	return
 }

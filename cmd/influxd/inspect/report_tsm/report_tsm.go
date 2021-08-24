@@ -75,7 +75,7 @@ in the following ways:
 		panic(err)
 	}
 	dir = filepath.Join(dir, "engine/data")
-	cmd.Flags().StringVarP(&arguments.dir, "data-dir", "", dir, "use provided data directory")
+	cmd.Flags().StringVarP(&arguments.dir, "data-path", "", dir, "use provided data directory")
 
 	return cmd
 }

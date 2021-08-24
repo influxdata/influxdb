@@ -83,15 +83,15 @@ func NewVerifySeriesfileCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&arguments.dir, "dir", filepath.Join(os.Getenv("HOME"), ".influxdbv2", "engine", "data"),
+	cmd.Flags().StringVar(&arguments.dir, "data-path", filepath.Join(os.Getenv("HOME"), ".influxdbv2", "engine", "data"),
 		"Data Directory.")
-	cmd.Flags().StringVar(&arguments.db, "db", "",
-		"Only use this database inside of the data directory.")
-	cmd.Flags().StringVar(&arguments.seriesFile, "series-file", "",
-		"Path to a series file. This overrides --db and --dir.")
-	cmd.Flags().BoolVar(&arguments.verbose, "v", false,
+	cmd.Flags().StringVar(&arguments.db, "bucket-id", "",
+		"Only use this bucket inside of the data directory.")
+	cmd.Flags().StringVar(&arguments.seriesFile, "series-path", "",
+		"Path to a series file. This overrides --data-path and --bucket-id.")
+	cmd.Flags().BoolVarP(&arguments.verbose, "verbose", "v", false,
 		"Verbose output.")
-	cmd.Flags().IntVar(&arguments.concurrent, "c", runtime.GOMAXPROCS(0),
+	cmd.Flags().IntVarP(&arguments.concurrent, "concurrency", "c", runtime.GOMAXPROCS(0),
 		"How many concurrent workers to run.")
 
 	return cmd

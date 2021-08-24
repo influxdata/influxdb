@@ -62,7 +62,7 @@ cardinality of data within the files, segmented by shard and further by measurem
 	cmd.Flags().StringVarP(&arguments.bucketId, "bucket-id", "b", "", "Required - specify which bucket to report on. A bucket id must be a base-16 string")
 	cmd.Flags().StringVar(&arguments.dataPath, "data-path", os.Getenv("HOME")+"/.influxdbv2/engine/data", "Path to data directory")
 	cmd.Flags().IntVarP(&arguments.topN, "top", "t", 0, "Limit results to top n")
-	cmd.Flags().IntVar(&arguments.concurrency, "concurrency", runtime.GOMAXPROCS(0), "How many concurrent workers to run")
+	cmd.Flags().IntVarP(&arguments.concurrency, "concurrency", "c", runtime.GOMAXPROCS(0), "How many concurrent workers to run")
 	cmd.MarkFlagRequired("bucket-id")
 
 	return cmd

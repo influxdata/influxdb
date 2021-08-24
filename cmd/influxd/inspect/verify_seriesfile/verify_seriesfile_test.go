@@ -19,7 +19,7 @@ func TestVerifies_BasicCobra(t *testing.T) {
 	defer os.RemoveAll(test.Path)
 
 	verify := NewVerifySeriesfileCommand()
-	verify.SetArgs([]string{"--dir", test.Path})
+	verify.SetArgs([]string{"--data-path", test.Path})
 	require.NoError(t, verify.Execute())
 }
 
