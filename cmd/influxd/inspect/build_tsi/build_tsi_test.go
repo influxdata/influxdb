@@ -351,7 +351,7 @@ func runCommand(t *testing.T, params cmdParams, outs cmdOuts) {
 			currentPartition := strconv.Itoa(i)
 			manifest, _, err := tsi1.ReadManifestFile(filepath.Join(params.dataPath, "12345", "autogen", "1", "index", currentPartition, "MANIFEST"))
 			require.NoError(t, err)
-			require.NotNil(t, len(manifest.Files))
+			require.NotZero(t, len(manifest.Files))
 		}
 	}
 
