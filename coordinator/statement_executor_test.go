@@ -434,6 +434,86 @@ func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
 	}
 }
 
+func TestQueryExecutor_ExecuteQuery_ShowContinuousQueries(t *testing.T) {
+	qe := query.NewExecutor()
+	qe.StatementExecutor = &coordinator.StatementExecutor{
+		MetaClient: &internal.MetaClientMock{
+			DatabasesFn: func() []meta.DatabaseInfo {
+				return []meta.DatabaseInfo{
+					{
+						Name:              "db1",
+						ContinuousQueries: []meta.ContinuousQueryInfo{{Name: "db1_query_name", Query: "db1_query"}},
+					},
+					{
+						Name: "db2",
+						ContinuousQueries: []meta.ContinuousQueryInfo{
+							{Name: "db2_query_name", Query: "db2_query"},
+							{Name: "db2_query2_name", Query: "db2_query2"},
+						},
+					},
+					{
+						Name: "db3",
+						ContinuousQueries: []meta.ContinuousQueryInfo{
+							{Name: "db3_query_name", Query: "db3_query"},
+							{Name: "db3_query2_name", Query: "db3_query2"},
+						},
+					},
+					{
+						Name: "db4",
+						ContinuousQueries: []meta.ContinuousQueryInfo{
+							{Name: "db4_query_name", Query: "db4_query"},
+							{Name: "db4_query2_name", Query: "db4_query2"},
+							{Name: "db4_query3_name", Query: "db4_query3"},
+						},
+					},
+				}
+			},
+		},
+	}
+
+	opt := query.ExecutionOptions{
+		CoarseAuthorizer: &mockCoarseAuthorizer{
+			AuthorizeDatabaseFn: func(p influxql.Privilege, name string) bool {
+				return name == "db2" || name == "db4"
+			},
+		},
+	}
+
+	q, err := influxql.ParseQuery("SHOW CONTINUOUS QUERIES")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	results := ReadAllResults(qe.ExecuteQuery(q, opt, make(chan struct{})))
+	exp := []*query.Result{
+		{
+			StatementID: 0,
+			Series: []*models.Row{
+				{
+					Name:    "db2",
+					Columns: []string{"name", "query"},
+					Values: [][]interface{}{
+						{"db2_query_name", "db2_query"},
+						{"db2_query2_name", "db2_query2"},
+					},
+				},
+				{
+					Name:    "db4",
+					Columns: []string{"name", "query"},
+					Values: [][]interface{}{
+						{"db4_query_name", "db4_query"},
+						{"db4_query2_name", "db4_query2"},
+						{"db4_query3_name", "db4_query3"},
+					},
+				},
+			},
+		},
+	}
+	if !reflect.DeepEqual(results, exp) {
+		t.Fatalf("unexpected results: exp %s, got %s", spew.Sdump(exp), spew.Sdump(results))
+	}
+}
+
 // QueryExecutor is a test wrapper for coordinator.QueryExecutor.
 type QueryExecutor struct {
 	*query.Executor
