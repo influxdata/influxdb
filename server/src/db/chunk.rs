@@ -312,7 +312,6 @@ impl QueryChunk for DbChunk {
         predicate: &Predicate,
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
-        let table_name = self.table_name.as_ref();
         // Predicate is not required to be applied for correctness. We only pushed it down
         // when possible for performance gain
 
@@ -335,7 +334,7 @@ impl QueryChunk for DbChunk {
 
                 debug!(?rb_predicate, "Predicate pushed down to RUB");
 
-                let read_results = chunk.read_filter(table_name, rb_predicate, selection);
+                let read_results = chunk.read_filter(rb_predicate, selection);
                 let schema =
                     chunk
                         .read_filter_table_schema(selection)

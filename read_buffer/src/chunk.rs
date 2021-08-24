@@ -153,7 +153,6 @@ impl Chunk {
     /// until the results for the previous one have been emitted.
     pub fn read_filter(
         &self,
-        _table_name: &str,
         predicate: Predicate,
         select_columns: Selection<'_>,
     ) -> table::ReadFilterResults {
@@ -1021,7 +1020,7 @@ mod test {
         let predicate =
             Predicate::with_time_range(&[BinaryExpr::from(("env", "=", "us-west"))], 100, 205); // filter on time
 
-        let mut itr = chunk.read_filter("Coolverine", predicate, Selection::All);
+        let mut itr = chunk.read_filter(predicate, Selection::All);
 
         let exp_env_values = Values::Dictionary(vec![0], vec![Some("us-west")]);
         let exp_region_values = Values::Dictionary(vec![0], vec![Some("west")]);
