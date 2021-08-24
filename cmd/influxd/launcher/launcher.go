@@ -57,6 +57,8 @@ import (
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/v2/remotes"
 	remotesTransport "github.com/influxdata/influxdb/v2/remotes/transport"
+	"github.com/influxdata/influxdb/v2/replications"
+	replicationTransport "github.com/influxdata/influxdb/v2/replications/transport"
 	"github.com/influxdata/influxdb/v2/secret"
 	"github.com/influxdata/influxdb/v2/session"
 	"github.com/influxdata/influxdb/v2/snowflake"
@@ -972,6 +974,12 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		),
 	)
 
+	replicationSvc := replications.NewService()
+	replicationServer := replicationTransport.NewReplicationHandler(
+		m.log.With(zap.String("handler", "replications")),
+		replicationSvc,
+	)
+
 	platformHandler := http.NewPlatformHandler(
 		m.apibackend,
 		http.WithResourceHandler(stacksHTTPServer),
@@ -990,6 +998,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		http.WithResourceHandler(notebookServer),
 		http.WithResourceHandler(annotationServer),
 		http.WithResourceHandler(remotesServer),
+		http.WithResourceHandler(replicationServer),
 	)
 
 	httpLogger := m.log.With(zap.String("service", "http"))
