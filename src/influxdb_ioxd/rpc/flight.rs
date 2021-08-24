@@ -3,7 +3,6 @@ use std::{pin::Pin, sync::Arc};
 
 use futures::Stream;
 use observability_deps::tracing::{info, warn};
-use query::exec::ExecutorType;
 use serde::Deserialize;
 use snafu::{ResultExt, Snafu};
 use tonic::{Request, Response, Streaming};
@@ -173,10 +172,10 @@ where
             .db(&database)
             .map_err(default_server_error_handler)?;
 
-        let ctx = db.executor().new_context(ExecutorType::Query);
+        let ctx = db.new_query_context();
 
         let physical_plan = Planner::new(ctx.clone())
-            .sql(db, &read_info.sql_query)
+            .sql(&read_info.sql_query)
             .await
             .context(Planning)?;
 

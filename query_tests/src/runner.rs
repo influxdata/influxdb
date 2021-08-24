@@ -19,6 +19,7 @@ use std::{
 
 use self::{parse::TestQueries, setup::TestSetup};
 use crate::scenarios::{DbScenario, DbSetup};
+use query::exec::ExecutorConfig;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -267,17 +268,16 @@ impl<W: Write> Runner<W> {
             writeln!(self.log, "Running scenario '{}'", scenario_name)?;
             writeln!(self.log, "SQL: '{:#?}'", sql)?;
             let planner = SqlQueryPlanner::default();
-            let num_threads = 1;
-            let mut executor = Executor::new(num_threads);
+            let executor = Arc::new(Executor::new_with_config(ExecutorConfig {
+                num_threads: 1,
+                concurrency: 4,
+            }));
+            let ctx = executor
+                .new_execution_config(ExecutorType::Query)
+                .with_default_catalog(db)
+                .build();
 
-            // hardcode concurrency in tests as by default is is the
-            // number of cores, which varies across machines
-            executor.config_mut().set_concurrency(4);
-            let ctx = Arc::new(executor).new_context(ExecutorType::Query);
-
-            let physical_plan = planner
-                .query(db, sql, &ctx)
-                .expect("built plan successfully");
+            let physical_plan = planner.query(sql, &ctx).expect("built plan successfully");
 
             let results: Vec<RecordBatch> = ctx.collect(physical_plan).await.expect("Running plan");
 

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use crate::exec::context::{IOxExecutionContext, DEFAULT_CATALOG};
-use datafusion::{catalog::catalog::CatalogProvider, error::Result, physical_plan::ExecutionPlan};
+use crate::exec::context::IOxExecutionContext;
+use datafusion::{error::Result, physical_plan::ExecutionPlan};
 
 /// This struct can create plans for running SQL queries against databases
 #[derive(Debug, Default)]
@@ -12,18 +12,9 @@ impl SqlQueryPlanner {
         Self::default()
     }
 
-    /// Plan a SQL query against the data in `database`, and return a
+    /// Plan a SQL query against the catalogs registered with `ctx`, and return a
     /// DataFusion physical execution plan that runs on the query executor.
-    ///
-    /// When the plan is executed, it will run on the query executor
-    /// in a streaming fashion.
-    pub fn query<D: CatalogProvider + 'static>(
-        &self,
-        database: Arc<D>,
-        query: &str,
-        ctx: &IOxExecutionContext,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
-        ctx.register_catalog(DEFAULT_CATALOG, database);
+    pub fn query(&self, query: &str, ctx: &IOxExecutionContext) -> Result<Arc<dyn ExecutionPlan>> {
         ctx.prepare_sql(query)
     }
 }

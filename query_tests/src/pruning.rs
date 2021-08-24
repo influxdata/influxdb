@@ -70,8 +70,8 @@ async fn chunk_pruning_sql() {
     ];
     let query = "select * from cpu where bar < 3.0";
 
-    let ctx = db.executor().new_context(ExecutorType::Query);
-    let physical_plan = SqlQueryPlanner::default().query(db, query, &ctx).unwrap();
+    let ctx = db.new_query_context();
+    let physical_plan = SqlQueryPlanner::default().query(query, &ctx).unwrap();
     let batches = ctx.collect(physical_plan).await.unwrap();
 
     assert_batches_sorted_eq!(&expected, &batches);

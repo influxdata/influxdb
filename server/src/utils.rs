@@ -11,6 +11,7 @@ use data_types::{
 use iox_object_store::IoxObjectStore;
 use object_store::ObjectStore;
 use persistence_windows::checkpoint::ReplayPlan;
+use query::exec::ExecutorConfig;
 use query::{exec::Executor, QueryDatabase};
 use std::{borrow::Cow, convert::TryFrom, num::NonZeroU32, sync::Arc, time::Duration};
 use write_buffer::config::WriteBufferConfig;
@@ -61,9 +62,10 @@ impl TestDbBuilder {
         ));
 
         // deterministic thread and concurrency count
-        let mut exec = Executor::new(1);
-        exec.config_mut().set_concurrency(4);
-        let exec = Arc::new(exec);
+        let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
+            num_threads: 1,
+            concurrency: 4,
+        }));
 
         let metrics_registry = Arc::new(metrics::MetricRegistry::new());
 

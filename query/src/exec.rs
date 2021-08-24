@@ -19,10 +19,20 @@ use datafusion::{
     logical_plan::{normalize_col, Expr, LogicalPlan},
 };
 
-pub use context::IOxExecutionContext;
+pub use context::{IOxExecutionConfig, IOxExecutionContext};
 use schema_pivot::SchemaPivotNode;
 
-use self::{context::IOxExecutionConfig, split::StreamSplitNode, task::DedicatedExecutor};
+use self::{split::StreamSplitNode, task::DedicatedExecutor};
+
+/// Configuration for an Executor
+#[derive(Debug, Clone)]
+pub struct ExecutorConfig {
+    /// Number of threads per thread pool
+    pub num_threads: usize,
+
+    /// Target parallelism for query execution
+    pub concurrency: usize,
+}
 
 /// Handles executing DataFusion plans, and marshalling the results into rust
 /// native structures.
@@ -39,7 +49,7 @@ pub struct Executor {
     reorg_exec: DedicatedExecutor,
 
     /// The default configuration options with which to create contexts
-    config: IOxExecutionConfig,
+    config: ExecutorConfig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,10 +64,15 @@ impl Executor {
     /// Creates a new executor with a two dedicated thread pools, each
     /// with num_threads
     pub fn new(num_threads: usize) -> Self {
-        let query_exec = DedicatedExecutor::new("IOx Query Executor Thread", num_threads);
-        let reorg_exec = DedicatedExecutor::new("IOx Reorg Executor Thread", num_threads);
+        Self::new_with_config(ExecutorConfig {
+            num_threads,
+            concurrency: num_threads,
+        })
+    }
 
-        let config = IOxExecutionConfig::new();
+    pub fn new_with_config(config: ExecutorConfig) -> Self {
+        let query_exec = DedicatedExecutor::new("IOx Query Executor Thread", config.num_threads);
+        let reorg_exec = DedicatedExecutor::new("IOx Reorg Executor Thread", config.num_threads);
 
         Self {
             query_exec,
@@ -66,21 +81,15 @@ impl Executor {
         }
     }
 
-    /// returns the config of this executor
-    pub fn config(&self) -> &IOxExecutionConfig {
-        &self.config
-    }
-
-    /// returns a mutable reference to this executor's config
-    pub fn config_mut(&mut self) -> &mut IOxExecutionConfig {
-        &mut self.config
+    /// Return a new execution config, suitable for executing a new query or system task
+    pub fn new_execution_config(&self, executor_type: ExecutorType) -> IOxExecutionConfig {
+        let exec = self.executor(executor_type).clone();
+        IOxExecutionConfig::new(exec).with_concurrency(self.config.concurrency)
     }
 
     /// Create a new execution context, suitable for executing a new query or system task
     pub fn new_context(&self, executor_type: ExecutorType) -> IOxExecutionContext {
-        let executor = self.executor(executor_type).clone();
-
-        IOxExecutionContext::new(executor, self.config.clone())
+        self.new_execution_config(executor_type).build()
     }
 
     /// Return the execution pool  of the specified type

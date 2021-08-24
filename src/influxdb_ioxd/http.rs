@@ -24,7 +24,7 @@ use data_types::{
 };
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
-use query::{exec::ExecutorType, QueryDatabase};
+use query::QueryDatabase;
 use server::{ApplicationState, ConnectionManager, Error, Server as AppServer};
 
 // External crates
@@ -648,11 +648,8 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
 
     let db = server.db(&db_name)?;
 
-    let ctx = db.executor().new_context(ExecutorType::Query);
-    let physical_plan = Planner::new(ctx.clone())
-        .sql(db, &q)
-        .await
-        .context(Planning)?;
+    let ctx = db.new_query_context();
+    let physical_plan = Planner::new(ctx.clone()).sql(&q).await.context(Planning)?;
 
     // TODO: stream read results out rather than rendering the
     // whole thing in mem
@@ -1466,8 +1463,8 @@ mod tests {
 
     /// Run the specified SQL query and return formatted results as a string
     async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
-        let ctx = db.executor().new_context(ExecutorType::Query);
-        let physical_plan = Planner::new(ctx.clone()).sql(db, query).await.unwrap();
+        let ctx = db.new_query_context();
+        let physical_plan = Planner::new(ctx.clone()).sql(query).await.unwrap();
 
         ctx.collect(physical_plan).await.unwrap()
     }

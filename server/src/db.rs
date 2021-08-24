@@ -38,6 +38,7 @@ use parquet_file::{
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
+use query::exec::{ExecutorType, IOxExecutionContext};
 use query::{exec::Executor, predicate::Predicate, QueryDatabase};
 use rand_distr::{Distribution, Poisson};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -476,6 +477,16 @@ impl Db {
     /// Return a handle to the executor used to run queries
     pub fn executor(&self) -> Arc<Executor> {
         Arc::clone(&self.exec)
+    }
+
+    /// Returns a new execution context suitable for running queries
+    ///
+    /// Registers `self` as the default catalog provider
+    pub fn new_query_context(self: &Arc<Self>) -> IOxExecutionContext {
+        self.exec
+            .new_execution_config(ExecutorType::Query)
+            .with_default_catalog(Arc::<Self>::clone(self))
+            .build()
     }
 
     /// Return the current database rules
@@ -1432,7 +1443,7 @@ pub mod test_helpers {
 
     use arrow::record_batch::RecordBatch;
     use entry::test_helpers::lp_to_entries;
-    use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner};
+    use query::frontend::sql::SqlQueryPlanner;
 
     use super::*;
 
@@ -1487,8 +1498,8 @@ pub mod test_helpers {
     /// Run a sql query against the database, returning the results as record batches.
     pub async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
         let planner = SqlQueryPlanner::default();
-        let ctx = db.executor().new_context(ExecutorType::Query);
-        let physical_plan = planner.query(db, query, &ctx).unwrap();
+        let ctx = db.new_query_context();
+        let physical_plan = planner.query(query, &ctx).unwrap();
         ctx.collect(physical_plan).await.unwrap()
     }
 }
@@ -1526,7 +1537,6 @@ mod tests {
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
     use persistence_windows::min_max_sequence::MinMaxSequence;
-    use query::exec::ExecutorType;
     use query::{frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
     use std::{
         collections::BTreeMap,
@@ -1680,11 +1690,9 @@ mod tests {
         // check: after a while the table should exist and a query plan should succeed
         let t_0 = Instant::now();
         loop {
-            let loop_db = Arc::clone(&db);
-
             let planner = SqlQueryPlanner::default();
-            let ctx = loop_db.executor().new_context(ExecutorType::Query);
-            let physical_plan = planner.query(loop_db, query, &ctx);
+            let ctx = db.new_query_context();
+            let physical_plan = planner.query(query, &ctx);
 
             if physical_plan.is_ok() {
                 break;

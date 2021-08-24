@@ -1,7 +1,7 @@
 //! Query planner wrapper for use in IOx services
 use std::sync::Arc;
 
-use datafusion::{catalog::catalog::CatalogProvider, physical_plan::ExecutionPlan};
+use datafusion::physical_plan::ExecutionPlan;
 use query::{
     exec::IOxExecutionContext,
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
@@ -32,17 +32,13 @@ impl Planner {
 
     /// Plan a SQL query against the data in `database`, and return a
     /// DataFusion physical execution plan.
-    pub async fn sql<D: CatalogProvider + 'static>(
-        &self,
-        database: Arc<D>,
-        query: impl Into<String> + Send,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
+    pub async fn sql(&self, query: impl Into<String> + Send) -> Result<Arc<dyn ExecutionPlan>> {
         let planner = SqlQueryPlanner::new();
         let query = query.into();
         let ctx = self.ctx.clone();
 
         self.ctx
-            .run(async move { planner.query(database, &query, &ctx) })
+            .run(async move { planner.query(&query, &ctx) })
             .await
     }
 

@@ -1231,7 +1231,7 @@ mod tests {
     use metrics::TestMetricRegistry;
     use object_store::ObjectStore;
     use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
-    use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner, QueryDatabase};
+    use query::{frontend::sql::SqlQueryPlanner, QueryDatabase};
     use std::{
         convert::{Infallible, TryFrom},
         sync::{
@@ -2178,9 +2178,9 @@ mod tests {
     // run a sql query against the database, returning the results as record batches
     async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
         let planner = SqlQueryPlanner::default();
-        let ctx = db.executor().new_context(ExecutorType::Query);
+        let ctx = db.new_query_context();
 
-        let physical_plan = planner.query(db, query, &ctx).unwrap();
+        let physical_plan = planner.query(query, &ctx).unwrap();
         ctx.collect(physical_plan).await.unwrap()
     }
 }

@@ -431,7 +431,7 @@ mod tests {
         checkpoint::{PartitionCheckpoint, PersistCheckpointBuilder, ReplayPlanner},
         min_max_sequence::OptionalMinMaxSequence,
     };
-    use query::{exec::ExecutorType, frontend::sql::SqlQueryPlanner};
+    use query::frontend::sql::SqlQueryPlanner;
     use test_helpers::{assert_contains, assert_not_contains, tracing::TracingCapture};
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
@@ -792,11 +792,10 @@ mod tests {
                         )
                     }
                     Check::Query(query, expected) => {
-                        let db = Arc::clone(db);
                         let planner = SqlQueryPlanner::default();
-                        let ctx = db.executor().new_context(ExecutorType::Query);
+                        let ctx = db.new_query_context();
 
-                        match planner.query(db, query, &ctx) {
+                        match planner.query(query, &ctx) {
                             Ok(physical_plan) => {
                                 match ctx.collect(physical_plan).await {
                                     Ok(batches) => {

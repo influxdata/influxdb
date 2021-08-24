@@ -115,27 +115,19 @@ impl ExtensionPlanner for IOxExtensionPlanner {
     }
 }
 
-// Configuration for an IOx execution context
+/// Configuration for an IOx execution context
+///
+/// Created from an Executor
 #[derive(Clone)]
 pub struct IOxExecutionConfig {
-    /// Configuration options to pass to DataFusion
-    inner: ExecutionConfig,
-}
+    /// Executor to run on
+    exec: DedicatedExecutor,
 
-impl Default for IOxExecutionConfig {
-    fn default() -> Self {
-        const BATCH_SIZE: usize = 1000;
+    /// Target parallelism for query execution
+    concurrency: Option<usize>,
 
-        // Setup default configuration
-        let inner = ExecutionConfig::new()
-            .with_batch_size(BATCH_SIZE)
-            .create_default_catalog_and_schema(true)
-            .with_information_schema(true)
-            .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA)
-            .with_query_planner(Arc::new(IOxQueryPlanner {}));
-
-        Self { inner }
-    }
+    /// Default catalog
+    default_catalog: Option<Arc<dyn CatalogProvider>>,
 }
 
 impl fmt::Debug for IOxExecutionConfig {
@@ -145,13 +137,55 @@ impl fmt::Debug for IOxExecutionConfig {
 }
 
 impl IOxExecutionConfig {
-    pub fn new() -> Self {
-        Default::default()
+    pub(super) fn new(exec: DedicatedExecutor) -> Self {
+        Self {
+            exec,
+            concurrency: None,
+            default_catalog: None,
+        }
     }
 
     /// Set execution concurrency
-    pub fn set_concurrency(&mut self, concurrency: usize) {
-        self.inner.concurrency = concurrency;
+    pub fn with_concurrency(self, concurrency: usize) -> Self {
+        Self {
+            concurrency: Some(concurrency),
+            ..self
+        }
+    }
+
+    /// Set the default catalog provider
+    pub fn with_default_catalog(self, catalog: Arc<dyn CatalogProvider>) -> Self {
+        Self {
+            default_catalog: Some(catalog),
+            ..self
+        }
+    }
+
+    /// Create an ExecutionContext suitable for executing DataFusion plans
+    pub fn build(self) -> IOxExecutionContext {
+        const BATCH_SIZE: usize = 1000;
+
+        let mut config = ExecutionConfig::new()
+            .with_batch_size(BATCH_SIZE)
+            .create_default_catalog_and_schema(true)
+            .with_information_schema(true)
+            .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA)
+            .with_query_planner(Arc::new(IOxQueryPlanner {}));
+
+        if let Some(concurrency) = self.concurrency {
+            config = config.with_concurrency(concurrency)
+        }
+
+        let inner = ExecutionContext::with_config(config);
+
+        if let Some(default_catalog) = self.default_catalog {
+            inner.register_catalog(DEFAULT_CATALOG, default_catalog);
+        }
+
+        IOxExecutionContext {
+            inner,
+            exec: self.exec,
+        }
     }
 }
 
@@ -164,6 +198,9 @@ impl IOxExecutionConfig {
 /// Eventually we envision this also managing additional resource
 /// types such as Memory and providing visibility into what plans are
 /// running
+///
+/// An IOxExecutionContext is created directly from an Executor, or from
+/// an IOxExecutionConfig created by an Executor
 #[derive(Clone)]
 pub struct IOxExecutionContext {
     inner: ExecutionContext,
@@ -186,23 +223,9 @@ impl fmt::Debug for IOxExecutionContext {
 }
 
 impl IOxExecutionContext {
-    /// Create an ExecutionContext suitable for executing DataFusion plans
-    pub(super) fn new(exec: DedicatedExecutor, config: IOxExecutionConfig) -> Self {
-        let inner = ExecutionContext::with_config(config.inner);
-
-        Self { inner, exec }
-    }
-
     /// returns a reference to the inner datafusion execution context
     pub fn inner(&self) -> &ExecutionContext {
         &self.inner
-    }
-
-    /// Registers a catalog with the inner context
-    ///
-    /// Note: This will also modify any IOxExecutionContext that are Clones of this
-    pub fn register_catalog(&self, name: impl Into<String>, catalog: Arc<dyn CatalogProvider>) {
-        self.inner.register_catalog(name, catalog);
     }
 
     /// Prepare a SQL statement for execution. This assumes that any
