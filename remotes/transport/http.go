@@ -182,7 +182,7 @@ func (h *RemoteConnectionHandler) handlePatchRemote(w http.ResponseWriter, r *ht
 			h.api.Err(w, r, err)
 			return
 		}
-		h.api.Respond(w, r, http.StatusNoContent, false)
+		h.api.Respond(w, r, http.StatusNoContent, nil)
 		return
 	}
 
