@@ -46,7 +46,7 @@ type buildTSI struct {
 
 // NewBuildTSICommand returns a new instance of Command with default settings applied.
 func NewBuildTSICommand() *cobra.Command {
-	var buildTSICmd = buildTSI{}
+	var buildTSICmd buildTSI
 
 	cmd := &cobra.Command{
 		Use:   "build-tsi",
@@ -90,13 +90,13 @@ memory usage.
 				config.Level = zapcore.InfoLevel
 			}
 
-			newLogger, err := config.New(os.Stderr)
+			newLogger, err := config.New(cmd.OutOrStdout())
 			if err != nil {
 				return err
 			}
 			buildTSICmd.Logger = newLogger
 
-			return buildTSICmd.runBuildTSI()
+			return buildTSICmd.run()
 		},
 	}
 
@@ -109,17 +109,17 @@ memory usage.
 	cmd.Flags().StringVar(&buildTSICmd.bucketID, "bucket-id", "", "Bucket ID")
 	cmd.Flags().StringVar(&buildTSICmd.shardID, "shard-id", "", "Shard ID, if this is specified a bucket-id must also be specified")
 	cmd.Flags().BoolVar(&buildTSICmd.compactSeriesFile, "compact-series-file", false, "Compact existing series file. Does not rebuilt index.")
-	cmd.Flags().IntVar(&buildTSICmd.concurrency, "concurrency", runtime.GOMAXPROCS(0), "Number of workers to dedicate to shard index building.")
+	cmd.Flags().IntVarP(&buildTSICmd.concurrency, "concurrency", "c", runtime.GOMAXPROCS(0), "Number of workers to dedicate to shard index building.")
 	cmd.Flags().Int64Var(&buildTSICmd.maxLogFileSize, "max-log-file-size", tsdb.DefaultMaxIndexLogFileSize, "Maximum log file size")
 	cmd.Flags().Uint64Var(&buildTSICmd.maxCacheSize, "max-cache-size", tsdb.DefaultCacheMaxMemorySize, "Maximum cache size")
-	cmd.Flags().BoolVar(&buildTSICmd.verbose, "v", false, "Verbose output, includes debug-level logs")
+	cmd.Flags().BoolVarP(&buildTSICmd.verbose, "verbose", "v", false, "Verbose output, includes debug-level logs")
 	cmd.Flags().IntVar(&buildTSICmd.batchSize, "batch-size", defaultBatchSize, "Set the size of the batches we write to the index. Setting this can have adverse affects on performance and heap requirements")
 
 	return cmd
 }
 
-// RunBuildTSI executes the run command for BuildTSI.
-func (buildTSICmd *buildTSI) runBuildTSI() error {
+// Run executes the run command for BuildTSI.
+func (buildTSICmd *buildTSI) run() error {
 	// Verify the user actually wants to run as root.
 	if isRoot() {
 		cli := clients.CLI{StdIO: stdio.TerminalStdio}
@@ -143,7 +143,6 @@ Are you sure you want to continue?`); !confirmed {
 	if err != nil {
 		return err
 	}
-
 	for _, fi := range fis {
 		name := fi.Name()
 		if !fi.IsDir() {
@@ -238,7 +237,7 @@ func (buildTSICmd *buildTSI) compactSeriesFilePartition(path string) error {
 	indexPath := p.IndexPath()
 	var segmentPaths []string
 	for _, segment := range p.Segments() {
-		buildTSICmd.Logger.Info("Processing segment", zap.String("path", segment.Path()), zap.Uint16("segment-id", segment.ID()))
+		buildTSICmd.Logger.Debug("Processing segment", zap.String("path", segment.Path()), zap.Uint16("segment-id", segment.ID()))
 
 		if err := segment.CompactToPath(segment.Path()+tmpExt, p.Index()); err != nil {
 			return err
@@ -255,14 +254,14 @@ func (buildTSICmd *buildTSI) compactSeriesFilePartition(path string) error {
 	for _, dst := range segmentPaths {
 		src := dst + tmpExt
 
-		buildTSICmd.Logger.Info("Renaming new segment", zap.String("prev", src), zap.String("new", dst))
+		buildTSICmd.Logger.Debug("Renaming new segment", zap.String("prev", src), zap.String("new", dst))
 		if err = file.RenameFile(src, dst); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("serious failure. Please rebuild index and series file: %w", err)
 		}
 	}
 
 	// Remove index file so it will be rebuilt when reopened.
-	buildTSICmd.Logger.Info("Removing index file", zap.String("path", indexPath))
+	buildTSICmd.Logger.Debug("Removing index file", zap.String("path", indexPath))
 
 	if err = os.Remove(indexPath); err != nil && !os.IsNotExist(err) { // index won't exist for low cardinality
 		return err
@@ -431,6 +430,7 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 
 	// Write out wal files.
 	walPaths, err := collectWALFiles(walDir)
+
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return err
