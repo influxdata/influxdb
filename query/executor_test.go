@@ -21,6 +21,15 @@ func (e *StatementExecutor) ExecuteStatement(ctx *query.ExecutionContext, stmt i
 	return e.ExecuteStatementFn(stmt, ctx)
 }
 
+type StatementNormalizerExecutor struct {
+	StatementExecutor
+	NormalizeStatementFn func(stmt influxql.Statement, database, retentionPolicy string) error
+}
+
+func (e *StatementNormalizerExecutor) NormalizeStatement(stmt influxql.Statement, database, retentionPolicy string) error {
+	return e.NormalizeStatementFn(stmt, database, retentionPolicy)
+}
+
 func NewQueryExecutor() *query.Executor {
 	return query.NewExecutor()
 }
@@ -475,6 +484,64 @@ func TestQueryExecutor_Panic(t *testing.T) {
 	}
 	if result.Err == nil || result.Err.Error() != "SELECT count(value) FROM cpu [panic:test error]" {
 		t.Errorf("unexpected error: %s", result.Err)
+	}
+}
+
+const goodStatement = `SELECT count(value) FROM cpu`
+
+func TestQueryExecutor_NotExecuted(t *testing.T) {
+	var executorFailIndex int
+	var executorCallCount int
+	queryStatements := []string{goodStatement, goodStatement, goodStatement, goodStatement, goodStatement}
+	queryStr := strings.Join(queryStatements, ";")
+	var closing chan struct{}
+
+	q, err := influxql.ParseQuery(queryStr)
+	if err != nil {
+		t.Fatalf("parsing %s: %v", queryStr, err)
+	}
+
+	e := NewQueryExecutor()
+	e.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			defer func() { executorCallCount++ }()
+			if executorFailIndex == executorCallCount {
+				closing <- struct{}{}
+				close(closing)
+				select {
+				case <-ctx.Done():
+					return nil
+				}
+			} else {
+				return ctx.Send(&query.Result{Err: nil})
+			}
+		},
+	}
+	testFn := func(testName string, i int) {
+		results := e.ExecuteQuery(q, query.ExecutionOptions{}, closing)
+		checkNotExecutedResults(t, results, testName, i, len(q.Statements))
+	}
+	for i := 0; i < len(q.Statements); i++ {
+		closing = make(chan struct{})
+		executorFailIndex = i
+		executorCallCount = 0
+		testFn("executor", i)
+	}
+}
+
+func checkNotExecutedResults(t *testing.T, results <-chan *query.Result, testName string, failIndex int, lenQuery int) {
+	notExecutedIndex := failIndex + 1
+	for result := range results {
+		if result.Err == query.ErrNotExecuted {
+			if result.StatementID != notExecutedIndex {
+				t.Fatalf("StatementID for ErrNotExecuted in wrong order - expected: %d, got: %d", notExecutedIndex, result.StatementID)
+			} else {
+				notExecutedIndex++
+			}
+		}
+	}
+	if notExecutedIndex != lenQuery {
+		t.Fatalf("wrong number of results from %s with fail index of %d - got: %d, expected: %d", testName, failIndex, notExecutedIndex - (1 + failIndex), lenQuery-(1+failIndex))
 	}
 }
 

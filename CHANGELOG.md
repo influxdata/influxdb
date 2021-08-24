@@ -33,6 +33,7 @@
 - 	[#22090](https://github.com/influxdata/influxdb/pull/22090): fix: systemd service -- handle https, 40x, and block indefinitely
 -	[#22195](https://github.com/influxdata/influxdb/pull/22195): fix: avoid compaction queue stats flutter
 -	[#22283](https://github.com/influxdata/influxdb/pull/22283): fix: require database authorization to see continuous queries
+-	[#22273](https://github.com/influxdata/influxdb/pull/22273): fix: return correct count of ErrNotExecuted
 
 v1.9.2 [unreleased]
 -	[#21631](https://github.com/influxdata/influxdb/pull/21631): fix: group by returns multiple results per group in some circumstances
