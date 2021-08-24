@@ -3205,6 +3205,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-stream",
+ "trace",
  "tracker",
 ]
 
@@ -3989,6 +3990,7 @@ dependencies = [
  "tikv-jemalloc-ctl",
  "tokio",
  "tokio-util",
+ "trace",
  "tracker",
  "uuid",
  "write_buffer",

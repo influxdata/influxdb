@@ -352,6 +352,8 @@ mod tests {
     use influxdb_iox_client::connection::Connection;
     use std::convert::TryInto;
     use structopt::StructOpt;
+    use tokio::task::JoinHandle;
+    use trace::span::Span;
     use trace::RingBufferTraceCollector;
     use trace_exporters::otel::{OtelExporter, TestOtelExporter};
 
@@ -552,14 +554,17 @@ mod tests {
             .unwrap()
     }
 
-    #[tokio::test]
-    async fn test_tracing() {
+    async fn tracing_server<T: TraceCollector + 'static>(
+        collector: &Arc<T>,
+    ) -> (
+        SocketAddr,
+        Arc<AppServer<ConnectionManager>>,
+        JoinHandle<Result<()>>,
+    ) {
         let config = test_config(Some(23));
         let application = make_application(&config).await.unwrap();
         let server = make_server(Arc::clone(&application), &config);
         server.wait_for_init().await.unwrap();
-
-        let trace_collector = Arc::new(RingBufferTraceCollector::new(20));
 
         let grpc_listener = grpc_listener(config.grpc_bind_address).await.unwrap();
         let http_listener = http_listener(config.grpc_bind_address).await.unwrap();
@@ -571,11 +576,18 @@ mod tests {
             application,
             grpc_listener,
             http_listener,
-            Some(Arc::<RingBufferTraceCollector>::clone(&trace_collector)),
+            Some(Arc::<T>::clone(collector)),
             Arc::clone(&server),
         );
 
         let join = tokio::spawn(fut);
+        (addr, server, join)
+    }
+
+    #[tokio::test]
+    async fn test_tracing() {
+        let trace_collector = Arc::new(RingBufferTraceCollector::new(20));
+        let (addr, server, join) = tracing_server(&trace_collector).await;
 
         let client = influxdb_iox_client::connection::Builder::default()
             .build(format!("http://{}", addr))
@@ -643,32 +655,67 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_query_tracing() {
+        let collector = Arc::new(RingBufferTraceCollector::new(100));
+        let (addr, server, join) = tracing_server(&collector).await;
+        let conn = jaeger_client(addr, "34f8495:35e32:0:1").await;
+
+        let mut management = influxdb_iox_client::management::Client::new(conn.clone());
+        management
+            .create_database(
+                influxdb_iox_client::management::generated_types::DatabaseRules {
+                    name: "database".to_string(),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+        let mut write = influxdb_iox_client::write::Client::new(conn.clone());
+        write
+            .write("database", "cpu,tag0=foo val=1 100\n")
+            .await
+            .unwrap();
+
+        let mut flight = influxdb_iox_client::flight::Client::new(conn);
+        flight
+            .perform_query("database", "select * from cpu;")
+            .await
+            .unwrap();
+
+        server.shutdown();
+        join.await.unwrap().unwrap();
+
+        let spans = collector.spans();
+
+        let root_spans: Vec<_> = spans.iter().filter(|span| &span.name == "IOx").collect();
+        // Made 3 requests
+        assert_eq!(root_spans.len(), 3);
+
+        let query_span = root_spans[2];
+
+        let child = |parent: &Span, name: &'static str| -> Option<&Span> {
+            spans.iter().find(|span| {
+                span.ctx.parent_span_id == Some(parent.ctx.span_id) && span.name == name
+            })
+        };
+
+        let ctx_span = child(query_span, "Query Execution").unwrap();
+
+        let planner_span = child(ctx_span, "Planner").unwrap();
+        let sql_span = child(planner_span, "sql").unwrap();
+        let prepare_sql_span = child(sql_span, "prepare_sql").unwrap();
+        child(prepare_sql_span, "prepare_plan").unwrap();
+
+        child(ctx_span, "collect").unwrap();
+    }
+
+    #[tokio::test]
     async fn test_otel_exporter() {
-        let config = test_config(Some(23));
-        let application = make_application(&config).await.unwrap();
-        let server = make_server(Arc::clone(&application), &config);
-        server.wait_for_init().await.unwrap();
-
         let (sender, mut receiver) = tokio::sync::mpsc::channel(20);
-
         let collector = Arc::new(OtelExporter::new(TestOtelExporter::new(sender)));
 
-        let grpc_listener = grpc_listener(config.grpc_bind_address).await.unwrap();
-        let http_listener = http_listener(config.grpc_bind_address).await.unwrap();
-
-        let addr = grpc_listener.local_addr().unwrap();
-
-        let fut = serve(
-            config,
-            application,
-            grpc_listener,
-            http_listener,
-            Some(Arc::<OtelExporter>::clone(&collector)),
-            Arc::clone(&server),
-        );
-
-        let join = tokio::spawn(fut);
-
+        let (addr, server, join) = tracing_server(&collector).await;
         let conn = jaeger_client(addr, "34f8495:30e34:0:1").await;
         influxdb_iox_client::management::Client::new(conn)
             .list_databases()

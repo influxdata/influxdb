@@ -26,8 +26,10 @@ pub struct Planner {
 
 impl Planner {
     /// Create a new planner that will plan queries using the provided context
-    pub fn new(ctx: IOxExecutionContext) -> Self {
-        Self { ctx }
+    pub fn new(ctx: &IOxExecutionContext) -> Self {
+        Self {
+            ctx: ctx.child_ctx("Planner"),
+        }
     }
 
     /// Plan a SQL query against the data in `database`, and return a
@@ -35,7 +37,7 @@ impl Planner {
     pub async fn sql(&self, query: impl Into<String> + Send) -> Result<Arc<dyn ExecutionPlan>> {
         let planner = SqlQueryPlanner::new();
         let query = query.into();
-        let ctx = self.ctx.clone();
+        let ctx = self.ctx.child_ctx("sql");
 
         self.ctx
             .run(async move { planner.query(&query, &ctx) })

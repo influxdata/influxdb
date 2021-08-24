@@ -867,7 +867,7 @@ where
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
     let ctx = db_store.executor().new_context(ExecutorType::Query);
 
-    let plan = Planner::new(ctx.clone())
+    let plan = Planner::new(&ctx)
         .table_names(db, predicate)
         .await
         .map_err(|e| Box::new(e) as _)
@@ -917,7 +917,7 @@ where
 
     let ctx = db_store.executor().new_context(ExecutorType::Query);
 
-    let tag_key_plan = Planner::new(ctx.clone())
+    let tag_key_plan = Planner::new(&ctx)
         .tag_keys(db, predicate)
         .await
         .map_err(|e| Box::new(e) as _)
@@ -972,7 +972,7 @@ where
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
     let ctx = db_store.executor().new_context(ExecutorType::Query);
 
-    let tag_value_plan = Planner::new(ctx.clone())
+    let tag_value_plan = Planner::new(&ctx)
         .tag_values(db, tag_name, predicate)
         .await
         .map_err(|e| Box::new(e) as _)
@@ -1030,7 +1030,7 @@ where
     // if big queries are causing a significant latency in TTFB.
 
     // Build the plans
-    let series_plan = Planner::new(ctx.clone())
+    let series_plan = Planner::new(&ctx)
         .read_filter(db, predicate)
         .await
         .map_err(|e| Box::new(e) as _)
@@ -1082,7 +1082,7 @@ where
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
     let ctx = db_store.executor().new_context(ExecutorType::Query);
 
-    let planner = Planner::new(ctx.clone());
+    let planner = Planner::new(&ctx);
     let grouped_series_set_plan = match gby_agg {
         GroupByAndAggregate::Columns { agg, group_columns } => {
             planner.read_group(db, predicate, agg, group_columns).await
@@ -1145,7 +1145,7 @@ where
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
     let ctx = db_store.executor().new_context(ExecutorType::Query);
 
-    let field_list_plan = Planner::new(ctx.clone())
+    let field_list_plan = Planner::new(&ctx)
         .field_columns(db, predicate)
         .await
         .map_err(|e| Box::new(e) as _)

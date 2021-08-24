@@ -70,7 +70,7 @@ async fn chunk_pruning_sql() {
     ];
     let query = "select * from cpu where bar < 3.0";
 
-    let ctx = db.new_query_context();
+    let ctx = db.new_query_context(None);
     let physical_plan = SqlQueryPlanner::default().query(query, &ctx).unwrap();
     let batches = ctx.collect(physical_plan).await.unwrap();
 
