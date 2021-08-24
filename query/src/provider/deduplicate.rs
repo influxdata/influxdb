@@ -16,12 +16,12 @@ use self::algo::RecordBatchDeduplicator;
 use datafusion::{
     error::{DataFusionError, Result},
     physical_plan::{
-        expressions::PhysicalSortExpr, DisplayFormatType, Distribution, ExecutionPlan,
-        Partitioning, SQLMetric, SendableRecordBatchStream,
+        expressions::PhysicalSortExpr,
+        metrics::{self, ExecutionPlanMetricsSet, MetricBuilder, MetricsSet},
+        DisplayFormatType, Distribution, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     },
 };
 use futures::StreamExt;
-use hashbrown::HashMap;
 use observability_deps::tracing::debug;
 use tokio::sync::mpsc;
 
@@ -108,16 +108,16 @@ use tokio::sync::mpsc;
 pub struct DeduplicateExec {
     input: Arc<dyn ExecutionPlan>,
     sort_keys: Vec<PhysicalSortExpr>,
-    num_dupes: Arc<SQLMetric>,
+    /// Execution metrics
+    metrics: ExecutionPlanMetricsSet,
 }
 
 impl DeduplicateExec {
     pub fn new(input: Arc<dyn ExecutionPlan>, sort_keys: Vec<PhysicalSortExpr>) -> Self {
-        let num_dupes = SQLMetric::counter();
         Self {
             input,
             sort_keys,
-            num_dupes,
+            metrics: ExecutionPlanMetricsSet::new(),
         }
     }
 }
@@ -158,6 +158,8 @@ impl ExecutionPlan for DeduplicateExec {
 
         let input_stream = self.input.execute(0).await?;
 
+        let num_dupes = MetricBuilder::new(&self.metrics).counter("num_dupes", partition);
+
         // the deduplication is performed in a separate task which is
         // then sent via a channel to the output
         let (tx, rx) = mpsc::channel(1);
@@ -166,7 +168,7 @@ impl ExecutionPlan for DeduplicateExec {
             input_stream,
             self.sort_keys.clone(),
             tx.clone(),
-            Arc::clone(&self.num_dupes),
+            num_dupes,
         ));
 
         // A second task watches the output of the worker task
@@ -215,10 +217,8 @@ impl ExecutionPlan for DeduplicateExec {
         }
     }
 
-    fn metrics(&self) -> HashMap<String, SQLMetric> {
-        let mut metrics = HashMap::new();
-        metrics.insert("numDuplicates".to_owned(), self.num_dupes.as_ref().clone());
-        metrics
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
     }
 }
 
@@ -226,7 +226,7 @@ async fn deduplicate(
     mut input_stream: SendableRecordBatchStream,
     sort_keys: Vec<PhysicalSortExpr>,
     tx: mpsc::Sender<ArrowResult<RecordBatch>>,
-    num_dupes: Arc<SQLMetric>,
+    num_dupes: metrics::Count,
 ) -> ArrowResult<()> {
     let mut deduplicator = RecordBatchDeduplicator::new(sort_keys, num_dupes, None);
 
@@ -882,11 +882,20 @@ mod test {
     impl TestResults {
         /// return the number of duplicates this deduplicator detected
         fn num_dupes(&self) -> usize {
-            self.exec
-                .metrics()
-                .get("numDuplicates")
-                .expect("No dupe metrics found")
-                .value()
+            let metrics = self.exec.metrics().unwrap();
+
+            let metrics = metrics
+                .iter()
+                .filter(|m| m.value().name() == "num_dupes")
+                .collect::<Vec<_>>();
+
+            assert_eq!(
+                metrics.len(),
+                1,
+                "expected only one duplicate metric, found {:?}",
+                metrics
+            );
+            metrics[0].value().as_usize()
         }
     }
 

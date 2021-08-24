@@ -1224,7 +1224,7 @@ impl ExpressionVisitor for SupportVisitor {
                     | Operator::And
                     | Operator::Or => Ok(Recursion::Continue(self)),
                     // Unsupported (need to think about ramifications)
-                    Operator::Modulus | Operator::Like | Operator::NotLike => {
+                    Operator::Modulo | Operator::Like | Operator::NotLike => {
                         Err(DataFusionError::NotImplemented(format!(
                             "Unsupported operator in gRPC: {:?} in expression {:?}",
                             op, expr

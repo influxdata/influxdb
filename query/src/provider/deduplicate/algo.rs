@@ -12,7 +12,7 @@ use arrow::{
 
 use arrow_util::optimize::optimize_dictionaries;
 use datafusion::physical_plan::{
-    coalesce_batches::concat_batches, expressions::PhysicalSortExpr, PhysicalExpr, SQLMetric,
+    coalesce_batches::concat_batches, expressions::PhysicalSortExpr, metrics, PhysicalExpr,
 };
 use observability_deps::tracing::trace;
 
@@ -25,7 +25,7 @@ use crate::provider::deduplicate::key_ranges::key_ranges;
 pub(crate) struct RecordBatchDeduplicator {
     sort_keys: Vec<PhysicalSortExpr>,
     last_batch: Option<RecordBatch>,
-    num_dupes: Arc<SQLMetric>,
+    num_dupes: metrics::Count,
 }
 
 #[derive(Debug)]
@@ -42,7 +42,7 @@ struct DuplicateRanges {
 impl RecordBatchDeduplicator {
     pub fn new(
         sort_keys: Vec<PhysicalSortExpr>,
-        num_dupes: Arc<SQLMetric>,
+        num_dupes: metrics::Count,
         last_batch: Option<RecordBatch>,
     ) -> Self {
         Self {
@@ -400,7 +400,7 @@ mod test {
 
     use arrow_util::assert_batches_eq;
     use datafusion::physical_plan::expressions::col;
-    use datafusion::physical_plan::MetricType;
+    use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricBuilder};
 
     use crate::provider::deduplicate::key_ranges::range;
 
@@ -464,8 +464,7 @@ mod test {
             },
         }];
 
-        let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
-        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, make_counter(), Some(last_batch));
 
         let results = dedupe
             .last_batch_with_no_same_sort_key(&current_batch)
@@ -548,8 +547,7 @@ mod test {
             },
         ];
 
-        let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
-        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, make_counter(), Some(last_batch));
 
         let results = dedupe
             .last_batch_with_no_same_sort_key(&current_batch)
@@ -618,8 +616,7 @@ mod test {
             },
         }];
 
-        let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
-        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, make_counter(), Some(last_batch));
 
         let results = dedupe.last_batch_with_no_same_sort_key(&current_batch);
         assert!(results.is_none());
@@ -687,8 +684,7 @@ mod test {
             },
         ];
 
-        let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
-        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, Some(last_batch));
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, make_counter(), Some(last_batch));
 
         let results = dedupe.last_batch_with_no_same_sort_key(&current_batch);
         assert!(results.is_none());
@@ -734,8 +730,7 @@ mod test {
             },
         ];
 
-        let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
-        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, None);
+        let mut dedupe = RecordBatchDeduplicator::new(sort_keys, make_counter(), None);
 
         let results = dedupe.last_batch_with_no_same_sort_key(&current_batch);
         assert!(results.is_none());
@@ -819,8 +814,7 @@ mod test {
             },
         ];
 
-        let num_dupes = Arc::new(SQLMetric::new(MetricType::Counter));
-        let dedupe = RecordBatchDeduplicator::new(sort_keys, num_dupes, None);
+        let dedupe = RecordBatchDeduplicator::new(sort_keys, make_counter(), None);
         let key_ranges = dedupe.compute_ranges(&batch).unwrap().ranges;
 
         let expected_key_range = vec![
@@ -835,5 +829,10 @@ mod test {
         ];
 
         assert_eq!(key_ranges, expected_key_range);
+    }
+
+    fn make_counter() -> metrics::Count {
+        let metrics = ExecutionPlanMetricsSet::new();
+        MetricBuilder::new(&metrics).counter("num_dupes", 0)
     }
 }
