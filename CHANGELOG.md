@@ -21,6 +21,7 @@ v1.9.4 [unreleased]
 -	[#22091](https://github.com/influxdata/influxdb/pull/22091): fix: systemd service -- handle https, 40x, and block indefinitely
 -	[#22214](https://github.com/influxdata/influxdb/pull/22214): fix: avoid compaction queue stats flutter
 -	[#22289](https://github.com/influxdata/influxdb/pull/22289): fix: require database authorization to see continuous queries
+-	[#22294](https://github.com/influxdata/influxdb/pull/22294): fix: return correct count of ErrNotExecuted
 
 v1.9.3 [unreleased]
 
