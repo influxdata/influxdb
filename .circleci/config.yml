@@ -1,158 +1,165 @@
 version: 2.1
 orbs:
   aws-s3: circleci/aws-s3@2.0.0
-
-commands:
-  source-vars:
-    description: source the environment variables from the temp workspace
-    steps:
-      - run: |
-          set -x
-          cat /tmp/workspace/env_vars.sh >> $BASH_ENV
-          source $BASH_ENV
+parameters:
+  cross-container-tag:
+    type: string
+    default: go1.15.10-ec819fab057e2efdcf478fec05bb5533957721ec
 
 jobs:
-  export_vars:
-    machine:
-      enabled: true
-      docker_layer_caching: true
-    steps:
-      - checkout
-      - run:
-          name: Export environment variables to bash environment
-          command: |
-            set -x
-            go_ver=$(grep -r '^go ' go.mod | cut -d ' ' -f2)
-            test -n "$go_ver"
-            working_dir=/home/circleci/project
-            touch env_vars.sh
-            echo "export WORKING_DIR=$working_dir" >> env_vars.sh
-            echo "export GO_VERSION=$go_ver" >> env_vars.sh
-      - persist_to_workspace:
-          root: .
-          paths:
-            - env_vars.sh
   build_binaries:
-    machine:
-      enabled: true
-      docker_layer_caching: true
+    docker:
+      - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - source-vars
       - checkout
+      - restore_cache:
+          keys:
+            - influxdb-cache-v1-{{ checksum "go.mod" }}
+            - influxdb-cache-v1
       - run:
-          name: Build source tarballs
+          name: Build tarball
           command: |
             set -x
-            mkdir -p ${WORKING_DIR}/tarball
-            "${WORKING_DIR}/releng/source-tarball/build.bash" \
-              -p "${WORKING_DIR}/.git" \
-              -s "${CIRCLE_SHA1}" \
-              -b "${CIRCLE_BRANCH}" \
-              -v "${CIRCLE_BRANCH}-${CIRCLE_SHA1}" \
-              -o "${WORKING_DIR}/tarball"
+            mkdir -p ./tarball
+            TARBALL_NAME="./tarball/influxdb-src-${CIRCLE_SHA1}.tar.gz"
+            tar --exclude-vcs --exclude './tarball' -vC . -czf "${TARBALL_NAME}" .
       - store_artifacts:
           path: tarball/
       - run:
           name: Build binaries
           command: |
-            OUTDIR=${WORKING_DIR}/bins
-            mkdir -p ${OUTDIR}
-            GOOS=linux GOARCH=amd64 "${WORKING_DIR}/releng/raw-binaries/build.bash" \
-              -i "${WORKING_DIR}/tarball/influxdb-src-${CIRCLE_SHA1}.tar.gz" \
-              -o "$OUTDIR"
+            set -x
+
+            tarsum()
+            {
+              FROM_DIR=$1
+              TARBALL_PATH=$2
+              tar -C $FROM_DIR -cvzf ${TARBALL_PATH} .
+              md5sum ${TARBALL_PATH} > ${TARBALL_PATH}.md5
+              sha256sum ${TARBALL_PATH} > ${TARBALL_PATH}.sha256
+            }
+
+            # TODO: chmod should be done in top-level container
+            chmod +x /usr/local/bin/xcc.sh
+            export CC=/usr/local/bin/xcc.sh
+            export CGO_ENABLED=1
+
+            # linux amd64 (static build)
+            TMPOUTDIR=$(mktemp -d)
+            export GOOS=linux
+            export GOARCH=amd64
+            for cmd in github.com/influxdata/influxdb/cmd/{influxd,influx,influx_inspect} ; do
+              go build -i -o "$TMPOUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
+            done
+            mkdir -p ./bins
+            tarsum $TMPOUTDIR ./bins/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz
       - store_artifacts:
           path: bins/
-      - run:
-          name: Build packages
-          command: |
-            OUTDIR=${WORKING_DIR}/oss-packages
-            BINDIR=${WORKING_DIR}/bins
-            mkdir -p ${OUTDIR}
-            mkdir -p ${BINDIR}
-            "${WORKING_DIR}/releng/packages/build.bash" \
-              -s "${WORKING_DIR}/tarball/influxdb-src-${CIRCLE_SHA1}.tar.gz" \
-              -b "${BINDIR}/influxdb_bin_linux_amd64-${CIRCLE_SHA1}.tar.gz" \
-              -O linux -A amd64 \
-              -o "$OUTDIR"
-      - store_artifacts:
-          path: oss-packages/
-      - when:
-          condition:
-            and:
-              - equal: [ master-1.x, << pipeline.git.branch >> ]
-              - << pipeline.git.tag >>
-          steps:
-            - aws-s3/copy:
-                arguments: |
-                  --aws-region us-east-1
-                from: 'tarball'
-                to: 's3://dl.influxdata.com/influxdb/releases'
-            - aws-s3/copy:
-                arguments: |
-                  --aws-region us-east-1
-                from: 'bins'
-                to: 's3://dl.influxdata.com/influxdb/releases'
-            - aws-s3/copy:
-                arguments: |
-                  --aws-region us-east-1
-                from: 'oss-packages'
-                to: 's3://dl.influxdata.com/influxdb/releases'
-  oss_release_candidate:
-    machine:
-      enabled: true
-      docker_layer_caching: true
-    #parallelism: 3 # How many CircleCI test containers
-    steps:
-      - checkout
-      - run:
-          name: Check OSS release candidacy
-          command: |
-            echo "TODO: Run checks to determine if this build is a release candidate"
-            ls ./
-          no_output_timeout: 1500s
-  test:
-    machine:
-      enabled: true
-      docker_layer_caching: true
-    environment:
-      - PARALLELISM: 4 # Amount of parallelism within each test (not the number of tests)
-    parallelism: 3 # How many CircleCI test containers
+      - save_cache:
+          key: influxdb-cache-v1-{{ checksum "go.mod" }}
+          paths:
+            - /go/pkg/mod
+            - /root/.cargo
+            - /root/.cache/go-build
+  static_code_checks:
+    docker:
+      - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - source-vars
       - checkout
       - run:
-          name: Ensure CircleCI parallelism matches "./test.sh count"
-          command: "[ `./test.sh count` -eq $CIRCLE_NODE_TOTAL ]"
+          name: checkfmt
+          command: ./checkfmt.sh
       - run:
-          name: Execute test
-          command: ./test.sh $CIRCLE_NODE_INDEX
+          name: codegen
+          command: ./generate.sh
+      - run:
+          name: go vet
+          command: go vet ./...
+  unit_test:
+    docker:
+      - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - influxdb-cache-v1-{{ checksum "go.mod" }}
+            - influxdb-cache-v1
+      - run:
+          name: Execute tests
+          command: |
+            set -x
+            mkdir -p junit
+            go test -v ./... 2>&1 | tee tests.log
+            go-junit-report < tests.log > junit/influxdb.junit.xml
           no_output_timeout: 1500s
+      - store_test_results:
+          path: junit/
+  unit_test_tsi:
+    docker:
+      - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
+    resource_class: large
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - influxdb-cache-v1-{{ checksum "go.mod" }}
+            - influxdb-cache-v1
+      - run:
+          name: Execute tests
+          command: |
+            set -x
+            mkdir -p junit-tsi
+            export INFLUXDB_DATA_INDEX_VERSION="tsi1"
+            go test -v ./... 2>&1 | tee tests.log
+            go-junit-report < tests.log > junit-tsi/influxdb.junit.xml
+          no_output_timeout: 1500s
+      - store_test_results:
+          path: junit-tsi/
+  unit_test_race:
+    docker:
+      - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
+    resource_class: large
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - influxdb-cache-v1-{{ checksum "go.mod" }}
+            - influxdb-cache-v1
+      - run:
+          name: Execute tests
+          command: |
+            set -x
+            mkdir -p junit-race/
+            export GORACE="halt_on_error=1"
+            go test -race -v ./... 2>&1 | tee tests.log
+            go-junit-report < tests.log > junit-race/influxdb.junit.xml
+          no_output_timeout: 1500s
+      - store_test_results:
+          path: junit-race/
   fluxtest:
-    machine:
-      enabled: true
-      docker_layer_caching: true
+    docker:
+      - image: quay.io/influxdb/cross-builder:<< pipeline.parameters.cross-container-tag >>
     steps:
       - checkout
       - run:
           name: Execute test
-          command: ./test.sh flux
+          command: ./test-flux.sh || exit 1
           no_output_timeout: 1500s
 
 workflows:
   version: 2.1
   on_push:
     jobs:
-      - export_vars
-      - test:
-          requires:
-            - export_vars
-      - fluxtest:
-          requires:
-            - export_vars
+      - build_binaries
+      - static_code_checks
+      - fluxtest
+      - unit_test
+      - unit_test_tsi
+      - unit_test_race
   daily:
     triggers:
       - schedule:
@@ -162,18 +169,17 @@ workflows:
             branches:
               only:
                 - "master-1.x"
-                - "1.8"
+                - "1.9"
     jobs:
-      - export_vars
-      - test:
-          requires:
-            - export_vars
-      - fluxtest:
-          requires:
-            - export_vars
+      - static_code_checks
+      - fluxtest
+      - unit_test
+      - unit_test_tsi
+      - unit_test_race
       - build_binaries:
           requires:
-            - test
-      - oss_release_candidate:
-          requires:
-            - build_binaries
+            - static_code_checks
+            - fluxtest
+            - unit_test
+            - unit_test_tsi
+            - unit_test_race
