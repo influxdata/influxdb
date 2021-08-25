@@ -60,7 +60,13 @@ impl RLE {
     /// the rows in the column can be inserted in any order and the correct
     /// ordinal relationship will exist between the encoded values.
     pub fn with_dictionary(dictionary: BTreeSet<String>) -> Self {
-        let mut _self = Self::default();
+        let mut index_entries = Vec::with_capacity(dictionary.len() + 1);
+        index_entries.push(String::from(""));
+
+        let mut _self = Self {
+            index_entries,
+            ..Self::default()
+        };
 
         for mut entry in dictionary.into_iter() {
             let next_id = _self.next_encoded_id();
