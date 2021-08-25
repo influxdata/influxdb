@@ -92,9 +92,6 @@ func (s service) CreateRemoteConnection(ctx context.Context, request influxdb.Cr
 
 	var rc influxdb.RemoteConnection
 	if err := s.store.DB.GetContext(ctx, &rc, query, args...); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errRemoteNotFound
-		}
 		return nil, err
 	}
 	return &rc, nil

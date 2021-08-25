@@ -861,7 +861,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		),
 	)
 
-	replicationSvc := replications.NewService()
+	replicationSvc := replications.NewService(m.sqlStore, ts.BucketService)
 	replicationServer := replicationTransport.NewReplicationHandler(
 		m.log.With(zap.String("handler", "replications")),
 		replications.NewLoggingService(

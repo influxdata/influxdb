@@ -49,17 +49,17 @@ type ReplicationService interface {
 
 // Replication contains all info about a replication that should be returned to users.
 type Replication struct {
-	ID                    platform.ID `json:"id"`
-	OrgID                 platform.ID `json:"orgID"`
-	Name                  string      `json:"name"`
-	Description           *string     `json:"description,omitempty"`
-	RemoteID              platform.ID `json:"remoteID"`
-	LocalBucketID         platform.ID `json:"localBucketID"`
-	RemoteBucketID        platform.ID `json:"remoteBucketID"`
-	MaxQueueSizeBytes     int64       `json:"maxQueueSizeBytes"`
-	CurrentQueueSizeBytes int64       `json:"currentQueueSizeBytes"`
-	LatestResponseCode    *int32      `json:"latestResponseCode,omitempty"`
-	LatestErrorMessage    *string     `json:"latestErrorMessage,omitempty"`
+	ID                    platform.ID `json:"id" db:"id"`
+	OrgID                 platform.ID `json:"orgID" db:"org_id"`
+	Name                  string      `json:"name" db:"name"`
+	Description           *string     `json:"description,omitempty" db:"description"`
+	RemoteID              platform.ID `json:"remoteID" db:"remote_id"`
+	LocalBucketID         platform.ID `json:"localBucketID" db:"local_bucket_id"`
+	RemoteBucketID        platform.ID `json:"remoteBucketID" db:"remote_bucket_id"`
+	MaxQueueSizeBytes     int64       `json:"maxQueueSizeBytes" db:"max_queue_size_bytes"`
+	CurrentQueueSizeBytes int64       `json:"currentQueueSizeBytes" db:"current_queue_size_bytes"`
+	LatestResponseCode    *int32      `json:"latestResponseCode,omitempty" db:"latest_response_code"`
+	LatestErrorMessage    *string     `json:"latestErrorMessage,omitempty" db:"latest_error_message"`
 }
 
 // ReplicationListFilter is a selection filter for listing replications.
