@@ -95,7 +95,7 @@ func TestCreateAndGetConnection(t *testing.T) {
 	// us to assert that the auth token was properly persisted.
 	fakeErr := errors.New("O NO")
 	mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &httpConfig).Return(fakeErr)
-	require.Equal(t, fakeErr, svc.ValidateRemoteConnection(ctx, initID))
+	require.Contains(t, svc.ValidateRemoteConnection(ctx, initID).Error(), fakeErr.Error())
 }
 
 func TestValidateConnectionWithoutPersisting(t *testing.T) {
@@ -109,7 +109,7 @@ func TestValidateConnectionWithoutPersisting(t *testing.T) {
 
 		fakeErr := errors.New("O NO")
 		mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &httpConfig).Return(fakeErr)
-		require.Equal(t, fakeErr, svc.ValidateNewRemoteConnection(ctx, createReq))
+		require.Contains(t, svc.ValidateNewRemoteConnection(ctx, createReq).Error(), fakeErr.Error())
 
 		got, err := svc.GetRemoteConnection(ctx, initID)
 		require.Equal(t, errRemoteNotFound, err)
@@ -183,7 +183,7 @@ func TestValidateUpdatedConnectionWithoutPersisting(t *testing.T) {
 		mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &updatedHttpConfig).Return(fakeErr)
 		mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &httpConfig).Return(nil)
 
-		require.Equal(t, fakeErr, svc.ValidateUpdatedRemoteConnection(ctx, initID, updateReq))
+		require.Contains(t, svc.ValidateUpdatedRemoteConnection(ctx, initID, updateReq).Error(), fakeErr.Error())
 
 		// Ensure the update wasn't applied.
 		got, err := svc.GetRemoteConnection(ctx, initID)
@@ -208,7 +208,7 @@ func TestValidateUpdatedConnectionWithoutPersisting(t *testing.T) {
 		got, err := svc.GetRemoteConnection(ctx, initID)
 		require.NoError(t, err)
 		require.Equal(t, connection, *got)
-		require.Equal(t, fakeErr, svc.ValidateRemoteConnection(ctx, initID))
+		require.Contains(t, svc.ValidateRemoteConnection(ctx, initID).Error(), fakeErr.Error())
 	})
 }
 

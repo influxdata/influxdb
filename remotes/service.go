@@ -108,7 +108,14 @@ func (s service) ValidateNewRemoteConnection(ctx context.Context, request influx
 		AllowInsecureTLS: request.AllowInsecureTLS,
 	}
 
-	return s.validator.ValidateRemoteConnectionHTTPConfig(ctx, &config)
+	if err := s.validator.ValidateRemoteConnectionHTTPConfig(ctx, &config); err != nil {
+		return &ierrors.Error{
+			Code: ierrors.EInvalid,
+			Msg:  "remote parameters fail validation",
+			Err:  err,
+		}
+	}
+	return nil
 }
 
 func (s service) GetRemoteConnection(ctx context.Context, id platform.ID) (*influxdb.RemoteConnection, error) {
@@ -191,7 +198,14 @@ func (s service) ValidateUpdatedRemoteConnection(ctx context.Context, id platfor
 		config.RemoteURL = *request.RemoteURL
 	}
 
-	return s.validator.ValidateRemoteConnectionHTTPConfig(ctx, config)
+	if err := s.validator.ValidateRemoteConnectionHTTPConfig(ctx, config); err != nil {
+		return &ierrors.Error{
+			Code: ierrors.EInvalid,
+			Msg:  "validation fails after applying update",
+			Err:  err,
+		}
+	}
+	return nil
 }
 
 func (s service) DeleteRemoteConnection(ctx context.Context, id platform.ID) error {
@@ -219,7 +233,14 @@ func (s service) ValidateRemoteConnection(ctx context.Context, id platform.ID) e
 	if err != nil {
 		return err
 	}
-	return s.validator.ValidateRemoteConnectionHTTPConfig(ctx, config)
+	if err := s.validator.ValidateRemoteConnectionHTTPConfig(ctx, config); err != nil {
+		return &ierrors.Error{
+			Code: ierrors.EInvalid,
+			Msg:  "remote failed validation",
+			Err:  err,
+		}
+	}
+	return nil
 }
 
 func (s service) getConnectionHTTPConfig(ctx context.Context, id platform.ID) (*internal.RemoteConnectionHTTPConfig, error) {
