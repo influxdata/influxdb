@@ -334,7 +334,9 @@ impl QueryChunk for DbChunk {
 
                 debug!(?rb_predicate, "Predicate pushed down to RUB");
 
-                let read_results = chunk.read_filter(rb_predicate, selection);
+                // TODO: add collection of delete predicates associated with
+                // this chunk.
+                let read_results = chunk.read_filter(rb_predicate, selection, vec![]);
                 let schema =
                     chunk
                         .read_filter_table_schema(selection)

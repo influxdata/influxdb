@@ -155,8 +155,10 @@ impl Chunk {
         &self,
         predicate: Predicate,
         select_columns: Selection<'_>,
+        delete_predicates: Vec<Predicate>,
     ) -> table::ReadFilterResults {
-        self.table.read_filter(&select_columns, &predicate, &[])
+        self.table
+            .read_filter(&select_columns, &predicate, delete_predicates.as_slice())
     }
 
     /// Returns an iterable collection of data in group columns and aggregate
@@ -1023,7 +1025,7 @@ mod test {
         let predicate =
             Predicate::with_time_range(&[BinaryExpr::from(("env", "=", "us-west"))], 100, 205); // filter on time
 
-        let mut itr = chunk.read_filter(predicate, Selection::All);
+        let mut itr = chunk.read_filter(predicate, Selection::All, vec![]);
 
         let exp_env_values = Values::Dictionary(vec![0], vec![Some("us-west")]);
         let exp_region_values = Values::Dictionary(vec![0], vec![Some("west")]);
@@ -1075,8 +1077,10 @@ mod test {
         // DELETE FROM "table_1" WHERE "region" = "west"
         //
         let predicate = Predicate::new(vec![BinaryExpr::from(("env", "=", "us-west"))]);
-
-        let mut itr = chunk.read_filter(predicate, Selection::All);
+        let delete_predicates = vec![Predicate::new(vec![BinaryExpr::from((
+            "region", "=", "west",
+        ))])];
+        let mut itr = chunk.read_filter(predicate, Selection::All, delete_predicates);
 
         let exp_env_values = Values::Dictionary(vec![0], vec![Some("us-west")]);
         let exp_region_values = Values::Dictionary(vec![0], vec![Some("east")]);
@@ -1096,7 +1100,7 @@ mod test {
         );
         assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
         assert_rb_column_equals(&first_row_group, "msg", &exp_msg_values);
-        assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![100])); // first row from first record batch
+        assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![300])); // last row from first record batch
 
         let second_row_group = itr.next().unwrap();
         assert_rb_column_equals(&second_row_group, "env", &exp_env_values);
@@ -1108,7 +1112,19 @@ mod test {
             &exp_sketchy_sensor_values,
         );
         assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
-        assert_rb_column_equals(&second_row_group, "time", &Values::I64(vec![200])); // first row from second record batch
+        assert_rb_column_equals(&second_row_group, "time", &Values::I64(vec![600])); // last row from second record batch
+
+        let third_row_group = itr.next().unwrap();
+        assert_rb_column_equals(&third_row_group, "env", &exp_env_values);
+        assert_rb_column_equals(&third_row_group, "region", &exp_region_values);
+        assert_rb_column_equals(&third_row_group, "counter", &exp_counter_values);
+        assert_rb_column_equals(
+            &first_row_group,
+            "sketchy_sensor",
+            &exp_sketchy_sensor_values,
+        );
+        assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
+        assert_rb_column_equals(&third_row_group, "time", &Values::I64(vec![900])); // first row from second record batch
 
         // No more data
         assert!(itr.next().is_none());
