@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::convert::From;
 use std::iter;
 use std::mem::size_of;
@@ -21,8 +21,9 @@ pub struct RLE {
 
     // The set of rows that belong to each distinct value in the dictionary.
     // This allows essentially constant time grouping of rows on the column by
-    // value.
-    index_row_ids: BTreeMap<u32, RowIDs>,
+    // value. The position in the vector is the implicit encoded value for
+    // logical column value.
+    index_row_ids: Vec<RowIDs>,
 
     // stores tuples where each pair refers to a dictionary entry and the number
     // of times the entry repeats.
@@ -42,16 +43,13 @@ impl Default for RLE {
         // for this to make sense NULL_ID must be `0`.
         assert_eq!(NULL_ID, 0);
 
-        let mut _self = Self {
+        Self {
             index_entries: vec!["".to_string()],
-            index_row_ids: BTreeMap::new(),
+            index_row_ids: vec![RowIDs::new_bitmap()], // index 0 for NULL value
             run_lengths: Vec::new(),
             contains_null: false,
             num_rows: 0,
-        };
-        _self.index_row_ids.insert(NULL_ID, RowIDs::new_bitmap());
-
-        _self
+        }
     }
 }
 
@@ -71,7 +69,7 @@ impl RLE {
             entry.shrink_to_fit();
 
             _self.index_entries.push(entry);
-            _self.index_row_ids.insert(next_id, RowIDs::new_bitmap());
+            _self.index_row_ids.push(RowIDs::new_bitmap());
         }
 
         _self
@@ -104,7 +102,7 @@ impl RLE {
         let row_ids_bitmaps_size = match buffers {
             true => self
                 .index_row_ids
-                .values()
+                .iter()
                 .map(|row_ids| row_ids.size())
                 .sum::<usize>(),
             false => 0,
@@ -129,12 +127,12 @@ impl RLE {
     ///
     pub fn size_raw(&self, include_nulls: bool) -> usize {
         let mut total_size = 0;
-        for (idx, rows) in &self.index_row_ids {
+        for (idx, rows) in self.index_row_ids.iter().enumerate() {
             // the length of the string value x number of times it appears
             // in the column.
-            total_size += self.index_entries[*idx as usize].len() * rows.len();
+            total_size += self.index_entries[idx as usize].len() * rows.len();
 
-            if include_nulls || idx != &NULL_ID {
+            if include_nulls || idx != NULL_ID as usize {
                 total_size += size_of::<String>() * rows.len()
             }
         }
@@ -153,7 +151,7 @@ impl RLE {
     /// The number of NULL values in this column.
     pub fn null_count(&self) -> u32 {
         self.index_row_ids
-            .get(&NULL_ID)
+            .get(NULL_ID as usize)
             .map_or(0, |rows| rows.len() as u32)
     }
 
@@ -218,7 +216,7 @@ impl RLE {
 
                 // Update the rows associated with the value.
                 self.index_row_ids
-                    .get_mut(&id)
+                    .get_mut(id as usize)
                     .unwrap()
                     .add_range(self.num_rows, self.num_rows + additional);
             }
@@ -232,17 +230,15 @@ impl RLE {
                     panic!("out of order dictionary insertion");
                 }
                 v.shrink_to_fit();
-                self.index_entries.push(v);
 
-                self.index_row_ids.insert(next_id, RowIDs::new_bitmap());
+                self.index_entries.push(v);
+                self.index_row_ids.push(RowIDs::new_bitmap());
 
                 // start a new run-length
                 self.run_lengths.push((next_id, additional));
 
                 // update the rows associated with the value.
-                self.index_row_ids
-                    .get_mut(&(next_id as u32))
-                    .unwrap()
+                self.index_row_ids[next_id as usize]
                     .add_range(self.num_rows, self.num_rows + additional);
             }
         }
@@ -263,7 +259,7 @@ impl RLE {
 
             // update the rows associated with the value.
             self.index_row_ids
-                .get_mut(&NULL_ID)
+                .get_mut(NULL_ID as usize)
                 .unwrap()
                 .add_range(self.num_rows, self.num_rows + additional);
         } else {
@@ -273,7 +269,7 @@ impl RLE {
 
             // update the rows associated with the value.
             self.index_row_ids
-                .get_mut(&NULL_ID)
+                .get_mut(NULL_ID as usize)
                 .unwrap()
                 .add_range(self.num_rows, self.num_rows + additional);
         }
@@ -283,6 +279,7 @@ impl RLE {
 
     // correct way to determine next encoded id for a new value.
     fn next_encoded_id(&self) -> u32 {
+        assert_eq!(self.index_entries.len(), self.index_row_ids.len());
         self.index_entries.len() as u32
     }
 
@@ -320,7 +317,7 @@ impl RLE {
         if let Some(encoded_id) = self.lookup_entry(value) {
             match op {
                 cmp::Operator::Equal => {
-                    let ids = self.index_row_ids.get(&encoded_id).unwrap();
+                    let ids = self.index_row_ids.get(encoded_id as usize).unwrap();
                     dst.union(ids);
                     return dst;
                 }
@@ -444,8 +441,8 @@ impl RLE {
     }
 
     // The set of row ids for each distinct value in the column.
-    pub fn group_row_ids(&self) -> Vec<&RowIDs> {
-        self.index_row_ids.values().collect()
+    pub fn group_row_ids(&self) -> &Vec<RowIDs> {
+        &self.index_row_ids
     }
 
     //
@@ -1004,11 +1001,7 @@ mod test {
 
         let drle = RLE::with_dictionary(dictionary);
         assert_eq!(drle.index_entries.as_slice(), &["", "hello", "world"]);
-
-        assert_eq!(
-            drle.index_row_ids.keys().cloned().collect::<Vec<u32>>(),
-            vec![0, 1, 2]
-        )
+        assert_eq!(drle.index_row_ids.len(), 3)
     }
 
     #[test]
