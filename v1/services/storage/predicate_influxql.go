@@ -61,11 +61,8 @@ func (v measEval) Visit(node influxql.Node) influxql.Visitor {
 			}
 
 			// Otherwise, encountering this AND after something other than an AND
-			// makes this subtree not a viable canditate for the optimization.
+			// invalidates this subtree.
 			v.invalidHeads[v.head] = struct{}{}
-			return v
-		case influxql.OR:
-			// OR ops do not invalidate the subtree.
 			return v
 		case influxql.EQ:
 			// For EQ ops, the only valid configuration is the form of
@@ -78,6 +75,9 @@ func (v measEval) Visit(node influxql.Node) influxql.Visitor {
 
 			// If it wasn't a measurement, this tree is invalid.
 			v.invalidHeads[v.head] = struct{}{}
+			return v
+		case influxql.OR:
+			// OR ops do not invalidate the subtree.
 			return v
 		default:
 			// Any other operation means this subtree is invalid.
@@ -102,7 +102,7 @@ func (v measEval) Visit(node influxql.Node) influxql.Visitor {
 	}
 
 	// If the function did not return in the type switch, that means that this is
-	// some other kind of node, which invalidates the tree
+	// some other kind of node, which invalidates the subtree.
 	v.onlyAnds = false
 	v.invalidHeads[v.head] = struct{}{}
 
@@ -125,7 +125,7 @@ func MeasurementOptimization(expr influxql.Expr) ([]string, bool) {
 
 	// There must be measurements in exactly one subtree for this optimization to
 	// work. Note: It may be possible to have measurements in multiple subtrees,
-	// as long as there are no measurements in invalid subtrees, by computing a
+	// as long as there are no measurements in invalid subtrees, by determining a
 	// union of the measurement names across all valid subtrees - this is not
 	// currently implemented.
 	if len(measNodeHeads) != 1 {

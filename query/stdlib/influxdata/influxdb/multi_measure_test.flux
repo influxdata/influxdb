@@ -44,6 +44,14 @@ input = "
 ,,4,2018-05-22T19:53:56Z,swap,host.global,used_percent,82.59
 ,,4,2018-05-22T19:54:06Z,swap,host.global,used_percent,82.59
 ,,4,2018-05-22T19:54:16Z,swap,host.global,used_percent,82.64
+
+#datatype,string,long,dateTime:RFC3339,string,string,string,double
+#group,false,false,false,true,true,true,false
+#default,_result,,,,,,
+,result,table,_time,_measurement,loc,_field,_value
+,,0,2018-05-22T19:53:26Z,locale,en,lat,37.09
+,,0,2018-05-22T19:53:36Z,locale,en,lat,37.10
+,,0,2018-05-22T19:53:46Z,locale,en,lat,37.08
 "
 
 testcase multi_measure {
@@ -152,7 +160,7 @@ testcase multi_measure_tag_filter {
 testcase multi_measure_complex_or {
     got = testing.loadStorage(csv: input)
         |> range(start: 2018-01-01T00:00:00Z, stop: 2019-01-01T00:00:00Z)
-        |> filter(fn: (r) => (r["_measurement"] == "system" or r["_measurement"] == "swap") or (r["_measurement"] == "var" and r["host"] == "host.local")) 
+        |> filter(fn: (r) => (r["_measurement"] == "system" or r["_measurement"] == "swap") or (r["_measurement"] != "var" and r["host"] == "host.local")) 
         |> drop(columns: ["_start", "_stop"])
 
     want = csv.from(csv: "#datatype,string,long,dateTime:RFC3339,string,string,string,double
@@ -177,12 +185,12 @@ testcase multi_measure_complex_or {
 ,,4,2018-05-22T19:53:56Z,swap,host.global,used_percent,82.59
 ,,4,2018-05-22T19:54:06Z,swap,host.global,used_percent,82.59
 ,,4,2018-05-22T19:54:16Z,swap,host.global,used_percent,82.64
-,,3,2018-05-22T19:53:26Z,var,host.local,load3,91.98
-,,3,2018-05-22T19:53:36Z,var,host.local,load3,91.97
-,,3,2018-05-22T19:53:46Z,var,host.local,load3,91.97
-,,3,2018-05-22T19:53:56Z,var,host.local,load3,91.96
-,,3,2018-05-22T19:54:06Z,var,host.local,load3,91.98
-,,3,2018-05-22T19:54:16Z,var,host.local,load3,91.97
+,,1,2018-05-22T19:53:26Z,sys,host.local,load3,1.98
+,,1,2018-05-22T19:53:36Z,sys,host.local,load3,1.97
+,,1,2018-05-22T19:53:46Z,sys,host.local,load3,1.97
+,,1,2018-05-22T19:53:56Z,sys,host.local,load3,1.96
+,,1,2018-05-22T19:54:06Z,sys,host.local,load3,1.98
+,,1,2018-05-22T19:54:16Z,sys,host.local,load3,1.97
 ")
 
     testing.diff(got, want)
@@ -191,7 +199,7 @@ testcase multi_measure_complex_or {
 testcase multi_measure_complex_and {
     got = testing.loadStorage(csv: input)
         |> range(start: 2018-01-01T00:00:00Z, stop: 2019-01-01T00:00:00Z)
-        |> filter(fn: (r) => r["_measurement"] == "system" or r["_measurement"] == "swap") 
+        |> filter(fn: (r) => r["_measurement"] != "system" or r["_measurement"] == "swap") 
         |> filter(fn: (r) => r["_measurement"] == "swap" or r["_measurement"] == "var") 
         |> drop(columns: ["_start", "_stop"])
 
@@ -205,6 +213,48 @@ testcase multi_measure_complex_and {
 ,,4,2018-05-22T19:53:56Z,swap,host.global,used_percent,82.59
 ,,4,2018-05-22T19:54:06Z,swap,host.global,used_percent,82.59
 ,,4,2018-05-22T19:54:16Z,swap,host.global,used_percent,82.64
+,,3,2018-05-22T19:53:26Z,var,host.local,load3,91.98
+,,3,2018-05-22T19:53:36Z,var,host.local,load3,91.97
+,,3,2018-05-22T19:53:46Z,var,host.local,load3,91.97
+,,3,2018-05-22T19:53:56Z,var,host.local,load3,91.96
+,,3,2018-05-22T19:54:06Z,var,host.local,load3,91.98
+,,3,2018-05-22T19:54:16Z,var,host.local,load3,91.97
+")
+
+    testing.diff(got, want)
+}
+
+testcase multi_measure_negation {
+    got = testing.loadStorage(csv: input)
+        |> range(start: 2018-01-01T00:00:00Z, stop: 2019-01-01T00:00:00Z)
+        |> filter(fn: (r) => r["_measurement"] != "system")
+        |> filter(fn: (r) => r["host"] == "host.local" or not exists r["host"])
+        |> drop(columns: ["_start", "_stop"])
+
+    want = csv.from(csv: "#datatype,string,long,dateTime:RFC3339,string,string,string,double
+#group,false,false,false,true,true,true,false
+#default,_result,,,,,,
+,result,table,_time,_measurement,host,_field,_value
+,,1,2018-05-22T19:53:26Z,sys,host.local,load3,1.98
+,,1,2018-05-22T19:53:36Z,sys,host.local,load3,1.97
+,,1,2018-05-22T19:53:46Z,sys,host.local,load3,1.97
+,,1,2018-05-22T19:53:56Z,sys,host.local,load3,1.96
+,,1,2018-05-22T19:54:06Z,sys,host.local,load3,1.98
+,,1,2018-05-22T19:54:16Z,sys,host.local,load3,1.97
+,,3,2018-05-22T19:53:26Z,var,host.local,load3,91.98
+,,3,2018-05-22T19:53:36Z,var,host.local,load3,91.97
+,,3,2018-05-22T19:53:46Z,var,host.local,load3,91.97
+,,3,2018-05-22T19:53:56Z,var,host.local,load3,91.96
+,,3,2018-05-22T19:54:06Z,var,host.local,load3,91.98
+,,3,2018-05-22T19:54:16Z,var,host.local,load3,91.97
+
+#datatype,string,long,dateTime:RFC3339,string,string,string,double
+#group,false,false,false,true,true,true,false
+#default,_result,,,,,,
+,result,table,_time,_measurement,loc,_field,_value
+,,0,2018-05-22T19:53:26Z,locale,en,lat,37.09
+,,0,2018-05-22T19:53:36Z,locale,en,lat,37.10
+,,0,2018-05-22T19:53:46Z,locale,en,lat,37.08
 ")
 
     testing.diff(got, want)
