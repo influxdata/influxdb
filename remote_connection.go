@@ -47,15 +47,6 @@ type RemoteConnection struct {
 	AllowInsecureTLS bool        `json:"allowInsecureTLS" db:"allow_insecure_tls"`
 }
 
-// RemoteConnectionHTTPConfig contains all info needed by a client to make HTTP requests against a
-// remote InfluxDB API.
-type RemoteConnectionHTTPConfig struct {
-	RemoteURL        string      `db:"remote_url"`
-	RemoteToken      string      `db:"remote_api_token"`
-	RemoteOrgID      platform.ID `db:"remote_org_id"`
-	AllowInsecureTLS bool        `db:"allow_insecure_tls"`
-}
-
 // RemoteConnectionListFilter is a selection filter for listing remote InfluxDB instances.
 type RemoteConnectionListFilter struct {
 	OrgID     platform.ID

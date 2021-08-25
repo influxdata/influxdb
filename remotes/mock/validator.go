@@ -9,7 +9,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	influxdb "github.com/influxdata/influxdb/v2"
+	internal "github.com/influxdata/influxdb/v2/remotes/internal"
 )
 
 // MockRemoteConnectionValidator is a mock of RemoteConnectionValidator interface.
@@ -36,7 +36,7 @@ func (m *MockRemoteConnectionValidator) EXPECT() *MockRemoteConnectionValidatorM
 }
 
 // ValidateRemoteConnectionHTTPConfig mocks base method.
-func (m *MockRemoteConnectionValidator) ValidateRemoteConnectionHTTPConfig(arg0 context.Context, arg1 *influxdb.RemoteConnectionHTTPConfig) error {
+func (m *MockRemoteConnectionValidator) ValidateRemoteConnectionHTTPConfig(arg0 context.Context, arg1 *internal.RemoteConnectionHTTPConfig) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidateRemoteConnectionHTTPConfig", arg0, arg1)
 	ret0, _ := ret[0].(error)
