@@ -366,7 +366,7 @@ impl StringEncoding {
     }
 
     /// Calculate all row ids for each distinct value in the column.
-    pub fn group_row_ids(&self) -> Either<Vec<&RowIDs>, Vec<RowIDs>> {
+    pub fn group_row_ids(&self) -> Either<&Vec<RowIDs>, Vec<RowIDs>> {
         match self {
             Self::RleDictionary(enc) => Either::Left(enc.group_row_ids()),
             Self::Dictionary(enc) => Either::Right(enc.group_row_ids()),

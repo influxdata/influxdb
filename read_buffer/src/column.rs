@@ -379,7 +379,7 @@ impl Column {
         }
     }
 
-    pub fn grouped_row_ids(&self) -> Either<Vec<&RowIDs>, Vec<RowIDs>> {
+    pub fn grouped_row_ids(&self) -> Either<&Vec<RowIDs>, Vec<RowIDs>> {
         match &self {
             Self::String(_, data) => data.group_row_ids(),
             _ => unimplemented!("grouping not yet implemented"),

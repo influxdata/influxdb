@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::convert::From;
 use std::iter;
 use std::mem::size_of;
@@ -21,8 +21,9 @@ pub struct RLE {
 
     // The set of rows that belong to each distinct value in the dictionary.
     // This allows essentially constant time grouping of rows on the column by
-    // value.
-    index_row_ids: BTreeMap<u32, RowIDs>,
+    // value. The position in the vector is the implicit encoded value for
+    // logical column value.
+    index_row_ids: Vec<RowIDs>,
 
     // stores tuples where each pair refers to a dictionary entry and the number
     // of times the entry repeats.
@@ -42,16 +43,13 @@ impl Default for RLE {
         // for this to make sense NULL_ID must be `0`.
         assert_eq!(NULL_ID, 0);
 
-        let mut _self = Self {
+        Self {
             index_entries: vec!["".to_string()],
-            index_row_ids: BTreeMap::new(),
+            index_row_ids: vec![RowIDs::new_bitmap()], // index 0 for NULL value
             run_lengths: Vec::new(),
             contains_null: false,
             num_rows: 0,
-        };
-        _self.index_row_ids.insert(NULL_ID, RowIDs::new_bitmap());
-
-        _self
+        }
     }
 }
 
@@ -63,15 +61,8 @@ impl RLE {
         let mut _self = Self::default();
         _self.index_entries.reserve_exact(dictionary.len());
 
-        for mut entry in dictionary.into_iter() {
-            let next_id = _self.next_encoded_id();
-
-            // Depending on how the string was created, the backing vector might have more capacity than the actual
-            // data. Shrink it (this is a no-op if the capacity already matches).
-            entry.shrink_to_fit();
-
-            _self.index_entries.push(entry);
-            _self.index_row_ids.insert(next_id, RowIDs::new_bitmap());
+        for entry in dictionary.into_iter() {
+            _self.add_entry(entry);
         }
 
         _self
@@ -104,14 +95,16 @@ impl RLE {
         let row_ids_bitmaps_size = match buffers {
             true => self
                 .index_row_ids
-                .values()
+                .iter()
                 .map(|row_ids| row_ids.size())
                 .sum::<usize>(),
             false => 0,
         };
 
-        let index_row_ids_size =
-            (size_of::<u32>() * self.index_row_ids.len()) + row_ids_bitmaps_size;
+        let index_row_ids_size = match buffers {
+            true => size_of::<RowIDs>() * self.index_row_ids.len() + row_ids_bitmaps_size,
+            false => 0,
+        };
 
         let run_lengths_size = size_of::<(u32, u32)>()
             * match buffers {
@@ -129,12 +122,12 @@ impl RLE {
     ///
     pub fn size_raw(&self, include_nulls: bool) -> usize {
         let mut total_size = 0;
-        for (idx, rows) in &self.index_row_ids {
+        for (idx, rows) in self.index_row_ids.iter().enumerate() {
             // the length of the string value x number of times it appears
             // in the column.
-            total_size += self.index_entries[*idx as usize].len() * rows.len();
+            total_size += self.index_entries[idx as usize].len() * rows.len();
 
-            if include_nulls || idx != &NULL_ID {
+            if include_nulls || idx != NULL_ID as usize {
                 total_size += size_of::<String>() * rows.len()
             }
         }
@@ -153,7 +146,7 @@ impl RLE {
     /// The number of NULL values in this column.
     pub fn null_count(&self) -> u32 {
         self.index_row_ids
-            .get(&NULL_ID)
+            .get(NULL_ID as usize)
             .map_or(0, |rows| rows.len() as u32)
     }
 
@@ -181,6 +174,19 @@ impl RLE {
     }
 
     #[inline]
+    fn add_entry(&mut self, mut entry: String) -> u32 {
+        // Depending on how the string was created, the backing vector might have more capacity than the actual
+        // data. Shrink it (this is a no-op if the capacity already matches).
+        entry.shrink_to_fit();
+
+        let encoded_id = self.index_entries.len();
+        self.index_entries.push(entry);
+        self.index_row_ids.push(RowIDs::new_bitmap());
+
+        encoded_id as u32
+    }
+
+    #[inline]
     fn lookup_entry(&self, entry: &str) -> Option<u32> {
         Some(
             self.index_entries[1..]
@@ -191,13 +197,19 @@ impl RLE {
     }
 
     #[inline]
+    fn last_entry(&self) -> &String {
+        // there is always at least one entry in the encoding
+        self.index_entries.last().unwrap()
+    }
+
+    #[inline]
     fn keys(&self) -> impl Iterator<Item = &String> + ExactSizeIterator + DoubleEndedIterator + '_ {
         // Skip the first NULL value
         self.index_entries.iter().skip(1)
     }
 
-    fn push_additional_some(&mut self, mut v: String, additional: u32) {
-        match self.lookup_entry(&v) {
+    fn push_additional_some(&mut self, entry: String, additional: u32) {
+        match self.lookup_entry(&entry) {
             // existing dictionary entry for value.
             Some(id) => {
                 match self.run_lengths.last_mut() {
@@ -217,32 +229,22 @@ impl RLE {
                 }
 
                 // Update the rows associated with the value.
-                self.index_row_ids
-                    .get_mut(&id)
-                    .unwrap()
+                self.index_row_ids[id as usize]
                     .add_range(self.num_rows, self.num_rows + additional);
             }
             // no dictionary entry for value.
             None => {
-                // New dictionary entry.
-                let next_id = self.next_encoded_id();
-                if next_id > 0
-                    && self.index_entries[next_id as usize - 1].cmp(&v) != std::cmp::Ordering::Less
-                {
+                // New dictionary entry - assert insert order is consistent.
+                if self.last_entry().cmp(&entry) != std::cmp::Ordering::Less {
                     panic!("out of order dictionary insertion");
                 }
-                v.shrink_to_fit();
-                self.index_entries.push(v);
-
-                self.index_row_ids.insert(next_id, RowIDs::new_bitmap());
+                let next_id = self.add_entry(entry);
 
                 // start a new run-length
                 self.run_lengths.push((next_id, additional));
 
                 // update the rows associated with the value.
-                self.index_row_ids
-                    .get_mut(&(next_id as u32))
-                    .unwrap()
+                self.index_row_ids[next_id as usize]
                     .add_range(self.num_rows, self.num_rows + additional);
             }
         }
@@ -263,7 +265,7 @@ impl RLE {
 
             // update the rows associated with the value.
             self.index_row_ids
-                .get_mut(&NULL_ID)
+                .get_mut(NULL_ID as usize)
                 .unwrap()
                 .add_range(self.num_rows, self.num_rows + additional);
         } else {
@@ -273,17 +275,12 @@ impl RLE {
 
             // update the rows associated with the value.
             self.index_row_ids
-                .get_mut(&NULL_ID)
+                .get_mut(NULL_ID as usize)
                 .unwrap()
                 .add_range(self.num_rows, self.num_rows + additional);
         }
 
         self.num_rows += additional;
-    }
-
-    // correct way to determine next encoded id for a new value.
-    fn next_encoded_id(&self) -> u32 {
-        self.index_entries.len() as u32
     }
 
     /// The number of logical rows encoded in this column.
@@ -320,7 +317,7 @@ impl RLE {
         if let Some(encoded_id) = self.lookup_entry(value) {
             match op {
                 cmp::Operator::Equal => {
-                    let ids = self.index_row_ids.get(&encoded_id).unwrap();
+                    let ids = self.index_row_ids.get(encoded_id as usize).unwrap();
                     dst.union(ids);
                     return dst;
                 }
@@ -444,8 +441,8 @@ impl RLE {
     }
 
     // The set of row ids for each distinct value in the column.
-    pub fn group_row_ids(&self) -> Vec<&RowIDs> {
-        self.index_row_ids.values().collect()
+    pub fn group_row_ids(&self) -> &Vec<RowIDs> {
+        &self.index_row_ids
     }
 
     //
@@ -1004,11 +1001,7 @@ mod test {
 
         let drle = RLE::with_dictionary(dictionary);
         assert_eq!(drle.index_entries.as_slice(), &["", "hello", "world"]);
-
-        assert_eq!(
-            drle.index_row_ids.keys().cloned().collect::<Vec<u32>>(),
-            vec![0, 1, 2]
-        )
+        assert_eq!(drle.index_row_ids.len(), 3)
     }
 
     #[test]
@@ -1028,7 +1021,7 @@ mod test {
         // * index row ids: (bitmaps) not included in calc
         // * run lengths: (8*5) == 40
         //
-        assert_eq!(enc.size(false), 246);
+        assert_eq!(enc.size(false), 230);
 
         // check allocated size
         let mut enc = RLE::default();
@@ -1046,10 +1039,10 @@ mod test {
 
         // * Self: 24 + 24 + 24 + 1 + (padding 3b) + 4 = 80b
         // * index entries: (40 * 24) + 14 == 974
-        // * index row ids: (bitmaps) is (4 * 4) + (204b for bitmaps) == 220
+        // * index row ids: (bitmaps) is (4 * 32) + (154b for bitmaps) == 282
         // * run lengths: (40 * 8) == 320
         //
-        assert_eq!(enc.size(true), 1544);
+        assert_eq!(enc.size(true), 1656);
     }
 
     #[test]

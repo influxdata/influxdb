@@ -108,7 +108,7 @@ impl Encoding {
     }
 
     // The set of row ids for each distinct value in the column.
-    fn group_row_ids(&self) -> Either<Vec<&RowIDs>, Vec<RowIDs>> {
+    fn group_row_ids(&self) -> Either<&Vec<RowIDs>, Vec<RowIDs>> {
         match self {
             Self::RLE(enc) => Either::Left(enc.group_row_ids()),
             Self::Plain(enc) => Either::Right(enc.group_row_ids()),
@@ -762,11 +762,11 @@ mod test {
             Encoding::RLE(_) => {
                 assert_eq!(
                     enc.group_row_ids().unwrap_left(),
-                    vec![
-                        &RowIDs::bitmap_from_slice(&[6]),
-                        &RowIDs::bitmap_from_slice(&[0, 1, 2, 3]),
-                        &RowIDs::bitmap_from_slice(&[4, 5]),
-                        &RowIDs::bitmap_from_slice(&[7]),
+                    &vec![
+                        RowIDs::bitmap_from_slice(&[6]),
+                        RowIDs::bitmap_from_slice(&[0, 1, 2, 3]),
+                        RowIDs::bitmap_from_slice(&[4, 5]),
+                        RowIDs::bitmap_from_slice(&[7]),
                     ],
                     "{}",
                     name
