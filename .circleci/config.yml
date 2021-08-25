@@ -273,10 +273,12 @@ jobs:
       - cache_restore
       - run:
           name: Print rustc target CPU options
-          command: cargo run --release --no-default-features --features="aws,gcp,azure,jaeger,heappy" --bin print_cpu
+          # disable jemalloc/heappy and use system alloctor
+          command: cargo run --release --no-default-features --features="aws,gcp,azure,jaeger" --bin print_cpu
       - run:
           name: Cargo release build with target arch set for CRoaring
-          command: cargo build --release --no-default-features --features="aws,gcp,azure,jaeger,heappy"
+          # disable jemalloc/heappy and use system alloctor
+          command: cargo build --release --no-default-features --features="aws,gcp,azure,jaeger"
       - run: |
           echo sha256sum after build is
           sha256sum target/release/influxdb_iox
