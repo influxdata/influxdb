@@ -69,6 +69,7 @@ pub struct IoxObjectStore {
     transactions_path: TransactionsPath,
 }
 
+/// Private information about a database's generation.
 #[derive(Debug, Copy, Clone)]
 struct Generation {
     id: usize,
@@ -114,6 +115,8 @@ impl IoxObjectStore {
     // that contain tombstone files
     // See: https://github.com/influxdata/influxdb_iox/issues/2198
 
+    // Private function to list all generation directories in object storage for a particular
+    // database.
     async fn list_generations(
         inner: &ObjectStore,
         root_path: &RootPath,
@@ -152,6 +155,9 @@ impl IoxObjectStore {
     /// Create a database-specific wrapper. Takes all the information needed to create a new
     /// root directory of a database. Checks that there isn't already an active database
     /// with this name in object storage.
+    ///
+    /// Caller *MUST* ensure there is at most 1 concurrent call of this function with the same
+    /// parameters; this function does *NOT* do any locking.
     pub async fn new(
         inner: Arc<ObjectStore>,
         server_id: ServerId,
