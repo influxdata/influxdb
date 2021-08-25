@@ -61,6 +61,7 @@ impl RLE {
     /// ordinal relationship will exist between the encoded values.
     pub fn with_dictionary(dictionary: BTreeSet<String>) -> Self {
         let mut _self = Self::default();
+        _self.index_entries.reserve_exact(dictionary.len());
 
         for mut entry in dictionary.into_iter() {
             let next_id = _self.next_encoded_id();
