@@ -61,15 +61,8 @@ impl RLE {
         let mut _self = Self::default();
         _self.index_entries.reserve_exact(dictionary.len());
 
-        for mut entry in dictionary.into_iter() {
-            let next_id = _self.next_encoded_id();
-
-            // Depending on how the string was created, the backing vector might have more capacity than the actual
-            // data. Shrink it (this is a no-op if the capacity already matches).
-            entry.shrink_to_fit();
-
-            _self.index_entries.push(entry);
-            _self.index_row_ids.push(RowIDs::new_bitmap());
+        for entry in dictionary.into_iter() {
+            _self.add_entry(entry);
         }
 
         _self
@@ -179,6 +172,19 @@ impl RLE {
     }
 
     #[inline]
+    fn add_entry(&mut self, mut entry: String) -> u32 {
+        // Depending on how the string was created, the backing vector might have more capacity than the actual
+        // data. Shrink it (this is a no-op if the capacity already matches).
+        entry.shrink_to_fit();
+
+        let encoded_id = self.index_entries.len();
+        self.index_entries.push(entry);
+        self.index_row_ids.push(RowIDs::new_bitmap());
+
+        encoded_id as u32
+    }
+
+    #[inline]
     fn lookup_entry(&self, entry: &str) -> Option<u32> {
         Some(
             self.index_entries[1..]
@@ -189,13 +195,19 @@ impl RLE {
     }
 
     #[inline]
+    fn last_entry(&self) -> &String {
+        // there is always at least one entry in the encoding
+        self.index_entries.last().unwrap()
+    }
+
+    #[inline]
     fn keys(&self) -> impl Iterator<Item = &String> + ExactSizeIterator + DoubleEndedIterator + '_ {
         // Skip the first NULL value
         self.index_entries.iter().skip(1)
     }
 
-    fn push_additional_some(&mut self, mut v: String, additional: u32) {
-        match self.lookup_entry(&v) {
+    fn push_additional_some(&mut self, entry: String, additional: u32) {
+        match self.lookup_entry(&entry) {
             // existing dictionary entry for value.
             Some(id) => {
                 match self.run_lengths.last_mut() {
@@ -215,24 +227,16 @@ impl RLE {
                 }
 
                 // Update the rows associated with the value.
-                self.index_row_ids
-                    .get_mut(id as usize)
-                    .unwrap()
+                self.index_row_ids[id as usize]
                     .add_range(self.num_rows, self.num_rows + additional);
             }
             // no dictionary entry for value.
             None => {
-                // New dictionary entry.
-                let next_id = self.next_encoded_id();
-                if next_id > 0
-                    && self.index_entries[next_id as usize - 1].cmp(&v) != std::cmp::Ordering::Less
-                {
+                // New dictionary entry - assert insert order is consistent.
+                if self.last_entry().cmp(&entry) != std::cmp::Ordering::Less {
                     panic!("out of order dictionary insertion");
                 }
-                v.shrink_to_fit();
-
-                self.index_entries.push(v);
-                self.index_row_ids.push(RowIDs::new_bitmap());
+                let next_id = self.add_entry(entry);
 
                 // start a new run-length
                 self.run_lengths.push((next_id, additional));
@@ -275,12 +279,6 @@ impl RLE {
         }
 
         self.num_rows += additional;
-    }
-
-    // correct way to determine next encoded id for a new value.
-    fn next_encoded_id(&self) -> u32 {
-        assert_eq!(self.index_entries.len(), self.index_row_ids.len());
-        self.index_entries.len() as u32
     }
 
     /// The number of logical rows encoded in this column.
