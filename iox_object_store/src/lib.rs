@@ -59,7 +59,6 @@ pub struct IoxObjectStore {
     inner: Arc<ObjectStore>,
     server_id: ServerId,
     database_name: DatabaseName<'static>,
-    generation_id: usize,
     generation_path: GenerationPath,
     data_path: DataPath,
     transactions_path: TransactionsPath,
@@ -73,6 +72,10 @@ struct Generation {
 }
 
 impl Generation {
+    fn new(id: usize) -> Self {
+        Self { id, deleted: false }
+    }
+
     fn is_active(&self) -> bool {
         !self.deleted
     }
@@ -141,7 +144,7 @@ impl IoxObjectStore {
                 //     .into_iter()
                 //     .any(|object| object.location == prefix);
 
-                generations.push(Generation { id, deleted: false });
+                generations.push(Generation::new(id));
             }
         }
 
@@ -174,7 +177,7 @@ impl IoxObjectStore {
             }
         );
 
-        let next_generation = generations
+        let next_generation_id = generations
             .iter()
             .map(|g| g.id)
             .max()
@@ -185,7 +188,7 @@ impl IoxObjectStore {
             inner,
             server_id,
             database_name,
-            next_generation,
+            Generation::new(next_generation_id),
             root_path,
         ))
     }
@@ -206,7 +209,7 @@ impl IoxObjectStore {
         let mut active_generations = generations.iter().filter(|g| g.is_active());
 
         let active = match active_generations.next() {
-            Some(a) => a,
+            Some(a) => *a,
             None => return Ok(None),
         };
 
@@ -219,7 +222,7 @@ impl IoxObjectStore {
             inner,
             server_id,
             database_name,
-            active.id,
+            active,
             root_path,
         )))
     }
@@ -230,10 +233,10 @@ impl IoxObjectStore {
         inner: Arc<ObjectStore>,
         server_id: ServerId,
         database_name: &DatabaseName<'static>,
-        generation_id: usize,
+        generation: Generation,
         root_path: RootPath,
     ) -> Self {
-        let generation_path = root_path.generation_path(generation_id);
+        let generation_path = root_path.generation_path(generation);
         let data_path = generation_path.data_path();
         let transactions_path = generation_path.transactions_path();
 
@@ -241,7 +244,6 @@ impl IoxObjectStore {
             inner,
             server_id,
             database_name: database_name.to_owned(),
-            generation_id,
             generation_path,
             data_path,
             transactions_path,

@@ -1,5 +1,6 @@
 //! Paths for specific types of files within a database's object storage.
 
+use super::Generation;
 use data_types::{server_id::ServerId, DatabaseName};
 use object_store::{
     path::{ObjectStorePath, Path},
@@ -45,8 +46,8 @@ impl RootPath {
         result
     }
 
-    pub(crate) fn generation_path(&self, generation_id: usize) -> GenerationPath {
-        GenerationPath::new(self, generation_id)
+    pub(crate) fn generation_path(&self, generation: Generation) -> GenerationPath {
+        GenerationPath::new(self, generation)
     }
 }
 
@@ -55,13 +56,15 @@ impl RootPath {
 #[derive(Debug, Clone)]
 pub(crate) struct GenerationPath {
     pub(crate) inner: Path,
+    generation: Generation,
 }
 
 impl GenerationPath {
     /// How the generation path of a database is defined in object storage.
-    pub(crate) fn new(root_path: &RootPath, generation: usize) -> Self {
+    pub(crate) fn new(root_path: &RootPath, generation: Generation) -> Self {
         Self {
-            inner: root_path.join(&generation.to_string()),
+            inner: root_path.join(&generation.id.to_string()),
+            generation,
         }
     }
 
@@ -184,13 +187,13 @@ mod tests {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
-        let generation_id = 3;
+        let generation = Generation::new(3);
         let root_path = RootPath::new(&object_store, server_id, &database_name);
         let iox_object_store = IoxObjectStore::existing(
             Arc::clone(&object_store),
             server_id,
             &database_name,
-            generation_id,
+            generation,
             root_path,
         );
         assert_eq!(
@@ -204,13 +207,13 @@ mod tests {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
-        let generation_id = 3;
+        let generation = Generation::new(3);
         let root_path = RootPath::new(&object_store, server_id, &database_name);
         let iox_object_store = IoxObjectStore::existing(
             Arc::clone(&object_store),
             server_id,
             &database_name,
-            generation_id,
+            generation,
             root_path,
         );
         assert_eq!(
@@ -224,13 +227,13 @@ mod tests {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
-        let generation_id = 3;
+        let generation = Generation::new(3);
         let root_path = RootPath::new(&object_store, server_id, &database_name);
         let iox_object_store = IoxObjectStore::existing(
             Arc::clone(&object_store),
             server_id,
             &database_name,
-            generation_id,
+            generation,
             root_path,
         );
         assert_eq!(

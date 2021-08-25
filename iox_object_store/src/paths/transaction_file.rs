@@ -196,7 +196,7 @@ impl FromStr for TransactionFileSuffix {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{IoxObjectStore, RootPath};
+    use crate::{Generation, IoxObjectStore, RootPath};
     use data_types::{server_id::ServerId, DatabaseName};
     use object_store::{ObjectStore, ObjectStoreApi};
     use std::{num::NonZeroU32, sync::Arc};
@@ -379,14 +379,14 @@ mod tests {
     fn transactions_path_join_with_parquet_file_path() {
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
-        let generation_id = 3;
+        let generation = Generation::new(3);
         let object_store = make_object_store();
         let root_path = RootPath::new(&object_store, server_id, &database_name);
         let iox_object_store = IoxObjectStore::existing(
             Arc::clone(&object_store),
             server_id,
             &database_name,
-            generation_id,
+            generation,
             root_path,
         );
 
@@ -403,7 +403,7 @@ mod tests {
         expected_path.push_all_dirs(&[
             &server_id.to_string(),
             database_name.as_str(),
-            &generation_id.to_string(),
+            &generation.id.to_string(),
             "transactions",
             "00000000000000000555",
         ]);
