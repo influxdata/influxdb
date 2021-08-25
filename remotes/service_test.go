@@ -9,6 +9,8 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/remotes/internal"
+	mock2 "github.com/influxdata/influxdb/v2/remotes/mock"
 	"github.com/influxdata/influxdb/v2/sqlite"
 	"github.com/influxdata/influxdb/v2/sqlite/migrations"
 	"github.com/stretchr/testify/require"
@@ -38,7 +40,7 @@ var (
 		RemoteOrgID:      connection.RemoteOrgID,
 		AllowInsecureTLS: connection.AllowInsecureTLS,
 	}
-	httpConfig = influxdb.RemoteConnectionHTTPConfig{
+	httpConfig = internal.RemoteConnectionHTTPConfig{
 		RemoteURL:        connection.RemoteURL,
 		RemoteToken:      fakeToken,
 		RemoteOrgID:      connection.RemoteOrgID,
@@ -59,7 +61,7 @@ var (
 		RemoteOrgID:      connection.RemoteOrgID,
 		AllowInsecureTLS: *updateReq.AllowInsecureTLS,
 	}
-	updatedHttpConfig = influxdb.RemoteConnectionHTTPConfig{
+	updatedHttpConfig = internal.RemoteConnectionHTTPConfig{
 		RemoteURL:        updatedConnection.RemoteURL,
 		RemoteToken:      fakeToken2,
 		RemoteOrgID:      updatedConnection.RemoteOrgID,
@@ -75,9 +77,9 @@ func TestCreateAndGetConnection(t *testing.T) {
 
 	// Getting or validating an invalid ID should return an error.
 	got, err := svc.GetRemoteConnection(ctx, initID)
-	require.ErrorIs(t, errRemoteNotFound, err)
+	require.Equal(t, errRemoteNotFound, err)
 	require.Nil(t, got)
-	require.ErrorIs(t, errRemoteNotFound, svc.ValidateRemoteConnection(ctx, initID))
+	require.Equal(t, errRemoteNotFound, svc.ValidateRemoteConnection(ctx, initID))
 
 	// Create a connection, check the results.
 	created, err := svc.CreateRemoteConnection(ctx, createReq)
@@ -93,7 +95,7 @@ func TestCreateAndGetConnection(t *testing.T) {
 	// us to assert that the auth token was properly persisted.
 	fakeErr := errors.New("O NO")
 	mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &httpConfig).Return(fakeErr)
-	require.ErrorIs(t, fakeErr, svc.ValidateRemoteConnection(ctx, initID))
+	require.Equal(t, fakeErr, svc.ValidateRemoteConnection(ctx, initID))
 }
 
 func TestValidateConnectionWithoutPersisting(t *testing.T) {
@@ -107,10 +109,10 @@ func TestValidateConnectionWithoutPersisting(t *testing.T) {
 
 		fakeErr := errors.New("O NO")
 		mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &httpConfig).Return(fakeErr)
-		require.ErrorIs(t, fakeErr, svc.ValidateNewRemoteConnection(ctx, createReq))
+		require.Equal(t, fakeErr, svc.ValidateNewRemoteConnection(ctx, createReq))
 
 		got, err := svc.GetRemoteConnection(ctx, initID)
-		require.ErrorIs(t, err, errRemoteNotFound)
+		require.Equal(t, errRemoteNotFound, err)
 		require.Nil(t, got)
 	})
 
@@ -124,7 +126,7 @@ func TestValidateConnectionWithoutPersisting(t *testing.T) {
 		require.NoError(t, svc.ValidateNewRemoteConnection(ctx, createReq))
 
 		got, err := svc.GetRemoteConnection(ctx, initID)
-		require.ErrorIs(t, err, errRemoteNotFound)
+		require.Equal(t, errRemoteNotFound, err)
 		require.Nil(t, got)
 	})
 }
@@ -137,7 +139,7 @@ func TestUpdateAndGetConnection(t *testing.T) {
 
 	// Updating a nonexistent ID fails.
 	updated, err := svc.UpdateRemoteConnection(ctx, initID, updateReq)
-	require.ErrorIs(t, err, errRemoteNotFound)
+	require.Equal(t, errRemoteNotFound, err)
 	require.Nil(t, updated)
 
 	// Create a connection.
@@ -161,7 +163,7 @@ func TestValidateUpdatedConnectionWithoutPersisting(t *testing.T) {
 	setup := func(t *testing.T, svc *service) {
 		// Validating an update to a nonexistent ID fails.
 		updated, err := svc.UpdateRemoteConnection(ctx, initID, updateReq)
-		require.ErrorIs(t, err, errRemoteNotFound)
+		require.Equal(t, errRemoteNotFound, err)
 		require.Nil(t, updated)
 
 		// Create a connection.
@@ -181,7 +183,7 @@ func TestValidateUpdatedConnectionWithoutPersisting(t *testing.T) {
 		mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &updatedHttpConfig).Return(fakeErr)
 		mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &httpConfig).Return(nil)
 
-		require.ErrorIs(t, svc.ValidateUpdatedRemoteConnection(ctx, initID, updateReq), fakeErr)
+		require.Equal(t, fakeErr, svc.ValidateUpdatedRemoteConnection(ctx, initID, updateReq))
 
 		// Ensure the update wasn't applied.
 		got, err := svc.GetRemoteConnection(ctx, initID)
@@ -206,7 +208,7 @@ func TestValidateUpdatedConnectionWithoutPersisting(t *testing.T) {
 		got, err := svc.GetRemoteConnection(ctx, initID)
 		require.NoError(t, err)
 		require.Equal(t, connection, *got)
-		require.ErrorIs(t, svc.ValidateRemoteConnection(ctx, initID), fakeErr)
+		require.Equal(t, fakeErr, svc.ValidateRemoteConnection(ctx, initID))
 	})
 }
 
@@ -217,7 +219,7 @@ func TestDeleteConnection(t *testing.T) {
 	defer clean(t)
 
 	// Deleting a nonexistent ID should return an error.
-	require.ErrorIs(t, svc.DeleteRemoteConnection(ctx, initID), errRemoteNotFound)
+	require.Equal(t, errRemoteNotFound, svc.DeleteRemoteConnection(ctx, initID))
 
 	// Create a connection, then delete it.
 	created, err := svc.CreateRemoteConnection(ctx, createReq)
@@ -227,7 +229,7 @@ func TestDeleteConnection(t *testing.T) {
 
 	// Looking up the ID should again produce an error.
 	got, err := svc.GetRemoteConnection(ctx, initID)
-	require.ErrorIs(t, err, errRemoteNotFound)
+	require.Equal(t, errRemoteNotFound, err)
 	require.Nil(t, got)
 }
 
@@ -304,13 +306,13 @@ func TestListConnections(t *testing.T) {
 	})
 }
 
-func newTestService(t *testing.T) (*service, *mock.MockRemoteConnectionValidator, func(t *testing.T)) {
+func newTestService(t *testing.T) (*service, *mock2.MockRemoteConnectionValidator, func(t *testing.T)) {
 	store, clean := sqlite.NewTestStore(t)
 	logger := zaptest.NewLogger(t)
 	sqliteMigrator := sqlite.NewMigrator(store, logger)
 	require.NoError(t, sqliteMigrator.Up(ctx, migrations.All))
 
-	mockValidator := mock.NewMockRemoteConnectionValidator(gomock.NewController(t))
+	mockValidator := mock2.NewMockRemoteConnectionValidator(gomock.NewController(t))
 	svc := service{
 		store:       store,
 		idGenerator: mock.NewIncrementingIDGenerator(platform.ID(1)),
