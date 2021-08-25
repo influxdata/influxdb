@@ -16,16 +16,10 @@ import (
 	"github.com/mattn/go-sqlite3"
 )
 
-var (
-	errNotImplemented = &ierrors.Error{
-		Code: ierrors.ENotImplemented,
-		Msg:  "replication APIs not yet implemented",
-	}
-	errReplicationNotFound = &ierrors.Error{
-		Code: ierrors.ENotFound,
-		Msg:  "replication not found",
-	}
-)
+var errReplicationNotFound = &ierrors.Error{
+	Code: ierrors.ENotFound,
+	Msg:  "replication not found",
+}
 
 func errRemoteNotFound(id platform.ID, cause error) error {
 	return &ierrors.Error{
