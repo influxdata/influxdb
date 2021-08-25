@@ -1226,6 +1226,10 @@ pub enum RowIDsOption {
 }
 
 impl RowIDsOption {
+    pub fn new_none() -> Self {
+        Self::None(RowIDs::new_bitmap())
+    }
+
     /// Returns the `Some` variant or panics.
     pub fn unwrap(&self) -> &RowIDs {
         match &self {
@@ -1378,6 +1382,14 @@ impl RowIDs {
                 inner.clear();
                 inner.extend(bm.iter());
             }
+            (_, _) => unimplemented!("currently unsupported"),
+        };
+    }
+
+    /// Computes the relative complement of self in other (other ∖ self).
+    pub fn relative_complement(&mut self, other: &Self) {
+        match (self, other) {
+            (Self::Bitmap(_self), Self::Bitmap(other)) => _self.andnot_inplace(other),
             (_, _) => unimplemented!("currently unsupported"),
         };
     }
@@ -2362,5 +2374,23 @@ mod test {
 
         let col = Column::from(arrow::array::BooleanArray::from(vec![true]));
         assert!(col.has_non_null_value(&[0]));
+    }
+
+    #[test]
+    fn row_ids_relative_complement() {
+        let mut a = RowIDs::bitmap_from_slice(&[1, 2, 10, 33, 44, 50]);
+        let b = RowIDs::bitmap_from_slice(&[10, 33, 50]);
+
+        a.relative_complement(&b);
+        assert_eq!(a.to_vec(), vec![1, 2, 44]);
+
+        a.relative_complement(&b);
+        assert_eq!(a.to_vec(), vec![1, 2, 44]);
+
+        a.relative_complement(&RowIDs::new_bitmap());
+        assert_eq!(a.to_vec(), vec![1, 2, 44]);
+
+        a.relative_complement(&RowIDs::bitmap_from_slice(&[1, 2, 44]));
+        assert!(a.is_empty());
     }
 }
