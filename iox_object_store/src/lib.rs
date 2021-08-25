@@ -262,11 +262,6 @@ impl IoxObjectStore {
         self.generation_path.inner.to_string()
     }
 
-    /// The generation id of this database instance.
-    pub fn generation_id(&self) -> usize {
-        self.generation_id
-    }
-
     // Catalog transaction file methods ===========================================================
 
     /// List all the catalog transaction files in object storage for this database.
