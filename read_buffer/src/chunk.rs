@@ -156,7 +156,7 @@ impl Chunk {
         predicate: Predicate,
         select_columns: Selection<'_>,
     ) -> table::ReadFilterResults {
-        self.table.read_filter(&select_columns, &predicate)
+        self.table.read_filter(&select_columns, &predicate, &[])
     }
 
     /// Returns an iterable collection of data in group columns and aggregate
@@ -949,8 +949,7 @@ mod test {
         );
     }
 
-    #[test]
-    fn read_filter() {
+    fn read_filter_setup() -> Chunk {
         let mut chunk: Option<Chunk> = None;
 
         // Add a bunch of row groups to a single table in a single chunk
@@ -1007,9 +1006,13 @@ mod test {
                 }
             }
         }
+        chunk.unwrap()
+    }
 
+    #[test]
+    fn read_filter() {
         // Chunk should be initialized now.
-        let chunk = chunk.unwrap();
+        let chunk = read_filter_setup();
 
         // Build the operation equivalent to the following query:
         //
@@ -1028,6 +1031,59 @@ mod test {
         let exp_sketchy_sensor_values = Values::I64N(vec![None]);
         let exp_active_values = Values::Bool(vec![Some(true)]);
         let exp_msg_values = Values::String(vec![Some("message a")]);
+
+        let first_row_group = itr.next().unwrap();
+        assert_rb_column_equals(&first_row_group, "env", &exp_env_values);
+        assert_rb_column_equals(&first_row_group, "region", &exp_region_values);
+        assert_rb_column_equals(&first_row_group, "counter", &exp_counter_values);
+        assert_rb_column_equals(
+            &first_row_group,
+            "sketchy_sensor",
+            &exp_sketchy_sensor_values,
+        );
+        assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
+        assert_rb_column_equals(&first_row_group, "msg", &exp_msg_values);
+        assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![100])); // first row from first record batch
+
+        let second_row_group = itr.next().unwrap();
+        assert_rb_column_equals(&second_row_group, "env", &exp_env_values);
+        assert_rb_column_equals(&second_row_group, "region", &exp_region_values);
+        assert_rb_column_equals(&second_row_group, "counter", &exp_counter_values);
+        assert_rb_column_equals(
+            &first_row_group,
+            "sketchy_sensor",
+            &exp_sketchy_sensor_values,
+        );
+        assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
+        assert_rb_column_equals(&second_row_group, "time", &Values::I64(vec![200])); // first row from second record batch
+
+        // No more data
+        assert!(itr.next().is_none());
+    }
+
+    #[test]
+    fn read_filter_with_deletes() {
+        // Chunk should be initialized now.
+        let chunk = read_filter_setup();
+
+        // Build the operation equivalent to the following query:
+        //
+        //   SELECT * FROM "table_1" WHERE "env" = 'us-west';
+        //
+        // But also assume the following delete has been applied:
+        //
+        // DELETE FROM "table_1" WHERE "region" = "west"
+        //
+        let predicate = Predicate::new(vec![BinaryExpr::from(("env", "=", "us-west"))]);
+
+        let mut itr = chunk.read_filter(predicate, Selection::All);
+
+        let exp_env_values = Values::Dictionary(vec![0], vec![Some("us-west")]);
+        let exp_region_values = Values::Dictionary(vec![0], vec![Some("east")]);
+        let exp_counter_values = Values::F64(vec![4500.3]);
+        let exp_sketchy_sensor_values = Values::I64N(vec![Some(44)]);
+        let exp_active_values = Values::Bool(vec![Some(false)]);
+        let exp_msg_values = Values::String(vec![None]);
 
         let first_row_group = itr.next().unwrap();
         assert_rb_column_equals(&first_row_group, "env", &exp_env_values);

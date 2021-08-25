@@ -259,7 +259,8 @@ impl RowGroup {
     pub fn read_filter(
         &self,
         columns: &[ColumnName<'_>],
-        predicates: &Predicate,
+        predicate: &Predicate,
+        delete_predicates: &[Predicate],
     ) -> ReadFilterResult<'_> {
         let select_columns = self.meta.schema_for_column_names(columns);
         assert_eq!(select_columns.len(), columns.len());
@@ -269,9 +270,50 @@ impl RowGroup {
             ..Default::default()
         };
 
-        // apply predicates to determine candidate rows.
-        let row_ids = self.row_ids_from_predicate(predicates);
-        let col_data = self.materialise_rows(&schema, row_ids);
+        // apply predicate to determine candidate rows.
+        let row_ids = self.row_ids_from_predicate(predicate);
+
+        // identify rows that have been marked as deleted.
+        let deleted_row_ids = self.row_ids_from_delete_predicates(delete_predicates);
+
+        // determine final candidate rows
+        let final_row_ids = match (dbg!(row_ids), dbg!(deleted_row_ids)) {
+            // no matching rows
+            (RowIDsOption::None(_), _) => RowIDsOption::new_none(),
+            // everything marked deleted
+            (_, RowIDsOption::All(_)) => RowIDsOption::new_none(),
+            // nothing to delete
+            (row_ids, RowIDsOption::None(_)) => row_ids,
+            // in these cases some rows have been deleted
+            (RowIDsOption::Some(mut row_ids), RowIDsOption::Some(delete_row_ids)) => {
+                row_ids.relative_complement(&delete_row_ids);
+                if row_ids.is_empty() {
+                    RowIDsOption::new_none()
+                } else {
+                    RowIDsOption::Some(row_ids)
+                }
+            }
+            (RowIDsOption::All(mut row_ids), RowIDsOption::Some(delete_row_ids)) => {
+                // Recall that the `All` variant for `RowIDsOption` is an
+                // optimisation to represent all row IDs in the column without
+                // having to materialise the bitset. In this case however, we
+                // will have to materialise the bitset in order to calculate the
+                // relative complement.
+                row_ids.add_range(0, self.rows());
+                row_ids.relative_complement(&delete_row_ids);
+
+                // N.B we can't remove all rows since there are more selected
+                // rows than deleted rows - we always end up deleting no rows
+                // or some rows.
+                if row_ids.len() == self.rows() as usize {
+                    RowIDsOption::All(row_ids) // all selected rows remain and they're all rows in column
+                } else {
+                    RowIDsOption::Some(row_ids)
+                }
+            }
+        };
+
+        let col_data = self.materialise_rows(&schema, final_row_ids);
         ReadFilterResult {
             schema,
             data: col_data,
@@ -414,6 +456,31 @@ impl RowGroup {
             &(time_range[1].op, time_range[1].literal_as_value()), // max time
             dst,
         )
+    }
+
+    // Determines the set of row ids that satisfy *any* of the provided
+    // collection of predicates. To be included in the returned set of row IDs
+    // a row must satisfy all expressions within a single predicate, but need
+    // not satisfy more than one of the predicates.
+    fn row_ids_from_delete_predicates(&self, predicates: &[Predicate]) -> RowIDsOption {
+        if predicates.is_empty() {
+            return RowIDsOption::new_none();
+        }
+        let mut result_row_ids = RowIDs::new_bitmap();
+
+        for predicate in predicates {
+            match self.row_ids_from_predicate(predicate) {
+                RowIDsOption::None(_) => continue, // no rows match this predicate
+                RowIDsOption::Some(row_ids) => result_row_ids.union(&row_ids), // add row IDs to final result
+                RowIDsOption::All(row_ids) => return RowIDsOption::All(row_ids), // everything deleted
+            }
+        }
+
+        match result_row_ids.len() {
+            0 => RowIDsOption::None(result_row_ids),
+            x if x == self.rows() as usize => RowIDsOption::All(result_row_ids),
+            _ => RowIDsOption::Some(result_row_ids),
+        }
     }
 
     /// Materialises a collection of data in group columns and aggregate
@@ -2457,7 +2524,104 @@ mod test {
     }
 
     #[test]
-    fn read_filter() {
+    fn row_ids_from_delete_predicates() {
+        let mut columns = vec![];
+        let tc = ColumnType::Time(Column::from(&[100_i64, 200, 500, 600, 300, 300][..]));
+        columns.push(("time".to_string(), tc));
+        let rc = ColumnType::Tag(Column::from(
+            &["west", "west", "east", "west", "south", "north"][..],
+        ));
+        columns.push(("region".to_string(), rc));
+        let row_group = RowGroup::new(6, columns);
+
+        // No predicates means nothing to delete
+        let row_ids = row_group.row_ids_from_delete_predicates(&[]);
+        assert!(matches!(row_ids, RowIDsOption::None(_)));
+
+        // A predicate that doesn't match anything
+        let row_ids = row_group.row_ids_from_delete_predicates(&[Predicate::with_time_range(
+            &[],
+            1000,
+            1200,
+        )]);
+        assert!(matches!(row_ids, RowIDsOption::None(_)));
+
+        // Table looks like:
+        //
+        //   region  |  time
+        // 0  west   |  100
+        // 1  west   |  200
+        // 2  east   |  500
+        // 3  west   |  600
+        // 4  south  |  300
+        // 5  north  |  300
+
+        // cases that will mark rows deleted
+        let cases = vec![
+            // Partially covering "time range" predicate
+            (
+                vec![Predicate::with_time_range(&[], 200, 600)],
+                vec![1, 2, 4, 5],
+            ),
+            // Partially covering "region" predicate
+            (
+                vec![Predicate::new(vec![BinaryExpr::from((
+                    "region", "=", "west",
+                ))])],
+                vec![0, 1, 3],
+            ),
+            // Two separate partially covering "region" predicates
+            (
+                vec![
+                    Predicate::new(vec![BinaryExpr::from(("region", "=", "west"))]),
+                    Predicate::new(vec![BinaryExpr::from(("region", "=", "south"))]),
+                ],
+                vec![0, 1, 3, 4], // all rows with region=west OR region=south
+            ),
+            // A partially covering "region" predicates with a conjunctive time expression
+            // And a separate "region" predicate. This example is equivalent to
+            // two delete commands like:
+            //
+            //    DELETE FROM t WHERE region = "west" AND time < 500;
+            //    DELETE FROM t WHERE region = "south";
+            (
+                vec![
+                    Predicate::new(vec![
+                        BinaryExpr::from(("region", "=", "west")),
+                        BinaryExpr::from(("time", "<", 500_i64)),
+                    ]),
+                    Predicate::new(vec![BinaryExpr::from(("region", "=", "south"))]),
+                ],
+                vec![0, 1, 4], // any row with (region=west AND time < 500) OR any rows with region = south
+            ),
+            // a predicate that fully covers the column.
+            (
+                vec![Predicate::new(vec![BinaryExpr::from((
+                    "region",
+                    "!=",
+                    "south-west",
+                ))])],
+                vec![0, 1, 2, 3, 4, 5], // all rows should be marked as deleted
+            ),
+            // multiple predicates that in union cover the column
+            (
+                vec![
+                    Predicate::new(vec![BinaryExpr::from(("region", "=", "west"))]),
+                    Predicate::new(vec![BinaryExpr::from(("region", "=", "south"))]),
+                    Predicate::new(vec![BinaryExpr::from(("region", "=", "north"))]),
+                    Predicate::new(vec![BinaryExpr::from(("region", "<", "easter"))]),
+                ],
+                vec![0, 1, 2, 3, 4, 5], // all rows should be marked as deleted
+            ),
+        ];
+
+        for (delete_predicates, exp_row_ids) in cases {
+            let row_ids = row_group.row_ids_from_delete_predicates(delete_predicates.as_slice());
+            assert_eq!(row_ids.unwrap().to_vec(), exp_row_ids);
+        }
+    }
+
+    fn _read_filter_setup() -> RowGroup {
         let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
         columns.push(("time".to_string(), tc));
@@ -2475,8 +2639,12 @@ mod test {
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
         columns.push(("count".to_string(), fc));
 
-        let row_group = RowGroup::new(6, columns);
+        RowGroup::new(6, columns)
+    }
 
+    #[test]
+    fn read_filter() {
+        let row_group = _read_filter_setup();
         let cases = vec![
             (
                 vec!["count", "region", "time"],
@@ -2533,7 +2701,7 @@ west,4
         ];
 
         for (cols, predicates, expected) in cases {
-            let results = row_group.read_filter(&cols, &predicates);
+            let results = row_group.read_filter(&cols, &predicates, &[]);
             assert_eq!(format!("{:?}", &results), expected);
         }
 
@@ -2541,29 +2709,14 @@ west,4
         let results = row_group.read_filter(
             &["method", "region", "time"],
             &Predicate::with_time_range(&[], -19, 1),
+            &[],
         );
         assert!(results.is_empty());
     }
 
     #[test]
     fn read_filter_dictionaries() {
-        let mut columns = vec![];
-        let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
-        columns.push(("time".to_string(), tc));
-
-        // Tag column that will be dictionary encoded when materialised
-        let rc = ColumnType::Tag(Column::from(
-            &["west", "west", "east", "west", "south", "north"][..],
-        ));
-        columns.push(("region".to_string(), rc));
-
-        // Field column that will be stored as a string array when materialised
-        let mc = ColumnType::Field(Column::from(
-            &["GET", "POST", "POST", "POST", "PUT", "GET"][..],
-        ));
-        columns.push(("method".to_string(), mc));
-
-        let row_group = RowGroup::new(6, columns);
+        let row_group = _read_filter_setup();
 
         let cases = vec![
             (
@@ -2589,7 +2742,7 @@ POST,west,2
         ];
 
         for (cols, predicates, expected) in cases {
-            let results = row_group.read_filter(&cols, &predicates);
+            let results = row_group.read_filter(&cols, &predicates, &[]);
             assert_eq!(format!("{:?}", &results), expected);
         }
     }
@@ -2624,8 +2777,76 @@ POST,west,2
         let results = row_group.read_filter(
             &["state"],
             &Predicate::with_time_range(&[BinaryExpr::from(("state", "=", "NY"))], 1, 300),
+            &[],
         );
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn read_filter_with_deletes() {
+        let row_group = _read_filter_setup();
+        // These cases enumerate the possible match states in `read_filter`
+        let cases = vec![
+            // select all rows and delete all rows
+            (
+                vec!["count", "region", "time"],
+                Predicate::with_time_range(&[], 1, 7),
+                vec![Predicate::with_time_range(&[], 0, 10)],
+                vec!["count,region,time", ""],
+            ),
+            // select some rows and delete no matching rows
+            (
+                vec!["count", "region", "time"],
+                Predicate::with_time_range(&[], 2, 4),
+                vec![Predicate::with_time_range(&[], 200, 300)],
+                vec!["count,region,time", "101,west,2", "200,east,3", ""],
+            ),
+            // select some rows and delete some others
+            (
+                vec!["count", "region", "time"],
+                Predicate::with_time_range(&[], 1, 6),
+                vec![Predicate::with_time_range(&[], 2, 4)], // delete rows 101,west,2 and 200,east,3
+                vec![
+                    "count,region,time",
+                    "100,west,1",
+                    "203,west,4",
+                    "203,south,5",
+                    "",
+                ],
+            ),
+            // select some rows and delete some others that are not selected
+            (
+                vec!["count", "region", "time"],
+                Predicate::with_time_range(&[], 3, 6),
+                vec![Predicate::with_time_range(&[], 0, 2)], // delete rows that are not in the result set
+                vec![
+                    "count,region,time",
+                    "200,east,3",
+                    "203,west,4",
+                    "203,south,5",
+                    "",
+                ],
+            ),
+            // select all rows and delete some others
+            (
+                vec!["count", "region", "time"],
+                Predicate::with_time_range(&[], 1, 7),
+                vec![Predicate::with_time_range(&[], 2, 4)], // delete rows 101,west,2 and 200,east,3
+                vec![
+                    "count,region,time",
+                    "100,west,1",
+                    "203,west,4",
+                    "203,south,5",
+                    "10,north,6",
+                    "",
+                ],
+            ),
+        ];
+
+        for (cols, predicate, delete_predicates, expected) in cases {
+            let results = row_group.read_filter(&cols, &predicate, delete_predicates.as_slice());
+            assert_eq!(format!("{:?}", &results), expected.join("\n"));
+        }
     }
 
     #[test]
