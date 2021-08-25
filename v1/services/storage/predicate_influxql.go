@@ -32,15 +32,25 @@ type measEval struct {
 	head          *influxql.BinaryExpr
 }
 
-// Visit is called on every node of the AST to evaluate the tree for a possible
-// measurement optimization. A measurement optimization is possible if the tree
-// contains a single group of one or many measurements grouped together by OR
-// operators, with the subtree containing the OR'd measurements accessible from
-// root of the tree either directly (tree contains nothing but OR'd
-// measurements) or via traversing AND binary expression nodes.
+// Visit is called on every node to evaluate the tree for a possible measurement
+// optimization. A measurement optimization is possible if the tree contains a
+// single group of one or many measurements (in the form of _measurement =
+// measName, equality operator only) grouped together by OR operators, with the
+// subtree containing the OR'd measurements accessible from root of the tree
+// either directly (tree contains nothing but OR'd measurements) or by
+// traversing AND binary expression nodes.
 func (v measEval) Visit(node influxql.Node) influxql.Visitor {
 	switch n := node.(type) {
 	case *influxql.BinaryExpr:
+		if n.Op != influxql.AND {
+			// If this is the first time encountering a non-AND node, mark this as the
+			// head for the subtree.
+			if v.onlyAnds {
+				v.head = n
+			}
+			v.onlyAnds = false
+		}
+
 		switch n.Op {
 		case influxql.AND:
 			// If only AND ops have been encountered so far, move the head of this
@@ -55,19 +65,9 @@ func (v measEval) Visit(node influxql.Node) influxql.Visitor {
 			v.invalidHeads[v.head] = struct{}{}
 			return v
 		case influxql.OR:
-			// If this is the first time encountering a non-AND node, mark this as the
-			// head for the subtree.
-			if v.onlyAnds {
-				v.head = n
-			}
-			v.onlyAnds = false
+			// OR ops do not invalidate the subtree.
 			return v
 		case influxql.EQ:
-			if v.onlyAnds {
-				v.head = n
-			}
-			v.onlyAnds = false
-
 			// For EQ ops, the only valid configuration is the form of
 			// "_measurement = measurementName", so check for that and add the
 			// resulting name to the list of names for this subtree.
@@ -80,13 +80,7 @@ func (v measEval) Visit(node influxql.Node) influxql.Visitor {
 			v.invalidHeads[v.head] = struct{}{}
 			return v
 		default:
-			// Any other operation means this subtree is invalid if non-AND ops have
-			// been encountered.
-			if v.onlyAnds {
-				v.head = n
-			}
-			v.onlyAnds = false
-
+			// Any other operation means this subtree is invalid.
 			v.invalidHeads[v.head] = struct{}{}
 
 			// If a measurement name is being operated on with a non-equality
@@ -101,11 +95,9 @@ func (v measEval) Visit(node influxql.Node) influxql.Visitor {
 
 			return v
 		}
-	case *influxql.VarRef:
-		return v
-	case *influxql.StringLiteral:
-		return v
-	case *influxql.ParenExpr:
+	case *influxql.VarRef, *influxql.StringLiteral, *influxql.ParenExpr:
+		// VarRefs and StringLiterals will have been evaluated in the EQ case.
+		// Parens also do not invalidate the subtree and can be traversed through.
 		return v
 	}
 
