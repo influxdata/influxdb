@@ -141,7 +141,6 @@ impl DedicatedExecutor {
     }
 
     /// signals shutdown of this executor and any Clones
-    #[allow(dead_code)] // https://github.com/influxdata/influxdb_iox/issues/2372
     pub fn shutdown(&self) {
         // hang up the channel which will cause the dedicated thread
         // to quit
@@ -156,7 +155,6 @@ impl DedicatedExecutor {
     /// Only the first all to `join` will actually wait for the
     /// executing thread to complete. All other calls to join will
     /// complete immediately.
-    #[allow(dead_code)] // https://github.com/influxdata/influxdb_iox/issues/2372
     pub fn join(&self) {
         self.shutdown();
 

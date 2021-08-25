@@ -341,6 +341,9 @@ async fn serve(
 
     info!("server completed shutting down");
 
+    application.join();
+    info!("shared application state completed shutting down");
+
     res
 }
 

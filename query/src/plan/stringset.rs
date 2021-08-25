@@ -218,7 +218,8 @@ mod tests {
         let expected_ss = to_string_set(&["foo", "bar", "baz", "from_a_plan"]).into();
 
         assert!(matches!(plan, StringSetPlan::Plan(_)));
-        let ctx = Executor::new(1).new_context(ExecutorType::Query);
+        let exec = Executor::new(1);
+        let ctx = exec.new_context(ExecutorType::Query);
         let ss = ctx.to_string_set(plan).await.unwrap();
         assert_eq!(ss, expected_ss);
     }
