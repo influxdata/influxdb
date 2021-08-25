@@ -1005,7 +1005,7 @@ async fn test_get_server_status_db_error() {
         .starts_with("error decoding database rules:"));
     assert_eq!(
         DatabaseState::from_i32(db_status.state).unwrap(),
-        DatabaseState::ObjectStoreFound
+        DatabaseState::DatabaseObjectStoreFound
     );
 }
 

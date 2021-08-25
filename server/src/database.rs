@@ -209,11 +209,11 @@ impl Database {
             // the notification being fired, and this task waking up
             match &**self.shared.state.read() {
                 DatabaseState::Known(_)
-                | DatabaseState::ObjectStoreFound(_)
+                | DatabaseState::DatabaseObjectStoreFound(_)
                 | DatabaseState::RulesLoaded(_)
                 | DatabaseState::CatalogLoaded(_) => {} // Non-terminal state
                 DatabaseState::Initialized(_) => return Ok(()),
-                DatabaseState::ObjectStoreLookupError(_, e)
+                DatabaseState::DatabaseObjectStoreLookupError(_, e)
                 | DatabaseState::NoActiveDatabase(_, e)
                 | DatabaseState::RulesLoadError(_, e)
                 | DatabaseState::CatalogLoadError(_, e)
@@ -421,7 +421,7 @@ async fn initialize_database(shared: &DatabaseShared) {
                 DatabaseState::Initialized(_) => break,
                 // Can perform work
                 DatabaseState::Known(_)
-                | DatabaseState::ObjectStoreFound(_)
+                | DatabaseState::DatabaseObjectStoreFound(_)
                 | DatabaseState::RulesLoaded(_)
                 | DatabaseState::CatalogLoaded(_) => {
                     match state.try_freeze() {
@@ -439,7 +439,7 @@ async fn initialize_database(shared: &DatabaseShared) {
                     None
                 }
                 // Operator intervention required
-                DatabaseState::ObjectStoreLookupError(_, e)
+                DatabaseState::DatabaseObjectStoreLookupError(_, e)
                 | DatabaseState::RulesLoadError(_, e)
                 | DatabaseState::CatalogLoadError(_, e)
                 | DatabaseState::ReplayError(_, e) => {
@@ -469,13 +469,13 @@ async fn initialize_database(shared: &DatabaseShared) {
         // Try to advance to the next state
         let next_state = match state {
             DatabaseState::Known(state) => match state.advance(shared).await {
-                Ok(state) => DatabaseState::ObjectStoreFound(state),
+                Ok(state) => DatabaseState::DatabaseObjectStoreFound(state),
                 Err(InitError::NoActiveDatabase) => {
                     DatabaseState::NoActiveDatabase(state, Arc::new(InitError::NoActiveDatabase))
                 }
-                Err(e) => DatabaseState::ObjectStoreLookupError(state, Arc::new(e)),
+                Err(e) => DatabaseState::DatabaseObjectStoreLookupError(state, Arc::new(e)),
             },
-            DatabaseState::ObjectStoreFound(state) => match state.advance(shared).await {
+            DatabaseState::DatabaseObjectStoreFound(state) => match state.advance(shared).await {
                 Ok(state) => DatabaseState::RulesLoaded(state),
                 Err(e) => DatabaseState::RulesLoadError(state, Arc::new(e)),
             },
@@ -508,7 +508,7 @@ pub enum InitError {
         "error finding active generation directory in object storage: {}",
         source
     ))]
-    ObjectStoreLookup {
+    DatabaseObjectStoreLookup {
         source: iox_object_store::IoxObjectStoreError,
     },
 
@@ -566,15 +566,15 @@ pub enum InitError {
 #[derive(Debug, Clone)]
 enum DatabaseState {
     Known(DatabaseStateKnown),
-    ObjectStoreFound(DatabaseStateObjectStoreFound),
+    DatabaseObjectStoreFound(DatabaseStateDatabaseObjectStoreFound),
 
     RulesLoaded(DatabaseStateRulesLoaded),
     CatalogLoaded(DatabaseStateCatalogLoaded),
     Initialized(DatabaseStateInitialized),
 
-    ObjectStoreLookupError(DatabaseStateKnown, Arc<InitError>),
+    DatabaseObjectStoreLookupError(DatabaseStateKnown, Arc<InitError>),
     NoActiveDatabase(DatabaseStateKnown, Arc<InitError>),
-    RulesLoadError(DatabaseStateObjectStoreFound, Arc<InitError>),
+    RulesLoadError(DatabaseStateDatabaseObjectStoreFound, Arc<InitError>),
     CatalogLoadError(DatabaseStateRulesLoaded, Arc<InitError>),
     ReplayError(DatabaseStateCatalogLoaded, Arc<InitError>),
 }
@@ -589,13 +589,15 @@ impl DatabaseState {
     fn state_code(&self) -> DatabaseStateCode {
         match self {
             DatabaseState::Known(_) => DatabaseStateCode::Known,
-            DatabaseState::ObjectStoreFound(_) => DatabaseStateCode::ObjectStoreFound,
+            DatabaseState::DatabaseObjectStoreFound(_) => {
+                DatabaseStateCode::DatabaseObjectStoreFound
+            }
             DatabaseState::RulesLoaded(_) => DatabaseStateCode::RulesLoaded,
             DatabaseState::CatalogLoaded(_) => DatabaseStateCode::CatalogLoaded,
             DatabaseState::Initialized(_) => DatabaseStateCode::Initialized,
-            DatabaseState::ObjectStoreLookupError(_, _) => DatabaseStateCode::Known,
+            DatabaseState::DatabaseObjectStoreLookupError(_, _) => DatabaseStateCode::Known,
             DatabaseState::NoActiveDatabase(_, _) => DatabaseStateCode::Known,
-            DatabaseState::RulesLoadError(_, _) => DatabaseStateCode::ObjectStoreFound,
+            DatabaseState::RulesLoadError(_, _) => DatabaseStateCode::DatabaseObjectStoreFound,
             DatabaseState::CatalogLoadError(_, _) => DatabaseStateCode::RulesLoaded,
             DatabaseState::ReplayError(_, _) => DatabaseStateCode::CatalogLoaded,
         }
@@ -604,11 +606,11 @@ impl DatabaseState {
     fn error(&self) -> Option<&Arc<InitError>> {
         match self {
             DatabaseState::Known(_)
-            | DatabaseState::ObjectStoreFound(_)
+            | DatabaseState::DatabaseObjectStoreFound(_)
             | DatabaseState::RulesLoaded(_)
             | DatabaseState::CatalogLoaded(_)
             | DatabaseState::Initialized(_) => None,
-            DatabaseState::ObjectStoreLookupError(_, e)
+            DatabaseState::DatabaseObjectStoreLookupError(_, e)
             | DatabaseState::NoActiveDatabase(_, e)
             | DatabaseState::RulesLoadError(_, e)
             | DatabaseState::CatalogLoadError(_, e)
@@ -619,8 +621,8 @@ impl DatabaseState {
     fn rules(&self) -> Option<Arc<DatabaseRules>> {
         match self {
             DatabaseState::Known(_)
-            | DatabaseState::ObjectStoreFound(_)
-            | DatabaseState::ObjectStoreLookupError(_, _)
+            | DatabaseState::DatabaseObjectStoreFound(_)
+            | DatabaseState::DatabaseObjectStoreLookupError(_, _)
             | DatabaseState::NoActiveDatabase(_, _)
             | DatabaseState::RulesLoadError(_, _) => None,
             DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
@@ -636,10 +638,12 @@ impl DatabaseState {
     fn iox_object_store(&self) -> Option<Arc<IoxObjectStore>> {
         match self {
             DatabaseState::Known(_)
-            | DatabaseState::ObjectStoreLookupError(_, _)
+            | DatabaseState::DatabaseObjectStoreLookupError(_, _)
             | DatabaseState::NoActiveDatabase(_, _)
             | DatabaseState::RulesLoadError(_, _) => None,
-            DatabaseState::ObjectStoreFound(state) => Some(Arc::clone(&state.iox_object_store)),
+            DatabaseState::DatabaseObjectStoreFound(state) => {
+                Some(Arc::clone(&state.iox_object_store))
+            }
             DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
                 Some(Arc::clone(&state.iox_object_store))
             }
@@ -666,28 +670,28 @@ impl DatabaseStateKnown {
     async fn advance(
         &self,
         shared: &DatabaseShared,
-    ) -> Result<DatabaseStateObjectStoreFound, InitError> {
+    ) -> Result<DatabaseStateDatabaseObjectStoreFound, InitError> {
         let iox_object_store = IoxObjectStore::find_existing(
             Arc::clone(shared.application.object_store()),
             shared.config.server_id,
             &shared.config.name,
         )
         .await
-        .context(ObjectStoreLookup)?
+        .context(DatabaseObjectStoreLookup)?
         .context(NoActiveDatabase)?;
 
-        Ok(DatabaseStateObjectStoreFound {
+        Ok(DatabaseStateDatabaseObjectStoreFound {
             iox_object_store: Arc::new(iox_object_store),
         })
     }
 }
 
 #[derive(Debug, Clone)]
-struct DatabaseStateObjectStoreFound {
+struct DatabaseStateDatabaseObjectStoreFound {
     iox_object_store: Arc<IoxObjectStore>,
 }
 
-impl DatabaseStateObjectStoreFound {
+impl DatabaseStateDatabaseObjectStoreFound {
     /// Load database rules from object storage
     async fn advance(
         &self,

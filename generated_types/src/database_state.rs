@@ -5,7 +5,7 @@ impl From<DatabaseStateCode> for management::database_status::DatabaseState {
     fn from(state_code: DatabaseStateCode) -> Self {
         match state_code {
             DatabaseStateCode::Known => Self::Known,
-            DatabaseStateCode::ObjectStoreFound => Self::ObjectStoreFound,
+            DatabaseStateCode::DatabaseObjectStoreFound => Self::DatabaseObjectStoreFound,
             DatabaseStateCode::RulesLoaded => Self::RulesLoaded,
             DatabaseStateCode::CatalogLoaded => Self::CatalogLoaded,
             DatabaseStateCode::Initialized => Self::Initialized,
