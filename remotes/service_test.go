@@ -10,7 +10,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/remotes/internal"
-	mock2 "github.com/influxdata/influxdb/v2/remotes/mock"
+	remotesMock "github.com/influxdata/influxdb/v2/remotes/mock"
 	"github.com/influxdata/influxdb/v2/sqlite"
 	"github.com/influxdata/influxdb/v2/sqlite/migrations"
 	"github.com/stretchr/testify/require"
@@ -306,13 +306,13 @@ func TestListConnections(t *testing.T) {
 	})
 }
 
-func newTestService(t *testing.T) (*service, *mock2.MockRemoteConnectionValidator, func(t *testing.T)) {
+func newTestService(t *testing.T) (*service, *remotesMock.MockRemoteConnectionValidator, func(t *testing.T)) {
 	store, clean := sqlite.NewTestStore(t)
 	logger := zaptest.NewLogger(t)
 	sqliteMigrator := sqlite.NewMigrator(store, logger)
 	require.NoError(t, sqliteMigrator.Up(ctx, migrations.All))
 
-	mockValidator := mock2.NewMockRemoteConnectionValidator(gomock.NewController(t))
+	mockValidator := remotesMock.NewMockRemoteConnectionValidator(gomock.NewController(t))
 	svc := service{
 		store:       store,
 		idGenerator: mock.NewIncrementingIDGenerator(platform.ID(1)),
