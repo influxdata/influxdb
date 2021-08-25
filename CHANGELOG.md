@@ -49,6 +49,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21972](https://github.com/influxdata/influxdb/pull/21972): Added support for notebooks and annotations.
 1. [22072](https://github.com/influxdata/influxdb/pull/22072): Added `--flux-log-enabled` option to `influxd` to show detail logs for flux queries.
 1. [22135](https://github.com/influxdata/influxdb/pull/22135): Added route to return known resources.
+1. [22301](https://github.com/influxdata/influxdb/pull/22301): Improved performance of certain Flux queries containing more than one measurement.
 1. [22311](https://github.com/influxdata/influxdb/pull/22311): Add `storage-no-validate-field-size` config to `influxd` to disable enforcement of max field size.
 1. [22316](https://github.com/influxdata/influxdb/pull/22316): Optimize series iteration for queries that can be answered without inspecting TSM data.
 1. [22322](https://github.com/influxdata/influxdb/pull/22322): Add support for `merge_hll`, `sum_hll`, and `count_hll` in InfluxQL.
