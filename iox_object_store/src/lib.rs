@@ -44,12 +44,8 @@ pub enum IoxObjectStoreError {
     #[snafu(display("{}", source))]
     UnderlyingObjectStoreError { source: object_store::Error },
 
-    #[snafu(display(
-        "Cannot create database `{}`; it already exists with generation {}",
-        name,
-        generation
-    ))]
-    DatabaseAlreadyExists { name: String, generation: usize },
+    #[snafu(display("Cannot create database `{}`; it already exists", name,))]
+    DatabaseAlreadyExists { name: String },
 
     #[snafu(display("Multiple active databases found in object storage"))]
     MultipleActiveDatabasesFound,
@@ -170,13 +166,13 @@ impl IoxObjectStore {
             .context(UnderlyingObjectStoreError)?;
 
         let active = generations.iter().find(|g| g.is_active());
-        if let Some(active) = active {
-            return DatabaseAlreadyExists {
-                name: database_name,
-                generation: active.id,
+
+        ensure!(
+            active.is_none(),
+            DatabaseAlreadyExists {
+                name: database_name
             }
-            .fail();
-        }
+        );
 
         let next_generation = generations
             .iter()
