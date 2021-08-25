@@ -179,19 +179,13 @@ impl IoxObjectStore {
             .map(|max| max + 1)
             .unwrap_or(0);
 
-        let generation_path = root_path.generation_path(next_generation);
-        let data_path = generation_path.data_path();
-        let transactions_path = generation_path.transactions_path();
-
-        Ok(Self {
+        Ok(Self::existing(
             inner,
             server_id,
-            database_name: database_name.to_owned(),
-            generation_id: next_generation,
-            generation_path,
-            data_path,
-            transactions_path,
-        })
+            database_name,
+            next_generation,
+            root_path,
+        ))
     }
 
     /// Look in object storage for an existing database with this name and a non-deleted
@@ -224,21 +218,22 @@ impl IoxObjectStore {
             server_id,
             database_name,
             active.id,
+            root_path,
         )))
     }
 
     /// Access the database-specific object storage files for an existing database that has
     /// already been located and verified to be active. Does not check object storage.
-    pub fn existing(
+    fn existing(
         inner: Arc<ObjectStore>,
         server_id: ServerId,
         database_name: &DatabaseName<'static>,
         generation_id: usize,
+        root_path: RootPath,
     ) -> Self {
-        let root_path = RootPath::new(&inner, server_id, database_name);
-        let generation_path = GenerationPath::new(&root_path, generation_id);
-        let data_path = DataPath::new(&generation_path);
-        let transactions_path = TransactionsPath::new(&generation_path);
+        let generation_path = root_path.generation_path(generation_id);
+        let data_path = generation_path.data_path();
+        let transactions_path = generation_path.transactions_path();
 
         Self {
             inner,

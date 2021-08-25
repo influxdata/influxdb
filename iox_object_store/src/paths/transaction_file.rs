@@ -196,7 +196,7 @@ impl FromStr for TransactionFileSuffix {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::IoxObjectStore;
+    use crate::{IoxObjectStore, RootPath};
     use data_types::{server_id::ServerId, DatabaseName};
     use object_store::{ObjectStore, ObjectStoreApi};
     use std::{num::NonZeroU32, sync::Arc};
@@ -381,11 +381,13 @@ mod tests {
         let database_name = DatabaseName::new("clouds").unwrap();
         let generation_id = 3;
         let object_store = make_object_store();
+        let root_path = RootPath::new(&object_store, server_id, &database_name);
         let iox_object_store = IoxObjectStore::existing(
             Arc::clone(&object_store),
             server_id,
             &database_name,
             generation_id,
+            root_path,
         );
 
         let uuid = Uuid::new_v4();

@@ -181,14 +181,17 @@ mod tests {
 
     #[test]
     fn generation_path_is_relative_to_root_path() {
+        let object_store = make_object_store();
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
         let generation_id = 3;
+        let root_path = RootPath::new(&object_store, server_id, &database_name);
         let iox_object_store = IoxObjectStore::existing(
-            make_object_store(),
+            Arc::clone(&object_store),
             server_id,
             &database_name,
             generation_id,
+            root_path,
         );
         assert_eq!(
             iox_object_store.generation_path.inner.to_string(),
@@ -198,14 +201,17 @@ mod tests {
 
     #[test]
     fn transactions_path_is_relative_to_generation_path() {
+        let object_store = make_object_store();
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
         let generation_id = 3;
+        let root_path = RootPath::new(&object_store, server_id, &database_name);
         let iox_object_store = IoxObjectStore::existing(
-            make_object_store(),
+            Arc::clone(&object_store),
             server_id,
             &database_name,
             generation_id,
+            root_path,
         );
         assert_eq!(
             iox_object_store.transactions_path.inner.to_string(),
@@ -215,14 +221,17 @@ mod tests {
 
     #[test]
     fn data_path_is_relative_to_generation_path() {
+        let object_store = make_object_store();
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
         let generation_id = 3;
+        let root_path = RootPath::new(&object_store, server_id, &database_name);
         let iox_object_store = IoxObjectStore::existing(
-            make_object_store(),
+            Arc::clone(&object_store),
             server_id,
             &database_name,
             generation_id,
+            root_path,
         );
         assert_eq!(
             iox_object_store.data_path.inner.to_string(),
