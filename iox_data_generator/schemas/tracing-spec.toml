@@ -3,7 +3,7 @@ base_seed = "this is a demo"
 
 [[agents]]
 name = "trace-sender"
-sampling_interval = 10 # in seconds. TODO: parse nice durations like "12m" and "30s"
+sampling_interval = "10s"
 
 [[agents.measurements]]
 name = "traces"
