@@ -101,8 +101,10 @@ impl RLE {
             false => 0,
         };
 
-        let index_row_ids_size =
-            (size_of::<u32>() * self.index_row_ids.len()) + row_ids_bitmaps_size;
+        let index_row_ids_size = match buffers {
+            true => size_of::<RowIDs>() * self.index_row_ids.len() + row_ids_bitmaps_size,
+            false => 0,
+        };
 
         let run_lengths_size = size_of::<(u32, u32)>()
             * match buffers {
@@ -1019,7 +1021,7 @@ mod test {
         // * index row ids: (bitmaps) not included in calc
         // * run lengths: (8*5) == 40
         //
-        assert_eq!(enc.size(false), 246);
+        assert_eq!(enc.size(false), 230);
 
         // check allocated size
         let mut enc = RLE::default();
@@ -1037,10 +1039,10 @@ mod test {
 
         // * Self: 24 + 24 + 24 + 1 + (padding 3b) + 4 = 80b
         // * index entries: (40 * 24) + 14 == 974
-        // * index row ids: (bitmaps) is (4 * 4) + (204b for bitmaps) == 220
+        // * index row ids: (bitmaps) is (4 * 32) + (154b for bitmaps) == 282
         // * run lengths: (40 * 8) == 320
         //
-        assert_eq!(enc.size(true), 1544);
+        assert_eq!(enc.size(true), 1656);
     }
 
     #[test]
