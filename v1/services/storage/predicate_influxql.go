@@ -1,9 +1,6 @@
 package storage
 
 import (
-	"encoding/json"
-	fmt "fmt"
-
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxql"
 )
@@ -120,7 +117,7 @@ func (v measEval) Visit(node influxql.Node) influxql.Visitor {
 	return v
 }
 
-func MeasurementOptimization2(expr influxql.Expr) ([]string, bool) {
+func MeasurementOptimization(expr influxql.Expr) ([]string, bool) {
 	measNodeHeads := make(map[*influxql.BinaryExpr][]string)
 	invalidHeads := make(map[*influxql.BinaryExpr]struct{})
 	dummyHead := &influxql.BinaryExpr{}
@@ -154,154 +151,6 @@ func MeasurementOptimization2(expr influxql.Expr) ([]string, bool) {
 	}
 
 	return names, true
-}
-
-func MeasurementOptimization1(expr influxql.Expr) ([]string, bool) {
-	// case where there are ONLY measurements with OR
-	if n, ok := expr.(*influxql.BinaryExpr); ok {
-		if n.Op == influxql.OR {
-			return IsMeasBranch(n)
-		}
-	}
-
-	names := []string{}
-	foundMeasBranch := false
-
-	// clone the expr - it may be mutated by the walk func if a valid measurement
-	// branch is found
-	exprCopy := influxql.CloneExpr(expr)
-	var walk func(influxql.Expr)
-	walk = func(node influxql.Expr) {
-		if node == nil || foundMeasBranch {
-			return
-		}
-
-		switch n := node.(type) {
-		case *influxql.BinaryExpr:
-			switch n.Op {
-			case influxql.AND:
-				lhsNames, ok := IsMeasBranch(n.LHS)
-				if ok {
-					names = append(names, lhsNames...)
-					n.LHS = nil
-					foundMeasBranch = true
-				} else {
-					rhsNames, ok := IsMeasBranch(n.RHS)
-					if ok {
-						names = append(names, rhsNames...)
-						n.RHS = nil
-						foundMeasBranch = true
-					}
-				}
-				walk(n.LHS)
-				walk(n.RHS)
-			case influxql.EQ:
-				ns, ok := IsMeasBranch(n)
-				if ok {
-					names = append(names, ns...)
-					n.LHS = nil
-					n.RHS = nil
-					foundMeasBranch = true
-				}
-				walk(n.LHS)
-				walk(n.RHS)
-			}
-		case *influxql.ParenExpr:
-			ns, ok := IsMeasBranch(n)
-			if ok {
-				names = append(names, ns...)
-				n.Expr = nil
-				foundMeasBranch = true
-			}
-			walk(n.Expr)
-		default:
-			return
-		}
-	}
-
-	walk(exprCopy)
-
-	fmt.Println("*** BEFORE ***")
-	ex, _ := json.MarshalIndent(expr, "", "\t")
-	fmt.Println(string(ex))
-
-	fmt.Println("*** AFTER ***")
-	ex, _ = json.MarshalIndent(exprCopy, "", "\t")
-	fmt.Println(string(ex))
-
-	// If a measurement branch was found, but the remaining expression has a
-	// measurement anywhere else, the optimization cannot be applied, so return a
-	// negative response
-	if exprHasMeas(exprCopy) {
-		return []string{}, false
-	}
-
-	return names, foundMeasBranch
-}
-
-// IsMeasBranch determines if the branch with the head at expr represents a
-// group of OR'd measurements from a tree of binary expressions or paren
-// expressions.
-func IsMeasBranch(expr influxql.Expr) ([]string, bool) {
-	valid := true
-	names := []string{}
-
-	var walk func(influxql.Expr)
-	walk = func(node influxql.Expr) {
-		// don't need to continue if the tree has already been determined invalid
-		if !valid {
-			return
-		}
-
-		switch n := node.(type) {
-		// most of the time these will be binary expressions
-		case *influxql.BinaryExpr:
-			switch n.Op {
-			case influxql.EQ:
-				name, ok := measNameFromEqual(n)
-				if ok {
-					names = append(names, name)
-				} else {
-					valid = false
-				}
-			case influxql.OR:
-				walk(n.LHS)
-				walk(n.RHS)
-			default:
-				// anything else is not valid
-				valid = false
-			}
-		case *influxql.ParenExpr:
-			// paren expressions are essentially wrappers for other expressions, so
-			// continue
-			walk(n.Expr)
-		default:
-			// any other type of node is not valid
-			valid = false
-		}
-	}
-
-	walk(expr)
-
-	if !valid {
-		names = []string{}
-	}
-
-	return names, valid
-}
-
-func exprHasMeas(expr influxql.Expr) bool {
-	found := false
-
-	influxql.WalkFunc(expr, func(node influxql.Node) {
-		if ref, ok := node.(*influxql.VarRef); ok {
-			if ref.Val == measurementRemap[measurementKey] {
-				found = true
-			}
-		}
-	})
-
-	return found
 }
 
 func measNameFromEqual(be *influxql.BinaryExpr) (string, bool) {

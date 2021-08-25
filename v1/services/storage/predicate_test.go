@@ -124,73 +124,7 @@ func TestMeasurementOptimization(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			names, ok := storage.MeasurementOptimization2(tc.expr)
-			require.Equal(t, tc.names, names)
-			require.Equal(t, tc.ok, ok)
-		})
-	}
-}
-
-func TestIsMeasBranch(t *testing.T) {
-	cases := []struct {
-		expr  influxql.Expr
-		name  string
-		ok    bool
-		names []string
-	}{
-		{
-			expr:  influxql.MustParseExpr(`_name = 'm0'`),
-			name:  "single measurement",
-			ok:    true,
-			names: []string{"m0"},
-		},
-		{
-			expr:  influxql.MustParseExpr(`_name = 'm0' OR _name = 'm1' OR _name = 'm2'`),
-			name:  "multiple measurements",
-			ok:    true,
-			names: []string{"m0", "m1", "m2"},
-		},
-		{
-			expr:  influxql.MustParseExpr(`_name = 'm0' OR (_name = 'm1' OR _name = 'm2')`),
-			name:  "parens",
-			ok:    true,
-			names: []string{"m0", "m1", "m2"},
-		},
-		{
-			expr:  influxql.MustParseExpr(`tag1 != 'foo'`),
-			name:  "no measurements",
-			ok:    false,
-			names: []string{},
-		},
-		{
-			expr:  influxql.MustParseExpr(`_name = 'm0' AND _name = 'm1'`),
-			name:  "operator is not OR",
-			ok:    false,
-			names: []string{},
-		},
-		{
-			expr:  influxql.MustParseExpr(`_name = 'm0' OR (_name = 'm1' AND _name = 'm2')`),
-			name:  "mixed operators",
-			ok:    false,
-			names: []string{},
-		},
-		{
-			expr:  influxql.MustParseExpr(`_name = 'm0' OR tag1 = 'foo'`),
-			name:  "equality on non-measurement",
-			ok:    false,
-			names: []string{},
-		},
-		{
-			expr:  influxql.MustParseExpr(`_name = 'm0' OR _name != 'm1'`),
-			name:  "non-equality operator between measurements",
-			ok:    false,
-			names: []string{},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			names, ok := storage.IsMeasBranch(tc.expr)
+			names, ok := storage.MeasurementOptimization(tc.expr)
 			require.Equal(t, tc.names, names)
 			require.Equal(t, tc.ok, ok)
 		})

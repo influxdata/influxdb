@@ -94,7 +94,9 @@ func newIndexSeriesCursorInfluxQLPred(ctx context.Context, predicate influxql.Ex
 	}
 
 	var mitr tsdb.MeasurementIterator
-	names, measurementOpt := MeasurementOptimization2(p.measurementCond)
+	// Check to see if an optimization based on grouped measurements can be
+	// applied.
+	names, measurementOpt := MeasurementOptimization(p.measurementCond)
 	if measurementOpt {
 		byteNames := [][]byte{}
 		for _, n := range names {
@@ -105,8 +107,8 @@ func newIndexSeriesCursorInfluxQLPred(ctx context.Context, predicate influxql.Ex
 
 	sg := tsdb.Shards(shards)
 	p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{Measurements: mitr}, opt.Condition)
-	// measurement optimization path - already have the measurement names needed
-	// for the query, so get the field keys from the index
+	// If the optimization based on grouped measurements could be used, the fields
+	// for the measurements can be quickly obtained from the index.
 	if p.sqry != nil && err == nil {
 		if measurementOpt {
 			p.fields = make(map[string][]field)
@@ -123,9 +125,9 @@ func newIndexSeriesCursorInfluxQLPred(ctx context.Context, predicate influxql.Ex
 			return p, nil
 		}
 
-		// slow path - could not determine which measurement names were required for
-		// the query statically, so go through the query engine (?)
-
+		// If the measurements for the query could not be obtained via the
+		// optimization, a slower path must be used to obtain the applicable series
+		// via the storage service.
 		var mfkeys map[string][]string
 		mfkeys, err = sg.FieldKeysByPredicate(opt.Condition)
 		if err != nil {
