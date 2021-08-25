@@ -492,6 +492,21 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 		return err
 	}
 
+	log.Debug("Reopening TSI index with max-index-log-file-size=1 to fully compact log files")
+	compactingIndex := tsi1.NewIndex(sfile, "",
+		tsi1.WithPath(tmpPath),
+		tsi1.WithMaximumLogFileSize(1),
+	)
+	if err := compactingIndex.Open(); err != nil {
+		return err
+	}
+	compactingIndex.Compact()
+	compactingIndex.Wait()
+	log.Debug("re-closing tsi index")
+	if err := compactingIndex.Close(); err != nil {
+		return err
+	}
+
 	// Rename TSI to standard path.
 	log.Debug("Moving tsi to permanent location")
 	return os.Rename(tmpPath, indexPath)

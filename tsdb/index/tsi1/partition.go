@@ -71,6 +71,7 @@ type Partition struct {
 
 	// Log file compaction thresholds.
 	MaxLogFileSize int64
+	MaxLogFileAge  time.Duration
 	nosync         bool // when true, flushing and syncing of LogFile will be disabled.
 	logbufferSize  int  // the LogFile's buffer is set to this value.
 
@@ -130,6 +131,7 @@ func (p *Partition) bytes() int {
 	b += int(unsafe.Sizeof(p.path)) + len(p.path)
 	b += int(unsafe.Sizeof(p.id)) + len(p.id)
 	b += int(unsafe.Sizeof(p.MaxLogFileSize))
+	b += int(unsafe.Sizeof(p.MaxLogFileAge))
 	b += int(unsafe.Sizeof(p.compactionInterrupt))
 	b += int(unsafe.Sizeof(p.compactionsDisabled))
 	b += int(unsafe.Sizeof(p.logger))
@@ -238,7 +240,7 @@ func (p *Partition) Open() error {
 	p.opened = true
 
 	// Send a compaction request on start up.
-	p.compact()
+	go p.runPeriodicCompaction()
 
 	return nil
 }
@@ -892,7 +894,54 @@ func (p *Partition) compactionsEnabled() bool {
 	return p.compactionsDisabled == 0
 }
 
+func (p *Partition) runPeriodicCompaction() {
+	// kick off an initial compaction at startup without the optimization check
+	p.Compact()
+
+	// Avoid a race when using Reopen in tests
+	p.mu.RLock()
+	closing := p.closing
+	p.mu.RUnlock()
+
+	// check for compactions once an hour (usually not necessary but a nice safety check)
+	t := time.NewTicker(1 * time.Hour)
+	defer t.Stop()
+	for {
+		select {
+		case <-closing:
+			return
+		case <-t.C:
+			if p.NeedsCompaction() {
+				p.Compact()
+			}
+		}
+	}
+}
+
+// NeedsCompaction only requires a read lock and checks if there are files that could be compacted.
+// If compact is updated we should also update NeedsCompaction.
+func (p *Partition) NeedsCompaction() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.needsLogCompaction() {
+		return true
+	}
+	levelCount := make(map[int]int)
+	maxLevel := len(p.levels) - 2
+	// If we have 2 log files (level 0), or if we have 2 files at the same level, we should do a compaction.
+	for _, f := range p.fileSet.files {
+		level := f.Level()
+		levelCount[level]++
+		if level <= maxLevel && levelCount[level] > 1 && !p.levelCompacting[level] {
+			return true
+		}
+	}
+	return false
+}
+
 // compact compacts continguous groups of files that are not currently compacting.
+//
+// compact requires that mu is write-locked.
 func (p *Partition) compact() {
 	if p.isClosing() {
 		return
@@ -903,6 +952,30 @@ func (p *Partition) compact() {
 
 	fs := p.retainFileSet()
 	defer fs.Release()
+
+	// compact any non-active log files first
+	for _, f := range p.fileSet.files {
+		if f.Level() == 0 {
+			logFile := f.(*LogFile) // It is an invariant that a file is level 0 iff it is a log file
+			if logFile == p.activeLogFile {
+				continue
+			}
+			if p.levelCompacting[0] {
+				break
+			}
+			// Mark the level as compacting.
+			p.levelCompacting[0] = true
+			p.currentCompactionN++
+			go func() {
+				p.compactLogFile(logFile)
+				p.mu.Lock()
+				p.currentCompactionN--
+				p.levelCompacting[0] = false
+				p.mu.Unlock()
+				p.Compact()
+			}()
+		}
+	}
 
 	// Iterate over each level we are going to compact.
 	// We skip the first level (0) because it is log files and they are compacted separately.
@@ -956,6 +1029,11 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	assert(len(files) >= 2, "at least two index files are required for compaction")
 	assert(level > 0, "cannot compact level zero")
 
+	// Files have already been retained by caller.
+	// Ensure files are released only once.
+	var once sync.Once
+	defer once.Do(func() { IndexFiles(files).Release() })
+
 	// Build a logger for this compaction.
 	log, logEnd := logger.NewOperation(context.TODO(), p.logger, "TSI level compaction", "tsi1_compact_to_level", zap.Int("tsi1_level", level))
 	defer logEnd()
@@ -967,11 +1045,6 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 		return
 	default:
 	}
-
-	// Files have already been retained by caller.
-	// Ensure files are released only once.
-	var once sync.Once
-	defer once.Do(func() { IndexFiles(files).Release() })
 
 	// Track time to compact.
 	start := time.Now()
@@ -1060,13 +1133,21 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 
 func (p *Partition) Rebuild() {}
 
+// needsLogCompaction returns true if the log file is too big or too old
+// The caller must have at least a read lock on the partition
+func (p *Partition) needsLogCompaction() bool {
+	size := p.activeLogFile.Size()
+	return size >= p.MaxLogFileSize || (size > 0 && p.activeLogFile.modTime.Before(time.Now().Add(-p.MaxLogFileAge)))
+}
+
 func (p *Partition) CheckLogFile() error {
-	// Check log file size under read lock.
-	if size := func() int64 {
+	// Check log file under read lock.
+	needsCompaction := func() bool {
 		p.mu.RLock()
 		defer p.mu.RUnlock()
-		return p.activeLogFile.Size()
-	}(); size < p.MaxLogFileSize {
+		return p.needsLogCompaction()
+	}()
+	if !needsCompaction {
 		return nil
 	}
 
@@ -1077,12 +1158,9 @@ func (p *Partition) CheckLogFile() error {
 }
 
 func (p *Partition) checkLogFile() error {
-	if p.activeLogFile.Size() < p.MaxLogFileSize {
+	if !p.needsLogCompaction() {
 		return nil
 	}
-
-	// Swap current log file.
-	logFile := p.activeLogFile
 
 	// Open new log file and insert it into the first position.
 	if err := p.prependActiveLogFile(); err != nil {
@@ -1090,14 +1168,7 @@ func (p *Partition) checkLogFile() error {
 	}
 
 	// Begin compacting in a background goroutine.
-	p.currentCompactionN++
 	go func() {
-		p.compactLogFile(logFile)
-
-		p.mu.Lock()
-		p.currentCompactionN-- // compaction is now complete
-		p.mu.Unlock()
-
 		p.Compact() // check for new compactions
 	}()
 
