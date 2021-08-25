@@ -94,47 +94,21 @@ func newIndexSeriesCursorInfluxQLPred(ctx context.Context, predicate influxql.Ex
 	}
 
 	var mitr tsdb.MeasurementIterator
-	name, singleMeasurement := HasSingleMeasurementNoOR(p.measurementCond)
-	if singleMeasurement {
-		mitr = tsdb.NewMeasurementSliceIterator([][]byte{[]byte(name)})
-	}
-
-	var names []string
-	var multiMeasurement bool
-	if !singleMeasurement {
-		names, multiMeasurement = MeasurementOptimization(p.measurementCond)
-		if multiMeasurement {
-			byteNames := [][]byte{}
-			for _, n := range names {
-				byteNames = append(byteNames, []byte(n))
-			}
-			mitr = tsdb.NewMeasurementSliceIterator(byteNames)
+	names, measurementOpt := MeasurementOptimization2(p.measurementCond)
+	if measurementOpt {
+		byteNames := [][]byte{}
+		for _, n := range names {
+			byteNames = append(byteNames, []byte(n))
 		}
-		// multiMeasurement = false
+		mitr = tsdb.NewMeasurementSliceIterator(byteNames)
 	}
 
 	sg := tsdb.Shards(shards)
 	p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{Measurements: mitr}, opt.Condition)
+	// measurement optimization path - already have the measurement names needed
+	// for the query, so get the field keys from the index
 	if p.sqry != nil && err == nil {
-		// Optimisation to check if request is only interested in results for a
-		// single measurement. In this case we can efficiently produce all known
-		// field keys from the collection of shards without having to go via
-		// the query engine.
-		if singleMeasurement {
-			fkeys := sg.FieldKeysByMeasurement([]byte(name))
-			if len(fkeys) == 0 {
-				goto CLEANUP
-			}
-
-			fields := make([]field, 0, len(fkeys))
-			for _, key := range fkeys {
-				fields = append(fields, field{n: key, nb: []byte(key)})
-			}
-			p.fields = map[string][]field{name: fields}
-			return p, nil
-		}
-
-		if multiMeasurement {
+		if measurementOpt {
 			p.fields = make(map[string][]field)
 
 			for _, name := range names {
@@ -148,6 +122,9 @@ func newIndexSeriesCursorInfluxQLPred(ctx context.Context, predicate influxql.Ex
 
 			return p, nil
 		}
+
+		// slow path - could not determine which measurement names were required for
+		// the query statically, so go through the query engine (?)
 
 		var mfkeys map[string][]string
 		mfkeys, err = sg.FieldKeysByPredicate(opt.Condition)

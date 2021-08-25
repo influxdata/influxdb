@@ -11,8 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TODO: Figure out how to write a test that has AND without parens!
-func TestMeasurementOptimizationAlt(t *testing.T) {
+func TestMeasurementOptimization(t *testing.T) {
 	cases := []struct {
 		expr  influxql.Expr
 		name  string
@@ -21,21 +20,33 @@ func TestMeasurementOptimizationAlt(t *testing.T) {
 	}{
 		{
 			expr:  influxql.MustParseExpr(`_name = 'm0'`),
-			name:  "single measurement - standalone",
-			ok:    true,
-			names: []string{"m0"},
-		},
-		{
-			expr:  influxql.MustParseExpr(`_name = 'm0' AND tag1 != 'foo'`),
 			name:  "single measurement",
 			ok:    true,
 			names: []string{"m0"},
 		},
 		{
-			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name = 'm1' OR _name = 'm2' OR _name = 'm3' OR _name = 'm4') AND (_field = 'foo' OR _field = 'bar' OR _field = 'qux' OR _field = 'baz' OR _field = 'zor')`),
-			name:  "multiple measurement",
+			expr:  influxql.MustParseExpr(`_something = 'f' AND _name = 'm0'`),
+			name:  "single measurement with AND",
 			ok:    true,
-			names: []string{"m0", "m1", "m2", "m3", "m4"},
+			names: []string{"m0"},
+		},
+		{
+			expr:  influxql.MustParseExpr(`_something = 'f' AND (a =~ /x0/ AND _name = 'm0')`),
+			name:  "single measurement with multiple AND",
+			ok:    true,
+			names: []string{"m0"},
+		},
+		{
+			expr:  influxql.MustParseExpr(`_name = 'm0' OR _name = 'm1' OR _name = 'm2'`),
+			name:  "multiple measurements alone",
+			ok:    true,
+			names: []string{"m0", "m1", "m2"},
+		},
+		{
+			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name = 'm1' OR _name = 'm2') AND (_field = 'foo' OR _field = 'bar' OR _field = 'qux')`),
+			name:  "multiple measurements combined",
+			ok:    true,
+			names: []string{"m0", "m1", "m2"},
 		},
 		{
 			expr:  influxql.MustParseExpr(`(_name = 'm0' OR (_name = 'm1' OR _name = 'm2')) AND tag1 != 'foo'`),
@@ -50,46 +61,70 @@ func TestMeasurementOptimizationAlt(t *testing.T) {
 			names: []string{"m0", "m1", "m2"},
 		},
 		{
-			expr:  influxql.MustParseExpr(`tag1 = 'foo' AND tag2 = 'bar'`),
-			name:  "no measurements - only tags",
+			expr:  influxql.MustParseExpr(`_name = 'm0' OR tag1 != 'foo'`),
+			name:  "single measurement with OR",
 			ok:    false,
-			names: []string{},
+			names: nil,
 		},
 		{
-			expr:  influxql.MustParseExpr(`_field = 'foo' AND _field = 'bar'`),
-			name:  "no measurements - only fields",
+			expr:  influxql.MustParseExpr(`_name != 'm0' AND tag1 != 'foo'`),
+			name:  "single measurement with non-equal",
 			ok:    false,
-			names: []string{},
+			names: nil,
+		},
+		{
+			expr:  influxql.MustParseExpr(`_name = 'm0' AND _name != 'm1' AND tag1 != 'foo'`),
+			name:  "multi-measurement, top level, equal and non-equal",
+			ok:    false,
+			names: nil,
+		},
+		{
+			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name != 'm1' OR _name = 'm2') AND (_field = 'foo' OR _field = 'bar' OR _field = 'qux')`),
+			name:  "multiple measurements with non-equal",
+			ok:    false,
+			names: nil,
+		},
+		{
+			expr:  influxql.MustParseExpr(`tag1 = 'foo' AND tag2 = 'bar'`),
+			name:  "no measurements - multiple tags",
+			ok:    false,
+			names: nil,
+		},
+		{
+			expr:  influxql.MustParseExpr(`_field = 'foo'`),
+			name:  "no measurements - single field",
+			ok:    false,
+			names: nil,
 		},
 		{
 			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name = 'm1' OR _name = 'm2') AND (tag1 != 'foo' OR _name = 'm1')`),
 			name:  "measurements on both sides",
 			ok:    false,
-			names: []string{},
+			names: nil,
 		},
 		{
-			expr:  influxql.MustParseExpr(`(tag1 != 'foo' OR tag2 = 'bar') AND (_name = 'm0' OR _name = 'm1' OR _name = 'm2') AND (_field = 'val1' OR _name = 'm3')`),
+			expr:  influxql.MustParseExpr(`(tag1 != 'foo' OR _name = 'm4') AND (_name = 'm0' OR _name = 'm1' OR _name = 'm2') AND (_field = 'val1' OR _name = 'm3')`),
 			name:  "multiple AND - dispersed measurements",
 			ok:    false,
-			names: []string{},
+			names: nil,
 		},
 		{
 			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name = 'm1' AND _name = 'm2') AND tag1 != 'foo'`),
 			name:  "measurements with AND",
 			ok:    false,
-			names: []string{},
+			names: nil,
 		},
 		{
 			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name = 'm1' OR _name = 'm2') OR (tag1 != 'foo' OR _name = 'm1')`),
 			name:  "top level is not AND",
 			ok:    false,
-			names: []string{},
+			names: nil,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			names, ok := storage.MeasurementOptimization(tc.expr)
+			names, ok := storage.MeasurementOptimization2(tc.expr)
 			require.Equal(t, tc.names, names)
 			require.Equal(t, tc.ok, ok)
 		})
@@ -159,65 +194,6 @@ func TestIsMeasBranch(t *testing.T) {
 			require.Equal(t, tc.names, names)
 			require.Equal(t, tc.ok, ok)
 		})
-	}
-}
-
-func TestHasSingleMeasurementNoOR(t *testing.T) {
-	cases := []struct {
-		expr influxql.Expr
-		name string
-		ok   bool
-	}{
-		{
-			expr: influxql.MustParseExpr(`_name = 'm0'`),
-			name: "m0",
-			ok:   true,
-		},
-		{
-			expr: influxql.MustParseExpr(`_something = 'f' AND _name = 'm0'`),
-			name: "m0",
-			ok:   true,
-		},
-		{
-			expr: influxql.MustParseExpr(`_something = 'f' AND (a =~ /x0/ AND _name = 'm0')`),
-			name: "m0",
-			ok:   true,
-		},
-		{
-			expr: influxql.MustParseExpr(`tag1 != 'foo'`),
-			ok:   false,
-		},
-		{
-			expr: influxql.MustParseExpr(`_name = 'm0' OR tag1 != 'foo'`),
-			ok:   false,
-		},
-		{
-			expr: influxql.MustParseExpr(`_name = 'm0' AND tag1 != 'foo' AND _name = 'other'`),
-			ok:   false,
-		},
-		{
-			expr: influxql.MustParseExpr(`_name = 'm0' AND tag1 != 'foo' OR _name = 'other'`),
-			ok:   false,
-		},
-		{
-			expr: influxql.MustParseExpr(`_name = 'm0' AND (tag1 != 'foo' OR tag2 = 'other')`),
-			ok:   false,
-		},
-		{
-			expr: influxql.MustParseExpr(`(tag1 != 'foo' OR tag2 = 'other') OR _name = 'm0'`),
-			ok:   false,
-		},
-	}
-
-	for _, tc := range cases {
-		name, ok := storage.HasSingleMeasurementNoOR(tc.expr)
-		if ok != tc.ok {
-			t.Fatalf("got %q, %v for expression %q, expected %q, %v", name, ok, tc.expr, tc.name, tc.ok)
-		}
-
-		if ok && name != tc.name {
-			t.Fatalf("got %q, %v for expression %q, expected %q, %v", name, ok, tc.expr, tc.name, tc.ok)
-		}
 	}
 }
 
