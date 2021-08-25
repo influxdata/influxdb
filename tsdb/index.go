@@ -1337,7 +1337,7 @@ func (is IndexSet) HasField(measurement []byte, field string) bool {
 
 // MeasurementNamesByExpr returns a slice of measurement names matching the
 // provided condition. If no condition is provided then all names are returned.
-func (is IndexSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) (_ [][]byte, err error) {
 	release := is.SeriesFile.Retain()
 	defer release()
 
@@ -1499,7 +1499,7 @@ func (is IndexSet) measurementNamesByNameFilter(auth query.Authorizer, op influx
 // provided condition. If no condition is provided then all names are returned.
 // This behaves differently from MeasurementNamesByExpr because it will
 // return measurements using flux predicates.
-func (is IndexSet) MeasurementNamesByPredicate(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) MeasurementNamesByPredicate(auth query.Authorizer, expr influxql.Expr) (_ [][]byte, err error) {
 	release := is.SeriesFile.Retain()
 	defer release()
 
