@@ -2178,7 +2178,7 @@ mod tests {
     // run a sql query against the database, returning the results as record batches
     async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
         let planner = SqlQueryPlanner::default();
-        let ctx = db.new_query_context();
+        let ctx = db.new_query_context(None);
 
         let physical_plan = planner.query(query, &ctx).unwrap();
         ctx.collect(physical_plan).await.unwrap()

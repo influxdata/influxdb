@@ -22,7 +22,7 @@ macro_rules! run_sql_test_case {
             println!("Running scenario '{}'", scenario_name);
             println!("SQL: '{:#?}'", sql);
             let planner = SqlQueryPlanner::default();
-            let ctx = db.new_query_context();
+            let ctx = db.new_query_context(None);
 
             let physical_plan = planner.query(&sql, &ctx).expect("built plan successfully");
 

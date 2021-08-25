@@ -503,15 +503,66 @@ mod tests {
         assert!(ctf.contains(&t2));
     }
 
-    #[test]
-    fn db_rules_should_be_a_file() {
+    fn make_db_rules_path(object_store: &ObjectStore, server_id: ServerId, db_name: &str) -> Path {
+        let mut p = object_store.new_path();
+        p.push_all_dirs(&[&server_id.to_string(), db_name]);
+        p.set_file_name("rules.pb");
+        p
+    }
+
+    #[tokio::test]
+    async fn db_rules_should_be_a_file() {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
+        let rules_path = make_db_rules_path(&object_store, server_id, "clouds");
         let iox_object_store =
             IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name);
 
-        let db_rules = iox_object_store.db_rules_path();
-        assert_eq!(db_rules.to_string(), "mem:1/clouds/rules.pb");
+        // PUT
+        let original_file_content = Bytes::from("hello world");
+        iox_object_store
+            .put_database_rules_file(original_file_content.clone())
+            .await
+            .unwrap();
+
+        let actual_content = object_store
+            .get(&rules_path)
+            .await
+            .unwrap()
+            .next()
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(original_file_content, actual_content);
+
+        // GET
+        let updated_file_content = Bytes::from("goodbye moon");
+        let updated_file_stream = stream::once({
+            let bytes = updated_file_content.clone();
+            async move { Ok(bytes) }
+        });
+        object_store
+            .put(&rules_path, updated_file_stream, None)
+            .await
+            .unwrap();
+
+        let actual_content = iox_object_store.get_database_rules_file().await.unwrap();
+
+        assert_eq!(updated_file_content, actual_content);
+
+        // DELETE
+        iox_object_store.delete_database_rules_file().await.unwrap();
+
+        let file_count = object_store
+            .list(None)
+            .await
+            .unwrap()
+            .try_fold(0, |a, paths| async move { Ok(a + paths.len()) })
+            .await
+            .unwrap();
+
+        assert_eq!(file_count, 0);
     }
 }

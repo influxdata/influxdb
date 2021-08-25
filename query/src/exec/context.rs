@@ -18,6 +18,7 @@ use datafusion::{
     prelude::*,
 };
 use observability_deps::tracing::{debug, trace};
+use trace::{ctx::SpanContext, span::SpanRecorder};
 
 use crate::exec::{
     fieldlist::{FieldList, IntoFieldList},
@@ -128,6 +129,9 @@ pub struct IOxExecutionConfig {
 
     /// Default catalog
     default_catalog: Option<Arc<dyn CatalogProvider>>,
+
+    /// Span context from which to create spans for this query
+    span_ctx: Option<SpanContext>,
 }
 
 impl fmt::Debug for IOxExecutionConfig {
@@ -142,6 +146,7 @@ impl IOxExecutionConfig {
             exec,
             concurrency: None,
             default_catalog: None,
+            span_ctx: None,
         }
     }
 
@@ -159,6 +164,11 @@ impl IOxExecutionConfig {
             default_catalog: Some(catalog),
             ..self
         }
+    }
+
+    /// Set the span context from which to create  distributed tracing spans for this query
+    pub fn with_span_context(self, span_ctx: Option<SpanContext>) -> Self {
+        Self { span_ctx, ..self }
     }
 
     /// Create an ExecutionContext suitable for executing DataFusion plans
@@ -182,9 +192,12 @@ impl IOxExecutionConfig {
             inner.register_catalog(DEFAULT_CATALOG, default_catalog);
         }
 
+        let maybe_span = self.span_ctx.map(|ctx| ctx.child("Query Execution"));
+
         IOxExecutionContext {
             inner,
             exec: self.exec,
+            recorder: SpanRecorder::new(maybe_span),
         }
     }
 }
@@ -201,7 +214,6 @@ impl IOxExecutionConfig {
 ///
 /// An IOxExecutionContext is created directly from an Executor, or from
 /// an IOxExecutionConfig created by an Executor
-#[derive(Clone)]
 pub struct IOxExecutionContext {
     inner: ExecutionContext,
 
@@ -212,6 +224,9 @@ pub struct IOxExecutionContext {
     /// dedicated tokio runtime to run them so that other requests
     /// can be handled.
     exec: DedicatedExecutor,
+
+    /// Span context from which to create spans for this query
+    recorder: SpanRecorder,
 }
 
 impl fmt::Debug for IOxExecutionContext {
@@ -231,20 +246,25 @@ impl IOxExecutionContext {
     /// Prepare a SQL statement for execution. This assumes that any
     /// tables referenced in the SQL have been registered with this context
     pub fn prepare_sql(&self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
+        let ctx = self.child_ctx("prepare_sql");
         debug!(text=%sql, "planning SQL query");
-        let logical_plan = self.inner.create_logical_plan(sql)?;
-        self.prepare_plan(&logical_plan)
+        let logical_plan = ctx.inner.create_logical_plan(sql)?;
+        ctx.prepare_plan(&logical_plan)
     }
 
     /// Prepare (optimize + plan) a pre-created logical plan for execution
     pub fn prepare_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
+        let mut ctx = self.child_ctx("prepare_plan");
         debug!(text=%plan.display_indent_schema(), "prepare_plan: initial plan");
 
-        let plan = self.inner.optimize(plan)?;
+        let plan = ctx.inner.optimize(plan)?;
+
+        ctx.recorder.event("optimized plan");
         trace!(text=%plan.display_indent_schema(), graphviz=%plan.display_graphviz(), "optimized plan");
 
-        let physical_plan = self.inner.create_physical_plan(&plan)?;
+        let physical_plan = ctx.inner.create_physical_plan(&plan)?;
 
+        ctx.recorder.event("plan to run");
         debug!(text=%displayable(physical_plan.as_ref()).indent(), "prepare_plan: plan to run");
         Ok(physical_plan)
     }
@@ -252,12 +272,13 @@ impl IOxExecutionContext {
     /// Executes the logical plan using DataFusion on a separate
     /// thread pool and produces RecordBatches
     pub async fn collect(&self, physical_plan: Arc<dyn ExecutionPlan>) -> Result<Vec<RecordBatch>> {
+        let ctx = self.child_ctx("collect");
         debug!(
             "Running plan, physical:\n{}",
             displayable(physical_plan.as_ref()).indent()
         );
 
-        self.run(collect(physical_plan)).await
+        ctx.run(collect(physical_plan)).await
     }
 
     /// Executes the physical plan and produces a RecordBatchStream to stream
@@ -310,7 +331,7 @@ impl IOxExecutionContext {
         let handles = plans
             .into_iter()
             .map(|plan| {
-                let ctx = self.clone();
+                let ctx = self.child_ctx("to_series_set");
                 self.run(async move {
                     let SeriesSetPlan {
                         table_name,
@@ -365,7 +386,7 @@ impl IOxExecutionContext {
         let handles = plans
             .into_iter()
             .map(|plan| {
-                let ctx = self.clone();
+                let ctx = self.child_ctx("to_field_list");
                 self.run(async move {
                     let physical_plan = ctx.prepare_plan(&plan)?;
 
@@ -400,9 +421,10 @@ impl IOxExecutionContext {
     /// Executes this plan on the query pool, and returns the
     /// resulting set of strings
     pub async fn to_string_set(&self, plan: StringSetPlan) -> Result<StringSetRef> {
+        let ctx = self.child_ctx("to_string_set");
         match plan {
             StringSetPlan::Known(ss) => Ok(ss),
-            StringSetPlan::Plan(plans) => self
+            StringSetPlan::Plan(plans) => ctx
                 .run_logical_plans(plans)
                 .await?
                 .into_stringset()
@@ -421,7 +443,7 @@ impl IOxExecutionContext {
         let value_futures = plans
             .into_iter()
             .map(|plan| {
-                let ctx = self.clone();
+                let ctx = self.child_ctx("run_logical_plans");
                 self.run(async move {
                     let physical_plan = ctx.prepare_plan(&plan)?;
 
@@ -450,5 +472,14 @@ impl IOxExecutionContext {
             .spawn(fut)
             .await
             .unwrap_or_else(|e| Err(Error::Execution(format!("Join Error: {}", e))))
+    }
+
+    /// Returns a IOxExecutionContext with a SpanRecorder that is a child of the current
+    pub fn child_ctx(&self, name: &'static str) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            exec: self.exec.clone(),
+            recorder: self.recorder.child(name),
+        }
     }
 }

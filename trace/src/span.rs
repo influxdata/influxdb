@@ -1,15 +1,11 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::ops::{Deref, DerefMut};
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-
-use observability_deps::tracing::error;
 
 use crate::ctx::SpanContext;
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone)]
 pub enum SpanStatus {
     Unknown,
     Ok,
@@ -22,11 +18,10 @@ pub enum SpanStatus {
 /// have relationships with other Spans that together comprise a Trace
 ///
 ///
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Span {
     pub name: Cow<'static, str>,
 
-    //#[serde(flatten)] - https://github.com/serde-rs/json/issues/505
     pub ctx: SpanContext,
 
     pub start: Option<DateTime<Utc>>,
@@ -56,17 +51,6 @@ impl Span {
         self.status = SpanStatus::Err;
     }
 
-    /// Returns a JSON representation of this `Span`
-    pub fn json(&self) -> String {
-        match serde_json::to_string(self) {
-            Ok(serialized) => serialized,
-            Err(e) => {
-                error!(%e, "error serializing span to JSON");
-                format!("\"Invalid span: {}\"", e)
-            }
-        }
-    }
-
     /// Exports this `Span` to its registered collector if any
     pub fn export(mut self) {
         if let Some(collector) = self.ctx.collector.take() {
@@ -75,7 +59,7 @@ impl Span {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct SpanEvent {
     pub time: DateTime<Utc>,
 
@@ -83,8 +67,7 @@ pub struct SpanEvent {
 }
 
 /// Values that can be stored in a Span's metadata and events
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone)]
 pub enum MetaValue {
     String(Cow<'static, str>),
     Float(f64),
@@ -115,52 +98,76 @@ impl From<i64> for MetaValue {
     }
 }
 
-/// Updates the start and end times on the provided Span
-#[derive(Debug)]
-pub struct EnteredSpan {
-    /// Option so we can take out of it on drop / publish
+/// `SpanRecorder` is a utility for instrumenting code that produces `Span`
+///
+/// If a `SpanRecorder` is created from a `Span` it will update the start timestamp
+/// of the span on creation, and on Drop will set the finish time and call `Span::export`
+///
+/// If not created with a `Span`, e.g. this request is not being sampled, all operations
+/// called on this `SpanRecorder` will be a no-op
+#[derive(Debug, Default)]
+pub struct SpanRecorder {
     span: Option<Span>,
 }
 
-impl<'a> Deref for EnteredSpan {
-    type Target = Span;
+impl<'a> SpanRecorder {
+    pub fn new(mut span: Option<Span>) -> Self {
+        if let Some(span) = span.as_mut() {
+            span.start = Some(Utc::now());
+        }
 
-    fn deref(&self) -> &Self::Target {
-        self.span.as_ref().expect("dropped")
+        Self { span }
+    }
+
+    /// Record an event on the contained `Span` if any
+    pub fn event(&mut self, meta: impl Into<Cow<'static, str>>) {
+        if let Some(span) = self.span.as_mut() {
+            span.event(meta)
+        }
+    }
+
+    /// Record an error on the contained `Span` if any
+    pub fn error(&mut self, meta: impl Into<Cow<'static, str>>) {
+        if let Some(span) = self.span.as_mut() {
+            span.error(meta)
+        }
+    }
+
+    /// Take the contents of this recorder returning a new recorder
+    ///
+    /// From this point on `self` will behave as if it were created with no span
+    pub fn take(&mut self) -> Self {
+        std::mem::take(self)
+    }
+
+    /// If this `SpanRecorder` has a `Span`, creates a new child of that `Span` and
+    /// returns a `SpanRecorder` for it. Otherwise returns an empty `SpanRecorder`
+    pub fn child(&self, name: &'static str) -> Self {
+        match &self.span {
+            Some(span) => Self::new(Some(span.ctx.child(name))),
+            None => Self::new(None),
+        }
     }
 }
 
-impl<'a> DerefMut for EnteredSpan {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.span.as_mut().expect("dropped")
-    }
-}
-
-impl<'a> EnteredSpan {
-    pub fn new(mut span: Span) -> Self {
-        span.start = Some(Utc::now());
-        Self { span: Some(span) }
-    }
-}
-
-impl<'a> Drop for EnteredSpan {
+impl<'a> Drop for SpanRecorder {
     fn drop(&mut self) {
-        let now = Utc::now();
+        if let Some(mut span) = self.span.take() {
+            let now = Utc::now();
 
-        let mut span = self.span.take().expect("dropped");
+            // SystemTime is not monotonic so must also check min
+            span.start = Some(match span.start {
+                Some(a) => a.min(now),
+                None => now,
+            });
 
-        // SystemTime is not monotonic so must also check min
-        span.start = Some(match span.start {
-            Some(a) => a.min(now),
-            None => now,
-        });
+            span.end = Some(match span.end {
+                Some(a) => a.max(now),
+                None => now,
+            });
 
-        span.end = Some(match span.end {
-            Some(a) => a.max(now),
-            None => now,
-        });
-
-        span.export()
+            span.export()
+        }
     }
 }
 
@@ -168,8 +175,6 @@ impl<'a> Drop for EnteredSpan {
 mod tests {
     use std::num::{NonZeroU128, NonZeroU64};
     use std::sync::Arc;
-
-    use chrono::TimeZone;
 
     use crate::ctx::{SpanId, TraceId};
     use crate::{RingBufferTraceCollector, TraceCollector};
@@ -197,43 +202,15 @@ mod tests {
     fn test_span() {
         let collector = Arc::new(RingBufferTraceCollector::new(5));
 
-        let mut span = make_span(Arc::<RingBufferTraceCollector>::clone(&collector));
+        let span = make_span(Arc::<RingBufferTraceCollector>::clone(&collector));
 
-        assert_eq!(
-            span.json(),
-            r#"{"name":"foo","ctx":{"trace_id":23948923,"parent_span_id":null,"span_id":3498394},"start":null,"end":null,"status":"Unknown","metadata":{},"events":[]}"#
-        );
-
-        span.events.push(SpanEvent {
-            time: Utc.timestamp_nanos(1000),
-            msg: "this is a test event".into(),
-        });
-
-        assert_eq!(
-            span.json(),
-            r#"{"name":"foo","ctx":{"trace_id":23948923,"parent_span_id":null,"span_id":3498394},"start":null,"end":null,"status":"Unknown","metadata":{},"events":[{"time":"1970-01-01T00:00:00.000001Z","msg":"this is a test event"}]}"#
-        );
-
-        span.metadata.insert("foo".into(), "bar".into());
-        span.start = Some(Utc.timestamp_nanos(100));
-
-        assert_eq!(
-            span.json(),
-            r#"{"name":"foo","ctx":{"trace_id":23948923,"parent_span_id":null,"span_id":3498394},"start":"1970-01-01T00:00:00.000000100Z","end":null,"status":"Unknown","metadata":{"foo":"bar"},"events":[{"time":"1970-01-01T00:00:00.000001Z","msg":"this is a test event"}]}"#
-        );
-
-        span.status = SpanStatus::Ok;
-        span.ctx.parent_span_id = Some(SpanId(NonZeroU64::new(23493).unwrap()));
-
-        let expected = r#"{"name":"foo","ctx":{"trace_id":23948923,"parent_span_id":23493,"span_id":3498394},"start":"1970-01-01T00:00:00.000000100Z","end":null,"status":"Ok","metadata":{"foo":"bar"},"events":[{"time":"1970-01-01T00:00:00.000001Z","msg":"this is a test event"}]}"#;
-        assert_eq!(span.json(), expected);
+        assert_eq!(collector.spans().len(), 0);
 
         span.export();
 
         // Should publish span
         let spans = collector.spans();
         assert_eq!(spans.len(), 1);
-        assert_eq!(spans[0], expected)
     }
 
     #[test]
@@ -242,17 +219,17 @@ mod tests {
 
         let span = make_span(Arc::<RingBufferTraceCollector>::clone(&collector));
 
-        let entered = EnteredSpan::new(span);
+        let recorder = SpanRecorder::new(Some(span));
 
         std::thread::sleep(std::time::Duration::from_millis(100));
 
-        std::mem::drop(entered);
+        std::mem::drop(recorder);
 
         // Span should have been published on drop with set spans
         let spans = collector.spans();
         assert_eq!(spans.len(), 1);
 
-        let span: Span = serde_json::from_str(spans[0].as_str()).unwrap();
+        let span = &spans[0];
 
         assert!(span.start.is_some());
         assert!(span.end.is_some());

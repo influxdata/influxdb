@@ -648,8 +648,8 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
 
     let db = server.db(&db_name)?;
 
-    let ctx = db.new_query_context();
-    let physical_plan = Planner::new(ctx.clone()).sql(&q).await.context(Planning)?;
+    let ctx = db.new_query_context(req.extensions().get().cloned());
+    let physical_plan = Planner::new(&ctx).sql(&q).await.context(Planning)?;
 
     // TODO: stream read results out rather than rendering the
     // whole thing in mem
@@ -1463,8 +1463,8 @@ mod tests {
 
     /// Run the specified SQL query and return formatted results as a string
     async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
-        let ctx = db.new_query_context();
-        let physical_plan = Planner::new(ctx.clone()).sql(query).await.unwrap();
+        let ctx = db.new_query_context(None);
+        let physical_plan = Planner::new(&ctx).sql(query).await.unwrap();
 
         ctx.collect(physical_plan).await.unwrap()
     }

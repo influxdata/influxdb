@@ -31,6 +31,7 @@ regex = "1"
 snafu = "0.6.3"
 tokio = { version = "1.0", features = ["macros"] }
 tokio-stream = "0.1.2"
+trace = { path = "../trace" }
 tracker = { path = "../tracker" }
 observability_deps = { path = "../observability_deps" }
 

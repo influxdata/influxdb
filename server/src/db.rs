@@ -52,6 +52,7 @@ use std::{
     },
     time::{Duration, Instant},
 };
+use trace::ctx::SpanContext;
 use write_buffer::{
     config::WriteBufferConfig,
     core::{FetchHighWatermark, WriteBufferError},
@@ -482,10 +483,14 @@ impl Db {
     /// Returns a new execution context suitable for running queries
     ///
     /// Registers `self` as the default catalog provider
-    pub fn new_query_context(self: &Arc<Self>) -> IOxExecutionContext {
+    pub fn new_query_context(
+        self: &Arc<Self>,
+        span_ctx: Option<SpanContext>,
+    ) -> IOxExecutionContext {
         self.exec
             .new_execution_config(ExecutorType::Query)
             .with_default_catalog(Arc::<Self>::clone(self))
+            .with_span_context(span_ctx)
             .build()
     }
 
@@ -1498,7 +1503,7 @@ pub mod test_helpers {
     /// Run a sql query against the database, returning the results as record batches.
     pub async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
         let planner = SqlQueryPlanner::default();
-        let ctx = db.new_query_context();
+        let ctx = db.new_query_context(None);
         let physical_plan = planner.query(query, &ctx).unwrap();
         ctx.collect(physical_plan).await.unwrap()
     }
@@ -1691,7 +1696,7 @@ mod tests {
         let t_0 = Instant::now();
         loop {
             let planner = SqlQueryPlanner::default();
-            let ctx = db.new_query_context();
+            let ctx = db.new_query_context(None);
             let physical_plan = planner.query(query, &ctx);
 
             if physical_plan.is_ok() {

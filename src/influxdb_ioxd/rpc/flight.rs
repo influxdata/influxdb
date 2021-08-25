@@ -157,6 +157,7 @@ where
         &self,
         request: Request<Ticket>,
     ) -> Result<Response<Self::DoGetStream>, tonic::Status> {
+        let span_ctx = request.extensions().get().cloned();
         let ticket = request.into_inner();
         let json_str = String::from_utf8(ticket.ticket.to_vec()).context(InvalidTicket {
             ticket: ticket.ticket,
@@ -172,9 +173,9 @@ where
             .db(&database)
             .map_err(default_server_error_handler)?;
 
-        let ctx = db.new_query_context();
+        let ctx = db.new_query_context(span_ctx);
 
-        let physical_plan = Planner::new(ctx.clone())
+        let physical_plan = Planner::new(&ctx)
             .sql(&read_info.sql_query)
             .await
             .context(Planning)?;

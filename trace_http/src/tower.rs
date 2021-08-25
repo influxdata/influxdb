@@ -12,7 +12,7 @@
 //! - This Body contains the data payload (potentially streamed)
 //!
 
-use crate::{ctx::SpanContext, span::EnteredSpan, TraceCollector};
+use crate::ctx::parse_span_ctx;
 use futures::ready;
 use http::{Request, Response};
 use http_body::SizeHint;
@@ -23,6 +23,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
+use trace::{span::SpanRecorder, TraceCollector};
 
 /// `TraceLayer` implements `tower::Layer` and can be used to decorate a
 /// `tower::Service` to collect information about requests flowing through it
@@ -73,13 +74,13 @@ where
             Some(collector) => collector,
             None => {
                 return TracedFuture {
-                    span: None,
+                    recorder: SpanRecorder::new(None),
                     inner: self.service.call(request),
                 }
             }
         };
 
-        let span = match SpanContext::from_headers(collector, request.headers()) {
+        let span = match parse_span_ctx(collector, request.headers()) {
             Ok(Some(ctx)) => {
                 let span = ctx.child("IOx");
 
@@ -87,7 +88,7 @@ where
                 request.extensions_mut().insert(span.ctx.clone());
 
                 // Create Span to use to instrument request
-                Some(EnteredSpan::new(span))
+                Some(span)
             }
             Ok(None) => None,
             Err(e) => {
@@ -97,7 +98,7 @@ where
         };
 
         TracedFuture {
-            span,
+            recorder: SpanRecorder::new(span),
             inner: self.service.call(request),
         }
     }
@@ -108,7 +109,7 @@ where
 #[pin_project]
 #[derive(Debug)]
 pub struct TracedFuture<F> {
-    span: Option<EnteredSpan>,
+    recorder: SpanRecorder,
     #[pin]
     inner: F,
 }
@@ -122,16 +123,16 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let result = ready!(self.as_mut().project().inner.poll(cx));
-        if let Some(span) = self.as_mut().project().span.as_mut() {
-            match &result {
-                Ok(_) => span.event("request processed"),
-                Err(_) => span.error("error processing request"),
-            }
+
+        let recorder = self.as_mut().project().recorder;
+        match &result {
+            Ok(_) => recorder.event("request processed"),
+            Err(_) => recorder.error("error processing request"),
         }
 
         match result {
             Ok(response) => Poll::Ready(Ok(response.map(|body| TracedBody {
-                span: self.as_mut().project().span.take(),
+                recorder: self.as_mut().project().recorder.take(),
                 inner: body,
             }))),
             Err(e) => Poll::Ready(Err(e)),
@@ -143,7 +144,7 @@ where
 #[pin_project]
 #[derive(Debug)]
 pub struct TracedBody<B> {
-    span: Option<EnteredSpan>,
+    recorder: SpanRecorder,
     #[pin]
     inner: B,
 }
@@ -162,11 +163,10 @@ impl<B: http_body::Body> http_body::Body for TracedBody<B> {
             None => return Poll::Ready(None),
         };
 
-        if let Some(span) = self.as_mut().project().span.as_mut() {
-            match &result {
-                Ok(_) => span.event("returned body data"),
-                Err(_) => span.error("eos getting body"),
-            }
+        let recorder = self.as_mut().project().recorder;
+        match &result {
+            Ok(_) => recorder.event("returned body data"),
+            Err(_) => recorder.error("eos getting body"),
         }
         Poll::Ready(Some(result))
     }
@@ -178,12 +178,13 @@ impl<B: http_body::Body> http_body::Body for TracedBody<B> {
         // TODO: Classify response status and set SpanStatus
 
         let result = ready!(self.as_mut().project().inner.poll_trailers(cx));
-        if let Some(span) = self.as_mut().project().span.as_mut() {
-            match &result {
-                Ok(_) => span.event("returned trailers"),
-                Err(_) => span.error("eos getting trailers"),
-            }
+
+        let recorder = self.as_mut().project().recorder;
+        match &result {
+            Ok(_) => recorder.event("returned trailers"),
+            Err(_) => recorder.error("eos getting trailers"),
         }
+
         Poll::Ready(result)
     }
 

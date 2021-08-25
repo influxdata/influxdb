@@ -793,7 +793,7 @@ mod tests {
                     }
                     Check::Query(query, expected) => {
                         let planner = SqlQueryPlanner::default();
-                        let ctx = db.new_query_context();
+                        let ctx = db.new_query_context(None);
 
                         match planner.query(query, &ctx) {
                             Ok(physical_plan) => {
