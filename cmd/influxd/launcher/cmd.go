@@ -471,8 +471,8 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 		},
 		{
 			DestP: &o.StorageConfig.Data.SkipFieldSizeValidation,
-			Flag: "storage-no-validate-field-size",
-			Desc: "Skip field-size validation on incoming writes.",
+			Flag:  "storage-no-validate-field-size",
+			Desc:  "Skip field-size validation on incoming writes.",
 		},
 		{
 			DestP: &o.StorageConfig.Data.CacheMaxMemorySize,
