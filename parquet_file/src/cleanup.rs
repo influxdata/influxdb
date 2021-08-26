@@ -185,7 +185,7 @@ mod tests {
                 metadata,
             };
 
-            transaction.add_parquet(&info).unwrap();
+            transaction.add_parquet(&info);
             paths_keep.push(info.path);
 
             // another ordinary tracked parquet file that was added and removed => keep (for time
@@ -197,7 +197,7 @@ mod tests {
                 file_size_bytes: 33,
                 metadata,
             };
-            transaction.add_parquet(&info).unwrap();
+            transaction.add_parquet(&info);
             transaction.remove_parquet(&info.path);
             paths_keep.push(info.path);
 
@@ -259,7 +259,7 @@ mod tests {
                     };
 
                     let mut transaction = catalog.open_transaction().await;
-                    transaction.add_parquet(&info).unwrap();
+                    transaction.add_parquet(&info);
                     transaction.commit().await.unwrap();
 
                     drop(guard);

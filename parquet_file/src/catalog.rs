@@ -141,11 +141,6 @@ pub enum Error {
         path: ParquetFilePath,
     },
 
-    #[snafu(display("Cannot encode parquet metadata: {}", source))]
-    MetadataEncodingFailed {
-        source: crate::metadata::Error,
-    },
-
     #[snafu(display("Cannot decode parquet metadata: {}", source))]
     MetadataDecodingFailed {
         source: crate::metadata::Error,
@@ -737,8 +732,11 @@ impl OpenTransaction {
                 let path = parse_dirs_and_filename(a.path.as_ref().context(PathRequired)?)?;
                 let file_size_bytes = a.file_size_bytes as usize;
 
-                let metadata =
-                    IoxParquetMetaData::from_thrift(&a.metadata).context(MetadataDecodingFailed)?;
+                let metadata = IoxParquetMetaData::from_thrift_bytes(a.metadata.clone());
+
+                // try to decode to ensure catalog is OK
+                metadata.decode().context(MetadataDecodingFailed)?;
+
                 let metadata = Arc::new(metadata);
 
                 state.add(
@@ -995,9 +993,7 @@ impl<'c> TransactionHandle<'c> {
     }
 
     /// Add a new parquet file to the catalog.
-    ///
-    /// If a file with the same path already exists an error will be returned.
-    pub fn add_parquet(&mut self, info: &CatalogParquetInfo) -> Result<()> {
+    pub fn add_parquet(&mut self, info: &CatalogParquetInfo) {
         let CatalogParquetInfo {
             path,
             file_size_bytes,
@@ -1010,17 +1006,13 @@ impl<'c> TransactionHandle<'c> {
             .record_action(proto::transaction::action::Action::AddParquet(
                 proto::AddParquet {
                     path: Some(unparse_dirs_and_filename(path)),
-                    metadata: metadata.to_thrift().context(MetadataEncodingFailed)?,
+                    metadata: metadata.thrift_bytes().to_vec(),
                     file_size_bytes: *file_size_bytes as u64,
                 },
             ));
-
-        Ok(())
     }
 
     /// Remove a parquet file from the catalog.
-    ///
-    /// Removing files that do not exist or were already removed will result in an error.
     pub fn remove_parquet(&mut self, path: &ParquetFilePath) {
         self.transaction
             .as_mut()
@@ -1101,7 +1093,7 @@ impl<'c> CheckpointHandle<'c> {
                         proto::AddParquet {
                             path: Some(unparse_dirs_and_filename(&path)),
                             file_size_bytes: file_size_bytes as u64,
-                            metadata: metadata.to_thrift().context(MetadataEncodingFailed)?,
+                            metadata: metadata.thrift_bytes().to_vec(),
                         },
                     )),
                 })
@@ -1192,6 +1184,10 @@ pub mod test_helpers {
         pub fn insert(&mut self, info: CatalogParquetInfo) -> Result<()> {
             let iox_md = info
                 .metadata
+                .decode()
+                .context(MetadataExtractFailed {
+                    path: info.path.clone(),
+                })?
                 .read_iox_metadata()
                 .context(MetadataExtractFailed {
                     path: info.path.clone(),
@@ -1508,6 +1504,9 @@ pub mod test_helpers {
 
         for (path, md_expected) in expected_files.values() {
             let md_actual = &actual_files[path].metadata;
+
+            let md_actual = md_actual.decode().unwrap();
+            let md_expected = md_expected.decode().unwrap();
 
             let iox_md_actual = md_actual.read_iox_metadata().unwrap();
             let iox_md_expected = md_expected.read_iox_metadata().unwrap();
@@ -2154,7 +2153,7 @@ mod tests {
                 metadata: Arc::new(metadata),
             };
             state.insert(info.clone()).unwrap();
-            transaction.add_parquet(&info).unwrap();
+            transaction.add_parquet(&info);
             let ckpt_handle = transaction.commit().await.unwrap();
             ckpt_handle
                 .create_checkpoint(state.checkpoint_data())
@@ -2216,6 +2215,9 @@ mod tests {
             actual.iter().zip(expected.iter())
         {
             assert_eq!(actual_path, expected_path);
+
+            let actual_md = actual_md.decode().unwrap();
+            let expected_md = expected_md.decode().unwrap();
 
             let actual_schema = actual_md.read_schema().unwrap();
             let expected_schema = expected_md.read_schema().unwrap();
@@ -2309,7 +2311,7 @@ mod tests {
                 metadata: Arc::new(metadata),
             };
             state.insert(info.clone()).unwrap();
-            t.add_parquet(&info).unwrap();
+            t.add_parquet(&info);
 
             let (path, metadata) = make_metadata(iox_object_store, "bar", chunk_addr(1)).await;
             expected.push((path.clone(), metadata.clone()));
@@ -2319,7 +2321,7 @@ mod tests {
                 metadata: Arc::new(metadata),
             };
             state.insert(info.clone()).unwrap();
-            t.add_parquet(&info).unwrap();
+            t.add_parquet(&info);
 
             let (path, metadata) = make_metadata(iox_object_store, "bar", chunk_addr(2)).await;
             expected.push((path.clone(), metadata.clone()));
@@ -2329,7 +2331,7 @@ mod tests {
                 metadata: Arc::new(metadata),
             };
             state.insert(info.clone()).unwrap();
-            t.add_parquet(&info).unwrap();
+            t.add_parquet(&info);
 
             let (path, metadata) = make_metadata(iox_object_store, "foo", chunk_addr(3)).await;
             expected.push((path.clone(), metadata.clone()));
@@ -2339,7 +2341,7 @@ mod tests {
                 metadata: Arc::new(metadata),
             };
             state.insert(info.clone()).unwrap();
-            t.add_parquet(&info).unwrap();
+            t.add_parquet(&info);
 
             t.commit().await.unwrap();
         }
@@ -2361,7 +2363,7 @@ mod tests {
                 metadata: Arc::new(metadata),
             };
             state.insert(info.clone()).unwrap();
-            t.add_parquet(&info).unwrap();
+            t.add_parquet(&info);
 
             let (path, _) = expected.remove(0);
             state.remove(&path).unwrap();
@@ -2384,7 +2386,7 @@ mod tests {
                 metadata: Arc::new(metadata),
             };
 
-            t.add_parquet(&info).unwrap();
+            t.add_parquet(&info);
             t.remove_parquet(&expected[0].0);
 
             // NO commit here!

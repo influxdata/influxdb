@@ -168,6 +168,7 @@ pub async fn make_chunk_given_record_batch(
         .write_to_object_store(addr.clone(), stream, metadata)
         .await
         .unwrap();
+    let rows = parquet_metadata.decode().unwrap().row_count();
 
     ParquetChunk::new_from_parts(
         addr.partition_key,
@@ -177,6 +178,7 @@ pub async fn make_chunk_given_record_batch(
         Arc::clone(&iox_object_store),
         file_size_bytes,
         Arc::new(parquet_metadata),
+        rows,
         ChunkMetrics::new_unregistered(),
     )
 }
