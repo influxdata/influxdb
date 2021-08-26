@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
-use arrow::array::{ArrayRef, StringArray, Time64NanosecondArray};
+use arrow::array::{ArrayRef, StringArray, Time64NanosecondArray, TimestampNanosecondArray};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use arrow::error::Result;
 use arrow::record_batch::RecordBatch;
+use data_types::instant::to_approximate_datetime;
 use itertools::Itertools;
 
 use data_types::error::ErrorLogger;
@@ -47,6 +48,11 @@ fn operations_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
         Field::new("id", DataType::Utf8, false),
         Field::new("status", DataType::Utf8, false),
+        Field::new(
+            "start_time",
+            DataType::Timestamp(TimeUnit::Nanosecond, None),
+            false,
+        ),
         Field::new("cpu_time_used", ts.clone(), true),
         Field::new("wall_time_used", ts, true),
         Field::new("table_name", DataType::Utf8, true),
@@ -85,6 +91,10 @@ fn from_task_trackers(
             }
         })
         .collect::<StringArray>();
+    let start_time = jobs
+        .iter()
+        .map(|job| Some(to_approximate_datetime(job.start_instant()).timestamp_nanos()))
+        .collect::<TimestampNanosecondArray>();
     let cpu_time_used = jobs
         .iter()
         .map(|job| job.get_status().cpu_nanos().map(|n| n as i64))
@@ -119,6 +129,7 @@ fn from_task_trackers(
         vec![
             Arc::new(ids) as ArrayRef,
             Arc::new(statuses),
+            Arc::new(start_time),
             Arc::new(cpu_time_used),
             Arc::new(wall_time_used),
             Arc::new(table_names),
