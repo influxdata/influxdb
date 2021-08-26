@@ -24,6 +24,7 @@ use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi, Result,
 };
+use observability_deps::tracing::warn;
 use snafu::{ensure, ResultExt, Snafu};
 use std::{io, sync::Arc};
 use tokio::sync::mpsc::channel;
@@ -131,8 +132,6 @@ impl IoxObjectStore {
                 .last()
                 .expect("path can't be empty");
 
-            // Deliberately ignoring errors with parsing; if the directory isn't a usize, it's
-            // not a valid database generation directory and we should skip it.
             if let Ok(id) = id.to_string().parse() {
                 // TODO: Check for tombstone file once we add a way to create the tombstone file
                 // However, if we can't list the contents of a database directory, we can't
@@ -145,6 +144,10 @@ impl IoxObjectStore {
                 //     .any(|object| object.location == prefix);
 
                 generations.push(Generation::new(id));
+            } else {
+                // Deliberately ignoring errors with parsing; if the directory isn't a usize, it's
+                // not a valid database generation directory and we should skip it.
+                warn!("invalid generation directory found: {}", id);
             }
         }
 
