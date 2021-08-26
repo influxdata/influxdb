@@ -42,6 +42,7 @@ const (
 	statWritePointsOK      = "writePointsOk"
 	statWriteBytes         = "writeBytes"
 	statDiskBytes          = "diskBytes"
+	measurementKey         = "_name"
 )
 
 var (
@@ -1290,9 +1291,12 @@ func (a Shards) MeasurementNamesByPredicate(expr influxql.Expr) ([][]byte, error
 // FieldKeysByPredicate returns the field keys for series that match
 // the given predicate.
 func (a Shards) FieldKeysByPredicate(expr influxql.Expr) (map[string][]string, error) {
-	names, err := a.MeasurementNamesByPredicate(expr)
-	if err != nil {
-		return nil, err
+	names, ok := measurementOptimization(expr, measurementKey)
+	if !ok {
+		var err error
+		if names, err = a.MeasurementNamesByPredicate(expr); err != nil {
+			return nil, err
+		}
 	}
 
 	all := make(map[string][]string, len(names))
@@ -1300,6 +1304,143 @@ func (a Shards) FieldKeysByPredicate(expr influxql.Expr) (map[string][]string, e
 		all[string(name)] = a.FieldKeysByMeasurement(name)
 	}
 	return all, nil
+}
+
+type measurementEvaluator struct {
+	measurementNodeHeads map[*influxql.BinaryExpr][]string
+	invalidHeads         map[*influxql.BinaryExpr]struct{}
+	onlyAnds             bool
+	head                 *influxql.BinaryExpr
+	measurementKey       string
+}
+
+// Visit is called on every node to evaluate the tree for a possible measurement
+// optimization. A measurement optimization is possible if the tree contains a
+// single group of one or many measurements (in the form of _measurement =
+// measName, equality operator only) grouped together by OR operators, with the
+// subtree containing the OR'd measurements accessible from root of the tree
+// either directly (tree contains nothing but OR'd measurements) or by
+// traversing AND binary expression nodes.
+func (v measurementEvaluator) Visit(node influxql.Node) influxql.Visitor {
+	switch n := node.(type) {
+	case *influxql.BinaryExpr:
+		if n.Op != influxql.AND {
+			// If this is the first time encountering a non-AND node, mark this as the
+			// head for the subtree.
+			if v.onlyAnds {
+				v.head = n
+			}
+			v.onlyAnds = false
+		}
+
+		switch n.Op {
+		case influxql.AND:
+			// If only AND ops have been encountered so far, move the head of this
+			// subtree along and continue.
+			if v.onlyAnds {
+				v.head = n
+				return v
+			}
+
+			// Otherwise, encountering this AND after something other than an AND
+			// invalidates this subtree.
+			v.invalidHeads[v.head] = struct{}{}
+			return v
+		case influxql.EQ:
+			// For EQ ops, the only valid configuration is the form of
+			// "_measurement = measurementName", so check for that and add the
+			// resulting name to the list of names for this subtree.
+			if meas, ok := measurementNameFromEqual(n, v.measurementKey); ok {
+				v.measurementNodeHeads[v.head] = append(v.measurementNodeHeads[v.head], meas)
+				return v
+			}
+
+			// If it wasn't a measurement, this tree is invalid.
+			v.invalidHeads[v.head] = struct{}{}
+			return v
+		case influxql.OR:
+			// OR ops do not invalidate the subtree.
+			return v
+		default:
+			// Any other operation means this subtree is invalid.
+			v.invalidHeads[v.head] = struct{}{}
+
+			// If a measurement name is being operated on with a non-equality
+			// operator, add the measurement name to the subtree. This must be done to
+			// indicate that there is a measurement in an invalid subtree.
+			if ref, ok := n.LHS.(*influxql.VarRef); ok {
+				if ref.Val == v.measurementKey {
+					v.measurementNodeHeads[v.head] = append(v.measurementNodeHeads[v.head], ref.Val)
+				}
+			}
+
+			return v
+		}
+	case *influxql.VarRef, *influxql.StringLiteral, *influxql.ParenExpr:
+		// VarRefs and StringLiterals will have been evaluated in the EQ case.
+		// Parens also do not invalidate the subtree and can be traversed through.
+		return v
+	}
+
+	// If the function did not return in the type switch, that means that this is
+	// some other kind of node, which invalidates the subtree.
+	v.onlyAnds = false
+	v.invalidHeads[v.head] = struct{}{}
+
+	return v
+}
+
+func measurementOptimization(expr influxql.Expr, key string) ([][]byte, bool) {
+	measurementNodeHeads := make(map[*influxql.BinaryExpr][]string)
+	invalidHeads := make(map[*influxql.BinaryExpr]struct{})
+	dummyHead := &influxql.BinaryExpr{}
+
+	v := measurementEvaluator{
+		measurementNodeHeads: measurementNodeHeads,
+		invalidHeads:         invalidHeads,
+		onlyAnds:             true,
+		head:                 dummyHead,
+		measurementKey:       key,
+	}
+
+	influxql.Walk(v, expr)
+
+	// There must be measurements in exactly one subtree for this optimization to
+	// work. Note: It may be possible to have measurements in multiple subtrees,
+	// as long as there are no measurements in invalid subtrees, by determining an
+	// intersection of the measurement names across all valid subtrees - this is
+	// not currently implemented.
+	if len(measurementNodeHeads) != 1 {
+		return nil, false
+	}
+
+	names := []string{}
+	for h, ns := range measurementNodeHeads {
+		// The subtree containing the measurements must not have been invalidated.
+		if _, ok := invalidHeads[h]; ok {
+			return nil, false
+		}
+
+		names = ns
+	}
+
+	return slices.StringsToBytes(names...), true
+}
+
+func measurementNameFromEqual(be *influxql.BinaryExpr, key string) (string, bool) {
+	lhs, ok := be.LHS.(*influxql.VarRef)
+	if !ok {
+		return "", false
+	} else if lhs.Val != key {
+		return "", false
+	}
+
+	rhs, ok := be.RHS.(*influxql.StringLiteral)
+	if !ok {
+		return "", false
+	}
+
+	return rhs.Val, true
 }
 
 func (a Shards) FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {

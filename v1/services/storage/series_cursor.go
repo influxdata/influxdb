@@ -93,59 +93,26 @@ func newIndexSeriesCursorInfluxQLPred(ctx context.Context, predicate influxql.Ex
 		}
 	}
 
-	var mitr tsdb.MeasurementIterator
-	// Check to see if an optimization based on grouped measurements can be
-	// applied.
-	names, measurementOpt := MeasurementOptimization(p.measurementCond)
-	if measurementOpt {
-		byteNames := [][]byte{}
-		for _, n := range names {
-			byteNames = append(byteNames, []byte(n))
-		}
-		mitr = tsdb.NewMeasurementSliceIterator(byteNames)
-	}
-
 	sg := tsdb.Shards(shards)
-	p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{Measurements: mitr}, opt.Condition)
-	// If the optimization based on grouped measurements could be used, the fields
-	// for the measurements can be quickly obtained from the collection of shards.
-	if p.sqry != nil && err == nil {
-		if measurementOpt {
-			p.fields = make(map[string][]field)
-
-			for _, name := range names {
-				fkeys := sg.FieldKeysByMeasurement([]byte(name))
-				fields := make([]field, 0, len(fkeys))
-				for _, key := range fkeys {
-					fields = append(fields, field{n: key, nb: []byte(key)})
-				}
-				p.fields[name] = fields
-			}
-
-			return p, nil
-		}
-
-		// If the measurements for the query could not be obtained via the
-		// optimization, a slower path must be used to obtain the applicable series
-		// via the storage service.
-		var mfkeys map[string][]string
-		mfkeys, err = sg.FieldKeysByPredicate(opt.Condition)
-		if err != nil {
-			goto CLEANUP
-		}
-
+	if mfkeys, err := sg.FieldKeysByPredicate(opt.Condition); err == nil {
 		p.fields = make(map[string][]field, len(mfkeys))
+		fieldNames := [][]byte{}
 		for name, fkeys := range mfkeys {
 			fields := make([]field, 0, len(fkeys))
 			for _, key := range fkeys {
 				fields = append(fields, field{n: key, nb: []byte(key)})
 			}
 			p.fields[name] = fields
+			fieldNames = append(fieldNames, []byte(name))
 		}
-		return p, nil
+
+		mitr := tsdb.NewMeasurementSliceIterator(fieldNames)
+		p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{Measurements: mitr}, opt.Condition)
+		if p.sqry != nil && err == nil {
+			return p, nil
+		}
 	}
 
-CLEANUP:
 	p.Close()
 	return nil, err
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxql"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -201,6 +202,130 @@ mem,host=serverB value=50i,val3=t 10
 			})
 		}
 		sh.Close()
+	}
+}
+
+func TestShard_MeasurementOptimization(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		expr  influxql.Expr
+		name  string
+		ok    bool
+		names [][]byte
+	}{
+		{
+			expr:  influxql.MustParseExpr(`_name = 'm0'`),
+			name:  "single measurement",
+			ok:    true,
+			names: [][]byte{[]byte("m0")},
+		},
+		{
+			expr:  influxql.MustParseExpr(`_something = 'f' AND _name = 'm0'`),
+			name:  "single measurement with AND",
+			ok:    true,
+			names: [][]byte{[]byte("m0")},
+		},
+		{
+			expr:  influxql.MustParseExpr(`_something = 'f' AND (a =~ /x0/ AND _name = 'm0')`),
+			name:  "single measurement with multiple AND",
+			ok:    true,
+			names: [][]byte{[]byte("m0")},
+		},
+		{
+			expr:  influxql.MustParseExpr(`_name = 'm0' OR _name = 'm1' OR _name = 'm2'`),
+			name:  "multiple measurements alone",
+			ok:    true,
+			names: [][]byte{[]byte("m0"), []byte("m1"), []byte("m2")},
+		},
+		{
+			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name = 'm1' OR _name = 'm2') AND (_field = 'foo' OR _field = 'bar' OR _field = 'qux')`),
+			name:  "multiple measurements combined",
+			ok:    true,
+			names: [][]byte{[]byte("m0"), []byte("m1"), []byte("m2")},
+		},
+		{
+			expr:  influxql.MustParseExpr(`(_name = 'm0' OR (_name = 'm1' OR _name = 'm2')) AND tag1 != 'foo'`),
+			name:  "parens in expression",
+			ok:    true,
+			names: [][]byte{[]byte("m0"), []byte("m1"), []byte("m2")},
+		},
+		{
+			expr:  influxql.MustParseExpr(`(tag1 != 'foo' OR tag2 = 'bar') AND (_name = 'm0' OR _name = 'm1' OR _name = 'm2') AND (_field = 'val1' OR _field = 'val2')`),
+			name:  "multiple AND",
+			ok:    true,
+			names: [][]byte{[]byte("m0"), []byte("m1"), []byte("m2")},
+		},
+		{
+			expr:  influxql.MustParseExpr(`_name = 'm0' OR tag1 != 'foo'`),
+			name:  "single measurement with OR",
+			ok:    false,
+			names: nil,
+		},
+		{
+			expr:  influxql.MustParseExpr(`_name != 'm0' AND tag1 != 'foo'`),
+			name:  "single measurement with non-equal",
+			ok:    false,
+			names: nil,
+		},
+		{
+			expr:  influxql.MustParseExpr(`_name = 'm0' AND _name != 'm1' AND tag1 != 'foo'`),
+			name:  "multi-measurement, top level, equal and non-equal",
+			ok:    false,
+			names: nil,
+		},
+		{
+			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name != 'm1' OR _name = 'm2') AND (_field = 'foo' OR _field = 'bar' OR _field = 'qux')`),
+			name:  "multiple measurements with non-equal",
+			ok:    false,
+			names: nil,
+		},
+		{
+			expr:  influxql.MustParseExpr(`tag1 = 'foo' AND tag2 = 'bar'`),
+			name:  "no measurements - multiple tags",
+			ok:    false,
+			names: nil,
+		},
+		{
+			expr:  influxql.MustParseExpr(`_field = 'foo'`),
+			name:  "no measurements - single field",
+			ok:    false,
+			names: nil,
+		},
+		{
+			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name = 'm1' OR _name = 'm2') AND (tag1 != 'foo' OR _name = 'm1')`),
+			name:  "measurements on both sides",
+			ok:    false,
+			names: nil,
+		},
+		{
+			expr:  influxql.MustParseExpr(`(tag1 != 'foo' OR _name = 'm4') AND (_name = 'm0' OR _name = 'm1' OR _name = 'm2') AND (_field = 'val1' OR _name = 'm3')`),
+			name:  "multiple AND - dispersed measurements",
+			ok:    false,
+			names: nil,
+		},
+		{
+			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name = 'm1' AND _name = 'm2') AND tag1 != 'foo'`),
+			name:  "measurements with AND",
+			ok:    false,
+			names: nil,
+		},
+		{
+			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name = 'm1' OR _name = 'm2') OR (tag1 != 'foo' OR _name = 'm1')`),
+			name:  "top level is not AND",
+			ok:    false,
+			names: nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			names, ok := measurementOptimization(tc.expr, measurementKey)
+			require.Equal(t, tc.names, names)
+			require.Equal(t, tc.ok, ok)
+		})
 	}
 }
 
