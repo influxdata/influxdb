@@ -27,6 +27,15 @@ pub enum Error {
     },
 
     #[snafu(
+        display("Cannot decode parquet metadata from {:?}: {}", path, source),
+        visibility(pub)
+    )]
+    MetadataDecodeFailed {
+        source: crate::metadata::Error,
+        path: ParquetFilePath,
+    },
+
+    #[snafu(
         display("Cannot read schema from {:?}: {}", path, source),
         visibility(pub)
     )]
@@ -94,6 +103,9 @@ pub struct ParquetChunk {
     /// Parquet metadata that can be used checkpoint the catalog state.
     parquet_metadata: Arc<IoxParquetMetaData>,
 
+    /// Number of rows
+    rows: usize,
+
     metrics: ChunkMetrics,
 }
 
@@ -108,16 +120,18 @@ impl ParquetChunk {
         partition_key: Arc<str>,
         metrics: ChunkMetrics,
     ) -> Result<Self> {
-        let schema = parquet_metadata
-            .read_schema()
-            .context(SchemaReadFailed { path })?;
-        let columns = parquet_metadata
+        let decoded = parquet_metadata
+            .decode()
+            .context(MetadataDecodeFailed { path })?;
+        let schema = decoded.read_schema().context(SchemaReadFailed { path })?;
+        let columns = decoded
             .read_statistics(&schema)
             .context(StatisticsReadFailed { path })?;
         let table_summary = TableSummary {
             name: table_name.to_string(),
             columns,
         };
+        let rows = decoded.row_count();
 
         Ok(Self::new_from_parts(
             partition_key,
@@ -127,6 +141,7 @@ impl ParquetChunk {
             iox_object_store,
             file_size_bytes,
             parquet_metadata,
+            rows,
             metrics,
         ))
     }
@@ -142,6 +157,7 @@ impl ParquetChunk {
         iox_object_store: Arc<IoxObjectStore>,
         file_size_bytes: usize,
         parquet_metadata: Arc<IoxParquetMetaData>,
+        rows: usize,
         metrics: ChunkMetrics,
     ) -> Self {
         let timestamp_range = extract_range(&table_summary);
@@ -155,6 +171,7 @@ impl ParquetChunk {
             path: path.into(),
             file_size_bytes,
             parquet_metadata,
+            rows,
             metrics,
         }
     }
@@ -187,7 +204,7 @@ impl ParquetChunk {
             + self.table_summary.size()
             + mem::size_of_val(&self.schema.as_ref())
             + mem::size_of_val(&self.path)
-            + mem::size_of_val(&self.parquet_metadata)
+            + self.parquet_metadata.size()
     }
 
     /// Infallably return the full schema (for all columns) for this chunk
@@ -241,7 +258,7 @@ impl ParquetChunk {
 
     /// The total number of rows in all row groups in this chunk.
     pub fn rows(&self) -> usize {
-        self.parquet_metadata.row_count()
+        self.rows
     }
 
     /// Size of the parquet file in object store

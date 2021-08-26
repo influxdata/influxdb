@@ -85,7 +85,7 @@ where
             state
                 .add(Arc::clone(&iox_object_store), info.clone())
                 .context(FileRecordFailure)?;
-            transaction.add_parquet(&info).context(FileRecordFailure)?;
+            transaction.add_parquet(&info);
         }
         transaction.commit().await.context(CheckpointFailure)?;
     }
@@ -152,6 +152,8 @@ async fn read_parquet(
 
     // validate IOxMetadata
     parquet_metadata
+        .decode()
+        .context(MetadataReadFailure { path: path.clone() })?
         .read_iox_metadata()
         .context(MetadataReadFailure { path: path.clone() })?;
 
@@ -190,11 +192,11 @@ mod tests {
 
             let info = create_parquet_file(&iox_object_store, 0).await;
             state.insert(info.clone()).unwrap();
-            transaction.add_parquet(&info).unwrap();
+            transaction.add_parquet(&info);
 
             let info = create_parquet_file(&iox_object_store, 1).await;
             state.insert(info.clone()).unwrap();
-            transaction.add_parquet(&info).unwrap();
+            transaction.add_parquet(&info);
 
             transaction.commit().await.unwrap();
         }
@@ -208,7 +210,7 @@ mod tests {
 
             let info = create_parquet_file(&iox_object_store, 2).await;
             state.insert(info.clone()).unwrap();
-            transaction.add_parquet(&info).unwrap();
+            transaction.add_parquet(&info);
 
             transaction.commit().await.unwrap();
         }

@@ -52,9 +52,10 @@ mod tests {
             .await
             .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
+        let decoded = parquet_metadata.decode().unwrap();
         //
         // 1. Check metadata at file level: Everything is correct
-        let schema_actual = parquet_metadata.read_schema().unwrap();
+        let schema_actual = decoded.read_schema().unwrap();
         assert_eq!(Arc::new(schema.clone()), schema_actual);
         assert_eq!(
             key_value_metadata.clone(),
@@ -62,7 +63,7 @@ mod tests {
         );
 
         // 2. Check statistics
-        let table_summary_actual = parquet_metadata.read_statistics(&schema_actual).unwrap();
+        let table_summary_actual = decoded.read_statistics(&schema_actual).unwrap();
         assert_eq!(table_summary_actual, table_summary.columns);
 
         // 3. Check data

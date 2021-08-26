@@ -32,9 +32,7 @@ use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 use super::{
-    error::{
-        CommitError, Error, ParquetChunkError, Result, TransactionError, WritingToObjectStore,
-    },
+    error::{CommitError, Error, ParquetChunkError, Result, WritingToObjectStore},
     LockableCatalogPartition,
 };
 
@@ -159,7 +157,7 @@ pub(super) fn write_chunk_to_object_store(
                 file_size_bytes,
                 metadata: parquet_metadata,
             };
-            transaction.add_parquet(&info).context(TransactionError)?;
+            transaction.add_parquet(&info);
 
             // preserved commit
             let ckpt_handle = transaction.commit().await.context(CommitError)?;

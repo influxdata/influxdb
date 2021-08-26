@@ -448,7 +448,7 @@ mod tests {
 
         // extract metadata
         let md = IoxParquetMetaData::from_file_bytes(bytes).unwrap();
-        let metadata_roundtrip = md.read_iox_metadata().unwrap();
+        let metadata_roundtrip = md.decode().unwrap().read_iox_metadata().unwrap();
 
         // compare with input
         assert_eq!(metadata_roundtrip, metadata);

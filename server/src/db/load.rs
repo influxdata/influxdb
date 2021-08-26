@@ -208,6 +208,10 @@ impl CatalogState for Loader {
         // extract relevant bits from parquet file metadata
         let iox_md = info
             .metadata
+            .decode()
+            .context(MetadataExtractFailed {
+                path: info.path.clone(),
+            })?
             .read_iox_metadata()
             .context(MetadataExtractFailed {
                 path: info.path.clone(),
