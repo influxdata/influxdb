@@ -90,6 +90,25 @@ func TestStorage_PartialWrite(t *testing.T) {
 	require.Equal(t, exp, string(buf))
 }
 
+func TestStorage_DisableMaxFieldValueSize(t *testing.T) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
+		o.StorageConfig.Data.SkipFieldSizeValidation = true
+	})
+	defer l.ShutdownOrFail(t, ctx)
+
+	// Write a normally-oversized field value.
+	l.WritePointsOrFail(t, fmt.Sprintf(`cpu str="%s" 946684800000000000`, strings.Repeat("a", tsdb.MaxFieldValueLength+1)))
+
+	// Check that the point can be queried.
+	qs := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z) |> keep(columns: ["_value"])`
+	exp := `,result,table,_value` + "\r\n" +
+		fmt.Sprintf(`,_result,0,%s`, strings.Repeat("a", tsdb.MaxFieldValueLength+1)) + "\r\n\r\n"
+
+	buf, err := http.SimpleQuery(l.URL(), qs, l.Org.Name, l.Auth.Token)
+	require.NoError(t, err)
+	require.Equal(t, exp, string(buf))
+}
+
 func TestLauncher_WriteAndQuery(t *testing.T) {
 	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
