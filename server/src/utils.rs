@@ -64,7 +64,7 @@ impl TestDbBuilder {
         // deterministic thread and concurrency count
         let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
             num_threads: 1,
-            concurrency: 4,
+            target_query_partitions: 4,
         }));
 
         let metrics_registry = Arc::new(metrics::MetricRegistry::new());

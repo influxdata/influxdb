@@ -31,7 +31,7 @@ pub struct ExecutorConfig {
     pub num_threads: usize,
 
     /// Target parallelism for query execution
-    pub concurrency: usize,
+    pub target_query_partitions: usize,
 }
 
 /// Handles executing DataFusion plans, and marshalling the results into rust
@@ -66,7 +66,7 @@ impl Executor {
     pub fn new(num_threads: usize) -> Self {
         Self::new_with_config(ExecutorConfig {
             num_threads,
-            concurrency: num_threads,
+            target_query_partitions: num_threads,
         })
     }
 
@@ -86,7 +86,7 @@ impl Executor {
     /// Note that this context (and all its clones) will be shut down once `Executor` is dropped.
     pub fn new_execution_config(&self, executor_type: ExecutorType) -> IOxExecutionConfig {
         let exec = self.executor(executor_type).clone();
-        IOxExecutionConfig::new(exec).with_concurrency(self.config.concurrency)
+        IOxExecutionConfig::new(exec).with_target_partitions(self.config.target_query_partitions)
     }
 
     /// Create a new execution context, suitable for executing a new query or system task
