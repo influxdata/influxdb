@@ -1091,7 +1091,7 @@ mod tests {
     #[tokio::test]
     async fn test_parquet_metadata_size() {
         // setup: preserve chunk to object store
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let chunk = make_chunk(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
         let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
             .await
