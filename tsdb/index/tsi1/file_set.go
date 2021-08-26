@@ -128,28 +128,6 @@ func (fs *FileSet) Files() []File {
 	return fs.files
 }
 
-// LogFiles returns all log files from the file set.
-func (fs *FileSet) LogFiles() []*LogFile {
-	var a []*LogFile
-	for _, f := range fs.files {
-		if f, ok := f.(*LogFile); ok {
-			a = append(a, f)
-		}
-	}
-	return a
-}
-
-// IndexFiles returns all index files from the file set.
-func (fs *FileSet) IndexFiles() []*IndexFile {
-	var a []*IndexFile
-	for _, f := range fs.files {
-		if f, ok := f.(*IndexFile); ok {
-			a = append(a, f)
-		}
-	}
-	return a
-}
-
 // LastContiguousIndexFilesByLevel returns the last contiguous files by level.
 // These can be used by the compaction scheduler.
 func (fs *FileSet) LastContiguousIndexFilesByLevel(level int) []*IndexFile {
@@ -284,14 +262,14 @@ func (fs *FileSet) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (ma
 			}
 			return nil, nil
 		default:
-			return nil, fmt.Errorf("invalid operator")
+			return nil, fmt.Errorf("invalid operator for tag keys by expression")
 		}
 
 	case *influxql.ParenExpr:
 		return fs.MeasurementTagKeysByExpr(name, e.Expr)
 	}
 
-	return nil, fmt.Errorf("%#v", expr)
+	return nil, fmt.Errorf("invalid measurement tag keys expression: %#v", expr)
 }
 
 // tagKeysByFilter will filter the tag keys for the measurement.
