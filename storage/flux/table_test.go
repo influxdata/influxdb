@@ -3059,7 +3059,7 @@ func TestStorageReader_ReadGroup(t *testing.T) {
 		},
 		{
 			aggregate: storageflux.FirstKind,
-			want: static.TableGroup {
+			want: static.TableGroup{
 				static.StringKey("_measurement", "m0"),
 				static.StringKey("_field", "f0"),
 				static.TimeKey("_start", "2019-11-25T00:00:00Z"),
@@ -3077,7 +3077,7 @@ func TestStorageReader_ReadGroup(t *testing.T) {
 		},
 		{
 			aggregate: storageflux.LastKind,
-			want: static.TableGroup {
+			want: static.TableGroup{
 				static.StringKey("_measurement", "m0"),
 				static.StringKey("_field", "f0"),
 				static.TimeKey("_start", "2019-11-25T00:00:00Z"),
