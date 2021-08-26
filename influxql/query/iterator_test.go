@@ -1571,8 +1571,6 @@ func TestIterator_EncodeDecode(t *testing.T) {
 // Test implementation of query.IntegerIterator
 type IntegerConstIterator struct {
 	numPoints int
-	time      int64
-	value     int64
 	Closed    bool
 	stats     query.IteratorStats
 	point     query.IntegerPoint

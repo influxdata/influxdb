@@ -561,7 +561,7 @@ func TestHll_SumAndMergeHll(t *testing.T) {
 	mergedError := m.Emit()
 	// mid-level errors are:
 	require.Equal(1, len(mergedError))
-	assert.Equal("HLLERROR Bad prefix for hll.Plus", mergedError[0].Value)
+	assert.Equal("HLLERROR bad prefix for hll.Plus", mergedError[0].Value)
 
 	c := query.NewCountHllReducer()
 	c.AggregateString(&merged[0])
@@ -572,7 +572,7 @@ func TestHll_SumAndMergeHll(t *testing.T) {
 
 	c.AggregateString(&query.StringPoint{
 		Time:  query.ZeroTime,
-		Value: "HLLERROR Bad prefix for hll.Plus",
+		Value: "HLLERROR bad prefix for hll.Plus",
 	})
 	counted = c.Emit()
 	require.Equal(1, len(counted))

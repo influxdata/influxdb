@@ -2172,7 +2172,7 @@ func unmarshalPlus(s string) (*hll.Plus, error) {
 			// parse a special error out of the string.
 			return nil, fmt.Errorf("%v", s[len(hllErrorPrefix):])
 		}
-		return nil, fmt.Errorf("Bad prefix for hll.Plus")
+		return nil, fmt.Errorf("bad prefix for hll.Plus")
 	}
 	data := []byte(s[len(hllPrefix):])
 	if len(data) == 0 {
