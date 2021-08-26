@@ -38,8 +38,11 @@ use parquet_file::{
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
-use query::exec::{ExecutorType, IOxExecutionContext};
-use query::{exec::Executor, predicate::Predicate, QueryDatabase};
+use query::{
+    exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
+    predicate::Predicate,
+    QueryDatabase,
+};
 use rand_distr::{Distribution, Poisson};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
@@ -478,20 +481,6 @@ impl Db {
     /// Return a handle to the executor used to run queries
     pub fn executor(&self) -> Arc<Executor> {
         Arc::clone(&self.exec)
-    }
-
-    /// Returns a new execution context suitable for running queries
-    ///
-    /// Registers `self` as the default catalog provider
-    pub fn new_query_context(
-        self: &Arc<Self>,
-        span_ctx: Option<SpanContext>,
-    ) -> IOxExecutionContext {
-        self.exec
-            .new_execution_config(ExecutorType::Query)
-            .with_default_catalog(Arc::<Self>::clone(self))
-            .with_span_context(span_ctx)
-            .build()
     }
 
     /// Return the current database rules
@@ -1407,6 +1396,16 @@ impl QueryDatabase for Db {
 
     fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
         self.catalog_access.table_schema(table_name)
+    }
+}
+
+impl ExecutionContextProvider for Db {
+    fn new_query_context(self: &Arc<Self>, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
+        self.exec
+            .new_execution_config(ExecutorType::Query)
+            .with_default_catalog(Arc::<Self>::clone(self))
+            .with_span_context(span_ctx)
+            .build()
     }
 }
 

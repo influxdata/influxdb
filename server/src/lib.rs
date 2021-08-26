@@ -88,7 +88,6 @@ use lifecycle::LockableChunk;
 use metrics::{KeyValue, MetricObserverBuilder};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
-use query::exec::Executor;
 use rand::seq::SliceRandom;
 use resolver::Resolver;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -217,7 +216,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[async_trait]
 pub trait DatabaseStore: std::fmt::Debug + Send + Sync {
     /// The type of database that is stored by this DatabaseStore
-    type Database: query::QueryDatabase;
+    type Database: query::QueryDatabase + query::exec::ExecutionContextProvider;
 
     /// The type of error this DataBase store generates
     type Error: std::error::Error + Send + Sync + 'static;
@@ -232,10 +231,6 @@ pub trait DatabaseStore: std::fmt::Debug + Send + Sync {
     /// Retrieve the database specified by `name`, creating it if it
     /// doesn't exist.
     async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error>;
-
-    /// Provide a query executor to use for running queries on
-    /// databases in this `DatabaseStore`
-    fn executor(&self) -> Arc<Executor>;
 }
 
 /// A collection of metrics used to instrument the Server.
@@ -1226,11 +1221,6 @@ where
 
         Ok(db)
     }
-
-    /// Return a handle to the query executor
-    fn executor(&self) -> Arc<Executor> {
-        Arc::clone(self.shared.application.executor())
-    }
 }
 
 #[cfg(test)]
@@ -1254,7 +1244,7 @@ mod tests {
     use metrics::TestMetricRegistry;
     use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
     use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
-    use query::{frontend::sql::SqlQueryPlanner, QueryDatabase};
+    use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner, QueryDatabase};
     use std::{
         convert::{Infallible, TryFrom},
         sync::{

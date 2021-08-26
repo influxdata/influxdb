@@ -178,6 +178,15 @@ pub fn make_stream_split(input: LogicalPlan, split_expr: Expr) -> LogicalPlan {
     LogicalPlan::Extension { node }
 }
 
+/// A type that can provide `IOxExecutionContext` for query
+pub trait ExecutionContextProvider {
+    /// Returns a new execution context suitable for running queries
+    fn new_query_context(
+        self: &Arc<Self>,
+        span_ctx: Option<trace::ctx::SpanContext>,
+    ) -> IOxExecutionContext;
+}
+
 #[cfg(test)]
 mod tests {
     use arrow::{

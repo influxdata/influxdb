@@ -6,7 +6,7 @@
 use super::scenarios::*;
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
-use query::frontend::sql::SqlQueryPlanner;
+use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner};
 
 /// runs table_names(predicate) and compares it to the expected
 /// output

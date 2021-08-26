@@ -2,7 +2,7 @@
 //! implemented in terms of the [`QueryDatabase`](query::QueryDatabase) and
 //! [`DatabaseStore`]
 
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use snafu::{OptionExt, ResultExt, Snafu};
 use tokio::sync::mpsc;
@@ -21,7 +21,7 @@ use generated_types::{
 use metrics::KeyValue;
 use observability_deps::tracing::{error, info};
 use query::{
-    exec::{fieldlist::FieldList, seriesset::Error as SeriesSetError, ExecutorType},
+    exec::{fieldlist::FieldList, seriesset::Error as SeriesSetError, ExecutionContextProvider},
     predicate::PredicateBuilder,
 };
 use server::DatabaseStore;
@@ -38,6 +38,7 @@ use crate::influxdb_ioxd::{
         StorageService,
     },
 };
+use trace::ctx::SpanContext;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -223,6 +224,7 @@ where
         &self,
         req: tonic::Request<ReadFilterRequest>,
     ) -> Result<tonic::Response<Self::ReadFilterStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let read_filter_request = req.into_inner();
 
         let db_name = get_database_name(&read_filter_request)?;
@@ -241,7 +243,7 @@ where
             KeyValue::new("db_name", db_name.to_string()),
         ];
 
-        let results = read_filter_impl(Arc::clone(&self.db_store), db_name, range, predicate)
+        let results = read_filter_impl(self.db_store.as_ref(), db_name, range, predicate, span_ctx)
             .await
             .map_err(|e| {
                 if e.is_internal() {
@@ -265,6 +267,7 @@ where
         &self,
         req: tonic::Request<ReadGroupRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let read_group_request = req.into_inner();
 
         let db_name = get_database_name(&read_group_request)?;
@@ -314,11 +317,12 @@ where
             })?;
 
         let results = query_group_impl(
-            Arc::clone(&self.db_store),
+            self.db_store.as_ref(),
             db_name,
             range,
             predicate,
             gby_agg,
+            span_ctx,
         )
         .await
         .map_err(|e| {
@@ -344,6 +348,7 @@ where
         &self,
         req: tonic::Request<ReadWindowAggregateRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let read_window_aggregate_request = req.into_inner();
 
         let db_name = get_database_name(&read_window_aggregate_request)?;
@@ -379,11 +384,12 @@ where
             })?;
 
         let results = query_group_impl(
-            Arc::clone(&self.db_store),
+            self.db_store.as_ref(),
             db_name,
             range,
             predicate,
             gby_agg,
+            span_ctx,
         )
         .await
         .map_err(|e| {
@@ -408,6 +414,7 @@ where
         &self,
         req: tonic::Request<TagKeysRequest>,
     ) -> Result<tonic::Response<Self::TagKeysStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let tag_keys_request = req.into_inner();
@@ -431,11 +438,12 @@ where
         let measurement = None;
 
         let response = tag_keys_impl(
-            Arc::clone(&self.db_store),
+            self.db_store.as_ref(),
             db_name,
             measurement,
             range,
             predicate,
+            span_ctx,
         )
         .await
         .map_err(|e| {
@@ -461,6 +469,7 @@ where
         &self,
         req: tonic::Request<TagValuesRequest>,
     ) -> Result<tonic::Response<Self::TagValuesStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let tag_values_request = req.into_inner();
@@ -495,7 +504,7 @@ where
                 .to_status());
             }
 
-            measurement_name_impl(Arc::clone(&self.db_store), db_name, range)
+            measurement_name_impl(self.db_store.as_ref(), db_name, range, span_ctx)
                 .await
                 .map_err(|e| {
                     if e.is_internal() {
@@ -508,17 +517,23 @@ where
         } else if tag_key.is_field() {
             info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_values with tag_key=[xff] (field name)");
 
-            let fieldlist =
-                field_names_impl(Arc::clone(&self.db_store), db_name, None, range, predicate)
-                    .await
-                    .map_err(|e| {
-                        if e.is_internal() {
-                            ob.error_with_labels(labels);
-                        } else {
-                            ob.client_error_with_labels(labels);
-                        }
-                        e
-                    })?;
+            let fieldlist = field_names_impl(
+                self.db_store.as_ref(),
+                db_name,
+                None,
+                range,
+                predicate,
+                span_ctx,
+            )
+            .await
+            .map_err(|e| {
+                if e.is_internal() {
+                    ob.error_with_labels(labels);
+                } else {
+                    ob.client_error_with_labels(labels);
+                }
+                e
+            })?;
 
             // Pick out the field names into a Vec<Vec<u8>>for return
             let values = fieldlist
@@ -539,12 +554,13 @@ where
             info!(%db_name, ?range, %tag_key, predicate=%predicate.loggable(), "tag_values",);
 
             tag_values_impl(
-                Arc::clone(&self.db_store),
+                self.db_store.as_ref(),
                 db_name,
                 tag_key,
                 measurement,
                 range,
                 predicate,
+                span_ctx,
             )
             .await
         };
@@ -610,6 +626,7 @@ where
         &self,
         req: tonic::Request<MeasurementNamesRequest>,
     ) -> Result<tonic::Response<Self::MeasurementNamesStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let measurement_names_request = req.into_inner();
@@ -641,7 +658,7 @@ where
             KeyValue::new("db_name", db_name.to_string()),
         ];
 
-        let response = measurement_name_impl(Arc::clone(&self.db_store), db_name, range)
+        let response = measurement_name_impl(self.db_store.as_ref(), db_name, range, span_ctx)
             .await
             .map_err(|e| {
                 if e.is_internal() {
@@ -666,6 +683,7 @@ where
         &self,
         req: tonic::Request<MeasurementTagKeysRequest>,
     ) -> Result<tonic::Response<Self::MeasurementTagKeysStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let measurement_tag_keys_request = req.into_inner();
@@ -690,11 +708,12 @@ where
         let measurement = Some(measurement);
 
         let response = tag_keys_impl(
-            Arc::clone(&self.db_store),
+            self.db_store.as_ref(),
             db_name,
             measurement,
             range,
             predicate,
+            span_ctx,
         )
         .await
         .map_err(|e| {
@@ -720,6 +739,7 @@ where
         &self,
         req: tonic::Request<MeasurementTagValuesRequest>,
     ) -> Result<tonic::Response<Self::MeasurementTagValuesStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let measurement_tag_values_request = req.into_inner();
@@ -745,12 +765,13 @@ where
         let measurement = Some(measurement);
 
         let response = tag_values_impl(
-            Arc::clone(&self.db_store),
+            self.db_store.as_ref(),
             db_name,
             tag_key,
             measurement,
             range,
             predicate,
+            span_ctx,
         )
         .await
         .map_err(|e| {
@@ -776,6 +797,7 @@ where
         &self,
         req: tonic::Request<MeasurementFieldsRequest>,
     ) -> Result<tonic::Response<Self::MeasurementFieldsStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let measurement_fields_request = req.into_inner();
@@ -800,11 +822,12 @@ where
         let measurement = Some(measurement);
 
         let response = field_names_impl(
-            Arc::clone(&self.db_store),
+            self.db_store.as_ref(),
             db_name,
             measurement,
             range,
             predicate,
+            span_ctx,
         )
         .await
         .map(|fieldlist| {
@@ -857,9 +880,10 @@ fn get_database_name(input: &impl GrpcInputs) -> Result<DatabaseName<'static>, S
 /// Gathers all measurement names that have data in the specified
 /// (optional) range
 async fn measurement_name_impl<T>(
-    db_store: Arc<T>,
+    db_store: &T,
     db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
+    span_ctx: Option<SpanContext>,
 ) -> Result<StringValuesResponse>
 where
     T: DatabaseStore + 'static,
@@ -868,7 +892,7 @@ where
     let db_name = db_name.as_ref();
 
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let ctx = db_store.executor().new_context(ExecutorType::Query);
+    let ctx = db.new_query_context(span_ctx);
 
     let plan = Planner::new(&ctx)
         .table_names(db, predicate)
@@ -894,11 +918,12 @@ where
 /// Return tag keys with optional measurement, timestamp and arbitratry
 /// predicates
 async fn tag_keys_impl<T>(
-    db_store: Arc<T>,
+    db_store: &T,
     db_name: DatabaseName<'static>,
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
+    span_ctx: Option<SpanContext>,
 ) -> Result<StringValuesResponse>
 where
     T: DatabaseStore + 'static,
@@ -918,7 +943,7 @@ where
         db_name: db_name.as_str(),
     })?;
 
-    let ctx = db_store.executor().new_context(ExecutorType::Query);
+    let ctx = db.new_query_context(span_ctx);
 
     let tag_key_plan = Planner::new(&ctx)
         .tag_keys(db, predicate)
@@ -948,12 +973,13 @@ where
 /// Return tag values for tag_name, with optional measurement, timestamp and
 /// arbitratry predicates
 async fn tag_values_impl<T>(
-    db_store: Arc<T>,
+    db_store: &T,
     db_name: DatabaseName<'static>,
     tag_name: String,
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
+    span_ctx: Option<SpanContext>,
 ) -> Result<StringValuesResponse>
 where
     T: DatabaseStore + 'static,
@@ -973,7 +999,7 @@ where
     let tag_name = &tag_name;
 
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let ctx = db_store.executor().new_context(ExecutorType::Query);
+    let ctx = db.new_query_context(span_ctx);
 
     let tag_value_plan = Planner::new(&ctx)
         .tag_values(db, tag_name, predicate)
@@ -1001,11 +1027,12 @@ where
 }
 
 /// Launch async tasks that materialises the result of executing read_filter.
-async fn read_filter_impl<'a, T>(
-    db_store: Arc<T>,
+async fn read_filter_impl<T>(
+    db_store: &T,
     db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
+    span_ctx: Option<SpanContext>,
 ) -> Result<Vec<ReadResponse>, Error>
 where
     T: DatabaseStore + 'static,
@@ -1026,7 +1053,7 @@ where
 
     let db_name = owned_db_name.as_str();
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let ctx = db_store.executor().new_context(ExecutorType::Query);
+    let ctx = db.new_query_context(span_ctx);
 
     // PERF - This used to send responses to the client before execution had
     // completed, but now it doesn't. We may need to revisit this in the future
@@ -1058,11 +1085,12 @@ where
 
 /// Launch async tasks that send the result of executing read_group to `tx`
 async fn query_group_impl<T>(
-    db_store: Arc<T>,
+    db_store: &T,
     db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
     gby_agg: GroupByAndAggregate,
+    span_ctx: Option<SpanContext>,
 ) -> Result<Vec<ReadResponse>, Error>
 where
     T: DatabaseStore + 'static,
@@ -1083,7 +1111,7 @@ where
     let db_name = owned_db_name.as_str();
 
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let ctx = db_store.executor().new_context(ExecutorType::Query);
+    let ctx = db.new_query_context(span_ctx);
 
     let planner = Planner::new(&ctx);
     let grouped_series_set_plan = match gby_agg {
@@ -1124,11 +1152,12 @@ where
 /// Return field names, restricted via optional measurement, timestamp and
 /// predicate
 async fn field_names_impl<T>(
-    db_store: Arc<T>,
+    db_store: &T,
     db_name: DatabaseName<'static>,
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
+    span_ctx: Option<SpanContext>,
 ) -> Result<FieldList>
 where
     T: DatabaseStore + 'static,
@@ -1146,7 +1175,7 @@ where
 
     let db_name = db_name.as_str();
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let ctx = db_store.executor().new_context(ExecutorType::Query);
+    let ctx = db.new_query_context(span_ctx);
 
     let field_list_plan = Planner::new(&ctx)
         .field_columns(db, predicate)
@@ -1165,10 +1194,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU64;
     use std::{
         collections::BTreeMap,
         net::{IpAddr, Ipv4Addr, SocketAddr},
+        num::NonZeroU64,
+        sync::Arc,
     };
 
     use parking_lot::Mutex;
@@ -2487,14 +2517,10 @@ mod tests {
             if let Some(db) = databases.get(name) {
                 Ok(Arc::clone(db))
             } else {
-                let new_db = Arc::new(TestDatabase::new());
+                let new_db = Arc::new(TestDatabase::new(Arc::clone(&self.executor)));
                 databases.insert(name.to_string(), Arc::clone(&new_db));
                 Ok(new_db)
             }
-        }
-
-        fn executor(&self) -> Arc<Executor> {
-            Arc::clone(&self.executor)
         }
     }
 }

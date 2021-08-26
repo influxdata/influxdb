@@ -1,8 +1,9 @@
-//! This module provides a reference implementaton of
+//! This module provides a reference implementation of
 //! [`QueryDatabase`] for use in testing.
 //!
 //! AKA it is a Mock
 
+use crate::exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext};
 use crate::{
     exec::stringset::{StringSet, StringSetRef},
     Predicate, PredicateMatch, QueryChunk, QueryChunkMeta, QueryDatabase,
@@ -27,9 +28,11 @@ use parking_lot::Mutex;
 use snafu::Snafu;
 use std::num::NonZeroU64;
 use std::{collections::BTreeMap, fmt, sync::Arc};
+use trace::ctx::SpanContext;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TestDatabase {
+    executor: Arc<Executor>,
     /// Partitions which have been saved to this test database
     /// Key is partition name
     /// Value is map of chunk_id to chunk
@@ -53,8 +56,12 @@ pub enum TestError {
 pub type Result<T, E = TestError> = std::result::Result<T, E>;
 
 impl TestDatabase {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(executor: Arc<Executor>) -> Self {
+        Self {
+            executor,
+            partitions: Default::default(),
+            column_names: Default::default(),
+        }
     }
 
     /// Add a test chunk to the database
@@ -124,6 +131,16 @@ impl QueryDatabase for TestDatabase {
         }
 
         found_one.then(|| Arc::new(merger.build()))
+    }
+}
+
+impl ExecutionContextProvider for TestDatabase {
+    fn new_query_context(self: &Arc<Self>, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
+        // Note: unlike Db this does not register a catalog provider
+        self.executor
+            .new_execution_config(ExecutorType::Query)
+            .with_span_context(span_ctx)
+            .build()
     }
 }
 
