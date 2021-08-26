@@ -55,7 +55,7 @@ var (
 		ConcurrencyQuota:         1,
 		QueueSize:                1,
 	}
-	bothConfigs          = map[string]control.Config{"unlimited": config, "limited": limitedConfig}
+	bothConfigs = map[string]control.Config{"unlimited": config, "limited": limitedConfig}
 )
 
 func setupPromRegistry(c *control.Controller) *prometheus.Registry {
