@@ -125,9 +125,9 @@ func MeasurementOptimization(expr influxql.Expr) ([]string, bool) {
 
 	// There must be measurements in exactly one subtree for this optimization to
 	// work. Note: It may be possible to have measurements in multiple subtrees,
-	// as long as there are no measurements in invalid subtrees, by determining a
-	// union of the measurement names across all valid subtrees - this is not
-	// currently implemented.
+	// as long as there are no measurements in invalid subtrees, by determining an
+	// intersection of the measurement names across all valid subtrees - this is
+	// not currently implemented.
 	if len(measNodeHeads) != 1 {
 		return nil, false
 	}
