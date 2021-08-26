@@ -48,6 +48,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [21938](https://github.com/influxdata/influxdb/pull/21938): Added route to delete individual secret.
 1. [21972](https://github.com/influxdata/influxdb/pull/21972): Added support for notebooks and annotations.
 1. [22135](https://github.com/influxdata/influxdb/pull/22135): Added route to return known resources.
+1. [22311](https://github.com/influxdata/influxdb/pull/22311): Add `storage-no-validate-field-size` config to `influxd` to disable enforcement of max field size.
 
 ### Bug Fixes
 
@@ -57,6 +58,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [22211](https://github.com/influxdata/influxdb/pull/22211): Prevent scheduling an inactivated task after updating it.
 1. [22235](https://github.com/influxdata/influxdb/pull/22235): Avoid compaction queue stats flutter.
 1. [22272](https://github.com/influxdata/influxdb/pull/22272): Requests to `/api/v2/authorizations` filter correctly on `org` and `user` parameters.
+1. [22311](https://github.com/influxdata/influxdb/pull/22311): Enforce max field size while parsing line protocol.
 
 ## v2.0.8 [2021-08-13]
 
