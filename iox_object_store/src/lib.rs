@@ -182,9 +182,8 @@ impl IoxObjectStore {
 
         let next_generation_id = generations
             .iter()
-            .map(|g| g.id)
-            .max()
-            .map(|max| max + 1)
+            .max_by_key(|g| g.id)
+            .map(|max| max.id + 1)
             .unwrap_or(0);
 
         Ok(Self::existing(
