@@ -1124,7 +1124,7 @@ mod test {
             &exp_sketchy_sensor_values,
         );
         assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
-        assert_rb_column_equals(&third_row_group, "time", &Values::I64(vec![900])); // first row from second record batch
+        assert_rb_column_equals(&third_row_group, "time", &Values::I64(vec![900])); // last row from third record batch
 
         // No more data
         assert!(itr.next().is_none());
