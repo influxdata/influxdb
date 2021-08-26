@@ -1,4 +1,4 @@
-//! An InfluxDB IOx API client.
+//! Shared InfluxDB IOx API client functionality
 #![deny(
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
@@ -15,14 +15,7 @@
 )]
 #![allow(clippy::missing_docs_in_private_items)]
 
-pub use generated_types::{google, protobuf_type_url, protobuf_type_url_eq};
+/// Builder for constructing connections for use with the various gRPC clients
+pub mod connection;
 
-pub use client::*;
-
-pub use client_util::connection;
-
-#[cfg(feature = "format")]
-/// Output formatting utilities
-pub mod format;
-
-mod client;
+mod tower;

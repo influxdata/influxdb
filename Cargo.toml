@@ -15,6 +15,7 @@ path = "src/print_cpu.rs"
 members = [
     "arrow_util",
     "data_types",
+    "client_util",
     "datafusion",
     "datafusion_util",
     "entry",
@@ -23,12 +24,13 @@ members = [
     "influxdb2_client",
     "influxdb_iox_client",
     "influxdb_line_protocol",
+    "influxdb_storage_client",
     "influxdb_tsm",
     "internal_types",
     "iox_data_generator",
     "iox_object_store",
-    "logfmt",
     "lifecycle",
+    "logfmt",
     "mutable_buffer",
     "object_store",
     "observability_deps",
@@ -136,6 +138,7 @@ heappy = { git = "https://github.com/mkmik/heappy", rev = "20aa466524ac9ce34a4ba
 arrow_util = { path = "arrow_util" }
 entry = { path = "entry" }
 influxdb2_client = { path = "influxdb2_client" }
+influxdb_storage_client = { path = "influxdb_storage_client" }
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["flight"] }
 test_helpers = { path = "test_helpers" }
 synchronized-writer = "1"

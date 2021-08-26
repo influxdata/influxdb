@@ -119,6 +119,7 @@ pub fn protobuf_type_url_eq(url: &str, protobuf_type: &str) -> bool {
     }
 }
 
+// TODO: Remove these (#2419)
 pub use com::github::influxdata::idpe::storage::read::*;
 pub use influxdata::platform::storage::*;
 

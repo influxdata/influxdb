@@ -56,7 +56,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// ```no_run
 /// #[tokio::main]
 /// # async fn main() {
-/// use influxdb_iox_client::{connection::Builder, management::Client};
+/// use client_util::connection::Builder;
 /// use std::time::Duration;
 ///
 /// let connection = Builder::default()
@@ -65,8 +65,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///     .build("http://127.0.0.1:8082/")
 ///     .await
 ///     .expect("connection must succeed");
-///
-/// let client = Client::new(connection);
 /// # }
 /// ```
 #[derive(Debug)]
