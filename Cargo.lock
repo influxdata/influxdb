@@ -884,7 +884,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "5.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=405171cd6a8ac65f5f9532f0c8138c11df6cb9d2#405171cd6a8ac65f5f9532f0c8138c11df6cb9d2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=d31c1579fdc2ad060bc46c4fcfef14cc7676da6b#d31c1579fdc2ad060bc46c4fcfef14cc7676da6b"
 dependencies = [
  "ahash 0.7.4",
  "arrow",
@@ -2020,9 +2020,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.100"
+version = "0.2.101"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1fa8cddc8fbbee11227ef194b5317ed014b8acbf15139bd716a18ad3fe99ec5"
+checksum = "3cb00336871be5ed2c8ed44b60ae9959dc5b9f08539422ed43f09e34ecaeba21"
 
 [[package]]
 name = "libloading"
@@ -3860,9 +3860,9 @@ dependencies = [
 
 [[package]]
 name = "security-framework-sys"
-version = "2.3.0"
+version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e4effb91b4b8b6fb7732e670b6cee160278ff8e6bf485c7805d9e319d76e284"
+checksum = "19133a286e494cc3311c165c4676ccb1fd47bed45b55f9d71fbd784ad4cea6f8"
 dependencies = [
  "core-foundation-sys",
  "libc",
