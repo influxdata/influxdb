@@ -241,31 +241,29 @@ func newSeriesIterator(name string, cur tsdb.SeriesKeyIterator) *seriesIterator 
 
 // Next returns the next point from the iterator.
 func (itr *seriesIterator) Next() (*query.StringPoint, error) {
-	for {
-		// Read from the main cursor
-		b, err := itr.cur.Next()
-		if err != nil {
-			itr.copyStats()
-			return nil, err
-		}
-		itr.point.Value = string(b)
-
-		// Exit if we have no more points or we are outside our time range.
-		if b == nil {
-			itr.copyStats()
-			return nil, nil
-		}
-		// Track points returned.
-		itr.statsBuf.PointN++
-		itr.statsBuf.SeriesN++
-
-		// Copy buffer to stats periodically.
-		if itr.statsBuf.PointN%statsBufferCopyIntervalN == 0 {
-			itr.copyStats()
-		}
-
-		return &itr.point, nil
+	// Read from the main cursor
+	b, err := itr.cur.Next()
+	if err != nil {
+		itr.copyStats()
+		return nil, err
 	}
+	itr.point.Value = string(b)
+
+	// Exit if we have no more points or we are outside our time range.
+	if b == nil {
+		itr.copyStats()
+		return nil, nil
+	}
+	// Track points returned.
+	itr.statsBuf.PointN++
+	itr.statsBuf.SeriesN++
+
+	// Copy buffer to stats periodically.
+	if itr.statsBuf.PointN%statsBufferCopyIntervalN == 0 {
+		itr.copyStats()
+	}
+
+	return &itr.point, nil
 }
 
 // copyStats copies from the itr stats buffer to the stats under lock.
