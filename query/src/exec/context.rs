@@ -125,7 +125,7 @@ pub struct IOxExecutionConfig {
     exec: DedicatedExecutor,
 
     /// Target parallelism for query execution
-    concurrency: Option<usize>,
+    target_partitions: Option<usize>,
 
     /// Default catalog
     default_catalog: Option<Arc<dyn CatalogProvider>>,
@@ -144,16 +144,16 @@ impl IOxExecutionConfig {
     pub(super) fn new(exec: DedicatedExecutor) -> Self {
         Self {
             exec,
-            concurrency: None,
+            target_partitions: None,
             default_catalog: None,
             span_ctx: None,
         }
     }
 
     /// Set execution concurrency
-    pub fn with_concurrency(self, concurrency: usize) -> Self {
+    pub fn with_target_partitions(self, target_partitions: usize) -> Self {
         Self {
-            concurrency: Some(concurrency),
+            target_partitions: Some(target_partitions),
             ..self
         }
     }
@@ -182,8 +182,8 @@ impl IOxExecutionConfig {
             .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA)
             .with_query_planner(Arc::new(IOxQueryPlanner {}));
 
-        if let Some(concurrency) = self.concurrency {
-            config = config.with_concurrency(concurrency)
+        if let Some(target_partitions) = self.target_partitions {
+            config = config.with_target_partitions(target_partitions)
         }
 
         let inner = ExecutionContext::with_config(config);

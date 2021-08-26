@@ -270,7 +270,7 @@ impl<W: Write> Runner<W> {
             let planner = SqlQueryPlanner::default();
             let executor = Arc::new(Executor::new_with_config(ExecutorConfig {
                 num_threads: 1,
-                concurrency: 4,
+                target_query_partitions: 4,
             }));
             let ctx = executor
                 .new_execution_config(ExecutorType::Query)
