@@ -4,7 +4,7 @@ base_seed = "correct horse battery staple"
 # the most basic spec with no auto generating of agents, measurements, tags or fields
 [[agents]]
 name = "demo"
-sampling_interval = 10
+sampling_interval = "10s"
 
   [[agents.measurements]]
   name = "some_measurement"
@@ -65,7 +65,7 @@ sampling_interval = 10
 [[agents]]
 name = "some-server-{{agent_id}}"
 count = 10
-sampling_interval = 22
+sampling_interval = "22s"
 
 # Optional: every measurement (row) this agent produces will include a tag with the agent_id filled
 # in:

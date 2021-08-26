@@ -11,7 +11,7 @@ pub fn single_agent(c: &mut Criterion) {
         agents: vec![AgentSpec {
             name: "agent-1".into(),
             count: None,
-            sampling_interval: Some(1),
+            sampling_interval: Some("1s".to_string()),
             name_tag_key: None,
             tags: vec![],
             measurements: vec![MeasurementSpec {

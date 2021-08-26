@@ -6,6 +6,7 @@ use crate::{
 };
 
 use influxdb2_client::models::DataPoint;
+use parse_duration;
 use snafu::{ResultExt, Snafu};
 use std::{fmt, time::Duration};
 use tracing::{debug, info};
@@ -36,6 +37,13 @@ pub enum Error {
         /// Underlying `write` module error that caused this problem
         source: crate::write::Error,
     },
+
+    /// Error that may happen if the provided sampling interval string can't be parsed into a duration
+    #[snafu(display("Sampling interval must be valid string: {}", source))]
+    InvalidSamplingInterval {
+        /// Underlying `parse` error
+        source: parse_duration::parse::Error,
+    },
 }
 
 /// Each `AgentSpec` informs the instantiation of an `Agent`, which coordinates
@@ -48,7 +56,7 @@ pub struct Agent<T: DataGenRng> {
     rng: RandomNumberGenerator<T>,
     agent_tags: Vec<Tag>,
     measurement_generator_sets: Vec<MeasurementGeneratorSet<T>>,
-    sampling_interval: Option<i64>,
+    sampling_interval: Option<Duration>,
     /// nanoseconds since the epoch, used as the timestamp for the next
     /// generated point
     current_datetime: i64,
@@ -105,9 +113,10 @@ impl<T: DataGenRng> Agent<T> {
         let end_datetime = end_datetime.unwrap_or_else(now_ns);
 
         // Convert to nanoseconds
-        let sampling_interval = agent_spec
-            .sampling_interval
-            .map(|s| s as i64 * 1_000_000_000);
+        let sampling_interval = match &agent_spec.sampling_interval {
+            None => None,
+            Some(s) => Some(parse_duration::parse(s).context(InvalidSamplingInterval)?),
+        };
 
         Ok(Self {
             agent_id,
@@ -169,12 +178,12 @@ impl<T: DataGenRng> Agent<T> {
             if let Some(i) = &mut self.interval {
                 i.tick().await;
                 self.current_datetime = now_ns();
-            } else if let Some(ns) = self.sampling_interval {
-                self.current_datetime += ns;
+            } else if let Some(sampling_interval) = self.sampling_interval {
+                self.current_datetime += sampling_interval.as_nanos() as i64;
 
                 if self.current_datetime > self.end_datetime {
                     if self.continue_on {
-                        let mut i = tokio::time::interval(Duration::from_nanos(ns as u64));
+                        let mut i = tokio::time::interval(sampling_interval);
                         i.tick().await; // first tick completes immediately
                         self.current_datetime = now_ns();
                         self.interval = Some(i);
@@ -214,7 +223,7 @@ mod test {
         /// testing, keeping everything else constant across different
         /// tests.
         fn test_instance(
-            sampling_interval: Option<i64>,
+            sampling_interval: Option<Duration>,
             continue_on: bool,
             current_datetime: i64,
             end_datetime: i64,
@@ -380,7 +389,7 @@ mod test {
         // The tests take about 5 ms to run on my computer, so set the sampling interval
         // to 10 ms to be able to test that the delay is happening when
         // `continue` is true without making the tests too artificially slow.
-        const TEST_SAMPLING_INTERVAL: i64 = 10_000_000;
+        const TEST_SAMPLING_INTERVAL: Duration = Duration::from_millis(10);
 
         #[rustfmt::skip]
         // # Summary: Not continuing
@@ -401,7 +410,7 @@ mod test {
             #[tokio::test]
             async fn current_time_less_than_end_time() -> Result<()> {
                 let current = 0;
-                let end = TEST_SAMPLING_INTERVAL;
+                let end = TEST_SAMPLING_INTERVAL.as_nanos() as i64;
 
                 let mut agent =
                     Agent::<ZeroRng>::test_instance(Some(TEST_SAMPLING_INTERVAL), false, current, end);
@@ -420,7 +429,7 @@ mod test {
 
             #[tokio::test]
             async fn current_time_equal_end_time() -> Result<()> {
-                let current = TEST_SAMPLING_INTERVAL;
+                let current = TEST_SAMPLING_INTERVAL.as_nanos() as i64;
                 let end = current;
 
                 let mut agent =
@@ -437,8 +446,8 @@ mod test {
 
             #[tokio::test]
             async fn current_time_greater_than_end_time() -> Result<()> {
-                let current = 2 * TEST_SAMPLING_INTERVAL;
-                let end = TEST_SAMPLING_INTERVAL;
+                let current = 2 * TEST_SAMPLING_INTERVAL.as_nanos() as i64;
+                let end = TEST_SAMPLING_INTERVAL.as_nanos() as i64;
 
                 let mut agent =
                     Agent::<ZeroRng>::test_instance(Some(TEST_SAMPLING_INTERVAL), false, current, end);
@@ -473,7 +482,7 @@ mod test {
             #[tokio::test]
             async fn current_time_less_than_end_time() -> Result<()> {
                 let end = now_ns();
-                let current = end - TEST_SAMPLING_INTERVAL;
+                let current = end - TEST_SAMPLING_INTERVAL.as_nanos() as i64;
 
                 let mut agent =
                     Agent::<ZeroRng>::test_instance(Some(TEST_SAMPLING_INTERVAL), true, current, end);
@@ -530,7 +539,7 @@ mod test {
             #[tokio::test]
             async fn current_time_greater_than_end_time() -> Result<()> {
                 let end = now_ns();
-                let current = end + TEST_SAMPLING_INTERVAL;
+                let current = end + TEST_SAMPLING_INTERVAL.as_nanos() as i64;
 
                 let mut agent =
                     Agent::<ZeroRng>::test_instance(Some(TEST_SAMPLING_INTERVAL), true, current, end);

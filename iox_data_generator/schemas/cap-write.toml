@@ -6,7 +6,7 @@ base_seed = "correct horse battery staple"
 [[agents]]
 name = "cap_write_{{agent_id}}"
 count = 3
-sampling_interval = 10
+sampling_interval = "10s"
 
 [[agents.measurements]]
 name = "system"
