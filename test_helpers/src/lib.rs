@@ -72,18 +72,6 @@ pub fn str_pair_vec_to_vec(str_vec: &[(&str, &str)]) -> Vec<(Arc<str>, Arc<str>)
         .collect()
 }
 
-/// Converts bytes representing tag_keys values to Rust strings,
-/// handling the special case `_m(0x00)` and `_f(0xff)` values. Other
-/// than `0xff` panics on any non-utf8 string.
-pub fn tag_key_bytes_to_strings(bytes: Vec<u8>) -> String {
-    match bytes.as_slice() {
-        [0] => "_m(0x00)".into(),
-        // note this isn't valid UTF8 and thus would assert below
-        [255] => "_f(0xff)".into(),
-        _ => String::from_utf8(bytes).expect("string value response was not utf8"),
-    }
-}
-
 static LOG_SETUP: Once = Once::new();
 
 /// Enables debug logging regardless of the value of RUST_LOG

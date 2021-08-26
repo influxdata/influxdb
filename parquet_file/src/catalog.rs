@@ -141,11 +141,6 @@ pub enum Error {
         path: ParquetFilePath,
     },
 
-    #[snafu(display("Cannot encode parquet metadata: {}", source))]
-    MetadataEncodingFailed {
-        source: crate::metadata::Error,
-    },
-
     #[snafu(display("Cannot decode parquet metadata: {}", source))]
     MetadataDecodingFailed {
         source: crate::metadata::Error,
@@ -737,8 +732,11 @@ impl OpenTransaction {
                 let path = parse_dirs_and_filename(a.path.as_ref().context(PathRequired)?)?;
                 let file_size_bytes = a.file_size_bytes as usize;
 
-                let metadata =
-                    IoxParquetMetaData::from_thrift(&a.metadata).context(MetadataDecodingFailed)?;
+                let metadata = IoxParquetMetaData::from_thrift_bytes(a.metadata.clone());
+
+                // try to decode to ensure catalog is OK
+                metadata.decode().context(MetadataDecodingFailed)?;
+
                 let metadata = Arc::new(metadata);
 
                 state.add(
@@ -995,9 +993,7 @@ impl<'c> TransactionHandle<'c> {
     }
 
     /// Add a new parquet file to the catalog.
-    ///
-    /// If a file with the same path already exists an error will be returned.
-    pub fn add_parquet(&mut self, info: &CatalogParquetInfo) -> Result<()> {
+    pub fn add_parquet(&mut self, info: &CatalogParquetInfo) {
         let CatalogParquetInfo {
             path,
             file_size_bytes,
@@ -1010,17 +1006,13 @@ impl<'c> TransactionHandle<'c> {
             .record_action(proto::transaction::action::Action::AddParquet(
                 proto::AddParquet {
                     path: Some(unparse_dirs_and_filename(path)),
-                    metadata: metadata.to_thrift().context(MetadataEncodingFailed)?,
+                    metadata: metadata.thrift_bytes().to_vec(),
                     file_size_bytes: *file_size_bytes as u64,
                 },
             ));
-
-        Ok(())
     }
 
     /// Remove a parquet file from the catalog.
-    ///
-    /// Removing files that do not exist or were already removed will result in an error.
     pub fn remove_parquet(&mut self, path: &ParquetFilePath) {
         self.transaction
             .as_mut()
@@ -1101,7 +1093,7 @@ impl<'c> CheckpointHandle<'c> {
                         proto::AddParquet {
                             path: Some(unparse_dirs_and_filename(&path)),
                             file_size_bytes: file_size_bytes as u64,
-                            metadata: metadata.to_thrift().context(MetadataEncodingFailed)?,
+                            metadata: metadata.thrift_bytes().to_vec(),
                         },
                     )),
                 })
@@ -1192,6 +1184,10 @@ pub mod test_helpers {
         pub fn insert(&mut self, info: CatalogParquetInfo) -> Result<()> {
             let iox_md = info
                 .metadata
+                .decode()
+                .context(MetadataExtractFailed {
+                    path: info.path.clone(),
+                })?
                 .read_iox_metadata()
                 .context(MetadataExtractFailed {
                     path: info.path.clone(),
@@ -1290,7 +1286,7 @@ pub mod test_helpers {
         F: Fn(&S) -> CheckpointData + Send,
     {
         // empty state
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let (_catalog, mut state) =
             PreservedCatalog::new_empty::<S>(Arc::clone(&iox_object_store), state_data)
                 .await
@@ -1509,6 +1505,9 @@ pub mod test_helpers {
         for (path, md_expected) in expected_files.values() {
             let md_actual = &actual_files[path].metadata;
 
+            let md_actual = md_actual.decode().unwrap();
+            let md_expected = md_expected.decode().unwrap();
+
             let iox_md_actual = md_actual.read_iox_metadata().unwrap();
             let iox_md_expected = md_expected.read_iox_metadata().unwrap();
             assert_eq!(iox_md_actual, iox_md_expected);
@@ -1545,7 +1544,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_empty() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         assert!(!PreservedCatalog::exists(&iox_object_store).await.unwrap());
         assert!(
@@ -1570,19 +1569,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_inmem_commit_semantics() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         assert_single_catalog_inmem_works(&iox_object_store).await;
     }
 
     #[tokio::test]
     async fn test_store_roundtrip() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         assert_catalog_roundtrip_works(&iox_object_store).await;
     }
 
     #[tokio::test]
     async fn test_load_from_empty_store() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let option = PreservedCatalog::load::<TestCatalogState>(iox_object_store, ())
             .await
             .unwrap();
@@ -1591,7 +1590,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_missing_transaction() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // remove transaction file
@@ -1608,7 +1607,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transaction_version_mismatch() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -1630,7 +1629,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_transaction_revision() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -1656,7 +1655,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_transaction_uuid() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -1687,7 +1686,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_missing_transaction_uuid() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -1713,7 +1712,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_broken_transaction_uuid() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -1739,7 +1738,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_transaction_link_start() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -1762,7 +1761,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_transaction_link_middle() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -1785,7 +1784,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_transaction_link_broken() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -1811,7 +1810,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_broken_protobuf() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -1840,7 +1839,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transaction_handle_debug() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let (catalog, _state) =
             PreservedCatalog::new_empty::<TestCatalogState>(iox_object_store, ())
                 .await
@@ -1861,7 +1860,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fork_transaction() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // re-create transaction file with different UUID
@@ -1894,7 +1893,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fork_checkpoint() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // create checkpoint file with different UUID
@@ -1928,7 +1927,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_unsupported_upgrade() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -1960,7 +1959,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_missing_start_timestamp() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -1986,7 +1985,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_broken_start_timestamp() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -2015,7 +2014,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_broken_encoding() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -2041,7 +2040,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_encoding_in_transaction_file() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -2067,7 +2066,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_missing_encoding_in_transaction_file() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -2093,7 +2092,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_encoding_in_checkpoint_file() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -2119,7 +2118,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_checkpoint() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         // use common test as baseline
         let mut trace = assert_single_catalog_inmem_works(&iox_object_store).await;
@@ -2154,7 +2153,7 @@ mod tests {
                 metadata: Arc::new(metadata),
             };
             state.insert(info.clone()).unwrap();
-            transaction.add_parquet(&info).unwrap();
+            transaction.add_parquet(&info);
             let ckpt_handle = transaction.commit().await.unwrap();
             ckpt_handle
                 .create_checkpoint(state.checkpoint_data())
@@ -2216,6 +2215,9 @@ mod tests {
             actual.iter().zip(expected.iter())
         {
             assert_eq!(actual_path, expected_path);
+
+            let actual_md = actual_md.decode().unwrap();
+            let expected_md = expected_md.decode().unwrap();
 
             let actual_schema = actual_md.read_schema().unwrap();
             let expected_schema = expected_md.read_schema().unwrap();
@@ -2309,7 +2311,7 @@ mod tests {
                 metadata: Arc::new(metadata),
             };
             state.insert(info.clone()).unwrap();
-            t.add_parquet(&info).unwrap();
+            t.add_parquet(&info);
 
             let (path, metadata) = make_metadata(iox_object_store, "bar", chunk_addr(1)).await;
             expected.push((path.clone(), metadata.clone()));
@@ -2319,7 +2321,7 @@ mod tests {
                 metadata: Arc::new(metadata),
             };
             state.insert(info.clone()).unwrap();
-            t.add_parquet(&info).unwrap();
+            t.add_parquet(&info);
 
             let (path, metadata) = make_metadata(iox_object_store, "bar", chunk_addr(2)).await;
             expected.push((path.clone(), metadata.clone()));
@@ -2329,7 +2331,7 @@ mod tests {
                 metadata: Arc::new(metadata),
             };
             state.insert(info.clone()).unwrap();
-            t.add_parquet(&info).unwrap();
+            t.add_parquet(&info);
 
             let (path, metadata) = make_metadata(iox_object_store, "foo", chunk_addr(3)).await;
             expected.push((path.clone(), metadata.clone()));
@@ -2339,7 +2341,7 @@ mod tests {
                 metadata: Arc::new(metadata),
             };
             state.insert(info.clone()).unwrap();
-            t.add_parquet(&info).unwrap();
+            t.add_parquet(&info);
 
             t.commit().await.unwrap();
         }
@@ -2361,7 +2363,7 @@ mod tests {
                 metadata: Arc::new(metadata),
             };
             state.insert(info.clone()).unwrap();
-            t.add_parquet(&info).unwrap();
+            t.add_parquet(&info);
 
             let (path, _) = expected.remove(0);
             state.remove(&path).unwrap();
@@ -2384,7 +2386,7 @@ mod tests {
                 metadata: Arc::new(metadata),
             };
 
-            t.add_parquet(&info).unwrap();
+            t.add_parquet(&info);
             t.remove_parquet(&expected[0].0);
 
             // NO commit here!
@@ -2398,7 +2400,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_twice() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
             .await
@@ -2412,14 +2414,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_wipe_nothing() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         PreservedCatalog::wipe(&iox_object_store).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_wipe_normal() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         // create a real catalog
         assert_single_catalog_inmem_works(&iox_object_store).await;
@@ -2444,7 +2446,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_wipe_broken_catalog() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         // create a real catalog
         assert_single_catalog_inmem_works(&iox_object_store).await;
@@ -2477,7 +2479,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transaction_handle_revision_counter() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let (catalog, _state) =
             PreservedCatalog::new_empty::<TestCatalogState>(iox_object_store, ())
                 .await
@@ -2489,7 +2491,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_transaction_handle_uuid() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let (catalog, _state) =
             PreservedCatalog::new_empty::<TestCatalogState>(iox_object_store, ())
                 .await
@@ -2502,7 +2504,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_transaction_timestamp_ok() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         let ts = PreservedCatalog::find_last_transaction_timestamp(&iox_object_store)
@@ -2531,7 +2533,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_transaction_timestamp_empty() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         assert!(
             PreservedCatalog::find_last_transaction_timestamp(&iox_object_store)
@@ -2543,7 +2545,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_transaction_timestamp_datetime_broken() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -2584,7 +2586,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_transaction_timestamp_protobuf_broken() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         // break transaction file
@@ -2628,7 +2630,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_transaction_timestamp_checkpoints_only() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let mut trace = assert_single_catalog_inmem_works(&iox_object_store).await;
 
         let (catalog, state) =
@@ -2703,7 +2705,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_exists_considers_checkpoints() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         assert!(!PreservedCatalog::exists(&iox_object_store).await.unwrap());
 

@@ -24,7 +24,7 @@ use data_types::{
 };
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
-use query::QueryDatabase;
+use query::{exec::ExecutionContextProvider, QueryDatabase};
 use server::{ApplicationState, ConnectionManager, Error, Server as AppServer};
 
 // External crates

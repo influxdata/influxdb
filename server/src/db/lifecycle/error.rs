@@ -47,11 +47,6 @@ pub enum Error {
     #[snafu(display("Error while creating parquet chunk: {}", source))]
     ParquetChunkError { source: parquet_file::chunk::Error },
 
-    #[snafu(display("Error while handling transaction on preserved catalog: {}", source))]
-    TransactionError {
-        source: parquet_file::catalog::Error,
-    },
-
     #[snafu(display("Error while commiting transaction on preserved catalog: {}", source))]
     CommitError {
         source: parquet_file::catalog::Error,

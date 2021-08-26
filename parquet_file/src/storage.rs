@@ -448,7 +448,7 @@ mod tests {
 
         // extract metadata
         let md = IoxParquetMetaData::from_file_bytes(bytes).unwrap();
-        let metadata_roundtrip = md.read_iox_metadata().unwrap();
+        let metadata_roundtrip = md.decode().unwrap().read_iox_metadata().unwrap();
 
         // compare with input
         assert_eq!(metadata_roundtrip, metadata);
@@ -484,7 +484,7 @@ mod tests {
         let table_name = Arc::from("my_table");
         let partition_key = Arc::from("my_partition");
         let chunk_id = 33;
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let storage = Storage::new(Arc::clone(&iox_object_store));
 
         // write the data in

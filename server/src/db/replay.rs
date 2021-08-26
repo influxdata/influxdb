@@ -431,7 +431,7 @@ mod tests {
         checkpoint::{PartitionCheckpoint, PersistCheckpointBuilder, ReplayPlanner},
         min_max_sequence::OptionalMinMaxSequence,
     };
-    use query::frontend::sql::SqlQueryPlanner;
+    use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner};
     use test_helpers::{assert_contains, assert_not_contains, tracing::TracingCapture};
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;

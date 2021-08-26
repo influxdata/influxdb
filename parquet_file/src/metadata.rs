@@ -452,10 +452,18 @@ fn decode_timestamp_from_field(
 }
 
 /// Parquet metadata with IOx-specific wrapper.
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct IoxParquetMetaData {
-    /// Low-level parquet metadata that stores all relevant information.
-    md: ParquetMetaData,
+    /// [Apache Parquet] metadata as freestanding [Apache Thrift]-encoded bytes.
+    ///
+    /// This can be used to store metadata separate from the related payload data. The usage of [Apache Thrift] allows the
+    /// same stability guarantees as the usage of an ordinary [Apache Parquet] file. To encode a thrift message into bytes
+    /// the [Thrift Compact Protocol] is used.
+    ///
+    /// [Apache Parquet]: https://parquet.apache.org/
+    /// [Apache Thrift]: https://thrift.apache.org/
+    /// [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
+    data: Vec<u8>,
 }
 
 impl IoxParquetMetaData {
@@ -463,10 +471,132 @@ impl IoxParquetMetaData {
     pub fn from_file_bytes(data: Vec<u8>) -> Result<Self> {
         let cursor = SliceableCursor::new(data);
         let reader = SerializedFileReader::new(cursor).context(ParquetMetaDataRead {})?;
-        let md = reader.metadata().clone();
-        Ok(Self { md })
+        let parquet_md = reader.metadata().clone();
+        let data = Self::parquet_md_to_thrift(parquet_md)?;
+        Ok(Self::from_thrift_bytes(data))
     }
 
+    /// Read parquet metadata from thrift bytes.
+    pub fn from_thrift_bytes(mut data: Vec<u8>) -> Self {
+        data.shrink_to_fit();
+        Self { data }
+    }
+
+    /// [Apache Parquet] metadata as freestanding [Apache Thrift]-encoded bytes.
+    ///
+    /// This can be used to store metadata separate from the related payload data. The usage of [Apache Thrift] allows the
+    /// same stability guarantees as the usage of an ordinary [Apache Parquet] file. To encode a thrift message into bytes
+    /// the [Thrift Compact Protocol] is used.
+    ///
+    /// [Apache Parquet]: https://parquet.apache.org/
+    /// [Apache Thrift]: https://thrift.apache.org/
+    /// [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
+    pub fn thrift_bytes(&self) -> &[u8] {
+        self.data.as_ref()
+    }
+
+    /// Encode [Apache Parquet] metadata as freestanding [Apache Thrift]-encoded bytes.
+    ///
+    /// This can be used to store metadata separate from the related payload data. The usage of [Apache Thrift] allows the
+    /// same stability guarantees as the usage of an ordinary [Apache Parquet] file. To encode a thrift message into bytes
+    /// the [Thrift Compact Protocol] is used.
+    ///
+    /// [Apache Parquet]: https://parquet.apache.org/
+    /// [Apache Thrift]: https://thrift.apache.org/
+    /// [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
+    fn parquet_md_to_thrift(parquet_md: ParquetMetaData) -> Result<Vec<u8>> {
+        // step 1: assemble a thrift-compatible struct
+        use parquet::schema::types::to_thrift as schema_to_thrift;
+
+        let file_metadata = parquet_md.file_metadata();
+        let thrift_schema =
+            schema_to_thrift(file_metadata.schema()).context(ParquetSchemaToThrift {})?;
+        let thrift_row_groups: Vec<_> = parquet_md
+            .row_groups()
+            .iter()
+            .map(|rg| rg.to_thrift())
+            .collect();
+
+        let thrift_file_metadata = parquet_format::FileMetaData {
+            version: file_metadata.version(),
+            schema: thrift_schema,
+
+            // TODO: column order thrift wrapper (https://github.com/influxdata/influxdb_iox/issues/1408)
+            // NOTE: currently the column order is `None` for all written files, see https://github.com/apache/arrow-rs/blob/4dfbca6e5791be400d2fd3ae863655445327650e/parquet/src/file/writer.rs#L193
+            column_orders: None,
+            num_rows: file_metadata.num_rows(),
+            row_groups: thrift_row_groups,
+            key_value_metadata: file_metadata.key_value_metadata().clone(),
+            created_by: file_metadata.created_by().clone(),
+        };
+
+        // step 2: serialize the thrift struct into bytes
+        let mut buffer = Vec::new();
+        {
+            let mut protocol = TCompactOutputProtocol::new(&mut buffer);
+            thrift_file_metadata
+                .write_to_out_protocol(&mut protocol)
+                .context(ThriftWriteFailure {})?;
+            protocol.flush().context(ThriftWriteFailure {})?;
+        }
+
+        Ok(buffer)
+    }
+
+    /// Decode [Apache Parquet] metadata from [Apache Thrift]-encoded bytes.
+    ///
+    /// [Apache Parquet]: https://parquet.apache.org/
+    /// [Apache Thrift]: https://thrift.apache.org/
+    pub fn decode(&self) -> Result<DecodedIoxParquetMetaData> {
+        // step 1: load thrift data from byte stream
+        let thrift_file_metadata = {
+            let mut protocol = TCompactInputProtocol::new(&self.data[..]);
+            parquet_format::FileMetaData::read_from_in_protocol(&mut protocol)
+                .context(ThriftReadFailure {})?
+        };
+
+        // step 2: convert thrift to in-mem structs
+        use parquet::schema::types::from_thrift as schema_from_thrift;
+
+        let schema =
+            schema_from_thrift(&thrift_file_metadata.schema).context(ParquetSchemaFromThrift {})?;
+        let schema_descr = Arc::new(ParquetSchemaDescriptor::new(schema));
+        let mut row_groups = Vec::with_capacity(thrift_file_metadata.row_groups.len());
+        for rg in thrift_file_metadata.row_groups {
+            row_groups.push(
+                ParquetRowGroupMetaData::from_thrift(Arc::clone(&schema_descr), rg)
+                    .context(ParquetRowGroupFromThrift {})?,
+            );
+        }
+        // TODO: parse column order, or ignore it: https://github.com/influxdata/influxdb_iox/issues/1408
+        let column_orders = None;
+
+        let file_metadata = ParquetFileMetaData::new(
+            thrift_file_metadata.version,
+            thrift_file_metadata.num_rows,
+            thrift_file_metadata.created_by,
+            thrift_file_metadata.key_value_metadata,
+            schema_descr,
+            column_orders,
+        );
+        let md = ParquetMetaData::new(file_metadata, row_groups);
+        Ok(DecodedIoxParquetMetaData { md })
+    }
+
+    /// In-memory size in bytes, including `self`.
+    pub fn size(&self) -> usize {
+        std::mem::size_of::<Self>() + self.data.capacity()
+    }
+}
+
+/// Parquet metadata with IOx-specific wrapper, in decoded form.
+#[derive(Debug)]
+pub struct DecodedIoxParquetMetaData {
+    /// Low-level parquet metadata that stores all relevant information.
+    md: ParquetMetaData,
+}
+
+impl DecodedIoxParquetMetaData {
     /// Return the number of rows in the parquet file
     pub fn row_count(&self) -> usize {
         self.md.file_metadata().num_rows() as usize
@@ -527,98 +657,6 @@ impl IoxParquetMetaData {
         }
 
         Ok(column_summaries)
-    }
-
-    /// Encode [Apache Parquet] metadata as freestanding [Apache Thrift]-encoded bytes.
-    ///
-    /// This can be used to store metadata separate from the related payload data. The usage of [Apache Thrift] allows the
-    /// same stability guarantees as the usage of an ordinary [Apache Parquet] file. To encode a thrift message into bytes
-    /// the [Thrift Compact Protocol] is used. See [`from_thrift`](Self::from_thrift) for decoding.
-    ///
-    /// [Apache Parquet]: https://parquet.apache.org/
-    /// [Apache Thrift]: https://thrift.apache.org/
-    /// [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
-    pub fn to_thrift(&self) -> Result<Vec<u8>> {
-        // step 1: assemble a thrift-compatible struct
-        use parquet::schema::types::to_thrift as schema_to_thrift;
-
-        let file_metadata = self.md.file_metadata();
-        let thrift_schema =
-            schema_to_thrift(file_metadata.schema()).context(ParquetSchemaToThrift {})?;
-        let thrift_row_groups: Vec<_> = self
-            .md
-            .row_groups()
-            .iter()
-            .map(|rg| rg.to_thrift())
-            .collect();
-
-        let thrift_file_metadata = parquet_format::FileMetaData {
-            version: file_metadata.version(),
-            schema: thrift_schema,
-
-            // TODO: column order thrift wrapper (https://github.com/influxdata/influxdb_iox/issues/1408)
-            // NOTE: currently the column order is `None` for all written files, see https://github.com/apache/arrow-rs/blob/4dfbca6e5791be400d2fd3ae863655445327650e/parquet/src/file/writer.rs#L193
-            column_orders: None,
-            num_rows: file_metadata.num_rows(),
-            row_groups: thrift_row_groups,
-            key_value_metadata: file_metadata.key_value_metadata().clone(),
-            created_by: file_metadata.created_by().clone(),
-        };
-
-        // step 2: serialize the thrift struct into bytes
-        let mut buffer = Vec::new();
-        {
-            let mut protocol = TCompactOutputProtocol::new(&mut buffer);
-            thrift_file_metadata
-                .write_to_out_protocol(&mut protocol)
-                .context(ThriftWriteFailure {})?;
-            protocol.flush().context(ThriftWriteFailure {})?;
-        }
-
-        Ok(buffer)
-    }
-
-    /// Decode [Apache Parquet] metadata from [Apache Thrift]-encoded bytes.
-    ///
-    /// See [`to_thrift`](Self::to_thrift) for encoding. Note that only the [Thrift Compact Protocol] is supported.
-    ///
-    /// [Apache Parquet]: https://parquet.apache.org/
-    /// [Apache Thrift]: https://thrift.apache.org/
-    /// [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
-    pub fn from_thrift(data: &[u8]) -> Result<Self> {
-        // step 1: load thrift data from byte stream
-        let thrift_file_metadata = {
-            let mut protocol = TCompactInputProtocol::new(data);
-            parquet_format::FileMetaData::read_from_in_protocol(&mut protocol)
-                .context(ThriftReadFailure {})?
-        };
-
-        // step 2: convert thrift to in-mem structs
-        use parquet::schema::types::from_thrift as schema_from_thrift;
-
-        let schema =
-            schema_from_thrift(&thrift_file_metadata.schema).context(ParquetSchemaFromThrift {})?;
-        let schema_descr = Arc::new(ParquetSchemaDescriptor::new(schema));
-        let mut row_groups = Vec::with_capacity(thrift_file_metadata.row_groups.len());
-        for rg in thrift_file_metadata.row_groups {
-            row_groups.push(
-                ParquetRowGroupMetaData::from_thrift(Arc::clone(&schema_descr), rg)
-                    .context(ParquetRowGroupFromThrift {})?,
-            );
-        }
-        // TODO: parse column order, or ignore it: https://github.com/influxdata/influxdb_iox/issues/1408
-        let column_orders = None;
-
-        let file_metadata = ParquetFileMetaData::new(
-            thrift_file_metadata.version,
-            thrift_file_metadata.num_rows,
-            thrift_file_metadata.created_by,
-            thrift_file_metadata.key_value_metadata,
-            schema_descr,
-            column_orders,
-        );
-        let md = ParquetMetaData::new(file_metadata, row_groups);
-        Ok(Self { md })
     }
 }
 
@@ -817,20 +855,21 @@ mod tests {
     #[tokio::test]
     async fn test_restore_from_file() {
         // setup: preserve chunk to object store
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let chunk = make_chunk(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
         let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
             .await
             .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
+        let decoded = parquet_metadata.decode().unwrap();
 
         // step 1: read back schema
-        let schema_actual = parquet_metadata.read_schema().unwrap();
+        let schema_actual = decoded.read_schema().unwrap();
         let schema_expected = chunk.schema();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: read back statistics
-        let table_summary_actual = parquet_metadata.read_statistics(&schema_actual).unwrap();
+        let table_summary_actual = decoded.read_statistics(&schema_actual).unwrap();
         let table_summary_expected = chunk.table_summary();
         for (actual_column, expected_column) in table_summary_actual
             .iter()
@@ -843,22 +882,23 @@ mod tests {
     #[tokio::test]
     async fn test_restore_from_thrift() {
         // setup: write chunk to object store and only keep thrift-encoded metadata
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let chunk = make_chunk(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
         let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
             .await
             .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
-        let data = parquet_metadata.to_thrift().unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_thrift(&data).unwrap();
+        let data = parquet_metadata.thrift_bytes().to_vec();
+        let parquet_metadata = IoxParquetMetaData::from_thrift_bytes(data);
+        let decoded = parquet_metadata.decode().unwrap();
 
         // step 1: read back schema
-        let schema_actual = parquet_metadata.read_schema().unwrap();
+        let schema_actual = decoded.read_schema().unwrap();
         let schema_expected = chunk.schema();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: read back statistics
-        let table_summary_actual = parquet_metadata.read_statistics(&schema_actual).unwrap();
+        let table_summary_actual = decoded.read_statistics(&schema_actual).unwrap();
         let table_summary_expected = chunk.table_summary();
         assert_eq!(table_summary_actual, table_summary_expected.columns);
     }
@@ -866,21 +906,22 @@ mod tests {
     #[tokio::test]
     async fn test_restore_from_file_no_row_group() {
         // setup: preserve chunk to object store
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let chunk =
             make_chunk_no_row_group(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
         let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
             .await
             .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
+        let decoded = parquet_metadata.decode().unwrap();
 
         // step 1: read back schema
-        let schema_actual = parquet_metadata.read_schema().unwrap();
+        let schema_actual = decoded.read_schema().unwrap();
         let schema_expected = chunk.schema();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: reading back statistics fails
-        let res = parquet_metadata.read_statistics(&schema_actual);
+        let res = decoded.read_statistics(&schema_actual);
         assert_eq!(
             res.unwrap_err().to_string(),
             "No row group found, cannot recover statistics"
@@ -890,23 +931,24 @@ mod tests {
     #[tokio::test]
     async fn test_restore_from_thrift_no_row_group() {
         // setup: write chunk to object store and only keep thrift-encoded metadata
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let chunk =
             make_chunk_no_row_group(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
         let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
             .await
             .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
-        let data = parquet_metadata.to_thrift().unwrap();
-        let parquet_metadata = IoxParquetMetaData::from_thrift(&data).unwrap();
+        let data = parquet_metadata.thrift_bytes().to_vec();
+        let parquet_metadata = IoxParquetMetaData::from_thrift_bytes(data);
+        let decoded = parquet_metadata.decode().unwrap();
 
         // step 1: read back schema
-        let schema_actual = parquet_metadata.read_schema().unwrap();
+        let schema_actual = decoded.read_schema().unwrap();
         let schema_expected = chunk.schema();
         assert_eq!(schema_actual, schema_expected);
 
         // step 2: reading back statistics fails
-        let res = parquet_metadata.read_statistics(&schema_actual);
+        let res = decoded.read_statistics(&schema_actual);
         assert_eq!(
             res.unwrap_err().to_string(),
             "No row group found, cannot recover statistics"
@@ -915,79 +957,59 @@ mod tests {
 
     #[tokio::test]
     async fn test_make_chunk() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let chunk = make_chunk(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
         let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
             .await
             .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
+        let decoded = parquet_metadata.decode().unwrap();
 
-        assert!(parquet_metadata.md.num_row_groups() > 1);
-        assert_ne!(
-            parquet_metadata
-                .md
-                .file_metadata()
-                .schema_descr()
-                .num_columns(),
-            0
-        );
+        assert!(decoded.md.num_row_groups() > 1);
+        assert_ne!(decoded.md.file_metadata().schema_descr().num_columns(), 0);
 
         // column count in summary including the timestamp column
         assert_eq!(
             chunk.table_summary().columns.len(),
-            parquet_metadata
-                .md
-                .file_metadata()
-                .schema_descr()
-                .num_columns()
+            decoded.md.file_metadata().schema_descr().num_columns()
         );
 
         // check that column counts are consistent
-        let n_rows = parquet_metadata.md.file_metadata().num_rows() as u64;
-        assert!(n_rows >= parquet_metadata.md.num_row_groups() as u64);
+        let n_rows = decoded.md.file_metadata().num_rows() as u64;
+        assert!(n_rows >= decoded.md.num_row_groups() as u64);
         for summary in &chunk.table_summary().columns {
             assert!(summary.total_count() <= n_rows);
         }
 
         // check column names
-        for column in parquet_metadata.md.file_metadata().schema_descr().columns() {
+        for column in decoded.md.file_metadata().schema_descr().columns() {
             assert!((column.name() == TIME_COLUMN_NAME) || column.name().starts_with("foo_"));
         }
     }
 
     #[tokio::test]
     async fn test_make_chunk_no_row_group() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let chunk =
             make_chunk_no_row_group(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
         let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
             .await
             .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
+        let decoded = parquet_metadata.decode().unwrap();
 
-        assert_eq!(parquet_metadata.md.num_row_groups(), 0);
-        assert_ne!(
-            parquet_metadata
-                .md
-                .file_metadata()
-                .schema_descr()
-                .num_columns(),
-            0
-        );
-        assert_eq!(parquet_metadata.md.file_metadata().num_rows(), 0);
+        assert_eq!(decoded.md.num_row_groups(), 0);
+        assert_ne!(decoded.md.file_metadata().schema_descr().num_columns(), 0);
+        assert_eq!(decoded.md.file_metadata().num_rows(), 0);
 
         // column count in summary including the timestamp column
         assert_eq!(
             chunk.table_summary().columns.len(),
-            parquet_metadata
-                .md
-                .file_metadata()
-                .schema_descr()
-                .num_columns()
+            decoded.md.file_metadata().schema_descr().num_columns()
         );
 
         // check column names
-        for column in parquet_metadata.md.file_metadata().schema_descr().columns() {
+        for column in decoded.md.file_metadata().schema_descr().columns() {
             assert!((column.name() == TIME_COLUMN_NAME) || column.name().starts_with("foo_"));
         }
     }
@@ -1064,5 +1086,17 @@ mod tests {
             let proto_bytes = metadata.to_protobuf().unwrap();
             assert_eq!(proto_bytes.len(), 88);
         }
+    }
+
+    #[tokio::test]
+    async fn test_parquet_metadata_size() {
+        // setup: preserve chunk to object store
+        let iox_object_store = make_iox_object_store().await;
+        let chunk = make_chunk(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
+        let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
+            .await
+            .unwrap();
+        let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
+        assert_eq!(parquet_metadata.size(), 11939);
     }
 }

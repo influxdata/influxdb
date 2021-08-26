@@ -24,7 +24,9 @@ use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi, Result,
 };
-use std::{collections::HashSet, io, sync::Arc};
+use observability_deps::tracing::warn;
+use snafu::{ensure, ResultExt, Snafu};
+use std::{io, sync::Arc};
 use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -33,9 +35,22 @@ pub use paths::{
     parquet_file::{ParquetFilePath, ParquetFilePathParseError},
     transaction_file::TransactionFilePath,
 };
-use paths::{DataPath, RootPath, TransactionsPath};
+use paths::{DataPath, GenerationPath, RootPath, TransactionsPath};
 
 const DB_RULES_FILE_NAME: &str = "rules.pb";
+
+#[derive(Debug, Snafu)]
+#[allow(missing_docs)]
+pub enum IoxObjectStoreError {
+    #[snafu(display("{}", source))]
+    UnderlyingObjectStoreError { source: object_store::Error },
+
+    #[snafu(display("Cannot create database `{}`; it already exists", name,))]
+    DatabaseAlreadyExists { name: String },
+
+    #[snafu(display("Multiple active databases found in object storage"))]
+    MultipleActiveDatabasesFound,
+}
 
 /// Handles persistence of data for a particular database. Writes within its directory/prefix.
 ///
@@ -45,18 +60,35 @@ pub struct IoxObjectStore {
     inner: Arc<ObjectStore>,
     server_id: ServerId,
     database_name: DatabaseName<'static>,
-    root_path: RootPath,
+    generation_path: GenerationPath,
     data_path: DataPath,
     transactions_path: TransactionsPath,
 }
 
+/// Private information about a database's generation.
+#[derive(Debug, Copy, Clone)]
+struct Generation {
+    id: usize,
+    deleted: bool,
+}
+
+impl Generation {
+    fn new(id: usize) -> Self {
+        Self { id, deleted: false }
+    }
+
+    fn is_active(&self) -> bool {
+        !self.deleted
+    }
+}
+
 impl IoxObjectStore {
-    /// List all valid, unique database names in object storage that could be used to build
-    /// an `IoxObjectStore` on this server.
-    pub async fn list_databases(
+    /// List database names in object storage that need to be further checked for generations
+    /// and whether they're marked as deleted or not.
+    pub async fn list_possible_databases(
         inner: &ObjectStore,
         server_id: ServerId,
-    ) -> Result<HashSet<DatabaseName<'static>>> {
+    ) -> Result<Vec<DatabaseName<'static>>> {
         let path = paths::all_databases_path(inner, server_id);
 
         let list_result = inner.list_with_delimiter(&path).await?;
@@ -64,9 +96,12 @@ impl IoxObjectStore {
         Ok(list_result
             .common_prefixes
             .into_iter()
-            .filter_map(|path| {
-                let path_parsed: DirsAndFileName = path.into();
-                let last = path_parsed.directories.last().expect("path can't be empty");
+            .filter_map(|prefix| {
+                let prefix_parsed: DirsAndFileName = prefix.into();
+                let last = prefix_parsed
+                    .directories
+                    .last()
+                    .expect("path can't be empty");
                 let db_name = DatabaseName::new(last.encoded().to_string())
                     .log_if_error("invalid database directory")
                     .ok()?;
@@ -76,21 +111,142 @@ impl IoxObjectStore {
             .collect())
     }
 
-    /// Create a database-specific wrapper. Takes all the information needed to create the
-    /// root directory of a database.
-    pub fn new(
+    // TODO: Add a list_deleted_databases API that returns the names and generations of databases
+    // that contain tombstone files
+    // See: https://github.com/influxdata/influxdb_iox/issues/2198
+
+    // Private function to list all generation directories in object storage for a particular
+    // database.
+    async fn list_generations(
+        inner: &ObjectStore,
+        root_path: &RootPath,
+    ) -> Result<Vec<Generation>> {
+        let list_result = inner.list_with_delimiter(&root_path.inner).await?;
+
+        let mut generations = Vec::with_capacity(list_result.common_prefixes.len());
+
+        for prefix in list_result.common_prefixes {
+            let prefix_parsed: DirsAndFileName = prefix.clone().into();
+            let id = prefix_parsed
+                .directories
+                .last()
+                .expect("path can't be empty");
+
+            if let Ok(id) = id.to_string().parse() {
+                // TODO: Check for tombstone file once we add a way to create the tombstone file
+                // However, if we can't list the contents of a database directory, we can't
+                // know if it's deleted or not, so this should be an error.
+                // let generation_list_result = inner.list_with_delimiter(&prefix).await?;
+                // prefix.push_dir(TOMBSTONE_FILE_NAME);
+                // let deleted = generation_list_result
+                //     .objects
+                //     .into_iter()
+                //     .any(|object| object.location == prefix);
+
+                generations.push(Generation::new(id));
+            } else {
+                // Deliberately ignoring errors with parsing; if the directory isn't a usize, it's
+                // not a valid database generation directory and we should skip it.
+                warn!("invalid generation directory found: {}", id);
+            }
+        }
+
+        Ok(generations)
+    }
+
+    /// Create a database-specific wrapper. Takes all the information needed to create a new
+    /// root directory of a database. Checks that there isn't already an active database
+    /// with this name in object storage.
+    ///
+    /// Caller *MUST* ensure there is at most 1 concurrent call of this function with the same
+    /// parameters; this function does *NOT* do any locking.
+    pub async fn new(
         inner: Arc<ObjectStore>,
         server_id: ServerId,
         database_name: &DatabaseName<'static>,
+    ) -> Result<Self, IoxObjectStoreError> {
+        let root_path = RootPath::new(&inner, server_id, database_name);
+
+        let generations = Self::list_generations(&inner, &root_path)
+            .await
+            .context(UnderlyingObjectStoreError)?;
+
+        let active = generations.iter().find(|g| g.is_active());
+
+        ensure!(
+            active.is_none(),
+            DatabaseAlreadyExists {
+                name: database_name
+            }
+        );
+
+        let next_generation_id = generations
+            .iter()
+            .max_by_key(|g| g.id)
+            .map(|max| max.id + 1)
+            .unwrap_or(0);
+
+        Ok(Self::existing(
+            inner,
+            server_id,
+            database_name,
+            Generation::new(next_generation_id),
+            root_path,
+        ))
+    }
+
+    /// Look in object storage for an existing database with this name and a non-deleted
+    /// generation, and error if none is found.
+    pub async fn find_existing(
+        inner: Arc<ObjectStore>,
+        server_id: ServerId,
+        database_name: &DatabaseName<'static>,
+    ) -> Result<Option<Self>, IoxObjectStoreError> {
+        let root_path = RootPath::new(&inner, server_id, database_name);
+
+        let generations = Self::list_generations(&inner, &root_path)
+            .await
+            .context(UnderlyingObjectStoreError)?;
+
+        let mut active_generations = generations.iter().filter(|g| g.is_active());
+
+        let active = match active_generations.next() {
+            Some(a) => *a,
+            None => return Ok(None),
+        };
+
+        ensure!(
+            active_generations.next().is_none(),
+            MultipleActiveDatabasesFound
+        );
+
+        Ok(Some(Self::existing(
+            inner,
+            server_id,
+            database_name,
+            active,
+            root_path,
+        )))
+    }
+
+    /// Access the database-specific object storage files for an existing database that has
+    /// already been located and verified to be active. Does not check object storage.
+    fn existing(
+        inner: Arc<ObjectStore>,
+        server_id: ServerId,
+        database_name: &DatabaseName<'static>,
+        generation: Generation,
+        root_path: RootPath,
     ) -> Self {
-        let root_path = RootPath::new(inner.as_ref(), server_id, database_name);
-        let data_path = DataPath::new(&root_path);
-        let transactions_path = TransactionsPath::new(&root_path);
+        let generation_path = root_path.generation_path(generation);
+        let data_path = generation_path.data_path();
+        let transactions_path = generation_path.transactions_path();
+
         Self {
             inner,
             server_id,
             database_name: database_name.to_owned(),
-            root_path,
+            generation_path,
             data_path,
             transactions_path,
         }
@@ -104,7 +260,7 @@ impl IoxObjectStore {
     /// The location in object storage for all files for this database, suitable for logging
     /// or debugging purposes only. Do not parse this, as its format is subject to change!
     pub fn debug_database_path(&self) -> String {
-        self.root_path.inner.to_string()
+        self.generation_path.inner.to_string()
     }
 
     // Catalog transaction file methods ===========================================================
@@ -230,7 +386,7 @@ impl IoxObjectStore {
     // so assumptions about the object store organization are confined
     // (and can be changed) in this crate
     fn db_rules_path(&self) -> Path {
-        let mut path = self.root_path.inner.clone();
+        let mut path = self.generation_path.inner.clone();
         path.set_file_name(DB_RULES_FILE_NAME);
         path
     }
@@ -297,7 +453,7 @@ impl IoxObjectStore {
 mod tests {
     use super::*;
     use data_types::chunk_metadata::ChunkAddr;
-    use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
+    use object_store::{parsed_path, path::ObjectStorePath, ObjectStore, ObjectStoreApi};
     use std::num::NonZeroU32;
     use uuid::Uuid;
 
@@ -356,39 +512,50 @@ mod tests {
     async fn only_lists_relevant_parquet_files() {
         let object_store = make_object_store();
         let server_id = make_server_id();
+        let server_id_string = server_id.to_string();
+        let server_id_str = server_id_string.as_str();
         let database_name = DatabaseName::new("clouds").unwrap();
+        let database_name_str = database_name.as_str();
         let iox_object_store =
-            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name);
+            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
+                .await
+                .unwrap();
         let uuid = Uuid::new_v4();
+        let good_filename = format!("111.{}.parquet", uuid);
+        let good_filename_str = good_filename.as_str();
 
         // Put a non-database file in
-        let mut path = object_store.new_path();
-        path.push_dir("foo");
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(["foo"]));
         add_file(&object_store, &path).await;
 
         // Put a file for some other server in
-        let mut path = object_store.new_path();
-        path.push_dir("12345");
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(["12345"]));
         add_file(&object_store, &path).await;
 
         // Put a file for some other database in
-        let mut path = object_store.new_path();
-        path.push_dir(server_id.to_string());
-        path.push_dir("thunder");
+        let path =
+            object_store.path_from_dirs_and_filename(parsed_path!([server_id_str, "thunder"]));
         add_file(&object_store, &path).await;
 
-        // Put a file in the database dir but not the data dir
-        let mut path = object_store.new_path();
-        path.push_dir(server_id.to_string());
-        path.push_dir(database_name.to_string());
-        path.set_file_name(&format!("111.{}.parquet", uuid));
+        // Put a file in the database dir but not the generation dir
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(
+            [server_id_str, database_name_str],
+            good_filename_str
+        ));
+        add_file(&object_store, &path).await;
+
+        // Put a file in the generation dir but not the data dir
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(
+            [server_id_str, database_name_str, "0"],
+            good_filename_str
+        ));
         add_file(&object_store, &path).await;
 
         // Put files in the data dir whose names are in the wrong format
-        let mut path = object_store.new_path();
-        path.push_dir(server_id.to_string());
-        path.push_dir(database_name.to_string());
-        path.set_file_name("111.parquet");
+        let mut path = object_store.path_from_dirs_and_filename(parsed_path!(
+            [server_id_str, database_name_str, "0", "data"],
+            "111.parquet"
+        ));
         add_file(&object_store, &path).await;
         path.set_file_name(&format!("111.{}.xls", uuid));
         add_file(&object_store, &path).await;
@@ -448,39 +615,50 @@ mod tests {
     async fn only_lists_relevant_catalog_transaction_files() {
         let object_store = make_object_store();
         let server_id = make_server_id();
+        let server_id_string = server_id.to_string();
+        let server_id_str = server_id_string.as_str();
         let database_name = DatabaseName::new("clouds").unwrap();
+        let database_name_str = database_name.as_str();
         let iox_object_store =
-            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name);
+            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
+                .await
+                .unwrap();
         let uuid = Uuid::new_v4();
+        let good_txn_filename = format!("{}.txn", uuid);
+        let good_txn_filename_str = good_txn_filename.as_str();
 
         // Put a non-database file in
-        let mut path = object_store.new_path();
-        path.push_dir("foo");
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(["foo"]));
         add_file(&object_store, &path).await;
 
         // Put a file for some other server in
-        let mut path = object_store.new_path();
-        path.push_dir("12345");
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(["12345"]));
         add_file(&object_store, &path).await;
 
         // Put a file for some other database in
-        let mut path = object_store.new_path();
-        path.push_dir(server_id.to_string());
-        path.push_dir("thunder");
+        let path =
+            object_store.path_from_dirs_and_filename(parsed_path!([server_id_str, "thunder"]));
         add_file(&object_store, &path).await;
 
-        // Put a file in the database dir but not the transactions dir
-        let mut path = object_store.new_path();
-        path.push_dir(server_id.to_string());
-        path.push_dir(database_name.to_string());
-        path.set_file_name(&format!("{}.txn", uuid));
+        // Put a file in the database dir but not the generation dir
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(
+            [server_id_str, database_name_str],
+            good_txn_filename_str
+        ));
+        add_file(&object_store, &path).await;
+
+        // Put a file in the generation dir but not the transactions dir
+        let path = object_store.path_from_dirs_and_filename(parsed_path!(
+            [server_id_str, database_name_str, "0"],
+            good_txn_filename_str
+        ));
         add_file(&object_store, &path).await;
 
         // Put files in the transactions dir whose names are in the wrong format
-        let mut path = object_store.new_path();
-        path.push_dir(server_id.to_string());
-        path.push_dir(database_name.to_string());
-        path.set_file_name("111.parquet");
+        let mut path = object_store.path_from_dirs_and_filename(parsed_path!(
+            [server_id_str, database_name_str, "0"],
+            "111.parquet"
+        ));
         add_file(&object_store, &path).await;
         path.set_file_name(&format!("{}.xls", uuid));
         add_file(&object_store, &path).await;
@@ -505,7 +683,7 @@ mod tests {
 
     fn make_db_rules_path(object_store: &ObjectStore, server_id: ServerId, db_name: &str) -> Path {
         let mut p = object_store.new_path();
-        p.push_all_dirs(&[&server_id.to_string(), db_name]);
+        p.push_all_dirs(&[&server_id.to_string(), db_name, "0"]);
         p.set_file_name("rules.pb");
         p
     }
@@ -517,7 +695,9 @@ mod tests {
         let database_name = DatabaseName::new("clouds").unwrap();
         let rules_path = make_db_rules_path(&object_store, server_id, "clouds");
         let iox_object_store =
-            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name);
+            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
+                .await
+                .unwrap();
 
         // PUT
         let original_file_content = Bytes::from("hello world");

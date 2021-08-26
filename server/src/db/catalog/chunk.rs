@@ -1120,7 +1120,7 @@ mod tests {
     }
 
     async fn make_parquet_chunk(addr: ChunkAddr) -> ParquetChunk {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         make_parquet_chunk_with_store(iox_object_store, "foo", addr).await
     }
 

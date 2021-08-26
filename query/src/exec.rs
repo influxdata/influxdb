@@ -31,7 +31,7 @@ pub struct ExecutorConfig {
     pub num_threads: usize,
 
     /// Target parallelism for query execution
-    pub concurrency: usize,
+    pub target_query_partitions: usize,
 }
 
 /// Handles executing DataFusion plans, and marshalling the results into rust
@@ -66,7 +66,7 @@ impl Executor {
     pub fn new(num_threads: usize) -> Self {
         Self::new_with_config(ExecutorConfig {
             num_threads,
-            concurrency: num_threads,
+            target_query_partitions: num_threads,
         })
     }
 
@@ -86,7 +86,7 @@ impl Executor {
     /// Note that this context (and all its clones) will be shut down once `Executor` is dropped.
     pub fn new_execution_config(&self, executor_type: ExecutorType) -> IOxExecutionConfig {
         let exec = self.executor(executor_type).clone();
-        IOxExecutionConfig::new(exec).with_concurrency(self.config.concurrency)
+        IOxExecutionConfig::new(exec).with_target_partitions(self.config.target_query_partitions)
     }
 
     /// Create a new execution context, suitable for executing a new query or system task
@@ -176,6 +176,15 @@ pub fn make_stream_split(input: LogicalPlan, split_expr: Expr) -> LogicalPlan {
 
     let node = Arc::new(StreamSplitNode::new(input, split_expr));
     LogicalPlan::Extension { node }
+}
+
+/// A type that can provide `IOxExecutionContext` for query
+pub trait ExecutionContextProvider {
+    /// Returns a new execution context suitable for running queries
+    fn new_query_context(
+        self: &Arc<Self>,
+        span_ctx: Option<trace::ctx::SpanContext>,
+    ) -> IOxExecutionContext;
 }
 
 #[cfg(test)]
