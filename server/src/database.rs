@@ -21,7 +21,7 @@ use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use parquet_file::catalog::PreservedCatalog;
 use persistence_windows::checkpoint::ReplayPlan;
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::{future::Future, sync::Arc, time::Duration};
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
@@ -100,15 +100,8 @@ impl Database {
     /// This is backed by an existing database, which was [created](Self::create) some time in the
     /// past.
     pub fn new(application: Arc<ApplicationState>, config: DatabaseConfig) -> Self {
-        let iox_object_store = Arc::new(IoxObjectStore::new(
-            Arc::clone(application.object_store()),
-            config.server_id,
-            &config.name,
-        ));
-
         info!(
             db_name=%config.name,
-            store_prefix=%iox_object_store.debug_database_path(),
             "new database"
         );
 
@@ -118,7 +111,6 @@ impl Database {
             shutdown: Default::default(),
             state: RwLock::new(Freezable::new(DatabaseState::Known(DatabaseStateKnown {}))),
             state_notify: Default::default(),
-            iox_object_store,
         });
 
         let handle = tokio::spawn(background_worker(Arc::clone(&shared)));
@@ -134,14 +126,17 @@ impl Database {
         server_id: ServerId,
     ) -> Result<(), InitError> {
         let db_name = rules.name.clone();
-        let object_store =
-            IoxObjectStore::new(Arc::clone(application.object_store()), server_id, &db_name);
+        let iox_object_store = Arc::new(
+            IoxObjectStore::new(Arc::clone(application.object_store()), server_id, &db_name)
+                .await
+                .context(IoxObjectStoreError)?,
+        );
 
-        persist_database_rules(&object_store, rules).await?;
+        persist_database_rules(&iox_object_store, rules).await?;
 
         create_preserved_catalog(
             db_name.as_str(),
-            Arc::new(object_store),
+            Arc::clone(&iox_object_store),
             server_id,
             Arc::clone(application.metric_registry()),
             true,
@@ -188,6 +183,11 @@ impl Database {
         self.shared.state.read().rules()
     }
 
+    /// Returns the IoxObjectStore if it has been found
+    pub fn iox_object_store(&self) -> Option<Arc<IoxObjectStore>> {
+        self.shared.state.read().iox_object_store()
+    }
+
     /// Gets access to an initialized `Db`
     pub fn initialized_db(&self) -> Option<Arc<Db>> {
         self.shared
@@ -195,10 +195,6 @@ impl Database {
             .read()
             .get_initialized()
             .map(|state| Arc::clone(&state.db))
-    }
-
-    pub fn iox_object_store(&self) -> Arc<IoxObjectStore> {
-        Arc::clone(&self.shared.iox_object_store)
     }
 
     /// Returns Ok(()) when the Database is initialized, or the error
@@ -213,10 +209,13 @@ impl Database {
             // the notification being fired, and this task waking up
             match &**self.shared.state.read() {
                 DatabaseState::Known(_)
+                | DatabaseState::DatabaseObjectStoreFound(_)
                 | DatabaseState::RulesLoaded(_)
                 | DatabaseState::CatalogLoaded(_) => {} // Non-terminal state
                 DatabaseState::Initialized(_) => return Ok(()),
-                DatabaseState::RulesLoadError(_, e)
+                DatabaseState::DatabaseObjectStoreLookupError(_, e)
+                | DatabaseState::NoActiveDatabase(_, e)
+                | DatabaseState::RulesLoadError(_, e)
                 | DatabaseState::CatalogLoadError(_, e)
                 | DatabaseState::ReplayError(_, e) => return Err(Arc::clone(e)),
             }
@@ -254,7 +253,7 @@ impl Database {
         Ok(async move {
             let db_name = &shared.config.name;
 
-            PreservedCatalog::wipe(&shared.iox_object_store)
+            PreservedCatalog::wipe(&current_state.iox_object_store)
                 .await
                 .map_err(Box::new)
                 .context(WipePreservedCatalog { db_name })?;
@@ -344,9 +343,6 @@ struct DatabaseShared {
 
     /// Notify that the database state has changed
     state_notify: Notify,
-
-    /// The object store interface for this database
-    iox_object_store: Arc<IoxObjectStore>,
 }
 
 /// The background worker for `Database` - there should only ever be one
@@ -425,6 +421,7 @@ async fn initialize_database(shared: &DatabaseShared) {
                 DatabaseState::Initialized(_) => break,
                 // Can perform work
                 DatabaseState::Known(_)
+                | DatabaseState::DatabaseObjectStoreFound(_)
                 | DatabaseState::RulesLoaded(_)
                 | DatabaseState::CatalogLoaded(_) => {
                     match state.try_freeze() {
@@ -436,11 +433,22 @@ async fn initialize_database(shared: &DatabaseShared) {
                         }
                     }
                 }
+                // No active database found, was probably deleted
+                DatabaseState::NoActiveDatabase(_, _) => {
+                    info!(%db_name, "no active database found");
+                    None
+                }
                 // Operator intervention required
-                DatabaseState::RulesLoadError(_, e)
+                DatabaseState::DatabaseObjectStoreLookupError(_, e)
+                | DatabaseState::RulesLoadError(_, e)
                 | DatabaseState::CatalogLoadError(_, e)
                 | DatabaseState::ReplayError(_, e) => {
-                    error!(%db_name, %e, %state, "database in error state - operator intervention required");
+                    error!(
+                        %db_name,
+                        %e,
+                        %state,
+                        "database in error state - operator intervention required"
+                    );
                     None
                 }
             }
@@ -461,6 +469,13 @@ async fn initialize_database(shared: &DatabaseShared) {
         // Try to advance to the next state
         let next_state = match state {
             DatabaseState::Known(state) => match state.advance(shared).await {
+                Ok(state) => DatabaseState::DatabaseObjectStoreFound(state),
+                Err(InitError::NoActiveDatabase) => {
+                    DatabaseState::NoActiveDatabase(state, Arc::new(InitError::NoActiveDatabase))
+                }
+                Err(e) => DatabaseState::DatabaseObjectStoreLookupError(state, Arc::new(e)),
+            },
+            DatabaseState::DatabaseObjectStoreFound(state) => match state.advance(shared).await {
                 Ok(state) => DatabaseState::RulesLoaded(state),
                 Err(e) => DatabaseState::RulesLoadError(state, Arc::new(e)),
             },
@@ -489,6 +504,17 @@ async fn initialize_database(shared: &DatabaseShared) {
 /// Errors encountered during initialization of a database
 #[derive(Debug, Snafu)]
 pub enum InitError {
+    #[snafu(display(
+        "error finding active generation directory in object storage: {}",
+        source
+    ))]
+    DatabaseObjectStoreLookup {
+        source: iox_object_store::IoxObjectStoreError,
+    },
+
+    #[snafu(display("no active generation directory found, not loading"))]
+    NoActiveDatabase,
+
     #[snafu(display("error fetching rules: {}", source))]
     RulesFetch { source: object_store::Error },
 
@@ -518,6 +544,11 @@ pub enum InitError {
     #[snafu(display("store error: {}", source))]
     StoreError { source: object_store::Error },
 
+    #[snafu(display("{}", source))]
+    IoxObjectStoreError {
+        source: iox_object_store::IoxObjectStoreError,
+    },
+
     #[snafu(display("error serializing database rules to protobuf: {}", source))]
     ErrorSerializingRulesProtobuf {
         source: generated_types::database_rules::EncodeError,
@@ -535,12 +566,15 @@ pub enum InitError {
 #[derive(Debug, Clone)]
 enum DatabaseState {
     Known(DatabaseStateKnown),
+    DatabaseObjectStoreFound(DatabaseStateDatabaseObjectStoreFound),
 
     RulesLoaded(DatabaseStateRulesLoaded),
     CatalogLoaded(DatabaseStateCatalogLoaded),
     Initialized(DatabaseStateInitialized),
 
-    RulesLoadError(DatabaseStateKnown, Arc<InitError>),
+    DatabaseObjectStoreLookupError(DatabaseStateKnown, Arc<InitError>),
+    NoActiveDatabase(DatabaseStateKnown, Arc<InitError>),
+    RulesLoadError(DatabaseStateDatabaseObjectStoreFound, Arc<InitError>),
     CatalogLoadError(DatabaseStateRulesLoaded, Arc<InitError>),
     ReplayError(DatabaseStateCatalogLoaded, Arc<InitError>),
 }
@@ -555,10 +589,15 @@ impl DatabaseState {
     fn state_code(&self) -> DatabaseStateCode {
         match self {
             DatabaseState::Known(_) => DatabaseStateCode::Known,
+            DatabaseState::DatabaseObjectStoreFound(_) => {
+                DatabaseStateCode::DatabaseObjectStoreFound
+            }
             DatabaseState::RulesLoaded(_) => DatabaseStateCode::RulesLoaded,
             DatabaseState::CatalogLoaded(_) => DatabaseStateCode::CatalogLoaded,
             DatabaseState::Initialized(_) => DatabaseStateCode::Initialized,
-            DatabaseState::RulesLoadError(_, _) => DatabaseStateCode::Known,
+            DatabaseState::DatabaseObjectStoreLookupError(_, _) => DatabaseStateCode::Known,
+            DatabaseState::NoActiveDatabase(_, _) => DatabaseStateCode::Known,
+            DatabaseState::RulesLoadError(_, _) => DatabaseStateCode::DatabaseObjectStoreFound,
             DatabaseState::CatalogLoadError(_, _) => DatabaseStateCode::RulesLoaded,
             DatabaseState::ReplayError(_, _) => DatabaseStateCode::CatalogLoaded,
         }
@@ -567,10 +606,13 @@ impl DatabaseState {
     fn error(&self) -> Option<&Arc<InitError>> {
         match self {
             DatabaseState::Known(_)
+            | DatabaseState::DatabaseObjectStoreFound(_)
             | DatabaseState::RulesLoaded(_)
             | DatabaseState::CatalogLoaded(_)
             | DatabaseState::Initialized(_) => None,
-            DatabaseState::RulesLoadError(_, e)
+            DatabaseState::DatabaseObjectStoreLookupError(_, e)
+            | DatabaseState::NoActiveDatabase(_, e)
+            | DatabaseState::RulesLoadError(_, e)
             | DatabaseState::CatalogLoadError(_, e)
             | DatabaseState::ReplayError(_, e) => Some(e),
         }
@@ -578,7 +620,11 @@ impl DatabaseState {
 
     fn rules(&self) -> Option<Arc<DatabaseRules>> {
         match self {
-            DatabaseState::Known(_) | DatabaseState::RulesLoadError(_, _) => None,
+            DatabaseState::Known(_)
+            | DatabaseState::DatabaseObjectStoreFound(_)
+            | DatabaseState::DatabaseObjectStoreLookupError(_, _)
+            | DatabaseState::NoActiveDatabase(_, _)
+            | DatabaseState::RulesLoadError(_, _) => None,
             DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
                 Some(Arc::clone(&state.rules))
             }
@@ -586,6 +632,25 @@ impl DatabaseState {
                 Some(state.db.rules())
             }
             DatabaseState::Initialized(state) => Some(state.db.rules()),
+        }
+    }
+
+    fn iox_object_store(&self) -> Option<Arc<IoxObjectStore>> {
+        match self {
+            DatabaseState::Known(_)
+            | DatabaseState::DatabaseObjectStoreLookupError(_, _)
+            | DatabaseState::NoActiveDatabase(_, _)
+            | DatabaseState::RulesLoadError(_, _) => None,
+            DatabaseState::DatabaseObjectStoreFound(state) => {
+                Some(Arc::clone(&state.iox_object_store))
+            }
+            DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
+                Some(Arc::clone(&state.iox_object_store))
+            }
+            DatabaseState::CatalogLoaded(state) | DatabaseState::ReplayError(state, _) => {
+                Some(state.db.iox_object_store())
+            }
+            DatabaseState::Initialized(state) => Some(state.db.iox_object_store()),
         }
     }
 
@@ -601,13 +666,39 @@ impl DatabaseState {
 struct DatabaseStateKnown {}
 
 impl DatabaseStateKnown {
+    /// Find active object storage for this database
+    async fn advance(
+        &self,
+        shared: &DatabaseShared,
+    ) -> Result<DatabaseStateDatabaseObjectStoreFound, InitError> {
+        let iox_object_store = IoxObjectStore::find_existing(
+            Arc::clone(shared.application.object_store()),
+            shared.config.server_id,
+            &shared.config.name,
+        )
+        .await
+        .context(DatabaseObjectStoreLookup)?
+        .context(NoActiveDatabase)?;
+
+        Ok(DatabaseStateDatabaseObjectStoreFound {
+            iox_object_store: Arc::new(iox_object_store),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct DatabaseStateDatabaseObjectStoreFound {
+    iox_object_store: Arc<IoxObjectStore>,
+}
+
+impl DatabaseStateDatabaseObjectStoreFound {
     /// Load database rules from object storage
     async fn advance(
         &self,
         shared: &DatabaseShared,
     ) -> Result<DatabaseStateRulesLoaded, InitError> {
         // TODO: Retry this
-        let bytes = shared
+        let bytes = self
             .iox_object_store
             .get_database_rules_file()
             .await
@@ -625,6 +716,7 @@ impl DatabaseStateKnown {
 
         Ok(DatabaseStateRulesLoaded {
             rules: Arc::new(rules),
+            iox_object_store: Arc::clone(&self.iox_object_store),
         })
     }
 }
@@ -632,6 +724,7 @@ impl DatabaseStateKnown {
 #[derive(Debug, Clone)]
 struct DatabaseStateRulesLoaded {
     rules: Arc<DatabaseRules>,
+    iox_object_store: Arc<IoxObjectStore>,
 }
 
 impl DatabaseStateRulesLoaded {
@@ -642,7 +735,7 @@ impl DatabaseStateRulesLoaded {
     ) -> Result<DatabaseStateCatalogLoaded, InitError> {
         let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
             shared.config.name.as_str(),
-            Arc::clone(&shared.iox_object_store),
+            Arc::clone(&self.iox_object_store),
             shared.config.server_id,
             Arc::clone(shared.application.metric_registry()),
             shared.config.wipe_catalog_on_error,
@@ -660,11 +753,7 @@ impl DatabaseStateRulesLoaded {
 
         let database_to_commit = DatabaseToCommit {
             server_id: shared.config.server_id,
-            iox_object_store: Arc::new(IoxObjectStore::new(
-                Arc::clone(shared.application.object_store()),
-                shared.config.server_id,
-                &shared.config.name,
-            )),
+            iox_object_store: Arc::clone(&self.iox_object_store),
             exec: Arc::clone(shared.application.executor()),
             rules: Arc::clone(&self.rules),
             preserved_catalog,
@@ -712,7 +801,7 @@ struct DatabaseStateInitialized {
     db: Arc<Db>,
 }
 
-/// Persist the the `DatabaseRules` given the `Database` store prefix
+/// Persist the the `DatabaseRules` given the database object storage
 pub(super) async fn persist_database_rules(
     object_store: &IoxObjectStore,
     rules: DatabaseRules,
@@ -757,7 +846,11 @@ mod tests {
 
         // Should have failed to load (this isn't important to the test)
         let err = database.wait_for_init().await.unwrap_err();
-        assert!(matches!(err.as_ref(), InitError::RulesFetch { .. }));
+        assert!(
+            matches!(err.as_ref(), InitError::NoActiveDatabase { .. }),
+            "got {:?}",
+            err
+        );
 
         // Database should be running
         assert!(database.join().now_or_never().is_none());

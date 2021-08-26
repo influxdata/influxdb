@@ -180,7 +180,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rebuild_successfull() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         // build catalog with some data
         let (catalog, mut state) =
@@ -243,7 +243,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rebuild_empty() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         // build empty catalog
         let (catalog, _state) =
@@ -267,7 +267,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rebuild_no_metadata() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         // build catalog with same data
         let catalog =
@@ -306,7 +306,7 @@ mod tests {
         // transaction files and then check that rebuilt catalog will be gone afterwards. Note the
         // difference to the `test_rebuild_empty` case where we can indeed proof the existence of a
         // catalog (even though it is empty aka has no files).
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         // build catalog with some data (2 transactions + initial empty one)
         let (catalog, _state) =

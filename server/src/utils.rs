@@ -54,12 +54,24 @@ impl TestDbBuilder {
         let db_name = self
             .db_name
             .unwrap_or_else(|| DatabaseName::new("placeholder").unwrap());
-        let iox_object_store = Arc::new(IoxObjectStore::new(
-            self.object_store
-                .unwrap_or_else(|| Arc::new(ObjectStore::new_in_memory())),
-            server_id,
-            &db_name,
-        ));
+
+        let object_store = self
+            .object_store
+            .unwrap_or_else(|| Arc::new(ObjectStore::new_in_memory()));
+
+        let iox_object_store =
+            IoxObjectStore::find_existing(Arc::clone(&object_store), server_id, &db_name)
+                .await
+                .unwrap();
+
+        let iox_object_store = match iox_object_store {
+            Some(ios) => ios,
+            None => IoxObjectStore::new(Arc::clone(&object_store), server_id, &db_name)
+                .await
+                .unwrap(),
+        };
+
+        let iox_object_store = Arc::new(iox_object_store);
 
         // deterministic thread and concurrency count
         let exec = Arc::new(Executor::new_with_config(ExecutorConfig {

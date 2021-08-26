@@ -1925,6 +1925,7 @@ dependencies = [
  "data_types",
  "futures",
  "object_store",
+ "observability_deps",
  "snafu",
  "tokio",
  "tokio-stream",

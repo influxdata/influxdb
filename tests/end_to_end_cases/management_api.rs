@@ -985,6 +985,7 @@ async fn test_get_server_status_db_error() {
     let mut path = server_fixture.dir().to_path_buf();
     path.push("42");
     path.push("my_db");
+    path.push("0");
     std::fs::create_dir_all(path.clone()).unwrap();
     path.push("rules.pb");
     std::fs::write(path, "foo").unwrap();
@@ -1004,7 +1005,7 @@ async fn test_get_server_status_db_error() {
         .starts_with("error decoding database rules:"));
     assert_eq!(
         DatabaseState::from_i32(db_status.state).unwrap(),
-        DatabaseState::Known
+        DatabaseState::DatabaseObjectStoreFound
     );
 }
 

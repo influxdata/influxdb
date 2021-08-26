@@ -465,7 +465,8 @@ struct ServerStateInitialized {
 impl ServerStateInitialized {
     /// Add a new database to the state
     ///
-    /// Returns an error if a database with the same name already exists
+    /// Returns an error if an active database (either initialized or errored, but not deleted)
+    /// with the same name already exists
     fn new_database(
         &mut self,
         shared: &ServerShared,
@@ -477,10 +478,24 @@ impl ServerStateInitialized {
                 Arc::clone(&shared.application),
                 config,
             ))),
-            hashbrown::hash_map::Entry::Occupied(_) => {
-                return Err(Error::DatabaseAlreadyExists {
-                    db_name: config.name.to_string(),
-                })
+            hashbrown::hash_map::Entry::Occupied(mut existing) => {
+                if let Some(init_error) = existing.get().init_error() {
+                    if matches!(&*init_error, database::InitError::NoActiveDatabase) {
+                        existing.insert(Arc::new(Database::new(
+                            Arc::clone(&shared.application),
+                            config,
+                        )));
+                        existing.into_mut()
+                    } else {
+                        return Err(Error::DatabaseAlreadyExists {
+                            db_name: config.name.to_string(),
+                        });
+                    }
+                } else {
+                    return Err(Error::DatabaseAlreadyExists {
+                        db_name: config.name.to_string(),
+                    });
+                }
             }
         };
 
@@ -676,10 +691,18 @@ where
             let state = self.shared.state.read();
             let initialized = state.initialized()?;
 
-            if initialized.databases.contains_key(&rules.name) {
-                return Err(Error::DatabaseAlreadyExists {
-                    db_name: db_name.to_string(),
-                });
+            if let Some(existing) = initialized.databases.get(&rules.name) {
+                if let Some(init_error) = existing.init_error() {
+                    if !matches!(&*init_error, database::InitError::NoActiveDatabase) {
+                        return Err(Error::DatabaseAlreadyExists {
+                            db_name: db_name.to_string(),
+                        });
+                    }
+                } else {
+                    return Err(Error::DatabaseAlreadyExists {
+                        db_name: db_name.to_string(),
+                    });
+                }
             }
             initialized.server_id
         };
@@ -953,7 +976,7 @@ where
         let rules = db.update_rules(update).map_err(UpdateError::Closure)?;
 
         // TODO: Handle failure
-        persist_database_rules(&database.iox_object_store(), rules.as_ref().clone())
+        persist_database_rules(&db.iox_object_store(), rules.as_ref().clone())
             .await
             .context(CannotPersistUpdatedRules)?;
         Ok(rules)
@@ -1113,8 +1136,8 @@ async fn maybe_initialize_server(shared: &ServerShared) {
         (init_ready, handle)
     };
 
-    let maybe_databases = IoxObjectStore::list_databases(
-        shared.application.object_store().as_ref(),
+    let maybe_databases = IoxObjectStore::list_possible_databases(
+        shared.application.object_store(),
         init_ready.server_id,
     )
     .await;
@@ -1229,7 +1252,7 @@ mod tests {
     use influxdb_line_protocol::parse_lines;
     use iox_object_store::IoxObjectStore;
     use metrics::TestMetricRegistry;
-    use object_store::ObjectStore;
+    use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
     use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
     use query::{frontend::sql::SqlQueryPlanner, QueryDatabase};
     use std::{
@@ -1307,6 +1330,7 @@ mod tests {
 
         let read_data = bananas
             .iox_object_store()
+            .unwrap()
             .get_database_rules_file()
             .await
             .unwrap();
@@ -1412,6 +1436,7 @@ mod tests {
 
         bananas
             .iox_object_store()
+            .unwrap()
             .delete_database_rules_file()
             .await
             .expect("cannot delete rules file");
@@ -1846,7 +1871,6 @@ mod tests {
     #[tokio::test]
     async fn init_error_database() {
         let application = make_application();
-        let store = Arc::clone(application.object_store());
         let server_id = ServerId::try_from(1).unwrap();
 
         let server = make_server(Arc::clone(&application));
@@ -1856,12 +1880,19 @@ mod tests {
         let foo_db_name = DatabaseName::new("foo").unwrap();
         let bar_db_name = DatabaseName::new("bar").unwrap();
 
+        // create database foo
         create_simple_database(&server, "foo")
             .await
             .expect("failed to create database");
 
-        // tamper store
-        let iox_object_store = IoxObjectStore::new(store, server_id, &bar_db_name);
+        // create invalid db rules for bar
+        let iox_object_store = IoxObjectStore::new(
+            Arc::clone(application.object_store()),
+            server_id,
+            &bar_db_name,
+        )
+        .await
+        .unwrap();
         iox_object_store
             .put_database_rules_file(Bytes::from("x"))
             .await
@@ -1917,6 +1948,68 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn init_deleted_database() {
+        test_helpers::maybe_start_logging();
+        let application = make_application();
+        let server_id = ServerId::try_from(1).unwrap();
+
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        let foo_db_name = DatabaseName::new("foo").unwrap();
+
+        // create a directory in object storage that looks like it could
+        // be a database directory, but doesn't have any valid generation
+        // directories in it
+        let mut fake_db_path = application.object_store().new_path();
+        fake_db_path.push_all_dirs(&[server_id.to_string().as_str(), foo_db_name.as_str()]);
+        fake_db_path.set_file_name("not-a-generation");
+        application
+            .object_store()
+            .put(
+                &fake_db_path,
+                futures::stream::once(async move { Ok(Bytes::new()) }),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // start server
+        let server = make_server(application);
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        // generic error MUST NOT be set
+        assert!(server.server_init_error().is_none());
+
+        // server is initialized
+        assert!(server.initialized());
+
+        // DB names contains foo
+        assert_eq!(server.db_names_sorted().len(), 1);
+        assert!(server.db_names_sorted().contains(&String::from("foo")));
+
+        let foo_database = server.database(&foo_db_name).unwrap();
+        let err = foo_database.wait_for_init().await.unwrap_err();
+        assert!(
+            matches!(err.as_ref(), database::InitError::NoActiveDatabase),
+            "got {:?}",
+            err
+        );
+        assert!(Arc::ptr_eq(&err, &foo_database.init_error().unwrap()));
+
+        // creating a new DB with the deleted db's name works
+        create_simple_database(&server, &foo_db_name)
+            .await
+            .expect("failed to create database");
+
+        // DB names contains foo
+        assert_eq!(server.db_names_sorted().len(), 1);
+        assert!(server.db_names_sorted().contains(&String::from("foo")));
+    }
+
+    #[tokio::test]
     async fn wipe_preserved_catalog() {
         // have the following DBs:
         // 1. existing => cannot be wiped
@@ -1954,15 +2047,18 @@ mod tests {
         // tamper store to break one database
         rules_broken
             .iox_object_store()
+            .unwrap()
             .put_database_rules_file(Bytes::from("x"))
             .await
             .unwrap();
 
-        let (preserved_catalog, _catalog) =
-            PreservedCatalog::load::<TestCatalogState>(catalog_broken.iox_object_store(), ())
-                .await
-                .unwrap()
-                .unwrap();
+        let (preserved_catalog, _catalog) = PreservedCatalog::load::<TestCatalogState>(
+            catalog_broken.iox_object_store().unwrap(),
+            (),
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
@@ -1970,6 +2066,7 @@ mod tests {
 
         rules_broken
             .iox_object_store()
+            .unwrap()
             .get_database_rules_file()
             .await
             .unwrap();
@@ -2022,20 +2119,26 @@ mod tests {
                 .to_string(),
             "error wiping preserved catalog: database (db_existing) in invalid state (Initialized) for transition (WipePreservedCatalog)"
         );
-        assert!(PreservedCatalog::exists(&existing.iox_object_store(),)
-            .await
-            .unwrap());
+        assert!(
+            PreservedCatalog::exists(&existing.iox_object_store().unwrap())
+                .await
+                .unwrap()
+        );
 
         // 2. cannot wipe non-existent DB
         assert!(matches!(
             server.database(&db_name_non_existing).unwrap_err(),
             Error::DatabaseNotFound { .. }
         ));
-        let non_existing_iox_object_store = Arc::new(IoxObjectStore::new(
-            Arc::clone(application.object_store()),
-            server_id,
-            &db_name_non_existing,
-        ));
+        let non_existing_iox_object_store = Arc::new(
+            IoxObjectStore::new(
+                Arc::clone(application.object_store()),
+                server_id,
+                &db_name_non_existing,
+            )
+            .await
+            .unwrap(),
+        );
         PreservedCatalog::new_empty::<TestCatalogState>(non_existing_iox_object_store, ())
             .await
             .unwrap();
@@ -2059,7 +2162,8 @@ mod tests {
                 .wipe_preserved_catalog(&db_name_rules_broken)
                 .unwrap_err()
                 .to_string(),
-            "error wiping preserved catalog: database (db_broken_rules) in invalid state (Known) for transition (WipePreservedCatalog)"
+            "error wiping preserved catalog: database (db_broken_rules) in invalid state \
+            (DatabaseObjectStoreFound) for transition (WipePreservedCatalog)"
         );
 
         // 4. wipe DB with broken catalog, this will bring the DB back to life
@@ -2079,9 +2183,11 @@ mod tests {
 
         database.wait_for_init().await.unwrap();
 
-        assert!(PreservedCatalog::exists(&catalog_broken.iox_object_store())
-            .await
-            .unwrap());
+        assert!(
+            PreservedCatalog::exists(&catalog_broken.iox_object_store().unwrap())
+                .await
+                .unwrap()
+        );
         assert!(database.init_error().is_none());
 
         assert!(server.db(&db_name_catalog_broken).is_ok());
@@ -2105,9 +2211,11 @@ mod tests {
                 .to_string(),
             "error wiping preserved catalog: database (db_created) in invalid state (Initialized) for transition (WipePreservedCatalog)"
         );
-        assert!(PreservedCatalog::exists(&created.iox_object_store())
-            .await
-            .unwrap());
+        assert!(
+            PreservedCatalog::exists(&created.iox_object_store().unwrap())
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]
@@ -2121,11 +2229,11 @@ mod tests {
         server.set_id(server_id).unwrap();
         server.wait_for_init().await.unwrap();
 
-        let iox_object_store = Arc::new(IoxObjectStore::new(
-            Arc::clone(application.object_store()),
-            server_id,
-            &db_name,
-        ));
+        let iox_object_store = Arc::new(
+            IoxObjectStore::new(Arc::clone(application.object_store()), server_id, &db_name)
+                .await
+                .unwrap(),
+        );
 
         // create catalog
         PreservedCatalog::new_empty::<TestCatalogState>(iox_object_store, ())
