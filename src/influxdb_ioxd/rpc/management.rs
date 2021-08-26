@@ -508,6 +508,30 @@ where
 
         Ok(Response::new(DropPartitionResponse {}))
     }
+
+    async fn delete(
+        &self,
+        request: tonic::Request<DeleteRequest>,
+    ) -> Result<tonic::Response<DeleteResponse>, tonic::Status> {
+        let DeleteRequest {
+            db_name,
+            table_name,
+            delete_predicate,
+        } = request.into_inner();
+
+        // Validate that the database name is legit
+        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db = self
+            .server
+            .db(&db_name)
+            .map_err(default_server_error_handler)?;
+
+        db.delete(&table_name, &delete_predicate)
+            .await
+            .map_err(default_db_error_handler)?;
+
+        Ok(Response::new(DeleteResponse {}))
+    }
 }
 
 pub fn make_server<M>(

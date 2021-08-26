@@ -76,6 +76,9 @@ service ManagementService {
 
   // Drop partition from memory and (if persisted) from object store.
   rpc DropPartition(DropPartitionRequest) returns (DropPartitionResponse);
+
+  // Delete data for a table on a specified predicate
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
 }
 
 message GetServerIdRequest {}
@@ -363,4 +366,21 @@ message DropPartitionRequest {
 }
 
 message DropPartitionResponse {
+}
+
+// Request to delete data from a table on a specified predicate
+message DeleteRequest {
+  // name of the database
+  string db_name = 1;
+
+  // table name
+  string table_name = 2;
+
+  // delete predicate
+  string delete_predicate = 3;
+}
+
+message DeleteResponse {
+  // todo
+  // string delete_status = 1;
 }

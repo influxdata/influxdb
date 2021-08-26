@@ -40,6 +40,7 @@ message OperationMetadata {
     PersistChunks persist_chunks = 11;
     DropChunk drop_chunk = 12;
     DropPartition drop_partition = 17;
+    Delete delete = 18;
   }
 }
 
@@ -143,4 +144,20 @@ message DropPartition {
 message WipePreservedCatalog {
   // name of the database
   string db_name = 1;
+}
+
+// Soft delete data from a table on a specified predicate
+// Soft delete means data is deleted from customer's point of view but
+// they still physically exist in IOx storage (MUB, RUB, OS). During Query time,
+// we will filter out the deleted rows.
+// We will implement Hard Delete to purge deleted data.
+message Delete {
+  // name of the database
+  string db_name = 1;
+
+  // table name
+  string table_name = 2;
+
+  // dlete predicate
+  string delete_predicate = 3;
 }

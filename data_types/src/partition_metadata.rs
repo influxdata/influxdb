@@ -163,6 +163,29 @@ impl TableSummary {
     }
 }
 
+/// Delete information
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DeleteInfo {
+    /// Database name
+    pub db_name: Arc<str>,
+
+    /// Table with data to delete
+    pub table_name: Arc<str>,
+
+    /// Delete Predicate
+    pub delete_predicate: Arc<str>,
+}
+
+impl std::fmt::Display for DeleteInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Delete('{}':'{}':'{}')",
+            self.db_name, self.table_name, self.delete_predicate
+        )
+    }
+}
+
 // Replicate this enum here as it can't be derived from the existing statistics
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub enum InfluxDbType {

@@ -3,7 +3,7 @@ use crate::influxdata::iox::management::v1 as management;
 use crate::protobuf_type_url_eq;
 use data_types::chunk_metadata::ChunkAddr;
 use data_types::job::{Job, OperationStatus};
-use data_types::partition_metadata::PartitionAddr;
+use data_types::partition_metadata::{DeleteInfo, PartitionAddr};
 use std::convert::TryFrom;
 use std::sync::Arc;
 
@@ -57,6 +57,11 @@ impl From<Job> for management::operation_metadata::Job {
                 db_name: partition.db_name.to_string(),
                 partition_key: partition.partition_key.to_string(),
                 table_name: partition.table_name.to_string(),
+            }),
+            Job::Delete { delete_info } => Self::Delete(management::Delete {
+                db_name: delete_info.db_name.to_string(),
+                table_name: delete_info.table_name.to_string(),
+                delete_predicate: delete_info.delete_predicate.to_string(),
             }),
         }
     }
@@ -149,6 +154,17 @@ impl From<management::operation_metadata::Job> for Job {
                     db_name: Arc::from(db_name.as_str()),
                     table_name: Arc::from(table_name.as_str()),
                     partition_key: Arc::from(partition_key.as_str()),
+                },
+            },
+            Job::Delete(management::Delete {
+                db_name,
+                table_name,
+                delete_predicate,
+            }) => Self::Delete {
+                delete_info: DeleteInfo {
+                    db_name: Arc::from(db_name.as_str()),
+                    table_name: Arc::from(table_name.as_str()),
+                    delete_predicate: Arc::from(delete_predicate.as_str()),
                 },
             },
         }
