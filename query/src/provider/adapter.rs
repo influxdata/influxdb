@@ -10,7 +10,9 @@ use arrow::{
     error::Result as ArrowResult,
     record_batch::RecordBatch,
 };
-use datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream};
+use datafusion::physical_plan::{
+    metrics::BaselineMetrics, RecordBatchStream, SendableRecordBatchStream,
+};
 use futures::Stream;
 
 /// Database schema creation / validation errors.
@@ -73,6 +75,8 @@ pub(crate) struct SchemaAdapterStream {
     /// The schema of `input` is always a subset of output_schema
     output_schema: SchemaRef,
     mappings: Vec<ColumnMapping>,
+    /// metrics to record execution
+    baseline_metrics: BaselineMetrics,
 }
 
 impl std::fmt::Debug for SchemaAdapterStream {
@@ -95,7 +99,11 @@ impl SchemaAdapterStream {
     pub(crate) fn try_new(
         input: SendableRecordBatchStream,
         output_schema: SchemaRef,
+        baseline_metrics: BaselineMetrics,
     ) -> Result<Self> {
+        // record this setup time
+        let timer = baseline_metrics.elapsed_compute().timer();
+
         let input_schema = input.schema();
 
         // Figure out how to compute each column in the output
@@ -166,10 +174,12 @@ impl SchemaAdapterStream {
             }
         }
 
+        timer.done();
         Ok(Self {
             input,
             output_schema,
             mappings,
+            baseline_metrics,
         })
     }
 
@@ -203,9 +213,10 @@ impl Stream for SchemaAdapterStream {
     ) -> Poll<Option<Self::Item>> {
         // the Poll result is an Opton<Result<Batch>> so we need a few
         // layers of maps to get at the actual batch, if any
-        self.input.as_mut().poll_next(ctx).map(|maybe_result| {
+        let poll = self.input.as_mut().poll_next(ctx).map(|maybe_result| {
             maybe_result.map(|batch| batch.and_then(|batch| self.extend_batch(batch)))
-        })
+        });
+        self.baseline_metrics.record_poll(poll)
     }
 
     // TODO is there a useful size_hint to pass?
@@ -231,7 +242,10 @@ mod tests {
         record_batch::RecordBatch,
     };
     use arrow_util::assert_batches_eq;
-    use datafusion::physical_plan::common::{collect, SizedRecordBatchStream};
+    use datafusion::physical_plan::{
+        common::{collect, SizedRecordBatchStream},
+        metrics::ExecutionPlanMetricsSet,
+    };
     use test_helpers::assert_contains;
 
     #[tokio::test]
@@ -241,7 +255,8 @@ mod tests {
         let output_schema = batch.schema();
         let input_stream = SizedRecordBatchStream::new(batch.schema(), vec![Arc::new(batch)]);
         let adapter_stream =
-            SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema).unwrap();
+            SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema, baseline_metrics())
+                .unwrap();
 
         let output = collect(Box::pin(adapter_stream))
             .await
@@ -270,7 +285,8 @@ mod tests {
         ]));
         let input_stream = SizedRecordBatchStream::new(batch.schema(), vec![Arc::new(batch)]);
         let adapter_stream =
-            SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema).unwrap();
+            SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema, baseline_metrics())
+                .unwrap();
 
         let output = collect(Box::pin(adapter_stream))
             .await
@@ -300,7 +316,8 @@ mod tests {
         ]));
         let input_stream = SizedRecordBatchStream::new(batch.schema(), vec![Arc::new(batch)]);
         let adapter_stream =
-            SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema).unwrap();
+            SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema, baseline_metrics())
+                .unwrap();
 
         let output = collect(Box::pin(adapter_stream))
             .await
@@ -327,7 +344,8 @@ mod tests {
             Field::new("a", DataType::Int32, false),
         ]));
         let input_stream = SizedRecordBatchStream::new(batch.schema(), vec![Arc::new(batch)]);
-        let res = SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema);
+        let res =
+            SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema, baseline_metrics());
 
         assert_contains!(
             res.unwrap_err().to_string(),
@@ -346,7 +364,8 @@ mod tests {
             Field::new("a", DataType::Int32, false),
         ]));
         let input_stream = SizedRecordBatchStream::new(batch.schema(), vec![Arc::new(batch)]);
-        let res = SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema);
+        let res =
+            SchemaAdapterStream::try_new(Box::pin(input_stream), output_schema, baseline_metrics());
 
         assert_contains!(res.unwrap_err().to_string(), "input field 'c' had type 'Utf8' which is different than output field 'c' which had type 'Float32'");
     }
@@ -360,5 +379,10 @@ mod tests {
 
         RecordBatch::try_from_iter(vec![("a", col_a as ArrayRef), ("b", col_b), ("c", col_c)])
             .unwrap()
+    }
+
+    /// Create a BaselineMetrics object for testing
+    fn baseline_metrics() -> BaselineMetrics {
+        BaselineMetrics::new(&ExecutionPlanMetricsSet::new(), 0)
     }
 }

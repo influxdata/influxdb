@@ -19,6 +19,7 @@ use datafusion::{
     error::{DataFusionError, Result},
     logical_plan::{DFSchemaRef, Expr, LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
+        metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet, RecordOutput},
         ColumnarValue, DisplayFormatType, Distribution, ExecutionPlan, Partitioning, PhysicalExpr,
         SendableRecordBatchStream,
     },
@@ -120,6 +121,8 @@ pub struct StreamSplitExec {
     state: Mutex<State>,
     input: Arc<dyn ExecutionPlan>,
     split_expr: Arc<dyn PhysicalExpr>,
+    /// Execution metrics
+    metrics: ExecutionPlanMetricsSet,
 }
 
 impl StreamSplitExec {
@@ -129,6 +132,7 @@ impl StreamSplitExec {
             state,
             input,
             split_expr,
+            metrics: ExecutionPlanMetricsSet::new(),
         }
     }
 }
@@ -170,11 +174,10 @@ impl ExecutionPlan for StreamSplitExec {
         children: Vec<Arc<dyn ExecutionPlan>>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         match children.len() {
-            1 => Ok(Arc::new(Self {
-                state: Mutex::new(State::New),
-                input: Arc::clone(&children[0]),
-                split_expr: Arc::clone(&self.split_expr),
-            })),
+            1 => Ok(Arc::new(Self::new(
+                Arc::clone(&children[0]),
+                Arc::clone(&self.split_expr),
+            ))),
             _ => Err(DataFusionError::Internal(
                 "StreamSplitExec wrong number of children".to_string(),
             )),
@@ -213,6 +216,10 @@ impl ExecutionPlan for StreamSplitExec {
             }
         }
     }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
+    }
 }
 
 impl StreamSplitExec {
@@ -228,6 +235,9 @@ impl StreamSplitExec {
             num_input_streams, 1,
             "need exactly one input partition for stream split exec"
         );
+
+        let baseline_metrics0 = BaselineMetrics::new(&self.metrics, 0);
+        let baseline_metrics1 = BaselineMetrics::new(&self.metrics, 1);
 
         trace!("Setting up SplitStreamExec state");
 
@@ -245,6 +255,8 @@ impl StreamSplitExec {
                 split_expr,
                 tx0.clone(),
                 tx1.clone(),
+                baseline_metrics0,
+                baseline_metrics1,
             ));
 
             let txs = [tx0, tx1];
@@ -288,8 +300,16 @@ async fn split_the_stream(
     split_expr: Arc<dyn PhysicalExpr>,
     tx0: Sender<ArrowResult<RecordBatch>>,
     tx1: Sender<ArrowResult<RecordBatch>>,
+    baseline_metrics0: BaselineMetrics,
+    baseline_metrics1: BaselineMetrics,
 ) -> Result<()> {
+    let elapsed_compute0 = baseline_metrics0.elapsed_compute();
+    let elapsed_compute1 = baseline_metrics1.elapsed_compute();
     while let Some(batch) = input_stream.next().await {
+        // charge initial evaluation to output 0 (not fair, but I
+        // can't think of anything else that makes this reasonable)
+        let timer = elapsed_compute0.timer();
+
         let batch = batch?;
         trace!(num_rows = batch.num_rows(), "Processing batch");
         let mut tx0_done = false;
@@ -297,15 +317,19 @@ async fn split_the_stream(
 
         let true_indices = split_expr.evaluate(&batch)?;
         let not_true_indices = negate(&true_indices)?;
+        timer.done();
 
         let (true_batch, not_true_batch) = match (true_indices, not_true_indices) {
             (ColumnarValue::Array(true_indices), ColumnarValue::Array(not_true_indices)) => {
+                let timer = elapsed_compute0.timer();
                 let true_indices = true_indices
                     .as_any()
                     .downcast_ref::<BooleanArray>()
                     .unwrap();
                 let true_batch = filter_record_batch(&batch, true_indices)?;
+                timer.done();
 
+                let timer = elapsed_compute1.timer();
                 let not_true_indices = not_true_indices
                     .as_any()
                     .downcast_ref::<BooleanArray>()
@@ -324,6 +348,7 @@ async fn split_the_stream(
                 } else {
                     filter_record_batch(&batch, not_true_indices)
                 }?;
+                timer.done();
 
                 (true_batch, not_true_batch)
             }
@@ -343,6 +368,10 @@ async fn split_the_stream(
                 panic!("mismatched array types");
             }
         };
+
+        // record output counts
+        let true_batch = true_batch.record_output(&baseline_metrics0);
+        let not_true_batch = not_true_batch.record_output(&baseline_metrics1);
 
         // don't treat a hangup as an error, as it can also be caused
         // by a LIMIT operation where the entire stream is not

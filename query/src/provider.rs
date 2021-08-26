@@ -35,9 +35,9 @@ mod adapter;
 mod deduplicate;
 mod overlap;
 mod physical;
-use self::{
-    deduplicate::DeduplicateExec, overlap::group_potential_duplicates, physical::IOxReadFilterNode,
-};
+use self::overlap::group_potential_duplicates;
+pub(crate) use deduplicate::DeduplicateExec;
+pub(crate) use physical::IOxReadFilterNode;
 
 // TODO(edd): temp experiment - should wire in `_batch_size` in the
 // table provider.
@@ -314,7 +314,7 @@ pub(crate) struct Deduplicater<C: QueryChunk + 'static> {
 }
 
 impl<C: QueryChunk + 'static> Deduplicater<C> {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             overlapped_chunks_set: vec![],
             in_chunk_duplicates_chunks: vec![],
@@ -389,7 +389,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///  │    (Chunk 1)    │     │    (Chunk 2)    │    │    (Chunk 3)    │
     ///  └─────────────────┘     └─────────────────┘    └─────────────────┘
     ///```
-    fn build_scan_plan(
+    pub(crate) fn build_scan_plan(
         &mut self,
         table_name: Arc<str>,
         output_schema: Arc<Schema>,

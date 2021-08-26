@@ -6,7 +6,7 @@ pub mod field;
 pub mod fieldlist;
 mod schema_pivot;
 pub mod seriesset;
-mod split;
+pub(crate) mod split;
 pub mod stream;
 pub mod stringset;
 mod task;
