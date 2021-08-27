@@ -1,0 +1,13 @@
+[package]
+name = "metric_exporters"
+version = "0.1.0"
+authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
+edition = "2018"
+
+[dependencies] # In alphabetical order
+
+observability_deps = { path = "../observability_deps" }
+metric = { path = "../metric" }
+prometheus = "0.12"
+
+[dev-dependencies] # In alphabetical order

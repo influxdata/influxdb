@@ -31,6 +31,8 @@ members = [
     "iox_object_store",
     "lifecycle",
     "logfmt",
+    "metric",
+    "metric_exporters",
     "mutable_buffer",
     "object_store",
     "observability_deps",
@@ -70,6 +72,8 @@ influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
 internal_types = { path = "internal_types" }
 logfmt = { path = "logfmt" }
+metric = { path = "metric" }
+metric_exporters = { path = "metric_exporters" }
 metrics = { path = "metrics" }
 mutable_buffer = { path = "mutable_buffer" }
 num_cpus = "1.13.0"

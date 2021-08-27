@@ -120,6 +120,18 @@ pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
             ),
         }
         .into(),
+        Error::CannotFlushPartition {
+            table_name,
+            partition_key,
+        } => PreconditionViolation {
+            category: "database".to_string(),
+            subject: "influxdata.com/iox".to_string(),
+            description: format!(
+                "Cannot persist partition because it cannot be flushed at the moment: {}:{}",
+                table_name, partition_key
+            ),
+        }
+        .into(),
         Error::CatalogError { source } => default_catalog_error_handler(source),
         error => {
             error!(?error, "Unexpected error");

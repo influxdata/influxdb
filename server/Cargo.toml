@@ -29,6 +29,7 @@ internal_types = { path = "../internal_types" }
 iox_object_store = { path = "../iox_object_store" }
 itertools = "0.10.1"
 lifecycle = { path = "../lifecycle" }
+metric = { path = "../metric" }
 metrics = { path = "../metrics" }
 mutable_buffer = { path = "../mutable_buffer" }
 num_cpus = "1.13.0"
