@@ -73,6 +73,7 @@ Because of the version bump to `go`, the macOS build for this release requires a
 1. [21910](https://github.com/influxdata/influxdb/pull/21910): Added `--ui-disabled` option to `influxd` to allow for running with the UI disabled.
 1. [21958](https://github.com/influxdata/influxdb/pull/21958): Telemetry improvements: Do not record telemetry data for non-existant paths; replace invalid static asset paths with a slug.
 1. [22023](https://github.com/influxdata/influxdb/pull/22023): Upgrade Flux to v0.124.0.
+1. [22316](https://github.com/influxdata/influxdb/pull/22316): Optimize series iteration for queries that can be answered without inspecting TSM data.
 
 ### Bug Fixes
 
