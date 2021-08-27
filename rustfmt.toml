@@ -1,3 +1,5 @@
+edition = "2018"
+
 # Unstable features not yet supported on stable Rust
 #wrap_comments = true
 #imports_granularity = "Crate"
