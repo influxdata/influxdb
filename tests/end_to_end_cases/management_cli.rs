@@ -978,8 +978,9 @@ async fn test_persist_partition_error() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(
-            predicate::str::contains("Error persisting partition:")
-                .and(predicate::str::contains("Cannot flush partition")),
-        );
+        .stderr(predicate::str::contains("Error persisting partition:").and(
+            predicate::str::contains(
+                "Cannot persist partition because it cannot be flushed at the moment",
+            ),
+        ));
 }

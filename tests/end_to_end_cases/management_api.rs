@@ -1326,5 +1326,8 @@ async fn test_persist_partition_error() {
         .persist_partition(&db_name, "data", &partition_key[..])
         .await
         .unwrap_err();
-    assert_contains!(err.to_string(), "Cannot flush partition");
+    assert_contains!(
+        err.to_string(),
+        "Cannot persist partition because it cannot be flushed at the moment"
+    );
 }
