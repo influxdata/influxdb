@@ -173,7 +173,16 @@ pub struct DeleteInfo {
     pub table_name: Arc<str>,
 
     /// Delete Predicate
+    // Ideally, this can be any complicated expressions that DataFusion supports
+    // but in our first version, we only support what our read buffer does which is
+    // conjunctive expressions with columns being compared to literals using = or != operators.
     pub delete_predicate: Arc<str>,
+
+    /// Start time range of deleting data
+    pub start_time: Arc<str>,
+
+    /// Stop time range of deleting data
+    pub stop_time: Arc<str>,
 }
 
 impl std::fmt::Display for DeleteInfo {

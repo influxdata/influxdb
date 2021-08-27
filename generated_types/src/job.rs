@@ -62,6 +62,8 @@ impl From<Job> for management::operation_metadata::Job {
                 db_name: delete_info.db_name.to_string(),
                 table_name: delete_info.table_name.to_string(),
                 delete_predicate: delete_info.delete_predicate.to_string(),
+                start_time: delete_info.start_time.to_string(),
+                stop_time: delete_info.stop_time.to_string(),
             }),
         }
     }
@@ -160,11 +162,15 @@ impl From<management::operation_metadata::Job> for Job {
                 db_name,
                 table_name,
                 delete_predicate,
+                start_time,
+                stop_time,
             }) => Self::Delete {
                 delete_info: DeleteInfo {
                     db_name: Arc::from(db_name.as_str()),
                     table_name: Arc::from(table_name.as_str()),
                     delete_predicate: Arc::from(delete_predicate.as_str()),
+                    start_time: Arc::from(start_time.as_str()),
+                    stop_time: Arc::from(stop_time.as_str()),
                 },
             },
         }

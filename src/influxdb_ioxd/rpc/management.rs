@@ -517,6 +517,8 @@ where
             db_name,
             table_name,
             delete_predicate,
+            start_time: _,
+            stop_time: _,
         } = request.into_inner();
 
         // Validate that the database name is legit
@@ -525,6 +527,10 @@ where
             .server
             .db(&db_name)
             .map_err(default_server_error_handler)?;
+
+        // Todo
+        // Convert start_time and stop_time to time range
+        // and make a new predicate that is a conjunction of the time range and the delete_predicate
 
         db.delete(&table_name, &delete_predicate)
             .await

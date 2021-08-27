@@ -647,7 +647,7 @@ impl Db {
     pub async fn delete(
         self: &Arc<Self>,
         _table_name: &str,
-        _delete_predicate: &str,
+        _delete_predicate: &str, //todo: this might be a Predicate dta type
     ) -> Result<()> {
         let partitions = self.catalog.partitions();
         for partition in &partitions {
