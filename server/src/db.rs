@@ -33,8 +33,8 @@ use metrics::KeyValue;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::{Mutex, RwLock};
-use parquet_file::{
-    catalog::{CatalogParquetInfo, CheckpointData, PreservedCatalog},
+use parquet_file::catalog::{
+    api::{CatalogParquetInfo, CheckpointData, PreservedCatalog},
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
@@ -1094,7 +1094,7 @@ impl Db {
 
     async fn cleanup_unreferenced_parquet_files(
         self: &Arc<Self>,
-    ) -> std::result::Result<(), parquet_file::cleanup::Error> {
+    ) -> std::result::Result<(), parquet_file::catalog::cleanup::Error> {
         let guard = self.cleanup_lock.write().await;
         let files = get_unreferenced_parquet_files(&self.preserved_catalog, 1_000).await?;
         drop(guard);

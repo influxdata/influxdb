@@ -117,7 +117,7 @@ use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputPro
 /// For breaking changes, this will change.
 ///
 /// **Important: When changing this structure, consider bumping the
-///   [catalog transaction version](crate::catalog::TRANSACTION_VERSION)!**
+///   [catalog transaction version](crate::catalog::api::TRANSACTION_VERSION)!**
 pub const METADATA_VERSION: u32 = 5;
 
 /// File-level metadata key to store the IOx-specific data.

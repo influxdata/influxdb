@@ -49,7 +49,7 @@ pub enum Error {
 
     #[snafu(display("Error while commiting transaction on preserved catalog: {}", source))]
     CommitError {
-        source: parquet_file::catalog::Error,
+        source: parquet_file::catalog::api::Error,
     },
 
     #[snafu(display("Cannot write chunk: {}", addr))]

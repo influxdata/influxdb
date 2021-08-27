@@ -1,34 +1,34 @@
 //! Catalog preservation and transaction handling.
 
-use crate::metadata::IoxParquetMetaData;
-use bytes::Bytes;
+use crate::{
+    catalog::internals::{
+        proto_io::{load_transaction_proto, store_transaction_proto},
+        proto_parse,
+        types::{FileType, TransactionKey},
+    },
+    metadata::IoxParquetMetaData,
+};
 use chrono::{DateTime, Utc};
 use futures::{StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::catalog::v1 as proto;
-use iox_object_store::{
-    IoxObjectStore, ParquetFilePath, ParquetFilePathParseError, TransactionFilePath,
-};
-use object_store::{
-    path::{parsed::DirsAndFileName, parts::PathPart},
-    ObjectStore, ObjectStoreApi,
-};
+use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
+use object_store::{ObjectStore, ObjectStoreApi};
 use observability_deps::tracing::{info, warn};
 use parking_lot::RwLock;
-use prost::{DecodeError, EncodeError, Message};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{
         hash_map::Entry::{Occupied, Vacant},
         HashMap,
     },
-    convert::TryInto,
-    fmt::{Debug, Display},
-    num::TryFromIntError,
-    str::FromStr,
+    fmt::Debug,
     sync::Arc,
 };
 use tokio::sync::{Semaphore, SemaphorePermit};
 use uuid::Uuid;
+
+pub use crate::catalog::internals::proto_io::Error as ProtoIOError;
+pub use crate::catalog::internals::proto_parse::Error as ProtoParseError;
 
 /// Current version for serialized transactions.
 ///
@@ -37,15 +37,11 @@ pub const TRANSACTION_VERSION: u32 = 12;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Error during serialization: {}", source))]
-    Serialization {
-        source: EncodeError,
-    },
+    #[snafu(display("Error during protobuf IO: {}", source))]
+    ProtobufIOError { source: ProtoIOError },
 
-    #[snafu(display("Error during deserialization: {}", source))]
-    Deserialization {
-        source: DecodeError,
-    },
+    #[snafu(display("Internal: Error while parsing protobuf: {}", source))]
+    ProtobufParseError { source: ProtoParseError },
 
     #[snafu(display("Error during store write operation: {}", source))]
     Write {
@@ -58,19 +54,14 @@ pub enum Error {
     },
 
     #[snafu(display("Missing transaction: {}", revision_counter))]
-    MissingTransaction {
-        revision_counter: u64,
-    },
+    MissingTransaction { revision_counter: u64 },
 
     #[snafu(display(
         "Wrong revision counter in transaction file: expected {} but found {}",
         expected,
         actual
     ))]
-    WrongTransactionRevision {
-        expected: u64,
-        actual: u64,
-    },
+    WrongTransactionRevision { expected: u64, actual: u64 },
 
     #[snafu(display(
         "Wrong UUID for transaction file (revision: {}): expected {} but found {}",
@@ -96,14 +87,6 @@ pub enum Error {
         actual: Option<Uuid>,
     },
 
-    #[snafu(display("Cannot parse UUID: {}", source))]
-    UuidParse {
-        source: uuid::Error,
-    },
-
-    #[snafu(display("UUID required but not provided"))]
-    UuidRequired {},
-
     #[snafu(display("Path required but not provided"))]
     PathRequired {},
 
@@ -127,24 +110,16 @@ pub enum Error {
     },
 
     #[snafu(display("Upgrade path not implemented/supported: {}", format))]
-    UnsupportedUpgrade {
-        format: String,
-    },
+    UnsupportedUpgrade { format: String },
 
     #[snafu(display("Parquet already exists in catalog: {:?}", path))]
-    ParquetFileAlreadyExists {
-        path: ParquetFilePath,
-    },
+    ParquetFileAlreadyExists { path: ParquetFilePath },
 
     #[snafu(display("Parquet does not exist in catalog: {:?}", path))]
-    ParquetFileDoesNotExist {
-        path: ParquetFilePath,
-    },
+    ParquetFileDoesNotExist { path: ParquetFilePath },
 
     #[snafu(display("Cannot decode parquet metadata: {}", source))]
-    MetadataDecodingFailed {
-        source: crate::metadata::Error,
-    },
+    MetadataDecodingFailed { source: crate::metadata::Error },
 
     #[snafu(
         display("Cannot extract metadata from {:?}: {}", path, source),
@@ -189,22 +164,6 @@ pub enum Error {
     #[snafu(display("Catalog already exists"))]
     AlreadyExists {},
 
-    #[snafu(display("Internal: Datetime required but missing in serialized catalog"))]
-    DateTimeRequired {},
-
-    #[snafu(display("Internal: Cannot parse datetime in serialized catalog: {}", source))]
-    DateTimeParseError {
-        source: TryFromIntError,
-    },
-
-    #[snafu(display(
-        "Internal: Cannot parse encoding in serialized catalog: {} is not a valid, specified variant",
-        data
-    ))]
-    EncodingParseError {
-        data: i32,
-    },
-
     #[snafu(display(
         "Internal: Found wrong encoding in serialized catalog file: Expected {:?} but got {:?}",
         expected,
@@ -216,13 +175,7 @@ pub enum Error {
     },
 
     #[snafu(display("Cannot commit transaction: {}", source))]
-    CommitError {
-        source: Box<Error>,
-    },
-
-    InvalidParquetFilePath {
-        source: ParquetFilePathParseError,
-    },
+    CommitError { source: Box<Error> },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -319,15 +272,15 @@ impl PreservedCatalog {
         while let Some(transaction_file_list) = stream.try_next().await.context(Read)? {
             for transaction_file_path in &transaction_file_list {
                 match load_transaction_proto(iox_object_store, transaction_file_path).await {
-                    Ok(proto) => match parse_timestamp(&proto.start_timestamp) {
+                    Ok(proto) => match proto_parse::parse_timestamp(&proto.start_timestamp) {
                         Ok(ts) => {
                             res = Some(res.map_or(ts, |res: DateTime<Utc>| res.max(ts)));
                         }
                         Err(e) => warn!(%e, ?transaction_file_path, "Cannot parse timestamp"),
                     },
-                    Err(e @ Error::Read { .. }) => {
+                    Err(e @ crate::catalog::internals::proto_io::Error::Read { .. }) => {
                         // bubble up IO error
-                        return Err(e);
+                        return Err(Error::ProtobufIOError { source: e });
                     }
                     Err(e) => warn!(%e, ?transaction_file_path, "Cannot read transaction"),
                 }
@@ -519,6 +472,14 @@ impl PreservedCatalog {
             .expect("catalog should have at least an empty transaction")
     }
 
+    /// Get latest revision UUID.
+    pub fn revision_uuid(&self) -> Uuid {
+        self.previous_tkey
+            .read()
+            .map(|tkey| tkey.uuid)
+            .expect("catalog should have at least an empty transaction")
+    }
+
     /// Object store used by this catalog.
     pub fn iox_object_store(&self) -> Arc<IoxObjectStore> {
         Arc::clone(&self.iox_object_store)
@@ -528,147 +489,6 @@ impl PreservedCatalog {
 impl Debug for PreservedCatalog {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PreservedCatalog{{..}}")
-    }
-}
-
-/// Type of catalog file.
-#[derive(Debug, Clone, Copy)]
-enum FileType {
-    /// Ordinary transaction with delta encoding.
-    Transaction,
-
-    /// Checkpoints with full state.
-    Checkpoint,
-}
-
-impl FileType {
-    /// Get encoding that should be used for this file.
-    fn encoding(&self) -> proto::transaction::Encoding {
-        match self {
-            Self::Transaction => proto::transaction::Encoding::Delta,
-            Self::Checkpoint => proto::transaction::Encoding::Full,
-        }
-    }
-}
-
-/// Serialize and store protobuf-encoded transaction.
-async fn store_transaction_proto(
-    iox_object_store: &IoxObjectStore,
-    path: &TransactionFilePath,
-    proto: &proto::Transaction,
-) -> Result<()> {
-    let mut data = Vec::new();
-    proto.encode(&mut data).context(Serialization {})?;
-    let data = Bytes::from(data);
-    let len = data.len();
-
-    iox_object_store
-        .put_catalog_transaction_file(
-            path,
-            futures::stream::once(async move { Ok(data) }),
-            Some(len),
-        )
-        .await
-        .context(Write {})?;
-
-    Ok(())
-}
-
-/// Load and deserialize protobuf-encoded transaction from store.
-async fn load_transaction_proto(
-    iox_object_store: &IoxObjectStore,
-    path: &TransactionFilePath,
-) -> Result<proto::Transaction> {
-    let data = iox_object_store
-        .get_catalog_transaction_file(path)
-        .await
-        .context(Read {})?
-        .map_ok(|bytes| bytes.to_vec())
-        .try_concat()
-        .await
-        .context(Read {})?;
-    let proto = proto::Transaction::decode(&data[..]).context(Deserialization {})?;
-    Ok(proto)
-}
-
-/// Parse UUID from protobuf.
-fn parse_uuid(s: &str) -> Result<Option<Uuid>> {
-    if s.is_empty() {
-        Ok(None)
-    } else {
-        let uuid = Uuid::from_str(s).context(UuidParse {})?;
-        Ok(Some(uuid))
-    }
-}
-
-/// Parse UUID from protobuf and fail if protobuf did not provide data.
-fn parse_uuid_required(s: &str) -> Result<Uuid> {
-    parse_uuid(s)?.context(UuidRequired {})
-}
-
-/// Parse [`ParquetFilePath`](iox_object_store::ParquetFilePath) from protobuf.
-fn parse_dirs_and_filename(proto: &proto::Path) -> Result<ParquetFilePath> {
-    let dirs_and_file_name = DirsAndFileName {
-        directories: proto
-            .directories
-            .iter()
-            .map(|s| PathPart::from(&s[..]))
-            .collect(),
-        file_name: Some(PathPart::from(&proto.file_name[..])),
-    };
-
-    ParquetFilePath::from_relative_dirs_and_file_name(&dirs_and_file_name)
-        .context(InvalidParquetFilePath)
-}
-
-/// Store [`ParquetFilePath`](iox_object_store::ParquetFilePath) as protobuf.
-fn unparse_dirs_and_filename(path: &ParquetFilePath) -> proto::Path {
-    let path = path.relative_dirs_and_file_name();
-    proto::Path {
-        directories: path
-            .directories
-            .iter()
-            .map(|part| part.encoded().to_string())
-            .collect(),
-        file_name: path
-            .file_name
-            .as_ref()
-            .map(|part| part.encoded().to_string())
-            .unwrap_or_default(),
-    }
-}
-
-/// Parse timestamp from protobuf.
-fn parse_timestamp(
-    ts: &Option<generated_types::google::protobuf::Timestamp>,
-) -> Result<DateTime<Utc>> {
-    let ts: generated_types::google::protobuf::Timestamp =
-        ts.as_ref().context(DateTimeRequired)?.clone();
-    let ts: DateTime<Utc> = ts.try_into().context(DateTimeParseError)?;
-    Ok(ts)
-}
-
-/// Parse encoding from protobuf.
-fn parse_encoding(encoding: i32) -> Result<proto::transaction::Encoding> {
-    let parsed = proto::transaction::Encoding::from_i32(encoding)
-        .context(EncodingParseError { data: encoding })?;
-    if parsed == proto::transaction::Encoding::Unspecified {
-        Err(Error::EncodingParseError { data: encoding })
-    } else {
-        Ok(parsed)
-    }
-}
-
-/// Key to address transactions.
-#[derive(Clone, Debug, Copy)]
-struct TransactionKey {
-    revision_counter: u64,
-    uuid: Uuid,
-}
-
-impl Display for TransactionKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}.{}", self.revision_counter, self.uuid)
     }
 }
 
@@ -729,7 +549,9 @@ impl OpenTransaction {
                 .fail()?;
             }
             proto::transaction::action::Action::AddParquet(a) => {
-                let path = parse_dirs_and_filename(a.path.as_ref().context(PathRequired)?)?;
+                let path =
+                    proto_parse::parse_dirs_and_filename(a.path.as_ref().context(PathRequired)?)
+                        .context(ProtobufParseError)?;
                 let file_size_bytes = a.file_size_bytes as usize;
 
                 let metadata = IoxParquetMetaData::from_thrift_bytes(a.metadata.clone());
@@ -749,7 +571,9 @@ impl OpenTransaction {
                 )?;
             }
             proto::transaction::action::Action::RemoveParquet(a) => {
-                let path = parse_dirs_and_filename(a.path.as_ref().context(PathRequired)?)?;
+                let path =
+                    proto_parse::parse_dirs_and_filename(a.path.as_ref().context(PathRequired)?)
+                        .context(ProtobufParseError)?;
                 state.remove(&path)?;
             }
         };
@@ -776,7 +600,9 @@ impl OpenTransaction {
     async fn store(&self, iox_object_store: &IoxObjectStore) -> Result<()> {
         let path =
             TransactionFilePath::new_transaction(self.tkey().revision_counter, self.tkey().uuid);
-        store_transaction_proto(iox_object_store, &path, &self.proto).await?;
+        store_transaction_proto(iox_object_store, &path, &self.proto)
+            .await
+            .context(ProtobufIOError)?;
         Ok(())
     }
 
@@ -799,7 +625,9 @@ impl OpenTransaction {
                 TransactionFilePath::new_checkpoint(tkey.revision_counter, tkey.uuid)
             }
         };
-        let proto = load_transaction_proto(iox_object_store, &path).await?;
+        let proto = load_transaction_proto(iox_object_store, &path)
+            .await
+            .context(ProtobufIOError)?;
 
         // sanity-check file content
         if proto.version != TRANSACTION_VERSION {
@@ -818,7 +646,8 @@ impl OpenTransaction {
             }
             .fail()?
         }
-        let uuid_actual = parse_uuid_required(&proto.uuid)?;
+        let uuid_actual =
+            proto_parse::parse_uuid_required(&proto.uuid).context(ProtobufParseError)?;
         if uuid_actual != tkey.uuid {
             WrongTransactionUuid {
                 revision_counter: tkey.revision_counter,
@@ -830,7 +659,8 @@ impl OpenTransaction {
         let encoding = file_type.encoding();
         if encoding == proto::transaction::Encoding::Delta {
             // only verify chain for delta encodings
-            let last_uuid_actual = parse_uuid(&proto.previous_uuid)?;
+            let last_uuid_actual =
+                proto_parse::parse_uuid(&proto.previous_uuid).context(ProtobufParseError)?;
             let last_uuid_expected = last_tkey.as_ref().map(|tkey| tkey.uuid);
             if last_uuid_actual != last_uuid_expected {
                 WrongTransactionLink {
@@ -842,8 +672,9 @@ impl OpenTransaction {
             }
         }
         // verify we can parse the timestamp (checking that no error is raised)
-        parse_timestamp(&proto.start_timestamp)?;
-        let encoding_actual = parse_encoding(proto.encoding)?;
+        proto_parse::parse_timestamp(&proto.start_timestamp).context(ProtobufParseError)?;
+        let encoding_actual =
+            proto_parse::parse_encoding(proto.encoding).context(ProtobufParseError)?;
         if encoding_actual != encoding {
             return Err(Error::WrongEncodingError {
                 actual: encoding_actual,
@@ -1005,7 +836,7 @@ impl<'c> TransactionHandle<'c> {
             .expect("transaction handle w/o transaction?!")
             .record_action(proto::transaction::action::Action::AddParquet(
                 proto::AddParquet {
-                    path: Some(unparse_dirs_and_filename(path)),
+                    path: Some(proto_parse::unparse_dirs_and_filename(path)),
                     metadata: metadata.thrift_bytes().to_vec(),
                     file_size_bytes: *file_size_bytes as u64,
                 },
@@ -1019,7 +850,7 @@ impl<'c> TransactionHandle<'c> {
             .expect("transaction handle w/o transaction?!")
             .record_action(proto::transaction::action::Action::RemoveParquet(
                 proto::RemoveParquet {
-                    path: Some(unparse_dirs_and_filename(path)),
+                    path: Some(proto_parse::unparse_dirs_and_filename(path)),
                 },
             ));
     }
@@ -1091,7 +922,7 @@ impl<'c> CheckpointHandle<'c> {
                 Ok(proto::transaction::Action {
                     action: Some(proto::transaction::action::Action::AddParquet(
                         proto::AddParquet {
-                            path: Some(unparse_dirs_and_filename(&path)),
+                            path: Some(proto_parse::unparse_dirs_and_filename(&path)),
                             file_size_bytes: file_size_bytes as u64,
                             metadata: metadata.thrift_bytes().to_vec(),
                         },
@@ -1114,7 +945,9 @@ impl<'c> CheckpointHandle<'c> {
             encoding: proto::transaction::Encoding::Full.into(),
         };
         let path = TransactionFilePath::new_checkpoint(self.tkey.revision_counter, self.tkey.uuid);
-        store_transaction_proto(&iox_object_store, &path, &proto).await?;
+        store_transaction_proto(&iox_object_store, &path, &proto)
+            .await
+            .context(ProtobufIOError)?;
 
         Ok(())
     }
@@ -1138,407 +971,13 @@ impl<'c> Debug for CheckpointHandle<'c> {
     }
 }
 
-pub mod test_helpers {
-    use super::*;
-    use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata};
-
-    #[derive(Clone, Debug, Default)]
-    pub struct Table {
-        pub partitions: HashMap<Arc<str>, Partition>,
-    }
-
-    #[derive(Clone, Debug, Default)]
-    pub struct Partition {
-        pub chunks: HashMap<u32, CatalogParquetInfo>,
-    }
-
-    /// In-memory catalog state, for testing.
-    #[derive(Clone, Debug, Default)]
-    pub struct TestCatalogState {
-        /// Map of all parquet files that are currently pregistered.
-        pub tables: HashMap<Arc<str>, Table>,
-    }
-
-    impl TestCatalogState {
-        /// Simple way to create [`CheckpointData`].
-        pub fn checkpoint_data(&self) -> CheckpointData {
-            CheckpointData {
-                files: self
-                    .files()
-                    .map(|info| (info.path.clone(), info.clone()))
-                    .collect(),
-            }
-        }
-
-        /// Returns an iterator over the files in this catalog state
-        pub fn files(&self) -> impl Iterator<Item = &CatalogParquetInfo> {
-            self.tables.values().flat_map(|table| {
-                table
-                    .partitions
-                    .values()
-                    .flat_map(|partition| partition.chunks.values())
-            })
-        }
-
-        /// Inserts a file into this catalog state
-        pub fn insert(&mut self, info: CatalogParquetInfo) -> Result<()> {
-            let iox_md = info
-                .metadata
-                .decode()
-                .context(MetadataExtractFailed {
-                    path: info.path.clone(),
-                })?
-                .read_iox_metadata()
-                .context(MetadataExtractFailed {
-                    path: info.path.clone(),
-                })?;
-
-            let table = self.tables.entry(iox_md.table_name).or_default();
-            let partition = table.partitions.entry(iox_md.partition_key).or_default();
-
-            match partition.chunks.entry(iox_md.chunk_id) {
-                Occupied(o) => {
-                    return Err(Error::ParquetFileAlreadyExists {
-                        path: o.get().path.clone(),
-                    });
-                }
-                Vacant(v) => v.insert(info),
-            };
-
-            Ok(())
-        }
-    }
-
-    impl CatalogState for TestCatalogState {
-        type EmptyInput = ();
-
-        fn new_empty(_db_name: &str, _data: Self::EmptyInput) -> Self {
-            Self {
-                tables: HashMap::new(),
-            }
-        }
-
-        fn add(
-            &mut self,
-            _iox_object_store: Arc<IoxObjectStore>,
-            info: CatalogParquetInfo,
-        ) -> Result<()> {
-            self.insert(info)
-        }
-
-        fn remove(&mut self, path: &ParquetFilePath) -> Result<()> {
-            let partitions = self
-                .tables
-                .values_mut()
-                .flat_map(|table| table.partitions.values_mut());
-            let mut removed = 0;
-
-            for partition in partitions {
-                let to_remove: Vec<_> = partition
-                    .chunks
-                    .iter()
-                    .filter_map(|(id, chunk)| {
-                        if &chunk.path == path {
-                            return Some(*id);
-                        }
-                        None
-                    })
-                    .collect();
-
-                for id in to_remove {
-                    removed += 1;
-                    partition.chunks.remove(&id).unwrap();
-                }
-            }
-
-            match removed {
-                0 => Err(Error::ParquetFileDoesNotExist { path: path.clone() }),
-                _ => Ok(()),
-            }
-        }
-    }
-
-    /// Break preserved catalog by moving one of the transaction files into a weird unknown version.
-    pub async fn break_catalog_with_weird_version(catalog: &PreservedCatalog) {
-        let tkey = get_tkey(catalog);
-        let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&catalog.iox_object_store, &path)
-            .await
-            .unwrap();
-        proto.version = 42;
-        store_transaction_proto(&catalog.iox_object_store, &path, &proto)
-            .await
-            .unwrap();
-    }
-
-    /// Helper function to ensure that guards don't leak into the future state machine.
-    fn get_tkey(catalog: &PreservedCatalog) -> TransactionKey {
-        let guard = catalog.previous_tkey.read();
-        guard.expect("should have at least a single transaction")
-    }
-
-    /// Torture-test implementations for [`CatalogState`].
-    ///
-    /// A function to extract [`CheckpointData`] from the [`CatalogState`] must be provided.
-    pub async fn assert_catalog_state_implementation<S, F>(state_data: S::EmptyInput, f: F)
-    where
-        S: CatalogState + Debug + Send + Sync,
-        F: Fn(&S) -> CheckpointData + Send,
-    {
-        // empty state
-        let iox_object_store = make_iox_object_store().await;
-        let (_catalog, mut state) =
-            PreservedCatalog::new_empty::<S>(Arc::clone(&iox_object_store), state_data)
-                .await
-                .unwrap();
-
-        // The expected state of the catalog
-        let mut expected: HashMap<u32, (ParquetFilePath, Arc<IoxParquetMetaData>)> = HashMap::new();
-        assert_checkpoint(&state, &f, &expected);
-
-        // add files
-        {
-            for chunk_id in 0..5 {
-                let (path, metadata) =
-                    make_metadata(&iox_object_store, "ok", chunk_addr(chunk_id)).await;
-                state
-                    .add(
-                        Arc::clone(&iox_object_store),
-                        CatalogParquetInfo {
-                            path: path.clone(),
-                            file_size_bytes: 33,
-                            metadata: Arc::new(metadata.clone()),
-                        },
-                    )
-                    .unwrap();
-                expected.insert(chunk_id, (path, Arc::new(metadata)));
-            }
-        }
-        assert_checkpoint(&state, &f, &expected);
-
-        // remove files
-        {
-            let (path, _) = expected.remove(&1).unwrap();
-            state.remove(&path).unwrap();
-        }
-        assert_checkpoint(&state, &f, &expected);
-
-        // add and remove in the same transaction
-        {
-            let (path, metadata) = make_metadata(&iox_object_store, "ok", chunk_addr(5)).await;
-            state
-                .add(
-                    Arc::clone(&iox_object_store),
-                    CatalogParquetInfo {
-                        path: path.clone(),
-                        file_size_bytes: 33,
-                        metadata: Arc::new(metadata),
-                    },
-                )
-                .unwrap();
-            state.remove(&path).unwrap();
-        }
-        assert_checkpoint(&state, &f, &expected);
-
-        // remove and add in the same transaction
-        {
-            let (path, metadata) = expected.get(&3).unwrap();
-            state.remove(path).unwrap();
-            state
-                .add(
-                    Arc::clone(&iox_object_store),
-                    CatalogParquetInfo {
-                        path: path.clone(),
-                        file_size_bytes: 33,
-                        metadata: Arc::clone(metadata),
-                    },
-                )
-                .unwrap();
-        }
-        assert_checkpoint(&state, &f, &expected);
-
-        // add, remove, add in the same transaction
-        {
-            let (path, metadata) = make_metadata(&iox_object_store, "ok", chunk_addr(6)).await;
-            state
-                .add(
-                    Arc::clone(&iox_object_store),
-                    CatalogParquetInfo {
-                        path: path.clone(),
-                        file_size_bytes: 33,
-                        metadata: Arc::new(metadata.clone()),
-                    },
-                )
-                .unwrap();
-            state.remove(&path).unwrap();
-            state
-                .add(
-                    Arc::clone(&iox_object_store),
-                    CatalogParquetInfo {
-                        path: path.clone(),
-                        file_size_bytes: 33,
-                        metadata: Arc::new(metadata.clone()),
-                    },
-                )
-                .unwrap();
-            expected.insert(6, (path, Arc::new(metadata)));
-        }
-        assert_checkpoint(&state, &f, &expected);
-
-        // remove, add, remove in same transaction
-        {
-            let (path, metadata) = expected.remove(&4).unwrap();
-            state.remove(&path).unwrap();
-            state
-                .add(
-                    Arc::clone(&iox_object_store),
-                    CatalogParquetInfo {
-                        path: path.clone(),
-                        file_size_bytes: 33,
-                        metadata: Arc::clone(&metadata),
-                    },
-                )
-                .unwrap();
-            state.remove(&path).unwrap();
-        }
-        assert_checkpoint(&state, &f, &expected);
-
-        // error handling, no real opt
-        {
-            // TODO: Error handling should disambiguate between chunk collision and filename collision
-
-            // chunk with same ID already exists (should also not change the metadata)
-            let (path, metadata) = make_metadata(&iox_object_store, "fail", chunk_addr(0)).await;
-            let err = state
-                .add(
-                    Arc::clone(&iox_object_store),
-                    CatalogParquetInfo {
-                        path: path.clone(),
-                        file_size_bytes: 33,
-                        metadata: Arc::new(metadata),
-                    },
-                )
-                .unwrap_err();
-            assert!(matches!(err, Error::ParquetFileAlreadyExists { .. }));
-
-            // does not exist as has a different UUID
-            let err = state.remove(&path).unwrap_err();
-            assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
-        }
-        assert_checkpoint(&state, &f, &expected);
-
-        // error handling, still something works
-        {
-            // already exists (should also not change the metadata)
-            let (_, metadata) = expected.get(&0).unwrap();
-            let err = state
-                .add(
-                    Arc::clone(&iox_object_store),
-                    CatalogParquetInfo {
-                        // Intentionally "incorrect" path
-                        path: ParquetFilePath::new(&chunk_addr(10)),
-                        file_size_bytes: 33,
-                        metadata: Arc::clone(metadata),
-                    },
-                )
-                .unwrap_err();
-            assert!(matches!(err, Error::ParquetFileAlreadyExists { .. }));
-
-            // this transaction will still work
-            let (path, metadata) = make_metadata(&iox_object_store, "ok", chunk_addr(7)).await;
-            let metadata = Arc::new(metadata);
-            state
-                .add(
-                    Arc::clone(&iox_object_store),
-                    CatalogParquetInfo {
-                        path: path.clone(),
-                        file_size_bytes: 33,
-                        metadata: Arc::clone(&metadata),
-                    },
-                )
-                .unwrap();
-            expected.insert(7, (path.clone(), Arc::clone(&metadata)));
-
-            // recently added
-            let err = state
-                .add(
-                    Arc::clone(&iox_object_store),
-                    CatalogParquetInfo {
-                        path,
-                        file_size_bytes: 33,
-                        metadata: Arc::clone(&metadata),
-                    },
-                )
-                .unwrap_err();
-            assert!(matches!(err, Error::ParquetFileAlreadyExists { .. }));
-
-            // does not exist - as different UUID
-            let path = ParquetFilePath::new(&chunk_addr(7));
-            let err = state.remove(&path).unwrap_err();
-            assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
-
-            // this still works
-            let (path, _) = expected.remove(&7).unwrap();
-            state.remove(&path).unwrap();
-
-            // recently removed
-            let err = state.remove(&path).unwrap_err();
-            assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
-        }
-        assert_checkpoint(&state, &f, &expected);
-    }
-
-    /// Assert that tracked files and their linked metadata are equal.
-    fn assert_checkpoint<S, F>(
-        state: &S,
-        f: &F,
-        expected_files: &HashMap<u32, (ParquetFilePath, Arc<IoxParquetMetaData>)>,
-    ) where
-        F: Fn(&S) -> CheckpointData,
-    {
-        let actual_files: HashMap<ParquetFilePath, CatalogParquetInfo> = f(state).files;
-
-        let sorted_keys_actual = get_sorted_keys(actual_files.keys());
-        let sorted_keys_expected = get_sorted_keys(expected_files.values().map(|(path, _)| path));
-        assert_eq!(sorted_keys_actual, sorted_keys_expected);
-
-        for (path, md_expected) in expected_files.values() {
-            let md_actual = &actual_files[path].metadata;
-
-            let md_actual = md_actual.decode().unwrap();
-            let md_expected = md_expected.decode().unwrap();
-
-            let iox_md_actual = md_actual.read_iox_metadata().unwrap();
-            let iox_md_expected = md_expected.read_iox_metadata().unwrap();
-            assert_eq!(iox_md_actual, iox_md_expected);
-
-            let schema_actual = md_actual.read_schema().unwrap();
-            let schema_expected = md_expected.read_schema().unwrap();
-            assert_eq!(schema_actual, schema_expected);
-
-            let stats_actual = md_actual.read_statistics(&schema_actual).unwrap();
-            let stats_expected = md_expected.read_statistics(&schema_expected).unwrap();
-            assert_eq!(stats_actual, stats_expected);
-        }
-    }
-
-    /// Get a sorted list of keys from an iterator.
-    fn get_sorted_keys<'a>(
-        keys: impl Iterator<Item = &'a ParquetFilePath>,
-    ) -> Vec<&'a ParquetFilePath> {
-        let mut keys: Vec<_> = keys.collect();
-        keys.sort();
-        keys
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{
-        test_helpers::{
-            assert_catalog_state_implementation, break_catalog_with_weird_version, TestCatalogState,
-        },
-        *,
+    use bytes::Bytes;
+
+    use super::*;
+    use crate::catalog::test_helpers::{
+        assert_catalog_state_implementation, break_catalog_with_weird_version, TestCatalogState,
     };
     use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata};
 
@@ -1706,7 +1145,7 @@ mod tests {
             PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "UUID required but not provided"
+            "Internal: Error while parsing protobuf: UUID required but not provided"
         );
     }
 
@@ -1732,7 +1171,7 @@ mod tests {
             PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Cannot parse UUID: invalid length: expected one of [36, 32], found 3"
+            "Internal: Error while parsing protobuf: Cannot parse UUID: invalid length: expected one of [36, 32], found 3"
         );
     }
 
@@ -1804,7 +1243,7 @@ mod tests {
             PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Cannot parse UUID: invalid length: expected one of [36, 32], found 3"
+            "Internal: Error while parsing protobuf: Cannot parse UUID: invalid length: expected one of [36, 32], found 3"
         );
     }
 
@@ -1833,7 +1272,7 @@ mod tests {
             PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Error during deserialization: failed to decode Protobuf message: invalid wire type value: 6"
+            "Error during protobuf IO: Error during protobuf deserialization: failed to decode Protobuf message: invalid wire type value: 6"
         );
     }
 
@@ -1979,7 +1418,7 @@ mod tests {
             PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Internal: Datetime required but missing in serialized catalog"
+            "Internal: Error while parsing protobuf: Datetime required but missing in serialized catalog"
         );
     }
 
@@ -2008,7 +1447,7 @@ mod tests {
             PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Internal: Cannot parse datetime in serialized catalog: out of range integral type conversion attempted"
+            "Internal: Error while parsing protobuf: Cannot parse datetime in serialized catalog: out of range integral type conversion attempted"
         );
     }
 
@@ -2034,7 +1473,7 @@ mod tests {
             PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Internal: Cannot parse encoding in serialized catalog: -1 is not a valid, specified variant"
+            "Internal: Error while parsing protobuf: Cannot parse encoding in serialized catalog: -1 is not a valid, specified variant"
         );
     }
 
@@ -2086,7 +1525,7 @@ mod tests {
             PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Internal: Cannot parse encoding in serialized catalog: 0 is not a valid, specified variant"
+            "Internal: Error while parsing protobuf: Cannot parse encoding in serialized catalog: 0 is not a valid, specified variant"
         );
     }
 
