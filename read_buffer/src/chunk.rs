@@ -140,23 +140,52 @@ impl Chunk {
     // Methods for executing queries.
     //
 
-    /// Returns selected data for the specified columns.
+    /// Given a projection of column names, `read_filter` returns all rows that
+    /// satisfy the provided predicate, subject to those rows also not
+    /// satisfying any of the provided negation predicates.
     ///
-    /// Results may be filtered by conjunctive predicates.
-    /// The `ReadBuffer` will optimally prune columns and row groups to improve
-    /// execution where possible.
+    /// Effectively `read_filter` provides projection push-down, predicate
+    /// push-down and the ability to express delete operations based on
+    /// predicates that are then used to remove rows from the result set.
     ///
-    /// `read_filter` return an iterator that will emit record batches for all
-    /// row groups help under the provided chunks.
+    /// Where possible all this work happens on compressed representations, such
+    /// that the minimum amount of data is materialised.
     ///
-    /// `read_filter` is lazy - it does not execute against the next row group
-    /// until the results for the previous one have been emitted.
+    /// `read_filter` returns an iterator of Record Batches, where each Record
+    /// Batch contains all matching rows for a _row group_ within the chunk.
+    /// Each Record Batch is processed and materialised lazily.
+    ///
+    /// Expressing deletes with `read_filter`.
+    ///
+    /// An expectation of this API is that each distinct delete operation can be
+    /// expressed as a predicate consisting of conjunctive expressions comparing
+    /// a column to a literal value. For example you might express two delete
+    /// operations like this:
+    ///
+    ///  DELETE FROM t WHERE "region" = 'west';
+    ///  DELETE FROM t WHERE "region" = 'north' AND "env" = 'prod';
+    ///
+    /// In this case `read_filter` should _remove_ from _any_ result set rows
+    /// that either:
+    ///
+    ///  (1) contain a value 'west' in the "region" column; OR
+    ///  (2) contain a value 'east' in the "region column and also 'prod' in
+    ///      the "env" column.
+    ///
+    /// It is important that separate delete operations are expressed as
+    /// separate `Predicate` objects in the `negated_predicates` argument. This
+    /// ensures that the matching rows are appropriately unioned. This final
+    /// unioned set of rows is then removed from any rows matching the
+    /// `predicate` argument.
+    ///
     pub fn read_filter(
         &self,
         predicate: Predicate,
         select_columns: Selection<'_>,
+        negated_predicates: Vec<Predicate>,
     ) -> table::ReadFilterResults {
-        self.table.read_filter(&select_columns, &predicate)
+        self.table
+            .read_filter(&select_columns, &predicate, negated_predicates.as_slice())
     }
 
     /// Returns an iterable collection of data in group columns and aggregate
@@ -949,8 +978,7 @@ mod test {
         );
     }
 
-    #[test]
-    fn read_filter() {
+    fn read_filter_setup() -> Chunk {
         let mut chunk: Option<Chunk> = None;
 
         // Add a bunch of row groups to a single table in a single chunk
@@ -1007,9 +1035,13 @@ mod test {
                 }
             }
         }
+        chunk.unwrap()
+    }
 
+    #[test]
+    fn read_filter() {
         // Chunk should be initialized now.
-        let chunk = chunk.unwrap();
+        let chunk = read_filter_setup();
 
         // Build the operation equivalent to the following query:
         //
@@ -1020,7 +1052,7 @@ mod test {
         let predicate =
             Predicate::with_time_range(&[BinaryExpr::from(("env", "=", "us-west"))], 100, 205); // filter on time
 
-        let mut itr = chunk.read_filter(predicate, Selection::All);
+        let mut itr = chunk.read_filter(predicate, Selection::All, vec![]);
 
         let exp_env_values = Values::Dictionary(vec![0], vec![Some("us-west")]);
         let exp_region_values = Values::Dictionary(vec![0], vec![Some("west")]);
@@ -1053,6 +1085,73 @@ mod test {
         );
         assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
         assert_rb_column_equals(&second_row_group, "time", &Values::I64(vec![200])); // first row from second record batch
+
+        // No more data
+        assert!(itr.next().is_none());
+    }
+
+    #[test]
+    fn read_filter_with_deletes() {
+        // Chunk should be initialized now.
+        let chunk = read_filter_setup();
+
+        // Build the operation equivalent to the following query:
+        //
+        //   SELECT * FROM "table_1" WHERE "env" = 'us-west';
+        //
+        // But also assume the following delete has been applied:
+        //
+        // DELETE FROM "table_1" WHERE "region" = "west"
+        //
+        let predicate = Predicate::new(vec![BinaryExpr::from(("env", "=", "us-west"))]);
+        let delete_predicates = vec![Predicate::new(vec![BinaryExpr::from((
+            "region", "=", "west",
+        ))])];
+        let mut itr = chunk.read_filter(predicate, Selection::All, delete_predicates);
+
+        let exp_env_values = Values::Dictionary(vec![0], vec![Some("us-west")]);
+        let exp_region_values = Values::Dictionary(vec![0], vec![Some("east")]);
+        let exp_counter_values = Values::F64(vec![4500.3]);
+        let exp_sketchy_sensor_values = Values::I64N(vec![Some(44)]);
+        let exp_active_values = Values::Bool(vec![Some(false)]);
+        let exp_msg_values = Values::String(vec![None]);
+
+        let first_row_group = itr.next().unwrap();
+        assert_rb_column_equals(&first_row_group, "env", &exp_env_values);
+        assert_rb_column_equals(&first_row_group, "region", &exp_region_values);
+        assert_rb_column_equals(&first_row_group, "counter", &exp_counter_values);
+        assert_rb_column_equals(
+            &first_row_group,
+            "sketchy_sensor",
+            &exp_sketchy_sensor_values,
+        );
+        assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
+        assert_rb_column_equals(&first_row_group, "msg", &exp_msg_values);
+        assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![300])); // last row from first record batch
+
+        let second_row_group = itr.next().unwrap();
+        assert_rb_column_equals(&second_row_group, "env", &exp_env_values);
+        assert_rb_column_equals(&second_row_group, "region", &exp_region_values);
+        assert_rb_column_equals(&second_row_group, "counter", &exp_counter_values);
+        assert_rb_column_equals(
+            &first_row_group,
+            "sketchy_sensor",
+            &exp_sketchy_sensor_values,
+        );
+        assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
+        assert_rb_column_equals(&second_row_group, "time", &Values::I64(vec![600])); // last row from second record batch
+
+        let third_row_group = itr.next().unwrap();
+        assert_rb_column_equals(&third_row_group, "env", &exp_env_values);
+        assert_rb_column_equals(&third_row_group, "region", &exp_region_values);
+        assert_rb_column_equals(&third_row_group, "counter", &exp_counter_values);
+        assert_rb_column_equals(
+            &first_row_group,
+            "sketchy_sensor",
+            &exp_sketchy_sensor_values,
+        );
+        assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
+        assert_rb_column_equals(&third_row_group, "time", &Values::I64(vec![900])); // last row from third record batch
 
         // No more data
         assert!(itr.next().is_none());
