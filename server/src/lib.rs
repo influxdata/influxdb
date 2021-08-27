@@ -1243,7 +1243,7 @@ mod tests {
     use iox_object_store::IoxObjectStore;
     use metrics::TestMetricRegistry;
     use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
-    use parquet_file::catalog::{test_helpers::TestCatalogState, PreservedCatalog};
+    use parquet_file::catalog::{api::PreservedCatalog, test_helpers::TestCatalogState};
     use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner, QueryDatabase};
     use std::{
         convert::{Infallible, TryFrom},

@@ -1,5 +1,5 @@
 //! Functionality to load a [`Catalog`](crate::db::catalog::Catalog) and other information from a
-//! [`PreservedCatalog`](parquet_file::catalog::PreservedCatalog).
+//! [`PreservedCatalog`](parquet_file::catalog::api::PreservedCatalog).
 
 use super::catalog::{chunk::ChunkStage, table::TableSchemaUpsertHandle, Catalog};
 use data_types::server_id::ServerId;
@@ -7,7 +7,7 @@ use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use metrics::{KeyValue, MetricRegistry};
 use observability_deps::tracing::{error, info};
 use parquet_file::{
-    catalog::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
+    catalog::api::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
 };
 use persistence_windows::checkpoint::{ReplayPlan, ReplayPlanner};
@@ -23,17 +23,17 @@ pub enum Error {
 
     #[snafu(display("Cannot create new empty preserved catalog: {}", source))]
     CannotCreateCatalog {
-        source: parquet_file::catalog::Error,
+        source: parquet_file::catalog::api::Error,
     },
 
     #[snafu(display("Cannot load preserved catalog: {}", source))]
     CannotLoadCatalog {
-        source: parquet_file::catalog::Error,
+        source: parquet_file::catalog::api::Error,
     },
 
     #[snafu(display("Cannot wipe preserved catalog: {}", source))]
     CannotWipeCatalog {
-        source: parquet_file::catalog::Error,
+        source: parquet_file::catalog::api::Error,
     },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -202,8 +202,8 @@ impl CatalogState for Loader {
         &mut self,
         iox_object_store: Arc<IoxObjectStore>,
         info: CatalogParquetInfo,
-    ) -> parquet_file::catalog::Result<()> {
-        use parquet_file::catalog::{MetadataExtractFailed, ReplayPlanError, SchemaError};
+    ) -> parquet_file::catalog::api::Result<()> {
+        use parquet_file::catalog::api::{MetadataExtractFailed, ReplayPlanError, SchemaError};
 
         // extract relevant bits from parquet file metadata
         let iox_md = info
@@ -253,7 +253,9 @@ impl CatalogState for Loader {
             .get_or_create_partition(&iox_md.table_name, &iox_md.partition_key);
         let mut partition = partition.write();
         if partition.chunk(iox_md.chunk_id).is_some() {
-            return Err(parquet_file::catalog::Error::ParquetFileAlreadyExists { path: info.path });
+            return Err(
+                parquet_file::catalog::api::Error::ParquetFileAlreadyExists { path: info.path },
+            );
         }
         let schema_handle = TableSchemaUpsertHandle::new(&table_schema, &parquet_chunk.schema())
             .map_err(|e| Box::new(e) as _)
@@ -269,7 +271,7 @@ impl CatalogState for Loader {
         Ok(())
     }
 
-    fn remove(&mut self, path: &ParquetFilePath) -> parquet_file::catalog::Result<()> {
+    fn remove(&mut self, path: &ParquetFilePath) -> parquet_file::catalog::api::Result<()> {
         let mut removed_any = false;
 
         for partition in self.catalog.partitions() {
@@ -296,7 +298,7 @@ impl CatalogState for Loader {
         if removed_any {
             Ok(())
         } else {
-            Err(parquet_file::catalog::Error::ParquetFileDoesNotExist { path: path.clone() })
+            Err(parquet_file::catalog::api::Error::ParquetFileDoesNotExist { path: path.clone() })
         }
     }
 }
@@ -308,8 +310,8 @@ mod tests {
     use data_types::DatabaseName;
     use object_store::ObjectStore;
     use parquet_file::catalog::{
+        api::CheckpointData,
         test_helpers::{assert_catalog_state_implementation, TestCatalogState},
-        CheckpointData,
     };
     use std::convert::TryFrom;
 
