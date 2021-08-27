@@ -255,7 +255,7 @@ impl Registry {
 }
 
 /// `Instrument` is a type that knows how to write its observations to a `Reporter`
-pub trait Instrument: std::fmt::Debug {
+pub trait Instrument: std::fmt::Debug + Send + Sync {
     /// Record the current state of this metric to the provided `Reporter`
     ///
     /// Guaranteed to:

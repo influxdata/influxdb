@@ -105,7 +105,7 @@ impl<T: MetricObserver> Instrument for Metric<T> {
 /// that exposes the necessary reporting API
 ///
 /// `Metric` maintains a distinct `MetricObserver` for each unique set of `Attributes`
-pub trait MetricObserver: MakeMetricObserver + std::fmt::Debug + 'static {
+pub trait MetricObserver: MakeMetricObserver + std::fmt::Debug + Send + 'static {
     /// The type that is used to modify the value reported by this MetricObserver
     ///
     /// Most commonly this will be `Self` but see `CumulativeGauge` for an example
@@ -130,7 +130,7 @@ pub trait MetricObserver: MakeMetricObserver + std::fmt::Debug + 'static {
 ///
 /// See `U64Histogram` for an example of how this is used
 pub trait MakeMetricObserver {
-    type Options: Sized + std::fmt::Debug;
+    type Options: Sized + Send + Sync + std::fmt::Debug;
 
     fn create(options: &Self::Options) -> Self;
 }
