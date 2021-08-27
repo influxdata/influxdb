@@ -470,6 +470,11 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Desc:  "Validates incoming writes to ensure keys only have valid unicode characters.",
 		},
 		{
+			DestP: &o.StorageConfig.Data.SkipFieldSizeValidation,
+			Flag:  "storage-no-validate-field-size",
+			Desc:  "Skip field-size validation on incoming writes.",
+		},
+		{
 			DestP: &o.StorageConfig.Data.CacheMaxMemorySize,
 			Flag:  "storage-cache-max-memory-size",
 			Desc:  "The maximum size a shard's cache can reach before it starts rejecting writes.",

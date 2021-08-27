@@ -158,9 +158,6 @@ type Shard struct {
 func NewShard(id uint64, path string, walPath string, sfile *SeriesFile, opt EngineOptions) *Shard {
 	db, rp := decodeStorePath(path)
 	logger := zap.NewNop()
-	if opt.FieldValidator == nil {
-		opt.FieldValidator = defaultFieldValidator{}
-	}
 
 	s := &Shard{
 		id:      id,
@@ -645,7 +642,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		mf := engine.MeasurementFields(name)
 
 		// Check with the field validator.
-		if err := s.options.FieldValidator.Validate(mf, p); err != nil {
+		if err := ValidateFields(mf, p, s.options.Config.SkipFieldSizeValidation); err != nil {
 			switch err := err.(type) {
 			case PartialWriteError:
 				if reason == "" {

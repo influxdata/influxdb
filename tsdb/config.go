@@ -98,6 +98,9 @@ type Config struct {
 	// Enables unicode validation on series keys on write.
 	ValidateKeys bool `toml:"validate-keys"`
 
+	// When true, skips size validation on fields
+	SkipFieldSizeValidation bool `toml:"skip-field-size-validation"`
+
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
 
