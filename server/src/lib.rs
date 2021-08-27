@@ -91,7 +91,7 @@ use parking_lot::RwLock;
 use rand::seq::SliceRandom;
 use resolver::Resolver;
 use rules::ProvidedDatabaseRules;
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
@@ -489,14 +489,16 @@ impl ServerStateInitialized {
                         )));
                         existing.into_mut()
                     } else {
-                        return Err(Error::DatabaseAlreadyExists {
-                            db_name: config.name.to_string(),
-                        });
+                        return DatabaseAlreadyExists {
+                            db_name: config.name,
+                        }
+                        .fail();
                     }
                 } else {
-                    return Err(Error::DatabaseAlreadyExists {
-                        db_name: config.name.to_string(),
-                    });
+                    return DatabaseAlreadyExists {
+                        db_name: config.name,
+                    }
+                    .fail();
                 }
             }
         };
@@ -661,9 +663,7 @@ where
         let db = initialized
             .databases
             .get(db_name)
-            .ok_or(Error::DatabaseNotFound {
-                db_name: db_name.to_string(),
-            })?;
+            .context(DatabaseNotFound { db_name })?;
 
         Ok(Arc::clone(db))
     }
@@ -672,9 +672,7 @@ where
     pub fn db(&self, name: &DatabaseName<'_>) -> Result<Arc<Db>> {
         self.database(name)?
             .initialized_db()
-            .ok_or(Error::DatabaseNotInitialized {
-                db_name: name.to_string(),
-            })
+            .context(DatabaseNotInitialized { db_name: name })
     }
 
     /// Tells the server the set of rules for a database.
@@ -697,9 +695,7 @@ where
             if let Some(existing) = initialized.databases.get(db_name) {
                 if let Some(init_error) = existing.init_error() {
                     if !matches!(&*init_error, database::InitError::NoActiveDatabase) {
-                        return Err(Error::DatabaseAlreadyExists {
-                            db_name: db_name.to_string(),
-                        });
+                        return DatabaseAlreadyExists { db_name }.fail();
                     }
                 }
             }
@@ -713,11 +709,10 @@ where
         )
         .await;
 
-        if matches!(res, Err(database::InitError::DatabaseAlreadyExists { .. })) {
-            return Err(Error::DatabaseAlreadyExists {
-                db_name: db_name.to_string(),
-            });
-        }
+        ensure!(
+            !matches!(res, Err(database::InitError::DatabaseAlreadyExists { .. })),
+            DatabaseAlreadyExists { db_name }
+        );
 
         res.context(CannotCreateDatabase)?;
 
@@ -2013,9 +2008,9 @@ mod tests {
         assert!(server.db_names_sorted().contains(&String::from("foo")));
 
         // can't delete an inactive database
-        let err = server.delete_database(&foo_db_name).await.unwrap_err();
+        let err = server.delete_database(&foo_db_name).await;
         assert!(
-            matches!(&err, Error::CannotMarkDatabaseDeleted { .. }),
+            matches!(&err, Err(Error::CannotMarkDatabaseDeleted { .. })),
             "got {:?}",
             err
         );

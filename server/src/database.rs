@@ -180,15 +180,10 @@ impl Database {
             let state = self.shared.state.read();
 
             // Can't delete an already deleted database.
-            ensure!(
-                state.is_active(),
-                NoActiveDatabaseToDelete {
-                    db_name: db_name.to_string()
-                }
-            );
+            ensure!(state.is_active(), NoActiveDatabaseToDelete { db_name });
 
-            state.try_freeze().ok_or(Error::TransitionInProgress {
-                db_name: db_name.to_string(),
+            state.try_freeze().context(TransitionInProgress {
+                db_name,
                 state: state.state_code(),
             })?
         };
@@ -200,15 +195,13 @@ impl Database {
             .with_context(|| {
                 let state = self.shared.state.read();
                 TransitionInProgress {
-                    db_name: db_name.to_string(),
+                    db_name,
                     state: state.state_code(),
                 }
             })?
             .write_tombstone()
             .await
-            .context(CannotMarkDatabaseDeleted {
-                db_name: db_name.to_string(),
-            })?;
+            .context(CannotMarkDatabaseDeleted { db_name })?;
 
         let shared = Arc::clone(&self.shared);
 
@@ -378,16 +371,17 @@ impl Database {
             let current_state = match &**state {
                 DatabaseState::CatalogLoadError(rules_loaded, _) => rules_loaded.clone(),
                 _ => {
-                    return Err(Error::InvalidState {
-                        db_name: db_name.to_string(),
+                    return InvalidState {
+                        db_name,
                         state: state.state_code(),
-                        transition: "WipePreservedCatalog".to_string(),
-                    })
+                        transition: "WipePreservedCatalog",
+                    }
+                    .fail()
                 }
             };
 
-            let handle = state.try_freeze().ok_or(Error::TransitionInProgress {
-                db_name: db_name.to_string(),
+            let handle = state.try_freeze().context(TransitionInProgress {
+                db_name,
                 state: state.state_code(),
             })?;
 
@@ -421,16 +415,17 @@ impl Database {
             let current_state = match &**state {
                 DatabaseState::ReplayError(rules_loaded, _) => rules_loaded.clone(),
                 _ => {
-                    return Err(Error::InvalidState {
-                        db_name: db_name.to_string(),
+                    return InvalidState {
+                        db_name,
                         state: state.state_code(),
-                        transition: "SkipReplay".to_string(),
-                    })
+                        transition: "SkipReplay",
+                    }
+                    .fail()
                 }
             };
 
-            let handle = state.try_freeze().ok_or(Error::TransitionInProgress {
-                db_name: db_name.to_string(),
+            let handle = state.try_freeze().context(TransitionInProgress {
+                db_name,
                 state: state.state_code(),
             })?;
 
@@ -849,10 +844,10 @@ impl DatabaseStateDatabaseObjectStoreFound {
             .context(LoadingRules)?;
 
         if rules.db_name() != &shared.config.name {
-            return Err(InitError::RulesDatabaseNameMismatch {
-                actual: rules.db_name().to_string(),
-                expected: shared.config.name.to_string(),
-            });
+            return RulesDatabaseNameMismatch {
+                actual: rules.db_name(),
+                expected: shared.config.name.as_str(),
+            }.fail();
         }
 
         Ok(DatabaseStateRulesLoaded {
