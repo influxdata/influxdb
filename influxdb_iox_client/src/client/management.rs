@@ -125,6 +125,26 @@ pub enum GetDatabaseError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by Client::delete_database
+#[derive(Debug, Error)]
+pub enum DeleteDatabaseError {
+    /// Database not found
+    #[error("Database not found")]
+    DatabaseNotFound,
+
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
+    /// Server ID is not set
+    #[error("Server ID not set")]
+    NoServerId,
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
 /// Errors returned by Client::list_chunks
 #[derive(Debug, Error)]
 pub enum ListChunksError {
@@ -568,6 +588,26 @@ impl Client {
             .rules
             .ok_or(GetDatabaseError::EmptyResponse)?;
         Ok(rules)
+    }
+
+    /// Delete database
+    pub async fn delete_database(
+        &mut self,
+        db_name: impl Into<String> + Send,
+    ) -> Result<(), DeleteDatabaseError> {
+        self.inner
+            .delete_database(DeleteDatabaseRequest {
+                db_name: db_name.into(),
+            })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => DeleteDatabaseError::DatabaseNotFound,
+                tonic::Code::FailedPrecondition => DeleteDatabaseError::NoServerId,
+                tonic::Code::Unavailable => DeleteDatabaseError::Unavailable(status),
+                _ => DeleteDatabaseError::ServerError(status),
+            })?;
+
+        Ok(())
     }
 
     /// List chunks in a database.
