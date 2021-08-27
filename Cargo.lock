@@ -2181,6 +2181,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "metric"
+version = "0.1.0"
+dependencies = [
+ "parking_lot",
+]
+
+[[package]]
+name = "metric_exporters"
+version = "0.1.0"
+dependencies = [
+ "metric",
+ "observability_deps",
+ "prometheus",
+]
+
+[[package]]
 name = "metrics"
 version = "0.1.0"
 dependencies = [

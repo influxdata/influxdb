@@ -31,6 +31,8 @@ members = [
     "iox_object_store",
     "lifecycle",
     "logfmt",
+    "metric",
+    "metric_exporters",
     "mutable_buffer",
     "object_store",
     "observability_deps",
