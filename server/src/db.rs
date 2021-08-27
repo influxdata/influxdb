@@ -637,6 +637,25 @@ impl Db {
         fut.await.context(TaskCancelled)?.context(LifecycleError)
     }
 
+    /// Delete data from  a table on a specified predicate
+    pub async fn delete(
+        self: &Arc<Self>,
+        _table_name: &str,
+        _delete_predicate: &str, //todo: this might be a Predicate dta type
+    ) -> Result<()> {
+        let partitions = self.catalog.partitions();
+        for partition in &partitions {
+            let partition = partition.write();
+            let chunks = partition.chunks();
+            for _chunk in chunks {
+                // todo
+                // if this is the chunk of the table, add delete_predicate into the chunk's delete_predicates
+            }
+        }
+
+        Ok(())
+    }
+
     /// Copies a chunk in the Closed state into the ReadBuffer from
     /// the mutable buffer and marks the chunk with `Moved` state
     ///

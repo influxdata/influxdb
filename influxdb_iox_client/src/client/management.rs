@@ -337,6 +337,11 @@ pub enum DropPartitionError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by [`Client::delete`]
+#[derive(Debug, Error)]
+pub enum DeleteError {
+    //todo
+}
 /// Errors returned by [`Client::persist_partition`]
 #[derive(Debug, Error)]
 pub enum PersistPartitionError {
@@ -843,6 +848,22 @@ impl Client {
                 tonic::Code::FailedPrecondition => DropPartitionError::LifecycleError(status),
                 _ => DropPartitionError::ServerError(status),
             })?;
+
+        Ok(())
+    }
+
+    /// Delete data from a table on a specified predicate
+    pub async fn delete(
+        &mut self,
+        db_name: impl Into<String> + Send,
+        table_name: impl Into<String> + Send,
+        delete_predicate: impl Into<String> + Send,
+    ) -> Result<(), DeleteError> {
+        let _db_name = db_name.into();
+        let _table_name = table_name.into();
+        let _delete_predicate = delete_predicate.into();
+
+        // todo
 
         Ok(())
     }

@@ -1229,6 +1229,26 @@ async fn test_drop_partition_error() {
 }
 
 #[tokio::test]
+async fn test_delete() {
+    let fixture = ServerFixture::create_shared().await;
+    let _write_client = fixture.write_client();
+    let mut management_client = fixture.management_client();
+
+    let db_name = rand_name();
+
+    // Todo
+    // Build an appropriate test DB
+    let table_name = "test_table";
+    let delete_predicate = "col = 123";
+
+    management_client
+        .delete(&db_name, table_name, delete_predicate) // note that this function currently does nothing
+        .await
+        .unwrap();
+
+    // Todo: check return delete outcome
+}
+#[tokio::test]
 async fn test_persist_partition() {
     use data_types::chunk_metadata::ChunkStorage;
 
