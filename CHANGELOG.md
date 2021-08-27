@@ -8,6 +8,7 @@
 1. [22236](https://github.com/influxdata/influxdb/pull/22236): influxdb2 packages should depend on curl
 1. [22243](https://github.com/influxdata/influxdb/pull/22243): Updating an inactive task will not schedule it. Thanks @raffs!
 1. [22278](https://github.com/influxdata/influxdb/pull/22278): Requests to `/api/v2/authorizations` filter correctly on `org` and `user` parameters
+1. [22325](https://github.com/influxdata/influxdb/pull/22325): Fix `X-Influxdb-Build` and `X-Influxdb-Version` response header at `/ping`
 
 ## v2.0.8 [2021-08-13]
 ----------------------
