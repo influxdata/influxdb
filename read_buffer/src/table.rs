@@ -280,7 +280,7 @@ impl Table {
         &'a self,
         columns: &Selection<'_>,
         predicate: &Predicate,
-        delete_predicates: &[Predicate],
+        negated_predicates: &[Predicate],
     ) -> ReadFilterResults {
         // identify row groups where time range and predicates match could match
         // the predicate. Get a snapshot of those and the meta-data.
@@ -297,7 +297,7 @@ impl Table {
         // TODO(edd): I think I can remove `predicates` from the results
         ReadFilterResults {
             predicate: predicate.clone(),
-            delete_predicates: delete_predicates.to_vec(),
+            negated_predicates: negated_predicates.to_vec(),
             schema,
             row_groups,
         }
@@ -845,7 +845,7 @@ pub struct ReadFilterResults {
 
     predicate: Predicate,
 
-    delete_predicates: Vec<Predicate>,
+    negated_predicates: Vec<Predicate>,
 }
 
 impl ReadFilterResults {
@@ -878,7 +878,7 @@ impl ReadFilterResults {
                 row_group.read_filter(
                     select_columns,
                     &self.predicate,
-                    self.delete_predicates.as_slice(),
+                    self.negated_predicates.as_slice(),
                 )
             })
             .filter(|result| !result.is_empty())
@@ -902,7 +902,7 @@ impl Iterator for ReadFilterResults {
                 .map(|name| name.as_str())
                 .collect::<Vec<_>>(),
             &self.predicate,
-            &self.delete_predicates,
+            &self.negated_predicates,
         );
 
         if result.is_empty() {

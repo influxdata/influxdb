@@ -260,7 +260,7 @@ impl RowGroup {
         &self,
         columns: &[ColumnName<'_>],
         predicate: &Predicate,
-        delete_predicates: &[Predicate],
+        negated_predicates: &[Predicate],
     ) -> ReadFilterResult<'_> {
         let select_columns = self.meta.schema_for_column_names(columns);
         assert_eq!(select_columns.len(), columns.len());
@@ -274,10 +274,10 @@ impl RowGroup {
         let row_ids = self.row_ids_from_predicate(predicate);
 
         // identify rows that have been marked as deleted.
-        let deleted_row_ids = self.row_ids_from_delete_predicates(delete_predicates);
+        let deleted_row_ids = self.row_ids_from_delete_predicates(negated_predicates);
 
         // determine final candidate rows
-        let final_row_ids = match (dbg!(row_ids), dbg!(deleted_row_ids)) {
+        let final_row_ids = match (row_ids, deleted_row_ids) {
             // no matching rows
             (RowIDsOption::None(_), _) => RowIDsOption::new_none(),
             // everything marked deleted

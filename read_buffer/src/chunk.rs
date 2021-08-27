@@ -140,25 +140,52 @@ impl Chunk {
     // Methods for executing queries.
     //
 
-    /// Returns selected data for the specified columns.
+    /// Given a projection of column names, `read_filter` returns all rows that
+    /// satisfy the provided predicate, subject to those rows also not
+    /// satisfying any of the provided negation predicates.
     ///
-    /// Results may be filtered by conjunctive predicates.
-    /// The `ReadBuffer` will optimally prune columns and row groups to improve
-    /// execution where possible.
+    /// Effectively `read_filter` provides projection push-down, predicate
+    /// push-down and the ability to express delete operations based on
+    /// predicates that are then used to remove rows from the result set.
     ///
-    /// `read_filter` return an iterator that will emit record batches for all
-    /// row groups help under the provided chunks.
+    /// Where possible all this work happens on compressed representations, such
+    /// that the minimum amount of data is materialised.
     ///
-    /// `read_filter` is lazy - it does not execute against the next row group
-    /// until the results for the previous one have been emitted.
+    /// `read_filter` returns an iterator of Record Batches, where each Record
+    /// Batch contains all matching rows for a _row group_ within the chunk.
+    /// Each Record Batch is processed and materialised lazily.
+    ///
+    /// Expressing deletes with `read_filter`.
+    ///
+    /// An expectation of this API is that each distinct delete operation can be
+    /// expressed as a predicate consisting of conjunctive expressions comparing
+    /// a column to a literal value. For example you might express two delete
+    /// operations like this:
+    ///
+    ///  DELETE FROM t WHERE "region" = 'west';
+    ///  DELETE FROM t WHERE "region" = 'north' AND "env" = 'prod';
+    ///
+    /// In this case `read_filter` should _remove_ from _any_ result set rows
+    /// that either:
+    ///
+    ///  (1) contain a value 'west' in the "region" column; OR
+    ///  (2) contain a value 'east' in the "region column and also 'prod' in
+    ///      the "env" column.
+    ///
+    /// It is important that separate delete operations are expressed as
+    /// separate `Predicate` objects in the `negated_predicates` argument. This
+    /// ensures that the matching rows are appropriately unioned. This final
+    /// unioned set of rows is then removed from any rows matching the
+    /// `predicate` argument.
+    ///
     pub fn read_filter(
         &self,
         predicate: Predicate,
         select_columns: Selection<'_>,
-        delete_predicates: Vec<Predicate>,
+        negated_predicates: Vec<Predicate>,
     ) -> table::ReadFilterResults {
         self.table
-            .read_filter(&select_columns, &predicate, delete_predicates.as_slice())
+            .read_filter(&select_columns, &predicate, negated_predicates.as_slice())
     }
 
     /// Returns an iterable collection of data in group columns and aggregate
