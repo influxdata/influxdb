@@ -1,6 +1,7 @@
 use std::convert::{TryFrom, TryInto};
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::Instant;
 
 use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
 use generated_types::google::{
@@ -483,6 +484,30 @@ where
             .map_err(default_database_error_handler)?;
 
         Ok(Response::new(SkipReplayResponse {}))
+    }
+
+    async fn persist_partition(
+        &self,
+        request: tonic::Request<PersistPartitionRequest>,
+    ) -> Result<tonic::Response<PersistPartitionResponse>, tonic::Status> {
+        let PersistPartitionRequest {
+            db_name,
+            partition_key,
+            table_name,
+        } = request.into_inner();
+
+        // Validate that the database name is legit
+        let db_name = DatabaseName::new(db_name).field("db_name")?;
+        let db = self
+            .server
+            .db(&db_name)
+            .map_err(default_server_error_handler)?;
+
+        db.persist_partition(&table_name, &partition_key, Instant::now())
+            .await
+            .map_err(default_db_error_handler)?;
+
+        Ok(Response::new(PersistPartitionResponse {}))
     }
 
     async fn drop_partition(

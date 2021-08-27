@@ -33,13 +33,16 @@ use metrics::KeyValue;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::{Mutex, RwLock};
-use parquet_file::{
-    catalog::{CatalogParquetInfo, CheckpointData, PreservedCatalog},
+use parquet_file::catalog::{
+    api::{CatalogParquetInfo, CheckpointData, PreservedCatalog},
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
-use query::exec::{ExecutorType, IOxExecutionContext};
-use query::{exec::Executor, predicate::Predicate, QueryDatabase};
+use query::{
+    exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
+    predicate::Predicate,
+    QueryDatabase,
+};
 use rand_distr::{Distribution, Poisson};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
@@ -480,20 +483,6 @@ impl Db {
         Arc::clone(&self.exec)
     }
 
-    /// Returns a new execution context suitable for running queries
-    ///
-    /// Registers `self` as the default catalog provider
-    pub fn new_query_context(
-        self: &Arc<Self>,
-        span_ctx: Option<SpanContext>,
-    ) -> IOxExecutionContext {
-        self.exec
-            .new_execution_config(ExecutorType::Query)
-            .with_default_catalog(Arc::<Self>::clone(self))
-            .with_span_context(span_ctx)
-            .build()
-    }
-
     /// Return the current database rules
     pub fn rules(&self) -> Arc<DatabaseRules> {
         Arc::clone(&*self.rules.read())
@@ -535,6 +524,11 @@ impl Db {
         }
 
         Ok(new_rules)
+    }
+
+    /// Return the current database's object storage
+    pub fn iox_object_store(&self) -> Arc<IoxObjectStore> {
+        Arc::clone(&self.iox_object_store)
     }
 
     /// Rolls over the active chunk in the database's specified
@@ -1119,7 +1113,7 @@ impl Db {
 
     async fn cleanup_unreferenced_parquet_files(
         self: &Arc<Self>,
-    ) -> std::result::Result<(), parquet_file::cleanup::Error> {
+    ) -> std::result::Result<(), parquet_file::catalog::cleanup::Error> {
         let guard = self.cleanup_lock.write().await;
         let files = get_unreferenced_parquet_files(&self.preserved_catalog, 1_000).await?;
         drop(guard);
@@ -1421,6 +1415,16 @@ impl QueryDatabase for Db {
 
     fn table_schema(&self, table_name: &str) -> Option<Arc<Schema>> {
         self.catalog_access.table_schema(table_name)
+    }
+}
+
+impl ExecutionContextProvider for Db {
+    fn new_query_context(self: &Arc<Self>, span_ctx: Option<SpanContext>) -> IOxExecutionContext {
+        self.exec
+            .new_execution_config(ExecutorType::Query)
+            .with_default_catalog(Arc::<Self>::clone(self))
+            .with_span_context(span_ctx)
+            .build()
     }
 }
 
@@ -2209,7 +2213,7 @@ mod tests {
             .eq(1.0)
             .unwrap();
 
-        let expected_parquet_size = 663;
+        let expected_parquet_size = 1551;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -2688,7 +2692,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2579.0)
+            .sample_sum_eq(3467.0)
             .unwrap();
 
         // while MB and RB chunk are identical, the PQ chunk is a new one (split off)
@@ -2717,7 +2721,7 @@ mod tests {
                 .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
         // Read metadata at file level
-        let schema = parquet_metadata.read_schema().unwrap();
+        let schema = parquet_metadata.decode().unwrap().read_schema().unwrap();
         // Read data
         let record_batches =
             read_data_from_parquet_data(Arc::clone(&schema.as_arrow()), parquet_data);
@@ -2807,7 +2811,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(2579.0)
+            .sample_sum_eq(3467.0)
             .unwrap();
 
         // Unload RB chunk but keep it in OS
@@ -2837,7 +2841,7 @@ mod tests {
                 ("svr_id", "10"),
             ])
             .histogram()
-            .sample_sum_eq(663.0)
+            .sample_sum_eq(1551.0)
             .unwrap();
 
         // Verify data written to the parquet file in object store
@@ -2858,7 +2862,7 @@ mod tests {
                 .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data.clone()).unwrap();
         // Read metadata at file level
-        let schema = parquet_metadata.read_schema().unwrap();
+        let schema = parquet_metadata.decode().unwrap().read_schema().unwrap();
         // Read data
         let record_batches =
             read_data_from_parquet_data(Arc::clone(&schema.as_arrow()), parquet_data);
@@ -3445,7 +3449,7 @@ mod tests {
                 id: 2,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                memory_bytes: 3624,       // size of RB and OS chunks
+                memory_bytes: 4773,       // size of RB and OS chunks
                 object_store_bytes: 1577, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
@@ -3497,7 +3501,7 @@ mod tests {
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 87);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2766);
-        assert_eq!(db.catalog.metrics().memory().object_store(), 858);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 2007);
     }
 
     #[tokio::test]

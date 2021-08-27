@@ -1,0 +1,16 @@
+[package]
+name = "client_util"
+version = "0.1.0"
+authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
+description = "Shared code for IOx clients"
+edition = "2018"
+
+[dependencies]
+http = "0.2.3"
+prost = "0.8"
+thiserror = "1.0.23"
+tonic = { version = "0.5.0" }
+tower = "0.4"
+
+[dev-dependencies]
+tokio = { version = "1.0", features = ["macros"] }

@@ -7,13 +7,13 @@ use observability_deps::tracing::error;
 use snafu::{ResultExt, Snafu};
 
 use crate::{
-    catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog},
+    catalog::api::{CatalogParquetInfo, CatalogState, PreservedCatalog},
     metadata::IoxParquetMetaData,
 };
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Cannot create new empty catalog: {}", source))]
-    NewEmptyFailure { source: crate::catalog::Error },
+    NewEmptyFailure { source: crate::catalog::api::Error },
 
     #[snafu(display("Cannot read store: {}", source))]
     ReadFailure { source: object_store::Error },
@@ -25,13 +25,13 @@ pub enum Error {
     },
 
     #[snafu(display("Cannot add file to transaction: {}", source))]
-    FileRecordFailure { source: crate::catalog::Error },
+    FileRecordFailure { source: crate::catalog::api::Error },
 
     #[snafu(display("Cannot commit transaction: {}", source))]
-    CommitFailure { source: crate::catalog::Error },
+    CommitFailure { source: crate::catalog::api::Error },
 
     #[snafu(display("Cannot create checkpoint: {}", source))]
-    CheckpointFailure { source: crate::catalog::Error },
+    CheckpointFailure { source: crate::catalog::api::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -85,7 +85,7 @@ where
             state
                 .add(Arc::clone(&iox_object_store), info.clone())
                 .context(FileRecordFailure)?;
-            transaction.add_parquet(&info).context(FileRecordFailure)?;
+            transaction.add_parquet(&info);
         }
         transaction.commit().await.context(CheckpointFailure)?;
     }
@@ -152,6 +152,8 @@ async fn read_parquet(
 
     // validate IOxMetadata
     parquet_metadata
+        .decode()
+        .context(MetadataReadFailure { path: path.clone() })?
         .read_iox_metadata()
         .context(MetadataReadFailure { path: path.clone() })?;
 
@@ -162,7 +164,7 @@ async fn read_parquet(
 mod tests {
     use super::*;
     use crate::{
-        catalog::{test_helpers::TestCatalogState, PreservedCatalog},
+        catalog::{api::PreservedCatalog, test_helpers::TestCatalogState},
         metadata::IoxMetadata,
         storage::{MemWriter, Storage},
         test_utils::{
@@ -178,7 +180,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rebuild_successfull() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         // build catalog with some data
         let (catalog, mut state) =
@@ -190,11 +192,11 @@ mod tests {
 
             let info = create_parquet_file(&iox_object_store, 0).await;
             state.insert(info.clone()).unwrap();
-            transaction.add_parquet(&info).unwrap();
+            transaction.add_parquet(&info);
 
             let info = create_parquet_file(&iox_object_store, 1).await;
             state.insert(info.clone()).unwrap();
-            transaction.add_parquet(&info).unwrap();
+            transaction.add_parquet(&info);
 
             transaction.commit().await.unwrap();
         }
@@ -208,7 +210,7 @@ mod tests {
 
             let info = create_parquet_file(&iox_object_store, 2).await;
             state.insert(info.clone()).unwrap();
-            transaction.add_parquet(&info).unwrap();
+            transaction.add_parquet(&info);
 
             transaction.commit().await.unwrap();
         }
@@ -241,7 +243,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rebuild_empty() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         // build empty catalog
         let (catalog, _state) =
@@ -265,7 +267,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rebuild_no_metadata() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         // build catalog with same data
         let catalog =
@@ -304,7 +306,7 @@ mod tests {
         // transaction files and then check that rebuilt catalog will be gone afterwards. Note the
         // difference to the `test_rebuild_empty` case where we can indeed proof the existence of a
         // catalog (even though it is empty aka has no files).
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         // build catalog with some data (2 transactions + initial empty one)
         let (catalog, _state) =

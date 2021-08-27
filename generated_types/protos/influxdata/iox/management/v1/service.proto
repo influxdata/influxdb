@@ -74,6 +74,12 @@ service ManagementService {
   // Skip replay for given DB.
   rpc SkipReplay(SkipReplayRequest) returns (SkipReplayResponse);
 
+  // Persist given partition.
+  //
+  // Errors if there is nothing to persist at the moment as per the lifecycle rules. If successful it returns the
+  // chunk that contains the persisted data.
+  rpc PersistPartition(PersistPartitionRequest) returns (PersistPartitionResponse);
+
   // Drop partition from memory and (if persisted) from object store.
   rpc DropPartition(DropPartitionRequest) returns (DropPartitionResponse);
 
@@ -304,6 +310,9 @@ message DatabaseStatus {
     // Database is known but nothing is loaded.
     DATABASE_STATE_KNOWN = 1;
 
+		// Database object storage has been found
+		DATABASE_STATE_DATABASE_OBJECT_STORE_FOUND = 8;
+
     // Rules are loaded
     DATABASE_STATE_RULES_LOADED = 2;
 
@@ -352,6 +361,20 @@ message SkipReplayRequest {
 message SkipReplayResponse {
 }
 
+// Request to persist given partition.
+message PersistPartitionRequest {
+  // the name of the database
+  string db_name = 1;
+
+  // the partition key
+  string partition_key = 2;
+
+  // the table name
+  string table_name = 3;
+}
+
+message PersistPartitionResponse {
+}
 
 // Request to drop partition from memory and (if persisted) from object store.
 message DropPartitionRequest {

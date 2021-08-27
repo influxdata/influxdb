@@ -36,8 +36,9 @@ use datafusion::{
     error::{DataFusionError as Error, Result},
     logical_plan::{DFSchemaRef, Expr, LogicalPlan, ToDFSchema, UserDefinedLogicalNode},
     physical_plan::{
-        common::SizedRecordBatchStream, DisplayFormatType, Distribution, ExecutionPlan,
-        Partitioning, SendableRecordBatchStream,
+        common::SizedRecordBatchStream,
+        metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet, RecordOutput},
+        DisplayFormatType, Distribution, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     },
 };
 
@@ -139,11 +140,17 @@ pub struct SchemaPivotExec {
     input: Arc<dyn ExecutionPlan>,
     /// Output schema
     schema: SchemaRef,
+    /// Execution metrics
+    metrics: ExecutionPlanMetricsSet,
 }
 
 impl SchemaPivotExec {
     pub fn new(input: Arc<dyn ExecutionPlan>, schema: SchemaRef) -> Self {
-        Self { input, schema }
+        Self {
+            input,
+            schema,
+            metrics: ExecutionPlanMetricsSet::new(),
+        }
     }
 }
 
@@ -190,6 +197,7 @@ impl ExecutionPlan for SchemaPivotExec {
             1 => Ok(Arc::new(Self {
                 input: Arc::clone(&children[0]),
                 schema: Arc::clone(&self.schema),
+                metrics: ExecutionPlanMetricsSet::new(),
             })),
             _ => Err(Error::Internal(
                 "SchemaPivotExec wrong number of children".to_string(),
@@ -206,6 +214,7 @@ impl ExecutionPlan for SchemaPivotExec {
             )));
         }
 
+        let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
         let mut input_reader = self.input.execute(partition).await?;
 
         // Algorithm: for each column we haven't seen a value for yet,
@@ -214,6 +223,10 @@ impl ExecutionPlan for SchemaPivotExec {
         // Performance Optimizations: Don't continue scaning columns
         // if we have already seen a non-null value, and stop early we
         // have seen values for all columns.
+        //
+        // this code should be streaming (aka not run directly in
+        // `execute`):
+        // https://github.com/influxdata/influxdb_iox/issues/2386
         let input_schema = self.input.schema();
         let input_fields = input_schema.fields();
         let num_fields = input_fields.len();
@@ -224,6 +237,7 @@ impl ExecutionPlan for SchemaPivotExec {
         let mut keep_searching = true;
         while keep_searching {
             let input_batch = input_reader.next().await.transpose()?;
+            let timer = baseline_metrics.elapsed_compute().timer();
 
             keep_searching = match input_batch {
                 Some(input_batch) => {
@@ -250,6 +264,7 @@ impl ExecutionPlan for SchemaPivotExec {
                 // no more input
                 None => false,
             };
+            timer.done();
         }
 
         // now, output a string for each column in the input schema
@@ -272,7 +287,8 @@ impl ExecutionPlan for SchemaPivotExec {
             })?;
 
         let batch =
-            RecordBatch::try_new(self.schema(), vec![Arc::new(column_name_builder.finish())])?;
+            RecordBatch::try_new(self.schema(), vec![Arc::new(column_name_builder.finish())])
+                .record_output(&baseline_metrics)?;
 
         let batches = vec![Arc::new(batch)];
         Ok(Box::pin(SizedRecordBatchStream::new(
@@ -287,6 +303,10 @@ impl ExecutionPlan for SchemaPivotExec {
                 write!(f, "SchemaPivotExec")
             }
         }
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
     }
 }
 

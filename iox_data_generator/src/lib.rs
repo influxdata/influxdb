@@ -289,7 +289,7 @@ name = "demo_schema"
 
 [[agents]]
 name = "basic"
-sampling_interval = 10 # seconds
+sampling_interval = "10s" # seconds
 
 [[agents.measurements]]
 name = "cpu"

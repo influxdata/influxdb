@@ -141,7 +141,7 @@ dependencies = [
  "lazy_static",
  "lexical-core",
  "multiversion",
- "num",
+ "num 0.4.0",
  "prettytable-rs",
  "rand 0.8.4",
  "regex",
@@ -489,9 +489,9 @@ checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
 name = "bytes"
-version = "1.0.1"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b700ce4376041dcd0a327fd0097c41095743c4c8af8887265942faf1100bd040"
+checksum = "c4872d67bab6358e59559027aa3b9157c53d9358c51423c17554809a8858e0f8"
 dependencies = [
  "serde",
 ]
@@ -567,9 +567,9 @@ dependencies = [
 
 [[package]]
 name = "clang-sys"
-version = "1.2.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "853eda514c284c2287f4bf20ae614f8781f40a81d32ecda6e91449304dfe077c"
+checksum = "81cf2cc85830eae84823884db23c5306442a6c3d5bfd3beb2f2a2c829faa1816"
 dependencies = [
  "glob",
  "libc",
@@ -589,6 +589,18 @@ dependencies = [
  "textwrap",
  "unicode-width",
  "vec_map",
+]
+
+[[package]]
+name = "client_util"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "prost",
+ "thiserror",
+ "tokio",
+ "tonic",
+ "tower",
 ]
 
 [[package]]
@@ -872,7 +884,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "5.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=bd49b86c48b62d3b215fa30e6fabb468928fd895#bd49b86c48b62d3b215fa30e6fabb468928fd895"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=d31c1579fdc2ad060bc46c4fcfef14cc7676da6b#d31c1579fdc2ad060bc46c4fcfef14cc7676da6b"
 dependencies = [
  "ahash 0.7.4",
  "arrow",
@@ -1581,9 +1593,9 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
-version = "0.14.11"
+version = "0.14.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b61cf2d1aebcf6e6352c97b81dc2244ca29194be1b276f5d8ad5c6330fffb11"
+checksum = "13f67199e765030fa08fe0bd581af683f0d5bc04ea09c2b1102012c5fb90e7fd"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1731,11 +1743,14 @@ dependencies = [
  "influxdb2_client",
  "influxdb_iox_client",
  "influxdb_line_protocol",
+ "influxdb_storage_client",
  "internal_types",
  "itertools 0.10.1",
  "libc",
  "log",
  "logfmt",
+ "metric",
+ "metric_exporters",
  "metrics",
  "mutable_buffer",
  "num_cpus",
@@ -1790,10 +1805,9 @@ dependencies = [
  "arrow",
  "arrow-flight",
  "arrow_util",
+ "client_util",
  "futures-util",
  "generated_types",
- "http",
- "hyper",
  "prost",
  "rand 0.8.4",
  "serde",
@@ -1801,7 +1815,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tonic",
- "tower",
 ]
 
 [[package]]
@@ -1813,6 +1826,17 @@ dependencies = [
  "smallvec",
  "snafu",
  "test_helpers",
+]
+
+[[package]]
+name = "influxdb_storage_client"
+version = "0.1.0"
+dependencies = [
+ "client_util",
+ "futures-util",
+ "generated_types",
+ "prost",
+ "tonic",
 ]
 
 [[package]]
@@ -1881,6 +1905,7 @@ dependencies = [
  "influxdb_iox_client",
  "itertools 0.9.0",
  "packers",
+ "parse_duration",
  "rand 0.8.4",
  "rand_core 0.6.3",
  "rand_seeder",
@@ -1903,6 +1928,7 @@ dependencies = [
  "data_types",
  "futures",
  "object_store",
+ "observability_deps",
  "snafu",
  "tokio",
  "tokio-stream",
@@ -1998,9 +2024,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.100"
+version = "0.2.101"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1fa8cddc8fbbee11227ef194b5317ed014b8acbf15139bd716a18ad3fe99ec5"
+checksum = "3cb00336871be5ed2c8ed44b60ae9959dc5b9f08539422ed43f09e34ecaeba21"
 
 [[package]]
 name = "libloading"
@@ -2154,6 +2180,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59accc507f1338036a0477ef61afdae33cde60840f4dfe481319ce3ad116ddf9"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "metric"
+version = "0.1.0"
+dependencies = [
+ "parking_lot",
+]
+
+[[package]]
+name = "metric_exporters"
+version = "0.1.0"
+dependencies = [
+ "metric",
+ "observability_deps",
+ "prometheus",
 ]
 
 [[package]]
@@ -2349,15 +2391,29 @@ dependencies = [
 
 [[package]]
 name = "num"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8536030f9fea7127f841b45bb6243b27255787fb4eb83958aa1ef9d2fdc0c36"
+dependencies = [
+ "num-bigint 0.2.6",
+ "num-complex 0.2.4",
+ "num-integer",
+ "num-iter",
+ "num-rational 0.2.4",
+ "num-traits",
+]
+
+[[package]]
+name = "num"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43db66d1170d347f9a065114077f7dccb00c1b9478c89384490a3425279a4606"
 dependencies = [
  "num-bigint 0.4.0",
- "num-complex",
+ "num-complex 0.4.0",
  "num-integer",
  "num-iter",
- "num-rational",
+ "num-rational 0.4.0",
  "num-traits",
 ]
 
@@ -2380,6 +2436,16 @@ checksum = "4e0d047c1062aa51e256408c560894e5251f08925980e53cf1aa5bd00eec6512"
 dependencies = [
  "autocfg",
  "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-complex"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
+dependencies = [
+ "autocfg",
  "num-traits",
 ]
 
@@ -2419,6 +2485,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2021c8337a54d21aca0d59a92577a029af9431cb59b909b03252b9c164fad59"
 dependencies = [
  "autocfg",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-rational"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c000134b5dbf44adc5cb772486d335293351644b801551abe8f75c84cfa4aef"
+dependencies = [
+ "autocfg",
+ "num-bigint 0.2.6",
  "num-integer",
  "num-traits",
 ]
@@ -2793,6 +2871,17 @@ dependencies = [
  "tokio-stream",
  "tracker",
  "uuid",
+]
+
+[[package]]
+name = "parse_duration"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7037e5e93e0172a5a96874380bf73bc6ecef022e26fa25f2be26864d6b3ba95d"
+dependencies = [
+ "lazy_static",
+ "num 0.2.1",
+ "regex",
 ]
 
 [[package]]
@@ -3699,9 +3788,9 @@ dependencies = [
 
 [[package]]
 name = "rustc-demangle"
-version = "0.1.20"
+version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dead70b0b5e03e9c814bcb6b01e03e68f7c57a80aa48c72ec92152ab3e818d49"
+checksum = "7ef03e0a2b150c7a90d01faf6254c9c48a41e95fb2a8c2ac1c6f0d2b9aefc342"
 
 [[package]]
 name = "rustc-hash"
@@ -3838,9 +3927,9 @@ dependencies = [
 
 [[package]]
 name = "security-framework-sys"
-version = "2.3.0"
+version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e4effb91b4b8b6fb7732e670b6cee160278ff8e6bf485c7805d9e319d76e284"
+checksum = "19133a286e494cc3311c165c4676ccb1fd47bed45b55f9d71fbd784ad4cea6f8"
 dependencies = [
  "core-foundation-sys",
  "libc",
@@ -3969,6 +4058,7 @@ dependencies = [
  "iox_object_store",
  "itertools 0.10.1",
  "lifecycle",
+ "metric",
  "metrics",
  "mutable_buffer",
  "num_cpus",
@@ -4542,9 +4632,9 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "1.10.0"
+version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01cf844b23c6131f624accf65ce0e4e9956a8bb329400ea5bcc26ae3a5c20b0b"
+checksum = "92036be488bb6594459f2e03b60e42df6f937fe6ca5c5ffdcb539c6b84dc40f5"
 dependencies = [
  "autocfg",
  "bytes",

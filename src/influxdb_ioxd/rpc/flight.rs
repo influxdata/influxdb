@@ -1,11 +1,6 @@
 //! Implements the native gRPC IOx query API using Arrow Flight
+use std::fmt::Debug;
 use std::{pin::Pin, sync::Arc};
-
-use futures::Stream;
-use observability_deps::tracing::{info, warn};
-use serde::Deserialize;
-use snafu::{ResultExt, Snafu};
-use tonic::{Request, Response, Streaming};
 
 use arrow::{
     array::{make_array, ArrayRef, MutableArrayData},
@@ -18,12 +13,19 @@ use arrow_flight::{
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
+use futures::Stream;
+use serde::Deserialize;
+use snafu::{ResultExt, Snafu};
+use tonic::{Request, Response, Streaming};
+
 use data_types::{DatabaseName, DatabaseNameError};
+use observability_deps::tracing::{info, warn};
+use query::exec::ExecutionContextProvider;
 use server::{ConnectionManager, Server};
-use std::fmt::Debug;
+
+use crate::influxdb_ioxd::rpc::error::default_server_error_handler;
 
 use super::super::planner::Planner;
-use crate::influxdb_ioxd::rpc::error::default_server_error_handler;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -362,15 +364,18 @@ fn hydrate_dictionary(array: &ArrayRef) -> Result<ArrayRef, Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::sync::Arc;
+
     use arrow::array::StringArray;
     use arrow::{
         array::{DictionaryArray, UInt32Array},
         datatypes::{DataType, Int32Type},
     };
     use arrow_flight::utils::flight_data_to_arrow_batch;
+
     use datafusion::physical_plan::limit::truncate_batch;
-    use std::sync::Arc;
+
+    use super::*;
 
     #[test]
     fn test_deep_clone_array() {

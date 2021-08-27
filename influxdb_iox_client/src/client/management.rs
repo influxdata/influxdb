@@ -342,6 +342,25 @@ pub enum DropPartitionError {
 pub enum DeleteError {
     //todo
 }
+/// Errors returned by [`Client::persist_partition`]
+#[derive(Debug, Error)]
+pub enum PersistPartitionError {
+    /// Database not found
+    #[error("Not found: {}", .0)]
+    NotFound(String),
+
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
+    /// Server indicated some other action was active for this partition
+    #[error("Cannot perform operation due to wrong chunk lifecycle state: {}", .0.message())]
+    LifecycleError(tonic::Status),
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
 
 /// An IOx Management API client.
 ///
@@ -845,6 +864,39 @@ impl Client {
         let _delete_predicate = delete_predicate.into();
 
         // todo
+
+        Ok(())
+    }
+
+    /// Persist given partition.
+    ///
+    /// Errors if there is nothing to persist at the moment as per the lifecycle rules. If successful it returns the
+    /// chunk that contains the persisted data.
+    pub async fn persist_partition(
+        &mut self,
+        db_name: impl Into<String> + Send,
+        table_name: impl Into<String> + Send,
+        partition_key: impl Into<String> + Send,
+    ) -> Result<(), PersistPartitionError> {
+        let db_name = db_name.into();
+        let partition_key = partition_key.into();
+        let table_name = table_name.into();
+
+        self.inner
+            .persist_partition(PersistPartitionRequest {
+                db_name,
+                partition_key,
+                table_name,
+            })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => {
+                    PersistPartitionError::NotFound(status.message().to_string())
+                }
+                tonic::Code::Unavailable => PersistPartitionError::Unavailable(status),
+                tonic::Code::FailedPrecondition => PersistPartitionError::LifecycleError(status),
+                _ => PersistPartitionError::ServerError(status),
+            })?;
 
         Ok(())
     }

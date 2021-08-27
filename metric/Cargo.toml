@@ -1,0 +1,11 @@
+[package]
+name = "metric"
+version = "0.1.0"
+authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
+edition = "2018"
+
+[dependencies] # In alphabetical order
+
+parking_lot = "0.11"
+
+[dev-dependencies] # In alphabetical order

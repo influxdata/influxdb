@@ -280,6 +280,7 @@ impl Table {
         &'a self,
         columns: &Selection<'_>,
         predicate: &Predicate,
+        negated_predicates: &[Predicate],
     ) -> ReadFilterResults {
         // identify row groups where time range and predicates match could match
         // the predicate. Get a snapshot of those and the meta-data.
@@ -296,6 +297,7 @@ impl Table {
         // TODO(edd): I think I can remove `predicates` from the results
         ReadFilterResults {
             predicate: predicate.clone(),
+            negated_predicates: negated_predicates.to_vec(),
             schema,
             row_groups,
         }
@@ -841,9 +843,9 @@ pub struct ReadFilterResults {
     // These row groups passed the predicates and need to be queried.
     row_groups: Vec<Arc<RowGroup>>,
 
-    // TODO(edd): encapsulate this into a single executor function that just
-    // executes on the next row group.
     predicate: Predicate,
+
+    negated_predicates: Vec<Predicate>,
 }
 
 impl ReadFilterResults {
@@ -872,7 +874,13 @@ impl ReadFilterResults {
 
         self.row_groups
             .iter()
-            .map(|row_group| row_group.read_filter(select_columns, &self.predicate))
+            .map(|row_group| {
+                row_group.read_filter(
+                    select_columns,
+                    &self.predicate,
+                    self.negated_predicates.as_slice(),
+                )
+            })
             .filter(|result| !result.is_empty())
             .collect()
     }
@@ -894,6 +902,7 @@ impl Iterator for ReadFilterResults {
                 .map(|name| name.as_str())
                 .collect::<Vec<_>>(),
             &self.predicate,
+            &self.negated_predicates,
         );
 
         if result.is_empty() {
@@ -1336,7 +1345,11 @@ mod test {
 
         // Get all the results
         let predicate = Predicate::with_time_range(&[], 1, 31);
-        let results = table.read_filter(&Selection::Some(&["time", "count", "region"]), &predicate);
+        let results = table.read_filter(
+            &Selection::Some(&["time", "count", "region"]),
+            &predicate,
+            &[],
+        );
 
         // check the column types
         let exp_schema = ResultSchema {
@@ -1382,7 +1395,7 @@ mod test {
             Predicate::with_time_range(&[BinaryExpr::from(("region", "!=", "south"))], 1, 25);
 
         // Apply a predicate `WHERE "region" != "south"`
-        let results = table.read_filter(&Selection::Some(&["time", "region"]), &predicate);
+        let results = table.read_filter(&Selection::Some(&["time", "region"]), &predicate, &[]);
 
         let exp_schema = ResultSchema {
             select_columns: vec![

@@ -19,13 +19,10 @@ pub use generated_types::{google, protobuf_type_url, protobuf_type_url_eq};
 
 pub use client::*;
 
-/// Builder for constructing connections for use with the various gRPC clients
-pub mod connection;
+pub use client_util::connection;
 
 #[cfg(feature = "format")]
 /// Output formatting utilities
 pub mod format;
 
 mod client;
-
-mod tower;

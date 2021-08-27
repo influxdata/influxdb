@@ -17,7 +17,9 @@ use datafusion::{
     error::{DataFusionError, Result},
     physical_plan::{
         expressions::PhysicalSortExpr,
-        metrics::{self, ExecutionPlanMetricsSet, MetricBuilder, MetricsSet},
+        metrics::{
+            self, BaselineMetrics, ExecutionPlanMetricsSet, MetricBuilder, MetricsSet, RecordOutput,
+        },
         DisplayFormatType, Distribution, ExecutionPlan, Partitioning, SendableRecordBatchStream,
     },
 };
@@ -122,6 +124,21 @@ impl DeduplicateExec {
     }
 }
 
+#[derive(Debug)]
+struct DeduplicateMetrics {
+    baseline_metrics: BaselineMetrics,
+    num_dupes: metrics::Count,
+}
+
+impl DeduplicateMetrics {
+    fn new(metrics: &ExecutionPlanMetricsSet, partition: usize) -> Self {
+        Self {
+            baseline_metrics: BaselineMetrics::new(metrics, partition),
+            num_dupes: MetricBuilder::new(metrics).counter("num_dupes", partition),
+        }
+    }
+}
+
 #[async_trait]
 impl ExecutionPlan for DeduplicateExec {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -155,10 +172,9 @@ impl ExecutionPlan for DeduplicateExec {
                 "DeduplicateExec only supports a single input stream".to_string(),
             ));
         }
+        let deduplicate_metrics = DeduplicateMetrics::new(&self.metrics, partition);
 
         let input_stream = self.input.execute(0).await?;
-
-        let num_dupes = MetricBuilder::new(&self.metrics).counter("num_dupes", partition);
 
         // the deduplication is performed in a separate task which is
         // then sent via a channel to the output
@@ -168,7 +184,7 @@ impl ExecutionPlan for DeduplicateExec {
             input_stream,
             self.sort_keys.clone(),
             tx.clone(),
-            num_dupes,
+            deduplicate_metrics,
         ));
 
         // A second task watches the output of the worker task
@@ -226,8 +242,14 @@ async fn deduplicate(
     mut input_stream: SendableRecordBatchStream,
     sort_keys: Vec<PhysicalSortExpr>,
     tx: mpsc::Sender<ArrowResult<RecordBatch>>,
-    num_dupes: metrics::Count,
+    deduplicate_metrics: DeduplicateMetrics,
 ) -> ArrowResult<()> {
+    let DeduplicateMetrics {
+        baseline_metrics,
+        num_dupes,
+    } = deduplicate_metrics;
+
+    let elapsed_compute = baseline_metrics.elapsed_compute();
     let mut deduplicator = RecordBatchDeduplicator::new(sort_keys, num_dupes, None);
 
     // Stream input through the indexer
@@ -235,25 +257,38 @@ async fn deduplicate(
         let batch = batch?;
 
         // First check if this batch has same sort key with its previous batch
-        if let Some(last_batch) = deduplicator.last_batch_with_no_same_sort_key(&batch) {
+        let timer = elapsed_compute.timer();
+        if let Some(last_batch) = deduplicator
+            .last_batch_with_no_same_sort_key(&batch)
+            .record_output(&baseline_metrics)
+        {
+            timer.done();
             // No, different sort key, so send the last batch downstream first
             tx.send(Ok(last_batch))
                 .await
                 .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+        } else {
+            timer.done()
         }
 
         // deduplicate data of the batch
-        let output_batch = deduplicator.push(batch)?;
+        let timer = elapsed_compute.timer();
+        let output_batch = deduplicator.push(batch).record_output(&baseline_metrics)?;
+        timer.done();
         tx.send(Ok(output_batch))
             .await
             .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
     }
 
     // send any left over batch
-    if let Some(output_batch) = deduplicator.finish()? {
+    let timer = elapsed_compute.timer();
+    if let Some(output_batch) = deduplicator.finish()?.record_output(&baseline_metrics) {
+        timer.done();
         tx.send(Ok(output_batch))
             .await
             .map_err(|e| ArrowError::from_external_error(Box::new(e)))?;
+    } else {
+        timer.done()
     }
 
     Ok(())

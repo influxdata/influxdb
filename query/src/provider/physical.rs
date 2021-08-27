@@ -5,7 +5,10 @@ use std::{fmt, sync::Arc};
 use arrow::datatypes::SchemaRef;
 use datafusion::{
     error::DataFusionError,
-    physical_plan::{DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream},
+    physical_plan::{
+        metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
+        DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    },
 };
 use internal_types::{schema::Schema, selection::Selection};
 
@@ -24,6 +27,8 @@ pub(crate) struct IOxReadFilterNode<C: QueryChunk + 'static> {
     schema: SchemaRef,
     chunks: Vec<Arc<C>>,
     predicate: Predicate,
+    /// Execution metrics
+    metrics: ExecutionPlanMetricsSet,
 }
 
 impl<C: QueryChunk + 'static> IOxReadFilterNode<C> {
@@ -41,6 +46,7 @@ impl<C: QueryChunk + 'static> IOxReadFilterNode<C> {
             schema,
             chunks,
             predicate,
+            metrics: ExecutionPlanMetricsSet::new(),
         }
     }
 }
@@ -79,6 +85,7 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
             schema: Arc::clone(&self.schema),
             chunks,
             predicate: self.predicate.clone(),
+            metrics: ExecutionPlanMetricsSet::new(),
         };
 
         Ok(Arc::new(new_self))
@@ -88,6 +95,9 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
         &self,
         partition: usize,
     ) -> datafusion::error::Result<SendableRecordBatchStream> {
+        let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
+        let timer = baseline_metrics.elapsed_compute().timer();
+
         let fields = self.schema.fields();
         let selection_cols = fields.iter().map(|f| f.name() as &str).collect::<Vec<_>>();
 
@@ -113,8 +123,12 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
             ))
         })?;
 
-        let adapter = SchemaAdapterStream::try_new(stream, Arc::clone(&self.schema))
-            .map_err(|e| DataFusionError::Internal(e.to_string()))?;
+        // all CPU time is now done, pass in baseline metrics to adapter
+        timer.done();
+
+        let adapter =
+            SchemaAdapterStream::try_new(stream, Arc::clone(&self.schema), baseline_metrics)
+                .map_err(|e| DataFusionError::Internal(e.to_string()))?;
 
         Ok(Box::pin(adapter))
     }
@@ -131,6 +145,10 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
                 )
             }
         }
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
     }
 }
 

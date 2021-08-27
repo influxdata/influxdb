@@ -1,7 +1,7 @@
 //! Methods to cleanup the object store.
 use std::{collections::HashSet, sync::Arc};
 
-use crate::catalog::{CatalogParquetInfo, CatalogState, PreservedCatalog};
+use crate::catalog::api::{CatalogParquetInfo, CatalogState, PreservedCatalog};
 use futures::TryStreamExt;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::{ObjectStore, ObjectStoreApi};
@@ -22,7 +22,7 @@ pub enum Error {
     },
 
     #[snafu(display("Error from catalog loading while cleaning object store: {}", source))]
-    CatalogLoadError { source: crate::catalog::Error },
+    CatalogLoadError { source: crate::catalog::api::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -124,12 +124,12 @@ impl CatalogState for TracerCatalogState {
         &mut self,
         _iox_object_store: Arc<IoxObjectStore>,
         info: CatalogParquetInfo,
-    ) -> crate::catalog::Result<()> {
+    ) -> crate::catalog::api::Result<()> {
         self.files.lock().insert(info.path);
         Ok(())
     }
 
-    fn remove(&mut self, _path: &ParquetFilePath) -> crate::catalog::Result<()> {
+    fn remove(&mut self, _path: &ParquetFilePath) -> crate::catalog::api::Result<()> {
         // Do NOT remove the file since we still need it for time travel
         Ok(())
     }
@@ -147,7 +147,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup_empty() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         let (catalog, _state) =
             PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
@@ -163,7 +163,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup_rules() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         let (catalog, _state) =
             PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
@@ -185,7 +185,7 @@ mod tests {
                 metadata,
             };
 
-            transaction.add_parquet(&info).unwrap();
+            transaction.add_parquet(&info);
             paths_keep.push(info.path);
 
             // another ordinary tracked parquet file that was added and removed => keep (for time
@@ -197,7 +197,7 @@ mod tests {
                 file_size_bytes: 33,
                 metadata,
             };
-            transaction.add_parquet(&info).unwrap();
+            transaction.add_parquet(&info);
             transaction.remove_parquet(&info.path);
             paths_keep.push(info.path);
 
@@ -229,7 +229,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup_with_parallel_transaction() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
         let lock: RwLock<()> = Default::default();
 
         let (catalog, _state) =
@@ -259,7 +259,7 @@ mod tests {
                     };
 
                     let mut transaction = catalog.open_transaction().await;
-                    transaction.add_parquet(&info).unwrap();
+                    transaction.add_parquet(&info);
                     transaction.commit().await.unwrap();
 
                     drop(guard);
@@ -284,7 +284,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup_max_files() {
-        let iox_object_store = make_iox_object_store();
+        let iox_object_store = make_iox_object_store().await;
 
         let (catalog, _state) =
             PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())

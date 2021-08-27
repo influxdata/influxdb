@@ -985,6 +985,7 @@ async fn test_get_server_status_db_error() {
     let mut path = server_fixture.dir().to_path_buf();
     path.push("42");
     path.push("my_db");
+    path.push("0");
     std::fs::create_dir_all(path.clone()).unwrap();
     path.push("rules.pb");
     std::fs::write(path, "foo").unwrap();
@@ -1004,7 +1005,7 @@ async fn test_get_server_status_db_error() {
         .starts_with("error decoding database rules:"));
     assert_eq!(
         DatabaseState::from_i32(db_status.state).unwrap(),
-        DatabaseState::Known
+        DatabaseState::DatabaseObjectStoreFound
     );
 }
 
@@ -1246,4 +1247,107 @@ async fn test_delete() {
         .unwrap();
 
     // Todo: check return delete outcome
+}
+#[tokio::test]
+async fn test_persist_partition() {
+    use data_types::chunk_metadata::ChunkStorage;
+
+    let fixture = ServerFixture::create_shared().await;
+    let mut write_client = fixture.write_client();
+    let mut management_client = fixture.management_client();
+
+    let db_name = rand_name();
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        .persist_age_threshold_seconds(1_000)
+        .late_arrive_window_seconds(1)
+        .build(fixture.grpc_channel())
+        .await;
+
+    let num_lines_written = write_client
+        .write(&db_name, "data foo=1 10")
+        .await
+        .expect("successful write");
+    assert_eq!(num_lines_written, 1);
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::OpenMutableBuffer],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    let partition_key = &chunks[0].partition_key;
+
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+    management_client
+        .persist_partition(&db_name, "data", &partition_key[..])
+        .await
+        .unwrap();
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(
+        chunks[0].storage,
+        generated_types::influxdata::iox::management::v1::ChunkStorage::ReadBufferAndObjectStore
+            as i32
+    );
+}
+
+#[tokio::test]
+async fn test_persist_partition_error() {
+    use data_types::chunk_metadata::ChunkStorage;
+
+    let fixture = ServerFixture::create_shared().await;
+    let mut write_client = fixture.write_client();
+    let mut management_client = fixture.management_client();
+
+    let db_name = rand_name();
+    DatabaseBuilder::new(db_name.clone())
+        .persist(true)
+        .persist_age_threshold_seconds(1_000)
+        .late_arrive_window_seconds(1_000)
+        .build(fixture.grpc_channel())
+        .await;
+
+    let num_lines_written = write_client
+        .write(&db_name, "data foo=1 10")
+        .await
+        .expect("successful write");
+    assert_eq!(num_lines_written, 1);
+
+    wait_for_exact_chunk_states(
+        &fixture,
+        &db_name,
+        vec![ChunkStorage::OpenMutableBuffer],
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    assert_eq!(chunks.len(), 1);
+    let partition_key = &chunks[0].partition_key;
+
+    // there is no old data (late arrival window is 1000s) that can be persisted
+    let err = management_client
+        .persist_partition(&db_name, "data", &partition_key[..])
+        .await
+        .unwrap_err();
+    assert_contains!(
+        err.to_string(),
+        "Cannot persist partition because it cannot be flushed at the moment"
+    );
 }

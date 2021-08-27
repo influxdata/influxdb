@@ -368,7 +368,7 @@ base_seed = "this is a demo"
 
 [[agents]]
 name = "basic"
-sampling_interval = 1
+sampling_interval = "1s" # seconds
 
 [[agents.measurements]]
 name = "cpu"

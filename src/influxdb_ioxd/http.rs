@@ -24,7 +24,7 @@ use data_types::{
 };
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
-use query::QueryDatabase;
+use query::{exec::ExecutionContextProvider, QueryDatabase};
 use server::{ApplicationState, ConnectionManager, Error, Server as AppServer};
 
 // External crates
@@ -704,11 +704,17 @@ async fn handle_metrics<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .observation()
         .ok_with_labels(&[metrics::KeyValue::new("path", path)]);
 
-    let body = req
+    let application = req
         .data::<Arc<ApplicationState>>()
-        .expect("application state")
-        .metric_registry()
-        .metrics_as_text();
+        .expect("application state");
+
+    let mut body = application.metric_registry().metrics_as_text();
+
+    // Prometheus does not require that metrics are output in order and so can concat exports
+    // This will break if the same metric is published from two different exporters, but this
+    // is a temporary way to avoid migrating all metrics in one go
+    let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
+    application.metric_registry_v2().report(&mut reporter);
 
     Ok(Response::new(Body::from(body)))
 }
@@ -999,6 +1005,33 @@ mod tests {
 
         // Print the response so if the test fails, we have a log of what went wrong
         check_response("health", response, StatusCode::OK, Some("OK")).await;
+    }
+
+    #[tokio::test]
+    async fn test_metrics() {
+        use metric::{Metric, U64Counter};
+
+        let application = make_application();
+        let metric: Metric<U64Counter> = application
+            .metric_registry_v2()
+            .register_metric("my_metric", "description");
+
+        let app_server = make_server(Arc::clone(&application));
+        let server_url = test_server(application, Arc::clone(&app_server));
+
+        metric.recorder(&[("tag", "value")]).inc(20);
+
+        let client = Client::new();
+        let response = client
+            .get(&format!("{}/metrics", server_url))
+            .send()
+            .await
+            .unwrap();
+
+        let data = response.text().await.unwrap();
+
+        assert!(data.contains(&"\nhttp_requests_total{path=\"/metrics\",status=\"ok\"} 1\n"));
+        assert!(data.contains(&"\nmy_metric_total{tag=\"value\"} 20\n"));
     }
 
     #[tokio::test]

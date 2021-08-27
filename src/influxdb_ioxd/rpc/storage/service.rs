@@ -2,18 +2,13 @@
 //! implemented in terms of the [`QueryDatabase`](query::QueryDatabase) and
 //! [`DatabaseStore`]
 
-use crate::influxdb_ioxd::{
-    planner::Planner,
-    rpc::storage::{
-        data::{
-            fieldlist_to_measurement_fields_response, series_set_item_to_read_response,
-            tag_keys_to_byte_vecs,
-        },
-        expr::{self, AddRpcNode, GroupByAndAggregate, Loggable, SpecialTagKeys},
-        input::GrpcInputs,
-        StorageService,
-    },
-};
+use std::collections::HashMap;
+
+use snafu::{OptionExt, ResultExt, Snafu};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+use tonic::Status;
+
 use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{
     google::protobuf::Empty, storage_server::Storage, CapabilitiesResponse, Capability,
@@ -26,15 +21,24 @@ use generated_types::{
 use metrics::KeyValue;
 use observability_deps::tracing::{error, info};
 use query::{
-    exec::{fieldlist::FieldList, seriesset::Error as SeriesSetError, ExecutorType},
+    exec::{fieldlist::FieldList, seriesset::Error as SeriesSetError, ExecutionContextProvider},
     predicate::PredicateBuilder,
 };
 use server::DatabaseStore;
-use snafu::{OptionExt, ResultExt, Snafu};
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
-use tonic::Status;
+
+use crate::influxdb_ioxd::{
+    planner::Planner,
+    rpc::storage::{
+        data::{
+            fieldlist_to_measurement_fields_response, series_set_item_to_read_response,
+            tag_keys_to_byte_vecs,
+        },
+        expr::{self, AddRpcNode, GroupByAndAggregate, Loggable, SpecialTagKeys},
+        input::GrpcInputs,
+        StorageService,
+    },
+};
+use trace::ctx::SpanContext;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -220,6 +224,7 @@ where
         &self,
         req: tonic::Request<ReadFilterRequest>,
     ) -> Result<tonic::Response<Self::ReadFilterStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let read_filter_request = req.into_inner();
 
         let db_name = get_database_name(&read_filter_request)?;
@@ -238,7 +243,7 @@ where
             KeyValue::new("db_name", db_name.to_string()),
         ];
 
-        let results = read_filter_impl(Arc::clone(&self.db_store), db_name, range, predicate)
+        let results = read_filter_impl(self.db_store.as_ref(), db_name, range, predicate, span_ctx)
             .await
             .map_err(|e| {
                 if e.is_internal() {
@@ -262,6 +267,7 @@ where
         &self,
         req: tonic::Request<ReadGroupRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let read_group_request = req.into_inner();
 
         let db_name = get_database_name(&read_group_request)?;
@@ -311,11 +317,12 @@ where
             })?;
 
         let results = query_group_impl(
-            Arc::clone(&self.db_store),
+            self.db_store.as_ref(),
             db_name,
             range,
             predicate,
             gby_agg,
+            span_ctx,
         )
         .await
         .map_err(|e| {
@@ -341,6 +348,7 @@ where
         &self,
         req: tonic::Request<ReadWindowAggregateRequest>,
     ) -> Result<tonic::Response<Self::ReadGroupStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let read_window_aggregate_request = req.into_inner();
 
         let db_name = get_database_name(&read_window_aggregate_request)?;
@@ -376,11 +384,12 @@ where
             })?;
 
         let results = query_group_impl(
-            Arc::clone(&self.db_store),
+            self.db_store.as_ref(),
             db_name,
             range,
             predicate,
             gby_agg,
+            span_ctx,
         )
         .await
         .map_err(|e| {
@@ -405,6 +414,7 @@ where
         &self,
         req: tonic::Request<TagKeysRequest>,
     ) -> Result<tonic::Response<Self::TagKeysStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let tag_keys_request = req.into_inner();
@@ -428,11 +438,12 @@ where
         let measurement = None;
 
         let response = tag_keys_impl(
-            Arc::clone(&self.db_store),
+            self.db_store.as_ref(),
             db_name,
             measurement,
             range,
             predicate,
+            span_ctx,
         )
         .await
         .map_err(|e| {
@@ -458,6 +469,7 @@ where
         &self,
         req: tonic::Request<TagValuesRequest>,
     ) -> Result<tonic::Response<Self::TagValuesStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let tag_values_request = req.into_inner();
@@ -492,7 +504,7 @@ where
                 .to_status());
             }
 
-            measurement_name_impl(Arc::clone(&self.db_store), db_name, range)
+            measurement_name_impl(self.db_store.as_ref(), db_name, range, span_ctx)
                 .await
                 .map_err(|e| {
                     if e.is_internal() {
@@ -505,17 +517,23 @@ where
         } else if tag_key.is_field() {
             info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_values with tag_key=[xff] (field name)");
 
-            let fieldlist =
-                field_names_impl(Arc::clone(&self.db_store), db_name, None, range, predicate)
-                    .await
-                    .map_err(|e| {
-                        if e.is_internal() {
-                            ob.error_with_labels(labels);
-                        } else {
-                            ob.client_error_with_labels(labels);
-                        }
-                        e
-                    })?;
+            let fieldlist = field_names_impl(
+                self.db_store.as_ref(),
+                db_name,
+                None,
+                range,
+                predicate,
+                span_ctx,
+            )
+            .await
+            .map_err(|e| {
+                if e.is_internal() {
+                    ob.error_with_labels(labels);
+                } else {
+                    ob.client_error_with_labels(labels);
+                }
+                e
+            })?;
 
             // Pick out the field names into a Vec<Vec<u8>>for return
             let values = fieldlist
@@ -536,12 +554,13 @@ where
             info!(%db_name, ?range, %tag_key, predicate=%predicate.loggable(), "tag_values",);
 
             tag_values_impl(
-                Arc::clone(&self.db_store),
+                self.db_store.as_ref(),
                 db_name,
                 tag_key,
                 measurement,
                 range,
                 predicate,
+                span_ctx,
             )
             .await
         };
@@ -607,6 +626,7 @@ where
         &self,
         req: tonic::Request<MeasurementNamesRequest>,
     ) -> Result<tonic::Response<Self::MeasurementNamesStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let measurement_names_request = req.into_inner();
@@ -638,7 +658,7 @@ where
             KeyValue::new("db_name", db_name.to_string()),
         ];
 
-        let response = measurement_name_impl(Arc::clone(&self.db_store), db_name, range)
+        let response = measurement_name_impl(self.db_store.as_ref(), db_name, range, span_ctx)
             .await
             .map_err(|e| {
                 if e.is_internal() {
@@ -663,6 +683,7 @@ where
         &self,
         req: tonic::Request<MeasurementTagKeysRequest>,
     ) -> Result<tonic::Response<Self::MeasurementTagKeysStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let measurement_tag_keys_request = req.into_inner();
@@ -687,11 +708,12 @@ where
         let measurement = Some(measurement);
 
         let response = tag_keys_impl(
-            Arc::clone(&self.db_store),
+            self.db_store.as_ref(),
             db_name,
             measurement,
             range,
             predicate,
+            span_ctx,
         )
         .await
         .map_err(|e| {
@@ -717,6 +739,7 @@ where
         &self,
         req: tonic::Request<MeasurementTagValuesRequest>,
     ) -> Result<tonic::Response<Self::MeasurementTagValuesStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let measurement_tag_values_request = req.into_inner();
@@ -742,12 +765,13 @@ where
         let measurement = Some(measurement);
 
         let response = tag_values_impl(
-            Arc::clone(&self.db_store),
+            self.db_store.as_ref(),
             db_name,
             tag_key,
             measurement,
             range,
             predicate,
+            span_ctx,
         )
         .await
         .map_err(|e| {
@@ -773,6 +797,7 @@ where
         &self,
         req: tonic::Request<MeasurementFieldsRequest>,
     ) -> Result<tonic::Response<Self::MeasurementFieldsStream>, Status> {
+        let span_ctx = req.extensions().get().cloned();
         let (tx, rx) = mpsc::channel(4);
 
         let measurement_fields_request = req.into_inner();
@@ -797,11 +822,12 @@ where
         let measurement = Some(measurement);
 
         let response = field_names_impl(
-            Arc::clone(&self.db_store),
+            self.db_store.as_ref(),
             db_name,
             measurement,
             range,
             predicate,
+            span_ctx,
         )
         .await
         .map(|fieldlist| {
@@ -854,9 +880,10 @@ fn get_database_name(input: &impl GrpcInputs) -> Result<DatabaseName<'static>, S
 /// Gathers all measurement names that have data in the specified
 /// (optional) range
 async fn measurement_name_impl<T>(
-    db_store: Arc<T>,
+    db_store: &T,
     db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
+    span_ctx: Option<SpanContext>,
 ) -> Result<StringValuesResponse>
 where
     T: DatabaseStore + 'static,
@@ -865,7 +892,7 @@ where
     let db_name = db_name.as_ref();
 
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let ctx = db_store.executor().new_context(ExecutorType::Query);
+    let ctx = db.new_query_context(span_ctx);
 
     let plan = Planner::new(&ctx)
         .table_names(db, predicate)
@@ -891,11 +918,12 @@ where
 /// Return tag keys with optional measurement, timestamp and arbitratry
 /// predicates
 async fn tag_keys_impl<T>(
-    db_store: Arc<T>,
+    db_store: &T,
     db_name: DatabaseName<'static>,
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
+    span_ctx: Option<SpanContext>,
 ) -> Result<StringValuesResponse>
 where
     T: DatabaseStore + 'static,
@@ -915,7 +943,7 @@ where
         db_name: db_name.as_str(),
     })?;
 
-    let ctx = db_store.executor().new_context(ExecutorType::Query);
+    let ctx = db.new_query_context(span_ctx);
 
     let tag_key_plan = Planner::new(&ctx)
         .tag_keys(db, predicate)
@@ -945,12 +973,13 @@ where
 /// Return tag values for tag_name, with optional measurement, timestamp and
 /// arbitratry predicates
 async fn tag_values_impl<T>(
-    db_store: Arc<T>,
+    db_store: &T,
     db_name: DatabaseName<'static>,
     tag_name: String,
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
+    span_ctx: Option<SpanContext>,
 ) -> Result<StringValuesResponse>
 where
     T: DatabaseStore + 'static,
@@ -970,7 +999,7 @@ where
     let tag_name = &tag_name;
 
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let ctx = db_store.executor().new_context(ExecutorType::Query);
+    let ctx = db.new_query_context(span_ctx);
 
     let tag_value_plan = Planner::new(&ctx)
         .tag_values(db, tag_name, predicate)
@@ -998,11 +1027,12 @@ where
 }
 
 /// Launch async tasks that materialises the result of executing read_filter.
-async fn read_filter_impl<'a, T>(
-    db_store: Arc<T>,
+async fn read_filter_impl<T>(
+    db_store: &T,
     db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
+    span_ctx: Option<SpanContext>,
 ) -> Result<Vec<ReadResponse>, Error>
 where
     T: DatabaseStore + 'static,
@@ -1023,7 +1053,7 @@ where
 
     let db_name = owned_db_name.as_str();
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let ctx = db_store.executor().new_context(ExecutorType::Query);
+    let ctx = db.new_query_context(span_ctx);
 
     // PERF - This used to send responses to the client before execution had
     // completed, but now it doesn't. We may need to revisit this in the future
@@ -1055,11 +1085,12 @@ where
 
 /// Launch async tasks that send the result of executing read_group to `tx`
 async fn query_group_impl<T>(
-    db_store: Arc<T>,
+    db_store: &T,
     db_name: DatabaseName<'static>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
     gby_agg: GroupByAndAggregate,
+    span_ctx: Option<SpanContext>,
 ) -> Result<Vec<ReadResponse>, Error>
 where
     T: DatabaseStore + 'static,
@@ -1080,7 +1111,7 @@ where
     let db_name = owned_db_name.as_str();
 
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let ctx = db_store.executor().new_context(ExecutorType::Query);
+    let ctx = db.new_query_context(span_ctx);
 
     let planner = Planner::new(&ctx);
     let grouped_series_set_plan = match gby_agg {
@@ -1121,11 +1152,12 @@ where
 /// Return field names, restricted via optional measurement, timestamp and
 /// predicate
 async fn field_names_impl<T>(
-    db_store: Arc<T>,
+    db_store: &T,
     db_name: DatabaseName<'static>,
     measurement: Option<String>,
     range: Option<TimestampRange>,
     rpc_predicate: Option<Predicate>,
+    span_ctx: Option<SpanContext>,
 ) -> Result<FieldList>
 where
     T: DatabaseStore + 'static,
@@ -1143,7 +1175,7 @@ where
 
     let db_name = db_name.as_str();
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-    let ctx = db_store.executor().new_context(ExecutorType::Query);
+    let ctx = db.new_query_context(span_ctx);
 
     let field_list_plan = Planner::new(&ctx)
         .field_columns(db, predicate)
@@ -1162,39 +1194,32 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::super::id::Id;
+    use std::{
+        collections::BTreeMap,
+        net::{IpAddr, Ipv4Addr, SocketAddr},
+        num::NonZeroU64,
+        sync::Arc,
+    };
 
-    use super::*;
-    use datafusion::logical_plan::{col, lit, Expr};
-    use panic_logging::SendPanicsToTracing;
     use parking_lot::Mutex;
+    use tokio_stream::wrappers::TcpListenerStream;
+
+    use datafusion::logical_plan::{col, lit, Expr};
+    use generated_types::i_ox_testing_client::IOxTestingClient;
+    use influxdb_storage_client::{
+        connection::{Builder as ConnectionBuilder, Connection},
+        generated_types::*,
+        Client as StorageClient, OrgAndBucket,
+    };
+    use panic_logging::SendPanicsToTracing;
     use query::{
         exec::Executor,
         predicate::PredicateMatch,
         test::{TestChunk, TestDatabase, TestError},
     };
-    use std::{
-        collections::BTreeMap,
-        convert::TryFrom,
-        net::{IpAddr, Ipv4Addr, SocketAddr},
-        time::Duration,
-    };
-    use test_helpers::{assert_contains, tag_key_bytes_to_strings, tracing::TracingCapture};
+    use test_helpers::{assert_contains, tracing::TracingCapture};
 
-    use futures::prelude::*;
-
-    use generated_types::{
-        aggregate::AggregateType, i_ox_testing_client, node, storage_client,
-        Aggregate as RPCAggregate, Duration as RPCDuration, Node, ReadSource, TestErrorRequest,
-        Window as RPCWindow,
-    };
-
-    use generated_types::google::protobuf::Any;
-    use prost::Message;
-    use tokio_stream::wrappers::TcpListenerStream;
-
-    type IOxTestingClient = i_ox_testing_client::IOxTestingClient<tonic::transport::Channel>;
-    type StorageClient = storage_client::StorageClient<tonic::transport::Channel>;
+    use super::*;
 
     fn to_str_vec(s: &[&str]) -> Vec<String> {
         s.iter().map(|s| s.to_string()).collect()
@@ -1242,14 +1267,17 @@ mod tests {
         );
     }
 
+    fn org_and_bucket() -> OrgAndBucket {
+        OrgAndBucket::new(NonZeroU64::new(123).unwrap(), NonZeroU64::new(456).unwrap())
+    }
+
     #[tokio::test]
     async fn test_storage_rpc_measurement_names() {
         test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         let chunk0 = TestChunk::new("h2o")
             .with_id(0)
@@ -1261,17 +1289,13 @@ mod tests {
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk0))
             .add_chunk("my_partition_key", Arc::new(chunk1));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         // --- No timestamps
         let request = MeasurementNamesRequest {
@@ -1311,7 +1335,7 @@ mod tests {
         // down to the chunk
         let actual_predicates = fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .expect("getting db")
             .get_chunk("my_partition_key", 0)
@@ -1341,8 +1365,7 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         // Note multiple tables / measureemnts:
         let chunk0 = TestChunk::new("m1")
@@ -1357,17 +1380,13 @@ mod tests {
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk0))
             .add_chunk("my_partition_key", Arc::new(chunk1));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         let request = TagKeysRequest {
             tags_source: source.clone(),
@@ -1384,7 +1403,7 @@ mod tests {
         // down to the chunk
         let actual_predicates = fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .expect("getting db")
             .get_chunk("my_partition_key", 0)
@@ -1412,23 +1431,18 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         let chunk = TestChunk::new("my_table").with_error("Sugar we are going down");
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         // ---
         // test error
@@ -1454,8 +1468,7 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         let chunk0 = TestChunk::new("m1")
             // predicate specifies m4, so this is filtered out
@@ -1469,17 +1482,13 @@ mod tests {
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk0))
             .add_chunk("my_partition_key", Arc::new(chunk1));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         // ---
         // Timestamp + Predicate
@@ -1507,7 +1516,7 @@ mod tests {
         // down to the chunk
         let actual_predicates = fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .expect("getting db")
             .get_chunk("my_partition_key", 0)
@@ -1536,24 +1545,19 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         // predicate specifies m4, so this is filtered out
         let chunk = TestChunk::new("my_table").with_error("This is an error");
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         // ---
         // test error
@@ -1580,8 +1584,7 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         // Add a chunk with a field
         let chunk = TestChunk::new("TheMeasurement")
@@ -1591,16 +1594,12 @@ mod tests {
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         let request = TagValuesRequest {
             tags_source: source.clone(),
@@ -1626,14 +1625,9 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         // ---
         // test tag_key = _measurement means listing all measurement names
@@ -1649,7 +1643,7 @@ mod tests {
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
@@ -1670,8 +1664,7 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         // Add a chunk with a field
         let chunk = TestChunk::new("TheMeasurement")
@@ -1682,16 +1675,12 @@ mod tests {
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         // ---
         // test tag_key = _field means listing all field names
@@ -1719,23 +1708,18 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         let chunk = TestChunk::new("my_table").with_error("Sugar we are going down");
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         // ---
         // test error
@@ -1787,8 +1771,7 @@ mod tests {
         test_helpers::maybe_start_logging();
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         // Add a chunk with a field
         let chunk = TestChunk::new("TheMeasurement")
@@ -1798,16 +1781,12 @@ mod tests {
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         let request = MeasurementTagValuesRequest {
             measurement: "TheMeasurement".into(),
@@ -1837,23 +1816,18 @@ mod tests {
         test_helpers::maybe_start_logging();
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         let chunk = TestChunk::new("my_table").with_error("Sugar we are going down");
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         // ---
         // test error
@@ -1940,8 +1914,7 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         // Add a chunk with a field
         let chunk = TestChunk::new("TheMeasurement")
@@ -1951,16 +1924,12 @@ mod tests {
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         let request = ReadFilterRequest {
             read_source: source.clone(),
@@ -1968,14 +1937,13 @@ mod tests {
             predicate: Some(make_state_ma_predicate()),
         };
 
-        let actual_frames = fixture.storage_client.read_filter(request).await.unwrap();
+        let frames = fixture.storage_client.read_filter(request).await.unwrap();
 
         // TODO: encode the actual output in the test case or something
-        let expected_frames: Vec<String> = vec!["0 frames".into()];
-
         assert_eq!(
-            actual_frames, expected_frames,
-            "unexpected frames returned by query_series",
+            frames.len(),
+            0,
+            "unexpected frames returned by query_series"
         );
 
         grpc_request_metric_has_count(&fixture, "read_filter", "ok", 1).unwrap();
@@ -1987,23 +1955,18 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         let chunk = TestChunk::new("my_table").with_error("Sugar we are going down");
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         // ---
         // test error
@@ -2027,8 +1990,7 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         let chunk = TestChunk::new("TheMeasurement")
             .with_time_column()
@@ -2037,16 +1999,12 @@ mod tests {
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         let group = generated_types::read_group_request::Group::By as i32;
 
@@ -2056,19 +2014,15 @@ mod tests {
             predicate: Some(make_state_ma_predicate()),
             group_keys: vec!["state".into()],
             group,
-            aggregate: Some(RPCAggregate {
-                r#type: AggregateType::Sum as i32,
+            aggregate: Some(Aggregate {
+                r#type: aggregate::AggregateType::Sum as i32,
             }),
             hints: 0,
         };
 
-        let actual_frames = fixture.storage_client.read_group(request).await.unwrap();
-        let expected_frames: Vec<String> = vec!["1 group frames".into()];
+        let frames = fixture.storage_client.read_group(request).await.unwrap();
 
-        assert_eq!(
-            actual_frames, expected_frames,
-            "unexpected frames returned by query_groups"
-        );
+        assert_eq!(frames.len(), 1);
 
         grpc_request_metric_has_count(&fixture, "read_group", "ok", 1).unwrap();
     }
@@ -2079,23 +2033,18 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         let chunk = TestChunk::new("my_table").with_error("Sugar we are going down");
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         let group = generated_types::read_group_request::Group::By as i32;
 
@@ -2108,8 +2057,8 @@ mod tests {
             predicate: None,
             group_keys: vec!["tag1".into()],
             group,
-            aggregate: Some(RPCAggregate {
-                r#type: AggregateType::Sum as i32,
+            aggregate: Some(Aggregate {
+                r#type: aggregate::AggregateType::Sum as i32,
             }),
             hints: 42,
         };
@@ -2136,8 +2085,8 @@ mod tests {
             predicate: None,
             group_keys: vec!["tag1".into()],
             group,
-            aggregate: Some(RPCAggregate {
-                r#type: AggregateType::Sum as i32,
+            aggregate: Some(Aggregate {
+                r#type: aggregate::AggregateType::Sum as i32,
             }),
             hints: 0,
         };
@@ -2160,8 +2109,7 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         // Add a chunk with a field
         let chunk = TestChunk::new("TheMeasurement")
@@ -2171,16 +2119,12 @@ mod tests {
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         // -----
         // Test with window_every/offset setup
@@ -2192,22 +2136,21 @@ mod tests {
             predicate: Some(make_state_ma_predicate()),
             window_every: 1122,
             offset: 15,
-            aggregate: vec![RPCAggregate {
-                r#type: AggregateType::Sum as i32,
+            aggregate: vec![Aggregate {
+                r#type: aggregate::AggregateType::Sum as i32,
             }],
             // old skool window definition
             window: None,
         };
 
-        let actual_frames = fixture
+        let frames = fixture
             .storage_client
             .read_window_aggregate(request_window_every)
             .await
             .unwrap();
-        let expected_frames: Vec<String> = vec!["0 aggregate_frames".into()];
-
         assert_eq!(
-            actual_frames, expected_frames,
+            frames.len(),
+            0,
             "unexpected frames returned by query_groups"
         );
 
@@ -2220,8 +2163,7 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         // Add a chunk with a field
         let chunk = TestChunk::new("TheMeasurement")
@@ -2231,16 +2173,12 @@ mod tests {
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         // -----
         // Test with window.every and window.offset durations specified
@@ -2252,17 +2190,17 @@ mod tests {
             predicate: Some(make_state_ma_predicate()),
             window_every: 0,
             offset: 0,
-            aggregate: vec![RPCAggregate {
-                r#type: AggregateType::Sum as i32,
+            aggregate: vec![Aggregate {
+                r#type: aggregate::AggregateType::Sum as i32,
             }],
             // old skool window definition
-            window: Some(RPCWindow {
-                every: Some(RPCDuration {
+            window: Some(Window {
+                every: Some(Duration {
                     nsecs: 1122,
                     months: 0,
                     negative: false,
                 }),
-                offset: Some(RPCDuration {
+                offset: Some(Duration {
                     nsecs: 0,
                     months: 4,
                     negative: false,
@@ -2270,17 +2208,17 @@ mod tests {
             }),
         };
 
-        let actual_frames = fixture
+        let frames = fixture
             .storage_client
             .read_window_aggregate(request_window)
             .await
             .unwrap();
-        let expected_frames: Vec<String> = vec!["0 aggregate_frames".into()];
 
         assert_eq!(
-            actual_frames, expected_frames,
+            frames.len(),
+            0,
             "unexpected frames returned by query_groups"
-        );
+        )
     }
 
     #[tokio::test]
@@ -2289,23 +2227,18 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         let chunk = TestChunk::new("my_table").with_error("Sugar we are going down");
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         // ---
         // test error
@@ -2317,8 +2250,8 @@ mod tests {
             predicate: Some(make_state_ma_predicate()),
             window_every: 1122,
             offset: 15,
-            aggregate: vec![RPCAggregate {
-                r#type: AggregateType::Sum as i32,
+            aggregate: vec![Aggregate {
+                r#type: aggregate::AggregateType::Sum as i32,
             }],
             // old skool window definition
             window: None,
@@ -2344,8 +2277,7 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         // Add a chunk with a field
         let chunk = TestChunk::new("TheMeasurement")
@@ -2356,16 +2288,12 @@ mod tests {
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         let request = MeasurementFieldsRequest {
             source: source.clone(),
@@ -2395,23 +2323,18 @@ mod tests {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
-        let db_info = OrgAndBucket::new(123, 456);
-        let partition_id = 1;
+        let db_info = org_and_bucket();
 
         let chunk = TestChunk::new("t").with_error("Sugar we are going down");
 
         fixture
             .test_storage
-            .db_or_create(&db_info.db_name)
+            .db_or_create(db_info.db_name())
             .await
             .unwrap()
             .add_chunk("my_partition_key", Arc::new(chunk));
 
-        let source = Some(StorageClientWrapper::read_source(
-            db_info.org_id,
-            db_info.bucket_id,
-            partition_id,
-        ));
+        let source = Some(StorageClient::read_source(&db_info, 1));
 
         // ---
         // test error
@@ -2472,315 +2395,6 @@ mod tests {
         v.iter().map(|s| s.to_string()).collect()
     }
 
-    /// InfluxDB IOx deals with database names. The gRPC interface deals
-    /// with org_id and bucket_id represented as 16 digit hex
-    /// values. This struct manages creating the org_id, bucket_id,
-    /// and database names to be consistent with the implementation
-    struct OrgAndBucket {
-        org_id: u64,
-        bucket_id: u64,
-        /// The influxdb_iox database name corresponding to `org_id` and
-        /// `bucket_id`
-        db_name: DatabaseName<'static>,
-    }
-
-    impl OrgAndBucket {
-        fn new(org_id: u64, bucket_id: u64) -> Self {
-            let org_id_str = Id::try_from(org_id).expect("org_id was valid").to_string();
-
-            let bucket_id_str = Id::try_from(bucket_id)
-                .expect("bucket_id was valid")
-                .to_string();
-
-            let db_name = org_and_bucket_to_database(&org_id_str, &bucket_id_str)
-                .expect("mock database name construction failed");
-
-            Self {
-                org_id,
-                bucket_id,
-                db_name,
-            }
-        }
-    }
-
-    /// Wrapper around a StorageClient that does the various tonic /
-    /// futures dance
-    struct StorageClientWrapper {
-        inner: StorageClient,
-    }
-
-    impl StorageClientWrapper {
-        fn new(inner: StorageClient) -> Self {
-            Self { inner }
-        }
-
-        /// Create a ReadSource suitable for constructing messages
-        fn read_source(org_id: u64, bucket_id: u64, partition_id: u64) -> Any {
-            let read_source = ReadSource {
-                org_id,
-                bucket_id,
-                partition_id,
-            };
-            let mut d = bytes::BytesMut::new();
-            read_source
-                .encode(&mut d)
-                .expect("encoded read source appropriately");
-            Any {
-                type_url: "/TODO".to_string(),
-                value: d.freeze(),
-            }
-        }
-
-        /// return the capabilities of the server as a hash map
-        async fn capabilities(&mut self) -> Result<HashMap<String, Vec<String>>, tonic::Status> {
-            let response = self.inner.capabilities(Empty {}).await?.into_inner();
-
-            let CapabilitiesResponse { caps } = response;
-
-            // unwrap the Vec of Strings inside each `Capability`
-            let caps = caps
-                .into_iter()
-                .map(|(name, capability)| (name, capability.features))
-                .collect();
-
-            Ok(caps)
-        }
-
-        /// Make a request to query::measurement_names and do the
-        /// required async dance to flatten the resulting stream to Strings
-        async fn measurement_names(
-            &mut self,
-            request: MeasurementNamesRequest,
-        ) -> Result<Vec<String>, tonic::Status> {
-            let responses = self
-                .inner
-                .measurement_names(request)
-                .await?
-                .into_inner()
-                .try_collect()
-                .await?;
-
-            Ok(self.to_string_vec(responses))
-        }
-
-        /// Make a request to query::read_window_aggregate and do the
-        /// required async dance to flatten the resulting stream to Strings
-        async fn read_window_aggregate(
-            &mut self,
-            request: ReadWindowAggregateRequest,
-        ) -> Result<Vec<String>, tonic::Status> {
-            let responses: Vec<_> = self
-                .inner
-                .read_window_aggregate(request)
-                .await?
-                .into_inner()
-                .try_collect()
-                .await?;
-
-            let data_frames_count = responses
-                .into_iter()
-                .flat_map(|r| r.frames)
-                .flat_map(|f| f.data)
-                .count();
-
-            let s = format!("{} aggregate_frames", data_frames_count);
-
-            Ok(vec![s])
-        }
-
-        /// Make a request to query::tag_keys and do the
-        /// required async dance to flatten the resulting stream to Strings
-        async fn tag_keys(
-            &mut self,
-            request: TagKeysRequest,
-        ) -> Result<Vec<String>, tonic::Status> {
-            let responses = self
-                .inner
-                .tag_keys(request)
-                .await?
-                .into_inner()
-                .try_collect()
-                .await?;
-
-            Ok(self.to_string_vec(responses))
-        }
-
-        /// Make a request to query::measurement_tag_keys and do the
-        /// required async dance to flatten the resulting stream to Strings
-        async fn measurement_tag_keys(
-            &mut self,
-            request: MeasurementTagKeysRequest,
-        ) -> Result<Vec<String>, tonic::Status> {
-            let responses = self
-                .inner
-                .measurement_tag_keys(request)
-                .await?
-                .into_inner()
-                .try_collect()
-                .await?;
-
-            Ok(self.to_string_vec(responses))
-        }
-
-        /// Make a request to query::tag_values and do the
-        /// required async dance to flatten the resulting stream to Strings
-        async fn tag_values(
-            &mut self,
-            request: TagValuesRequest,
-        ) -> Result<Vec<String>, tonic::Status> {
-            let responses = self
-                .inner
-                .tag_values(request)
-                .await?
-                .into_inner()
-                .try_collect()
-                .await?;
-
-            Ok(self.to_string_vec(responses))
-        }
-
-        /// Make a request to query::measurement_tag_values and do the
-        /// required async dance to flatten the resulting stream to Strings
-        async fn measurement_tag_values(
-            &mut self,
-            request: MeasurementTagValuesRequest,
-        ) -> Result<Vec<String>, tonic::Status> {
-            let responses = self
-                .inner
-                .measurement_tag_values(request)
-                .await?
-                .into_inner()
-                .try_collect()
-                .await?;
-
-            Ok(self.to_string_vec(responses))
-        }
-
-        /// Make a request to query::read_filter and do the
-        /// required async dance to flatten the resulting stream
-        async fn read_filter(
-            &mut self,
-            request: ReadFilterRequest,
-        ) -> Result<Vec<String>, tonic::Status> {
-            let responses: Vec<_> = self
-                .inner
-                .read_filter(request)
-                .await?
-                .into_inner()
-                .try_collect()
-                .await?;
-
-            let data_frames_count = responses
-                .into_iter()
-                .flat_map(|r| r.frames)
-                .flat_map(|f| f.data)
-                .count();
-
-            let s = format!("{} frames", data_frames_count);
-
-            Ok(vec![s])
-        }
-
-        /// Make a request to query::query_groups and do the
-        /// required async dance to flatten the resulting stream
-        async fn read_group(
-            &mut self,
-            request: ReadGroupRequest,
-        ) -> Result<Vec<String>, tonic::Status> {
-            let responses: Vec<_> = self
-                .inner
-                .read_group(request)
-                .await?
-                .into_inner()
-                .try_collect()
-                .await?;
-
-            let data_frames_count = responses
-                .into_iter()
-                .flat_map(|r| r.frames)
-                .flat_map(|f| f.data)
-                .count();
-
-            let s = format!("{} group frames", data_frames_count);
-
-            Ok(vec![s])
-        }
-
-        /// Make a request to query::measurement_fields and do the
-        /// required async dance to flatten the resulting stream to Strings
-        async fn measurement_fields(
-            &mut self,
-            request: MeasurementFieldsRequest,
-        ) -> Result<Vec<String>, tonic::Status> {
-            let measurement_fields_response = self.inner.measurement_fields(request).await?;
-
-            let responses: Vec<_> = measurement_fields_response
-                .into_inner()
-                .try_collect::<Vec<_>>()
-                .await?
-                .into_iter()
-                .flat_map(|r| r.fields)
-                .map(|message_field| {
-                    format!(
-                        "key: {}, type: {}, timestamp: {}",
-                        message_field.key, message_field.r#type, message_field.timestamp
-                    )
-                })
-                .collect::<Vec<_>>();
-
-            Ok(responses)
-        }
-
-        /// Convert the StringValueResponses into rust Strings, sorting the
-        /// values to ensure  consistency.
-        fn to_string_vec(&self, responses: Vec<StringValuesResponse>) -> Vec<String> {
-            let mut strings = responses
-                .into_iter()
-                .map(|r| r.values.into_iter())
-                .flatten()
-                .map(tag_key_bytes_to_strings)
-                .collect::<Vec<_>>();
-
-            strings.sort();
-
-            strings
-        }
-    }
-
-    /// loop and try to make a client connection for 30 seconds,
-    /// returning the result of the connection
-    async fn connect_to_server<T>(bind_addr: SocketAddr) -> Result<T, tonic::transport::Error>
-    where
-        T: NewClient,
-    {
-        const MAX_RETRIES: u32 = 30;
-        let mut retry_count = 0;
-        loop {
-            let mut interval = tokio::time::interval(Duration::from_millis(1000));
-
-            match T::connect(format!("http://{}", bind_addr)).await {
-                Ok(client) => {
-                    println!("Sucessfully connected to server. Client: {:?}", client);
-                    return Ok(client);
-                }
-                Err(e) => {
-                    retry_count += 1;
-
-                    if retry_count > 10 {
-                        println!("Server did not start in time: {}", e);
-                        return Err(e);
-                    } else {
-                        println!(
-                            "Server not yet up. Retrying ({}/{}): {}",
-                            retry_count, MAX_RETRIES, e
-                        );
-                    }
-                }
-            };
-            interval.tick().await;
-        }
-    }
-
     #[derive(Debug, Snafu)]
     pub enum FixtureError {
         #[snafu(display("Error binding fixture server: {}", source))]
@@ -2792,8 +2406,8 @@ mod tests {
 
     // Wrapper around raw clients and test database
     struct Fixture {
-        iox_client: IOxTestingClient,
-        storage_client: StorageClientWrapper,
+        iox_client: IOxTestingClient<Connection>,
+        storage_client: StorageClient,
         test_storage: Arc<TestDatabaseStore>,
     }
 
@@ -2835,41 +2449,21 @@ mod tests {
 
             tokio::task::spawn(server);
 
-            let iox_client = connect_to_server::<IOxTestingClient>(bind_addr)
+            let conn = ConnectionBuilder::default()
+                .connect_timeout(std::time::Duration::from_secs(30))
+                .build(format!("http://{}", bind_addr))
                 .await
-                .context(Tonic)?;
+                .unwrap();
 
-            let storage_client = StorageClientWrapper::new(
-                connect_to_server::<StorageClient>(bind_addr)
-                    .await
-                    .context(Tonic)?,
-            );
+            let iox_client = IOxTestingClient::new(conn.clone());
+
+            let storage_client = StorageClient::new(conn);
 
             Ok(Self {
                 iox_client,
                 storage_client,
                 test_storage,
             })
-        }
-    }
-
-    /// Represents something that can make a connection to a server
-    #[tonic::async_trait]
-    trait NewClient: Sized + std::fmt::Debug {
-        async fn connect(addr: String) -> Result<Self, tonic::transport::Error>;
-    }
-
-    #[tonic::async_trait]
-    impl NewClient for IOxTestingClient {
-        async fn connect(addr: String) -> Result<Self, tonic::transport::Error> {
-            Self::connect(addr).await
-        }
-    }
-
-    #[tonic::async_trait]
-    impl NewClient for StorageClient {
-        async fn connect(addr: String) -> Result<Self, tonic::transport::Error> {
-            Self::connect(addr).await
         }
     }
 
@@ -2923,14 +2517,10 @@ mod tests {
             if let Some(db) = databases.get(name) {
                 Ok(Arc::clone(db))
             } else {
-                let new_db = Arc::new(TestDatabase::new());
+                let new_db = Arc::new(TestDatabase::new(Arc::clone(&self.executor)));
                 databases.insert(name.to_string(), Arc::clone(&new_db));
                 Ok(new_db)
             }
-        }
-
-        fn executor(&self) -> Arc<Executor> {
-            Arc::clone(&self.executor)
         }
     }
 }

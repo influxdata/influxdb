@@ -4,6 +4,9 @@ pub enum DatabaseStateCode {
     /// Database is known but nothing is loaded.
     Known,
 
+    /// Database object storage has been found
+    DatabaseObjectStoreFound,
+
     /// Rules are loaded
     RulesLoaded,
 
@@ -28,6 +31,7 @@ impl DatabaseStateCode {
     pub fn description(&self) -> &'static str {
         match self {
             DatabaseStateCode::Known => "Known",
+            DatabaseStateCode::DatabaseObjectStoreFound => "DatabaseObjectStoreFound",
             DatabaseStateCode::RulesLoaded => "RulesLoaded",
             DatabaseStateCode::CatalogLoaded => "CatalogLoaded",
             DatabaseStateCode::RulesLoadError => "RulesLoadError",

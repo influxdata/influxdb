@@ -354,6 +354,7 @@ mod tests {
     use data_types::{database_rules::DatabaseRules, DatabaseName};
     use influxdb_iox_client::connection::Connection;
     use std::convert::TryInto;
+    use std::num::NonZeroU64;
     use structopt::StructOpt;
     use tokio::task::JoinHandle;
     use trace::span::Span;
@@ -663,11 +664,16 @@ mod tests {
         let (addr, server, join) = tracing_server(&collector).await;
         let conn = jaeger_client(addr, "34f8495:35e32:0:1").await;
 
+        let db_info = influxdb_storage_client::OrgAndBucket::new(
+            NonZeroU64::new(12).unwrap(),
+            NonZeroU64::new(344).unwrap(),
+        );
+
         let mut management = influxdb_iox_client::management::Client::new(conn.clone());
         management
             .create_database(
                 influxdb_iox_client::management::generated_types::DatabaseRules {
-                    name: "database".to_string(),
+                    name: db_info.db_name().to_string(),
                     ..Default::default()
                 },
             )
@@ -676,13 +682,24 @@ mod tests {
 
         let mut write = influxdb_iox_client::write::Client::new(conn.clone());
         write
-            .write("database", "cpu,tag0=foo val=1 100\n")
+            .write(db_info.db_name(), "cpu,tag0=foo val=1 100\n")
             .await
             .unwrap();
 
-        let mut flight = influxdb_iox_client::flight::Client::new(conn);
+        let mut flight = influxdb_iox_client::flight::Client::new(conn.clone());
         flight
-            .perform_query("database", "select * from cpu;")
+            .perform_query(db_info.db_name(), "select * from cpu;")
+            .await
+            .unwrap();
+
+        let mut storage = influxdb_storage_client::Client::new(conn);
+        storage
+            .tag_values(influxdb_storage_client::generated_types::TagValuesRequest {
+                tags_source: Some(influxdb_storage_client::Client::read_source(&db_info, 1)),
+                range: None,
+                predicate: None,
+                tag_key: "tag0".into(),
+            })
             .await
             .unwrap();
 
@@ -693,9 +710,7 @@ mod tests {
 
         let root_spans: Vec<_> = spans.iter().filter(|span| &span.name == "IOx").collect();
         // Made 3 requests
-        assert_eq!(root_spans.len(), 3);
-
-        let query_span = root_spans[2];
+        assert_eq!(root_spans.len(), 4);
 
         let child = |parent: &Span, name: &'static str| -> Option<&Span> {
             spans.iter().find(|span| {
@@ -703,14 +718,24 @@ mod tests {
             })
         };
 
-        let ctx_span = child(query_span, "Query Execution").unwrap();
+        // Test SQL
+        let sql_span = root_spans[2];
 
+        let ctx_span = child(sql_span, "Query Execution").unwrap();
         let planner_span = child(ctx_span, "Planner").unwrap();
         let sql_span = child(planner_span, "sql").unwrap();
         let prepare_sql_span = child(sql_span, "prepare_sql").unwrap();
         child(prepare_sql_span, "prepare_plan").unwrap();
 
         child(ctx_span, "collect").unwrap();
+
+        // Test tag_values
+        let storage_span = root_spans[3];
+        let ctx_span = child(storage_span, "Query Execution").unwrap();
+        child(ctx_span, "Planner").unwrap();
+
+        let to_string_set = child(ctx_span, "to_string_set").unwrap();
+        child(to_string_set, "run_logical_plans").unwrap();
     }
 
     #[tokio::test]

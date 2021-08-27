@@ -9,11 +9,11 @@
 | physical_plan | SortExec: [time@0 ASC,state@1 ASC,city@2 ASC]                                                                                               |
 |               |   CoalescePartitionsExec                                                                                                                    |
 |               |     ProjectionExec: expr=[time@5 as time, state@4 as state, city@1 as city, min_temp@3 as min_temp, max_temp@2 as max_temp, area@0 as area] |
-|               |       ExecutionPlan(PlaceHolder)                                                                                                            |
+|               |       UnionExec                                                                                                                             |
 |               |         RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                    |
 |               |           DeduplicateExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                              |
 |               |             SortPreservingMergeExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                    |
-|               |               ExecutionPlan(PlaceHolder)                                                                                                    |
+|               |               UnionExec                                                                                                                     |
 |               |                 RepartitionExec: partitioning=RoundRobinBatch(4)                                                                            |
 |               |                   IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                           |
 |               |                 RepartitionExec: partitioning=RoundRobinBatch(4)                                                                            |
@@ -30,11 +30,11 @@
 | logical_plan  | Projection: #h2o.time, #h2o.state, #h2o.city, #h2o.min_temp, #h2o.max_temp, #h2o.area                                                   |
 |               |   TableScan: h2o projection=Some([0, 1, 2, 3, 4, 5])                                                                                    |
 | physical_plan | ProjectionExec: expr=[time@5 as time, state@4 as state, city@1 as city, min_temp@3 as min_temp, max_temp@2 as max_temp, area@0 as area] |
-|               |   ExecutionPlan(PlaceHolder)                                                                                                            |
+|               |   UnionExec                                                                                                                             |
 |               |     RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                    |
 |               |       DeduplicateExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                              |
 |               |         SortPreservingMergeExec: [state@4 ASC,city@1 ASC,time@5 ASC]                                                                    |
-|               |           ExecutionPlan(PlaceHolder)                                                                                                    |
+|               |           UnionExec                                                                                                                     |
 |               |             RepartitionExec: partitioning=RoundRobinBatch(4)                                                                            |
 |               |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                           |
 |               |             RepartitionExec: partitioning=RoundRobinBatch(4)                                                                            |
@@ -53,14 +53,14 @@
 |               |     TableScan: h2o projection=Some([4])                                           |
 |               |   Projection: #h2o.city AS name                                                   |
 |               |     TableScan: h2o projection=Some([1])                                           |
-| physical_plan | ExecutionPlan(PlaceHolder)                                                        |
+| physical_plan | UnionExec                                                                         |
 |               |   ProjectionExec: expr=[state@0 as name]                                          |
-|               |     ExecutionPlan(PlaceHolder)                                                    |
+|               |     UnionExec                                                                     |
 |               |       ProjectionExec: expr=[state@1 as state]                                     |
 |               |         RepartitionExec: partitioning=RoundRobinBatch(4)                          |
 |               |           DeduplicateExec: [state@1 ASC,city@0 ASC,time@2 ASC]                    |
 |               |             SortPreservingMergeExec: [state@1 ASC,city@0 ASC,time@2 ASC]          |
-|               |               ExecutionPlan(PlaceHolder)                                          |
+|               |               UnionExec                                                           |
 |               |                 RepartitionExec: partitioning=RoundRobinBatch(4)                  |
 |               |                   IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate |
 |               |                 RepartitionExec: partitioning=RoundRobinBatch(4)                  |
@@ -70,12 +70,12 @@
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                            |
 |               |         IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate           |
 |               |   ProjectionExec: expr=[city@0 as name]                                           |
-|               |     ExecutionPlan(PlaceHolder)                                                    |
+|               |     UnionExec                                                                     |
 |               |       ProjectionExec: expr=[city@0 as city]                                       |
 |               |         RepartitionExec: partitioning=RoundRobinBatch(4)                          |
 |               |           DeduplicateExec: [state@1 ASC,city@0 ASC,time@2 ASC]                    |
 |               |             SortPreservingMergeExec: [state@1 ASC,city@0 ASC,time@2 ASC]          |
-|               |               ExecutionPlan(PlaceHolder)                                          |
+|               |               UnionExec                                                           |
 |               |                 RepartitionExec: partitioning=RoundRobinBatch(4)                  |
 |               |                   IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate |
 |               |                 RepartitionExec: partitioning=RoundRobinBatch(4)                  |

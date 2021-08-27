@@ -17,6 +17,7 @@ pub struct ApplicationState {
     executor: Arc<Executor>,
     job_registry: Arc<JobRegistry>,
     metric_registry: Arc<MetricRegistry>,
+    metric_registry_v2: Arc<metric::Registry>,
 }
 
 impl ApplicationState {
@@ -33,6 +34,7 @@ impl ApplicationState {
             executor: Arc::new(Executor::new(num_threads)),
             job_registry: Arc::new(JobRegistry::new()),
             metric_registry: Arc::new(metrics::MetricRegistry::new()),
+            metric_registry_v2: Arc::new(Default::default()),
         }
     }
 
@@ -54,6 +56,7 @@ impl ApplicationState {
             executor: Arc::new(Executor::new(num_threads)),
             job_registry: Arc::new(JobRegistry::new()),
             metric_registry: Arc::new(metrics::MetricRegistry::new()),
+            metric_registry_v2: Arc::new(Default::default()),
         }
     }
 
@@ -71,6 +74,10 @@ impl ApplicationState {
 
     pub fn metric_registry(&self) -> &Arc<MetricRegistry> {
         &self.metric_registry
+    }
+
+    pub fn metric_registry_v2(&self) -> &Arc<metric::Registry> {
+        &self.metric_registry_v2
     }
 
     pub fn executor(&self) -> &Arc<Executor> {

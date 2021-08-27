@@ -168,6 +168,7 @@ pub async fn make_chunk_given_record_batch(
         .write_to_object_store(addr.clone(), stream, metadata)
         .await
         .unwrap();
+    let rows = parquet_metadata.decode().unwrap().row_count();
 
     ParquetChunk::new_from_parts(
         addr.partition_key,
@@ -177,6 +178,7 @@ pub async fn make_chunk_given_record_batch(
         Arc::clone(&iox_object_store),
         file_size_bytes,
         Arc::new(parquet_metadata),
+        rows,
         ChunkMetrics::new_unregistered(),
     )
 }
@@ -722,14 +724,18 @@ pub fn make_server_id() -> ServerId {
 }
 
 /// Creates new in-memory database iox_object_store for testing.
-pub fn make_iox_object_store() -> Arc<IoxObjectStore> {
+pub async fn make_iox_object_store() -> Arc<IoxObjectStore> {
     let server_id = make_server_id();
     let database_name = DatabaseName::new("db1").unwrap();
-    Arc::new(IoxObjectStore::new(
-        Arc::new(ObjectStore::new_in_memory()),
-        server_id,
-        &database_name,
-    ))
+    Arc::new(
+        IoxObjectStore::new(
+            Arc::new(ObjectStore::new_in_memory()),
+            server_id,
+            &database_name,
+        )
+        .await
+        .unwrap(),
+    )
 }
 
 pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> Vec<RecordBatch> {

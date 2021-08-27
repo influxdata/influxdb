@@ -15,8 +15,8 @@ use generated_types::{
     ReadWindowAggregateRequest, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
 use influxdb_iox_client::connection::Connection;
+use influxdb_storage_client::tag_key_bytes_to_strings;
 use std::str;
-use test_helpers::tag_key_bytes_to_strings;
 
 #[tokio::test]
 pub async fn test() {
