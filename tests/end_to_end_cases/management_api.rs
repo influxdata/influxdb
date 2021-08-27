@@ -258,7 +258,7 @@ async fn test_list_databases() {
 }
 
 #[tokio::test]
-async fn test_create_get_update_database() {
+async fn test_create_get_update_delete_database() {
     let server_fixture = ServerFixture::create_shared().await;
     let mut client = server_fixture.management_client();
 
@@ -326,6 +326,16 @@ async fn test_create_get_update_database() {
             response.routing_rules,
             Some(RoutingRules::ShardConfig(cfg)) if cfg.ignore_errors,
     ));
+
+    client
+        .delete_database(&db_name)
+        .await
+        .expect("delete database failed");
+
+    client
+        .get_database(&db_name, false)
+        .await
+        .expect_err("get database should have failed but didn't");
 }
 
 /// gets configuration both with and without defaults, and verifies
