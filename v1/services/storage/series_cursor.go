@@ -2,9 +2,11 @@ package storage
 
 import (
 	"context"
+	"sort"
 
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/slices"
 	"github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb"
@@ -96,17 +98,18 @@ func newIndexSeriesCursorInfluxQLPred(ctx context.Context, predicate influxql.Ex
 	sg := tsdb.Shards(shards)
 	if mfkeys, err := sg.FieldKeysByPredicate(opt.Condition); err == nil {
 		p.fields = make(map[string][]field, len(mfkeys))
-		fieldNames := [][]byte{}
+		fieldNames := []string{}
 		for name, fkeys := range mfkeys {
 			fields := make([]field, 0, len(fkeys))
 			for _, key := range fkeys {
 				fields = append(fields, field{n: key, nb: []byte(key)})
 			}
 			p.fields[name] = fields
-			fieldNames = append(fieldNames, []byte(name))
+			fieldNames = append(fieldNames, name)
 		}
 
-		mitr := tsdb.NewMeasurementSliceIterator(fieldNames)
+		sort.Strings(fieldNames)
+		mitr := tsdb.NewMeasurementSliceIterator(slices.StringsToBytes(fieldNames...))
 		p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{Measurements: mitr}, opt.Condition)
 		if p.sqry != nil && err == nil {
 			return p, nil
