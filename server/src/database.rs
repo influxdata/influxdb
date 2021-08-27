@@ -194,15 +194,21 @@ impl Database {
         };
 
         // If there is an object store for this database, write out a tombstone file.
-        // Otherwise, we can't because there isn't anyplace to write.
-        if let Some(iox_object_store) = self.iox_object_store() {
-            iox_object_store
-                .write_tombstone()
-                .await
-                .context(CannotMarkDatabaseDeleted {
+        // If there isn't an object store, something is wrong and we shouldn't switch the
+        // state without being able to write the tombstone file.
+        self.iox_object_store()
+            .with_context(|| {
+                let state = self.shared.state.read();
+                TransitionInProgress {
                     db_name: db_name.to_string(),
-                })?;
-        }
+                    state: state.state_code(),
+                }
+            })?
+            .write_tombstone()
+            .await
+            .context(CannotMarkDatabaseDeleted {
+                db_name: db_name.to_string(),
+            })?;
 
         let shared = Arc::clone(&self.shared);
 
