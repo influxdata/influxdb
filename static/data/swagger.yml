@@ -55,6 +55,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /ping:
+    servers:
+      - url: ''
+    get:
+      operationId: GetPing
+      summary: Checks the status of InfluxDB instance and version of InfluxDB.
+      responses:
+        '204':
+          description: OK
+          headers:
+            X-Influxdb-Build:
+              schema:
+                type: string
+              description: The type of InfluxDB build.
+            X-Influxdb-Version:
+              schema:
+                type: integer
+              description: The version of InfluxDB.
+    head:
+      operationId: HeadPing
+      summary: Checks the status of InfluxDB instance and version of InfluxDB.
+      responses:
+        '204':
+          description: OK
+          headers:
+            X-Influxdb-Build:
+              schema:
+                type: string
+              description: The type of InfluxDB build.
+            X-Influxdb-Version:
+              schema:
+                type: integer
+              description: The version of InfluxDB.
   /:
     get:
       operationId: GetRoutes

@@ -43,7 +43,7 @@ type HandlerConfig struct {
 }
 
 func NewHandlerConfig() *HandlerConfig {
-	return &HandlerConfig{}
+	return &HandlerConfig{Version: influxdb.GetBuildInfo().Version}
 }
 
 // Opts returns the CLI options for use with kit/cli.

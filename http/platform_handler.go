@@ -44,7 +44,7 @@ func NewPlatformHandler(b *APIBackend, opts ...APIHandlerOptFn) *PlatformHandler
 	wrappedHandler = kithttp.SkipOptions(wrappedHandler)
 
 	legacyBackend := newLegacyBackend(b)
-	lh := newLegacyHandler(legacyBackend, legacy.HandlerConfig{})
+	lh := newLegacyHandler(legacyBackend, *legacy.NewHandlerConfig())
 
 	return &PlatformHandler{
 		AssetHandler:  assetHandler,
