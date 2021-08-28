@@ -128,6 +128,12 @@ struct List {}
 struct Get {
     /// The name of the database
     name: String,
+
+    /// If false, returns values for all fields, with defaults filled
+    /// in. If true, only returns values which were explicitly set on
+    /// database creation or update
+    #[structopt(long)]
+    omit_defaults: bool,
 }
 
 /// Write data into the specified database
@@ -214,8 +220,12 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             println!("{}", databases.join("\n"))
         }
         Command::Get(get) => {
+            let Get {
+                name,
+                omit_defaults,
+            } = get;
             let mut client = management::Client::new(connection);
-            let database = client.get_database(get.name).await?;
+            let database = client.get_database(name, omit_defaults).await?;
             println!("{}", serde_json::to_string_pretty(&database)?);
         }
         Command::Write(write) => {

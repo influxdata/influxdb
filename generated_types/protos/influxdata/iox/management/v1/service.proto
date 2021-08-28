@@ -17,6 +17,10 @@ service ManagementService {
 
   rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
 
+  // Return a specific database by name
+  //
+  // Roughly follows the <https://google.aip.dev/131> pattern, except
+  // we wrap the response
   rpc GetDatabase(GetDatabaseRequest) returns (GetDatabaseResponse);
 
   rpc CreateDatabase(CreateDatabaseRequest) returns (CreateDatabaseResponse);
@@ -113,7 +117,16 @@ message ListDatabasesResponse {
 }
 
 message GetDatabaseRequest {
+  // The name of the database to retrieve
   string name = 1;
+
+  // If false, or unspecified: return the current configuration that is being used by
+  // the server, with all default values filled in.
+  //
+  // If true, returns only the persisted configuration (aka only
+  // fields which were was supplied when the database was created or
+  // last modified via UpdateDatabase)
+  bool omit_defaults = 2;
 }
 
 message GetDatabaseResponse {

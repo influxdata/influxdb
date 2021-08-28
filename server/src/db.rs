@@ -489,19 +489,15 @@ impl Db {
     }
 
     /// Updates the database rules
-    pub fn update_rules<F, E>(&self, update: F) -> Result<Arc<DatabaseRules>, E>
-    where
-        F: FnOnce(DatabaseRules) -> Result<DatabaseRules, E>,
-    {
-        let (late_arrive_window_updated, new_rules) = {
+    pub fn update_rules(&self, new_rules: Arc<DatabaseRules>) {
+        let late_arrive_window_updated = {
             let mut rules = self.rules.write();
             info!(db_name=%rules.name,  "updating rules for database");
-            let new_rules = Arc::new(update(rules.as_ref().clone())?);
             let late_arrive_window_updated = rules.lifecycle_rules.late_arrive_window_seconds
                 != new_rules.lifecycle_rules.late_arrive_window_seconds;
 
             *rules = Arc::clone(&new_rules);
-            (late_arrive_window_updated, new_rules)
+            late_arrive_window_updated
         };
 
         if late_arrive_window_updated {
@@ -522,8 +518,6 @@ impl Db {
                 }
             }
         }
-
-        Ok(new_rules)
     }
 
     /// Return the current database's object storage

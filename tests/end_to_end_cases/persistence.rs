@@ -171,7 +171,7 @@ async fn test_update_late_arrival() {
         influxdb_iox_client::management::generated_types::ChunkStorage::OpenMutableBuffer as i32
     );
 
-    let mut rules = management.get_database(&db_name).await.unwrap();
+    let mut rules = management.get_database(&db_name, false).await.unwrap();
     rules
         .lifecycle_rules
         .as_mut()
@@ -211,7 +211,10 @@ async fn test_query_chunk_after_restart() {
     create_readable_database(&db_name, fixture.grpc_channel()).await;
 
     // enable persistence prior to write
-    let mut rules = management_client.get_database(&db_name).await.unwrap();
+    let mut rules = management_client
+        .get_database(&db_name, false)
+        .await
+        .unwrap();
     rules.lifecycle_rules = Some({
         let mut lifecycle_rules = rules.lifecycle_rules.unwrap();
         lifecycle_rules.persist = true;

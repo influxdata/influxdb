@@ -94,6 +94,10 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
             error!(%source, "Unexpected error while wiping catalog");
             InternalError {}.into()
         }
+        Error::RulesNotUpdateable { .. } => tonic::Status::failed_precondition(error.to_string()),
+        Error::CannotPersistUpdatedRules { .. } => {
+            tonic::Status::failed_precondition(error.to_string())
+        }
         Error::SkipReplay { source, .. } => {
             error!(%source, "Unexpected error skipping replay");
             InternalError {}.into()

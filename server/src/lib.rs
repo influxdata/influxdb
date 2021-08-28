@@ -70,13 +70,13 @@
 
 use async_trait::async_trait;
 use data_types::{
-    database_rules::{DatabaseRules, NodeGroup, RoutingRules, ShardConfig, ShardId, Sink},
+    database_rules::{NodeGroup, RoutingRules, ShardConfig, ShardId, Sink},
     error::ErrorLogger,
     job::Job,
     server_id::ServerId,
     {DatabaseName, DatabaseNameError},
 };
-use database::{persist_database_rules, Database, DatabaseConfig};
+use database::{Database, DatabaseConfig};
 use entry::{lines_to_sharded_entries, pb_to_entry, Entry, ShardedEntry};
 use futures::future::{BoxFuture, Future, FutureExt, Shared, TryFutureExt};
 use generated_types::influxdata::pbdata::v1 as pb;
@@ -90,6 +90,7 @@ use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use rand::seq::SliceRandom;
 use resolver::Resolver;
+use rules::ProvidedDatabaseRules;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use tokio::{sync::Notify, task::JoinError};
@@ -109,6 +110,7 @@ pub mod db;
 mod job;
 mod resolver;
 
+pub mod rules;
 /// Utility modules used by benchmarks and tests
 pub mod utils;
 
@@ -130,8 +132,11 @@ pub enum Error {
     #[snafu(display("database not initialized"))]
     DatabaseNotInitialized { db_name: String },
 
-    #[snafu(display("cannot persisted updated rules: {}", source))]
-    CannotPersistUpdatedRules { source: crate::database::InitError },
+    #[snafu(display("cannot update database rules"))]
+    CanNotUpdateRules {
+        db_name: String,
+        source: crate::database::Error,
+    },
 
     #[snafu(display("cannot create database: {}", source))]
     CannotCreateDatabase { source: crate::database::InitError },
@@ -516,18 +521,6 @@ impl ServerStateInitialized {
     }
 }
 
-#[derive(Debug)]
-pub enum UpdateError<E> {
-    Update(Error),
-    Closure(E),
-}
-
-impl<E> From<Error> for UpdateError<E> {
-    fn from(e: Error) -> Self {
-        Self::Update(e)
-    }
-}
-
 impl<M> Server<M>
 where
     M: ConnectionManager + Send + Sync,
@@ -675,8 +668,11 @@ where
     /// Tells the server the set of rules for a database.
     ///
     /// Waits until the database has initialized or failed to do so
-    pub async fn create_database(&self, rules: DatabaseRules) -> Result<Arc<Database>> {
-        let db_name = rules.name.clone();
+    pub async fn create_database(
+        &self,
+        provided_rules: ProvidedDatabaseRules,
+    ) -> Result<Arc<Database>> {
+        let db_name = provided_rules.db_name();
 
         // Wait for exclusive access to mutate server state
         let handle_fut = self.shared.state.read().freeze();
@@ -686,7 +682,7 @@ where
             let state = self.shared.state.read();
             let initialized = state.initialized()?;
 
-            if let Some(existing) = initialized.databases.get(&rules.name) {
+            if let Some(existing) = initialized.databases.get(db_name) {
                 if let Some(init_error) = existing.init_error() {
                     if !matches!(&*init_error, database::InitError::NoActiveDatabase) {
                         return Err(Error::DatabaseAlreadyExists {
@@ -702,9 +698,13 @@ where
             initialized.server_id
         };
 
-        Database::create(Arc::clone(&self.shared.application), rules, server_id)
-            .await
-            .context(CannotCreateDatabase)?;
+        Database::create(
+            Arc::clone(&self.shared.application),
+            &provided_rules,
+            server_id,
+        )
+        .await
+        .context(CannotCreateDatabase)?;
 
         let database = {
             let mut state = self.shared.state.write();
@@ -717,7 +717,7 @@ where
                     .new_database(
                         &self.shared,
                         DatabaseConfig {
-                            name: db_name,
+                            name: db_name.clone(),
                             server_id,
                             wipe_catalog_on_error: false,
                             skip_replay: false,
@@ -952,29 +952,22 @@ where
     }
 
     /// Update database rules and save on success.
-    pub async fn update_db_rules<F, E>(
+    pub async fn update_db_rules(
         &self,
         db_name: &DatabaseName<'_>,
-        update: F,
-    ) -> std::result::Result<Arc<DatabaseRules>, UpdateError<E>>
-    where
-        F: FnOnce(DatabaseRules) -> Result<DatabaseRules, E> + Send,
-    {
-        // TODO: Move into Database (#2053)
+        provided_rules: ProvidedDatabaseRules,
+    ) -> Result<Arc<ProvidedDatabaseRules>> {
+        let provided_rules = Arc::new(provided_rules);
+
         let database = self.database(db_name)?;
-        let db = database
-            .initialized_db()
-            .ok_or(Error::DatabaseNotInitialized {
-                db_name: db_name.to_string(),
-            })?;
 
-        let rules = db.update_rules(update).map_err(UpdateError::Closure)?;
-
-        // TODO: Handle failure
-        persist_database_rules(&db.iox_object_store(), rules.as_ref().clone())
+        // attempt to save  provided rules in the current state
+        database
+            .update_provided_rules(Arc::clone(&provided_rules))
             .await
-            .context(CannotPersistUpdatedRules)?;
-        Ok(rules)
+            .context(CanNotUpdateRules { db_name })?;
+
+        Ok(provided_rules)
     }
 
     pub fn remotes_sorted(&self) -> Vec<(ServerId, String)> {
@@ -1212,7 +1205,7 @@ where
         let db = match self.db(&db_name) {
             Ok(db) => db,
             Err(Error::DatabaseNotFound { .. }) => {
-                self.create_database(DatabaseRules::new(db_name.clone()))
+                self.create_database(ProvidedDatabaseRules::new_empty(db_name.clone()))
                     .await?;
                 self.db(&db_name).expect("db not inserted")
             }
@@ -1233,12 +1226,11 @@ mod tests {
     use data_types::{
         chunk_metadata::ChunkAddr,
         database_rules::{
-            HashRing, LifecycleRules, PartitionTemplate, ShardConfig, TemplatePart,
+            DatabaseRules, HashRing, LifecycleRules, PartitionTemplate, ShardConfig, TemplatePart,
             WriteBufferConnection, NO_SHARD_CONFIG,
         },
     };
     use entry::test_helpers::lp_to_entry;
-    use generated_types::database_rules::decode_database_rules;
     use influxdb_line_protocol::parse_lines;
     use iox_object_store::IoxObjectStore;
     use metrics::TestMetricRegistry;
@@ -1246,7 +1238,7 @@ mod tests {
     use parquet_file::catalog::{api::PreservedCatalog, test_helpers::TestCatalogState};
     use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner, QueryDatabase};
     use std::{
-        convert::{Infallible, TryFrom},
+        convert::{TryFrom, TryInto},
         sync::{
             atomic::{AtomicBool, Ordering},
             Arc,
@@ -1311,26 +1303,31 @@ mod tests {
             worker_cleanup_avg_sleep: Duration::from_secs(2),
             write_buffer_connection: None,
         };
+        let provided_rules = make_provided_rules(rules);
 
         // Create a database
         let bananas = server
-            .create_database(rules.clone())
+            .create_database(provided_rules.clone())
             .await
             .expect("failed to create database");
 
-        let read_data = bananas
-            .iox_object_store()
-            .unwrap()
-            .get_database_rules_file()
+        let iox_object_store = bananas.iox_object_store().unwrap();
+        let read_rules = ProvidedDatabaseRules::load(&iox_object_store)
             .await
             .unwrap();
-        let read_rules = decode_database_rules(read_data).unwrap();
 
-        assert_eq!(rules, read_rules);
+        // Same rules that were provided are read
+        assert_eq!(provided_rules.original(), read_rules.original());
+
+        // rules that are being used are the same
+        assert_eq!(provided_rules.rules(), read_rules.rules());
 
         let db2 = DatabaseName::new("db_awesome").unwrap();
+        let rules2 = DatabaseRules::new(db2.clone());
+
+        let provided_rules2 = make_provided_rules(rules2);
         server
-            .create_database(DatabaseRules::new(db2.clone()))
+            .create_database(provided_rules2)
             .await
             .expect("failed to create 2nd db");
 
@@ -1360,13 +1357,13 @@ mod tests {
 
         // Create a database
         server
-            .create_database(DatabaseRules::new(name.clone()))
+            .create_database(default_rules(name.clone()))
             .await
             .expect("failed to create database");
 
         // Then try and create another with the same name
         let got = server
-            .create_database(DatabaseRules::new(name.clone()))
+            .create_database(default_rules(name.clone()))
             .await
             .unwrap_err();
 
@@ -1396,7 +1393,7 @@ mod tests {
         };
 
         // Create a database
-        server.create_database(rules.clone()).await
+        server.create_database(make_provided_rules(rules)).await
     }
 
     #[tokio::test]
@@ -1447,10 +1444,7 @@ mod tests {
         let err = bananas_database.wait_for_init().await.unwrap_err();
 
         assert!(apples_database.init_error().is_none());
-        assert!(matches!(
-            err.as_ref(),
-            database::InitError::RulesFetch { .. }
-        ));
+        assert_contains!(err.to_string(), "error fetching rules");
         assert!(Arc::ptr_eq(&err, &bananas_database.init_error().unwrap()));
     }
 
@@ -1465,7 +1459,7 @@ mod tests {
         for name in &names {
             let name = DatabaseName::new(name.to_string()).unwrap();
             server
-                .create_database(DatabaseRules::new(name))
+                .create_database(default_rules(name))
                 .await
                 .expect("failed to create database");
         }
@@ -1482,7 +1476,7 @@ mod tests {
 
         let db_name = DatabaseName::new("foo".to_string()).unwrap();
         server
-            .create_database(DatabaseRules::new(db_name.clone()))
+            .create_database(default_rules(db_name.clone()))
             .await
             .unwrap();
 
@@ -1517,7 +1511,7 @@ mod tests {
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
-            .create_database(DatabaseRules::new(name.clone()))
+            .create_database(default_rules(name.clone()))
             .await
             .unwrap();
 
@@ -1599,29 +1593,31 @@ mod tests {
 
         let db_name = DatabaseName::new("foo").unwrap();
         server
-            .create_database(DatabaseRules::new(db_name.clone()))
+            .create_database(default_rules(db_name.clone()))
             .await
             .unwrap();
 
         let remote_ids = vec![bad_remote_id, good_remote_id_1, good_remote_id_2];
         let db = server.db(&db_name).unwrap();
-        db.update_rules(|mut rules| {
-            let shard_config = ShardConfig {
-                hash_ring: Some(HashRing {
-                    shards: vec![TEST_SHARD_ID].into(),
-                    ..Default::default()
-                }),
-                shards: Arc::new(
-                    vec![(TEST_SHARD_ID, Sink::Iox(remote_ids.clone()))]
-                        .into_iter()
-                        .collect(),
-                ),
+
+        let shard_config = ShardConfig {
+            hash_ring: Some(HashRing {
+                shards: vec![TEST_SHARD_ID].into(),
                 ..Default::default()
-            };
-            rules.routing_rules = Some(RoutingRules::ShardConfig(shard_config));
-            Ok::<_, Infallible>(rules)
-        })
-        .unwrap();
+            }),
+            shards: Arc::new(
+                vec![(TEST_SHARD_ID, Sink::Iox(remote_ids.clone()))]
+                    .into_iter()
+                    .collect(),
+            ),
+            ..Default::default()
+        };
+
+        let mut rules = db.rules().as_ref().clone();
+        rules.routing_rules = Some(RoutingRules::ShardConfig(shard_config));
+        let rules = Arc::new(rules);
+
+        db.update_rules(rules);
 
         let line = "cpu bar=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
@@ -1677,7 +1673,7 @@ mod tests {
 
         let db_name = DatabaseName::new("foo").unwrap();
         server
-            .create_database(DatabaseRules::new(db_name.clone()))
+            .create_database(default_rules(db_name.clone()))
             .await
             .unwrap();
 
@@ -1764,26 +1760,30 @@ mod tests {
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
-            .create_database(DatabaseRules::new(name.clone()))
+            .create_database(default_rules(name.clone()))
             .await
             .unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).unwrap();
-        let rules = db
-            .update_rules(|mut rules| {
-                rules.lifecycle_rules.buffer_size_hard =
-                    Some(std::num::NonZeroUsize::new(10).unwrap());
-                Ok::<_, Infallible>(rules)
-            })
-            .unwrap();
+
+        let mut rules: DatabaseRules = db.rules().as_ref().clone();
+
+        rules.lifecycle_rules.buffer_size_hard = Some(std::num::NonZeroUsize::new(10).unwrap());
+
+        let rules = Arc::new(rules);
+        db.update_rules(Arc::clone(&rules));
 
         // inserting first line does not trigger hard buffer limit
         let line_1 = "cpu bar=1 10";
         let lines_1: Vec<_> = parse_lines(line_1).map(|l| l.unwrap()).collect();
-        let sharded_entries_1 =
-            lines_to_sharded_entries(&lines_1, ARBITRARY_DEFAULT_TIME, NO_SHARD_CONFIG, &*rules)
-                .expect("first sharded entries");
+        let sharded_entries_1 = lines_to_sharded_entries(
+            &lines_1,
+            ARBITRARY_DEFAULT_TIME,
+            NO_SHARD_CONFIG,
+            rules.as_ref(),
+        )
+        .expect("first sharded entries");
 
         let entry_1 = &sharded_entries_1[0].entry;
         server
@@ -1913,10 +1913,11 @@ mod tests {
         assert!(foo_database.init_error().is_none());
 
         let err = bar_database.wait_for_init().await.unwrap_err();
-        assert!(matches!(
-            err.as_ref(),
-            database::InitError::RulesDecode { .. }
-        ));
+        assert_contains!(err.to_string(), "error deserializing database rules");
+        assert_contains!(
+            err.to_string(),
+            "failed to decode Protobuf message: invalid varint"
+        );
         assert!(Arc::ptr_eq(&err, &bar_database.init_error().unwrap()));
 
         // can only write to successfully created DBs
@@ -2092,10 +2093,7 @@ mod tests {
                 ))
             } else if name == &db_name_rules_broken {
                 let err = database.wait_for_init().await.unwrap_err();
-                assert!(matches!(
-                    err.as_ref(),
-                    database::InitError::RulesDecode { .. }
-                ))
+                assert_contains!(err.to_string(), "error deserializing database rules");
             } else {
                 unreachable!()
             }
@@ -2190,7 +2188,7 @@ mod tests {
 
         // 5. cannot wipe if DB was just created
         let created = server
-            .create_database(DatabaseRules::new(db_name_created.clone()))
+            .create_database(default_rules(db_name_created.clone()))
             .await
             .unwrap();
 
@@ -2261,7 +2259,10 @@ mod tests {
                 "mock://my_mock".to_string(),
             )),
         };
-        server.create_database(rules.clone()).await.unwrap();
+        server
+            .create_database(make_provided_rules(rules))
+            .await
+            .unwrap();
 
         let entry = lp_to_entry("cpu bar=1 10");
 
@@ -2280,5 +2281,20 @@ mod tests {
 
         let physical_plan = planner.query(query, &ctx).unwrap();
         ctx.collect(physical_plan).await.unwrap()
+    }
+
+    fn default_rules(db_name: DatabaseName<'static>) -> ProvidedDatabaseRules {
+        make_provided_rules(DatabaseRules::new(db_name))
+    }
+
+    /// Normally database rules are provided as grpc messages, but in
+    /// tests they are constructed from database rules structures
+    /// themselves.
+    fn make_provided_rules(rules: DatabaseRules) -> ProvidedDatabaseRules {
+        let rules: generated_types::influxdata::iox::management::v1::DatabaseRules =
+            rules.try_into().unwrap();
+
+        let provided_rules: ProvidedDatabaseRules = rules.try_into().unwrap();
+        provided_rules
     }
 }

@@ -6,7 +6,11 @@ use generated_types::{
         database_rules::RoutingRules, database_status::DatabaseState, *,
     },
 };
-use influxdb_iox_client::{management::CreateDatabaseError, operations, write::WriteError};
+use influxdb_iox_client::{
+    management::{Client, CreateDatabaseError},
+    operations,
+    write::WriteError,
+};
 
 use test_helpers::assert_contains;
 
@@ -244,7 +248,7 @@ async fn test_create_get_update_database() {
         .expect("create database failed");
 
     let response = client
-        .get_database(&db_name)
+        .get_database(&db_name, false)
         .await
         .expect("get database failed");
 
@@ -262,7 +266,7 @@ async fn test_create_get_update_database() {
     assert_eq!(updated_rules, rules);
 
     let response = client
-        .get_database(&db_name)
+        .get_database(&db_name, false)
         .await
         .expect("get database failed");
 
@@ -270,6 +274,81 @@ async fn test_create_get_update_database() {
             response.routing_rules,
             Some(RoutingRules::ShardConfig(cfg)) if cfg.ignore_errors,
     ));
+}
+
+/// gets configuration both with and without defaults, and verifies
+/// that the worker_cleanup_avg_sleep field is the same and that
+/// lifecycle_rules are not present except when defaults are filled in
+async fn assert_rule_defaults(client: &mut Client, db_name: &str, provided_rules: &DatabaseRules) {
+    assert!(provided_rules.lifecycle_rules.is_none());
+
+    // Get the configuration, but do not get any defaults
+    // No lifecycle rules should be present
+    let response = client
+        .get_database(db_name, true)
+        .await
+        .expect("get database failed");
+    assert!(response.lifecycle_rules.is_none());
+    assert_eq!(
+        provided_rules.worker_cleanup_avg_sleep,
+        response.worker_cleanup_avg_sleep
+    );
+
+    // Get the configuration, *with* defaults, and the lifecycle rules should be present
+    let response = client
+        .get_database(db_name, false) // with defaults
+        .await
+        .expect("get database failed");
+    assert!(response.lifecycle_rules.is_some());
+    assert_eq!(
+        provided_rules.worker_cleanup_avg_sleep,
+        response.worker_cleanup_avg_sleep
+    );
+}
+
+#[tokio::test]
+async fn test_create_get_update_database_omit_defaults() {
+    // Test to ensure that the database remembers only the
+    // configuration that it was sent, not including the default
+    // values
+    let server_fixture = ServerFixture::create_shared().await;
+    let mut client = server_fixture.management_client();
+
+    let db_name = rand_name();
+
+    // Only set the worker cleanup rules.
+    let mut rules = DatabaseRules {
+        name: db_name.clone(),
+        worker_cleanup_avg_sleep: Some(Duration {
+            seconds: 2,
+            nanos: 0,
+        }),
+        ..Default::default()
+    };
+
+    client
+        .create_database(rules.clone())
+        .await
+        .expect("create database failed");
+
+    assert_rule_defaults(&mut client, &db_name, &rules).await;
+
+    // Now, modify the worker to cleanup rules
+    rules.worker_cleanup_avg_sleep = Some(Duration {
+        seconds: 20,
+        nanos: 0,
+    });
+    let updated_rules = client
+        .update_database(rules.clone())
+        .await
+        .expect("update database failed");
+    assert!(updated_rules.lifecycle_rules.is_some());
+    assert_eq!(
+        rules.worker_cleanup_avg_sleep,
+        updated_rules.worker_cleanup_avg_sleep
+    );
+
+    assert_rule_defaults(&mut client, &db_name, &rules).await;
 }
 
 #[tokio::test]
@@ -1002,7 +1081,7 @@ async fn test_get_server_status_db_error() {
     let db_status = &status.database_statuses[0];
     assert_eq!(db_status.db_name, "my_db");
     assert!(dbg!(&db_status.error.as_ref().unwrap().message)
-        .starts_with("error decoding database rules:"));
+        .contains("error deserializing database rules"));
     assert_eq!(
         DatabaseState::from_i32(db_status.state).unwrap(),
         DatabaseState::DatabaseObjectStoreFound

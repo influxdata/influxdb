@@ -353,6 +353,7 @@ mod tests {
     use ::http::{header::HeaderName, HeaderValue};
     use data_types::{database_rules::DatabaseRules, DatabaseName};
     use influxdb_iox_client::connection::Connection;
+    use server::rules::ProvidedDatabaseRules;
     use std::convert::TryInto;
     use std::num::NonZeroU64;
     use structopt::StructOpt;
@@ -492,7 +493,7 @@ mod tests {
         // Create a database that won't panic
         let other_db_name = DatabaseName::new("other").unwrap();
         server
-            .create_database(DatabaseRules::new(other_db_name.clone()))
+            .create_database(make_rules(&other_db_name))
             .await
             .unwrap();
 
@@ -517,7 +518,7 @@ mod tests {
 
         // Create database that will panic in its worker loop
         server
-            .create_database(DatabaseRules::new(DatabaseName::new("panic_test").unwrap()))
+            .create_database(make_rules("panic_test"))
             .await
             .unwrap();
 
@@ -759,5 +760,16 @@ mod tests {
         let span = receiver.recv().await.unwrap();
         assert_eq!(span.span_context.trace_id().to_u128(), 0x34f8495);
         assert_eq!(span.parent_span_id.to_u64(), 0x30e34);
+    }
+
+    fn make_rules(db_name: impl Into<String>) -> ProvidedDatabaseRules {
+        let db_name = DatabaseName::new(db_name.into()).unwrap();
+
+        let rules = DatabaseRules::new(db_name);
+        let rules: generated_types::influxdata::iox::management::v1::DatabaseRules =
+            rules.try_into().unwrap();
+
+        let provided_rules: ProvidedDatabaseRules = rules.try_into().unwrap();
+        provided_rules
     }
 }

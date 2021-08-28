@@ -117,32 +117,32 @@ impl TryFrom<management::RoutingConfig> for RoutingConfig {
     }
 }
 
+/// Wrapper around a `prost` error so that
+/// users of this crate do not have a direct dependency
+/// on the prost crate.  
 #[derive(Debug, Error)]
-pub enum DecodeError {
-    #[error("failed to decode protobuf: {0}")]
-    DecodeError(#[from] prost::DecodeError),
-
-    #[error("validation failed: {0}")]
-    ValidationError(#[from] FieldViolation),
-}
-
-#[derive(Debug, Error)]
-pub enum EncodeError {
+pub enum ProstError {
     #[error("failed to encode protobuf: {0}")]
     EncodeError(#[from] prost::EncodeError),
+
+    #[error("failed to decode protobuf: {0}")]
+    DecodeError(#[from] prost::DecodeError),
 }
 
-pub fn decode_database_rules(bytes: prost::bytes::Bytes) -> Result<DatabaseRules, DecodeError> {
-    let message: management::DatabaseRules = prost::Message::decode(bytes)?;
-    Ok(message.try_into()?)
+/// Decode datbase rules that were encoded using `encode_database_rules`
+pub fn decode_database_rules(
+    bytes: prost::bytes::Bytes,
+) -> Result<management::DatabaseRules, ProstError> {
+    Ok(prost::Message::decode(bytes)?)
 }
 
+/// Encode database rules into a serialized format suitable for
+/// storage in objet store
 pub fn encode_database_rules(
-    rules: DatabaseRules,
+    rules: &management::DatabaseRules,
     bytes: &mut prost::bytes::BytesMut,
-) -> Result<(), EncodeError> {
-    let encoded: management::DatabaseRules = rules.into();
-    Ok(prost::Message::encode(&encoded, bytes)?)
+) -> Result<(), ProstError> {
+    Ok(prost::Message::encode(rules, bytes)?)
 }
 
 impl From<WriteBufferConnection> for management::database_rules::WriteBufferConnection {

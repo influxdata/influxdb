@@ -964,7 +964,7 @@ where
 mod tests {
     use super::*;
     use std::{
-        convert::TryFrom,
+        convert::{TryFrom, TryInto},
         net::{IpAddr, Ipv4Addr, SocketAddr},
     };
 
@@ -976,7 +976,7 @@ mod tests {
     use metrics::TestMetricRegistry;
     use object_store::ObjectStore;
     use serde::de::DeserializeOwned;
-    use server::{db::Db, ApplicationState, ConnectionManagerImpl};
+    use server::{db::Db, rules::ProvidedDatabaseRules, ApplicationState, ConnectionManagerImpl};
     use tokio_stream::wrappers::ReceiverStream;
 
     fn make_application() -> Arc<ApplicationState> {
@@ -1041,9 +1041,7 @@ mod tests {
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.wait_for_init().await.unwrap();
         app_server
-            .create_database(DatabaseRules::new(
-                DatabaseName::new("MyOrg_MyBucket").unwrap(),
-            ))
+            .create_database(make_rules("MyOrg_MyBucket"))
             .await
             .unwrap();
         let server_url = test_server(application, Arc::clone(&app_server));
@@ -1091,9 +1089,7 @@ mod tests {
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.wait_for_init().await.unwrap();
         app_server
-            .create_database(DatabaseRules::new(
-                DatabaseName::new("MetricsOrg_MetricsBucket").unwrap(),
-            ))
+            .create_database(make_rules("MetricsOrg_MetricsBucket"))
             .await
             .unwrap();
 
@@ -1182,9 +1178,7 @@ mod tests {
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.wait_for_init().await.unwrap();
         app_server
-            .create_database(DatabaseRules::new(
-                DatabaseName::new("MyOrg_MyBucket").unwrap(),
-            ))
+            .create_database(make_rules("MyOrg_MyBucket"))
             .await
             .unwrap();
         let server_url = test_server(application, Arc::clone(&app_server));
@@ -1509,13 +1503,22 @@ mod tests {
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.wait_for_init().await.unwrap();
         app_server
-            .create_database(DatabaseRules::new(
-                DatabaseName::new("MyOrg_MyBucket").unwrap(),
-            ))
+            .create_database(make_rules("MyOrg_MyBucket"))
             .await
             .unwrap();
         let server_url = test_server(application, Arc::clone(&app_server));
 
         (app_server, server_url)
+    }
+
+    fn make_rules(db_name: impl Into<String>) -> ProvidedDatabaseRules {
+        let db_name = DatabaseName::new(db_name.into()).unwrap();
+
+        let rules = DatabaseRules::new(db_name);
+        let rules: generated_types::influxdata::iox::management::v1::DatabaseRules =
+            rules.try_into().unwrap();
+
+        let provided_rules: ProvidedDatabaseRules = rules.try_into().unwrap();
+        provided_rules
     }
 }

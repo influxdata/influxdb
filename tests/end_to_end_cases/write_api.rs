@@ -207,7 +207,7 @@ async fn test_write_routed() {
 
     // Set sharding rules on the router:
     let mut router_db_rules = router_mgmt
-        .get_database(&db_name)
+        .get_database(&db_name, false)
         .await
         .expect("cannot get database on router");
     let shard_config = ShardConfig {
@@ -395,7 +395,7 @@ async fn test_write_routed_errors() {
 
     // Set sharding rules on the router:
     let mut router_db_rules = router_mgmt
-        .get_database(&db_name)
+        .get_database(&db_name, false)
         .await
         .expect("cannot get database on router");
     let shard_config = ShardConfig {
@@ -464,7 +464,7 @@ async fn test_write_dev_null() {
 
     // Set sharding rules on the router:
     let mut router_db_rules = router_mgmt
-        .get_database(&db_name)
+        .get_database(&db_name, false)
         .await
         .expect("cannot get database on router");
     let shard_config = ShardConfig {
@@ -588,7 +588,7 @@ async fn test_write_routed_no_shard() {
         (db_name_2.clone(), TEST_REMOTE_ID_2),
     ] {
         let mut router_db_rules = router_mgmt
-            .get_database(db_name)
+            .get_database(db_name, false)
             .await
             .expect("cannot get database on router");
         let routing_config = RoutingConfig {

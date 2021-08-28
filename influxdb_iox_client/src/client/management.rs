@@ -514,13 +514,25 @@ impl Client {
     }
 
     /// Get database configuration
+    ///
+    /// If `omit_defaults` is false, return the current configuration
+    /// that is being used by the server, with all default values
+    /// filled in.
+    ///
+    /// If `omit_defaults` is true, returns only the persisted configuration (aka only
+    /// fields which were was supplied when the database was created
+    /// or last modified via UpdateDatabase)
     pub async fn get_database(
         &mut self,
         name: impl Into<String> + Send,
+        omit_defaults: bool,
     ) -> Result<DatabaseRules, GetDatabaseError> {
         let response = self
             .inner
-            .get_database(GetDatabaseRequest { name: name.into() })
+            .get_database(GetDatabaseRequest {
+                name: name.into(),
+                omit_defaults,
+            })
             .await
             .map_err(|status| match status.code() {
                 tonic::Code::NotFound => GetDatabaseError::DatabaseNotFound,

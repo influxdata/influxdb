@@ -1,5 +1,5 @@
 /// Simple representation of the state a database can be in.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum DatabaseStateCode {
     /// Database is known but nothing is loaded.
     Known,

@@ -3,26 +3,22 @@ use crate::{
         load::{create_preserved_catalog, load_or_create_preserved_catalog},
         DatabaseToCommit,
     },
+    rules::ProvidedDatabaseRules,
     ApplicationState, Db,
 };
-use bytes::BytesMut;
-use data_types::{
-    database_rules::DatabaseRules, database_state::DatabaseStateCode, server_id::ServerId,
-    DatabaseName,
-};
+use data_types::{database_state::DatabaseStateCode, server_id::ServerId, DatabaseName};
 use futures::{
     future::{BoxFuture, Shared},
     FutureExt, TryFutureExt,
 };
-use generated_types::database_rules::encode_database_rules;
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use parquet_file::catalog::api::PreservedCatalog;
 use persistence_windows::checkpoint::ReplayPlan;
-use snafu::{OptionExt, ResultExt, Snafu};
-use std::{future::Future, sync::Arc, time::Duration};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use std::{future::Future, ops::DerefMut, sync::Arc, time::Duration};
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
 
@@ -67,10 +63,19 @@ pub enum Error {
         db_name: String,
         source: Box<InitError>,
     },
+
+    #[snafu(display("cannot update database rules for {} in state {}", db_name, state))]
+    RulesNotUpdateable {
+        db_name: String,
+        state: DatabaseStateCode,
+    },
+
+    #[snafu(display("cannot persisted updated rules: {}", source))]
+    CannotPersistUpdatedRules { source: crate::rules::Error },
 }
 
-/// A `Database` represents a single configured IOx database - i.e. an entity with a corresponding
-/// set of `DatabaseRules`.
+/// A `Database` represents a single configured IOx database - i.e. an
+/// entity with a corresponding set of `DatabaseRules`.
 ///
 /// `Database` composes together the various subsystems responsible for implementing
 /// `DatabaseRules` and handles their startup and shutdown. This includes instance-local
@@ -87,6 +92,8 @@ pub struct Database {
 }
 
 #[derive(Debug, Clone)]
+/// Informatation about where a database is located on object store,
+/// and how to perform startup activities.
 pub struct DatabaseConfig {
     pub name: DatabaseName<'static>,
     pub server_id: ServerId,
@@ -119,20 +126,23 @@ impl Database {
         Self { join, shared }
     }
 
-    /// Create fresh database w/o any state.
+    /// Create fresh database without any any state.
     pub async fn create(
         application: Arc<ApplicationState>,
-        rules: DatabaseRules,
+        provided_rules: &ProvidedDatabaseRules,
         server_id: ServerId,
     ) -> Result<(), InitError> {
-        let db_name = rules.name.clone();
+        let db_name = provided_rules.db_name();
         let iox_object_store = Arc::new(
-            IoxObjectStore::new(Arc::clone(application.object_store()), server_id, &db_name)
+            IoxObjectStore::new(Arc::clone(application.object_store()), server_id, db_name)
                 .await
                 .context(IoxObjectStoreError)?,
         );
 
-        persist_database_rules(&iox_object_store, rules).await?;
+        provided_rules
+            .persist(&iox_object_store)
+            .await
+            .context(SavingRules)?;
 
         create_preserved_catalog(
             db_name.as_str(),
@@ -179,8 +189,78 @@ impl Database {
     }
 
     /// Returns the database rules if they're loaded
-    pub fn rules(&self) -> Option<Arc<DatabaseRules>> {
-        self.shared.state.read().rules()
+    pub fn provided_rules(&self) -> Option<Arc<ProvidedDatabaseRules>> {
+        self.shared.state.read().provided_rules()
+    }
+
+    /// Update the database rules, panic'ing if the state is invalid
+    pub async fn update_provided_rules(
+        &self,
+        new_provided_rules: Arc<ProvidedDatabaseRules>,
+    ) -> Result<(), Error> {
+        // get a handle to signal our intention to update the state
+        let (handle, iox_object_store) = {
+            // scope so we drop the read lock
+            let state = self.shared.state.read();
+            let state_code = state.state_code();
+
+            // A handle to the object store so we can update the rules
+            // in object store prior to obtaining exclusive write
+            // acces to the `DatabaseState`
+            let iox_object_store = state.iox_object_store().context(RulesNotUpdateable {
+                db_name: new_provided_rules.db_name(),
+                state: state_code,
+            })?;
+
+            // ensure the database is in initialized state (acquiring
+            // the freeze handle ensures this state remains the same
+            // once we get the write lock below
+            ensure!(
+                state_code == DatabaseStateCode::Initialized,
+                RulesNotUpdateable {
+                    db_name: new_provided_rules.db_name(),
+                    state: state_code,
+                }
+            );
+
+            let handle = state.try_freeze().context(RulesNotUpdateable {
+                db_name: new_provided_rules.db_name(),
+                state: state_code,
+            })?;
+            (handle, iox_object_store)
+        };
+
+        // Attempt to persist to object store, if that fails, roll
+        // back the whole transaction (leave the rules unchanged).
+        //
+        // The fact the freeze handle is held here ensures only one
+        // one task can ever be in this code at any time. Another
+        // concurrent attempt would error in the `try_freeze()`
+        // call above.
+        new_provided_rules
+            .persist(&iox_object_store)
+            .await
+            .context(CannotPersistUpdatedRules)?;
+
+        let mut state = self.shared.state.write();
+
+        // Exchange FreezeHandle for mutable access via WriteGuard,
+        // nothing else can mess with the database state now as we
+        // change the rules
+        let mut state = state.unfreeze(handle);
+
+        if let DatabaseState::Initialized(DatabaseStateInitialized { db, provided_rules }) =
+            state.deref_mut()
+        {
+            db.update_rules(Arc::clone(new_provided_rules.rules()));
+            *provided_rules = new_provided_rules;
+            Ok(())
+        } else {
+            // The fact we have a handle should have prevented any
+            // changes to the database state between when it was
+            // checked above and now
+            unreachable!()
+        }
     }
 
     /// Returns the IoxObjectStore if it has been found
@@ -338,7 +418,9 @@ struct DatabaseShared {
     /// Application-global state
     application: Arc<ApplicationState>,
 
-    /// The state of the `Database`
+    /// The state of the `Database`, wrapped in a `Freezable` to
+    /// ensure there is only one task with an outstanding intent to
+    /// write at any time.
     state: RwLock<Freezable<DatabaseState>>,
 
     /// Notify that the database state has changed
@@ -515,14 +597,6 @@ pub enum InitError {
     #[snafu(display("no active generation directory found, not loading"))]
     NoActiveDatabase,
 
-    #[snafu(display("error fetching rules: {}", source))]
-    RulesFetch { source: object_store::Error },
-
-    #[snafu(display("error decoding database rules: {}", source))]
-    RulesDecode {
-        source: generated_types::database_rules::DecodeError,
-    },
-
     #[snafu(display(
         "Database names in deserialized rules ({}) does not match expected value ({})",
         actual,
@@ -541,17 +615,15 @@ pub enum InitError {
     #[snafu(display("error during replay: {}", source))]
     Replay { source: crate::db::Error },
 
-    #[snafu(display("store error: {}", source))]
-    StoreError { source: object_store::Error },
+    #[snafu(display("error saving database rules: {}", source))]
+    SavingRules { source: crate::rules::Error },
+
+    #[snafu(display("error loading database rules: {}", source))]
+    LoadingRules { source: crate::rules::Error },
 
     #[snafu(display("{}", source))]
     IoxObjectStoreError {
         source: iox_object_store::IoxObjectStoreError,
-    },
-
-    #[snafu(display("error serializing database rules to protobuf: {}", source))]
-    ErrorSerializingRulesProtobuf {
-        source: generated_types::database_rules::EncodeError,
     },
 
     #[snafu(display("cannot create preserved catalog: {}", source))]
@@ -618,7 +690,7 @@ impl DatabaseState {
         }
     }
 
-    fn rules(&self) -> Option<Arc<DatabaseRules>> {
+    fn provided_rules(&self) -> Option<Arc<ProvidedDatabaseRules>> {
         match self {
             DatabaseState::Known(_)
             | DatabaseState::DatabaseObjectStoreFound(_)
@@ -626,12 +698,12 @@ impl DatabaseState {
             | DatabaseState::NoActiveDatabase(_, _)
             | DatabaseState::RulesLoadError(_, _) => None,
             DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
-                Some(Arc::clone(&state.rules))
+                Some(Arc::clone(&state.provided_rules))
             }
             DatabaseState::CatalogLoaded(state) | DatabaseState::ReplayError(state, _) => {
-                Some(state.db.rules())
+                Some(Arc::clone(&state.provided_rules))
             }
-            DatabaseState::Initialized(state) => Some(state.db.rules()),
+            DatabaseState::Initialized(state) => Some(Arc::clone(&state.provided_rules)),
         }
     }
 
@@ -697,25 +769,19 @@ impl DatabaseStateDatabaseObjectStoreFound {
         &self,
         shared: &DatabaseShared,
     ) -> Result<DatabaseStateRulesLoaded, InitError> {
-        // TODO: Retry this
-        let bytes = self
-            .iox_object_store
-            .get_database_rules_file()
+        let rules = ProvidedDatabaseRules::load(&self.iox_object_store)
             .await
-            .context(RulesFetch)?;
+            .context(LoadingRules)?;
 
-        let rules =
-            generated_types::database_rules::decode_database_rules(bytes).context(RulesDecode)?;
-
-        if rules.name != shared.config.name {
+        if rules.db_name() != &shared.config.name {
             return Err(InitError::RulesDatabaseNameMismatch {
-                actual: rules.name.to_string(),
+                actual: rules.db_name().to_string(),
                 expected: shared.config.name.to_string(),
             });
         }
 
         Ok(DatabaseStateRulesLoaded {
-            rules: Arc::new(rules),
+            provided_rules: Arc::new(rules),
             iox_object_store: Arc::clone(&self.iox_object_store),
         })
     }
@@ -723,7 +789,7 @@ impl DatabaseStateDatabaseObjectStoreFound {
 
 #[derive(Debug, Clone)]
 struct DatabaseStateRulesLoaded {
-    rules: Arc<DatabaseRules>,
+    provided_rules: Arc<ProvidedDatabaseRules>,
     iox_object_store: Arc<IoxObjectStore>,
 }
 
@@ -747,7 +813,10 @@ impl DatabaseStateRulesLoaded {
         let write_buffer = shared
             .application
             .write_buffer_factory()
-            .new_config(shared.config.server_id, self.rules.as_ref())
+            .new_config(
+                shared.config.server_id,
+                self.provided_rules.rules().as_ref(),
+            )
             .await
             .context(CreateWriteBuffer)?;
 
@@ -755,7 +824,7 @@ impl DatabaseStateRulesLoaded {
             server_id: shared.config.server_id,
             iox_object_store: Arc::clone(&self.iox_object_store),
             exec: Arc::clone(shared.application.executor()),
-            rules: Arc::clone(&self.rules),
+            rules: Arc::clone(self.provided_rules.rules()),
             preserved_catalog,
             catalog,
             write_buffer,
@@ -769,6 +838,7 @@ impl DatabaseStateRulesLoaded {
         Ok(DatabaseStateCatalogLoaded {
             db,
             replay_plan: Arc::new(replay_plan),
+            provided_rules: Arc::clone(&self.provided_rules),
         })
     }
 }
@@ -777,6 +847,7 @@ impl DatabaseStateRulesLoaded {
 struct DatabaseStateCatalogLoaded {
     db: Arc<Db>,
     replay_plan: Arc<Option<ReplayPlan>>,
+    provided_rules: Arc<ProvidedDatabaseRules>,
 }
 
 impl DatabaseStateCatalogLoaded {
@@ -792,28 +863,17 @@ impl DatabaseStateCatalogLoaded {
         db.unsuppress_persistence().await;
         db.allow_write_buffer_read();
 
-        Ok(DatabaseStateInitialized { db })
+        Ok(DatabaseStateInitialized {
+            db,
+            provided_rules: Arc::clone(&self.provided_rules),
+        })
     }
 }
 
 #[derive(Debug, Clone)]
 struct DatabaseStateInitialized {
     db: Arc<Db>,
-}
-
-/// Persist the the `DatabaseRules` given the database object storage
-pub(super) async fn persist_database_rules(
-    object_store: &IoxObjectStore,
-    rules: DatabaseRules,
-) -> Result<(), InitError> {
-    let mut data = BytesMut::new();
-    encode_database_rules(rules, &mut data).context(ErrorSerializingRulesProtobuf)?;
-
-    object_store
-        .put_database_rules_file(data.freeze())
-        .await
-        .context(StoreError)?;
-    Ok(())
+    provided_rules: Arc<ProvidedDatabaseRules>,
 }
 
 #[cfg(test)]
@@ -825,7 +885,11 @@ mod tests {
     use write_buffer::{config::WriteBufferConfigFactory, mock::MockBufferSharedState};
 
     use super::*;
-    use std::{convert::TryFrom, num::NonZeroU32, time::Instant};
+    use std::{
+        convert::{TryFrom, TryInto},
+        num::NonZeroU32,
+        time::Instant,
+    };
 
     #[tokio::test]
     async fn database_shutdown_waits_for_jobs() {
@@ -922,7 +986,7 @@ mod tests {
 
         // setup DB
         let db_name = DatabaseName::new("test_db").unwrap();
-        let rules = DatabaseRules {
+        let rules = data_types::database_rules::DatabaseRules {
             name: db_name.clone(),
             partition_template: partition_template.clone(),
             lifecycle_rules: data_types::database_rules::LifecycleRules {
@@ -935,9 +999,13 @@ mod tests {
                 "mock://my_mock".to_string(),
             )),
         };
-        Database::create(Arc::clone(&application), rules, server_id)
-            .await
-            .unwrap();
+        Database::create(
+            Arc::clone(&application),
+            &make_provided_rules(rules),
+            server_id,
+        )
+        .await
+        .unwrap();
         let db_config = DatabaseConfig {
             name: db_name,
             server_id,
@@ -1030,5 +1098,18 @@ mod tests {
         // clean up
         database.shutdown();
         database.join().await.unwrap();
+    }
+
+    /// Normally database rules are provided as grpc messages, but in
+    /// tests they are constructed from database rules structures
+    /// themselves.
+    fn make_provided_rules(
+        rules: data_types::database_rules::DatabaseRules,
+    ) -> ProvidedDatabaseRules {
+        let rules: generated_types::influxdata::iox::management::v1::DatabaseRules =
+            rules.try_into().unwrap();
+
+        let provided_rules: ProvidedDatabaseRules = rules.try_into().unwrap();
+        provided_rules
     }
 }

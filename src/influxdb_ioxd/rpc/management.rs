@@ -3,13 +3,11 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Instant;
 
-use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
-use generated_types::google::{
-    AlreadyExists, FieldViolation, FieldViolationExt, FromFieldOpt, InternalError, NotFound,
-};
+use data_types::{server_id::ServerId, DatabaseName};
+use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound};
 use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
-use observability_deps::tracing::info;
 use query::QueryDatabase;
+use server::rules::ProvidedDatabaseRules;
 use server::{ApplicationState, ConnectionManager, DatabaseStore, Error, Server};
 use tonic::{Request, Response, Status};
 
@@ -23,33 +21,6 @@ use super::error::{
     default_database_error_handler, default_db_error_handler, default_server_error_handler,
 };
 use crate::influxdb_ioxd::serving_readiness::ServingReadiness;
-
-#[derive(Debug)]
-enum UpdateError {
-    Update(server::Error),
-    Closure(tonic::Status),
-}
-
-impl From<UpdateError> for Status {
-    fn from(error: UpdateError) -> Self {
-        match error {
-            UpdateError::Update(error) => {
-                info!(?error, "Update error");
-                InternalError {}.into()
-            }
-            UpdateError::Closure(error) => error,
-        }
-    }
-}
-
-impl From<server::UpdateError<Status>> for UpdateError {
-    fn from(error: server::UpdateError<Status>) -> Self {
-        match error {
-            server::UpdateError::Update(error) => Self::Update(error),
-            server::UpdateError::Closure(error) => Self::Closure(error),
-        }
-    }
-}
 
 #[tonic::async_trait]
 impl<M> management_service_server::ManagementService for ManagementService<M>
@@ -98,16 +69,29 @@ where
         &self,
         request: Request<GetDatabaseRequest>,
     ) -> Result<Response<GetDatabaseResponse>, Status> {
-        let name = DatabaseName::new(request.into_inner().name).field("name")?;
+        let GetDatabaseRequest {
+            name,
+            omit_defaults,
+        } = request.into_inner();
+
+        let name = DatabaseName::new(name).field("name")?;
         let database = self
             .server
             .database(&name)
             .map_err(default_server_error_handler)?;
 
-        match database.rules() {
-            Some(rules) => Ok(Response::new(GetDatabaseResponse {
-                rules: Some(rules.as_ref().clone().into()),
-            })),
+        match database.provided_rules() {
+            Some(provided_rules) => {
+                let rules: DatabaseRules = if omit_defaults {
+                    // return rules as originally provided by the user
+                    provided_rules.original().clone()
+                } else {
+                    // return the active rules (which have all default values filled in)
+                    provided_rules.rules().as_ref().clone().into()
+                };
+
+                Ok(Response::new(GetDatabaseResponse { rules: Some(rules) }))
+            }
             None => {
                 return Err(tonic::Status::unavailable(format!(
                     "Rules have not yet been loaded for database ({})",
@@ -124,11 +108,13 @@ where
         let rules: DatabaseRules = request
             .into_inner()
             .rules
-            .ok_or_else(|| FieldViolation::required(""))
-            .and_then(TryInto::try_into)
-            .map_err(|e| e.scope("rules"))?;
+            .ok_or_else(|| FieldViolation::required("rules"))?;
 
-        match self.server.create_database(rules).await {
+        let provided_rules: ProvidedDatabaseRules = rules
+            .try_into()
+            .map_err(|e: FieldViolation| e.scope("rules"))?;
+
+        match self.server.create_database(provided_rules).await {
             Ok(_) => Ok(Response::new(CreateDatabaseResponse {})),
             Err(Error::DatabaseAlreadyExists { db_name }) => {
                 return Err(AlreadyExists {
@@ -146,16 +132,24 @@ where
         &self,
         request: Request<UpdateDatabaseRequest>,
     ) -> Result<Response<UpdateDatabaseResponse>, Status> {
-        let request = request.into_inner();
-        let rules: DatabaseRules = request.rules.required("rules")?;
-        let db_name = rules.name.clone();
+        let rules: DatabaseRules = request
+            .into_inner()
+            .rules
+            .ok_or_else(|| FieldViolation::required("rules"))?;
+
+        let provided_rules: ProvidedDatabaseRules = rules
+            .try_into()
+            .map_err(|e: FieldViolation| e.scope("rules"))?;
+
+        let db_name = provided_rules.db_name().clone();
         let updated_rules = self
             .server
-            .update_db_rules(&db_name, |_orig| Ok(rules))
+            .update_db_rules(&db_name, provided_rules)
             .await
-            .map_err(UpdateError::from)?;
+            .map_err(default_server_error_handler)?;
+
         Ok(Response::new(UpdateDatabaseResponse {
-            rules: Some(updated_rules.as_ref().clone().into()),
+            rules: Some(updated_rules.rules().as_ref().clone().into()),
         }))
     }
 
