@@ -26,7 +26,7 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * Profiling Guide: [profiling.md](profiling.md)
 * How InfluxDB IOx manages the lifecycle of time series data: [data_management.md](data_management.md)
 * Thoughts on parquet encoding and compression for timeseries data: [encoding_thoughts.md](encoding_thoughts.md)
-* Thoughts on using multiple cores: [multi_core_tasks.md](multi_core_tasks.md)
+* Thoughts on using multiple cores / thread pools: [multi_core_tasks.md](multi_core_tasks.md)
 * [Query Engine Docs](../query/README.md)
 * [Testing documentation](testing.md) for developers of IOx
 * [Regenerating Flatbuffers code](regenerating_flatbuffers.md) when updating the version of the `flatbuffers` crate
@@ -34,3 +34,4 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * Catalog Persistence: [`catalog_persistence.md`](catalog_persistence.md).
 * SQL command line tips and tricks: [SQL](sql.md).
 * Notes on server startup and error recovery: [`server_startup.md`](server_startup.md)
+* Notes on the use of local filesystems: [`local_filesystems.md`](local_filesystems.md)
