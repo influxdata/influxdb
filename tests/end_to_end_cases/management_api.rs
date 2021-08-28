@@ -189,20 +189,72 @@ async fn test_list_databases() {
     let server_fixture = ServerFixture::create_shared().await;
     let mut client = server_fixture.management_client();
 
-    let name = rand_name();
+    let name1 = rand_name();
+    let rules1 = DatabaseRules {
+        name: name1.clone(),
+        ..Default::default()
+    };
     client
-        .create_database(DatabaseRules {
-            name: name.clone(),
-            ..Default::default()
-        })
+        .create_database(rules1)
         .await
         .expect("create database failed");
 
-    let names = client
-        .list_databases()
+    let name2 = rand_name();
+    // Only set the worker cleanup rules.
+    let rules2 = DatabaseRules {
+        name: name2.clone(),
+        worker_cleanup_avg_sleep: Some(Duration {
+            seconds: 2,
+            nanos: 0,
+        }),
+        ..Default::default()
+    };
+    client
+        .create_database(rules2)
         .await
-        .expect("list databases failed");
-    assert!(names.contains(&name));
+        .expect("create database failed");
+
+    // By default, should get both databases names back
+    let omit_defaults = false;
+    let databases: Vec<_> = client
+        .list_databases(omit_defaults)
+        .await
+        .expect("list databases failed")
+        .into_iter()
+        // names may contain the names of other databases created by
+        // concurrent tests as well
+        .filter(|rules| rules.name == name1 || rules.name == name2)
+        .collect();
+
+    let names: Vec<_> = databases.iter().map(|rules| rules.name.clone()).collect();
+
+    assert!(dbg!(&names).contains(&name1));
+    assert!(dbg!(&names).contains(&name2));
+
+    // validate that both rules have the defaults filled in
+    for rules in &databases {
+        assert!(rules.lifecycle_rules.is_some());
+    }
+
+    // now fetch without defaults, and neither should have their rules filled in
+    let omit_defaults = true;
+    let databases: Vec<_> = client
+        .list_databases(omit_defaults)
+        .await
+        .expect("list databases failed")
+        .into_iter()
+        // names may contain the names of other databases created by
+        // concurrent tests as well
+        .filter(|rules| rules.name == name1 || rules.name == name2)
+        .collect();
+
+    let names: Vec<_> = databases.iter().map(|rules| rules.name.clone()).collect();
+    assert!(dbg!(&names).contains(&name1));
+    assert!(dbg!(&names).contains(&name2));
+
+    for rules in &databases {
+        assert!(rules.lifecycle_rules.is_none());
+    }
 }
 
 #[tokio::test]

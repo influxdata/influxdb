@@ -8,7 +8,7 @@ use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, 
 use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
 use query::QueryDatabase;
 use server::rules::ProvidedDatabaseRules;
-use server::{ApplicationState, ConnectionManager, DatabaseStore, Error, Server};
+use server::{ApplicationState, ConnectionManager, Error, Server};
 use tonic::{Request, Response, Status};
 
 struct ManagementService<M: ConnectionManager> {
@@ -59,10 +59,20 @@ where
 
     async fn list_databases(
         &self,
-        _: Request<ListDatabasesRequest>,
+        request: Request<ListDatabasesRequest>,
     ) -> Result<Response<ListDatabasesResponse>, Status> {
-        let names = self.server.db_names_sorted();
-        Ok(Response::new(ListDatabasesResponse { names }))
+        let ListDatabasesRequest { omit_defaults } = request.into_inner();
+
+        let rules = self
+            .server
+            .databases()
+            .map_err(default_server_error_handler)?
+            .into_iter()
+            .filter_map(|db| db.provided_rules())
+            .map(|rules| format_rules(rules, omit_defaults))
+            .collect::<Vec<_>>();
+
+        Ok(Response::new(ListDatabasesResponse { rules }))
     }
 
     async fn get_database(
@@ -80,25 +90,17 @@ where
             .database(&name)
             .map_err(default_server_error_handler)?;
 
-        match database.provided_rules() {
-            Some(provided_rules) => {
-                let rules: DatabaseRules = if omit_defaults {
-                    // return rules as originally provided by the user
-                    provided_rules.original().clone()
-                } else {
-                    // return the active rules (which have all default values filled in)
-                    provided_rules.rules().as_ref().clone().into()
-                };
-
-                Ok(Response::new(GetDatabaseResponse { rules: Some(rules) }))
-            }
-            None => {
-                return Err(tonic::Status::unavailable(format!(
+        let rules = database
+            .provided_rules()
+            .map(|rules| format_rules(rules, omit_defaults))
+            .ok_or_else(|| {
+                tonic::Status::unavailable(format!(
                     "Rules have not yet been loaded for database ({})",
                     name
-                )))
-            }
-        }
+                ))
+            })?;
+
+        Ok(Response::new(GetDatabaseResponse { rules: Some(rules) }))
     }
 
     async fn create_database(
@@ -556,6 +558,19 @@ where
             .map_err(default_db_error_handler)?;
 
         Ok(Response::new(DeleteResponse {}))
+    }
+}
+
+/// returns [`DatabaseRules`] formated accordingo the omit_defaults
+/// flag. If omit_defaults is true, returns the stored config,
+/// otherwise returns the actual configu
+fn format_rules(provided_rules: Arc<ProvidedDatabaseRules>, omit_defaults: bool) -> DatabaseRules {
+    if omit_defaults {
+        // return rules as originally provided by the user
+        provided_rules.original().clone()
+    } else {
+        // return the active rules (which have all default values filled in)
+        provided_rules.rules().as_ref().clone().into()
     }
 }
 

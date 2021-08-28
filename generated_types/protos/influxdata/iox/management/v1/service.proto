@@ -15,6 +15,9 @@ service ManagementService {
 
   rpc SetServingReadiness(SetServingReadinessRequest) returns (SetServingReadinessResponse);
 
+  // List all databases on this server.
+  //
+  // Roughly follows the <https://google.aip.dev/132> pattern, except we wrap the response
   rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
 
   // Return a specific database by name
@@ -110,10 +113,18 @@ message SetServingReadinessRequest {
 
 message SetServingReadinessResponse {}
 
-message ListDatabasesRequest {}
+message ListDatabasesRequest {
+  // If true, returns only explciitly defined values. See additional
+  // details on `GetDatabaseRequest`.
+  bool omit_defaults = 1;
+}
 
 message ListDatabasesResponse {
-  repeated string names = 1;
+  // old version of this API returned names only.
+  // repeated string names = 1;
+
+  /// database rules (configuration) for each database
+  repeated DatabaseRules rules = 2;
 }
 
 message GetDatabaseRequest {

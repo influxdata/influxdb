@@ -226,9 +226,6 @@ pub trait DatabaseStore: std::fmt::Debug + Send + Sync {
     /// The type of error this DataBase store generates
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// List the database names.
-    fn db_names_sorted(&self) -> Vec<String>;
-
     /// Retrieve the database specified by `name` returning None if no
     /// such database exists
     fn db(&self, name: &str) -> Option<Arc<Self::Database>>;
@@ -635,11 +632,21 @@ where
         }
     }
 
-    /// Returns a list of `Database` for this `Server` in no particular order
+    /// Returns a list of `Database` for this `Server` sorted by name
     pub fn databases(&self) -> Result<Vec<Arc<Database>>> {
         let state = self.shared.state.read();
         let initialized = state.initialized()?;
-        Ok(initialized.databases.values().cloned().collect())
+        let mut databases: Vec<_> = initialized.databases.iter().collect();
+
+        // ensure the databases come back sorted by name
+        databases.sort_by_key(|(name, _db)| (*name).clone());
+
+        let databases = databases
+            .into_iter()
+            .map(|(_name, db)| Arc::clone(db))
+            .collect();
+
+        Ok(databases)
     }
 
     /// Get the `Database` by name
@@ -1173,24 +1180,6 @@ where
     type Database = Db;
     type Error = Error;
 
-    fn db_names_sorted(&self) -> Vec<String> {
-        self.shared
-            .state
-            .read()
-            .initialized()
-            .map(|initialized| {
-                let mut keys: Vec<_> = initialized
-                    .databases
-                    .keys()
-                    .map(ToString::to_string)
-                    .collect();
-
-                keys.sort_unstable();
-                keys
-            })
-            .unwrap_or_default()
-    }
-
     fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
         DatabaseName::new(name)
             .ok()
@@ -1213,6 +1202,32 @@ where
         };
 
         Ok(db)
+    }
+}
+
+#[cfg(test)]
+impl<M> Server<M>
+where
+    M: ConnectionManager + Send + Sync,
+{
+    /// For tests:  list of database names in this server, regardless
+    /// of their initialization state
+    fn db_names_sorted(&self) -> Vec<String> {
+        self.shared
+            .state
+            .read()
+            .initialized()
+            .map(|initialized| {
+                let mut keys: Vec<_> = initialized
+                    .databases
+                    .keys()
+                    .map(ToString::to_string)
+                    .collect();
+
+                keys.sort_unstable();
+                keys
+            })
+            .unwrap_or_default()
     }
 }
 

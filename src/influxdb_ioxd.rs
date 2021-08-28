@@ -601,7 +601,7 @@ mod tests {
 
         let mut client = influxdb_iox_client::management::Client::new(client);
 
-        client.list_databases().await.unwrap();
+        client.list_database_names().await.unwrap();
 
         assert_eq!(trace_collector.spans().len(), 0);
 
@@ -624,12 +624,12 @@ mod tests {
 
         let mut b3_tracing_client = influxdb_iox_client::management::Client::new(b3_tracing_client);
 
-        b3_tracing_client.list_databases().await.unwrap();
+        b3_tracing_client.list_database_names().await.unwrap();
         b3_tracing_client.get_server_status().await.unwrap();
 
         let conn = jaeger_client(addr, "34f9495:30e34:0:1").await;
         influxdb_iox_client::management::Client::new(conn)
-            .list_databases()
+            .list_database_names()
             .await
             .unwrap();
 
@@ -747,7 +747,7 @@ mod tests {
         let (addr, server, join) = tracing_server(&collector).await;
         let conn = jaeger_client(addr, "34f8495:30e34:0:1").await;
         influxdb_iox_client::management::Client::new(conn)
-            .list_databases()
+            .list_database_names()
             .await
             .unwrap();
 

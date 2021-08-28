@@ -501,16 +501,38 @@ impl Client {
     }
 
     /// List databases.
-    pub async fn list_databases(&mut self) -> Result<Vec<String>, ListDatabaseError> {
+    ///
+    /// See [`Self::get_database`] for the semanitcs of `omit_defaults`
+    pub async fn list_databases(
+        &mut self,
+        omit_defaults: bool,
+    ) -> Result<Vec<DatabaseRules>, ListDatabaseError> {
         let response = self
             .inner
-            .list_databases(ListDatabasesRequest {})
+            .list_databases(ListDatabasesRequest { omit_defaults })
             .await
             .map_err(|status| match status.code() {
                 tonic::Code::Unavailable => ListDatabaseError::Unavailable(status),
                 _ => ListDatabaseError::ServerError(status),
             })?;
-        Ok(response.into_inner().names)
+
+        Ok(response.into_inner().rules)
+    }
+
+    /// List databases names
+    pub async fn list_database_names(&mut self) -> Result<Vec<String>, ListDatabaseError> {
+        // doesn't really matter as the name is present in all forms
+        // of the config. Pick true to minimize bandwidth.
+        let omit_defaults = true;
+
+        let databases = self.list_databases(omit_defaults).await?;
+
+        let names = databases
+            .iter()
+            .map(|rules| rules.name.to_string())
+            .collect::<Vec<_>>();
+
+        Ok(names)
     }
 
     /// Get database configuration

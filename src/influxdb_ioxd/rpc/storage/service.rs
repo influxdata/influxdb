@@ -2495,13 +2495,6 @@ mod tests {
         type Database = TestDatabase;
         type Error = TestError;
 
-        /// List the database names.
-        fn db_names_sorted(&self) -> Vec<String> {
-            let databases = self.databases.lock();
-
-            databases.keys().cloned().collect()
-        }
-
         /// Retrieve the database specified name
         fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
             let databases = self.databases.lock();

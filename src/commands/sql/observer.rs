@@ -108,7 +108,7 @@ async fn load_remote_system_tables(
     let mut management_client = influxdb_iox_client::management::Client::new(connection.clone());
 
     let db_names = management_client
-        .list_databases()
+        .list_database_names()
         .await
         .context(LoadingDatabaseNames)?;
 

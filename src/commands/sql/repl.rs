@@ -57,7 +57,7 @@ impl RemoteState {
         management_client: &mut influxdb_iox_client::management::Client,
     ) -> Result<Self> {
         let db_names = management_client
-            .list_databases()
+            .list_database_names()
             .await
             .map_err(|e| Box::new(e) as _)
             .context(LoadingRemoteState)?;
