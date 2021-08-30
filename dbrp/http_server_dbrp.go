@@ -23,12 +23,12 @@ type Handler struct {
 	chi.Router
 	api     *kithttp.API
 	log     *zap.Logger
-	dbrpSvc influxdb.DBRPMappingServiceV2
+	dbrpSvc influxdb.DBRPMappingService
 	orgSvc  influxdb.OrganizationService
 }
 
 // NewHTTPHandler constructs a new http server.
-func NewHTTPHandler(log *zap.Logger, dbrpSvc influxdb.DBRPMappingServiceV2, orgSvc influxdb.OrganizationService) *Handler {
+func NewHTTPHandler(log *zap.Logger, dbrpSvc influxdb.DBRPMappingService, orgSvc influxdb.OrganizationService) *Handler {
 	h := &Handler{
 		api:     kithttp.NewAPI(kithttp.WithLog(log)),
 		log:     log,
@@ -114,7 +114,7 @@ func (h *Handler) handlePostDBRP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbrp := &influxdb.DBRPMappingV2{
+	dbrp := &influxdb.DBRPMapping{
 		Database:        req.Database,
 		RetentionPolicy: req.RetentionPolicy,
 		Default:         req.Default,
@@ -129,7 +129,7 @@ func (h *Handler) handlePostDBRP(w http.ResponseWriter, r *http.Request) {
 }
 
 type getDBRPsResponse struct {
-	Content []*influxdb.DBRPMappingV2 `json:"content"`
+	Content []*influxdb.DBRPMapping `json:"content"`
 }
 
 func (h *Handler) handleGetDBRPs(w http.ResponseWriter, r *http.Request) {
@@ -150,7 +150,7 @@ func (h *Handler) handleGetDBRPs(w http.ResponseWriter, r *http.Request) {
 }
 
 type getDBRPResponse struct {
-	Content *influxdb.DBRPMappingV2 `json:"content"`
+	Content *influxdb.DBRPMapping `json:"content"`
 }
 
 func (h *Handler) handleGetDBRP(w http.ResponseWriter, r *http.Request) {
@@ -244,7 +244,7 @@ func (h *Handler) handlePatchDBRP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.api.Respond(w, r, http.StatusOK, struct {
-		Content *influxdb.DBRPMappingV2 `json:"content"`
+		Content *influxdb.DBRPMapping `json:"content"`
 	}{
 		Content: dbrp,
 	})
@@ -281,7 +281,7 @@ func (h *Handler) handleDeleteDBRP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) getFilterFromHTTPRequest(r *http.Request) (f influxdb.DBRPMappingFilterV2, err error) {
+func (h *Handler) getFilterFromHTTPRequest(r *http.Request) (f influxdb.DBRPMappingFilter, err error) {
 	// Always provide OrgID.
 	f.OrgID, err = h.mustGetOrgIDFromHTTPRequest(r)
 	if err != nil {

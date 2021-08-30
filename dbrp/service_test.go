@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -12,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/dbrp"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -48,7 +48,7 @@ func NewTestBoltStore(t *testing.T) (kv.Store, func(), error) {
 	return s, close, nil
 }
 
-func initDBRPMappingService(f itesting.DBRPMappingFieldsV2, t *testing.T) (influxdb.DBRPMappingServiceV2, func()) {
+func initDBRPMappingService(f itesting.DBRPMappingFields, t *testing.T) (influxdb.DBRPMappingService, func()) {
 	s, closeStore, err := NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new bolt kv store: %v", err)
@@ -79,7 +79,7 @@ func initDBRPMappingService(f itesting.DBRPMappingFieldsV2, t *testing.T) (influ
 	}
 }
 
-func TestBoltDBRPMappingServiceV2(t *testing.T) {
+func TestBoltDBRPMappingService(t *testing.T) {
 	t.Parallel()
-	itesting.DBRPMappingServiceV2(initDBRPMappingService, t)
+	itesting.DBRPMappingService(initDBRPMappingService, t)
 }

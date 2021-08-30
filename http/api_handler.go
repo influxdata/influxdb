@@ -73,7 +73,7 @@ type APIBackend struct {
 	PasswordV1Service               influxdb.PasswordsService
 	AuthorizerV1                    influxdb.AuthorizerV1
 	OnboardingService               influxdb.OnboardingService
-	DBRPService                     influxdb.DBRPMappingServiceV2
+	DBRPService                     influxdb.DBRPMappingService
 	BucketService                   influxdb.BucketService
 	SessionService                  influxdb.SessionService
 	UserService                     influxdb.UserService

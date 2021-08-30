@@ -14,7 +14,7 @@ import (
 const CompilerType = "influxql"
 
 // AddCompilerMappings adds the influxql specific compiler mappings.
-func AddCompilerMappings(mappings flux.CompilerMappings, dbrpMappingSvc platform.DBRPMappingServiceV2) error {
+func AddCompilerMappings(mappings flux.CompilerMappings, dbrpMappingSvc platform.DBRPMappingService) error {
 	return mappings.Add(CompilerType, func() flux.Compiler {
 		return NewCompiler(dbrpMappingSvc)
 	})
@@ -31,12 +31,12 @@ type Compiler struct {
 
 	logicalPlannerOptions []plan.LogicalOption
 
-	dbrpMappingSvc platform.DBRPMappingServiceV2
+	dbrpMappingSvc platform.DBRPMappingService
 }
 
 var _ flux.Compiler = &Compiler{}
 
-func NewCompiler(dbrpMappingSvc platform.DBRPMappingServiceV2) *Compiler {
+func NewCompiler(dbrpMappingSvc platform.DBRPMappingService) *Compiler {
 	return &Compiler{
 		dbrpMappingSvc: dbrpMappingSvc,
 	}

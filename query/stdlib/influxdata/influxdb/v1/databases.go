@@ -43,7 +43,7 @@ func (s *LocalDatabasesProcedureSpec) Copy() plan.ProcedureSpec {
 type DatabasesDecoder struct {
 	orgID     platform2.ID
 	deps      *DatabasesDependencies
-	databases []*platform.DBRPMappingV2
+	databases []*platform.DBRPMapping
 	alloc     *memory.Allocator
 }
 
@@ -52,7 +52,7 @@ func (bd *DatabasesDecoder) Connect(ctx context.Context) error {
 }
 
 func (bd *DatabasesDecoder) Fetch(ctx context.Context) (bool, error) {
-	b, _, err := bd.deps.DBRP.FindMany(ctx, platform.DBRPMappingFilterV2{})
+	b, _, err := bd.deps.DBRP.FindMany(ctx, platform.DBRPMappingFilter{})
 	if err != nil {
 		return false, err
 	}
@@ -62,7 +62,7 @@ func (bd *DatabasesDecoder) Fetch(ctx context.Context) (bool, error) {
 
 func (bd *DatabasesDecoder) Decode(ctx context.Context) (flux.Table, error) {
 	type databaseInfo struct {
-		*platform.DBRPMappingV2
+		*platform.DBRPMapping
 		RetentionPeriod time.Duration
 	}
 
@@ -77,7 +77,7 @@ func (bd *DatabasesDecoder) Decode(ctx context.Context) (flux.Table, error) {
 			return nil, err
 		}
 		databases = append(databases, databaseInfo{
-			DBRPMappingV2:   db,
+			DBRPMapping:     db,
 			RetentionPeriod: bucket.RetentionPeriod,
 		})
 	}
@@ -172,7 +172,7 @@ type key int
 const dependenciesKey key = iota
 
 type DatabasesDependencies struct {
-	DBRP         platform.DBRPMappingServiceV2
+	DBRP         platform.DBRPMappingService
 	BucketLookup platform.BucketService
 }
 

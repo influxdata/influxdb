@@ -161,8 +161,8 @@ func TestServer_Query_ShowDatabases(t *testing.T) {
 		require.NoError(t, err)
 
 		err = s.Launcher.
-			DBRPMappingServiceV2().
-			Create(ctx, &influxdb.DBRPMappingV2{
+			DBRPMappingService().
+			Create(ctx, &influxdb.DBRPMapping{
 				Database:        bi.db,
 				RetentionPolicy: bi.rp,
 				Default:         true,

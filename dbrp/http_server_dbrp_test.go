@@ -22,7 +22,7 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-func initHttpService(t *testing.T) (influxdb.DBRPMappingServiceV2, *httptest.Server, func()) {
+func initHttpService(t *testing.T) (influxdb.DBRPMappingService, *httptest.Server, func()) {
 	t.Helper()
 	ctx := context.Background()
 	bucketSvc := mock.NewBucketService()
@@ -56,7 +56,7 @@ func Test_handlePostDBRP(t *testing.T) {
 	table := []struct {
 		Name         string
 		ExpectedErr  error
-		ExpectedDBRP *influxdb.DBRPMappingV2
+		ExpectedDBRP *influxdb.DBRPMapping
 		Input        io.Reader
 	}{
 		{
@@ -68,7 +68,7 @@ func Test_handlePostDBRP(t *testing.T) {
 	"retention_policy": "autogen",
 	"default": false
 }`),
-			ExpectedDBRP: &influxdb.DBRPMappingV2{
+			ExpectedDBRP: &influxdb.DBRPMapping{
 				OrganizationID: influxdbtesting.MustIDBase16("059af7ed2a034000"),
 			},
 		},
@@ -81,7 +81,7 @@ func Test_handlePostDBRP(t *testing.T) {
 	"retention_policy": "autogen",
 	"default": false
 }`),
-			ExpectedDBRP: &influxdb.DBRPMappingV2{
+			ExpectedDBRP: &influxdb.DBRPMapping{
 				OrganizationID: influxdbtesting.MustIDBase16("059af7ed2a034000"),
 			},
 		},
@@ -158,7 +158,7 @@ func Test_handlePostDBRP(t *testing.T) {
 				assert.Equal(t, tt.ExpectedErr.Error(), actualErr.Error())
 				return
 			}
-			dbrp := &influxdb.DBRPMappingV2{}
+			dbrp := &influxdb.DBRPMapping{}
 			if err := json.NewDecoder(resp.Body).Decode(&dbrp); err != nil {
 				t.Fatal(err)
 			}
@@ -183,12 +183,12 @@ func Test_handleGetDBRPs(t *testing.T) {
 		Name          string
 		QueryParams   string
 		ExpectedErr   error
-		ExpectedDBRPs []influxdb.DBRPMappingV2
+		ExpectedDBRPs []influxdb.DBRPMapping
 	}{
 		{
 			Name:        "ok",
 			QueryParams: "orgID=059af7ed2a034000",
-			ExpectedDBRPs: []influxdb.DBRPMappingV2{
+			ExpectedDBRPs: []influxdb.DBRPMapping{
 				{
 					ID:              influxdbtesting.MustIDBase16("1111111111111111"),
 					BucketID:        influxdbtesting.MustIDBase16("5555f7ed2a035555"),
@@ -225,12 +225,12 @@ func Test_handleGetDBRPs(t *testing.T) {
 		{
 			Name:          "no match",
 			QueryParams:   "orgID=059af7ed2a034000&default=false",
-			ExpectedDBRPs: []influxdb.DBRPMappingV2{},
+			ExpectedDBRPs: []influxdb.DBRPMapping{},
 		},
 		{
 			Name:        "all match",
 			QueryParams: "orgID=059af7ed2a034000&default=true&rp=autogen&db=mydb&bucketID=5555f7ed2a035555&id=1111111111111111",
-			ExpectedDBRPs: []influxdb.DBRPMappingV2{
+			ExpectedDBRPs: []influxdb.DBRPMapping{
 				{
 					ID:              influxdbtesting.MustIDBase16("1111111111111111"),
 					BucketID:        influxdbtesting.MustIDBase16("5555f7ed2a035555"),
@@ -244,7 +244,7 @@ func Test_handleGetDBRPs(t *testing.T) {
 		{
 			Name:        "org name",
 			QueryParams: "org=org",
-			ExpectedDBRPs: []influxdb.DBRPMappingV2{
+			ExpectedDBRPs: []influxdb.DBRPMapping{
 				{
 					ID:              influxdbtesting.MustIDBase16("1111111111111111"),
 					BucketID:        influxdbtesting.MustIDBase16("5555f7ed2a035555"),
@@ -269,7 +269,7 @@ func Test_handleGetDBRPs(t *testing.T) {
 			if svc, ok := svc.(*dbrp.Service); ok {
 				svc.IDGen = mock.NewIDGenerator("1111111111111111", t)
 			}
-			db := &influxdb.DBRPMappingV2{
+			db := &influxdb.DBRPMapping{
 				BucketID:        influxdbtesting.MustIDBase16("5555f7ed2a035555"),
 				OrganizationID:  influxdbtesting.MustIDBase16("059af7ed2a034000"),
 				Database:        "mydb",
@@ -301,7 +301,7 @@ func Test_handleGetDBRPs(t *testing.T) {
 				return
 			}
 			dbrps := struct {
-				Content []influxdb.DBRPMappingV2 `json:"content"`
+				Content []influxdb.DBRPMapping `json:"content"`
 			}{}
 			if err := json.NewDecoder(resp.Body).Decode(&dbrps); err != nil {
 				t.Fatal(err)
@@ -323,7 +323,7 @@ func Test_handlePatchDBRP(t *testing.T) {
 	table := []struct {
 		Name         string
 		ExpectedErr  error
-		ExpectedDBRP *influxdb.DBRPMappingV2
+		ExpectedDBRP *influxdb.DBRPMapping
 		URLSuffix    string
 		Input        io.Reader
 	}{
@@ -334,7 +334,7 @@ func Test_handlePatchDBRP(t *testing.T) {
 	"retention_policy": "updaterp",
 	"database": "wont_change"
 }`),
-			ExpectedDBRP: &influxdb.DBRPMappingV2{
+			ExpectedDBRP: &influxdb.DBRPMapping{
 				ID:              influxdbtesting.MustIDBase16("1111111111111111"),
 				BucketID:        influxdbtesting.MustIDBase16("5555f7ed2a035555"),
 				OrganizationID:  influxdbtesting.MustIDBase16("059af7ed2a034000"),
@@ -350,7 +350,7 @@ func Test_handlePatchDBRP(t *testing.T) {
 	"retention_policy": "updaterp",
 	"database": "wont_change"
 }`),
-			ExpectedDBRP: &influxdb.DBRPMappingV2{
+			ExpectedDBRP: &influxdb.DBRPMapping{
 				ID:              influxdbtesting.MustIDBase16("1111111111111111"),
 				BucketID:        influxdbtesting.MustIDBase16("5555f7ed2a035555"),
 				OrganizationID:  influxdbtesting.MustIDBase16("059af7ed2a034000"),
@@ -397,7 +397,7 @@ func Test_handlePatchDBRP(t *testing.T) {
 				svc.IDGen = mock.NewIDGenerator("1111111111111111", t)
 			}
 
-			dbrp := &influxdb.DBRPMappingV2{
+			dbrp := &influxdb.DBRPMapping{
 				BucketID:        influxdbtesting.MustIDBase16("5555f7ed2a035555"),
 				OrganizationID:  influxdbtesting.MustIDBase16("059af7ed2a034000"),
 				Database:        "mydb",
@@ -429,7 +429,7 @@ func Test_handlePatchDBRP(t *testing.T) {
 				return
 			}
 			dbrpResponse := struct {
-				Content *influxdb.DBRPMappingV2 `json:"content"`
+				Content *influxdb.DBRPMapping `json:"content"`
 			}{}
 
 			if err := json.NewDecoder(resp.Body).Decode(&dbrpResponse); err != nil {
@@ -489,7 +489,7 @@ func Test_handleDeleteDBRP(t *testing.T) {
 			defer shutdown()
 			client := server.Client()
 
-			d := &influxdb.DBRPMappingV2{
+			d := &influxdb.DBRPMapping{
 				ID:              influxdbtesting.MustIDBase16("1111111111111111"),
 				BucketID:        influxdbtesting.MustIDBase16("5555f7ed2a035555"),
 				OrganizationID:  influxdbtesting.MustIDBase16("059af7ed2a034000"),

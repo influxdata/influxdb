@@ -154,7 +154,7 @@ func validate(t *testing.T, gf *TestSuite) {
 
 	ctx = icontext.SetAuthorizer(ctx, tests.MakeAuthorization(p.DefaultOrgID, p.DefaultUserID, influxdb.OperPermissions()))
 
-	if err := p.Launcher.DBRPMappingServiceV2().Create(ctx, &influxdb.DBRPMappingV2{
+	if err := p.Launcher.DBRPMappingService().Create(ctx, &influxdb.DBRPMapping{
 		Database:        "mydb",
 		RetentionPolicy: "autogen",
 		Default:         true,

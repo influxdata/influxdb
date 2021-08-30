@@ -43,11 +43,11 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
+	dbrp := mocks.NewMockDBRPMappingService(ctrl)
 	orgID := platform.ID(0xff00)
 	empty := ""
-	filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID, Database: &empty, RetentionPolicy: &empty}
-	res := []*influxdb.DBRPMappingV2{{}}
+	filt := influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &empty, RetentionPolicy: &empty}
+	res := []*influxdb.DBRPMapping{{}}
 	dbrp.EXPECT().
 		FindMany(gomock.Any(), filt).
 		Return(res, 1, nil)
@@ -109,11 +109,11 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
+	dbrp := mocks.NewMockDBRPMappingService(ctrl)
 	orgID := platform.ID(0xff00)
 	empty := ""
-	filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID, Database: &empty, RetentionPolicy: &empty}
-	res := []*influxdb.DBRPMappingV2{{}}
+	filt := influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &empty, RetentionPolicy: &empty}
+	res := []*influxdb.DBRPMapping{{}}
 	dbrp.EXPECT().
 		FindMany(gomock.Any(), filt).
 		Return(res, 1, nil)
@@ -227,11 +227,11 @@ func TestStatementExecutor_NormalizeStatement(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
+			dbrp := mocks.NewMockDBRPMappingService(ctrl)
 			orgID := platform.ID(0xff00)
 			bucketID := platform.ID(0xffee)
-			filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID, Database: &testCase.expectedDB}
-			res := []*influxdb.DBRPMappingV2{{Database: testCase.expectedDB, RetentionPolicy: testCase.expectedRP, OrganizationID: orgID, BucketID: bucketID, Default: true}}
+			filt := influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &testCase.expectedDB}
+			res := []*influxdb.DBRPMapping{{Database: testCase.expectedDB, RetentionPolicy: testCase.expectedRP, OrganizationID: orgID, BucketID: bucketID, Default: true}}
 			dbrp.EXPECT().
 				FindMany(gomock.Any(), filt).
 				Return(res, 1, nil)
@@ -331,10 +331,10 @@ func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
+	dbrp := mocks.NewMockDBRPMappingService(ctrl)
 	orgID := platform.ID(0xff00)
-	filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID}
-	res := []*influxdb.DBRPMappingV2{
+	filt := influxdb.DBRPMappingFilter{OrgID: &orgID}
+	res := []*influxdb.DBRPMapping{
 		{Database: "db1", OrganizationID: orgID, BucketID: 0xffe0},
 		{Database: "db2", OrganizationID: orgID, BucketID: 0xffe1},
 		{Database: "db3", OrganizationID: orgID, BucketID: 0xffe2},
@@ -393,7 +393,7 @@ type QueryExecutor struct {
 
 	MetaClient        MetaClient
 	TSDBStore         *internal.TSDBStoreMock
-	DBRP              *mocks.MockDBRPMappingServiceV2
+	DBRP              *mocks.MockDBRPMappingService
 	StatementExecutor *coordinator.StatementExecutor
 	LogOutput         bytes.Buffer
 }
@@ -439,7 +439,7 @@ func NewQueryExecutor(t *testing.T, opts ...optFn) *QueryExecutor {
 
 type optFn func(qe *QueryExecutor)
 
-func WithDBRP(dbrp *mocks.MockDBRPMappingServiceV2) optFn {
+func WithDBRP(dbrp *mocks.MockDBRPMappingService) optFn {
 	return func(qe *QueryExecutor) {
 		qe.DBRP = dbrp
 	}

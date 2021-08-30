@@ -9,7 +9,7 @@ import (
 )
 
 // AuthorizeFindDBRPs takes the given items and returns only the ones that the user is authorized to access.
-func AuthorizeFindDBRPs(ctx context.Context, rs []*influxdb.DBRPMappingV2) ([]*influxdb.DBRPMappingV2, int, error) {
+func AuthorizeFindDBRPs(ctx context.Context, rs []*influxdb.DBRPMapping) ([]*influxdb.DBRPMapping, int, error) {
 	// This filters without allocating
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	rrs := rs[:0]

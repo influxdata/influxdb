@@ -90,7 +90,7 @@ func upgradeDatabases(ctx context.Context, cli clients.CLI, v1 *influxDBv1, v2 *
 				return nil, fmt.Errorf("error creating database %s: %w", bucket.ID.String(), err)
 			}
 
-			mapping := &influxdb.DBRPMappingV2{
+			mapping := &influxdb.DBRPMapping{
 				Database:        db.Name,
 				RetentionPolicy: rp.Name,
 				Default:         db.DefaultRetentionPolicy == rp.Name,

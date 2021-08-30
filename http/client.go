@@ -50,7 +50,7 @@ type Service struct {
 	*NotificationEndpointService
 	*TelegrafService
 	*LabelService
-	DBRPMappingServiceV2 *dbrp.Client
+	DBRPMappingService *dbrp.Client
 }
 
 // NewService returns a service that is an HTTP client to a remote.
@@ -80,7 +80,7 @@ func NewService(httpClient *httpc.Client, addr, token string) (*Service, error) 
 		NotificationEndpointService: &NotificationEndpointService{Client: httpClient},
 		TelegrafService:             NewTelegrafService(httpClient),
 		LabelService:                &LabelService{Client: httpClient},
-		DBRPMappingServiceV2:        dbrp.NewClient(httpClient),
+		DBRPMappingService:          dbrp.NewClient(httpClient),
 	}, nil
 }
 

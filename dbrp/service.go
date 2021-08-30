@@ -43,7 +43,7 @@ var (
 	defaultBucket      = []byte("dbrpdefaultv1")
 )
 
-var _ influxdb.DBRPMappingServiceV2 = (*AuthorizedService)(nil)
+var _ influxdb.DBRPMappingService = (*AuthorizedService)(nil)
 
 type Service struct {
 	store kv.Store
@@ -54,7 +54,7 @@ type Service struct {
 	byOrg            *kv.Index
 }
 
-func indexForeignKey(dbrp influxdb.DBRPMappingV2) []byte {
+func indexForeignKey(dbrp influxdb.DBRPMapping) []byte {
 	return composeForeignKey(dbrp.OrganizationID, dbrp.Database)
 }
 
@@ -66,13 +66,13 @@ func composeForeignKey(orgID platform.ID, db string) []byte {
 	return key
 }
 
-func NewService(ctx context.Context, bucketSvc influxdb.BucketService, st kv.Store) influxdb.DBRPMappingServiceV2 {
+func NewService(ctx context.Context, bucketSvc influxdb.BucketService, st kv.Store) influxdb.DBRPMappingService {
 	return &Service{
 		store:     st,
 		IDGen:     snowflake.NewDefaultIDGenerator(),
 		bucketSvc: bucketSvc,
 		byOrgAndDatabase: kv.NewIndex(kv.NewIndexMapping(bucket, indexBucket, func(v []byte) ([]byte, error) {
-			var dbrp influxdb.DBRPMappingV2
+			var dbrp influxdb.DBRPMapping
 			if err := json.Unmarshal(v, &dbrp); err != nil {
 				return nil, err
 			}
@@ -178,10 +178,10 @@ func (s *Service) getFirstBut(tx kv.Tx, compKey []byte, skipID []byte) (next []b
 }
 
 // isDBRPUnique verifies if the triple orgID-database-retention-policy is unique.
-func (s *Service) isDBRPUnique(ctx context.Context, m influxdb.DBRPMappingV2) error {
+func (s *Service) isDBRPUnique(ctx context.Context, m influxdb.DBRPMapping) error {
 	return s.store.View(ctx, func(tx kv.Tx) error {
 		return s.byOrgAndDatabase.Walk(ctx, tx, composeForeignKey(m.OrganizationID, m.Database), func(k, v []byte) (bool, error) {
-			dbrp := &influxdb.DBRPMappingV2{}
+			dbrp := &influxdb.DBRPMapping{}
 			if err := json.Unmarshal(v, dbrp); err != nil {
 				return false, ErrInternalService(err)
 			}
@@ -202,13 +202,13 @@ func (s *Service) isDBRPUnique(ctx context.Context, m influxdb.DBRPMappingV2) er
 }
 
 // FindBy returns the mapping for the given ID.
-func (s *Service) FindByID(ctx context.Context, orgID, id platform.ID) (*influxdb.DBRPMappingV2, error) {
+func (s *Service) FindByID(ctx context.Context, orgID, id platform.ID) (*influxdb.DBRPMapping, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, ErrInvalidDBRPID(id.String(), err)
 	}
 
-	m := &influxdb.DBRPMappingV2{}
+	m := &influxdb.DBRPMapping{}
 	if err := s.store.View(ctx, func(tx kv.Tx) error {
 		bucket, err := tx.Bucket(bucket)
 		if err != nil {
@@ -239,7 +239,7 @@ func (s *Service) FindByID(ctx context.Context, orgID, id platform.ID) (*influxd
 
 // FindMany returns a list of mappings that match filter and the total count of matching dbrp mappings.
 // TODO(affo): find a smart way to apply FindOptions to a list of items.
-func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilterV2, opts ...influxdb.FindOptions) ([]*influxdb.DBRPMappingV2, int, error) {
+func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilter, opts ...influxdb.FindOptions) ([]*influxdb.DBRPMapping, int, error) {
 	// Memoize default IDs.
 	defs := make(map[string]*platform.ID)
 	get := func(tx kv.Tx, orgID platform.ID, db string) (*platform.ID, error) {
@@ -258,10 +258,10 @@ func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilte
 		return defs[k], nil
 	}
 
-	ms := []*influxdb.DBRPMappingV2{}
+	ms := []*influxdb.DBRPMapping{}
 	add := func(tx kv.Tx) func(k, v []byte) (bool, error) {
 		return func(k, v []byte) (bool, error) {
-			m := influxdb.DBRPMappingV2{}
+			m := influxdb.DBRPMapping{}
 			if err := json.Unmarshal(v, &m); err != nil {
 				return false, ErrInternalService(err)
 			}
@@ -342,7 +342,7 @@ func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilte
 // Create creates a new mapping.
 // If another mapping with same organization ID, database, and retention policy exists, an error is returned.
 // If the mapping already contains a valid ID, that one is used for storing the mapping.
-func (s *Service) Create(ctx context.Context, dbrp *influxdb.DBRPMappingV2) error {
+func (s *Service) Create(ctx context.Context, dbrp *influxdb.DBRPMapping) error {
 	if !dbrp.ID.Valid() {
 		dbrp.ID = s.IDGen.ID()
 	}
@@ -415,7 +415,7 @@ func (s *Service) Create(ctx context.Context, dbrp *influxdb.DBRPMappingV2) erro
 // Updates a mapping.
 // If another mapping with same organization ID, database, and retention policy exists, an error is returned.
 // Un-setting `Default` for a mapping will cause the first one to become the default.
-func (s *Service) Update(ctx context.Context, dbrp *influxdb.DBRPMappingV2) error {
+func (s *Service) Update(ctx context.Context, dbrp *influxdb.DBRPMapping) error {
 	if err := dbrp.Validate(); err != nil {
 		return ErrInvalidDBRP(err)
 	}
@@ -524,7 +524,7 @@ func (s *Service) Delete(ctx context.Context, orgID, id platform.ID) error {
 
 // filterFunc is capable to validate if the dbrp is valid from a given filter.
 // it runs true if the filtering data are contained in the dbrp.
-func filterFunc(dbrp *influxdb.DBRPMappingV2, filter influxdb.DBRPMappingFilterV2) bool {
+func filterFunc(dbrp *influxdb.DBRPMapping, filter influxdb.DBRPMappingFilter) bool {
 	return (filter.ID == nil || (*filter.ID) == dbrp.ID) &&
 		(filter.OrgID == nil || (*filter.OrgID) == dbrp.OrganizationID) &&
 		(filter.BucketID == nil || (*filter.BucketID) == dbrp.BucketID) &&

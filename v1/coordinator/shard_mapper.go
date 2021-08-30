@@ -32,7 +32,7 @@ type LocalShardMapper struct {
 		ShardGroup(ids []uint64) tsdb.ShardGroup
 	}
 
-	DBRP influxdb.DBRPMappingServiceV2
+	DBRP influxdb.DBRPMappingService
 }
 
 // MapShards maps the sources to the appropriate shards into an IteratorCreator.
@@ -63,7 +63,7 @@ func (e *LocalShardMapper) mapShards(ctx context.Context, a *LocalShardMapping, 
 			// using.
 			if _, ok := a.ShardMap[source]; !ok {
 				// lookup bucket and create info
-				mappings, _, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilterV2{
+				mappings, _, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilter{
 					OrgID:           &orgID,
 					Database:        &s.Database,
 					RetentionPolicy: &s.RetentionPolicy,

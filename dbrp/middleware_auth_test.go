@@ -16,7 +16,7 @@ import (
 
 func TestAuth_FindByID(t *testing.T) {
 	type fields struct {
-		service influxdb.DBRPMappingServiceV2
+		service influxdb.DBRPMappingService
 	}
 	type args struct {
 		orgID      platform.ID
@@ -36,9 +36,9 @@ func TestAuth_FindByID(t *testing.T) {
 		{
 			name: "authorized to access id by org id",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{
-					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMappingV2, error) {
-						return &influxdb.DBRPMappingV2{
+				service: &mock.DBRPMappingService{
+					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMapping, error) {
+						return &influxdb.DBRPMapping{
 							OrganizationID: platform.ID(1),
 							BucketID:       platform.ID(1),
 						}, nil
@@ -63,9 +63,9 @@ func TestAuth_FindByID(t *testing.T) {
 		{
 			name: "authorized to access id by id",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{
-					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMappingV2, error) {
-						return &influxdb.DBRPMappingV2{
+				service: &mock.DBRPMappingService{
+					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMapping, error) {
+						return &influxdb.DBRPMapping{
 							OrganizationID: platform.ID(1),
 							BucketID:       platform.ID(1),
 						}, nil
@@ -90,9 +90,9 @@ func TestAuth_FindByID(t *testing.T) {
 		{
 			name: "unauthorized to access id by org id",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{
-					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMappingV2, error) {
-						return &influxdb.DBRPMappingV2{
+				service: &mock.DBRPMappingService{
+					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMapping, error) {
+						return &influxdb.DBRPMapping{
 							OrganizationID: platform.ID(2),
 							BucketID:       platform.ID(1),
 						}, nil
@@ -120,9 +120,9 @@ func TestAuth_FindByID(t *testing.T) {
 		{
 			name: "unauthorized to access id by id",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{
-					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMappingV2, error) {
-						return &influxdb.DBRPMappingV2{
+				service: &mock.DBRPMappingService{
+					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMapping, error) {
+						return &influxdb.DBRPMapping{
 							OrganizationID: platform.ID(1),
 							BucketID:       platform.ID(1),
 						}, nil
@@ -164,15 +164,15 @@ func TestAuth_FindByID(t *testing.T) {
 
 func TestAuth_FindMany(t *testing.T) {
 	type fields struct {
-		service influxdb.DBRPMappingServiceV2
+		service influxdb.DBRPMappingService
 	}
 	type args struct {
-		filter      influxdb.DBRPMappingFilterV2
+		filter      influxdb.DBRPMappingFilter
 		permissions []influxdb.Permission
 	}
 	type wants struct {
 		err error
-		ms  []*influxdb.DBRPMappingV2
+		ms  []*influxdb.DBRPMapping
 	}
 
 	tests := []struct {
@@ -184,9 +184,9 @@ func TestAuth_FindMany(t *testing.T) {
 		{
 			name: "no result",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{
-					FindManyFn: func(ctx context.Context, dbrp influxdb.DBRPMappingFilterV2, opts ...influxdb.FindOptions) ([]*influxdb.DBRPMappingV2, int, error) {
-						return []*influxdb.DBRPMappingV2{
+				service: &mock.DBRPMappingService{
+					FindManyFn: func(ctx context.Context, dbrp influxdb.DBRPMappingFilter, opts ...influxdb.FindOptions) ([]*influxdb.DBRPMapping, int, error) {
+						return []*influxdb.DBRPMapping{
 							{
 								ID:             1,
 								OrganizationID: 1,
@@ -219,19 +219,19 @@ func TestAuth_FindMany(t *testing.T) {
 						OrgID: influxdbtesting.IDPtr(42),
 					},
 				}},
-				filter: influxdb.DBRPMappingFilterV2{},
+				filter: influxdb.DBRPMappingFilter{},
 			},
 			wants: wants{
 				err: nil,
-				ms:  []*influxdb.DBRPMappingV2{},
+				ms:  []*influxdb.DBRPMapping{},
 			},
 		},
 		{
 			name: "partial",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{
-					FindManyFn: func(ctx context.Context, dbrp influxdb.DBRPMappingFilterV2, opts ...influxdb.FindOptions) ([]*influxdb.DBRPMappingV2, int, error) {
-						return []*influxdb.DBRPMappingV2{
+				service: &mock.DBRPMappingService{
+					FindManyFn: func(ctx context.Context, dbrp influxdb.DBRPMappingFilter, opts ...influxdb.FindOptions) ([]*influxdb.DBRPMapping, int, error) {
+						return []*influxdb.DBRPMapping{
 							{
 								ID:             1,
 								OrganizationID: 1,
@@ -264,11 +264,11 @@ func TestAuth_FindMany(t *testing.T) {
 						OrgID: influxdbtesting.IDPtr(1),
 					},
 				}},
-				filter: influxdb.DBRPMappingFilterV2{},
+				filter: influxdb.DBRPMappingFilter{},
 			},
 			wants: wants{
 				err: nil,
-				ms: []*influxdb.DBRPMappingV2{
+				ms: []*influxdb.DBRPMapping{
 					{
 						ID:             1,
 						OrganizationID: 1,
@@ -285,9 +285,9 @@ func TestAuth_FindMany(t *testing.T) {
 		{
 			name: "all",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{
-					FindManyFn: func(ctx context.Context, dbrp influxdb.DBRPMappingFilterV2, opts ...influxdb.FindOptions) ([]*influxdb.DBRPMappingV2, int, error) {
-						return []*influxdb.DBRPMappingV2{
+				service: &mock.DBRPMappingService{
+					FindManyFn: func(ctx context.Context, dbrp influxdb.DBRPMappingFilter, opts ...influxdb.FindOptions) ([]*influxdb.DBRPMapping, int, error) {
+						return []*influxdb.DBRPMapping{
 							{
 								ID:             1,
 								OrganizationID: 1,
@@ -336,11 +336,11 @@ func TestAuth_FindMany(t *testing.T) {
 						},
 					},
 				},
-				filter: influxdb.DBRPMappingFilterV2{},
+				filter: influxdb.DBRPMappingFilter{},
 			},
 			wants: wants{
 				err: nil,
-				ms: []*influxdb.DBRPMappingV2{
+				ms: []*influxdb.DBRPMapping{
 					{
 						ID:             1,
 						OrganizationID: 1,
@@ -378,7 +378,7 @@ func TestAuth_FindMany(t *testing.T) {
 				t.Errorf("got wrong number back")
 			}
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
-			if diff := cmp.Diff(tt.wants.ms, gots, influxdbtesting.DBRPMappingCmpOptionsV2...); diff != "" {
+			if diff := cmp.Diff(tt.wants.ms, gots, influxdbtesting.DBRPMappingCmpOptions...); diff != "" {
 				t.Errorf("unexpected result -want/+got:\n\t%s", diff)
 			}
 		})
@@ -387,10 +387,10 @@ func TestAuth_FindMany(t *testing.T) {
 
 func TestAuth_Create(t *testing.T) {
 	type fields struct {
-		service influxdb.DBRPMappingServiceV2
+		service influxdb.DBRPMappingService
 	}
 	type args struct {
-		m          influxdb.DBRPMappingV2
+		m          influxdb.DBRPMapping
 		permission influxdb.Permission
 	}
 	type wants struct {
@@ -406,10 +406,10 @@ func TestAuth_Create(t *testing.T) {
 		{
 			name: "authorized",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{},
+				service: &mock.DBRPMappingService{},
 			},
 			args: args{
-				m: influxdb.DBRPMappingV2{
+				m: influxdb.DBRPMapping{
 					ID:             1,
 					OrganizationID: 1,
 					BucketID:       2,
@@ -430,10 +430,10 @@ func TestAuth_Create(t *testing.T) {
 		{
 			name: "unauthorized",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{},
+				service: &mock.DBRPMappingService{},
 			},
 			args: args{
-				m: influxdb.DBRPMappingV2{
+				m: influxdb.DBRPMapping{
 					ID:             1,
 					OrganizationID: 1,
 					BucketID:       2,
@@ -471,7 +471,7 @@ func TestAuth_Create(t *testing.T) {
 
 func TestAuth_Update(t *testing.T) {
 	type fields struct {
-		service influxdb.DBRPMappingServiceV2
+		service influxdb.DBRPMappingService
 	}
 	type args struct {
 		orgID      platform.ID
@@ -491,7 +491,7 @@ func TestAuth_Update(t *testing.T) {
 		{
 			name: "authorized",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{},
+				service: &mock.DBRPMappingService{},
 			},
 			args: args{
 				permission: influxdb.Permission{
@@ -511,7 +511,7 @@ func TestAuth_Update(t *testing.T) {
 		{
 			name: "unauthorized",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{},
+				service: &mock.DBRPMappingService{},
 			},
 			args: args{
 				permission: influxdb.Permission{
@@ -541,7 +541,7 @@ func TestAuth_Update(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
 			// Does not matter how we update, we only need to check auth.
-			err := s.Update(ctx, &influxdb.DBRPMappingV2{ID: tt.args.id, OrganizationID: tt.args.orgID, BucketID: 1})
+			err := s.Update(ctx, &influxdb.DBRPMapping{ID: tt.args.id, OrganizationID: tt.args.orgID, BucketID: 1})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
@@ -549,7 +549,7 @@ func TestAuth_Update(t *testing.T) {
 
 func TestAuth_Delete(t *testing.T) {
 	type fields struct {
-		service influxdb.DBRPMappingServiceV2
+		service influxdb.DBRPMappingService
 	}
 	type args struct {
 		orgID      platform.ID
@@ -569,9 +569,9 @@ func TestAuth_Delete(t *testing.T) {
 		{
 			name: "authorized",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{
-					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMappingV2, error) {
-						return &influxdb.DBRPMappingV2{
+				service: &mock.DBRPMappingService{
+					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMapping, error) {
+						return &influxdb.DBRPMapping{
 							OrganizationID: platform.ID(1),
 							BucketID:       platform.ID(1),
 						}, nil
@@ -596,9 +596,9 @@ func TestAuth_Delete(t *testing.T) {
 		{
 			name: "unauthorized",
 			fields: fields{
-				service: &mock.DBRPMappingServiceV2{
-					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMappingV2, error) {
-						return &influxdb.DBRPMappingV2{
+				service: &mock.DBRPMappingService{
+					FindByIDFn: func(_ context.Context, _, _ platform.ID) (*influxdb.DBRPMapping, error) {
+						return &influxdb.DBRPMapping{
 							OrganizationID: platform.ID(1),
 							BucketID:       platform.ID(1),
 						}, nil

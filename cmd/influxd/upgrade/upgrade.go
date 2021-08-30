@@ -301,7 +301,7 @@ type influxDBv2 struct {
 	kvStore     kv.SchemaStore
 	tenantStore *tenant.Store
 	ts          *tenant.Service
-	dbrpSvc     influxdb.DBRPMappingServiceV2
+	dbrpSvc     influxdb.DBRPMappingService
 	bucketSvc   influxdb.BucketService
 	onboardSvc  influxdb.OnboardingService
 	authSvc     *authv1.Service

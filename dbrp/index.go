@@ -9,7 +9,7 @@ import (
 
 var (
 	ByOrgIDIndexMapping = kv.NewIndexMapping(bucket, byOrgIDIndexBucket, func(v []byte) ([]byte, error) {
-		var dbrp influxdb.DBRPMappingV2
+		var dbrp influxdb.DBRPMapping
 		if err := json.Unmarshal(v, &dbrp); err != nil {
 			return nil, err
 		}

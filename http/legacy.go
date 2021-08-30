@@ -15,7 +15,7 @@ func newLegacyBackend(b *APIBackend) *legacy.Backend {
 		OrganizationService:   b.OrganizationService,
 		BucketService:         b.BucketService,
 		PointsWriter:          b.PointsWriter,
-		DBRPMappingServiceV2:  b.DBRPService,
+		DBRPMappingService:    b.DBRPService,
 		ProxyQueryService:     b.InfluxQLService,
 		InfluxqldQueryService: b.InfluxqldService,
 		WriteEventRecorder:    b.WriteEventRecorder,

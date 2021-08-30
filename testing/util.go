@@ -13,6 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func strPtr(s string) *string {
+	return &s
+}
+func boolPtr(b bool) *bool {
+	return &b
+}
+
 // TODO(goller): remove opPrefix argument
 func diffPlatformErrors(name string, actual, expected error, opPrefix string, t *testing.T) {
 	t.Helper()

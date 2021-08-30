@@ -35,7 +35,7 @@ func TestWriteHandler_BucketAndMappingExistsDefaultRP(t *testing.T) {
 	var (
 		// Mocked Services
 		eventRecorder  = mocks.NewMockEventRecorder(ctrl)
-		dbrpMappingSvc = mocks.NewMockDBRPMappingServiceV2(ctrl)
+		dbrpMappingSvc = mocks.NewMockDBRPMappingService(ctrl)
 		bucketService  = mocks.NewMockBucketService(ctrl)
 		pointsWriter   = mocks.NewMockPointsWriter(ctrl)
 
@@ -48,7 +48,7 @@ func TestWriteHandler_BucketAndMappingExistsDefaultRP(t *testing.T) {
 			RetentionPolicyName: "autogen",
 			RetentionPeriod:     72 * time.Hour,
 		}
-		mapping = &influxdb.DBRPMappingV2{
+		mapping = &influxdb.DBRPMapping{
 			OrganizationID:  orgID,
 			BucketID:        bucket.ID,
 			Database:        "mydb",
@@ -61,11 +61,11 @@ func TestWriteHandler_BucketAndMappingExistsDefaultRP(t *testing.T) {
 
 	findAutogenMapping := dbrpMappingSvc.
 		EXPECT().
-		FindMany(gomock.Any(), influxdb.DBRPMappingFilterV2{
+		FindMany(gomock.Any(), influxdb.DBRPMappingFilter{
 			OrgID:    &mapping.OrganizationID,
 			Database: &mapping.Database,
 			Default:  &mapping.Default,
-		}).Return([]*influxdb.DBRPMappingV2{mapping}, 1, nil)
+		}).Return([]*influxdb.DBRPMapping{mapping}, 1, nil)
 
 	findBucketByID := bucketService.
 		EXPECT().
@@ -116,7 +116,7 @@ func TestWriteHandler_BucketAndMappingExistsSpecificRP(t *testing.T) {
 	var (
 		// Mocked Services
 		eventRecorder  = mocks.NewMockEventRecorder(ctrl)
-		dbrpMappingSvc = mocks.NewMockDBRPMappingServiceV2(ctrl)
+		dbrpMappingSvc = mocks.NewMockDBRPMappingService(ctrl)
 		bucketService  = mocks.NewMockBucketService(ctrl)
 		pointsWriter   = mocks.NewMockPointsWriter(ctrl)
 
@@ -129,7 +129,7 @@ func TestWriteHandler_BucketAndMappingExistsSpecificRP(t *testing.T) {
 			RetentionPolicyName: "autogen",
 			RetentionPeriod:     72 * time.Hour,
 		}
-		mapping = &influxdb.DBRPMappingV2{
+		mapping = &influxdb.DBRPMapping{
 			OrganizationID:  orgID,
 			BucketID:        bucket.ID,
 			Database:        "mydb",
@@ -142,11 +142,11 @@ func TestWriteHandler_BucketAndMappingExistsSpecificRP(t *testing.T) {
 
 	findAutogenMapping := dbrpMappingSvc.
 		EXPECT().
-		FindMany(gomock.Any(), influxdb.DBRPMappingFilterV2{
+		FindMany(gomock.Any(), influxdb.DBRPMappingFilter{
 			OrgID:           &mapping.OrganizationID,
 			Database:        &mapping.Database,
 			RetentionPolicy: &mapping.RetentionPolicy,
-		}).Return([]*influxdb.DBRPMappingV2{mapping}, 1, nil)
+		}).Return([]*influxdb.DBRPMapping{mapping}, 1, nil)
 
 	findBucketByID := bucketService.
 		EXPECT().
@@ -197,7 +197,7 @@ func TestWriteHandler_PartialWrite(t *testing.T) {
 	var (
 		// Mocked Services
 		eventRecorder  = mocks.NewMockEventRecorder(ctrl)
-		dbrpMappingSvc = mocks.NewMockDBRPMappingServiceV2(ctrl)
+		dbrpMappingSvc = mocks.NewMockDBRPMappingService(ctrl)
 		bucketService  = mocks.NewMockBucketService(ctrl)
 		pointsWriter   = mocks.NewMockPointsWriter(ctrl)
 
@@ -210,7 +210,7 @@ func TestWriteHandler_PartialWrite(t *testing.T) {
 			RetentionPolicyName: "autogen",
 			RetentionPeriod:     72 * time.Hour,
 		}
-		mapping = &influxdb.DBRPMappingV2{
+		mapping = &influxdb.DBRPMapping{
 			OrganizationID:  orgID,
 			BucketID:        bucket.ID,
 			Database:        "mydb",
@@ -223,11 +223,11 @@ func TestWriteHandler_PartialWrite(t *testing.T) {
 
 	findAutogenMapping := dbrpMappingSvc.
 		EXPECT().
-		FindMany(gomock.Any(), influxdb.DBRPMappingFilterV2{
+		FindMany(gomock.Any(), influxdb.DBRPMappingFilter{
 			OrgID:           &mapping.OrganizationID,
 			Database:        &mapping.Database,
 			RetentionPolicy: &mapping.RetentionPolicy,
-		}).Return([]*influxdb.DBRPMappingV2{mapping}, 1, nil)
+		}).Return([]*influxdb.DBRPMapping{mapping}, 1, nil)
 
 	findBucketByID := bucketService.
 		EXPECT().
@@ -279,7 +279,7 @@ func TestWriteHandler_BucketAndMappingExistsNoPermissions(t *testing.T) {
 	var (
 		// Mocked Services
 		eventRecorder  = mocks.NewMockEventRecorder(ctrl)
-		dbrpMappingSvc = mocks.NewMockDBRPMappingServiceV2(ctrl)
+		dbrpMappingSvc = mocks.NewMockDBRPMappingService(ctrl)
 		bucketService  = mocks.NewMockBucketService(ctrl)
 		pointsWriter   = mocks.NewMockPointsWriter(ctrl)
 
@@ -292,7 +292,7 @@ func TestWriteHandler_BucketAndMappingExistsNoPermissions(t *testing.T) {
 			RetentionPolicyName: "autogen",
 			RetentionPeriod:     72 * time.Hour,
 		}
-		mapping = &influxdb.DBRPMappingV2{
+		mapping = &influxdb.DBRPMapping{
 			OrganizationID:  orgID,
 			BucketID:        bucket.ID,
 			Database:        "mydb",
@@ -305,11 +305,11 @@ func TestWriteHandler_BucketAndMappingExistsNoPermissions(t *testing.T) {
 
 	findAutogenMapping := dbrpMappingSvc.
 		EXPECT().
-		FindMany(gomock.Any(), influxdb.DBRPMappingFilterV2{
+		FindMany(gomock.Any(), influxdb.DBRPMappingFilter{
 			OrgID:    &mapping.OrganizationID,
 			Database: &mapping.Database,
 			Default:  &mapping.Default,
-		}).Return([]*influxdb.DBRPMappingV2{mapping}, 1, nil)
+		}).Return([]*influxdb.DBRPMapping{mapping}, 1, nil)
 
 	findBucketByID := bucketService.
 		EXPECT().
@@ -354,7 +354,7 @@ func TestWriteHandler_MappingNotExists(t *testing.T) {
 	var (
 		// Mocked Services
 		eventRecorder  = mocks.NewMockEventRecorder(ctrl)
-		dbrpMappingSvc = mocks.NewMockDBRPMappingServiceV2(ctrl)
+		dbrpMappingSvc = mocks.NewMockDBRPMappingService(ctrl)
 		bucketService  = mocks.NewMockBucketService(ctrl)
 		pointsWriter   = mocks.NewMockPointsWriter(ctrl)
 
@@ -367,7 +367,7 @@ func TestWriteHandler_MappingNotExists(t *testing.T) {
 			RetentionPolicyName: "autogen",
 			RetentionPeriod:     72 * time.Hour,
 		}
-		mapping = &influxdb.DBRPMappingV2{
+		mapping = &influxdb.DBRPMapping{
 			OrganizationID:  orgID,
 			BucketID:        bucket.ID,
 			Database:        "mydb",
@@ -380,7 +380,7 @@ func TestWriteHandler_MappingNotExists(t *testing.T) {
 
 	findAutogenMapping := dbrpMappingSvc.
 		EXPECT().
-		FindMany(gomock.Any(), influxdb.DBRPMappingFilterV2{
+		FindMany(gomock.Any(), influxdb.DBRPMappingFilter{
 			OrgID:           &mapping.OrganizationID,
 			Database:        &mapping.Database,
 			RetentionPolicy: &badRp,

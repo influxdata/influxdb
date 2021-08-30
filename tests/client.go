@@ -319,13 +319,13 @@ func (c *Client) MustCreateDBRPMapping(t *testing.T) platform.ID {
 	t.Helper()
 	ctx := context.Background()
 
-	m := &influxdb.DBRPMappingV2{
+	m := &influxdb.DBRPMapping{
 		Database:        "db",
 		RetentionPolicy: "rp",
 		OrganizationID:  c.OrgID,
 		BucketID:        c.BucketID,
 	}
-	if err := c.DBRPMappingServiceV2.Create(ctx, m); err != nil {
+	if err := c.DBRPMappingService.Create(ctx, m); err != nil {
 		t.Fatalf("unable to create DBRP mapping: %v", err)
 	}
 	return m.ID
@@ -422,7 +422,7 @@ func (c *Client) DeleteResource(t *testing.T, r influxdb.ResourceType, id platfo
 	case influxdb.ChecksResourceType: // 16
 		return c.DeleteCheck(ctx, id)
 	case influxdb.DBRPResourceType: // 17
-		return c.DBRPMappingServiceV2.Delete(ctx, c.OrgID, id)
+		return c.DBRPMappingService.Delete(ctx, c.OrgID, id)
 	}
 	return nil
 }
@@ -535,7 +535,7 @@ func (c *Client) FindAll(t *testing.T, r influxdb.ResourceType) ([]platform.ID, 
 			ids = append(ids, r.ID)
 		}
 	case influxdb.DBRPResourceType: // 17
-		rs, _, err := c.DBRPMappingServiceV2.FindMany(ctx, influxdb.DBRPMappingFilterV2{OrgID: &c.OrgID})
+		rs, _, err := c.DBRPMappingService.FindMany(ctx, influxdb.DBRPMappingFilter{OrgID: &c.OrgID})
 		if err != nil {
 			return nil, err
 		}

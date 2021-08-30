@@ -18,14 +18,14 @@ import (
 // Transpiler converts InfluxQL queries into a query spec.
 type Transpiler struct {
 	Config         *Config
-	dbrpMappingSvc influxdb.DBRPMappingServiceV2
+	dbrpMappingSvc influxdb.DBRPMappingService
 }
 
-func NewTranspiler(dbrpMappingSvc influxdb.DBRPMappingServiceV2) *Transpiler {
+func NewTranspiler(dbrpMappingSvc influxdb.DBRPMappingService) *Transpiler {
 	return NewTranspilerWithConfig(dbrpMappingSvc, Config{})
 }
 
-func NewTranspilerWithConfig(dbrpMappingSvc influxdb.DBRPMappingServiceV2, cfg Config) *Transpiler {
+func NewTranspilerWithConfig(dbrpMappingSvc influxdb.DBRPMappingService, cfg Config) *Transpiler {
 	return &Transpiler{
 		Config:         &cfg,
 		dbrpMappingSvc: dbrpMappingSvc,
@@ -58,10 +58,10 @@ type transpilerState struct {
 	config         Config
 	file           *ast.File
 	assignments    map[string]ast.Expression
-	dbrpMappingSvc influxdb.DBRPMappingServiceV2
+	dbrpMappingSvc influxdb.DBRPMappingService
 }
 
-func newTranspilerState(dbrpMappingSvc influxdb.DBRPMappingServiceV2, config *Config) *transpilerState {
+func newTranspilerState(dbrpMappingSvc influxdb.DBRPMappingService, config *Config) *transpilerState {
 	state := &transpilerState{
 		file: &ast.File{
 			Package: &ast.PackageClause{
@@ -697,7 +697,7 @@ func (t *transpilerState) from(m *influxql.Measurement) (ast.Expression, error) 
 			}
 		}
 
-		var filter influxdb.DBRPMappingFilterV2
+		var filter influxdb.DBRPMappingFilter
 		if db != "" {
 			filter.Database = &db
 		}
