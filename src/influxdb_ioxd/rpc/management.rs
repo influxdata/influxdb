@@ -90,6 +90,15 @@ where
             .database(&name)
             .map_err(default_server_error_handler)?;
 
+        if !database.is_active() {
+            return Err(NotFound {
+                resource_type: "database".to_string(),
+                resource_name: name.to_string(),
+                ..Default::default()
+            }
+            .into());
+        }
+
         let rules = database
             .provided_rules()
             .map(|rules| format_rules(rules, omit_defaults))

@@ -332,10 +332,12 @@ async fn test_create_get_update_delete_database() {
         .await
         .expect("delete database failed");
 
-    client
+    let err = client
         .get_database(&db_name, false)
         .await
         .expect_err("get database should have failed but didn't");
+
+    assert_contains!(err.to_string(), "Database not found");
 }
 
 /// gets configuration both with and without defaults, and verifies

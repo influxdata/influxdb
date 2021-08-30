@@ -247,6 +247,11 @@ impl Database {
         self.shared.state.read().get_initialized().is_some()
     }
 
+    /// Whether the database is active
+    pub fn is_active(&self) -> bool {
+        self.shared.state.read().is_active()
+    }
+
     /// Returns the database rules if they're loaded
     pub fn provided_rules(&self) -> Option<Arc<ProvidedDatabaseRules>> {
         self.shared.state.read().provided_rules()
@@ -847,7 +852,8 @@ impl DatabaseStateDatabaseObjectStoreFound {
             return RulesDatabaseNameMismatch {
                 actual: rules.db_name(),
                 expected: shared.config.name.as_str(),
-            }.fail();
+            }
+            .fail();
         }
 
         Ok(DatabaseStateRulesLoaded {
