@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	nethttp "net/http"
 	"os"
@@ -77,6 +76,7 @@ import (
 	telegrafservice "github.com/influxdata/influxdb/v2/telegraf/service"
 	"github.com/influxdata/influxdb/v2/telemetry"
 	"github.com/influxdata/influxdb/v2/tenant"
+	"github.com/prometheus/client_golang/prometheus"
 
 	// needed for tsm1
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
@@ -90,7 +90,6 @@ import (
 	"github.com/influxdata/influxdb/v2/vault"
 	pzap "github.com/influxdata/influxdb/v2/zap"
 	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
 )
@@ -109,18 +108,23 @@ const (
 	JaegerTracing = "jaeger"
 )
 
+type labeledCloser struct {
+	label  string
+	closer func(context.Context) error
+}
+
 // Launcher represents the main program execution.
 type Launcher struct {
 	wg       sync.WaitGroup
 	cancel   func()
 	doneChan <-chan struct{}
+	closers  []labeledCloser
 
 	flagger feature.Flagger
 
-	boltClient *bolt.Client
-	kvStore    kv.SchemaStore
-	kvService  *kv.Service
-	sqlStore   *sqlite.SqlStore
+	kvStore   kv.SchemaStore
+	kvService *kv.Service
+	sqlStore  *sqlite.SqlStore
 
 	// storage engine
 	engine Engine
@@ -129,19 +133,14 @@ type Launcher struct {
 	queryController *control.Controller
 
 	httpPort   int
-	httpServer *nethttp.Server
 	tlsEnabled bool
-
-	natsServer *nats.Server
-	natsPort   int
 
 	scheduler          stoppingScheduler
 	executor           *executor.Executor
 	taskControlService taskbackend.TaskControlService
 
-	jaegerTracerCloser io.Closer
-	log                *zap.Logger
-	reg                *prom.Registry
+	log *zap.Logger
+	reg *prom.Registry
 
 	apibackend *http.APIBackend
 }
@@ -163,11 +162,6 @@ func (m *Launcher) Registry() *prom.Registry {
 	return m.reg
 }
 
-// NatsURL returns the URL to connection to the NATS server.
-func (m *Launcher) NatsURL() string {
-	return fmt.Sprintf("http://127.0.0.1:%d", m.natsPort)
-}
-
 // Engine returns a reference to the storage engine. It should only be called
 // for end-to-end testing purposes.
 func (m *Launcher) Engine() Engine {
@@ -178,50 +172,17 @@ func (m *Launcher) Engine() Engine {
 func (m *Launcher) Shutdown(ctx context.Context) error {
 	var errs []string
 
-	if err := m.httpServer.Shutdown(ctx); err != nil {
-		m.log.Error("Failed to close HTTP server", zap.Error(err))
-		errs = append(errs, err.Error())
-	}
-
-	m.log.Info("Stopping", zap.String("service", "task"))
-
-	m.scheduler.Stop()
-
-	m.log.Info("Stopping", zap.String("service", "nats"))
-	m.natsServer.Close()
-
-	m.log.Info("Stopping", zap.String("service", "bolt"))
-	if err := m.boltClient.Close(); err != nil {
-		m.log.Error("Failed closing bolt", zap.Error(err))
-		errs = append(errs, err.Error())
-	}
-
-	m.log.Info("Stopping", zap.String("service", "sqlite"))
-	if err := m.sqlStore.Close(); err != nil {
-		m.log.Error("Failed closing sqlite", zap.Error(err))
-		errs = append(errs, err.Error())
-	}
-
-	m.log.Info("Stopping", zap.String("service", "query"))
-	if err := m.queryController.Shutdown(ctx); err != nil && err != context.Canceled {
-		m.log.Error("Failed closing query service", zap.Error(err))
-		errs = append(errs, err.Error())
-	}
-
-	m.log.Info("Stopping", zap.String("service", "storage-engine"))
-	if err := m.engine.Close(); err != nil {
-		m.log.Error("Failed to close engine", zap.Error(err))
-		errs = append(errs, err.Error())
-	}
-
-	m.wg.Wait()
-
-	if m.jaegerTracerCloser != nil {
-		if err := m.jaegerTracerCloser.Close(); err != nil {
-			m.log.Error("Failed to closer Jaeger tracer", zap.Error(err))
+	// Shut down subsystems in the reverse order of their registration.
+	for i := len(m.closers); i > 0; i-- {
+		lc := m.closers[i-1]
+		m.log.Info("Stopping subsystem", zap.String("subsystem", lc.label))
+		if err := lc.closer(ctx); err != nil {
+			m.log.Error("Failed to stop subsystem", zap.String("subsystem", lc.label), zap.Error(err))
 			errs = append(errs, err.Error())
 		}
 	}
+
+	m.wg.Wait()
 
 	// N.B. We ignore any errors here because Sync is known to fail with EINVAL
 	// when logging to Stdout on certain OS's.
@@ -272,17 +233,17 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			m.log.Error("Failed to instantiate Jaeger tracer", zap.Error(err))
 			break
 		}
+		m.closers = append(m.closers, labeledCloser{
+			label: "Jaeger tracer",
+			closer: func(context.Context) error {
+				return closer.Close()
+			},
+		})
 		opentracing.SetGlobalTracer(tracer)
-		m.jaegerTracerCloser = closer
 	}
 
-	m.boltClient = bolt.NewClient(m.log.With(zap.String("service", "bolt")))
-	m.boltClient.Path = opts.BoltPath
-
-	if err := m.boltClient.Open(ctx); err != nil {
-		m.log.Error("Failed opening bolt", zap.Error(err))
-		return err
-	}
+	m.reg = prom.NewRegistry(m.log.With(zap.String("service", "prom_registry")))
+	m.reg.MustRegister(prometheus.NewGoCollector())
 
 	var flushers flushers
 	switch opts.StoreType {
@@ -290,8 +251,23 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		m.log.Warn("Using --store=bolt is deprecated. Use --store=disk instead.")
 		fallthrough
 	case DiskStore:
+		boltClient := bolt.NewClient(m.log.With(zap.String("service", "bolt")))
+		boltClient.Path = opts.BoltPath
+
+		if err := boltClient.Open(ctx); err != nil {
+			m.log.Error("Failed opening bolt", zap.Error(err))
+			return err
+		}
+		m.closers = append(m.closers, labeledCloser{
+			label: "bolt",
+			closer: func(context.Context) error {
+				return boltClient.Close()
+			},
+		})
+		m.reg.MustRegister(boltClient, infprom.NewInfluxCollector(boltClient.ID().String(), info))
+
 		kvStore := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), opts.BoltPath)
-		kvStore.WithDB(m.boltClient.DB())
+		kvStore.WithDB(boltClient.DB())
 		m.kvStore = kvStore
 
 		// If a sqlite-path is not specified, store sqlite db in the same directory as bolt with the default filename.
@@ -312,6 +288,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	case MemoryStore:
 		kvStore := inmem.NewKVStore()
 		m.kvStore = kvStore
+		m.reg.MustRegister(infprom.NewInfluxCollector(snowflake.NewDefaultIDGenerator().ID().String(), info))
 
 		sqlStore, err := sqlite.NewSqlStore(sqlite.InmemPath, m.log.With(zap.String("service", "sqlite")))
 		if err != nil {
@@ -329,6 +306,13 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		m.log.Error("Failed opening metadata store", zap.Error(err))
 		return err
 	}
+
+	m.closers = append(m.closers, labeledCloser{
+		label: "sqlite",
+		closer: func(context.Context) error {
+			return m.sqlStore.Close()
+		},
+	})
 
 	boltMigrator, err := migration.NewMigrator(
 		m.log.With(zap.String("service", "bolt migrations")),
@@ -353,13 +337,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		m.log.Error("Failed to apply sqlite migrations", zap.Error(err))
 		return err
 	}
-
-	m.reg = prom.NewRegistry(m.log.With(zap.String("service", "prom_registry")))
-	m.reg.MustRegister(
-		prometheus.NewGoCollector(),
-		infprom.NewInfluxCollector(m.boltClient, info),
-	)
-	m.reg.MustRegister(m.boltClient)
 
 	tenantStore := tenant.NewStore(m.kvStore)
 	ts := tenant.NewSystem(tenantStore, m.log.With(zap.String("store", "new")), m.reg, metric.WithSuffix("new"))
@@ -449,6 +426,12 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		m.log.Error("Failed to open engine", zap.Error(err))
 		return err
 	}
+	m.closers = append(m.closers, labeledCloser{
+		label: "engine",
+		closer: func(context.Context) error {
+			return m.engine.Close()
+		},
+	})
 	// The Engine's metrics must be registered after it opens.
 	m.reg.MustRegister(m.engine.PrometheusCollectors()...)
 
@@ -489,6 +472,12 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		m.log.Error("Failed to create query controller", zap.Error(err))
 		return err
 	}
+	m.closers = append(m.closers, labeledCloser{
+		label: "query",
+		closer: func(ctx context.Context) error {
+			return m.queryController.Shutdown(ctx)
+		},
+	})
 
 	m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 
@@ -537,6 +526,13 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			if err != nil {
 				m.log.Fatal("could not start task scheduler", zap.Error(err))
 			}
+			m.closers = append(m.closers, labeledCloser{
+				label: "task",
+				closer: func(context.Context) error {
+					sch.Stop()
+					return nil
+				},
+			})
 			m.reg.MustRegister(sm.PrometheusCollectors()...)
 		}
 
@@ -627,21 +623,28 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	natsOpts := nats.NewDefaultServerOptions()
 	natsOpts.Port = opts.NatsPort
 	natsOpts.MaxPayload = opts.NatsMaxPayloadBytes
-	m.natsServer = nats.NewServer(&natsOpts, m.log.With(zap.String("service", "nats")))
-	if err := m.natsServer.Open(); err != nil {
+	natsServer := nats.NewServer(&natsOpts, m.log.With(zap.String("service", "nats")))
+	if err := natsServer.Open(); err != nil {
 		m.log.Error("Failed to start nats streaming server", zap.Error(err))
 		return err
 	}
+	m.closers = append(m.closers, labeledCloser{
+		label: "nats",
+		closer: func(context.Context) error {
+			natsServer.Close()
+			return nil
+		},
+	})
 	// If a random port was used, the opts will be updated to include the selected value.
-	m.natsPort = natsOpts.Port
-	publisher := nats.NewAsyncPublisher(m.log, fmt.Sprintf("nats-publisher-%d", m.natsPort), m.NatsURL())
+	natsURL := fmt.Sprintf("http://127.0.0.1:%d", natsOpts.Port)
+	publisher := nats.NewAsyncPublisher(m.log, fmt.Sprintf("nats-publisher-%d", natsOpts.Port), natsURL)
 	if err := publisher.Open(); err != nil {
 		m.log.Error("Failed to connect to streaming server", zap.Error(err))
 		return err
 	}
 
 	// TODO(jm): this is an example of using a subscriber to consume from the channel. It should be removed.
-	subscriber := nats.NewQueueSubscriber(fmt.Sprintf("nats-subscriber-%d", m.natsPort), m.NatsURL())
+	subscriber := nats.NewQueueSubscriber(fmt.Sprintf("nats-subscriber-%d", natsOpts.Port), natsURL)
 	if err := subscriber.Open(); err != nil {
 		m.log.Error("Failed to connect to streaming server", zap.Error(err))
 		return err
@@ -1037,7 +1040,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogger *zap.Logger) error {
 	log := m.log.With(zap.String("service", "tcp-listener"))
 
-	m.httpServer = &nethttp.Server{
+	httpServer := &nethttp.Server{
 		Addr:              opts.HttpBindAddress,
 		Handler:           handler,
 		ReadHeaderTimeout: opts.HttpReadHeaderTimeout,
@@ -1046,6 +1049,10 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogge
 		IdleTimeout:       opts.HttpIdleTimeout,
 		ErrorLog:          zap.NewStdLog(httpLogger),
 	}
+	m.closers = append(m.closers, labeledCloser{
+		label:  "HTTP server",
+		closer: httpServer.Shutdown,
+	})
 
 	ln, err := net.Listen("tcp", opts.HttpBindAddress)
 	if err != nil {
@@ -1067,7 +1074,7 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogge
 			defer m.wg.Done()
 			log.Info("Listening", zap.String("transport", "http"), zap.String("addr", opts.HttpBindAddress), zap.Int("port", m.httpPort))
 
-			if err := m.httpServer.Serve(ln); err != nethttp.ErrServerClosed {
+			if err := httpServer.Serve(ln); err != nethttp.ErrServerClosed {
 				log.Error("Failed to serve HTTP", zap.Error(err))
 				m.cancel()
 			}
@@ -1117,7 +1124,7 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogge
 		}
 	}
 
-	m.httpServer.TLSConfig = &tls.Config{
+	httpServer.TLSConfig = &tls.Config{
 		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
 		PreferServerCipherSuites: !useStrictCiphers,
 		MinVersion:               tlsMinVersion,
@@ -1128,7 +1135,7 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogge
 		defer m.wg.Done()
 		log.Info("Listening", zap.String("transport", "https"), zap.String("addr", opts.HttpBindAddress), zap.Int("port", m.httpPort))
 
-		if err := m.httpServer.ServeTLS(ln, opts.HttpTLSCert, opts.HttpTLSKey); err != nethttp.ErrServerClosed {
+		if err := httpServer.ServeTLS(ln, opts.HttpTLSCert, opts.HttpTLSKey); err != nethttp.ErrServerClosed {
 			log.Error("Failed to serve HTTPS", zap.Error(err))
 			m.cancel()
 		}
