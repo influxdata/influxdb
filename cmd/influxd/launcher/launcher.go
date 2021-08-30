@@ -994,7 +994,6 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 			m.log.Error("Failed opening sqlite store", zap.Error(err))
 			return "", err
 		}
-		m.sqlStore = sqlStore
 
 	case MemoryStore:
 		kvStore = inmem.NewKVStore()
@@ -1013,7 +1012,7 @@ func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (strin
 	m.closers = append(m.closers, labeledCloser{
 		label: "sqlite",
 		closer: func(context.Context) error {
-			return m.sqlStore.Close()
+			return sqlStore.Close()
 		},
 	})
 	if opts.Testing {
