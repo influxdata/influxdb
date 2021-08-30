@@ -640,7 +640,7 @@ mod tests {
                                     .await
                                 {
                                     Ok(_) => break,
-                                    Err(crate::db::Error::LifecycleError { .. }) => {
+                                    Err(crate::db::Error::CannotFlushPartition { .. }) => {
                                         // cannot persist right now because of some lifecycle action, so wait a bit
                                         tokio::time::sleep(Duration::from_millis(100)).await;
                                         continue;
