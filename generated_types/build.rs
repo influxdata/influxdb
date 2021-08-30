@@ -69,7 +69,8 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
             ".",
             "#[derive(serde::Serialize,serde::Deserialize)] #[serde(rename_all = \"camelCase\")]",
         )
-        .extern_path(".google.protobuf", "::google_types::protobuf");
+        .extern_path(".google.protobuf", "::google_types::protobuf")
+        .bytes(&[".influxdata.iox.catalog.v1.AddParquet.metadata"]);
 
     let descriptor_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("proto_descriptor.bin");
     tonic_build::configure()

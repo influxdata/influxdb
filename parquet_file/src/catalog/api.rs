@@ -8,6 +8,7 @@ use crate::{
     },
     metadata::IoxParquetMetaData,
 };
+use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::catalog::v1 as proto;
@@ -535,7 +536,7 @@ impl OpenTransaction {
     /// in-progress transaction), use [`record_action`](Self::record_action).
     fn handle_action<S>(
         state: &mut S,
-        action: &proto::transaction::action::Action,
+        action: proto::transaction::action::Action,
         iox_object_store: &Arc<IoxObjectStore>,
     ) -> Result<()>
     where
@@ -543,10 +544,7 @@ impl OpenTransaction {
     {
         match action {
             proto::transaction::action::Action::Upgrade(u) => {
-                UnsupportedUpgrade {
-                    format: u.format.clone(),
-                }
-                .fail()?;
+                UnsupportedUpgrade { format: u.format }.fail()?;
             }
             proto::transaction::action::Action::AddParquet(a) => {
                 let path =
@@ -554,7 +552,7 @@ impl OpenTransaction {
                         .context(ProtobufParseError)?;
                 let file_size_bytes = a.file_size_bytes as usize;
 
-                let metadata = IoxParquetMetaData::from_thrift_bytes(a.metadata.clone());
+                let metadata = IoxParquetMetaData::from_thrift_bytes(a.metadata.as_ref().to_vec());
 
                 // try to decode to ensure catalog is OK
                 metadata.decode().context(MetadataDecodingFailed)?;
@@ -683,8 +681,8 @@ impl OpenTransaction {
         }
 
         // apply
-        for action in &proto.actions {
-            if let Some(action) = action.action.as_ref() {
+        for action in proto.actions {
+            if let Some(action) = action.action {
                 Self::handle_action(state, action, iox_object_store)?;
             }
         }
@@ -837,7 +835,7 @@ impl<'c> TransactionHandle<'c> {
             .record_action(proto::transaction::action::Action::AddParquet(
                 proto::AddParquet {
                     path: Some(proto_parse::unparse_dirs_and_filename(path)),
-                    metadata: metadata.thrift_bytes().to_vec(),
+                    metadata: Bytes::from(metadata.thrift_bytes().to_vec()),
                     file_size_bytes: *file_size_bytes as u64,
                 },
             ));
@@ -924,7 +922,7 @@ impl<'c> CheckpointHandle<'c> {
                         proto::AddParquet {
                             path: Some(proto_parse::unparse_dirs_and_filename(&path)),
                             file_size_bytes: file_size_bytes as u64,
-                            metadata: metadata.thrift_bytes().to_vec(),
+                            metadata: Bytes::from(metadata.thrift_bytes().to_vec()),
                         },
                     )),
                 })
