@@ -119,10 +119,11 @@ type Launcher struct {
 	cancel   func()
 	doneChan <-chan struct{}
 	closers  []labeledCloser
+	flushers flushers
 
 	flagger feature.Flagger
 
-	kvStore   kv.SchemaStore
+	kvStore   kv.Store
 	kvService *kv.Service
 	sqlStore  *sqlite.SqlStore
 
@@ -214,129 +215,17 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		zap.String("commit", info.Commit),
 		zap.String("build_date", info.Date),
 	)
-
-	switch opts.TracingType {
-	case LogTracing:
-		m.log.Info("Tracing via zap logging")
-		tracer := pzap.NewTracer(m.log, snowflake.NewIDGenerator())
-		opentracing.SetGlobalTracer(tracer)
-
-	case JaegerTracing:
-		m.log.Info("Tracing via Jaeger")
-		cfg, err := jaegerconfig.FromEnv()
-		if err != nil {
-			m.log.Error("Failed to get Jaeger client config from environment variables", zap.Error(err))
-			break
-		}
-		tracer, closer, err := cfg.NewTracer()
-		if err != nil {
-			m.log.Error("Failed to instantiate Jaeger tracer", zap.Error(err))
-			break
-		}
-		m.closers = append(m.closers, labeledCloser{
-			label: "Jaeger tracer",
-			closer: func(context.Context) error {
-				return closer.Close()
-			},
-		})
-		opentracing.SetGlobalTracer(tracer)
-	}
+	m.initTracing(opts)
 
 	m.reg = prom.NewRegistry(m.log.With(zap.String("service", "prom_registry")))
 	m.reg.MustRegister(prometheus.NewGoCollector())
 
-	var flushers flushers
-	switch opts.StoreType {
-	case BoltStore:
-		m.log.Warn("Using --store=bolt is deprecated. Use --store=disk instead.")
-		fallthrough
-	case DiskStore:
-		boltClient := bolt.NewClient(m.log.With(zap.String("service", "bolt")))
-		boltClient.Path = opts.BoltPath
-
-		if err := boltClient.Open(ctx); err != nil {
-			m.log.Error("Failed opening bolt", zap.Error(err))
-			return err
-		}
-		m.closers = append(m.closers, labeledCloser{
-			label: "bolt",
-			closer: func(context.Context) error {
-				return boltClient.Close()
-			},
-		})
-		m.reg.MustRegister(boltClient, infprom.NewInfluxCollector(boltClient.ID().String(), info))
-
-		kvStore := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), opts.BoltPath)
-		kvStore.WithDB(boltClient.DB())
-		m.kvStore = kvStore
-
-		// If a sqlite-path is not specified, store sqlite db in the same directory as bolt with the default filename.
-		if opts.SqLitePath == "" {
-			opts.SqLitePath = filepath.Dir(opts.BoltPath) + "/" + sqlite.DefaultFilename
-		}
-		sqlStore, err := sqlite.NewSqlStore(opts.SqLitePath, m.log.With(zap.String("service", "sqlite")))
-		if err != nil {
-			m.log.Error("Failed opening sqlite store", zap.Error(err))
-			return err
-		}
-		m.sqlStore = sqlStore
-
-		if opts.Testing {
-			flushers = append(flushers, kvStore, sqlStore)
-		}
-
-	case MemoryStore:
-		kvStore := inmem.NewKVStore()
-		m.kvStore = kvStore
-		m.reg.MustRegister(infprom.NewInfluxCollector(snowflake.NewDefaultIDGenerator().ID().String(), info))
-
-		sqlStore, err := sqlite.NewSqlStore(sqlite.InmemPath, m.log.With(zap.String("service", "sqlite")))
-		if err != nil {
-			m.log.Error("Failed opening sqlite store", zap.Error(err))
-			return err
-		}
-		m.sqlStore = sqlStore
-
-		if opts.Testing {
-			flushers = append(flushers, kvStore, sqlStore)
-		}
-
-	default:
-		err := fmt.Errorf("unknown store type %s; expected disk or memory", opts.StoreType)
-		m.log.Error("Failed opening metadata store", zap.Error(err))
-		return err
-	}
-
-	m.closers = append(m.closers, labeledCloser{
-		label: "sqlite",
-		closer: func(context.Context) error {
-			return m.sqlStore.Close()
-		},
-	})
-
-	boltMigrator, err := migration.NewMigrator(
-		m.log.With(zap.String("service", "bolt migrations")),
-		m.kvStore,
-		all.Migrations[:]...,
-	)
+	// Open KV and SQL stores.
+	procID, err := m.openMetaStores(ctx, opts)
 	if err != nil {
-		m.log.Error("Failed to initialize kv migrator", zap.Error(err))
 		return err
 	}
-
-	// apply migrations to the bolt metadata store
-	if err := boltMigrator.Up(ctx); err != nil {
-		m.log.Error("Failed to apply bolt migrations", zap.Error(err))
-		return err
-	}
-
-	sqliteMigrator := sqlite.NewMigrator(m.sqlStore, m.log.With(zap.String("service", "sqlite migrations")))
-
-	// apply migrations to the sqlite metadata store
-	if err := sqliteMigrator.Up(ctx, sqliteMigrations.All); err != nil {
-		m.log.Error("Failed to apply sqlite migrations", zap.Error(err))
-		return err
-	}
+	m.reg.MustRegister(infprom.NewInfluxCollector(procID, info))
 
 	tenantStore := tenant.NewStore(m.kvStore)
 	ts := tenant.NewSystem(tenantStore, m.log.With(zap.String("store", "new")), m.reg, metric.WithSuffix("new"))
@@ -407,7 +296,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			opts.StorageConfig,
 			storage.WithMetaClient(metaClient),
 		)
-		flushers = append(flushers, engine)
+		m.flushers = append(m.flushers, engine)
 		m.engine = engine
 	} else {
 		// check for 2.x data / state from a prior 2.x
@@ -1021,7 +910,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	}
 	// If we are in testing mode we allow all data to be flushed and removed.
 	if opts.Testing {
-		httpHandler = http.DebugFlush(ctx, httpHandler, flushers)
+		httpHandler = http.DebugFlush(ctx, httpHandler, m.flushers)
 	}
 
 	if !opts.ReportingDisabled {
@@ -1032,6 +921,138 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	}
 
 	return nil
+}
+
+// initTracing sets up the global tracer for the influxd process.
+// Any errors encountered during setup are logged, but don't crash the process.
+func (m *Launcher) initTracing(opts *InfluxdOpts) {
+	switch opts.TracingType {
+	case LogTracing:
+		m.log.Info("Tracing via zap logging")
+		opentracing.SetGlobalTracer(pzap.NewTracer(m.log, snowflake.NewIDGenerator()))
+
+	case JaegerTracing:
+		m.log.Info("Tracing via Jaeger")
+		cfg, err := jaegerconfig.FromEnv()
+		if err != nil {
+			m.log.Error("Failed to get Jaeger client config from environment variables", zap.Error(err))
+			return
+		}
+		tracer, closer, err := cfg.NewTracer()
+		if err != nil {
+			m.log.Error("Failed to instantiate Jaeger tracer", zap.Error(err))
+			return
+		}
+		m.closers = append(m.closers, labeledCloser{
+			label: "Jaeger tracer",
+			closer: func(context.Context) error {
+				return closer.Close()
+			},
+		})
+		opentracing.SetGlobalTracer(tracer)
+	}
+}
+
+// openMetaStores opens the embedded DBs used to store metadata about influxd resources, migrating them to
+// the latest schema expected by the server.
+// On success, a unique ID is returned to be used as an identifier for the influxd instance in telemetry.
+func (m *Launcher) openMetaStores(ctx context.Context, opts *InfluxdOpts) (string, error) {
+	type flushableKVStore interface {
+		kv.SchemaStore
+		http.Flusher
+	}
+	var kvStore flushableKVStore
+	var sqlStore *sqlite.SqlStore
+
+	var procID string
+	var err error
+	switch opts.StoreType {
+	case BoltStore:
+		m.log.Warn("Using --store=bolt is deprecated. Use --store=disk instead.")
+		fallthrough
+	case DiskStore:
+		boltClient := bolt.NewClient(m.log.With(zap.String("service", "bolt")))
+		boltClient.Path = opts.BoltPath
+
+		if err := boltClient.Open(ctx); err != nil {
+			m.log.Error("Failed opening bolt", zap.Error(err))
+			return "", err
+		}
+		m.closers = append(m.closers, labeledCloser{
+			label: "bolt",
+			closer: func(context.Context) error {
+				return boltClient.Close()
+			},
+		})
+		m.reg.MustRegister(boltClient)
+		procID = boltClient.ID().String()
+
+		boltKV := bolt.NewKVStore(m.log.With(zap.String("service", "kvstore-bolt")), opts.BoltPath)
+		boltKV.WithDB(boltClient.DB())
+		kvStore = boltKV
+
+		// If a sqlite-path is not specified, store sqlite db in the same directory as bolt with the default filename.
+		if opts.SqLitePath == "" {
+			opts.SqLitePath = filepath.Dir(opts.BoltPath) + "/" + sqlite.DefaultFilename
+		}
+		sqlStore, err = sqlite.NewSqlStore(opts.SqLitePath, m.log.With(zap.String("service", "sqlite")))
+		if err != nil {
+			m.log.Error("Failed opening sqlite store", zap.Error(err))
+			return "", err
+		}
+		m.sqlStore = sqlStore
+
+	case MemoryStore:
+		kvStore = inmem.NewKVStore()
+		sqlStore, err = sqlite.NewSqlStore(sqlite.InmemPath, m.log.With(zap.String("service", "sqlite")))
+		if err != nil {
+			m.log.Error("Failed opening sqlite store", zap.Error(err))
+			return "", err
+		}
+
+	default:
+		err := fmt.Errorf("unknown store type %s; expected disk or memory", opts.StoreType)
+		m.log.Error("Failed opening metadata store", zap.Error(err))
+		return "", err
+	}
+
+	m.closers = append(m.closers, labeledCloser{
+		label: "sqlite",
+		closer: func(context.Context) error {
+			return m.sqlStore.Close()
+		},
+	})
+	if opts.Testing {
+		m.flushers = append(m.flushers, kvStore, sqlStore)
+	}
+
+	boltMigrator, err := migration.NewMigrator(
+		m.log.With(zap.String("service", "bolt migrations")),
+		kvStore,
+		all.Migrations[:]...,
+	)
+	if err != nil {
+		m.log.Error("Failed to initialize kv migrator", zap.Error(err))
+		return "", err
+	}
+
+	// apply migrations to the bolt metadata store
+	if err := boltMigrator.Up(ctx); err != nil {
+		m.log.Error("Failed to apply bolt migrations", zap.Error(err))
+		return "", err
+	}
+
+	sqliteMigrator := sqlite.NewMigrator(sqlStore, m.log.With(zap.String("service", "sqlite migrations")))
+
+	// apply migrations to the sqlite metadata store
+	if err := sqliteMigrator.Up(ctx, sqliteMigrations.All); err != nil {
+		m.log.Error("Failed to apply sqlite migrations", zap.Error(err))
+		return "", err
+	}
+
+	m.kvStore = kvStore
+	m.sqlStore = sqlStore
+	return procID, nil
 }
 
 // runHTTP configures and launches a listener for incoming HTTP(S) requests.
