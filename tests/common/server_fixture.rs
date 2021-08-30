@@ -1,13 +1,11 @@
+use std::net::SocketAddrV4;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{
     path::Path,
     process::{Child, Command},
     str,
-    sync::{
-        atomic::{AtomicUsize, Ordering::SeqCst},
-        Weak,
-    },
+    sync::Weak,
     time::Instant,
 };
 
@@ -18,14 +16,9 @@ use generated_types::influxdata::iox::management::v1::{
 };
 use influxdb_iox_client::connection::Connection;
 use once_cell::sync::OnceCell;
+use rand::Rng;
 use tempfile::{NamedTempFile, TempDir};
 use tokio::sync::Mutex;
-
-// These port numbers are chosen to not collide with a development ioxd server
-// running locally.
-// TODO(786): allocate random free ports instead of hardcoding.
-// TODO(785): we cannot use localhost here.
-static NEXT_PORT: AtomicUsize = AtomicUsize::new(8090);
 
 pub const DEFAULT_SERVER_ID: u32 = 32;
 
@@ -47,24 +40,34 @@ impl BindAddresses {
     pub fn grpc_bind_addr(&self) -> &str {
         &self.grpc_bind_addr
     }
+
+    fn get_free_port() -> SocketAddrV4 {
+        let mut rng = rand::thread_rng();
+        let ip = std::net::Ipv4Addr::new(127, 0, 0, 1);
+
+        loop {
+            let port = rng.gen_range(8000..9000);
+            let addr = SocketAddrV4::new(ip, port);
+            if std::net::TcpListener::bind(addr).is_ok() {
+                return addr;
+            }
+        }
+    }
 }
 
 impl Default for BindAddresses {
     /// return a new port assignment suitable for this test's use
     fn default() -> Self {
-        let http_port = NEXT_PORT.fetch_add(1, SeqCst);
-        let grpc_port = NEXT_PORT.fetch_add(1, SeqCst);
+        let http_addr = Self::get_free_port();
+        let grpc_addr = Self::get_free_port();
 
-        let http_bind_addr = format!("127.0.0.1:{}", http_port);
-        let grpc_bind_addr = format!("127.0.0.1:{}", grpc_port);
-
-        let http_base = format!("http://{}", http_bind_addr);
-        let iox_api_v1_base = format!("http://{}/iox/api/v1", http_bind_addr);
-        let grpc_base = format!("http://{}", grpc_bind_addr);
+        let http_base = format!("http://{}", http_addr);
+        let iox_api_v1_base = format!("http://{}/iox/api/v1", http_addr);
+        let grpc_base = format!("http://{}", grpc_addr);
 
         Self {
-            http_bind_addr,
-            grpc_bind_addr,
+            http_bind_addr: http_addr.to_string(),
+            grpc_bind_addr: grpc_addr.to_string(),
             http_base,
             iox_api_v1_base,
             grpc_base,
