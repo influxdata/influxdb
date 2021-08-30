@@ -123,6 +123,7 @@ type InfluxdOpts struct {
 	TestingAlwaysAllowSetup bool
 
 	LogLevel          zapcore.Level
+	FluxLogEnabled    bool
 	TracingType       string
 	ReportingDisabled bool
 
@@ -184,6 +185,7 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		CoordinatorConfig: coordinator.NewConfig(),
 
 		LogLevel:          zapcore.InfoLevel,
+		FluxLogEnabled:    false,
 		ReportingDisabled: false,
 
 		BoltPath:   filepath.Join(dir, bolt.DefaultFilename),
@@ -230,6 +232,12 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Flag:    "log-level",
 			Default: o.LogLevel,
 			Desc:    "supported log levels are debug, info, and error",
+		},
+		{
+			DestP:   &o.FluxLogEnabled,
+			Flag:    "flux-log-enabled",
+			Default: o.FluxLogEnabled,
+			Desc:    "enables detailed logging for flux queries",
 		},
 		{
 			DestP: &o.TracingType,
