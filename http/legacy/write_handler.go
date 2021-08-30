@@ -34,7 +34,7 @@ type PointsWriterBackend struct {
 	EventRecorder      metric.EventRecorder
 	BucketService      influxdb.BucketService
 	PointsWriter       storage.PointsWriter
-	DBRPMappingService influxdb.DBRPMappingServiceV2
+	DBRPMappingService influxdb.DBRPMappingService
 }
 
 // NewPointsWriterBackend creates a new backend for legacy work.
@@ -45,7 +45,7 @@ func NewPointsWriterBackend(b *Backend) *PointsWriterBackend {
 		EventRecorder:      b.WriteEventRecorder,
 		BucketService:      b.BucketService,
 		PointsWriter:       b.PointsWriter,
-		DBRPMappingService: b.DBRPMappingServiceV2,
+		DBRPMappingService: b.DBRPMappingService,
 	}
 }
 
@@ -55,7 +55,7 @@ type WriteHandler struct {
 	EventRecorder      metric.EventRecorder
 	BucketService      influxdb.BucketService
 	PointsWriter       storage.PointsWriter
-	DBRPMappingService influxdb.DBRPMappingServiceV2
+	DBRPMappingService influxdb.DBRPMappingService
 
 	router            *httprouter.Router
 	logger            *zap.Logger
@@ -201,10 +201,10 @@ func checkBucketWritePermissions(auth influxdb.Authorizer, orgID, bucketID platf
 	return nil
 }
 
-// findMapping finds a DBRPMappingV2 for the database and retention policy
+// findMapping finds a DBRPMapping for the database and retention policy
 // combination.
-func (h *WriteHandler) findMapping(ctx context.Context, orgID platform.ID, db, rp string) (*influxdb.DBRPMappingV2, error) {
-	filter := influxdb.DBRPMappingFilterV2{
+func (h *WriteHandler) findMapping(ctx context.Context, orgID platform.ID, db, rp string) (*influxdb.DBRPMapping, error) {
+	filter := influxdb.DBRPMappingFilter{
 		OrgID:    &orgID,
 		Database: &db,
 	}

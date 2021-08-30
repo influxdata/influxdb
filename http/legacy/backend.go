@@ -33,7 +33,7 @@ type Backend struct {
 	OrganizationService   influxdb.OrganizationService
 	BucketService         influxdb.BucketService
 	PointsWriter          storage.PointsWriter
-	DBRPMappingServiceV2  influxdb.DBRPMappingServiceV2
+	DBRPMappingService    influxdb.DBRPMappingService
 	ProxyQueryService     query.ProxyQueryService
 	InfluxqldQueryService influxql.ProxyQueryService
 }

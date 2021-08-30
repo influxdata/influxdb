@@ -1257,7 +1257,7 @@ func (m *Launcher) CheckService() platform.CheckService {
 	return m.apibackend.CheckService
 }
 
-func (m *Launcher) DBRPMappingServiceV2() platform.DBRPMappingServiceV2 {
+func (m *Launcher) DBRPMappingService() platform.DBRPMappingService {
 	return m.apibackend.DBRPService
 }
 

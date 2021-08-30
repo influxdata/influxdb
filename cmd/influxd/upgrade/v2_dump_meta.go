@@ -118,7 +118,7 @@ var v2DumpMetaCommand = &cobra.Command{
 		fmt.Fprintln(os.Stdout, "Mappings")
 		fmt.Fprintln(os.Stdout, "---------")
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", "Database", "RP", "Org", "Bucket", "Default")
-		mappings, _, err := svc.dbrpSvc.FindMany(ctx, influxdb.DBRPMappingFilterV2{})
+		mappings, _, err := svc.dbrpSvc.FindMany(ctx, influxdb.DBRPMappingFilter{})
 		if err != nil {
 			return err
 		}

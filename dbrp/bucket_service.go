@@ -12,10 +12,10 @@ import (
 type BucketService struct {
 	influxdb.BucketService
 	Logger             *zap.Logger
-	DBRPMappingService influxdb.DBRPMappingServiceV2
+	DBRPMappingService influxdb.DBRPMappingService
 }
 
-func NewBucketService(logger *zap.Logger, bucketService influxdb.BucketService, dbrpService influxdb.DBRPMappingServiceV2) *BucketService {
+func NewBucketService(logger *zap.Logger, bucketService influxdb.BucketService, dbrpService influxdb.DBRPMappingService) *BucketService {
 	return &BucketService{
 		Logger:             logger,
 		BucketService:      bucketService,
@@ -33,7 +33,7 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 	}
 
 	logger := s.Logger.With(zap.String("bucket_id", id.String()))
-	mappings, _, err := s.DBRPMappingService.FindMany(ctx, influxdb.DBRPMappingFilterV2{
+	mappings, _, err := s.DBRPMappingService.FindMany(ctx, influxdb.DBRPMappingFilter{
 		OrgID:    &bucket.OrgID,
 		BucketID: &bucket.ID,
 	})

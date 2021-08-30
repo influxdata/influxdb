@@ -28,21 +28,21 @@ import (
 
 const generatedInfluxQLDataDir = "testdata"
 
-var dbrpMappingSvcE2E = &mock.DBRPMappingServiceV2{}
+var dbrpMappingSvcE2E = &mock.DBRPMappingService{}
 
 func init() {
-	mapping := platform.DBRPMappingV2{
+	mapping := platform.DBRPMapping{
 		Database:        "db0",
 		RetentionPolicy: "autogen",
 		Default:         true,
 		OrganizationID:  platformtesting.MustIDBase16("cadecadecadecade"),
 		BucketID:        platformtesting.MustIDBase16("da7aba5e5eedca5e"),
 	}
-	dbrpMappingSvcE2E.FindByIDFn = func(ctx context.Context, orgID, id platform2.ID) (*platform.DBRPMappingV2, error) {
+	dbrpMappingSvcE2E.FindByIDFn = func(ctx context.Context, orgID, id platform2.ID) (*platform.DBRPMapping, error) {
 		return &mapping, nil
 	}
-	dbrpMappingSvcE2E.FindManyFn = func(ctx context.Context, filter platform.DBRPMappingFilterV2, opt ...platform.FindOptions) ([]*platform.DBRPMappingV2, int, error) {
-		return []*platform.DBRPMappingV2{&mapping}, 1, nil
+	dbrpMappingSvcE2E.FindManyFn = func(ctx context.Context, filter platform.DBRPMappingFilter, opt ...platform.FindOptions) ([]*platform.DBRPMapping, int, error) {
+		return []*platform.DBRPMapping{&mapping}, 1, nil
 	}
 }
 

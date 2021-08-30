@@ -14,21 +14,21 @@ import (
 	"github.com/pkg/errors"
 )
 
-var dbrpMappingSvc = &mock.DBRPMappingServiceV2{}
+var dbrpMappingSvc = &mock.DBRPMappingService{}
 
 func init() {
-	mapping := platform.DBRPMappingV2{
+	mapping := platform.DBRPMapping{
 		Database:        "db0",
 		RetentionPolicy: "autogen",
 		Default:         true,
 		OrganizationID:  platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
 		BucketID:        platformtesting.MustIDBase16("bbbbbbbbbbbbbbbb"),
 	}
-	dbrpMappingSvc.FindByIDFn = func(ctx context.Context, orgID, id platform2.ID) (*platform.DBRPMappingV2, error) {
+	dbrpMappingSvc.FindByIDFn = func(ctx context.Context, orgID, id platform2.ID) (*platform.DBRPMapping, error) {
 		return &mapping, nil
 	}
-	dbrpMappingSvc.FindManyFn = func(ctx context.Context, filter platform.DBRPMappingFilterV2, opt ...platform.FindOptions) ([]*platform.DBRPMappingV2, int, error) {
-		return []*platform.DBRPMappingV2{&mapping}, 1, nil
+	dbrpMappingSvc.FindManyFn = func(ctx context.Context, filter platform.DBRPMappingFilter, opt ...platform.FindOptions) ([]*platform.DBRPMapping, int, error) {
+		return []*platform.DBRPMapping{&mapping}, 1, nil
 	}
 }
 

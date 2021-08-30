@@ -81,7 +81,7 @@ func TestDBRPMapping_Validate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := platform.DBRPMappingV2{
+			m := platform.DBRPMapping{
 				Database:        tt.fields.Database,
 				RetentionPolicy: tt.fields.RetentionPolicy,
 				Default:         tt.fields.Default,

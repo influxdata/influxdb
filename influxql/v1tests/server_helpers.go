@@ -173,8 +173,8 @@ func (qt *Test) init(ctx context.Context, t *testing.T, p *tests.DefaultPipeline
 	if !qt.noDefaultMapping {
 		ctx = icontext.SetAuthorizer(ctx, auth)
 		err := p.Launcher.
-			DBRPMappingServiceV2().
-			Create(ctx, &influxdb.DBRPMappingV2{
+			DBRPMappingService().
+			Create(ctx, &influxdb.DBRPMapping{
 				Database:        qt.db,
 				RetentionPolicy: qt.rp,
 				Default:         true,

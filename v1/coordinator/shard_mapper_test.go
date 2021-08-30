@@ -22,13 +22,13 @@ func TestLocalShardMapper(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbrp := mocks.NewMockDBRPMappingServiceV2(ctrl)
+	dbrp := mocks.NewMockDBRPMappingService(ctrl)
 	orgID := platform.ID(0xff00)
 	bucketID := platform.ID(0xffee)
 	db := "db0"
 	rp := "rp0"
-	filt := influxdb.DBRPMappingFilterV2{OrgID: &orgID, Database: &db, RetentionPolicy: &rp}
-	res := []*influxdb.DBRPMappingV2{{Database: db, RetentionPolicy: rp, OrganizationID: orgID, BucketID: bucketID}}
+	filt := influxdb.DBRPMappingFilter{OrgID: &orgID, Database: &db, RetentionPolicy: &rp}
+	res := []*influxdb.DBRPMapping{{Database: db, RetentionPolicy: rp, OrganizationID: orgID, BucketID: bucketID}}
 	dbrp.EXPECT().
 		FindMany(gomock.Any(), filt).
 		Times(2).

@@ -13,7 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
 
-var _ influxdb.DBRPMappingServiceV2 = (*Client)(nil)
+var _ influxdb.DBRPMappingService = (*Client)(nil)
 
 // Client connects to Influx via HTTP using tokens to manage DBRPs.
 type Client struct {
@@ -32,7 +32,7 @@ func (c *Client) dbrpURL(id platform.ID) string {
 	return path.Join(c.Prefix, id.String())
 }
 
-func (c *Client) FindByID(ctx context.Context, orgID, id platform.ID) (*influxdb.DBRPMappingV2, error) {
+func (c *Client) FindByID(ctx context.Context, orgID, id platform.ID) (*influxdb.DBRPMapping, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -47,7 +47,7 @@ func (c *Client) FindByID(ctx context.Context, orgID, id platform.ID) (*influxdb
 	return resp.Content, nil
 }
 
-func (c *Client) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilterV2, opts ...influxdb.FindOptions) ([]*influxdb.DBRPMappingV2, int, error) {
+func (c *Client) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilter, opts ...influxdb.FindOptions) ([]*influxdb.DBRPMapping, int, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -84,11 +84,11 @@ func (c *Client) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilter
 	return resp.Content, len(resp.Content), nil
 }
 
-func (c *Client) Create(ctx context.Context, dbrp *influxdb.DBRPMappingV2) error {
+func (c *Client) Create(ctx context.Context, dbrp *influxdb.DBRPMapping) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	var newDBRP influxdb.DBRPMappingV2
+	var newDBRP influxdb.DBRPMapping
 	if err := c.Client.
 		PostJSON(createDBRPRequest{
 			Database:        dbrp.Database,
@@ -105,7 +105,7 @@ func (c *Client) Create(ctx context.Context, dbrp *influxdb.DBRPMappingV2) error
 	return nil
 }
 
-func (c *Client) Update(ctx context.Context, dbrp *influxdb.DBRPMappingV2) error {
+func (c *Client) Update(ctx context.Context, dbrp *influxdb.DBRPMapping) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -113,7 +113,7 @@ func (c *Client) Update(ctx context.Context, dbrp *influxdb.DBRPMappingV2) error
 		return err
 	}
 
-	var newDBRP influxdb.DBRPMappingV2
+	var newDBRP influxdb.DBRPMapping
 	if err := c.Client.
 		PatchJSON(dbrp, c.dbrpURL(dbrp.ID)).
 		QueryParams([2]string{"orgID", dbrp.OrganizationID.String()}).

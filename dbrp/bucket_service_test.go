@@ -26,7 +26,7 @@ func TestBucketService(t *testing.T) {
 
 		logger            = zap.NewNop()
 		bucketServiceMock = mocks.NewMockBucketService(ctrl)
-		dbrpService       = mocks.NewMockDBRPMappingServiceV2(ctrl)
+		dbrpService       = mocks.NewMockDBRPMappingService(ctrl)
 
 		bucket = &influxdb.Bucket{
 			ID:    bucketID,
@@ -42,10 +42,10 @@ func TestBucketService(t *testing.T) {
 		Return(nil)
 
 	findMapping := dbrpService.EXPECT().
-		FindMany(gomock.Any(), influxdb.DBRPMappingFilterV2{
+		FindMany(gomock.Any(), influxdb.DBRPMappingFilter{
 			BucketID: &bucketID,
 			OrgID:    &orgID,
-		}).Return([]*influxdb.DBRPMappingV2{
+		}).Return([]*influxdb.DBRPMapping{
 		{ID: mappingID},
 	}, 1, nil)
 	deleteMapping := dbrpService.EXPECT().

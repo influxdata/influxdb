@@ -35,7 +35,7 @@ type StatementExecutor struct {
 	// ShardMapper for mapping shards when executing a SELECT statement.
 	ShardMapper query.ShardMapper
 
-	DBRP influxdb.DBRPMappingServiceV2
+	DBRP influxdb.DBRPMappingService
 
 	// Select statement limits
 	MaxSelectPointN   int
@@ -319,7 +319,7 @@ func (e *StatementExecutor) createIterators(ctx context.Context, stmt *influxql.
 
 func (e *StatementExecutor) executeShowDatabasesStatement(ctx context.Context, q *influxql.ShowDatabasesStatement, ectx *query.ExecutionContext) (models.Rows, error) {
 	row := &models.Row{Name: "databases", Columns: []string{"name"}}
-	dbrps, _, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilterV2{
+	dbrps, _, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilter{
 		OrgID: &ectx.OrgID,
 	})
 	if err != nil {
@@ -349,9 +349,9 @@ func (e *StatementExecutor) executeShowDatabasesStatement(ctx context.Context, q
 	return []*models.Row{row}, nil
 }
 
-func (e *StatementExecutor) getDefaultRP(ctx context.Context, database string, ectx *query.ExecutionContext) (*influxdb.DBRPMappingV2, error) {
+func (e *StatementExecutor) getDefaultRP(ctx context.Context, database string, ectx *query.ExecutionContext) (*influxdb.DBRPMapping, error) {
 	defaultRP := true
-	mappings, n, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilterV2{
+	mappings, n, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilter{
 		OrgID:    &ectx.OrgID,
 		Database: &database,
 		Default:  &defaultRP,
@@ -440,7 +440,7 @@ func (e *StatementExecutor) executeShowRetentionPoliciesStatement(ctx context.Co
 		return nil, ErrDatabaseNameRequired
 	}
 
-	dbrps, _, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilterV2{
+	dbrps, _, err := e.DBRP.FindMany(ctx, influxdb.DBRPMappingFilter{
 		OrgID:    &ectx.OrgID,
 		Database: &q.Database,
 	})
@@ -716,7 +716,7 @@ func (e *StatementExecutor) normalizeMeasurement(ctx context.Context, m *influxq
 	}
 
 	// TODO(sgc): Validate database; fetch default RP
-	filter := influxdb.DBRPMappingFilterV2{
+	filter := influxdb.DBRPMappingFilter{
 		OrgID:    &ectx.OrgID,
 		Database: &m.Database,
 	}
@@ -744,7 +744,7 @@ func (e *StatementExecutor) normalizeMeasurement(ctx context.Context, m *influxq
 	return nil
 }
 
-type mappings []*influxdb.DBRPMappingV2
+type mappings []*influxdb.DBRPMapping
 
 func (m mappings) DefaultRetentionPolicy(db string) string {
 	for _, v := range m {
