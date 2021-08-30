@@ -5,6 +5,7 @@
 //! writes (and thus are stored in separate rows)
 
 use data_types::partition_metadata::{ColumnSummary, StatOverlap, Statistics};
+use internal_types::schema::TIME_COLUMN_NAME;
 use snafu::Snafu;
 
 use crate::QueryChunkMeta;
@@ -179,15 +180,16 @@ where
     /// there were no NULLs
     fn potential_overlap(&self, other: &Self) -> Result<bool> {
         // This algorithm assumes that the keys are sorted by name (so
-        // they can't appear in different orders on the two sides)
+        // they can't appear in different orders on the two sides) except
+        // the "time"column which is always the last column
         debug_assert!(self
             .key_summaries
             .windows(2)
-            .all(|s| s[0].name <= s[1].name));
+            .all(|s| s[1].name == TIME_COLUMN_NAME || s[0].name <= s[1].name));
         debug_assert!(other
             .key_summaries
             .windows(2)
-            .all(|s| s[0].name <= s[1].name));
+            .all(|s| s[1].name == TIME_COLUMN_NAME || s[0].name <= s[1].name));
         self.potential_overlap_impl(0, other, 0)
     }
 
@@ -338,6 +340,18 @@ mod test {
     }
 
     #[test]
+    fn one_time_column_overlap() {
+        let c1 = TestChunk::new("chunk1").with_time_column_with_stats(Some(100), Some(1000));
+
+        let c2 = TestChunk::new("chunk2").with_time_column_with_stats(Some(200), Some(500));
+
+        let groups = group_potential_duplicates(vec![c1, c2]).expect("grouping succeeded");
+
+        let expected = vec!["Group 0: [chunk1, chunk2]"];
+        assert_groups_eq!(expected, groups);
+    }
+
+    #[test]
     fn multi_columns() {
         let c1 = TestChunk::new("chunk1")
             .with_time_column_with_stats(Some(0), Some(1000))
@@ -356,6 +370,45 @@ mod test {
         // Overlaps in time, and in tag1
         let c4 = TestChunk::new("chunk4")
             .with_tag_column_with_stats("tag1", Some("aaa"), Some("zzz"))
+            .with_time_column_with_stats(Some(500), Some(1500));
+
+        let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
+
+        let expected = vec![
+            "Group 0: [chunk1, chunk4]",
+            "Group 1: [chunk2]",
+            "Group 2: [chunk3]",
+        ];
+        assert_groups_eq!(expected, groups);
+    }
+
+    #[test]
+    fn multi_columns_time_last() {
+        // test for wrong assumption of assert_debug reported in
+        // https://github.com/influxdata/influxdb_iox/issues/2408
+        // This test makes sure the debug_assert in potential_overlap works correctly
+        // even if the column before the last column "time" has a name larger than it, e.g "url"
+
+        // Even "time" column is stored in front of "url", the primary_key function
+        // invoked inside potential_overlap invoked by group_potential_duplicates
+        //  will return "url", "time"
+        let c1 = TestChunk::new("chunk1")
+            .with_time_column_with_stats(Some(0), Some(1000))
+            .with_tag_column_with_stats("url", Some("boston"), Some("new york")); // "url" > "time"
+
+        // Overlaps in tag1, but not in time
+        let c2 = TestChunk::new("chunk2")
+            .with_tag_column_with_stats("url", Some("denver"), Some("zoo york"))
+            .with_time_column_with_stats(Some(2000), Some(3000));
+
+        // Overlaps in time, but not in tag1
+        let c3 = TestChunk::new("chunk3")
+            .with_tag_column_with_stats("url", Some("zzx"), Some("zzy"))
+            .with_time_column_with_stats(Some(500), Some(1500));
+
+        // Overlaps in time, and in tag1
+        let c4 = TestChunk::new("chunk4")
+            .with_tag_column_with_stats("url", Some("aaa"), Some("zzz"))
             .with_time_column_with_stats(Some(500), Some(1500));
 
         let groups = group_potential_duplicates(vec![c1, c2, c3, c4]).expect("grouping succeeded");
