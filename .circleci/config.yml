@@ -3,8 +3,10 @@ orbs:
   aws-s3: circleci/aws-s3@2.0.0
 parameters:
   cross-container-tag:
+    # when updating the go version, should also update the go version in go.mod
+    description: docker tag for cross build container from quay.io . Created by https://github.com/influxdata/edge/tree/master/dockerfiles/cross-builder .
     type: string
-    default: go1.15.10-ec819fab057e2efdcf478fec05bb5533957721ec
+    default: go1.15.10-730d00323e09a4328ce00748d49ae9f1195dde91
 
 jobs:
   build_binaries:
@@ -41,8 +43,6 @@ jobs:
               sha256sum ${TARBALL_PATH} > ${TARBALL_PATH}.sha256
             }
 
-            # TODO: chmod should be done in top-level container
-            chmod +x /usr/local/bin/xcc.sh
             export CC=/usr/local/bin/xcc.sh
             export CGO_ENABLED=1
 
