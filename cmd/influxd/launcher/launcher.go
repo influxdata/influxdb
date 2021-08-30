@@ -76,13 +76,8 @@ import (
 	telegrafservice "github.com/influxdata/influxdb/v2/telegraf/service"
 	"github.com/influxdata/influxdb/v2/telemetry"
 	"github.com/influxdata/influxdb/v2/tenant"
-	"github.com/prometheus/client_golang/prometheus"
-
-	// needed for tsm1
-	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
-
-	// needed for tsi1
-	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
+	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1" // needed for tsm1
+	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"  // needed for tsi1
 	authv1 "github.com/influxdata/influxdb/v2/v1/authorization"
 	iqlcoordinator "github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
@@ -90,6 +85,7 @@ import (
 	"github.com/influxdata/influxdb/v2/vault"
 	pzap "github.com/influxdata/influxdb/v2/zap"
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
 )
