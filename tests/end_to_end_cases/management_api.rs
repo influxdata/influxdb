@@ -1416,7 +1416,7 @@ async fn test_persist_partition() {
     assert_eq!(chunks.len(), 1);
     let partition_key = &chunks[0].partition_key;
 
-    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
 
     management_client
         .persist_partition(&db_name, "data", &partition_key[..])

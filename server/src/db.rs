@@ -747,6 +747,7 @@ impl Db {
                     let chunk = chunk.read();
                     if matches!(chunk.stage(), ChunkStage::Persisted { .. })
                         || (chunk.min_timestamp() > flush_handle.timestamp())
+                        || chunk.lifecycle_action().is_some()
                     {
                         None
                     } else {
@@ -754,6 +755,13 @@ impl Db {
                     }
                 })
                 .collect();
+            ensure!(
+                !chunks.is_empty(),
+                CannotFlushPartition {
+                    table_name,
+                    partition_key
+                }
+            );
 
             let (_, fut) = lifecycle::persist_chunks(partition, chunks, flush_handle)
                 .context(LifecycleError)?;

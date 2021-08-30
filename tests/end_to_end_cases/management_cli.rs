@@ -924,7 +924,7 @@ async fn test_persist_partition() {
     )
     .await;
 
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    tokio::time::sleep(Duration::from_millis(1500)).await;
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
