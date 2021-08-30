@@ -5,8 +5,6 @@ import (
 	"strconv"
 	"time"
 
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -18,9 +16,7 @@ type influxCollector struct {
 }
 
 // NewInfluxCollector returns a collector which exports influxdb process metrics.
-func NewInfluxCollector(procID platform2.IDGenerator, build platform.BuildInfo) prometheus.Collector {
-	id := procID.ID().String()
-
+func NewInfluxCollector(procID string, build platform.BuildInfo) prometheus.Collector {
 	return &influxCollector{
 		influxInfoDesc: prometheus.NewDesc(
 			"influxdb_info",
@@ -38,7 +34,7 @@ func NewInfluxCollector(procID platform2.IDGenerator, build platform.BuildInfo) 
 			"influxdb_uptime_seconds",
 			"influxdb process uptime in seconds",
 			nil, prometheus.Labels{
-				"id": id,
+				"id": procID,
 			},
 		),
 		start: time.Now(),
