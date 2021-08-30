@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/cespare/xxhash"
@@ -42,6 +43,7 @@ func init() {
 		idx := NewIndex(sfile, db,
 			WithPath(path),
 			WithMaximumLogFileSize(int64(opt.Config.MaxIndexLogFileSize)),
+			WithMaximumLogFileAge(time.Duration(opt.Config.CompactFullWriteColdDuration)),
 			WithSeriesIDCacheSize(opt.Config.SeriesIDSetCacheSize),
 		)
 		return idx
@@ -88,6 +90,12 @@ var WithMaximumLogFileSize = func(size int64) IndexOption {
 	}
 }
 
+var WithMaximumLogFileAge = func(dur time.Duration) IndexOption {
+	return func(i *Index) {
+		i.maxLogFileAge = dur
+	}
+}
+
 // DisableFsync disables flushing and syncing of underlying files. Primarily this
 // impacts the LogFiles. This option can be set when working with the index in
 // an offline manner, for cases where a hard failure can be overcome by re-running the tooling.
@@ -130,12 +138,13 @@ type Index struct {
 	tagValueCacheSize int
 
 	// The following may be set when initializing an Index.
-	path               string      // Root directory of the index partitions.
-	disableCompactions bool        // Initially disables compactions on the index.
-	maxLogFileSize     int64       // Maximum size of a LogFile before it's compacted.
-	logfileBufferSize  int         // The size of the buffer used by the LogFile.
-	disableFsync       bool        // Disables flushing buffers and fsyning files. Used when working with indexes offline.
-	logger             *zap.Logger // Index's logger.
+	path               string        // Root directory of the index partitions.
+	disableCompactions bool          // Initially disables compactions on the index.
+	maxLogFileSize     int64         // Maximum size of a LogFile before it's compacted.
+	maxLogFileAge      time.Duration // Maximum age of a LogFile before it's compacted.
+	logfileBufferSize  int           // The size of the buffer used by the LogFile.
+	disableFsync       bool          // Disables flushing buffers and fsyning files. Used when working with indexes offline.
+	logger             *zap.Logger   // Index's logger.
 
 	// The following must be set when initializing an Index.
 	sfile    *tsdb.SeriesFile // series lookup file
@@ -161,6 +170,7 @@ func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *
 	idx := &Index{
 		tagValueCacheSize: tsdb.DefaultSeriesIDSetCacheSize,
 		maxLogFileSize:    tsdb.DefaultMaxIndexLogFileSize,
+		maxLogFileAge:     tsdb.DefaultCompactFullWriteColdDuration,
 		logger:            zap.NewNop(),
 		version:           Version,
 		sfile:             sfile,
@@ -193,6 +203,7 @@ func (i *Index) Bytes() int {
 	b += int(unsafe.Sizeof(i.path)) + len(i.path)
 	b += int(unsafe.Sizeof(i.disableCompactions))
 	b += int(unsafe.Sizeof(i.maxLogFileSize))
+	b += int(unsafe.Sizeof(i.maxLogFileAge))
 	b += int(unsafe.Sizeof(i.logger))
 	b += int(unsafe.Sizeof(i.sfile))
 	// Do not count SeriesFile because it belongs to the code that constructed this Index.
@@ -259,6 +270,7 @@ func (i *Index) Open() error {
 	for j := 0; j < len(i.partitions); j++ {
 		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
 		p.MaxLogFileSize = i.maxLogFileSize
+		p.MaxLogFileAge = i.maxLogFileAge
 		p.nosync = i.disableFsync
 		p.logbufferSize = i.logfileBufferSize
 		p.logger = i.logger.With(zap.String("tsi1_partition", fmt.Sprint(j+1)))
