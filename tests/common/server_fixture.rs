@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::net::SocketAddrV4;
 use std::sync::Arc;
 use std::time::Duration;
@@ -41,25 +42,30 @@ impl BindAddresses {
         &self.grpc_bind_addr
     }
 
-    fn get_free_port() -> SocketAddrV4 {
+    fn get_free_ports(n: usize) -> Vec<SocketAddrV4> {
         let mut rng = rand::thread_rng();
         let ip = std::net::Ipv4Addr::new(127, 0, 0, 1);
 
-        loop {
+        let mut results = BTreeSet::new();
+
+        while results.len() < n {
             let port = rng.gen_range(8000..9000);
             let addr = SocketAddrV4::new(ip, port);
             if std::net::TcpListener::bind(addr).is_ok() {
-                return addr;
+                results.insert(addr);
             }
         }
+
+        results.into_iter().collect()
     }
 }
 
 impl Default for BindAddresses {
     /// return a new port assignment suitable for this test's use
     fn default() -> Self {
-        let http_addr = Self::get_free_port();
-        let grpc_addr = Self::get_free_port();
+        let mut addrs = Self::get_free_ports(2);
+        let http_addr = addrs.pop().unwrap();
+        let grpc_addr = addrs.pop().unwrap();
 
         let http_base = format!("http://{}", http_addr);
         let iox_api_v1_base = format!("http://{}/iox/api/v1", http_addr);
