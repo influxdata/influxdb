@@ -17,6 +17,16 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	dbrpOrg1ID    = "ba55ba55ba55ba55"
+	dbrpOrg2ID    = "beadbeadbeadbead"
+	dbrpOrg3ID    = "1005e1eaf1005e1e"
+	dbrpBucket1ID = "cab00d1ecab00d1e"
+	dbrpBucket2ID = "ca1fca1fca1fca1f"
+	dbrpBucketAID = "a55e55eda55e55ed"
+	dbrpBucketBID = "b1077edb1077eded"
+)
+
 var DBRPMappingCmpOptionsV2 = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
