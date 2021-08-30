@@ -72,6 +72,15 @@ pub enum Error {
 
     #[snafu(display("cannot persisted updated rules: {}", source))]
     CannotPersistUpdatedRules { source: crate::rules::Error },
+
+    #[snafu(display("cannot mark database deleted: {}", source))]
+    CannotMarkDatabaseDeleted {
+        db_name: String,
+        source: object_store::Error,
+    },
+
+    #[snafu(display("no active database named {} to delete", db_name))]
+    NoActiveDatabaseToDelete { db_name: String },
 }
 
 /// A `Database` represents a single configured IOx database - i.e. an
@@ -134,9 +143,15 @@ impl Database {
     ) -> Result<(), InitError> {
         let db_name = provided_rules.db_name();
         let iox_object_store = Arc::new(
-            IoxObjectStore::new(Arc::clone(application.object_store()), server_id, db_name)
+            match IoxObjectStore::new(Arc::clone(application.object_store()), server_id, db_name)
                 .await
-                .context(IoxObjectStoreError)?,
+            {
+                Ok(ios) => ios,
+                Err(iox_object_store::IoxObjectStoreError::DatabaseAlreadyExists { name }) => {
+                    return Err(InitError::DatabaseAlreadyExists { name })
+                }
+                Err(source) => return Err(InitError::IoxObjectStoreError { source }),
+            },
         );
 
         provided_rules
@@ -153,6 +168,50 @@ impl Database {
         )
         .await
         .context(CannotCreatePreservedCatalog)?;
+
+        Ok(())
+    }
+
+    /// Mark this database as deleted.
+    pub async fn delete(&self) -> Result<(), Error> {
+        let db_name = &self.shared.config.name;
+
+        let handle = {
+            let state = self.shared.state.read();
+
+            // Can't delete an already deleted database.
+            ensure!(state.is_active(), NoActiveDatabaseToDelete { db_name });
+
+            state.try_freeze().context(TransitionInProgress {
+                db_name,
+                state: state.state_code(),
+            })?
+        };
+
+        // If there is an object store for this database, write out a tombstone file.
+        // If there isn't an object store, something is wrong and we shouldn't switch the
+        // state without being able to write the tombstone file.
+        self.iox_object_store()
+            .with_context(|| {
+                let state = self.shared.state.read();
+                TransitionInProgress {
+                    db_name,
+                    state: state.state_code(),
+                }
+            })?
+            .write_tombstone()
+            .await
+            .context(CannotMarkDatabaseDeleted { db_name })?;
+
+        let shared = Arc::clone(&self.shared);
+
+        {
+            let mut state = shared.state.write();
+            *state.unfreeze(handle) = DatabaseState::NoActiveDatabase(
+                DatabaseStateKnown {},
+                Arc::new(InitError::NoActiveDatabase),
+            );
+        }
 
         Ok(())
     }
@@ -186,6 +245,11 @@ impl Database {
     /// Gets the current database state
     pub fn is_initialized(&self) -> bool {
         self.shared.state.read().get_initialized().is_some()
+    }
+
+    /// Whether the database is active
+    pub fn is_active(&self) -> bool {
+        self.shared.state.read().is_active()
     }
 
     /// Returns the database rules if they're loaded
@@ -312,16 +376,17 @@ impl Database {
             let current_state = match &**state {
                 DatabaseState::CatalogLoadError(rules_loaded, _) => rules_loaded.clone(),
                 _ => {
-                    return Err(Error::InvalidState {
-                        db_name: db_name.to_string(),
+                    return InvalidState {
+                        db_name,
                         state: state.state_code(),
-                        transition: "WipePreservedCatalog".to_string(),
-                    })
+                        transition: "WipePreservedCatalog",
+                    }
+                    .fail()
                 }
             };
 
-            let handle = state.try_freeze().ok_or(Error::TransitionInProgress {
-                db_name: db_name.to_string(),
+            let handle = state.try_freeze().context(TransitionInProgress {
+                db_name,
                 state: state.state_code(),
             })?;
 
@@ -355,16 +420,17 @@ impl Database {
             let current_state = match &**state {
                 DatabaseState::ReplayError(rules_loaded, _) => rules_loaded.clone(),
                 _ => {
-                    return Err(Error::InvalidState {
-                        db_name: db_name.to_string(),
+                    return InvalidState {
+                        db_name,
                         state: state.state_code(),
-                        transition: "SkipReplay".to_string(),
-                    })
+                        transition: "SkipReplay",
+                    }
+                    .fail()
                 }
             };
 
-            let handle = state.try_freeze().ok_or(Error::TransitionInProgress {
-                db_name: db_name.to_string(),
+            let handle = state.try_freeze().context(TransitionInProgress {
+                db_name,
                 state: state.state_code(),
             })?;
 
@@ -626,6 +692,9 @@ pub enum InitError {
         source: iox_object_store::IoxObjectStoreError,
     },
 
+    #[snafu(display("cannot create database `{}`; it already exists", name))]
+    DatabaseAlreadyExists { name: String },
+
     #[snafu(display("cannot create preserved catalog: {}", source))]
     CannotCreatePreservedCatalog { source: crate::db::load::Error },
 }
@@ -726,6 +795,12 @@ impl DatabaseState {
         }
     }
 
+    /// Whether the end user would want to know about this database or whether they would consider
+    /// this database to be deleted
+    fn is_active(&self) -> bool {
+        !matches!(self, DatabaseState::NoActiveDatabase(_, _))
+    }
+
     fn get_initialized(&self) -> Option<&DatabaseStateInitialized> {
         match self {
             DatabaseState::Initialized(state) => Some(state),
@@ -774,10 +849,11 @@ impl DatabaseStateDatabaseObjectStoreFound {
             .context(LoadingRules)?;
 
         if rules.db_name() != &shared.config.name {
-            return Err(InitError::RulesDatabaseNameMismatch {
-                actual: rules.db_name().to_string(),
-                expected: shared.config.name.to_string(),
-            });
+            return RulesDatabaseNameMismatch {
+                actual: rules.db_name(),
+                expected: shared.config.name.as_str(),
+            }
+            .fail();
         }
 
         Ok(DatabaseStateRulesLoaded {

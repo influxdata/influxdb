@@ -343,7 +343,7 @@ mod tests {
     fn data_path_join_with_parquet_file_path() {
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
-        let generation = Generation::new(3);
+        let generation = Generation::active(3);
         let object_store = make_object_store();
         let root_path = RootPath::new(&object_store, server_id, &database_name);
         let iox_object_store = IoxObjectStore::existing(

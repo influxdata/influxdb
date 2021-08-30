@@ -35,7 +35,7 @@ pub use paths::{
     parquet_file::{ParquetFilePath, ParquetFilePathParseError},
     transaction_file::TransactionFilePath,
 };
-use paths::{DataPath, GenerationPath, RootPath, TransactionsPath};
+use paths::{DataPath, GenerationPath, RootPath, TombstonePath, TransactionsPath};
 
 const DB_RULES_FILE_NAME: &str = "rules.pb";
 
@@ -66,14 +66,14 @@ pub struct IoxObjectStore {
 }
 
 /// Private information about a database's generation.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 struct Generation {
     id: usize,
     deleted: bool,
 }
 
 impl Generation {
-    fn new(id: usize) -> Self {
+    fn active(id: usize) -> Self {
         Self { id, deleted: false }
     }
 
@@ -133,17 +133,17 @@ impl IoxObjectStore {
                 .expect("path can't be empty");
 
             if let Ok(id) = id.to_string().parse() {
-                // TODO: Check for tombstone file once we add a way to create the tombstone file
-                // However, if we can't list the contents of a database directory, we can't
+                // If we can't list the contents of a database directory, we can't
                 // know if it's deleted or not, so this should be an error.
-                // let generation_list_result = inner.list_with_delimiter(&prefix).await?;
-                // prefix.push_dir(TOMBSTONE_FILE_NAME);
-                // let deleted = generation_list_result
-                //     .objects
-                //     .into_iter()
-                //     .any(|object| object.location == prefix);
+                let generation_list_result = inner.list_with_delimiter(&prefix).await?;
+                let tombstone_file = TombstonePath::new_from_object_store_path(&prefix);
 
-                generations.push(Generation::new(id));
+                let deleted = generation_list_result
+                    .objects
+                    .into_iter()
+                    .any(|object| object.location == tombstone_file.inner);
+
+                generations.push(Generation { id, deleted });
             } else {
                 // Deliberately ignoring errors with parsing; if the directory isn't a usize, it's
                 // not a valid database generation directory and we should skip it.
@@ -190,7 +190,7 @@ impl IoxObjectStore {
             inner,
             server_id,
             database_name,
-            Generation::new(next_generation_id),
+            Generation::active(next_generation_id),
             root_path,
         ))
     }
@@ -261,6 +261,24 @@ impl IoxObjectStore {
     /// or debugging purposes only. Do not parse this, as its format is subject to change!
     pub fn debug_database_path(&self) -> String {
         self.generation_path.inner.to_string()
+    }
+
+    // Deliberately private; this should not leak outside this crate
+    // so assumptions about the object store organization are confined
+    // (and can be changed) in this crate
+    fn tombstone_path(&self) -> Path {
+        TombstonePath::new(&self.generation_path).inner
+    }
+
+    /// Write the file in the database directory that indicates this database is marked as deleted,
+    /// without yet actually deleting this directory or any files it contains in object storage.
+    pub async fn write_tombstone(&self) -> Result<()> {
+        let stream = stream::once(async move { Ok(Bytes::new()) });
+        let len = 0;
+
+        self.inner
+            .put(&self.tombstone_path(), stream, Some(len))
+            .await
     }
 
     // Catalog transaction file methods ===========================================================
@@ -392,7 +410,7 @@ impl IoxObjectStore {
     }
 
     /// Get the data for the database rules
-    pub async fn get_database_rules_file(&self) -> Result<bytes::Bytes> {
+    pub async fn get_database_rules_file(&self) -> Result<Bytes> {
         let mut stream = self.inner.get(&self.db_rules_path()).await?;
         let mut bytes = BytesMut::new();
 
@@ -404,7 +422,7 @@ impl IoxObjectStore {
     }
 
     /// Store the data for the database rules
-    pub async fn put_database_rules_file(&self, bytes: bytes::Bytes) -> Result<()> {
+    pub async fn put_database_rules_file(&self, bytes: Bytes) -> Result<()> {
         let len = bytes.len();
         let stream = stream::once(async move { Ok(bytes) });
 
@@ -744,5 +762,112 @@ mod tests {
             .unwrap();
 
         assert_eq!(file_count, 0);
+    }
+
+    #[tokio::test]
+    async fn write_tombstone_twice_is_fine() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let database_name = DatabaseName::new("clouds").unwrap();
+        let iox_object_store =
+            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
+                .await
+                .unwrap();
+
+        // tombstone file should not exist
+        let mut tombstone = object_store.new_path();
+        tombstone.push_all_dirs([
+            server_id.to_string().as_str(),
+            database_name.to_string().as_str(),
+            "0",
+        ]);
+        tombstone.set_file_name("DELETED");
+
+        object_store.get(&tombstone).await.err().unwrap();
+
+        iox_object_store.write_tombstone().await.unwrap();
+
+        // tombstone file should exist
+        object_store.get(&tombstone).await.unwrap();
+
+        // deleting again should still succeed
+        iox_object_store.write_tombstone().await.unwrap();
+
+        // tombstone file should still exist
+        object_store.get(&tombstone).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn delete_then_create_new_with_same_name() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let database_name = DatabaseName::new("clouds").unwrap();
+        let root_path = RootPath::new(&object_store, server_id, &database_name);
+
+        let iox_object_store =
+            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
+                .await
+                .unwrap();
+
+        iox_object_store
+            .put_database_rules_file(Bytes::new())
+            .await
+            .unwrap();
+
+        let generations = IoxObjectStore::list_generations(&object_store, &root_path)
+            .await
+            .unwrap();
+        assert_eq!(generations.len(), 1);
+        assert_eq!(
+            generations[0],
+            Generation {
+                id: 0,
+                deleted: false
+            }
+        );
+
+        iox_object_store.write_tombstone().await.unwrap();
+
+        let generations = IoxObjectStore::list_generations(&object_store, &root_path)
+            .await
+            .unwrap();
+        assert_eq!(generations.len(), 1);
+        assert_eq!(
+            generations[0],
+            Generation {
+                id: 0,
+                deleted: true
+            }
+        );
+
+        let iox_object_store =
+            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
+                .await
+                .unwrap();
+
+        iox_object_store
+            .put_database_rules_file(Bytes::new())
+            .await
+            .unwrap();
+
+        let mut generations = IoxObjectStore::list_generations(&object_store, &root_path)
+            .await
+            .unwrap();
+        assert_eq!(generations.len(), 2);
+        generations.sort_by_key(|g| g.id);
+        assert_eq!(
+            generations[0],
+            Generation {
+                id: 0,
+                deleted: true
+            }
+        );
+        assert_eq!(
+            generations[1],
+            Generation {
+                id: 1,
+                deleted: false
+            }
+        );
     }
 }

@@ -90,6 +90,15 @@ where
             .database(&name)
             .map_err(default_server_error_handler)?;
 
+        if !database.is_active() {
+            return Err(NotFound {
+                resource_type: "database".to_string(),
+                resource_name: name.to_string(),
+                ..Default::default()
+            }
+            .into());
+        }
+
         let rules = database
             .provided_rules()
             .map(|rules| format_rules(rules, omit_defaults))
@@ -153,6 +162,20 @@ where
         Ok(Response::new(UpdateDatabaseResponse {
             rules: Some(updated_rules.rules().as_ref().clone().into()),
         }))
+    }
+
+    async fn delete_database(
+        &self,
+        request: Request<DeleteDatabaseRequest>,
+    ) -> Result<Response<DeleteDatabaseResponse>, Status> {
+        let db_name = DatabaseName::new(request.into_inner().db_name).field("db_name")?;
+
+        self.server
+            .delete_database(&db_name)
+            .await
+            .map_err(default_server_error_handler)?;
+
+        Ok(Response::new(DeleteDatabaseResponse {}))
     }
 
     async fn list_chunks(

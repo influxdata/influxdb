@@ -83,6 +83,29 @@ impl GenerationPath {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct TombstonePath {
+    pub(crate) inner: Path,
+}
+
+impl TombstonePath {
+    const TOMBSTONE_FILE_NAME: &'static str = "DELETED";
+
+    /// How the tombstone path of a database is defined in object storage in terms of the
+    /// generation path.
+    pub(crate) fn new(generation_path: &GenerationPath) -> Self {
+        Self::new_from_object_store_path(&generation_path.inner)
+    }
+
+    /// Creating a potential tombstone file location given an object storage path received from
+    /// an object storage list operation.
+    pub(crate) fn new_from_object_store_path(path: &Path) -> Self {
+        let mut inner = path.clone();
+        inner.set_file_name(Self::TOMBSTONE_FILE_NAME);
+        Self { inner }
+    }
+}
+
 /// A database-specific object store path for all catalog transaction files. This should not be
 /// leaked outside this crate.
 #[derive(Debug, Clone)]
@@ -187,7 +210,7 @@ mod tests {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
-        let generation = Generation::new(3);
+        let generation = Generation::active(3);
         let root_path = RootPath::new(&object_store, server_id, &database_name);
         let iox_object_store = IoxObjectStore::existing(
             Arc::clone(&object_store),
@@ -207,7 +230,7 @@ mod tests {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
-        let generation = Generation::new(3);
+        let generation = Generation::active(3);
         let root_path = RootPath::new(&object_store, server_id, &database_name);
         let iox_object_store = IoxObjectStore::existing(
             Arc::clone(&object_store),
@@ -227,7 +250,7 @@ mod tests {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
-        let generation = Generation::new(3);
+        let generation = Generation::active(3);
         let root_path = RootPath::new(&object_store, server_id, &database_name);
         let iox_object_store = IoxObjectStore::existing(
             Arc::clone(&object_store),
