@@ -15,15 +15,9 @@ use parking_lot::Mutex;
 use prometheus::{Encoder, Registry, TextEncoder};
 
 use observability_deps::tracing::*;
-use opentelemetry::{
-    metrics::{
-        registry::RegistryMeterProvider, Meter as OTMeter, MeterProvider, ObserverResult,
-        ValueRecorderBuilder,
-    },
-    sdk::{
-        export::metrics::ExportKindSelector,
-        metrics::{controllers, selectors::simple::Selector},
-    },
+use opentelemetry::metrics::{
+    registry::RegistryMeterProvider, Meter as OTMeter, MeterProvider, ObserverResult,
+    ValueRecorderBuilder,
 };
 
 pub use crate::gauge::*;
@@ -145,24 +139,17 @@ impl Default for MetricRegistry {
         let default_histogram_boundaries = vec![
             0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
         ];
-        let selector = Box::new(Selector::Histogram(default_histogram_boundaries.clone()));
-        let controller = controllers::pull(selector, Box::new(ExportKindSelector::Cumulative))
-            // Disables caching
-            .with_cache_period(std::time::Duration::from_secs(0))
-            // Remember all metrics observed, not just recently updated
-            .with_memory(true)
-            .build();
 
         // Initialise the prometheus exporter
         let default_summary_quantiles = vec![0.5, 0.9, 0.99];
 
-        let exporter = PrometheusExporter::new(
-            registry,
-            controller,
-            default_summary_quantiles,
-            default_histogram_boundaries,
-        )
-        .unwrap();
+        let exporter = opentelemetry_prometheus::exporter()
+            .with_registry(registry)
+            // Disables caching
+            .with_cache_period(std::time::Duration::from_secs(0))
+            .with_default_summary_quantiles(default_summary_quantiles)
+            .with_default_histogram_boundaries(default_histogram_boundaries)
+            .init();
 
         let provider = exporter.provider().unwrap();
         let observers = Arc::new(ObserverCollection::new(provider.meter("observers", None)));
