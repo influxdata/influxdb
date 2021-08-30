@@ -1,6 +1,10 @@
 ## v2.0.9 [unreleased]
 ----------------------
 
+### Features
+
+1. [22346](https://github.com/influxdata/influxdb/pull/22346): Add `--flux-log-enabled` option to `influxd` to show detailed logs for flux queries.
+
 ### Bug Fixes
 
 1. [22242](https://github.com/influxdata/influxdb/pull/22242): Preserve comments in flux queries when saving task definitions
