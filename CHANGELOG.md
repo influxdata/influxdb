@@ -34,6 +34,7 @@
 -	[#22195](https://github.com/influxdata/influxdb/pull/22195): fix: avoid compaction queue stats flutter
 -	[#22283](https://github.com/influxdata/influxdb/pull/22283): fix: require database authorization to see continuous queries
 -	[#22273](https://github.com/influxdata/influxdb/pull/22273): fix: return correct count of ErrNotExecuted
+-	[#22338](https://github.com/influxdata/influxdb/pull/22338): fix: TSI logfile race
 
 v1.9.2 [unreleased]
 -	[#21631](https://github.com/influxdata/influxdb/pull/21631): fix: group by returns multiple results per group in some circumstances
