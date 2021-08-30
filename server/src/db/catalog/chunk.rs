@@ -14,6 +14,7 @@ use metrics::{Counter, Histogram, KeyValue};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
+use query::predicate::Predicate;
 use read_buffer::RBChunk;
 use snafu::Snafu;
 use std::sync::Arc;
@@ -74,6 +75,9 @@ pub struct ChunkMetadata {
 
     /// The schema for the table in this Chunk
     pub schema: Arc<Schema>,
+
+    /// Delete predicates of this chunk
+    pub delete_predicates: Arc<Vec<Predicate>>, 
 }
 
 /// Different memory representations of a frozen chunk.
@@ -305,6 +309,7 @@ impl CatalogChunk {
             meta: Arc::new(ChunkMetadata {
                 table_summary: Arc::new(chunk.table_summary()),
                 schema,
+                delete_predicates: Arc::new(vec![]), //todo: consider to use the one of the given chunk if appropriate
             }),
             representation: ChunkStageFrozenRepr::ReadBuffer(Arc::new(chunk)),
         };
@@ -342,6 +347,7 @@ impl CatalogChunk {
         let meta = Arc::new(ChunkMetadata {
             table_summary: Arc::clone(chunk.table_summary()),
             schema: chunk.schema(),
+            delete_predicates: Arc::new(vec![]), //todo: consider to use the one of the given chunk if appropriate
         });
 
         let stage = ChunkStage::Persisted {
@@ -641,6 +647,7 @@ impl CatalogChunk {
                 let metadata = ChunkMetadata {
                     table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: s.full_schema(),
+                    delete_predicates: Arc::new(vec![]), //todo: consider to use the one of the mb_chunk if appropriate
                 };
 
                 self.stage = ChunkStage::Frozen {
@@ -729,6 +736,7 @@ impl CatalogChunk {
                 *meta = Arc::new(ChunkMetadata {
                     table_summary: Arc::clone(&meta.table_summary),
                     schema,
+                    delete_predicates: Arc::new(vec![]), //todo: consider to use the one of the given chunk if appropriate
                 });
 
                 match &representation {

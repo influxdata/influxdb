@@ -117,6 +117,7 @@ impl DbChunk {
                 let meta = ChunkMetadata {
                     table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: snapshot.full_schema(),
+                    delete_predicates: Arc::new(vec![]), //todo: consider to use the one of the given chunk if appropriate
                 };
                 (state, Arc::new(meta))
             }
