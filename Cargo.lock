@@ -2723,6 +2723,8 @@ dependencies = [
  "pin-project 1.0.8",
  "rand 0.8.4",
  "thiserror",
+ "tokio",
+ "tokio-stream",
 ]
 
 [[package]]
@@ -2737,6 +2739,7 @@ dependencies = [
  "opentelemetry-semantic-conventions",
  "thiserror",
  "thrift",
+ "tokio",
 ]
 
 [[package]]
@@ -4890,7 +4893,7 @@ dependencies = [
  "chrono",
  "futures",
  "observability_deps",
- "opentelemetry 0.15.0",
+ "opentelemetry 0.16.0",
  "opentelemetry-jaeger",
  "snafu",
  "structopt",

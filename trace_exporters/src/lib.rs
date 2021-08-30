@@ -119,7 +119,7 @@ fn jaeger_exporter(config: &TracingConfig) -> Result<Arc<dyn TraceCollector>> {
     let exporter = opentelemetry_jaeger::new_pipeline()
         .with_agent_endpoint(agent_endpoint)
         .with_service_name(&config.traces_exporter_jaeger_service_name)
-        .init_exporter()
+        .init_async_exporter(opentelemetry::runtime::Tokio {})
         .map_err(|source| Error::TraceExporter { source })?;
 
     Ok(Arc::new(otel::OtelExporter::new(exporter)))
