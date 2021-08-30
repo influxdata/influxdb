@@ -181,7 +181,7 @@ where
     fn potential_overlap(&self, other: &Self) -> Result<bool> {
         // This algorithm assumes that the keys are sorted by name (so
         // they can't appear in different orders on the two sides) except
-        // the "time"column which is always the last column
+        // the "time" column which is always the last column
         debug_assert!(self
             .key_summaries
             .windows(2)
