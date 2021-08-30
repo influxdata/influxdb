@@ -190,6 +190,9 @@ start_time() {
     metaquery)
       echo 2019-01-01T00:00:00Z
       ;;
+    multi-measurement)
+      echo 2017-01-01T00:00:00Z
+      ;;
     *)
       echo "unknown use-case: $1"
       exit 1
@@ -212,6 +215,9 @@ end_time() {
     metaquery)
       echo 2020-01-01T00:00:00Z
       ;;
+    multi-measurement)
+      echo 2018-01-01T00:00:00Z
+      ;;
     *)
       echo "unknown use-case: $1"
       exit 1
@@ -222,7 +228,7 @@ end_time() {
 # Run and record tests
 
 # Generate and ingest bulk data. Record the time spent as an ingest test.
-for usecase in iot metaquery; do
+for usecase in iot metaquery multi-measurement; do
   data_fname="influx-bulk-records-usecase-$usecase"
   $GOPATH/bin/bulk_data_gen \
       -seed=$seed \
@@ -259,10 +265,13 @@ query_types() {
       echo min-high-card mean-high-card max-high-card first-high-card last-high-card count-high-card sum-high-card min-low-card mean-low-card max-low-card first-low-card last-low-card count-low-card sum-low-card
       ;;
     iot)
-      echo fast-query-small-data standalone-filter aggregate-keep aggregate-drop sorted-pivot multi-measurement-or
+      echo fast-query-small-data standalone-filter aggregate-keep aggregate-drop sorted-pivot
       ;;
     metaquery)
       echo field-keys tag-values
+      ;;
+    multi-measurement)
+      echo multi-measurement-or
       ;;
     *)
       echo "unknown use-case: $1"
@@ -271,23 +280,9 @@ query_types() {
   esac
 }
 
-query_interval() {
-  case $1 in
-    multi-measurement-or)
-      echo -query-interval=5m
-      ;;
-    *)
-      # If a query interval is not matched in the cases above, do not pass this
-      # flag at all to the query generation tool so that the default value from
-      # the query generation tool can be used.
-      echo ""
-      ;;
-  esac
-}
-
 # Generate queries to test.
 query_files=""
-for usecase in window-agg group-agg bare-agg group-window-transpose iot metaquery; do
+for usecase in window-agg group-agg bare-agg group-window-transpose iot metaquery multi-measurement; do
   for type in $(query_types $usecase); do
     query_fname="${TEST_FORMAT}_${usecase}_${type}"
     $GOPATH/bin/bulk_query_gen \
@@ -297,8 +292,7 @@ for usecase in window-agg group-agg bare-agg group-window-transpose iot metaquer
         -timestamp-start=$(start_time $usecase $type) \
         -timestamp-end=$(end_time $usecase $type) \
         -queries=$queries \
-        -scale-var=$scale_var \
-        $(query_interval $type) > \
+        -scale-var=$scale_var > \
       ${DATASET_DIR}/$query_fname
     query_files="$query_files $query_fname"
   done
