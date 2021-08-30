@@ -87,6 +87,8 @@ func NewLogFile(sfile *tsdb.SeriesFile, path string) *LogFile {
 
 // bytes estimates the memory footprint of this LogFile, in bytes.
 func (f *LogFile) bytes() int {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	var b int
 	b += 24 // mu RWMutex is 24 bytes
 	b += 16 // wg WaitGroup is 16 bytes
@@ -261,6 +263,13 @@ func (f *LogFile) Size() int64 {
 	v := f.size
 	f.mu.RUnlock()
 	return v
+}
+
+// ModTime returns the last modified time of the file
+func (f *LogFile) ModTime() time.Time {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.modTime
 }
 
 // Measurement returns a measurement element.

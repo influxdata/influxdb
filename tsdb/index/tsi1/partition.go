@@ -1145,7 +1145,8 @@ func (p *Partition) Rebuild() {}
 // The caller must have at least a read lock on the partition
 func (p *Partition) needsLogCompaction() bool {
 	size := p.activeLogFile.Size()
-	return size >= p.MaxLogFileSize || (size > 0 && p.activeLogFile.modTime.Before(time.Now().Add(-p.MaxLogFileAge)))
+	modTime := p.activeLogFile.ModTime()
+	return size >= p.MaxLogFileSize || (size > 0 && modTime.Before(time.Now().Add(-p.MaxLogFileAge)))
 }
 
 func (p *Partition) CheckLogFile() error {
