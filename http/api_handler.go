@@ -29,9 +29,10 @@ type APIHandler struct {
 // APIBackend is all services and associated parameters required to construct
 // an APIHandler.
 type APIBackend struct {
-	AssetsPath string // if empty then assets are served from bindata.
-	UIDisabled bool   // if true requests for the UI will return 404
-	Logger     *zap.Logger
+	AssetsPath     string // if empty then assets are served from bindata.
+	UIDisabled     bool   // if true requests for the UI will return 404
+	Logger         *zap.Logger
+	FluxLogEnabled bool
 	influxdb.HTTPErrorHandler
 	SessionRenewDisabled bool
 	// MaxBatchSizeBytes is the maximum number of bytes which can be written
