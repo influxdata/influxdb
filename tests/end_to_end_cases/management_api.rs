@@ -255,6 +255,40 @@ async fn test_list_databases() {
     for rules in &databases {
         assert!(rules.lifecycle_rules.is_none());
     }
+
+    // now delete one of the databases; it should not appear whether we're omitting defaults or not
+    client.delete_database(&name1).await.unwrap();
+
+    let omit_defaults = false;
+    let databases: Vec<_> = client
+        .list_databases(omit_defaults)
+        .await
+        .expect("list databases failed")
+        .into_iter()
+        // names may contain the names of other databases created by
+        // concurrent tests as well
+        .filter(|rules| rules.name == name1 || rules.name == name2)
+        .collect();
+
+    let names: Vec<_> = databases.iter().map(|rules| rules.name.clone()).collect();
+
+    assert!(!dbg!(&names).contains(&name1));
+    assert!(dbg!(&names).contains(&name2));
+
+    let omit_defaults = true;
+    let databases: Vec<_> = client
+        .list_databases(omit_defaults)
+        .await
+        .expect("list databases failed")
+        .into_iter()
+        // names may contain the names of other databases created by
+        // concurrent tests as well
+        .filter(|rules| rules.name == name1 || rules.name == name2)
+        .collect();
+
+    let names: Vec<_> = databases.iter().map(|rules| rules.name.clone()).collect();
+    assert!(!dbg!(&names).contains(&name1));
+    assert!(dbg!(&names).contains(&name2));
 }
 
 #[tokio::test]
