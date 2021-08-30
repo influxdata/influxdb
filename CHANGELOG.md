@@ -62,6 +62,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 1. [22235](https://github.com/influxdata/influxdb/pull/22235): Avoid compaction queue stats flutter.
 1. [22272](https://github.com/influxdata/influxdb/pull/22272): Requests to `/api/v2/authorizations` filter correctly on `org` and `user` parameters.
 1. [22311](https://github.com/influxdata/influxdb/pull/22311): Enforce max field size while parsing line protocol.
+1. [22334](https://github.com/influxdata/influxdb/pull/22334): Periodically compact old and large TSI files.
 
 ## v2.0.8 [2021-08-13]
 
