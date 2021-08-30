@@ -1568,6 +1568,64 @@ func TestIterator_EncodeDecode(t *testing.T) {
 	}
 }
 
+// Test implementation of query.IntegerIterator
+type IntegerConstIterator struct {
+	numPoints int
+	Closed    bool
+	stats     query.IteratorStats
+	point     query.IntegerPoint
+}
+
+func BenchmarkIterator_Aggregator(b *testing.B) {
+	input := &IntegerConstIterator{
+		numPoints: b.N,
+		Closed:    false,
+		stats:     query.IteratorStats{},
+		point: query.IntegerPoint{
+			Name:  "constPoint",
+			Value: 1,
+		},
+	}
+	opt := query.IteratorOptions{
+		Interval: query.Interval{
+			Duration: 100 * time.Minute,
+		},
+		Expr: &influxql.Call{
+			Name: "count",
+		},
+	}
+
+	counter, err := query.NewCallIterator(input, opt)
+	if err != nil {
+		b.Fatalf("Bad counter: %v", err)
+	}
+
+	b.ResetTimer()
+	point, err := counter.(query.IntegerIterator).Next()
+	if err != nil {
+		b.Fatalf("Unexpected error %v", err)
+	}
+	if point == nil {
+		b.Fatal("Expected point not to be nil")
+	}
+	if point.Value != int64(b.N) {
+		b.Fatalf("Expected %v != %v points", b.N, point.Value)
+	}
+}
+
+func (itr *IntegerConstIterator) Stats() query.IteratorStats { return itr.stats }
+func (itr *IntegerConstIterator) Close() error               { itr.Closed = true; return nil }
+
+// Next returns the next value and shifts it off the beginning of the points slice.
+func (itr *IntegerConstIterator) Next() (*query.IntegerPoint, error) {
+	if itr.numPoints == 0 || itr.Closed {
+		return nil, nil
+	}
+	itr.numPoints--
+	itr.point.Time++
+	return &itr.point, nil
+}
+
 // Test implementation of influxql.FloatIterator
 type FloatIterator struct {
 	Context context.Context

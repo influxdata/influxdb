@@ -1,7 +1,11 @@
 package query_test
 
 import (
+	"crypto/sha1"
+	"fmt"
 	"math"
+	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 
@@ -9,6 +13,8 @@ import (
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/pkg/deep"
 	"github.com/influxdata/influxql"
+	tassert "github.com/stretchr/testify/assert"
+	trequire "github.com/stretchr/testify/require"
 )
 
 func almostEqual(got, exp float64) bool {
@@ -496,4 +502,80 @@ func TestSample_SampleSizeGreaterThanNumPoints(t *testing.T) {
 	if !deep.Equal(ps, points) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(points))
 	}
+}
+
+func TestHll_SumAndMergeHll(t *testing.T) {
+	assert := tassert.New(t)
+	require := trequire.New(t)
+
+	// Make 3000 random strings
+	r := rand.New(rand.NewSource(42))
+	input := make([]*query.StringPoint, 0, 3000)
+	for i := 0; i < 3000; i++ {
+		input = append(input, &query.StringPoint{Value: strconv.FormatUint(r.Uint64(), 10)})
+	}
+
+	// Insert overlapping sections of the same points array to different reducers
+	s1 := query.NewStringSumHllReducer()
+	for _, p := range input[:2000] {
+		s1.AggregateString(p)
+	}
+	point1 := s1.Emit()
+	s2 := query.NewStringSumHllReducer()
+	for _, p := range input[1000:] {
+		s2.AggregateString(p)
+	}
+	point2 := s2.Emit()
+	// Demonstration of the input: repeatably seeded pseudorandom
+	// stringified integers (so we are testing the counting of unique strings,
+	// not unique integers).
+	require.Equal("17190211103962133664", input[2999].Value)
+
+	checkStringFingerprint := func(prefix string, length int, hash string, check string) {
+		assert.Equal(length, len(check))
+		assert.Equal(prefix, check[:len(prefix)])
+		h := sha1.New()
+		h.Write([]byte(check))
+		assert.Equal(hash, fmt.Sprintf("%x", h.Sum(nil)))
+	}
+
+	require.Equal(len(point1), 1)
+	require.Equal(len(point2), 1)
+	checkStringFingerprint("HLL_AhABAAAAAAAAB9BIDQAJAAAUUaKsA4K/AtARkuMBsJwEyp8O",
+		6964, "c59fa799fe8e78ab5347de385bf2a7c5b8085882", point1[0].Value)
+	checkStringFingerprint("HLL_AhABAAAAAAAAB9Db0QAHAAAUaP6aAaSRAoK/Ap70B/xSysEE",
+		6996, "5f1696dfb455baab7fdb56ffd2197d27b09d6dcf", point2[0].Value)
+
+	m := query.NewStringMergeHllReducer()
+	m.AggregateString(&point1[0])
+	m.AggregateString(&point2[0])
+	merged := m.Emit()
+	require.Equal(1, len(merged))
+	checkStringFingerprint("HLL_AhAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAA",
+		87396, "e5320860aa322efe9af268e171df916d2186c75f", merged[0].Value)
+
+	m.AggregateString(&query.StringPoint{
+		Time:  query.ZeroTime,
+		Value: "some random string",
+	})
+	mergedError := m.Emit()
+	// mid-level errors are:
+	require.Equal(1, len(mergedError))
+	assert.Equal("HLLERROR bad prefix for hll.Plus", mergedError[0].Value)
+
+	c := query.NewCountHllReducer()
+	c.AggregateString(&merged[0])
+	counted := c.Emit()
+	require.Equal(1, len(counted))
+	// Counted 4000 points, 3000 distinct points, answer is 2994 ≈ 3000
+	assert.Equal(uint64(2994), counted[0].Value)
+
+	c.AggregateString(&query.StringPoint{
+		Time:  query.ZeroTime,
+		Value: "HLLERROR bad prefix for hll.Plus",
+	})
+	counted = c.Emit()
+	require.Equal(1, len(counted))
+	// When we hit marshal/unmarshal errors
+	assert.Equal(uint64(0), counted[0].Value)
 }

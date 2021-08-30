@@ -285,7 +285,7 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 		opt.Interval = Interval{}
 
 		return newHoltWintersIterator(input, opt, int(h.Val), int(m.Val), includeFitData, interval)
-	case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "relative_strength_index", "triple_exponential_derivative", "kaufmans_efficiency_ratio", "kaufmans_adaptive_moving_average", "chande_momentum_oscillator", "elapsed":
+	case "count_hll", "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "relative_strength_index", "triple_exponential_derivative", "kaufmans_efficiency_ratio", "kaufmans_adaptive_moving_average", "chande_momentum_oscillator", "elapsed":
 		if !opt.Interval.IsZero() {
 			if opt.Ascending {
 				opt.StartTime -= int64(opt.Interval.Duration)
@@ -301,6 +301,8 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 		}
 
 		switch expr.Name {
+		case "count_hll":
+			return NewCountHllIterator(input, opt)
 		case "derivative", "non_negative_derivative":
 			interval := opt.DerivativeInterval()
 			isNonNegative := (expr.Name == "non_negative_derivative")
@@ -541,7 +543,7 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 				}
 			}
 			fallthrough
-		case "min", "max", "sum", "first", "last", "mean":
+		case "min", "max", "sum", "first", "last", "mean", "sum_hll", "merge_hll":
 			return b.callIterator(ctx, expr, opt)
 		case "median":
 			opt.Ordered = true

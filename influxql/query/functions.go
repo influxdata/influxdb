@@ -2,16 +2,22 @@ package query
 
 import (
 	"container/heap"
+	"encoding/base64"
+	"fmt"
 	"math"
 	"sort"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/influxql/query/internal/gota"
 	"github.com/influxdata/influxdb/v2/influxql/query/neldermead"
+	"github.com/influxdata/influxdb/v2/pkg/estimator/hll"
 	"github.com/influxdata/influxql"
 )
 
-// queryFieldMapper is a FieldMapper that wraps another FieldMapper and exposes
+var hllPrefix = []byte("HLL_")
+var hllErrorPrefix = []byte("HLLERROR ")
+
+// FieldMapper is a FieldMapper that wraps another FieldMapper and exposes
 // the functions implemented by the query engine.
 type queryFieldMapper struct {
 	influxql.FieldMapper
@@ -2149,4 +2155,117 @@ func (r *UnsignedBottomReducer) Emit() []UnsignedPoint {
 	h := unsignedPointsByFunc{points: points, cmp: r.h.cmp}
 	sort.Sort(sort.Reverse(&h))
 	return points
+}
+
+type StringMergeHllReducer struct {
+	plus *hll.Plus
+	err  error
+}
+
+func NewStringMergeHllReducer() *StringMergeHllReducer {
+	return &StringMergeHllReducer{plus: nil}
+}
+
+func unmarshalPlus(s string) (*hll.Plus, error) {
+	if string(hllPrefix) != s[:len(hllPrefix)] {
+		if string(hllErrorPrefix) == s[:len(hllErrorPrefix)] {
+			// parse a special error out of the string.
+			return nil, fmt.Errorf("%v", s[len(hllErrorPrefix):])
+		}
+		return nil, fmt.Errorf("bad prefix for hll.Plus")
+	}
+	data := []byte(s[len(hllPrefix):])
+	if len(data) == 0 {
+		// explicitly treat as empty no-op
+		return nil, nil
+	}
+	b := make([]byte, base64.StdEncoding.DecodedLen(len(data)))
+	_, _ = base64.StdEncoding.Decode(b, data)
+	h := new(hll.Plus)
+	if err := h.UnmarshalBinary(b); err != nil {
+		return nil, err
+	}
+	return h, nil
+}
+
+func (r *StringMergeHllReducer) AggregateString(p *StringPoint) {
+	// we cannot return an error because returning an error slows all aggregation
+	// functions by ~1%. So we hack around it by marshalling the error as a string.
+	if r.err != nil {
+		return
+	}
+	h, err := unmarshalPlus(p.Value)
+	if err != nil {
+		r.err = err
+		return
+	}
+	if r.plus == nil {
+		r.plus = h
+		return
+	}
+	err = r.plus.Merge(h)
+	if err != nil {
+		r.err = err
+		return
+	}
+}
+
+func marshalPlus(p *hll.Plus, err error) StringPoint {
+	if err != nil {
+		return StringPoint{
+			Time:  ZeroTime,
+			Value: string(hllErrorPrefix) + err.Error(),
+		}
+	}
+	if p == nil {
+		return StringPoint{
+			Time:  ZeroTime,
+			Value: string(hllPrefix),
+		}
+	}
+	b, err := p.MarshalBinary()
+	if err != nil {
+		return StringPoint{
+			Time:  ZeroTime,
+			Value: string(hllErrorPrefix) + err.Error(),
+		}
+	}
+	hllValue := make([]byte, len(hllPrefix)+base64.StdEncoding.EncodedLen(len(b)))
+	copy(hllValue, hllPrefix)
+	base64.StdEncoding.Encode(hllValue[len(hllPrefix):], b)
+	return StringPoint{
+		Time:  ZeroTime,
+		Value: string(hllValue),
+	}
+}
+
+func (r *StringMergeHllReducer) Emit() []StringPoint {
+	return []StringPoint{
+		marshalPlus(r.plus, r.err),
+	}
+}
+
+type CountHllReducer struct {
+	next UnsignedPoint
+}
+
+func NewCountHllReducer() *CountHllReducer {
+	return &CountHllReducer{}
+}
+
+func (r *CountHllReducer) AggregateString(p *StringPoint) {
+	r.next.Name = p.Name
+	r.next.Time = p.Time
+	h, err := unmarshalPlus(p.Value)
+	if err != nil {
+		r.next.Value = 0
+		return
+	}
+	r.next.Value = h.Count()
+}
+
+func (r *CountHllReducer) Emit() []UnsignedPoint {
+	return []UnsignedPoint{
+		r.next,
+	}
 }

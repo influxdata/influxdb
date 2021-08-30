@@ -308,6 +308,8 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 			return c.compileElapsed(expr.Args)
 		case "integral":
 			return c.compileIntegral(expr.Args)
+		case "count_hll":
+			return c.compileCountHll(expr.Args)
 		case "holt_winters", "holt_winters_with_fit":
 			withFit := expr.Name == "holt_winters_with_fit"
 			return c.compileHoltWinters(expr.Args, withFit)
@@ -393,7 +395,7 @@ func (c *compiledField) compileFunction(expr *influxql.Call) error {
 	switch expr.Name {
 	case "max", "min", "first", "last":
 		// top/bottom are not included here since they are not typical functions.
-	case "count", "sum", "mean", "median", "mode", "stddev", "spread":
+	case "count", "sum", "mean", "median", "mode", "stddev", "spread", "sum_hll":
 		// These functions are not considered selectors.
 		c.global.OnlySelectors = false
 	default:
@@ -782,6 +784,19 @@ func (c *compiledField) compileIntegral(args []influxql.Expr) error {
 
 	// Must be a variable reference, wildcard, or regexp.
 	return c.compileSymbol("integral", args[0])
+}
+
+func (c *compiledField) compileCountHll(args []influxql.Expr) error {
+	if exp, got := 1, len(args); exp != got {
+		return fmt.Errorf("invalid number of arguments for count_hll, expected %d, got %d", exp, got)
+	}
+	c.global.OnlySelectors = false
+	switch arg0 := args[0].(type) {
+	case *influxql.Call:
+		return c.compileExpr(arg0)
+	default:
+		return c.compileSymbol("count_hll", arg0)
+	}
 }
 
 func (c *compiledField) compileHoltWinters(args []influxql.Expr, withFit bool) error {

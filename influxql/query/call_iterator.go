@@ -53,6 +53,10 @@ func NewCallIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 		return newLastIterator(input, opt)
 	case "mean":
 		return newMeanIterator(input, opt)
+	case "sum_hll":
+		return NewSumHllIterator(input, opt)
+	case "merge_hll":
+		return NewMergeHllIterator(input, opt)
 	default:
 		return nil, fmt.Errorf("unsupported function call: %s", name)
 	}
@@ -1527,5 +1531,70 @@ func newIntegralIterator(input Iterator, opt IteratorOptions, interval Interval)
 		return newUnsignedStreamFloatIterator(input, createFn, opt), nil
 	default:
 		return nil, fmt.Errorf("unsupported integral iterator type: %T", input)
+	}
+}
+
+// NewSumHllIterator returns an iterator for operating on a distinct() call.
+func NewSumHllIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, StringPointEmitter) {
+			fn := NewFloatSumHllReducer()
+			return fn, fn
+		}
+		return newFloatReduceStringIterator(input, opt, createFn), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, StringPointEmitter) {
+			fn := NewIntegerSumHllReducer()
+			return fn, fn
+		}
+		return newIntegerReduceStringIterator(input, opt, createFn), nil
+	case UnsignedIterator:
+		createFn := func() (UnsignedPointAggregator, StringPointEmitter) {
+			fn := NewUnsignedSumHllReducer()
+			return fn, fn
+		}
+		return newUnsignedReduceStringIterator(input, opt, createFn), nil
+	case StringIterator:
+		createFn := func() (StringPointAggregator, StringPointEmitter) {
+			fn := NewStringSumHllReducer()
+			return fn, fn
+		}
+		return newStringReduceStringIterator(input, opt, createFn), nil
+	case BooleanIterator:
+		createFn := func() (BooleanPointAggregator, StringPointEmitter) {
+			fn := NewBooleanSumHllReducer()
+			return fn, fn
+		}
+		return newBooleanReduceStringIterator(input, opt, createFn), nil
+	default:
+		return nil, fmt.Errorf("unsupported sum_hll iterator type: %T", input)
+	}
+}
+
+// NewSumHllIterator returns an iterator for operating on a distinct() call.
+func NewMergeHllIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case StringIterator:
+		createFn := func() (StringPointAggregator, StringPointEmitter) {
+			fn := NewStringMergeHllReducer()
+			return fn, fn
+		}
+		return newStringReduceStringIterator(input, opt, createFn), nil
+	default:
+		return nil, fmt.Errorf("unsupported merge_hll iterator type: %T", input)
+	}
+}
+
+func NewCountHllIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case StringIterator:
+		createFn := func() (StringPointAggregator, UnsignedPointEmitter) {
+			fn := NewCountHllReducer()
+			return fn, fn
+		}
+		return newStringStreamUnsignedIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported count_hll iterator type: %T", input)
 	}
 }
