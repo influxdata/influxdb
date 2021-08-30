@@ -136,9 +136,8 @@ type Launcher struct {
 	httpPort   int
 	tlsEnabled bool
 
-	scheduler          stoppingScheduler
-	executor           *executor.Executor
-	taskControlService taskbackend.TaskControlService
+	scheduler stoppingScheduler
+	executor  *executor.Executor
 
 	log *zap.Logger
 	reg *prom.Registry
@@ -434,7 +433,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			executor)
 
 		taskSvc = middleware.New(combinedTaskService, taskCoord)
-		m.taskControlService = combinedTaskService
 		if err := taskbackend.TaskNotifyCoordinatorOfExisting(
 			ctx,
 			taskSvc,
@@ -1244,11 +1242,6 @@ func (m *Launcher) UserService() platform.UserService {
 	return m.apibackend.UserService
 }
 
-// UserResourceMappingService returns the internal user resource mapping service.
-func (m *Launcher) UserResourceMappingService() platform.UserResourceMappingService {
-	return m.apibackend.UserResourceMappingService
-}
-
 // AuthorizationService returns the internal authorization service.
 func (m *Launcher) AuthorizationService() platform.AuthorizationService {
 	return m.apibackend.AuthorizationService
@@ -1263,24 +1256,9 @@ func (m *Launcher) SecretService() platform.SecretService {
 	return m.apibackend.SecretService
 }
 
-// TaskService returns the internal task service.
-func (m *Launcher) TaskService() taskmodel.TaskService {
-	return m.apibackend.TaskService
-}
-
-// TaskControlService returns the internal store service.
-func (m *Launcher) TaskControlService() taskbackend.TaskControlService {
-	return m.taskControlService
-}
-
 // CheckService returns the internal check service.
 func (m *Launcher) CheckService() platform.CheckService {
 	return m.apibackend.CheckService
-}
-
-// KeyValueService returns the internal key-value service.
-func (m *Launcher) KeyValueService() *kv.Service {
-	return m.kvService
 }
 
 func (m *Launcher) DBRPMappingServiceV2() platform.DBRPMappingServiceV2 {
