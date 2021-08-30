@@ -98,18 +98,18 @@ func newIndexSeriesCursorInfluxQLPred(ctx context.Context, predicate influxql.Ex
 	sg := tsdb.Shards(shards)
 	if mfkeys, err := sg.FieldKeysByPredicate(opt.Condition); err == nil {
 		p.fields = make(map[string][]field, len(mfkeys))
-		fieldNames := []string{}
+		measurementNamesForFields := []string{}
 		for name, fkeys := range mfkeys {
 			fields := make([]field, 0, len(fkeys))
 			for _, key := range fkeys {
 				fields = append(fields, field{n: key, nb: []byte(key)})
 			}
 			p.fields[name] = fields
-			fieldNames = append(fieldNames, name)
+			measurementNamesForFields = append(measurementNamesForFields, name)
 		}
 
-		sort.Strings(fieldNames)
-		mitr := tsdb.NewMeasurementSliceIterator(slices.StringsToBytes(fieldNames...))
+		sort.Strings(measurementNamesForFields)
+		mitr := tsdb.NewMeasurementSliceIterator(slices.StringsToBytes(measurementNamesForFields...))
 		p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{Measurements: mitr}, opt.Condition)
 		if p.sqry != nil && err == nil {
 			return p, nil

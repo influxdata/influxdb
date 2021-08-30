@@ -293,7 +293,7 @@ func TestShard_MeasurementOptimization(t *testing.T) {
 			names: nil,
 		},
 		{
-			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name = 'm1' OR _name = 'm2') AND (tag1 != 'foo' OR _name = 'm1')`),
+			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name = 'm1' OR _name = 'm2') AND (tag1 != 'foo' OR _name != 'm1')`),
 			name:  "measurements on both sides",
 			ok:    false,
 			names: nil,
@@ -319,6 +319,7 @@ func TestShard_MeasurementOptimization(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
