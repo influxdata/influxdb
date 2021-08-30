@@ -115,6 +115,21 @@ func (r *storeReader) ReadTagValues(ctx context.Context, spec query.ReadTagValue
 	}, nil
 }
 
+func (r *storeReader) ReadSeriesCardinality(ctx context.Context, spec query.ReadSeriesCardinalitySpec, alloc *memory.Allocator) (query.TableIterator, error) {
+	return &seriesCardinalityIterator{
+		ctx:       ctx,
+		bounds:    spec.Bounds,
+		s:         r.s,
+		readSpec:  spec,
+		predicate: spec.Predicate,
+		alloc:     alloc,
+	}, nil
+}
+
+func (r *storeReader) SupportReadSeriesCardinality(ctx context.Context) bool {
+	return r.s.SupportReadSeriesCardinality(ctx)
+}
+
 func (r *storeReader) Close() {}
 
 type filterIterator struct {
@@ -992,4 +1007,73 @@ func (ti *tagValuesIterator) handleRead(f func(flux.Table) error, rs cursors.Str
 
 func (ti *tagValuesIterator) Statistics() cursors.CursorStats {
 	return cursors.CursorStats{}
+}
+
+type seriesCardinalityIterator struct {
+	ctx       context.Context
+	bounds    execute.Bounds
+	s         storage.Store
+	readSpec  query.ReadSeriesCardinalitySpec
+	predicate *datatypes.Predicate
+	alloc     *memory.Allocator
+	stats     cursors.CursorStats
+}
+
+func (si *seriesCardinalityIterator) Do(f func(flux.Table) error) error {
+	src := si.s.GetSource(
+		uint64(si.readSpec.OrganizationID),
+		uint64(si.readSpec.BucketID),
+	)
+
+	var req datatypes.ReadSeriesCardinalityRequest
+	any, err := types.MarshalAny(src)
+	if err != nil {
+		return err
+	}
+	req.ReadSource = any
+
+	req.Predicate = si.predicate
+	req.Range.Start = int64(si.bounds.Start)
+	req.Range.End = int64(si.bounds.Stop)
+
+	rs, err := si.s.ReadSeriesCardinality(si.ctx, &req)
+	if err != nil {
+		return err
+	}
+	si.stats.Add(rs.Stats())
+	return si.handleRead(f, rs)
+}
+
+func (si *seriesCardinalityIterator) handleRead(f func(flux.Table) error, rs cursors.Int64Iterator) error {
+	key := execute.NewGroupKey(nil, nil)
+	builder := execute.NewColListTableBuilder(key, si.alloc)
+	valueIdx, err := builder.AddCol(flux.ColMeta{
+		Label: execute.DefaultValueColLabel,
+		Type:  flux.TInt,
+	})
+	if err != nil {
+		return err
+	}
+	defer builder.ClearData()
+
+	for rs.Next() {
+		if err := builder.AppendInt(valueIdx, rs.Value()); err != nil {
+			return err
+		}
+	}
+
+	// Construct the table and add to the reference count so we can free the table
+	// later.
+	tbl, err := builder.Table()
+	if err != nil {
+		return err
+	}
+
+	// Release the references to the arrays held by the builder.
+	builder.ClearData()
+	return f(tbl)
+}
+
+func (si *seriesCardinalityIterator) Statistics() cursors.CursorStats {
+	return si.stats
 }
