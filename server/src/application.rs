@@ -6,7 +6,7 @@ use observability_deps::tracing::info;
 use query::exec::Executor;
 use write_buffer::config::WriteBufferConfigFactory;
 
-use crate::JobRegistry;
+use crate::{job::JobRegistryMetrics, JobRegistry};
 
 /// A container for application-global resources
 /// shared between server and all DatabaseInstances
@@ -28,13 +28,20 @@ impl ApplicationState {
         let num_threads = num_worker_threads.unwrap_or_else(num_cpus::get);
         info!(%num_threads, "using specified number of threads per thread pool");
 
+        let metric_registry_v2 = Arc::new(metric::Registry::new());
+
+        let job_registry = Arc::new(JobRegistry::new());
+        metric_registry_v2.register_instrument("job_registry_metrics", || {
+            JobRegistryMetrics::new(Arc::clone(&job_registry))
+        });
+
         Self {
             object_store,
             write_buffer_factory: Arc::new(Default::default()),
             executor: Arc::new(Executor::new(num_threads)),
-            job_registry: Arc::new(JobRegistry::new()),
+            job_registry,
             metric_registry: Arc::new(metrics::MetricRegistry::new()),
-            metric_registry_v2: Arc::new(Default::default()),
+            metric_registry_v2,
         }
     }
 

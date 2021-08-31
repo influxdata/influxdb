@@ -2427,4 +2427,44 @@ mod tests {
         let provided_rules: ProvidedDatabaseRules = rules.try_into().unwrap();
         provided_rules
     }
+
+    #[tokio::test]
+    async fn job_metrics() {
+        let application = make_application();
+        let server = make_server(Arc::clone(&application));
+
+        let wait_nanos = 1000;
+        let job = application
+            .job_registry()
+            .spawn_dummy_job(vec![wait_nanos], None);
+
+        job.join().await;
+
+        let mut reporter = metric::RawReporter::default();
+        application.metric_registry_v2().report(&mut reporter);
+
+        let observations: Vec<_> = reporter
+            .observations()
+            .iter()
+            .filter(|observation| observation.metric_name == "influxdb_iox_job_count")
+            .collect();
+        assert_eq!(observations.len(), 1);
+
+        let gauge = observations[0];
+        assert_eq!(gauge.kind, metric::MetricKind::U64Gauge);
+        assert_eq!(gauge.observations.len(), 1);
+
+        let (attributes, observation) = &gauge.observations[0];
+        assert_eq!(
+            attributes,
+            &metric::Attributes::from(&[
+                ("description", "Dummy Job, for testing"),
+                ("status", "Success"),
+            ])
+        );
+        assert_eq!(observation, &metric::Observation::U64Gauge(1));
+
+        server.shutdown();
+        server.join().await.unwrap();
+    }
 }

@@ -1,7 +1,12 @@
 use data_types::job::Job;
+use metric::{Attributes, MetricKind, Observation};
 use parking_lot::Mutex;
-use std::convert::Infallible;
-use std::sync::Arc;
+use std::{
+    any::Any,
+    collections::{BTreeMap, BTreeSet},
+    convert::Infallible,
+    sync::Arc,
+};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
 
 const JOB_HISTORY_SIZE: usize = 1000;
@@ -71,5 +76,73 @@ impl JobRegistry {
         let mut lock = self.inner.lock();
         lock.reclaim();
         lock.tracked_len()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct JobRegistryMetrics {
+    registry: Arc<JobRegistry>,
+    known: Arc<Mutex<BTreeSet<Attributes>>>,
+}
+
+impl JobRegistryMetrics {
+    pub fn new(registry: Arc<JobRegistry>) -> Self {
+        Self {
+            registry,
+            known: Default::default(),
+        }
+    }
+}
+
+impl metric::Instrument for JobRegistryMetrics {
+    fn report(&self, reporter: &mut dyn metric::Reporter) {
+        // get known attributes from last round
+        let mut accumulator: BTreeMap<Attributes, u64> = self
+            .known
+            .lock()
+            .iter()
+            .cloned()
+            .map(|attr| (attr, 0))
+            .collect();
+
+        // scan current jobs
+        for job in self.registry.tracked() {
+            let metadata = job.metadata();
+            let status = job.get_status();
+
+            let attr = Attributes::from(&[
+                ("description", metadata.description()),
+                (
+                    "status",
+                    status
+                        .result()
+                        .map(|result| result.name())
+                        .unwrap_or_else(|| status.name()),
+                ),
+            ]);
+
+            accumulator.entry(attr).and_modify(|x| *x += 1).or_insert(1);
+        }
+
+        // remember known attributes
+        {
+            let mut known = self.known.lock();
+            known.extend(accumulator.keys().cloned());
+        }
+
+        // report metrics
+        reporter.start_metric(
+            "influxdb_iox_job_count",
+            "Number of known jobs",
+            MetricKind::U64Gauge,
+        );
+        for (attr, count) in accumulator {
+            reporter.report_observation(&attr, Observation::U64Gauge(count));
+        }
+        reporter.finish_metric();
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
