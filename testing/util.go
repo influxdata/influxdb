@@ -2,22 +2,48 @@ package testing
 
 import (
 	"context"
+	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
-func strPtr(s string) *string {
-	return &s
+func NewTestBoltStore(t *testing.T) (kv.SchemaStore, func()) {
+	f, err := ioutil.TempFile("", "influxdata-bolt-")
+	require.NoError(t, err, "unable to create temporary boltdb file")
+	require.NoError(t, f.Close())
+
+	path := f.Name()
+	s := bolt.NewKVStore(zaptest.NewLogger(t), path, bolt.WithNoSync)
+	require.NoError(t, s.Open(context.Background()))
+
+	// apply all kv migrations
+	require.NoError(t, all.Up(context.Background(), zaptest.NewLogger(t), s))
+
+	close := func() {
+		s.Close()
+		os.Remove(path)
+	}
+
+	return s, close
 }
-func boolPtr(b bool) *bool {
-	return &b
+
+func NewTestInmemStore(t *testing.T) kv.SchemaStore {
+	s := inmem.NewKVStore()
+	// apply all kv migrations
+	require.NoError(t, all.Up(context.Background(), zaptest.NewLogger(t), s))
+	return s
 }
 
 // TODO(goller): remove opPrefix argument
@@ -52,15 +78,15 @@ func ErrorsEqual(t *testing.T, actual, expected error) {
 	}
 }
 
-// FloatPtr takes the ref of a float number.
-func FloatPtr(f float64) *float64 {
-	p := new(float64)
-	*p = f
-	return p
-}
-
 func idPtr(id platform.ID) *platform.ID {
 	return &id
+}
+
+func strPtr(s string) *string {
+	return &s
+}
+func boolPtr(b bool) *bool {
+	return &b
 }
 
 // MustIDBase16 is an helper to ensure a correct ID is built during testing.
@@ -86,54 +112,12 @@ func MustCreateOrgs(ctx context.Context, svc influxdb.OrganizationService, os ..
 	}
 }
 
-func MustCreateLabels(ctx context.Context, svc influxdb.LabelService, labels ...*influxdb.Label) {
-	for _, l := range labels {
-		if err := svc.CreateLabel(ctx, l); err != nil {
-			panic(err)
-		}
-	}
-}
-
 func MustCreateUsers(ctx context.Context, svc influxdb.UserService, us ...*influxdb.User) {
 	for _, u := range us {
 		if err := svc.CreateUser(ctx, u); err != nil {
 			panic(err)
 		}
 	}
-}
-
-func MustCreateMappings(ctx context.Context, svc influxdb.UserResourceMappingService, ms ...*influxdb.UserResourceMapping) {
-	for _, m := range ms {
-		if err := svc.CreateUserResourceMapping(ctx, m); err != nil {
-			panic(err)
-		}
-	}
-}
-
-func MustMakeUsersOrgOwner(ctx context.Context, svc influxdb.UserResourceMappingService, oid platform.ID, uids ...platform.ID) {
-	ms := make([]*influxdb.UserResourceMapping, len(uids))
-	for i, uid := range uids {
-		ms[i] = &influxdb.UserResourceMapping{
-			UserID:       uid,
-			UserType:     influxdb.Owner,
-			ResourceType: influxdb.OrgsResourceType,
-			ResourceID:   oid,
-		}
-	}
-	MustCreateMappings(ctx, svc, ms...)
-}
-
-func MustMakeUsersOrgMember(ctx context.Context, svc influxdb.UserResourceMappingService, oid platform.ID, uids ...platform.ID) {
-	ms := make([]*influxdb.UserResourceMapping, len(uids))
-	for i, uid := range uids {
-		ms[i] = &influxdb.UserResourceMapping{
-			UserID:       uid,
-			UserType:     influxdb.Member,
-			ResourceType: influxdb.OrgsResourceType,
-			ResourceID:   oid,
-		}
-	}
-	MustCreateMappings(ctx, svc, ms...)
 }
 
 func MustNewPermissionAtID(id platform.ID, a influxdb.Action, rt influxdb.ResourceType, orgID platform.ID) *influxdb.Permission {
