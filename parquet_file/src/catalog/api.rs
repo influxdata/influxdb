@@ -977,7 +977,7 @@ mod tests {
     use crate::catalog::test_helpers::{
         assert_catalog_state_implementation, break_catalog_with_weird_version, TestCatalogState,
     };
-    use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata};
+    use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize};
 
     #[tokio::test]
     async fn test_create_empty() {
@@ -1581,7 +1581,8 @@ mod tests {
         // create another transaction on-top that adds a file (this transaction will be required to load the full state)
         {
             let addr = chunk_addr(1337);
-            let (path, metadata) = make_metadata(&iox_object_store, "foo", addr.clone()).await;
+            let (path, metadata) =
+                make_metadata(&iox_object_store, "foo", addr.clone(), TestSize::Full).await;
 
             let mut transaction = catalog.open_transaction().await;
             let info = CatalogParquetInfo {
@@ -1740,7 +1741,8 @@ mod tests {
         {
             let mut t = catalog.open_transaction().await;
 
-            let (path, metadata) = make_metadata(iox_object_store, "foo", chunk_addr(0)).await;
+            let (path, metadata) =
+                make_metadata(iox_object_store, "foo", chunk_addr(0), TestSize::Full).await;
             expected.push((path.clone(), metadata.clone()));
             let info = CatalogParquetInfo {
                 path,
@@ -1750,7 +1752,8 @@ mod tests {
             state.insert(info.clone()).unwrap();
             t.add_parquet(&info);
 
-            let (path, metadata) = make_metadata(iox_object_store, "bar", chunk_addr(1)).await;
+            let (path, metadata) =
+                make_metadata(iox_object_store, "bar", chunk_addr(1), TestSize::Full).await;
             expected.push((path.clone(), metadata.clone()));
             let info = CatalogParquetInfo {
                 path,
@@ -1760,7 +1763,8 @@ mod tests {
             state.insert(info.clone()).unwrap();
             t.add_parquet(&info);
 
-            let (path, metadata) = make_metadata(iox_object_store, "bar", chunk_addr(2)).await;
+            let (path, metadata) =
+                make_metadata(iox_object_store, "bar", chunk_addr(2), TestSize::Full).await;
             expected.push((path.clone(), metadata.clone()));
             let info = CatalogParquetInfo {
                 path,
@@ -1770,7 +1774,8 @@ mod tests {
             state.insert(info.clone()).unwrap();
             t.add_parquet(&info);
 
-            let (path, metadata) = make_metadata(iox_object_store, "foo", chunk_addr(3)).await;
+            let (path, metadata) =
+                make_metadata(iox_object_store, "foo", chunk_addr(3), TestSize::Full).await;
             expected.push((path.clone(), metadata.clone()));
             let info = CatalogParquetInfo {
                 path,
@@ -1788,7 +1793,8 @@ mod tests {
 
         // modify catalog with examples
         {
-            let (path, metadata) = make_metadata(iox_object_store, "foo", chunk_addr(4)).await;
+            let (path, metadata) =
+                make_metadata(iox_object_store, "foo", chunk_addr(4), TestSize::Full).await;
             expected.push((path.clone(), metadata.clone()));
 
             let mut t = catalog.open_transaction().await;
@@ -1816,7 +1822,8 @@ mod tests {
         {
             let mut t = catalog.open_transaction().await;
 
-            let (path, metadata) = make_metadata(iox_object_store, "foo", chunk_addr(1)).await;
+            let (path, metadata) =
+                make_metadata(iox_object_store, "foo", chunk_addr(1), TestSize::Full).await;
             let info = CatalogParquetInfo {
                 path,
                 file_size_bytes: 33,

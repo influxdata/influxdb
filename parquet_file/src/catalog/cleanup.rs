@@ -140,7 +140,7 @@ mod tests {
     use super::*;
     use crate::{
         catalog::test_helpers::TestCatalogState,
-        test_utils::{chunk_addr, make_iox_object_store, make_metadata},
+        test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize},
     };
     use std::{collections::HashSet, sync::Arc};
     use tokio::sync::RwLock;
@@ -177,7 +177,8 @@ mod tests {
             let mut transaction = catalog.open_transaction().await;
 
             // an ordinary tracked parquet file => keep
-            let (path, metadata) = make_metadata(&iox_object_store, "foo", chunk_addr(1)).await;
+            let (path, metadata) =
+                make_metadata(&iox_object_store, "foo", chunk_addr(1), TestSize::Full).await;
             let metadata = Arc::new(metadata);
             let info = CatalogParquetInfo {
                 path,
@@ -190,7 +191,8 @@ mod tests {
 
             // another ordinary tracked parquet file that was added and removed => keep (for time
             // travel)
-            let (path, metadata) = make_metadata(&iox_object_store, "foo", chunk_addr(2)).await;
+            let (path, metadata) =
+                make_metadata(&iox_object_store, "foo", chunk_addr(2), TestSize::Full).await;
             let metadata = Arc::new(metadata);
             let info = CatalogParquetInfo {
                 path,
@@ -202,7 +204,8 @@ mod tests {
             paths_keep.push(info.path);
 
             // an untracked parquet file => delete
-            let (path, _md) = make_metadata(&iox_object_store, "foo", chunk_addr(3)).await;
+            let (path, _md) =
+                make_metadata(&iox_object_store, "foo", chunk_addr(3), TestSize::Full).await;
             paths_delete.push(path);
 
             transaction.commit().await.unwrap();
@@ -243,13 +246,15 @@ mod tests {
             // not trick the cleanup logic to remove the actual file because file paths contains a
             // UUIDv4 part.
             if i % 2 == 0 {
-                make_metadata(&iox_object_store, "foo", chunk_addr(i)).await;
+                make_metadata(&iox_object_store, "foo", chunk_addr(i), TestSize::Full).await;
             }
 
             let (path, _) = tokio::join!(
                 async {
                     let guard = lock.read().await;
-                    let (path, md) = make_metadata(&iox_object_store, "foo", chunk_addr(i)).await;
+                    let (path, md) =
+                        make_metadata(&iox_object_store, "foo", chunk_addr(i), TestSize::Full)
+                            .await;
 
                     let metadata = Arc::new(md);
                     let info = CatalogParquetInfo {
@@ -294,7 +299,13 @@ mod tests {
         // create some files
         let mut to_remove = HashSet::default();
         for chunk_id in 0..3 {
-            let (path, _md) = make_metadata(&iox_object_store, "foo", chunk_addr(chunk_id)).await;
+            let (path, _md) = make_metadata(
+                &iox_object_store,
+                "foo",
+                chunk_addr(chunk_id),
+                TestSize::Full,
+            )
+            .await;
             to_remove.insert(path);
         }
 

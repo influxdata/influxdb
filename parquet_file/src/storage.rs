@@ -409,7 +409,7 @@ mod tests {
     use crate::test_utils::{
         chunk_addr, create_partition_and_database_checkpoint, load_parquet_from_store,
         make_chunk_given_record_batch, make_iox_object_store, make_record_batch,
-        read_data_from_parquet_data,
+        read_data_from_parquet_data, TestSize,
     };
     use arrow::array::{ArrayRef, StringArray};
     use arrow_util::assert_batches_eq;
@@ -439,7 +439,8 @@ mod tests {
         };
 
         // create parquet file
-        let (_record_batches, schema, _column_summaries, _num_rows) = make_record_batch("foo");
+        let (_record_batches, schema, _column_summaries, _num_rows) =
+            make_record_batch("foo", TestSize::Full);
         let stream: SendableRecordBatchStream = Box::pin(MemoryStream::new_with_schema(
             vec![],
             Arc::clone(schema.inner()),
@@ -558,7 +559,8 @@ mod tests {
         // Create test data which is also the expected data
         let addr = chunk_addr(1);
         let table = Arc::clone(&addr.table_name);
-        let (record_batches, schema, column_summaries, num_rows) = make_record_batch("foo");
+        let (record_batches, schema, column_summaries, num_rows) =
+            make_record_batch("foo", TestSize::Full);
         let mut table_summary = TableSummary::new(table.to_string());
         table_summary.columns = column_summaries.clone();
         let record_batch = record_batches[0].clone(); // Get the first one to compare key-value meta data that would be the same for all batches
