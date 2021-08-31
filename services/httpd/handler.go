@@ -298,9 +298,7 @@ func NewHandler(c Config) *Handler {
 	}
 
 	if !c.FluxEnabled {
-		fluxRoute.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, "Flux query service disabled. Verify flux-enabled=true in the [http] section of the InfluxDB config.", http.StatusForbidden)
-		}
+		fluxRoute.HandlerFunc = h.serveFluxQueryDisabled
 	} else {
 		fluxRoute.HandlerFunc = h.serveFluxQuery
 	}
@@ -1437,6 +1435,11 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user me
 			}
 		}
 	}
+}
+
+func (h *Handler) serveFluxQueryDisabled(w http.ResponseWriter, r *http.Request, user meta.User) {
+	h.Logger.Warn("Received flux query but flux-enabled=false in [http] section of InfluxDB config")
+	h.httpError(w, "Flux query service disabled. Verify flux-enabled=true in the [http] section of the InfluxDB config.", http.StatusForbidden)
 }
 
 func (h *Handler) logFluxQuery(n int64, stats flux.Statistics, compiler flux.Compiler, err error) {
