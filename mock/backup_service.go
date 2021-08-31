@@ -66,27 +66,27 @@ func (mr *MockBackupServiceMockRecorder) BackupShard(ctx, w, shardID, since inte
 }
 
 // LockKVStore mocks base method.
-func (m *MockBackupService) LockKVStore() {
+func (m *MockBackupService) RLockKVStore() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "LockKVStore")
+	m.ctrl.Call(m, "RLockKVStore")
 }
 
 // LockKVStore indicates an expected call of LockKVStore.
-func (mr *MockBackupServiceMockRecorder) LockKVStore() *gomock.Call {
+func (mr *MockBackupServiceMockRecorder) RLockKVStore() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockKVStore", reflect.TypeOf((*MockBackupService)(nil).LockKVStore))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RLockKVStore", reflect.TypeOf((*MockBackupService)(nil).RLockKVStore))
 }
 
 // UnlockKVStore mocks base method.
-func (m *MockBackupService) UnlockKVStore() {
+func (m *MockBackupService) RUnlockKVStore() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UnlockKVStore")
+	m.ctrl.Call(m, "RUnlockKVStore")
 }
 
 // UnlockKVStore indicates an expected call of UnlockKVStore.
 func (mr *MockBackupServiceMockRecorder) UnlockKVStore() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnlockKVStore", reflect.TypeOf((*MockBackupService)(nil).UnlockKVStore))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RUnlockKVStore", reflect.TypeOf((*MockBackupService)(nil).RUnlockKVStore))
 }
 
 // MockSqlBackupRestoreService is a mock of SqlBackupRestoreService interface.
@@ -127,15 +127,15 @@ func (mr *MockSqlBackupRestoreServiceMockRecorder) BackupSqlStore(ctx, w interfa
 }
 
 // LockSqlStore mocks base method.
-func (m *MockSqlBackupRestoreService) LockSqlStore() {
+func (m *MockSqlBackupRestoreService) RLockSqlStore() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "LockSqlStore")
+	m.ctrl.Call(m, "RLockSqlStore")
 }
 
 // LockSqlStore indicates an expected call of LockSqlStore.
-func (mr *MockSqlBackupRestoreServiceMockRecorder) LockSqlStore() *gomock.Call {
+func (mr *MockSqlBackupRestoreServiceMockRecorder) RLockSqlStore() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockSqlStore", reflect.TypeOf((*MockSqlBackupRestoreService)(nil).LockSqlStore))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RLockSqlStore", reflect.TypeOf((*MockSqlBackupRestoreService)(nil).RLockSqlStore))
 }
 
 // RestoreSqlStore mocks base method.
@@ -153,15 +153,15 @@ func (mr *MockSqlBackupRestoreServiceMockRecorder) RestoreSqlStore(ctx, r interf
 }
 
 // UnlockSqlStore mocks base method.
-func (m *MockSqlBackupRestoreService) UnlockSqlStore() {
+func (m *MockSqlBackupRestoreService) RUnlockSqlStore() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UnlockSqlStore")
+	m.ctrl.Call(m, "RUnlockSqlStore")
 }
 
 // UnlockSqlStore indicates an expected call of UnlockSqlStore.
-func (mr *MockSqlBackupRestoreServiceMockRecorder) UnlockSqlStore() *gomock.Call {
+func (mr *MockSqlBackupRestoreServiceMockRecorder) RUnlockSqlStore() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnlockSqlStore", reflect.TypeOf((*MockSqlBackupRestoreService)(nil).UnlockSqlStore))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RUnlockSqlStore", reflect.TypeOf((*MockSqlBackupRestoreService)(nil).RUnlockSqlStore))
 }
 
 // MockBucketManifestWriter is a mock of BucketManifestWriter interface.
