@@ -17,11 +17,7 @@ import (
 func initHttpOrgService(f itesting.OrganizationFields, t *testing.T) (influxdb.OrganizationService, string, func()) {
 	t.Helper()
 
-	s, stCloser, err := NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	s := itesting.NewTestInmemStore(t)
 	storage := tenant.NewStore(s)
 
 	if f.OrgBucketIDs != nil {
@@ -55,10 +51,7 @@ func initHttpOrgService(f itesting.OrganizationFields, t *testing.T) (influxdb.O
 		Client: httpClient,
 	}
 
-	return &orgClient, "http_tenant", func() {
-		server.Close()
-		stCloser()
-	}
+	return &orgClient, "http_tenant", server.Close
 }
 
 func TestHTTPOrgService(t *testing.T) {

@@ -2,27 +2,17 @@ package authorization_test
 
 import (
 	"context"
-	"errors"
-	"io/ioutil"
-	"os"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
-	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/kv"
-	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
-	"go.uber.org/zap/zaptest"
 )
 
 func initBoltAuthService(f influxdbtesting.AuthorizationFields, t *testing.T) (influxdb.AuthorizationService, string, func()) {
-	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
+	s, closeBolt := influxdbtesting.NewTestBoltStore(t)
 	svc, closeSvc := initAuthService(s, f, t)
 	return svc, "service_auth", func() {
 		closeSvc()
@@ -69,35 +59,6 @@ func initAuthService(s kv.Store, f influxdbtesting.AuthorizationFields, t *testi
 			}
 		}
 	}
-}
-
-func NewTestBoltStore(t *testing.T) (kv.Store, func(), error) {
-	f, err := ioutil.TempFile("", "influxdata-bolt-")
-	if err != nil {
-		return nil, nil, errors.New("unable to open temporary boltdb file")
-	}
-	f.Close()
-
-	path := f.Name()
-	ctx := context.Background()
-	logger := zaptest.NewLogger(t)
-
-	s := bolt.NewKVStore(logger, path, bolt.WithNoSync)
-
-	if err := s.Open(ctx); err != nil {
-		return nil, nil, err
-	}
-
-	if err := all.Up(ctx, logger, s); err != nil {
-		return nil, nil, err
-	}
-
-	close := func() {
-		s.Close()
-		os.Remove(path)
-	}
-
-	return s, close, nil
 }
 
 func TestBoltAuthService(t *testing.T) {

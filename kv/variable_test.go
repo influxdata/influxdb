@@ -16,11 +16,7 @@ func TestBoltVariableService(t *testing.T) {
 }
 
 func initBoltVariableService(f influxdbtesting.VariableFields, t *testing.T) (influxdb.VariableService, string, func()) {
-	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
+	s, closeBolt := influxdbtesting.NewTestBoltStore(t)
 	svc, op, closeSvc := initVariableService(s, f, t)
 	return svc, op, func() {
 		closeSvc()

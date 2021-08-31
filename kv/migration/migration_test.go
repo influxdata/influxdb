@@ -31,7 +31,7 @@ func Test_Inmem_Migrator(t *testing.T) {
 }
 
 func Test_Bolt_Migrator(t *testing.T) {
-	store, closeBolt, err := NewTestBoltStore(t)
+	store, closeBolt, err := newTestBoltStoreWithoutMigrations(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -40,7 +40,7 @@ func Test_Bolt_Migrator(t *testing.T) {
 	influxdbtesting.Migrator(t, store, newMigrator)
 }
 
-func NewTestBoltStore(t *testing.T) (kv.SchemaStore, func(), error) {
+func newTestBoltStoreWithoutMigrations(t *testing.T) (kv.SchemaStore, func(), error) {
 	f, err := ioutil.TempFile("", "influxdata-bolt-")
 	if err != nil {
 		return nil, nil, errors.New("unable to open temporary boltdb file")

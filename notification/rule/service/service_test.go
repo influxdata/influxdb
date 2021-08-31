@@ -2,24 +2,19 @@ package service
 
 import (
 	"context"
-	"errors"
-	"io/ioutil"
-	"os"
 	"testing"
 
-	influxdb "github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
-	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv"
-	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/secret"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
@@ -29,23 +24,12 @@ func TestInmemNotificationRuleStore(t *testing.T) {
 }
 
 func initInmemNotificationRuleStore(f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, taskmodel.TaskService, func()) {
-	store := inmem.NewKVStore()
-	if err := all.Up(context.Background(), zaptest.NewLogger(t), store); err != nil {
-		t.Fatal(err)
-	}
-
-	svc, tsvc, closeSvc := initNotificationRuleStore(store, f, t)
-	return svc, tsvc, func() {
-		closeSvc()
-	}
+	store := itesting.NewTestInmemStore(t)
+	return initNotificationRuleStore(store, f, t)
 }
 
 func initBoltNotificationRuleStore(f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, taskmodel.TaskService, func()) {
-	store, closeBolt, err := newTestBoltStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	store, closeBolt := itesting.NewTestBoltStore(t)
 	svc, tsvc, closeSvc := initNotificationRuleStore(store, f, t)
 	return svc, tsvc, func() {
 		closeSvc()
@@ -145,33 +129,4 @@ func withOrgID(store *tenant.Store, orgID platform.ID, fn func()) {
 	store.OrgIDGen = mock.NewStaticIDGenerator(orgID)
 
 	fn()
-}
-
-func newTestBoltStore(t *testing.T) (kv.SchemaStore, func(), error) {
-	f, err := ioutil.TempFile("", "influxdata-bolt-")
-	if err != nil {
-		return nil, nil, errors.New("unable to open temporary boltdb file")
-	}
-	f.Close()
-
-	ctx := context.Background()
-	logger := zaptest.NewLogger(t)
-	path := f.Name()
-
-	// skip fsync to improve test performance
-	s := bolt.NewKVStore(logger, path, bolt.WithNoSync)
-	if err := s.Open(context.Background()); err != nil {
-		return nil, nil, err
-	}
-
-	if err := all.Up(ctx, logger, s); err != nil {
-		return nil, nil, err
-	}
-
-	close := func() {
-		s.Close()
-		os.Remove(path)
-	}
-
-	return s, close, nil
 }

@@ -820,7 +820,7 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 func initScraperService(f platformtesting.TargetFields, t *testing.T) (influxdb.ScraperTargetStoreService, string, func()) {
 	t.Helper()
 
-	store := NewTestInmemStore(t)
+	store := platformtesting.NewTestInmemStore(t)
 	tenantStore := tenant.NewStore(store)
 	tenantService := tenant.NewService(tenantStore)
 

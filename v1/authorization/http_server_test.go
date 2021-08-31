@@ -20,25 +20,10 @@ import (
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
-	"github.com/influxdata/influxdb/v2/inmem"
-	"github.com/influxdata/influxdb/v2/kv"
-	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	itesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
-
-func NewTestInmemStore(t *testing.T) (kv.Store, func(), error) {
-	t.Helper()
-
-	store := inmem.NewKVStore()
-
-	if err := all.Up(context.Background(), zaptest.NewLogger(t), store); err != nil {
-		t.Fatal(err)
-	}
-
-	return store, func() {}, nil
-}
 
 func TestService_handlePostAuthorization(t *testing.T) {
 	type fields struct {
@@ -201,11 +186,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			s, _, err := NewTestInmemStore(t)
-			if err != nil {
-				t.Fatal(err)
-			}
-
+			s := itesting.NewTestInmemStore(t)
 			storage, err := NewStore(s)
 			if err != nil {
 				t.Fatal(err)
@@ -745,11 +726,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			s, _, err := NewTestInmemStore(t)
-			if err != nil {
-				t.Fatal(err)
-			}
-
+			s := itesting.NewTestInmemStore(t)
 			storage, err := NewStore(s)
 			if err != nil {
 				t.Fatal(err)

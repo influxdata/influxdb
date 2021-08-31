@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/v2/task/servicetest"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -29,10 +30,7 @@ func TestBoltTaskService(t *testing.T) {
 	servicetest.TestTaskService(
 		t,
 		func(t *testing.T) (*servicetest.System, context.CancelFunc) {
-			store, close, err := NewTestBoltStore(t)
-			if err != nil {
-				t.Fatal(err)
-			}
+			store, close := itesting.NewTestBoltStore(t)
 
 			tenantStore := tenant.NewStore(store)
 			ts := tenant.NewService(tenantStore)
@@ -72,12 +70,6 @@ type testService struct {
 	User    influxdb.User
 	Auth    influxdb.Authorization
 	Clock   clock.Clock
-
-	storeCloseFn func()
-}
-
-func (s *testService) Close() {
-	s.storeCloseFn()
 }
 
 func newService(t *testing.T, ctx context.Context, c clock.Clock) *testService {
@@ -93,7 +85,7 @@ func newService(t *testing.T, ctx context.Context, c clock.Clock) *testService {
 		store kv.SchemaStore
 	)
 
-	store, ts.storeCloseFn, err = NewTestInmemStore(t)
+	store = itesting.NewTestInmemStore(t)
 	if err != nil {
 		t.Fatal("failed to create InmemStore", err)
 	}
@@ -147,7 +139,6 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 	defer cancelFunc()
 
 	ts := newService(t, ctx, nil)
-	defer ts.Close()
 
 	ctx = icontext.SetAuthorizer(ctx, &ts.Auth)
 
@@ -224,7 +215,6 @@ func TestService_UpdateTask_InactiveToActive(t *testing.T) {
 	c.Set(time.Unix(1000, 0))
 
 	ts := newService(t, ctx, c)
-	defer ts.Close()
 
 	ctx = icontext.SetAuthorizer(ctx, &ts.Auth)
 
@@ -267,11 +257,8 @@ func TestService_UpdateTask_InactiveToActive(t *testing.T) {
 }
 
 func TestTaskRunCancellation(t *testing.T) {
-	store, close, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer close()
+	store, closeSvc := itesting.NewTestBoltStore(t)
+	defer closeSvc()
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
@@ -352,7 +339,6 @@ func TestService_UpdateTask_RecordLatestSuccessAndFailure(t *testing.T) {
 	c.Set(time.Unix(1000, 0))
 
 	ts := newService(t, ctx, c)
-	defer ts.Close()
 
 	ctx = icontext.SetAuthorizer(ctx, &ts.Auth)
 

@@ -3,15 +3,16 @@ package tenant_test
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -277,12 +278,7 @@ func TestBucket(t *testing.T) {
 	}
 	for _, testScenario := range st {
 		t.Run(testScenario.name, func(t *testing.T) {
-			s, closeS, err := NewTestInmemStore(t)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer closeS()
-
+			s := itesting.NewTestInmemStore(t)
 			ts := tenant.NewStore(s, tenant.WithNow(func() time.Time {
 				return aTime
 			}))

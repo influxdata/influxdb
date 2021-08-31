@@ -19,11 +19,7 @@ func TestBoltSourceService(t *testing.T) {
 }
 
 func initBoltSourceService(f influxdbtesting.SourceFields, t *testing.T) (influxdb.SourceService, string, func()) {
-	s, closeBolt, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
+	s, closeBolt := influxdbtesting.NewTestBoltStore(t)
 	svc, op, closeSvc := initSourceService(s, f, t)
 	return svc, op, func() {
 		closeSvc()
