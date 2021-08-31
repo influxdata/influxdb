@@ -48,10 +48,10 @@ func (s SqlBackupRestoreService) RestoreSqlStore(ctx context.Context, r io.Reade
 // are intended to be used for coordinating the locking and unlocking of the kv and sql metadata
 // databases during a backup. They are made available here to allow the calls to pass-through to the
 // underlying service.
-func (s SqlBackupRestoreService) LockSqlStore() {
-	s.s.LockSqlStore()
+func (s SqlBackupRestoreService) RLockSqlStore() {
+	s.s.RLockSqlStore()
 }
 
-func (s SqlBackupRestoreService) UnlockSqlStore() {
-	s.s.UnlockSqlStore()
+func (s SqlBackupRestoreService) RUnlockSqlStore() {
+	s.s.RUnlockSqlStore()
 }

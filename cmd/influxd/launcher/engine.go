@@ -164,12 +164,12 @@ func (t *TemporaryEngine) BackupKVStore(ctx context.Context, w io.Writer) error 
 	return t.engine.BackupKVStore(ctx, w)
 }
 
-func (t *TemporaryEngine) LockKVStore() {
-	t.engine.LockKVStore()
+func (t *TemporaryEngine) RLockKVStore() {
+	t.engine.RLockKVStore()
 }
 
-func (t *TemporaryEngine) UnlockKVStore() {
-	t.engine.UnlockKVStore()
+func (t *TemporaryEngine) RUnlockKVStore() {
+	t.engine.RUnlockKVStore()
 }
 
 func (t *TemporaryEngine) RestoreKVStore(ctx context.Context, r io.Reader) error {

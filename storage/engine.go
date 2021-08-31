@@ -81,8 +81,8 @@ type MetaClient interface {
 	RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 	UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
-	Lock()
-	Unlock()
+	RLock()
+	RUnlock()
 	Backup(ctx context.Context, w io.Writer) error
 	Restore(ctx context.Context, r io.Reader) error
 	Data() meta.Data
@@ -320,16 +320,16 @@ func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID
 	return e.tsdbStore.DeleteSeriesWithPredicate(ctx, bucketID.String(), min, max, pred)
 }
 
-// LockKVStore locks the KV store as well as the engine in preparation for doing a backup.
-func (e *Engine) LockKVStore() {
-	e.mu.Lock()
-	e.metaClient.Lock()
+// RLockKVStore locks the KV store as well as the engine in preparation for doing a backup.
+func (e *Engine) RLockKVStore() {
+	e.mu.RLock()
+	e.metaClient.RLock()
 }
 
-// UnlockKVStore unlocks the KV store & engine, intended to be used after a backup is complete.
-func (e *Engine) UnlockKVStore() {
-	e.mu.Unlock()
-	e.metaClient.Unlock()
+// RUnlockKVStore unlocks the KV store & engine, intended to be used after a backup is complete.
+func (e *Engine) RUnlockKVStore() {
+	e.mu.RUnlock()
+	e.metaClient.RUnlock()
 }
 
 func (e *Engine) BackupKVStore(ctx context.Context, w io.Writer) error {

@@ -49,10 +49,10 @@ func (b BackupService) BackupShard(ctx context.Context, w io.Writer, shardID uin
 // are intended to be used for coordinating the locking and unlocking of the kv and sql metadata
 // databases during a backup. They are made available here to allow the calls to pass-through to the
 // underlying service.
-func (b BackupService) LockKVStore() {
-	b.s.LockKVStore()
+func (b BackupService) RLockKVStore() {
+	b.s.RLockKVStore()
 }
 
-func (b BackupService) UnlockKVStore() {
-	b.s.UnlockKVStore()
+func (b BackupService) RUnlockKVStore() {
+	b.s.RUnlockKVStore()
 }
