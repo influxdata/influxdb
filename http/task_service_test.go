@@ -33,7 +33,7 @@ import (
 // NewMockTaskBackend returns a TaskBackend with mock services.
 func NewMockTaskBackend(t *testing.T) *TaskBackend {
 	t.Helper()
-	store  := influxdbtesting.NewTestInmemStore(t)
+	store := influxdbtesting.NewTestInmemStore(t)
 	tenantService := tenant.NewService(tenant.NewStore(store))
 
 	return &TaskBackend{
