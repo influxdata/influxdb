@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/v2/task/servicetest"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -29,7 +30,7 @@ func TestBoltTaskService(t *testing.T) {
 	servicetest.TestTaskService(
 		t,
 		func(t *testing.T) (*servicetest.System, context.CancelFunc) {
-			store, close, err := NewTestBoltStore(t)
+			store, close, err := itesting.NewTestBoltStore(t)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -93,7 +94,7 @@ func newService(t *testing.T, ctx context.Context, c clock.Clock) *testService {
 		store kv.SchemaStore
 	)
 
-	store, ts.storeCloseFn, err = NewTestInmemStore(t)
+	store, ts.storeCloseFn, err = itesting.NewTestInmemStore(t)
 	if err != nil {
 		t.Fatal("failed to create InmemStore", err)
 	}
@@ -267,7 +268,7 @@ func TestService_UpdateTask_InactiveToActive(t *testing.T) {
 }
 
 func TestTaskRunCancellation(t *testing.T) {
-	store, close, err := NewTestBoltStore(t)
+	store, close, err := itesting.NewTestBoltStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}

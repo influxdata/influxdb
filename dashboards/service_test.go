@@ -2,17 +2,13 @@ package dashboards
 
 import (
 	"context"
-	"errors"
-	"io/ioutil"
-	"os"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/bolt"
 	dashboardtesting "github.com/influxdata/influxdb/v2/dashboards/testing"
 	"github.com/influxdata/influxdb/v2/kv"
-	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -21,7 +17,7 @@ func TestBoltDashboardService(t *testing.T) {
 }
 
 func initBoltDashboardService(f dashboardtesting.DashboardFields, t *testing.T) (influxdb.DashboardService, string, func()) {
-	s, closeBolt, err := newTestBoltStore(t)
+	s, closeBolt, err := itesting.NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -59,33 +55,4 @@ func initDashboardService(s kv.SchemaStore, f dashboardtesting.DashboardFields, 
 			}
 		}
 	}
-}
-
-func newTestBoltStore(t *testing.T) (kv.SchemaStore, func(), error) {
-	f, err := ioutil.TempFile("", "influxdata-bolt-")
-	if err != nil {
-		return nil, nil, errors.New("unable to open temporary boltdb file")
-	}
-	f.Close()
-
-	ctx := context.Background()
-	logger := zaptest.NewLogger(t)
-	path := f.Name()
-
-	// skip fsync to improve test performance
-	s := bolt.NewKVStore(logger, path, bolt.WithNoSync)
-	if err := s.Open(context.Background()); err != nil {
-		return nil, nil, err
-	}
-
-	if err := all.Up(ctx, logger, s); err != nil {
-		return nil, nil, err
-	}
-
-	close := func() {
-		s.Close()
-		os.Remove(path)
-	}
-
-	return s, close, nil
 }

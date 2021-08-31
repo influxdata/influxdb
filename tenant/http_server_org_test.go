@@ -17,7 +17,7 @@ import (
 func initHttpOrgService(f itesting.OrganizationFields, t *testing.T) (influxdb.OrganizationService, string, func()) {
 	t.Helper()
 
-	s, stCloser, err := NewTestInmemStore(t)
+	s, stCloser, err := itesting.NewTestInmemStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}

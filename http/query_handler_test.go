@@ -15,9 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
@@ -27,6 +24,8 @@ import (
 	"github.com/influxdata/influxdb/v2/http/metric"
 	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	tracetesting "github.com/influxdata/influxdb/v2/kit/tracing/testing"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	influxmock "github.com/influxdata/influxdb/v2/mock"
@@ -34,6 +33,7 @@ import (
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -330,7 +330,10 @@ var _ metric.EventRecorder = noopEventRecorder{}
 func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 	defer tracetesting.SetupInMemoryTracing(t.Name())()
 
-	store := NewTestInmemStore(t)
+	store, _, err := itesting.NewTestInmemStore(t)
+	if err != nil {
+		t.Fatal(err)
+	}
 	orgSVC := tenant.NewService(tenant.NewStore(store))
 	b := &FluxBackend{
 		HTTPErrorHandler:    kithttp.ErrorHandler(0),

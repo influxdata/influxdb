@@ -16,7 +16,7 @@ import (
 func initHttpUserService(f platformtesting.UserFields, t *testing.T) (platform.UserService, string, func()) {
 	t.Helper()
 
-	s, stCloser, err := NewTestInmemStore(t)
+	s, stCloser, err := platformtesting.NewTestInmemStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}

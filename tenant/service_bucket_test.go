@@ -15,7 +15,7 @@ func TestInmemBucketService(t *testing.T) {
 }
 
 func initInmemBucketService(f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
-	s, closeBolt, err := NewTestInmemStore(t)
+	s, closeBolt, err := influxdbtesting.NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -82,7 +82,7 @@ func initBucketService(s kv.SchemaStore, f influxdbtesting.BucketFields, t *test
 }
 
 func TestBucketFind(t *testing.T) {
-	s, close, err := NewTestInmemStore(t)
+	s, close, err := influxdbtesting.NewTestInmemStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestBucketFind(t *testing.T) {
 }
 
 func TestSystemBucketsInNameFind(t *testing.T) {
-	s, close, err := NewTestInmemStore(t)
+	s, close, err := influxdbtesting.NewTestInmemStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}

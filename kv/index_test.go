@@ -19,7 +19,7 @@ import (
 )
 
 func Test_Inmem_Index(t *testing.T) {
-	s, closeStore, err := NewTestInmemStore(t)
+	s, closeStore, err := influxdbtesting.NewTestInmemStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func Test_Inmem_Index(t *testing.T) {
 }
 
 func Test_Bolt_Index(t *testing.T) {
-	s, closeBolt, err := NewTestBoltStore(t)
+	s, closeBolt, err := influxdbtesting.NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}

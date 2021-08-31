@@ -18,7 +18,7 @@ import (
 func initOnboardHttpService(f itesting.OnboardingFields, t *testing.T) (influxdb.OnboardingService, func()) {
 	t.Helper()
 
-	s, stCloser, err := NewTestInmemStore(t)
+	s, stCloser, err := itesting.NewTestInmemStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}

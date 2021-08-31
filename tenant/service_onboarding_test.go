@@ -23,7 +23,7 @@ func TestBoltOnboardingService(t *testing.T) {
 }
 
 func initBoltOnboardingService(f influxdbtesting.OnboardingFields, t *testing.T) (influxdb.OnboardingService, func()) {
-	s, closeStore, err := NewTestInmemStore(t)
+	s, closeStore, err := influxdbtesting.NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new bolt kv store: %v", err)
 	}
@@ -60,7 +60,7 @@ func initOnboardingService(s kv.Store, f influxdbtesting.OnboardingFields, t *te
 }
 
 func TestOnboardURM(t *testing.T) {
-	s, _, _ := NewTestInmemStore(t)
+	s, _, _ := influxdbtesting.NewTestInmemStore(t)
 	storage := tenant.NewStore(s)
 	ten := tenant.NewService(storage)
 
@@ -98,7 +98,7 @@ func TestOnboardURM(t *testing.T) {
 }
 
 func TestOnboardAuth(t *testing.T) {
-	s, _, _ := NewTestInmemStore(t)
+	s, _, _ := influxdbtesting.NewTestInmemStore(t)
 	storage := tenant.NewStore(s)
 	ten := tenant.NewService(storage)
 
@@ -172,7 +172,7 @@ func TestOnboardAuth(t *testing.T) {
 }
 
 func TestOnboardService_RetentionPolicy(t *testing.T) {
-	s, _, _ := NewTestInmemStore(t)
+	s, _, _ := influxdbtesting.NewTestInmemStore(t)
 	storage := tenant.NewStore(s)
 	ten := tenant.NewService(storage)
 
@@ -204,7 +204,7 @@ func TestOnboardService_RetentionPolicy(t *testing.T) {
 }
 
 func TestOnboardService_RetentionPolicyDeprecated(t *testing.T) {
-	s, _, _ := NewTestInmemStore(t)
+	s, _, _ := influxdbtesting.NewTestInmemStore(t)
 	storage := tenant.NewStore(s)
 	ten := tenant.NewService(storage)
 
@@ -236,7 +236,7 @@ func TestOnboardService_RetentionPolicyDeprecated(t *testing.T) {
 }
 
 func TestOnboardService_WeakPassword(t *testing.T) {
-	s, _, _ := NewTestInmemStore(t)
+	s, _, _ := influxdbtesting.NewTestInmemStore(t)
 	storage := tenant.NewStore(s)
 	ten := tenant.NewService(storage)
 

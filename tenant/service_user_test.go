@@ -17,7 +17,7 @@ func TestBoltUserService(t *testing.T) {
 }
 
 func initBoltUserService(f influxdbtesting.UserFields, t *testing.T) (influxdb.UserService, string, func()) {
-	s, closeBolt, err := NewTestBoltStore(t)
+	s, closeBolt, err := influxdbtesting.NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestBoltPasswordService(t *testing.T) {
 }
 
 func initBoltPasswordsService(f influxdbtesting.PasswordFields, t *testing.T) (influxdb.PasswordsService, func()) {
-	s, closeStore, err := NewTestBoltStore(t)
+	s, closeStore, err := influxdbtesting.NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new bolt kv store: %v", err)
 	}
@@ -91,7 +91,7 @@ func initPasswordsService(s kv.Store, f influxdbtesting.PasswordFields, t *testi
 }
 
 func TestFindPermissionsFromUser(t *testing.T) {
-	s, _, err := NewTestInmemStore(t)
+	s, _, err := influxdbtesting.NewTestInmemStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}

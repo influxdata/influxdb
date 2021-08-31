@@ -33,7 +33,10 @@ func NewMockUserBackend(t *testing.T) *UserBackend {
 func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserService, string, func()) {
 	t.Helper()
 
-	store := NewTestInmemStore(t)
+	store, _, err := platformtesting.NewTestInmemStore(t)
+	if err != nil {
+		t.Fatal(err)
+	}
 	tenantStore := tenant.NewStore(store)
 	tenantStore.IDGen = f.IDGenerator
 	tenantService := tenant.NewService(tenantStore)

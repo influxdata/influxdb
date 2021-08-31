@@ -597,7 +597,10 @@ func TestService_handlePatchLabel(t *testing.T) {
 }
 
 func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.LabelService, string, func()) {
-	store := NewTestInmemStore(t)
+	store, _, err := platformtesting.NewTestInmemStore(t)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	labelStore, err := label.NewStore(store)
 	if err != nil {

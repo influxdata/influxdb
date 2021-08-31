@@ -2,8 +2,6 @@ package tenant_test
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -13,6 +11,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	ihttp "github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
@@ -23,7 +23,7 @@ import (
 func initBucketHttpService(f itesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
 	t.Helper()
 
-	s, stCloser, err := NewTestInmemStore(t)
+	s, stCloser, err := itesting.NewTestInmemStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}
