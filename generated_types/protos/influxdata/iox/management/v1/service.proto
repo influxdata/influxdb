@@ -448,6 +448,5 @@ message DeleteRequest {
 }
 
 message DeleteResponse {
-  // todo
-  // string delete_status = 1;
+  // NGA todo: response something?
 }

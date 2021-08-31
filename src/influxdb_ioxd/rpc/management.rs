@@ -6,6 +6,7 @@ use std::time::Instant;
 use data_types::{server_id::ServerId, DatabaseName};
 use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound};
 use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
+use query::predicate::PredicateBuilder;
 use query::QueryDatabase;
 use server::rules::ProvidedDatabaseRules;
 use server::{ApplicationState, ConnectionManager, Error, Server};
@@ -560,10 +561,21 @@ where
         let DeleteRequest {
             db_name,
             table_name,
-            delete_predicate,
-            start_time: _,
-            stop_time: _,
+            delete_predicate: _,
+            start_time,
+            stop_time,
         } = request.into_inner();
+
+        use influxdb_line_protocol::timestamp;
+
+        // Parse and Validate start time and stop time
+        let start = timestamp(start_time.as_str()).unwrap().1;
+        let stop = timestamp(stop_time.as_str()).unwrap().1;
+        assert!(start < stop, "Stop time has to be after start time");
+
+        // parse and validate delete predicate which is a conjunctive expressions
+        // with columns being compared to literals using = or != operators
+        // NGA: todo
 
         // Validate that the database name is legit
         let db_name = DatabaseName::new(db_name).field("db_name")?;
@@ -572,14 +584,17 @@ where
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        // Todo
-        // Convert start_time and stop_time to time range
-        // and make a new predicate that is a conjunction of the time range and the delete_predicate
+        // Build the delete predicate that include all delete expression and time range
+        let del_predicate = PredicateBuilder::new()
+            .timestamp_range(start, stop)
+            //.add_expr  // NGA todo: repeat to add delete expressions here
+            .build();
 
-        db.delete(&table_name, &delete_predicate)
+        db.delete(&table_name, &del_predicate)
             .await
             .map_err(default_db_error_handler)?;
 
+        // NGA todo: return a delete handle with the response?
         Ok(Response::new(DeleteResponse {}))
     }
 }

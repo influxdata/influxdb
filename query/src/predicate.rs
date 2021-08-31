@@ -501,7 +501,6 @@ mod tests {
         assert_eq!(predicate.exprs[6], col("city").not_eq(lit("Braintree")));
         assert_eq!(predicate.exprs[7], lit(5).eq(col("city")));
     }
-
     #[test]
     fn predicate_display_ts() {
         // TODO make this a doc example?

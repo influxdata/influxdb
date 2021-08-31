@@ -1383,9 +1383,11 @@ async fn test_delete() {
     // Build an appropriate test DB
     let table_name = "test_table";
     let delete_predicate = "col = 123";
+    let start = "100";
+    let stop = "1000";
 
     management_client
-        .delete(&db_name, table_name, delete_predicate) // note that this function currently does nothing
+        .delete(&db_name, table_name, delete_predicate, start, stop) // note that this function currently does nothing
         .await
         .unwrap();
 

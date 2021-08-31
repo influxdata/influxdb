@@ -490,6 +490,11 @@ impl QueryChunkMeta for DbChunk {
     fn schema(&self) -> Arc<Schema> {
         Arc::clone(&self.meta.schema)
     }
+
+    // return a reference to delete predicates of the chunk
+    fn delete_predicates(&self) -> Arc<Vec<Predicate>> {
+        Arc::clone(&self.meta.delete_predicates)
+    }
 }
 
 #[cfg(test)]

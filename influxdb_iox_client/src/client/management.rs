@@ -360,7 +360,21 @@ pub enum DropPartitionError {
 /// Errors returned by [`Client::delete`]
 #[derive(Debug, Error)]
 pub enum DeleteError {
-    //todo
+    /// Database not found
+    #[error("Not found: {}", .0)]
+    NotFound(String),
+
+    /// Response contained no payload
+    #[error("Server returned an empty response")]
+    EmptyResponse,
+
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
 }
 /// Errors returned by [`Client::persist_partition`]
 #[derive(Debug, Error)]
@@ -932,13 +946,33 @@ impl Client {
         db_name: impl Into<String> + Send,
         table_name: impl Into<String> + Send,
         delete_predicate: impl Into<String> + Send,
+        start_time: impl Into<String> + Send,
+        stop_time: impl Into<String> + Send,
     ) -> Result<(), DeleteError> {
-        let _db_name = db_name.into();
-        let _table_name = table_name.into();
-        let _delete_predicate = delete_predicate.into();
+        let db_name = db_name.into();
+        let table_name = table_name.into();
+        let delete_predicate = delete_predicate.into();
+        let start_time = start_time.into();
+        let stop_time = stop_time.into();
 
-        // todo
+        // NGA todo: Should parse and validate start_time, stop_time, and delete_predicate here
+        // at in client  or send them to the server and do the parsing and validation there?
+        self.inner
+            .delete(DeleteRequest {
+                db_name,
+                table_name,
+                delete_predicate,
+                start_time,
+                stop_time,
+            })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => DeleteError::NotFound(status.message().to_string()),
+                tonic::Code::Unavailable => DeleteError::Unavailable(status),
+                _ => DeleteError::ServerError(status),
+            })?;
 
+        // NGA todo: return a handle to the delete?
         Ok(())
     }
 

@@ -897,6 +897,11 @@ impl QueryChunkMeta for TestChunk {
     fn schema(&self) -> Arc<Schema> {
         Arc::clone(&self.schema)
     }
+
+    fn delete_predicates(&self) -> Arc<Vec<Predicate>> {
+        let pred: Vec<Predicate> = vec![];
+        Arc::new(pred)
+    }
 }
 
 /// Return the raw data from the list of chunks

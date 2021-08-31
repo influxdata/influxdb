@@ -189,7 +189,7 @@ enum Command {
 
     /// Unload chunk from read buffer but keep it in object store.
     UnloadChunk(UnloadChunk),
-    // Debating: Should we add the Delete command that deletes data for table of this partition?
+    // NGA:todo -  Debating: Should we add the Delete command that deletes data for table of this partition?
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
