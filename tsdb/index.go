@@ -1343,15 +1343,15 @@ func (is IndexSet) HasField(measurement []byte, field string) bool {
 
 // MeasurementNamesByExpr returns a slice of measurement names matching the
 // provided condition. If no condition is provided then all names are returned.
-func (is IndexSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) (_ [][]byte, err error) {
 	release := is.SeriesFile.Retain()
 	defer release()
 
 	// Return filtered list if expression exists.
 	if expr != nil {
-		itr, err := is.measurementNamesByExpr(auth, expr)
-		if err != nil {
-			return nil, err
+		itr, returnErr := is.measurementNamesByExpr(auth, expr)
+		if returnErr != nil {
+			return nil, returnErr
 		} else if itr == nil {
 			return nil, nil
 		}
@@ -1505,15 +1505,15 @@ func (is IndexSet) measurementNamesByNameFilter(auth query.Authorizer, op influx
 // provided condition. If no condition is provided then all names are returned.
 // This behaves differently from MeasurementNamesByExpr because it will
 // return measurements using flux predicates.
-func (is IndexSet) MeasurementNamesByPredicate(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) MeasurementNamesByPredicate(auth query.Authorizer, expr influxql.Expr) (_ [][]byte, err error) {
 	release := is.SeriesFile.Retain()
 	defer release()
 
 	// Return filtered list if expression exists.
 	if expr != nil {
-		itr, err := is.measurementNamesByPredicate(auth, expr)
-		if err != nil {
-			return nil, err
+		itr, returnErr := is.measurementNamesByPredicate(auth, expr)
+		if returnErr != nil {
+			return nil, returnErr
 		}
 		if itr != nil {
 			defer func() {
