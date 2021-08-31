@@ -1,5 +1,5 @@
-use std::collections::BTreeSet;
 use std::net::SocketAddrV4;
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{
@@ -17,9 +17,12 @@ use generated_types::influxdata::iox::management::v1::{
 };
 use influxdb_iox_client::connection::Connection;
 use once_cell::sync::OnceCell;
-use rand::Rng;
 use tempfile::{NamedTempFile, TempDir};
 use tokio::sync::Mutex;
+
+// These port numbers are chosen to not collide with a development ioxd server
+// running locally.
+static NEXT_PORT: AtomicU16 = AtomicU16::new(8090);
 
 pub const DEFAULT_SERVER_ID: u32 = 32;
 
@@ -42,30 +45,25 @@ impl BindAddresses {
         &self.grpc_bind_addr
     }
 
-    fn get_free_ports(n: usize) -> Vec<SocketAddrV4> {
-        let mut rng = rand::thread_rng();
+    fn get_free_port() -> SocketAddrV4 {
         let ip = std::net::Ipv4Addr::new(127, 0, 0, 1);
 
-        let mut results = BTreeSet::new();
-
-        while results.len() < n {
-            let port = rng.gen_range(8000..9000);
+        loop {
+            let port = NEXT_PORT.fetch_add(1, Ordering::SeqCst);
             let addr = SocketAddrV4::new(ip, port);
+
             if std::net::TcpListener::bind(addr).is_ok() {
-                results.insert(addr);
+                return addr;
             }
         }
-
-        results.into_iter().collect()
     }
 }
 
 impl Default for BindAddresses {
     /// return a new port assignment suitable for this test's use
     fn default() -> Self {
-        let mut addrs = Self::get_free_ports(2);
-        let http_addr = addrs.pop().unwrap();
-        let grpc_addr = addrs.pop().unwrap();
+        let http_addr = Self::get_free_port();
+        let grpc_addr = Self::get_free_port();
 
         let http_base = format!("http://{}", http_addr);
         let iox_api_v1_base = format!("http://{}/iox/api/v1", http_addr);
