@@ -2440,9 +2440,16 @@ mod tests {
 
         job.join().await;
 
+        // need to force-update metrics
+        application.job_registry().reclaim();
+
         let mut reporter = metric::RawReporter::default();
         application.metric_registry_v2().report(&mut reporter);
 
+        server.shutdown();
+        server.join().await.unwrap();
+
+        // ========== influxdb_iox_job_count ==========
         let observations: Vec<_> = reporter
             .observations()
             .iter()
@@ -2452,9 +2459,19 @@ mod tests {
 
         let gauge = observations[0];
         assert_eq!(gauge.kind, metric::MetricKind::U64Gauge);
-        assert_eq!(gauge.observations.len(), 1);
 
-        let (attributes, observation) = &gauge.observations[0];
+        let observations: Vec<_> = gauge
+            .observations
+            .iter()
+            .filter(|(attributes, _)| {
+                attributes
+                    .iter()
+                    .any(|(k, v)| (k == &"status") && (v == "Success"))
+            })
+            .collect();
+        assert_eq!(observations.len(), 1);
+
+        let (attributes, observation) = &observations[0];
         assert_eq!(
             attributes,
             &metric::Attributes::from(&[
@@ -2464,7 +2481,50 @@ mod tests {
         );
         assert_eq!(observation, &metric::Observation::U64Gauge(1));
 
-        server.shutdown();
-        server.join().await.unwrap();
+        // ========== influxdb_iox_job_completed_cpu_nanoseconds ==========
+        let observations: Vec<_> = reporter
+            .observations()
+            .iter()
+            .filter(|observation| {
+                observation.metric_name == "influxdb_iox_job_completed_cpu_nanoseconds"
+            })
+            .collect();
+        assert_eq!(observations.len(), 1);
+
+        let histogram = observations[0];
+        assert_eq!(histogram.kind, metric::MetricKind::DurationHistogram);
+        assert_eq!(histogram.observations.len(), 1);
+
+        let (attributes, _) = &histogram.observations[0];
+        assert_eq!(
+            attributes,
+            &metric::Attributes::from(&[
+                ("description", "Dummy Job, for testing"),
+                ("status", "Success"),
+            ])
+        );
+
+        // ========== influxdb_iox_job_completed_wall_nanoseconds ==========
+        let observations: Vec<_> = reporter
+            .observations()
+            .iter()
+            .filter(|observation| {
+                observation.metric_name == "influxdb_iox_job_completed_wall_nanoseconds"
+            })
+            .collect();
+        assert_eq!(observations.len(), 1);
+
+        let histogram = observations[0];
+        assert_eq!(histogram.kind, metric::MetricKind::DurationHistogram);
+        assert_eq!(histogram.observations.len(), 1);
+
+        let (attributes, _) = &histogram.observations[0];
+        assert_eq!(
+            attributes,
+            &metric::Attributes::from(&[
+                ("description", "Dummy Job, for testing"),
+                ("status", "Success"),
+            ])
+        );
     }
 }

@@ -55,11 +55,16 @@ where
     }
 
     /// Reclaims jobs into the historical archive
-    pub fn reclaim(&mut self) {
+    pub fn reclaim(&mut self) -> Vec<TaskTracker<T>> {
+        let mut reclaimed = vec![];
+
         for job in self.registry.reclaim() {
             info!(?job, "job finished");
+            reclaimed.push(job.clone());
             self.history.push(job.id(), job)
         }
+
+        reclaimed
     }
 }
 
