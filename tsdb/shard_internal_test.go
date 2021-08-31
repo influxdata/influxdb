@@ -257,7 +257,7 @@ func TestShard_MeasurementOptimization(t *testing.T) {
 			names: [][]byte{[]byte("m0"), []byte("m1"), []byte("m2")},
 		},
 		{
-			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name = 'm1' OR _name = 'm2') AND (tag1 != 'foo' OR _name != 'm1')`),
+			expr:  influxql.MustParseExpr(`(_name = 'm0' OR _name = 'm1' OR _name = 'm2') AND (tag1 != 'foo' OR _name = 'm1')`),
 			name:  "measurements on in multiple groups, only one valid group",
 			ok:    true,
 			names: [][]byte{[]byte("m0"), []byte("m1"), []byte("m2")},
