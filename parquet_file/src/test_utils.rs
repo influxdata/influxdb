@@ -37,6 +37,7 @@ use persistence_windows::{
 };
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
+use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -58,6 +59,10 @@ pub enum TestSize {
 }
 
 impl TestSize {
+    pub fn is_minimal(&self) -> bool {
+        matches!(self, Self::Minimal)
+    }
+
     pub fn is_full(&self) -> bool {
         matches!(self, Self::Full)
     }
@@ -126,6 +131,7 @@ pub async fn make_chunk(
         schema,
         addr,
         column_summaries,
+        test_size,
     )
     .await
 }
@@ -138,7 +144,7 @@ pub async fn make_chunk_no_row_group(
     test_size: TestSize,
 ) -> ParquetChunk {
     let (_, schema, column_summaries, _num_rows) = make_record_batch(column_prefix, test_size);
-    make_chunk_given_record_batch(store, vec![], schema, addr, column_summaries).await
+    make_chunk_given_record_batch(store, vec![], schema, addr, column_summaries, test_size).await
 }
 
 /// Create a test chunk by writing data to object store.
@@ -150,8 +156,13 @@ pub async fn make_chunk_given_record_batch(
     schema: Schema,
     addr: ChunkAddr,
     column_summaries: Vec<ColumnSummary>,
+    test_size: TestSize,
 ) -> ParquetChunk {
-    let storage = Storage::new(Arc::clone(&iox_object_store));
+    let storage = if test_size.is_minimal() {
+        Storage::new_for_testing(Arc::clone(&iox_object_store), Uuid::nil())
+    } else {
+        Storage::new(Arc::clone(&iox_object_store))
+    };
 
     let table_summary = TableSummary {
         name: addr.table_name.to_string(),
