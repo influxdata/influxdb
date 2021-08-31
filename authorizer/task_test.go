@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/onboarding"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/pkg/errors"
@@ -591,7 +592,7 @@ func setup(t *testing.T) (*tenant.Service, influxdb.OnboardingService) {
 
 	authSvc := authorization.NewService(authStore, svc)
 
-	onboard := tenant.NewOnboardService(svc, authSvc)
+	onboard := onboarding.NewService(svc, authSvc)
 
 	return svc, onboard
 }

@@ -59,6 +59,14 @@ func (s *Store) Update(ctx context.Context, fn func(kv.Tx) error) error {
 	return s.kvStore.Update(ctx, fn)
 }
 
+func (s *Store) RLock() {
+	s.kvStore.RLock()
+}
+
+func (s *Store) RUnlock() {
+	s.kvStore.RUnlock()
+}
+
 // generateSafeID attempts to create ids for buckets
 // and orgs that are without backslash, commas, and spaces, BUT ALSO do not already exist.
 func (s *Store) generateSafeID(ctx context.Context, tx kv.Tx, bucket []byte, gen platform.IDGenerator) (platform.ID, error) {

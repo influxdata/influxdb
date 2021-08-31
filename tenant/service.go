@@ -28,11 +28,20 @@ func isInternal(ctx context.Context) bool {
 
 type Service struct {
 	store *Store
+
 	influxdb.UserService
 	influxdb.PasswordsService
 	influxdb.UserResourceMappingService
 	influxdb.OrganizationService
 	influxdb.BucketService
+}
+
+func (s *Service) RLock() {
+	s.store.RLock()
+}
+
+func (s *Service) RUnlock() {
+	s.store.RUnlock()
 }
 
 // NewService creates a new base tenant service.

@@ -1,4 +1,4 @@
-package tenant_test
+package transport_test
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	ihttp "github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/onboarding"
+	"github.com/influxdata/influxdb/v2/onboarding/transport"
 	"github.com/influxdata/influxdb/v2/tenant"
 	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/require"
@@ -27,7 +29,7 @@ func initOnboardHttpService(f itesting.OnboardingFields, t *testing.T) (influxdb
 	require.NoError(t, err)
 	authSvc := authorization.NewService(authStore, ten)
 
-	svc := tenant.NewOnboardService(ten, authSvc)
+	svc := onboarding.NewService(ten, authSvc)
 
 	ctx := context.Background()
 	if !f.IsOnboarding {
@@ -38,7 +40,7 @@ func initOnboardHttpService(f itesting.OnboardingFields, t *testing.T) (influxdb
 		}
 	}
 
-	handler := tenant.NewHTTPOnboardHandler(zaptest.NewLogger(t), svc)
+	handler := transport.NewOnboardingHandler(zaptest.NewLogger(t), svc)
 	r := chi.NewRouter()
 	r.Mount(handler.Prefix(), handler)
 	server := httptest.NewServer(r)
@@ -47,10 +49,7 @@ func initOnboardHttpService(f itesting.OnboardingFields, t *testing.T) (influxdb
 		t.Fatal(err)
 	}
 
-	client := tenant.OnboardClientService{
-		Client: httpClient,
-	}
-
+	client := transport.OnboardingClient{Client: httpClient}
 	return &client, server.Close
 }
 

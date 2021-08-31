@@ -25,6 +25,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
+	"github.com/influxdata/influxdb/v2/onboarding"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/tenant"
 	authv1 "github.com/influxdata/influxdb/v2/v1/authorization"
@@ -662,7 +663,7 @@ func newInfluxDBv2(ctx context.Context, opts *optionsV2, log *zap.Logger) (svc *
 	svc.authSvcV2 = authorization.NewService(authStoreV2, svc.ts)
 
 	// on-boarding service (influx setup)
-	svc.onboardSvc = tenant.NewOnboardService(svc.ts, svc.authSvcV2)
+	svc.onboardSvc = onboarding.NewService(svc.ts, svc.authSvcV2)
 
 	// v1 auth service
 	authStoreV1, err := authv1.NewStore(svc.kvStore)

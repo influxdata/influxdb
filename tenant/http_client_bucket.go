@@ -58,7 +58,7 @@ func (s *BucketClientService) FindBucketByID(ctx context.Context, id platform.ID
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	var br bucketResponse
+	var br BucketResponse
 	err := s.Client.
 		Get(path.Join(prefixBuckets, id.String())).
 		DecodeJSON(&br).
@@ -66,7 +66,7 @@ func (s *BucketClientService) FindBucketByID(ctx context.Context, id platform.ID
 	if err != nil {
 		return nil, err
 	}
-	return br.toInfluxDB(), nil
+	return br.ToInfluxDB(), nil
 }
 
 // FindBucket returns the first bucket that matches filter.
@@ -127,7 +127,7 @@ func (s *BucketClientService) FindBuckets(ctx context.Context, filter influxdb.B
 	}
 	buckets := make([]*influxdb.Bucket, 0, len(bs.Buckets))
 	for _, b := range bs.Buckets {
-		pb := b.bucket.toInfluxDB()
+		pb := b.bucket.ToInfluxDB()
 		buckets = append(buckets, pb)
 	}
 
@@ -139,7 +139,7 @@ func (s *BucketClientService) CreateBucket(ctx context.Context, b *influxdb.Buck
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	var br bucketResponse
+	var br BucketResponse
 	err := s.Client.
 		PostJSON(newBucket(b), prefixBuckets).
 		DecodeJSON(&br).
@@ -148,7 +148,7 @@ func (s *BucketClientService) CreateBucket(ctx context.Context, b *influxdb.Buck
 		return err
 	}
 
-	pb := br.toInfluxDB()
+	pb := br.ToInfluxDB()
 	*b = *pb
 	return nil
 }
@@ -156,7 +156,7 @@ func (s *BucketClientService) CreateBucket(ctx context.Context, b *influxdb.Buck
 // UpdateBucket updates a single bucket with changeset.
 // Returns the new bucket state after update.
 func (s *BucketClientService) UpdateBucket(ctx context.Context, id platform.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
-	var br bucketResponse
+	var br BucketResponse
 	err := s.Client.
 		PatchJSON(newBucketUpdate(&upd), path.Join(prefixBuckets, id.String())).
 		DecodeJSON(&br).
@@ -164,7 +164,7 @@ func (s *BucketClientService) UpdateBucket(ctx context.Context, id platform.ID, 
 	if err != nil {
 		return nil, err
 	}
-	return br.toInfluxDB(), nil
+	return br.ToInfluxDB(), nil
 }
 
 // DeleteBucket removes a bucket by ID.

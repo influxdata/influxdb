@@ -90,7 +90,7 @@ type retentionRule struct {
 	ShardGroupDurationSeconds int64  `json:"shardGroupDurationSeconds"`
 }
 
-func (b *bucket) toInfluxDB() *influxdb.Bucket {
+func (b *bucket) ToInfluxDB() *influxdb.Bucket {
 	if b == nil {
 		return nil
 	}
@@ -246,14 +246,14 @@ func newBucketUpdate(pb *influxdb.BucketUpdate) *bucketUpdate {
 	return up
 }
 
-type bucketResponse struct {
+type BucketResponse struct {
 	bucket
 	Links  map[string]string `json:"links"`
 	Labels []influxdb.Label  `json:"labels"`
 }
 
-func NewBucketResponse(b *influxdb.Bucket, labels ...*influxdb.Label) *bucketResponse {
-	res := &bucketResponse{
+func NewBucketResponse(b *influxdb.Bucket, labels ...*influxdb.Label) *BucketResponse {
+	res := &BucketResponse{
 		Links: map[string]string{
 			"self":    fmt.Sprintf("/api/v2/buckets/%s", b.ID),
 			"org":     fmt.Sprintf("/api/v2/orgs/%s", b.OrgID),
@@ -274,11 +274,11 @@ func NewBucketResponse(b *influxdb.Bucket, labels ...*influxdb.Label) *bucketRes
 
 type bucketsResponse struct {
 	Links   *influxdb.PagingLinks `json:"links"`
-	Buckets []*bucketResponse     `json:"buckets"`
+	Buckets []*BucketResponse     `json:"buckets"`
 }
 
 func newBucketsResponse(ctx context.Context, opts influxdb.FindOptions, f influxdb.BucketFilter, bs []*influxdb.Bucket, labelSvc influxdb.LabelService) *bucketsResponse {
-	rs := make([]*bucketResponse, 0, len(bs))
+	rs := make([]*BucketResponse, 0, len(bs))
 	for _, b := range bs {
 		var labels []*influxdb.Label
 		if labelSvc != nil { // allow for no label svc

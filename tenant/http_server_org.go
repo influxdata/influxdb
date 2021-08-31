@@ -65,13 +65,13 @@ func NewHTTPOrgHandler(log *zap.Logger, orgService influxdb.OrganizationService,
 	return svr
 }
 
-type orgResponse struct {
+type OrgResponse struct {
 	Links map[string]string `json:"links"`
 	influxdb.Organization
 }
 
-func newOrgResponse(o influxdb.Organization) orgResponse {
-	return orgResponse{
+func NewOrgResponse(o influxdb.Organization) OrgResponse {
+	return OrgResponse{
 		Links: map[string]string{
 			"self":       fmt.Sprintf("/api/v2/orgs/%s", o.ID),
 			"logs":       fmt.Sprintf("/api/v2/orgs/%s/logs", o.ID),
@@ -89,7 +89,7 @@ func newOrgResponse(o influxdb.Organization) orgResponse {
 
 type orgsResponse struct {
 	Links         map[string]string `json:"links"`
-	Organizations []orgResponse     `json:"orgs"`
+	Organizations []OrgResponse     `json:"orgs"`
 }
 
 func newOrgsResponse(orgs []*influxdb.Organization) *orgsResponse {
@@ -97,10 +97,10 @@ func newOrgsResponse(orgs []*influxdb.Organization) *orgsResponse {
 		Links: map[string]string{
 			"self": "/api/v2/orgs",
 		},
-		Organizations: []orgResponse{},
+		Organizations: []OrgResponse{},
 	}
 	for _, org := range orgs {
-		res.Organizations = append(res.Organizations, newOrgResponse(*org))
+		res.Organizations = append(res.Organizations, NewOrgResponse(*org))
 	}
 	return &res
 }
@@ -120,7 +120,7 @@ func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 
 	h.log.Debug("Org created", zap.String("org", fmt.Sprint(org)))
 
-	h.api.Respond(w, r, http.StatusCreated, newOrgResponse(org))
+	h.api.Respond(w, r, http.StatusCreated, NewOrgResponse(org))
 }
 
 // handleGetOrg is the HTTP handler for the GET /api/v2/orgs/:id route.
@@ -138,7 +138,7 @@ func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log.Debug("Org retrieved", zap.String("org", fmt.Sprint(org)))
 
-	h.api.Respond(w, r, http.StatusOK, newOrgResponse(*org))
+	h.api.Respond(w, r, http.StatusOK, NewOrgResponse(*org))
 }
 
 // handleGetOrgs is the HTTP handler for the GET /api/v2/orgs route.
@@ -201,7 +201,7 @@ func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log.Debug("Org updated", zap.String("org", fmt.Sprint(org)))
 
-	h.api.Respond(w, r, http.StatusOK, newOrgResponse(*org))
+	h.api.Respond(w, r, http.StatusOK, NewOrgResponse(*org))
 }
 
 // handleDeleteOrganization is the HTTP handler for the DELETE /api/v2/orgs/:id route.

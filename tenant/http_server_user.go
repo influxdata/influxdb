@@ -203,7 +203,7 @@ func (h *UserHandler) handlePostUser(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log.Debug("User created", zap.String("user", fmt.Sprint(req.User)))
 
-	h.api.Respond(w, r, http.StatusCreated, newUserResponse(req.User))
+	h.api.Respond(w, r, http.StatusCreated, NewUserResponse(req.User))
 }
 
 type postUserRequest struct {
@@ -239,7 +239,7 @@ func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.api.Respond(w, r, http.StatusOK, newUserResponse(user))
+	h.api.Respond(w, r, http.StatusOK, NewUserResponse(user))
 }
 
 // handleGetUser is the HTTP handler for the GET /api/v2/users/:id route.
@@ -258,7 +258,7 @@ func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log.Debug("User retrieved", zap.String("user", fmt.Sprint(b)))
 
-	h.api.Respond(w, r, http.StatusOK, newUserResponse(b))
+	h.api.Respond(w, r, http.StatusOK, NewUserResponse(b))
 }
 
 func (h *UserHandler) handleGetPermissions(w http.ResponseWriter, r *http.Request) {
@@ -373,7 +373,7 @@ func newUsersResponse(users []*influxdb.User) *usersResponse {
 		Users: []*UserResponse{},
 	}
 	for _, user := range users {
-		res.Users = append(res.Users, newUserResponse(user))
+		res.Users = append(res.Users, NewUserResponse(user))
 	}
 	return &res
 }
@@ -384,7 +384,7 @@ type UserResponse struct {
 	influxdb.User
 }
 
-func newUserResponse(u *influxdb.User) *UserResponse {
+func NewUserResponse(u *influxdb.User) *UserResponse {
 	return &UserResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/users/%s", u.ID),
@@ -466,7 +466,7 @@ func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log.Debug("Users updated", zap.String("user", fmt.Sprint(b)))
 
-	h.api.Respond(w, r, http.StatusOK, newUserResponse(b))
+	h.api.Respond(w, r, http.StatusOK, NewUserResponse(b))
 }
 
 type patchUserRequest struct {

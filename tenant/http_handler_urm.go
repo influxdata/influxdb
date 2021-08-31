@@ -240,7 +240,7 @@ type resourceUserResponse struct {
 func newResourceUserResponse(u *influxdb.User, userType influxdb.UserType) *resourceUserResponse {
 	return &resourceUserResponse{
 		Role:         userType,
-		UserResponse: newUserResponse(u),
+		UserResponse: NewUserResponse(u),
 	}
 }
 

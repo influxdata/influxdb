@@ -1,21 +1,20 @@
-package tenant_test
+package onboarding_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
-
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/onboarding"
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBoltOnboardingService(t *testing.T) {
@@ -23,9 +22,9 @@ func TestBoltOnboardingService(t *testing.T) {
 }
 
 func initBoltOnboardingService(f influxdbtesting.OnboardingFields, t *testing.T) (influxdb.OnboardingService, func()) {
-	s := influxdbtesting.NewTestInmemStore(t)
+	s, closeBolt := influxdbtesting.NewTestBoltStore(t)
 	svc := initOnboardingService(s, f, t)
-	return svc, func() {}
+	return svc, closeBolt
 }
 
 func initOnboardingService(s kv.Store, f influxdbtesting.OnboardingFields, t *testing.T) influxdb.OnboardingService {
@@ -37,7 +36,7 @@ func initOnboardingService(s kv.Store, f influxdbtesting.OnboardingFields, t *te
 	authSvc := authorization.NewService(authStore, ten)
 
 	// we will need an auth service as well
-	svc := tenant.NewOnboardService(ten, authSvc)
+	svc := onboarding.NewService(ten, authSvc)
 
 	ctx := context.Background()
 
@@ -62,7 +61,7 @@ func TestOnboardURM(t *testing.T) {
 	require.NoError(t, err)
 	authSvc := authorization.NewService(authStore, ten)
 
-	svc := tenant.NewOnboardService(ten, authSvc)
+	svc := onboarding.NewService(ten, authSvc)
 
 	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
 		UserID: 123,
@@ -100,7 +99,7 @@ func TestOnboardAuth(t *testing.T) {
 	require.NoError(t, err)
 	authSvc := authorization.NewService(authStore, ten)
 
-	svc := tenant.NewOnboardService(ten, authSvc)
+	svc := onboarding.NewService(ten, authSvc)
 
 	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
 		UserID: 123,
@@ -176,7 +175,7 @@ func TestOnboardService_RetentionPolicy(t *testing.T) {
 	authSvc := authorization.NewService(authStore, ten)
 
 	// we will need an auth service as well
-	svc := tenant.NewOnboardService(ten, authSvc)
+	svc := onboarding.NewService(ten, authSvc)
 
 	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
 		UserID: 123,
@@ -208,7 +207,7 @@ func TestOnboardService_RetentionPolicyDeprecated(t *testing.T) {
 	authSvc := authorization.NewService(authStore, ten)
 
 	// we will need an auth service as well
-	svc := tenant.NewOnboardService(ten, authSvc)
+	svc := onboarding.NewService(ten, authSvc)
 
 	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
 		UserID: 123,
@@ -238,7 +237,7 @@ func TestOnboardService_WeakPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	authSvc := authorization.NewService(authStore, ten)
-	svc := tenant.NewOnboardService(ten, authSvc)
+	svc := onboarding.NewService(ten, authSvc)
 
 	ctx := icontext.SetAuthorizer(context.Background(), &influxdb.Authorization{
 		UserID: 123,

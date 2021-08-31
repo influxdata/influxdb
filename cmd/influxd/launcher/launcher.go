@@ -48,6 +48,8 @@ import (
 	notebookTransport "github.com/influxdata/influxdb/v2/notebooks/transport"
 	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	ruleservice "github.com/influxdata/influxdb/v2/notification/rule/service"
+	"github.com/influxdata/influxdb/v2/onboarding"
+	onboardingTransport "github.com/influxdata/influxdb/v2/onboarding/transport"
 	"github.com/influxdata/influxdb/v2/pkger"
 	infprom "github.com/influxdata/influxdb/v2/prometheus"
 	"github.com/influxdata/influxdb/v2/query"
@@ -592,16 +594,16 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	bucketManifestWriter := backup.NewBucketManifestWriter(ts, metaClient)
 
-	onboardingLogger := m.log.With(zap.String("handler", "onboard"))
-	onboardOpts := []tenant.OnboardServiceOptionFn{tenant.WithOnboardingLogger(onboardingLogger)}
+	onboardingLogger := m.log.With(zap.String("service", "onboarding"))
+	onboardOpts := []onboarding.ServiceOptionFn{onboarding.WithLogger(onboardingLogger)}
 	if opts.TestingAlwaysAllowSetup {
-		onboardOpts = append(onboardOpts, tenant.WithAlwaysAllowInitialUser())
+		onboardOpts = append(onboardOpts, onboarding.WithAlwaysAllowInitialUser())
 	}
 
-	onboardSvc := tenant.NewOnboardService(ts, authSvc, onboardOpts...)                   // basic service
-	onboardSvc = tenant.NewAuthedOnboardSvc(onboardSvc)                                   // with auth
-	onboardSvc = tenant.NewOnboardingMetrics(m.reg, onboardSvc, metric.WithSuffix("new")) // with metrics
-	onboardSvc = tenant.NewOnboardingLogger(onboardingLogger, onboardSvc)                 // with logging
+	onboardSvc := onboarding.NewService(ts, authSvc, onboardOpts...)                                // basic service
+	onboardSvc = onboarding.NewMetricCollectingService(m.reg, onboardSvc, metric.WithSuffix("new")) // with metrics
+	onboardSvc = onboarding.NewLoggingService(onboardingLogger, onboardSvc)                         // with logging
+	onboardHTTPServer := onboardingTransport.NewOnboardingHandler(m.log.With(zap.String("handler", "onboarding")), onboardSvc)
 
 	var (
 		passwordV1 platform.PasswordsService
@@ -756,7 +758,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	}
 
 	userHTTPServer := ts.NewUserHTTPHandler(m.log)
-	onboardHTTPServer := tenant.NewHTTPOnboardHandler(m.log, onboardSvc)
 
 	// feature flagging for new labels service
 	var labelHandler *label.LabelHandler

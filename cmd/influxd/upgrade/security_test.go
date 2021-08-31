@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/onboarding"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
@@ -177,7 +178,7 @@ func TestUpgradeSecurity(t *testing.T) {
 
 			v2 := &influxDBv2{
 				authSvc: authv1.NewService(authStoreV1, tenantSvc),
-				onboardSvc: tenant.NewOnboardService(
+				onboardSvc: onboarding.NewService(
 					tenantSvc,
 					authorization.NewService(authStoreV2, tenantSvc),
 				),

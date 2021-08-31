@@ -1,4 +1,4 @@
-package tenant
+package transport
 
 import (
 	"encoding/json"
@@ -9,24 +9,17 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"go.uber.org/zap"
 )
-
-// OnboardHandler represents an HTTP API handler for users.
-type OnboardHandler struct {
-	chi.Router
-	api           *kithttp.API
-	log           *zap.Logger
-	onboardingSvc influxdb.OnboardingService
-}
 
 const (
 	prefixOnboard = "/api/v2/setup"
 )
 
-// NewHTTPOnboardHandler constructs a new http server.
-func NewHTTPOnboardHandler(log *zap.Logger, onboardSvc influxdb.OnboardingService) *OnboardHandler {
-	svr := &OnboardHandler{
+// NewOnboardingHandler constructs a new http server.
+func NewOnboardingHandler(log *zap.Logger, onboardSvc influxdb.OnboardingService) *OnboardingHandler {
+	svr := &OnboardingHandler{
 		api:           kithttp.NewAPI(kithttp.WithLog(log)),
 		log:           log,
 		onboardingSvc: onboardSvc,
@@ -50,7 +43,14 @@ func NewHTTPOnboardHandler(log *zap.Logger, onboardSvc influxdb.OnboardingServic
 	return svr
 }
 
-func (h *OnboardHandler) Prefix() string {
+type OnboardingHandler struct {
+	chi.Router
+	api           *kithttp.API
+	log           *zap.Logger
+	onboardingSvc influxdb.OnboardingService
+}
+
+func (h *OnboardingHandler) Prefix() string {
 	return prefixOnboard
 }
 
@@ -59,7 +59,7 @@ type isOnboardingResponse struct {
 }
 
 // isOnboarding is the HTTP handler for the POST /api/v2/setup route.
-func (h *OnboardHandler) handleIsOnboarding(w http.ResponseWriter, r *http.Request) {
+func (h *OnboardingHandler) handleIsOnboarding(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	result, err := h.onboardingSvc.IsOnboarding(ctx)
 	if err != nil {
@@ -72,7 +72,7 @@ func (h *OnboardHandler) handleIsOnboarding(w http.ResponseWriter, r *http.Reque
 }
 
 // handleInitialOnboardRequest is the HTTP handler for the GET /api/v2/setup route.
-func (h *OnboardHandler) handleInitialOnboardRequest(w http.ResponseWriter, r *http.Request) {
+func (h *OnboardingHandler) handleInitialOnboardRequest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req := &influxdb.OnboardingRequest{}
 	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
@@ -86,36 +86,37 @@ func (h *OnboardHandler) handleInitialOnboardRequest(w http.ResponseWriter, r *h
 	}
 	h.log.Debug("Onboarding setup completed", zap.String("results", fmt.Sprint(results)))
 
-	h.api.Respond(w, r, http.StatusCreated, NewOnboardingResponse(results))
+	h.api.Respond(w, r, http.StatusCreated, NewResponse(results))
 }
 
-type onboardingResponse struct {
-	User         *UserResponse   `json:"user"`
-	Bucket       *bucketResponse `json:"bucket"`
-	Organization orgResponse     `json:"org"`
-	Auth         *authResponse   `json:"auth"`
+type response struct {
+	User         *tenant.UserResponse   `json:"user"`
+	Bucket       *tenant.BucketResponse `json:"bucket"`
+	Organization *tenant.OrgResponse    `json:"org"`
+	Auth         *AuthResponse          `json:"auth"`
 }
 
-func NewOnboardingResponse(results *influxdb.OnboardingResults) *onboardingResponse {
-	return &onboardingResponse{
-		User:         newUserResponse(results.User),
-		Bucket:       NewBucketResponse(results.Bucket),
-		Organization: newOrgResponse(*results.Org),
+func NewResponse(results *influxdb.OnboardingResults) *response {
+	o := tenant.NewOrgResponse(*results.Org)
+	return &response{
+		User:         tenant.NewUserResponse(results.User),
+		Bucket:       tenant.NewBucketResponse(results.Bucket),
+		Organization: &o,
 		Auth:         newAuthResponse(results.Auth),
 	}
 }
 
-type authResponse struct {
+type AuthResponse struct {
 	influxdb.Authorization
 	Links map[string]string `json:"links"`
 }
 
-func newAuthResponse(a *influxdb.Authorization) *authResponse {
+func newAuthResponse(a *influxdb.Authorization) *AuthResponse {
 	if a == nil {
 		return nil
 	}
 
-	res := &authResponse{
+	res := &AuthResponse{
 		Authorization: *a,
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/authorizations/%s", a.ID),
@@ -125,7 +126,7 @@ func newAuthResponse(a *influxdb.Authorization) *authResponse {
 	return res
 }
 
-func (a *authResponse) toPlatform() *influxdb.Authorization {
+func (a *AuthResponse) ToPlatform() *influxdb.Authorization {
 	res := &influxdb.Authorization{
 		ID:          a.ID,
 		Token:       a.Token,

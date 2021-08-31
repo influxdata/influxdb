@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/http"
-	"github.com/influxdata/influxdb/v2/tenant"
+	onboardingTransport "github.com/influxdata/influxdb/v2/onboarding/transport"
 )
 
 // Default context.
@@ -27,7 +27,7 @@ func TestLauncher_Setup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc := &tenant.OnboardClientService{Client: client}
+	svc := onboardingTransport.OnboardingClient{Client: client}
 	if results, err := svc.OnboardInitialUser(ctx, &platform.OnboardingRequest{
 		User:     "USER",
 		Password: "PASSWORD",
