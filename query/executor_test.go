@@ -541,7 +541,7 @@ func checkNotExecutedResults(t *testing.T, results <-chan *query.Result, testNam
 		}
 	}
 	if notExecutedIndex != lenQuery {
-		t.Fatalf("wrong number of results from %s with fail index of %d - got: %d, expected: %d", testName, failIndex, notExecutedIndex - (1 + failIndex), lenQuery-(1+failIndex))
+		t.Fatalf("wrong number of results from %s with fail index of %d - got: %d, expected: %d", testName, failIndex, notExecutedIndex-(1+failIndex), lenQuery-(1+failIndex))
 	}
 }
 

@@ -94,8 +94,11 @@ jobs:
             set -x
             mkdir -p junit
             go test -v ./... 2>&1 | tee tests.log
-            go-junit-report < tests.log > junit/influxdb.junit.xml
           no_output_timeout: 1500s
+      - run:
+          name: Convert test output to junit
+          command: go-junit-report < tests.log > junit/influxdb.junit.xml
+          when: always
       - store_test_results:
           path: junit/
   unit_test_tsi:
@@ -115,8 +118,11 @@ jobs:
             mkdir -p junit-tsi
             export INFLUXDB_DATA_INDEX_VERSION="tsi1"
             go test -v ./... 2>&1 | tee tests.log
-            go-junit-report < tests.log > junit-tsi/influxdb.junit.xml
           no_output_timeout: 1500s
+      - run:
+          name: Convert test output to junit
+          command: go-junit-report < tests.log > junit-tsi/influxdb.junit.xml
+          when: always
       - store_test_results:
           path: junit-tsi/
   unit_test_race:
@@ -136,8 +142,11 @@ jobs:
             mkdir -p junit-race/
             export GORACE="halt_on_error=1"
             go test -race -v ./... 2>&1 | tee tests.log
-            go-junit-report < tests.log > junit-race/influxdb.junit.xml
           no_output_timeout: 1500s
+      - run:
+          name: Convert test output to junit
+          command: go-junit-report < tests.log > junit-race/influxdb.junit.xml
+          when: always
       - store_test_results:
           path: junit-race/
   fluxtest:
