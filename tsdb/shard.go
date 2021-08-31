@@ -1352,10 +1352,7 @@ func (v *orMeasurementTree) Visit(node influxql.Node) influxql.Visitor {
 	case *influxql.BinaryExpr:
 		// A BinaryExpr must have an operation of OR or EQ in a valid tree
 		if n.Op == influxql.OR {
-			// The children of ORs must be either BinaryExprs themselves, or Parens
-			if binaryOrParen(n.LHS) && binaryOrParen(n.RHS) {
-				return v
-			}
+			return v
 		} else if n.Op == influxql.EQ {
 			// An EQ must be in the form of "v.measurementKey == measurementName" in a
 			// valid tree
@@ -1414,15 +1411,6 @@ func measurementOptimization(expr influxql.Expr, key string) ([][]byte, bool) {
 	}
 
 	return slices.StringsToBytes(validSubtrees[0].measurementNames...), true
-}
-
-func binaryOrParen(expr influxql.Expr) bool {
-	switch expr.(type) {
-	case *influxql.BinaryExpr, *influxql.ParenExpr:
-		return true
-	}
-
-	return false
 }
 
 // measurementNameFromEqBinary returns the name of a measurement from a binary
