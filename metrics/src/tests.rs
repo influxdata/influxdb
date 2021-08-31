@@ -43,9 +43,14 @@ enum InnerError {
     #[snafu(display("no metric family with name: {}\n{}", name, metrics))]
     MetricFamilyNotFound { name: String, metrics: String },
 
-    #[snafu(display("labels {:?} do not match metric: {}\n{}", labels, name, metrics))]
-    NoMatchingLabels {
-        labels: Vec<(String, String)>,
+    #[snafu(display(
+        "attributes {:?} do not match metric: {}\n{}",
+        attributes,
+        name,
+        metrics
+    ))]
+    NoMatchingAttributes {
+        attributes: Vec<(String, String)>,
         name: String,
         metrics: OptInString,
     },
@@ -134,7 +139,7 @@ impl TestMetricRegistry {
 #[derive(Debug)]
 pub struct AssertionBuilder<'a> {
     family: MetricFamily,
-    labels: Vec<(String, String)>,
+    attributes: Vec<(String, String)>,
     registry: &'a MetricRegistry,
 }
 
@@ -142,15 +147,15 @@ impl<'a> AssertionBuilder<'a> {
     fn new(family: MetricFamily, registry: &'a MetricRegistry) -> Self {
         Self {
             family,
-            labels: vec![],
+            attributes: vec![],
             registry,
         }
     }
 
-    /// Assert that the metric has the following set of labels.
-    pub fn with_labels(mut self, labels: &[(&str, &str)]) -> Self {
-        for (key, value) in labels {
-            self.labels.push((key.to_string(), value.to_string()));
+    /// Assert that the metric has the following set of attributes.
+    pub fn with_attributes(mut self, attributes: &[(&str, &str)]) -> Self {
+        for (key, value) in attributes {
+            self.attributes.push((key.to_string(), value.to_string()));
         }
 
         self
@@ -158,31 +163,31 @@ impl<'a> AssertionBuilder<'a> {
 
     /// Returns the counter metric, allowing assertions to be applied.
     pub fn counter(&mut self) -> CounterAssertion<'_> {
-        // sort the assertion's labels
-        self.labels.sort_by(|a, b| a.0.cmp(&b.0));
+        // sort the assertion's attributes
+        self.attributes.sort_by(|a, b| a.0.cmp(&b.0));
 
         let metric = self.family.get_metric().iter().find(|metric| {
-            if metric.get_label().len() != self.labels.len() {
+            if metric.get_label().len() != self.attributes.len() {
                 return false; // this metric can't match
             }
 
-            // sort this metrics labels and compare to assertion labels
-            let mut metric_labels = metric.get_label().to_vec();
-            metric_labels.sort_by(|a, b| a.get_name().cmp(b.get_name()));
+            // sort this metrics attributes and compare to assertion attributes
+            let mut metric_attributes = metric.get_label().to_vec();
+            metric_attributes.sort_by(|a, b| a.get_name().cmp(b.get_name()));
 
-            // metric only matches if all labels are identical.
-            metric_labels
+            // metric only matches if all attributes are identical.
+            metric_attributes
                 .iter()
-                .zip(self.labels.iter())
+                .zip(self.attributes.iter())
                 .all(|(a, b)| a.get_name() == b.0 && a.get_value() == b.1)
         });
 
-        // Can't find metric matching labels
+        // Can't find metric matching attributes
         if metric.is_none() {
             return CounterAssertion {
-                c: NoMatchingLabels {
+                c: NoMatchingAttributes {
                     name: self.family.get_name().to_owned(),
-                    labels: self.labels.clone(),
+                    attributes: self.attributes.clone(),
                     metrics: self.registry.metrics_as_str(),
                 }
                 .fail()
@@ -216,31 +221,31 @@ impl<'a> AssertionBuilder<'a> {
 
     /// Returns the gauge metric, allowing assertions to be applied.
     pub fn gauge(&mut self) -> GaugeAssertion<'_> {
-        // sort the assertion's labels
-        self.labels.sort_by(|a, b| a.0.cmp(&b.0));
+        // sort the assertion's attributes
+        self.attributes.sort_by(|a, b| a.0.cmp(&b.0));
 
         let metric = self.family.get_metric().iter().find(|metric| {
-            if metric.get_label().len() != self.labels.len() {
+            if metric.get_label().len() != self.attributes.len() {
                 return false; // this metric can't match
             }
 
-            // sort this metrics labels and compare to assertion labels
-            let mut metric_labels = metric.get_label().to_vec();
-            metric_labels.sort_by(|a, b| a.get_name().cmp(b.get_name()));
+            // sort this metrics attributes and compare to assertion attributes
+            let mut metric_attributes = metric.get_label().to_vec();
+            metric_attributes.sort_by(|a, b| a.get_name().cmp(b.get_name()));
 
-            // metric only matches if all labels are identical.
-            metric_labels
+            // metric only matches if all attributes are identical.
+            metric_attributes
                 .iter()
-                .zip(self.labels.iter())
+                .zip(self.attributes.iter())
                 .all(|(a, b)| a.get_name() == b.0 && a.get_value() == b.1)
         });
 
-        // Can't find metric matching labels
+        // Can't find metric matching attributes
         if metric.is_none() {
             return GaugeAssertion {
-                c: NoMatchingLabels {
+                c: NoMatchingAttributes {
                     name: self.family.get_name().to_owned(),
-                    labels: self.labels.clone(),
+                    attributes: self.attributes.clone(),
                     metrics: self.registry.metrics_as_str(),
                 }
                 .fail()
@@ -274,33 +279,33 @@ impl<'a> AssertionBuilder<'a> {
 
     /// Returns the histogram metric, allowing assertions to be applied.
     pub fn histogram(&mut self) -> Histogram<'_> {
-        // sort the assertion's labels
-        self.labels.sort_by(|a, b| a.0.cmp(&b.0));
+        // sort the assertion's attributes
+        self.attributes.sort_by(|a, b| a.0.cmp(&b.0));
 
         let metric = self.family.get_metric().iter().find(|metric| {
-            if metric.get_label().len() != self.labels.len() {
+            if metric.get_label().len() != self.attributes.len() {
                 return false; // this metric can't match
             }
 
-            // sort this metrics labels and compare to assertion labels
-            let mut metric_labels = metric.get_label().to_vec();
-            metric_labels.sort_by(|a, b| a.get_name().cmp(b.get_name()));
+            // sort this metrics attributes and compare to assertion attributes
+            let mut metric_attributes = metric.get_label().to_vec();
+            metric_attributes.sort_by(|a, b| a.get_name().cmp(b.get_name()));
 
-            // metric only matches if all labels are identical.
-            metric_labels
+            // metric only matches if all attributes are identical.
+            metric_attributes
                 .iter()
-                .zip(self.labels.iter())
+                .zip(self.attributes.iter())
                 .all(|(a, b)| a.get_name() == b.0 && a.get_value() == b.1)
         });
 
-        // Can't find metric matching labels
+        // Can't find metric matching attributes
         let metric = match metric {
             Some(metric) => metric,
             None => {
                 return Histogram {
-                    c: NoMatchingLabels {
+                    c: NoMatchingAttributes {
                         name: self.family.get_name(),
-                        labels: self.labels.clone(), // Maybe `labels: &self.labels`
+                        attributes: self.attributes.clone(), // Maybe `attributes: &self.attributes`
                         metrics: self.registry.metrics_as_str(),
                     }
                     .fail()
@@ -335,7 +340,7 @@ impl<'a> AssertionBuilder<'a> {
 
 #[derive(Debug)]
 pub struct CounterAssertion<'a> {
-    // if there was a problem getting the counter based on labels then the
+    // if there was a problem getting the counter based on attributes then the
     // Error will contain details.
     c: Result<&'a PromCounter, Error>,
 
@@ -417,7 +422,7 @@ impl<'a> CounterAssertion<'a> {
 
 #[derive(Debug)]
 pub struct GaugeAssertion<'a> {
-    // if there was a problem getting the gauge based on labels then the
+    // if there was a problem getting the gauge based on attributes then the
     // Error will contain details.
     c: Result<&'a PromGauge, Error>,
 
@@ -499,7 +504,7 @@ impl<'a> GaugeAssertion<'a> {
 
 #[derive(Debug)]
 pub struct Histogram<'a> {
-    // if there was a problem getting the counter based on labels then the
+    // if there was a problem getting the counter based on attributes then the
     // Error will contain details.
     c: Result<&'a PromHistogram, Error>,
 

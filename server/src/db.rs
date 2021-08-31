@@ -175,46 +175,46 @@ impl WriteBufferIngestMetrics {
     }
 
     fn new_sequencer_metrics(&self, sequencer_id: u32) -> SequencerMetrics {
-        let labels = vec![KeyValue::new("sequencer_id", sequencer_id.to_string())];
+        let attributes = vec![KeyValue::new("sequencer_id", sequencer_id.to_string())];
 
         let red = self
             .domain
-            .register_red_metric_with_labels(Some("ingest"), labels.clone());
-        let bytes_read = self.domain.register_counter_metric_with_labels(
+            .register_red_metric_with_attributes(Some("ingest"), attributes.clone());
+        let bytes_read = self.domain.register_counter_metric_with_attributes(
             "read",
             Some("bytes"),
             "Bytes read from sequencer",
-            labels.clone(),
+            attributes.clone(),
         );
-        let last_sequence_number = self.domain.register_gauge_metric_with_labels(
+        let last_sequence_number = self.domain.register_gauge_metric_with_attributes(
             "last_sequence_number",
             None,
             "Last consumed sequence number (e.g. Kafka offset)",
-            &labels,
+            &attributes,
         );
-        let sequence_number_lag = self.domain.register_gauge_metric_with_labels(
+        let sequence_number_lag = self.domain.register_gauge_metric_with_attributes(
             "sequence_number_lag",
             None,
             "The difference between the the last sequence number available (e.g. Kafka offset) and (= minus) last consumed sequence number",
-            &labels,
+            &attributes,
         );
-        let last_min_ts = self.domain.register_gauge_metric_with_labels(
+        let last_min_ts = self.domain.register_gauge_metric_with_attributes(
             "last_min_ts",
             None,
             "Minimum timestamp of last write as unix timestamp in nanoseconds",
-            &labels,
+            &attributes,
         );
-        let last_max_ts = self.domain.register_gauge_metric_with_labels(
+        let last_max_ts = self.domain.register_gauge_metric_with_attributes(
             "last_max_ts",
             None,
             "Maximum timestamp of last write as unix timestamp in nanoseconds",
-            &labels,
+            &attributes,
         );
-        let last_ingest_ts = self.domain.register_gauge_metric_with_labels(
+        let last_ingest_ts = self.domain.register_gauge_metric_with_attributes(
             "last_ingest_ts",
             None,
             "Last seen ingest timestamp as unix timestamp in nanoseconds",
-            &labels,
+            &attributes,
         );
 
         SequencerMetrics {
@@ -361,8 +361,8 @@ pub struct Db {
     /// Number of iterations of the worker cleanup loop for this Db
     worker_iterations_cleanup: AtomicUsize,
 
-    /// Metric labels
-    metric_labels: Vec<KeyValue>,
+    /// Metric attributes
+    metric_attributes: Vec<KeyValue>,
 
     /// Ingest metrics
     ingest_metrics: WriteBufferIngestMetrics,
@@ -415,10 +415,10 @@ impl Db {
         let server_id = database_to_commit.server_id;
         let iox_object_store = Arc::clone(&database_to_commit.iox_object_store);
         let metrics_registry = Arc::clone(&database_to_commit.catalog.metrics_registry);
-        let metric_labels = database_to_commit.catalog.metric_labels.clone();
+        let metric_attributes = database_to_commit.catalog.metric_attributes.clone();
 
-        let ingest_domain =
-            metrics_registry.register_domain_with_labels("write_buffer", metric_labels.clone());
+        let ingest_domain = metrics_registry
+            .register_domain_with_attributes("write_buffer", metric_attributes.clone());
         let ingest_metrics = WriteBufferIngestMetrics::new(Arc::new(ingest_domain));
 
         let catalog = Arc::new(database_to_commit.catalog);
@@ -428,7 +428,7 @@ impl Db {
             Arc::clone(&catalog),
             Arc::clone(&jobs),
             Arc::clone(&metrics_registry),
-            metric_labels.clone(),
+            metric_attributes.clone(),
         );
         let catalog_access = Arc::new(catalog_access);
 
@@ -447,7 +447,7 @@ impl Db {
             process_clock,
             worker_iterations_lifecycle: AtomicUsize::new(0),
             worker_iterations_cleanup: AtomicUsize::new(0),
-            metric_labels,
+            metric_attributes,
             ingest_metrics,
             write_buffer: database_to_commit.write_buffer,
             cleanup_lock: Default::default(),
@@ -1315,9 +1315,9 @@ impl Db {
                             handle_chunk_write(&mut *chunk)
                         }
                         None => {
-                            let metrics = self.metrics_registry.register_domain_with_labels(
+                            let metrics = self.metrics_registry.register_domain_with_attributes(
                                 "mutable_buffer",
-                                self.metric_labels.clone(),
+                                self.metric_attributes.clone(),
                             );
 
                             let chunk_result =
@@ -1737,7 +1737,7 @@ mod tests {
         let metrics = test_db.metric_registry;
         metrics
             .has_metric_family("write_buffer_ingest_requests_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("svr_id", "1"),
                 ("sequencer_id", "0"),
@@ -1748,7 +1748,7 @@ mod tests {
             .unwrap();
         metrics
             .has_metric_family("write_buffer_read_bytes_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("svr_id", "1"),
                 ("sequencer_id", "0"),
@@ -1758,7 +1758,7 @@ mod tests {
             .unwrap();
         metrics
             .has_metric_family("write_buffer_last_sequence_number")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("svr_id", "1"),
                 ("sequencer_id", "0"),
@@ -1768,7 +1768,7 @@ mod tests {
             .unwrap();
         metrics
             .has_metric_family("write_buffer_sequence_number_lag")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("svr_id", "1"),
                 ("sequencer_id", "0"),
@@ -1778,7 +1778,7 @@ mod tests {
             .unwrap();
         metrics
             .has_metric_family("write_buffer_last_min_ts")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("svr_id", "1"),
                 ("sequencer_id", "0"),
@@ -1788,7 +1788,7 @@ mod tests {
             .unwrap();
         metrics
             .has_metric_family("write_buffer_last_max_ts")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("svr_id", "1"),
                 ("sequencer_id", "0"),
@@ -1798,7 +1798,7 @@ mod tests {
             .unwrap();
         metrics
             .has_metric_family("write_buffer_last_ingest_ts")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("svr_id", "1"),
                 ("sequencer_id", "0"),
@@ -1935,7 +1935,7 @@ mod tests {
 
             if let Ok(metric) = family {
                 if metric
-                    .with_labels(&[
+                    .with_attributes(&[
                         ("db_name", "placeholder"),
                         ("svr_id", "1"),
                         ("sequencer_id", "0"),
@@ -2055,7 +2055,7 @@ mod tests {
         v: u64,
     ) -> Result<(), metrics::Error> {
         reg.has_metric_family("catalog_chunks_mem_usage_bytes")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("location", location),
                 ("svr_id", "1"),
@@ -2073,7 +2073,7 @@ mod tests {
             test_db
                 .metric_registry
                 .has_metric_family(name)
-                .with_labels(&[
+                .with_attributes(&[
                     ("db_name", "placeholder"),
                     ("location", location),
                     ("svr_id", "1"),
@@ -2090,7 +2090,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_chunks_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("state", "open"),
                 ("svr_id", "1"),
@@ -2119,7 +2119,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_chunks_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("state", "open"),
                 ("svr_id", "1"),
@@ -2141,7 +2141,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_chunks_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("state", "closed"),
                 ("svr_id", "1"),
@@ -2168,7 +2168,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_chunks_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("state", "moved"),
                 ("svr_id", "1"),
@@ -2206,7 +2206,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_chunks_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("state", "rub_and_os"),
                 ("svr_id", "1"),
@@ -2243,7 +2243,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_chunks_total")
-            .with_labels(&[("db_name", "placeholder"), ("state", "os"), ("svr_id", "1")])
+            .with_attributes(&[("db_name", "placeholder"), ("state", "os"), ("svr_id", "1")])
             .counter()
             .eq(1.0)
             .unwrap();
@@ -2288,7 +2288,7 @@ mod tests {
             test_db
                 .metric_registry
                 .has_metric_family("catalog_row_time_seconds_bucket")
-                .with_labels(&[
+                .with_attributes(&[
                     ("svr_id", "1"),
                     ("db_name", "placeholder"),
                     ("table", "write_metrics_test"),
@@ -2427,7 +2427,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_chunks_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("state", "moved"),
                 ("svr_id", "1"),
@@ -2568,7 +2568,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_chunk_creation_size_bytes")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("state", "closed"),
                 ("svr_id", "1"),
@@ -2581,7 +2581,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_chunk_creation_size_bytes")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "placeholder"),
                 ("state", "moved"),
                 ("svr_id", "1"),
@@ -2688,7 +2688,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_chunk_creation_size_bytes")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "parquet_test_db"),
                 ("state", "rub_and_os"),
                 ("svr_id", "10"),
@@ -2807,7 +2807,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_chunk_creation_size_bytes")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "unload_read_buffer_test_db"),
                 ("state", "rub_and_os"),
                 ("svr_id", "10"),
@@ -2837,7 +2837,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_chunk_creation_size_bytes")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "unload_read_buffer_test_db"),
                 ("state", "os"),
                 ("svr_id", "10"),
@@ -3770,7 +3770,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_lock_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
                 ("table", "cpu"),
@@ -3784,7 +3784,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_lock_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
                 ("table", "cpu"),
@@ -3822,7 +3822,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_lock_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
                 ("table", "cpu"),
@@ -3836,7 +3836,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_lock_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
                 ("table", "cpu"),
@@ -3850,7 +3850,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_lock_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "chunk"),
                 ("table", "cpu"),
@@ -3864,7 +3864,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_lock_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "chunk"),
                 ("table", "cpu"),
@@ -3878,7 +3878,7 @@ mod tests {
         test_db
             .metric_registry
             .has_metric_family("catalog_lock_wait_seconds_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "chunk"),
                 ("svr_id", "10"),

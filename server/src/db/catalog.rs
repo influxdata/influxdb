@@ -92,7 +92,7 @@ pub struct Catalog {
     metrics: CatalogMetrics,
 
     pub(crate) metrics_registry: Arc<::metrics::MetricRegistry>,
-    pub(crate) metric_labels: Vec<::metrics::KeyValue>,
+    pub(crate) metric_attributes: Vec<::metrics::KeyValue>,
 }
 
 impl Catalog {
@@ -111,7 +111,7 @@ impl Catalog {
         db_name: Arc<str>,
         metrics_domain: ::metrics::Domain,
         metrics_registry: Arc<::metrics::MetricRegistry>,
-        metric_labels: Vec<::metrics::KeyValue>,
+        metric_attributes: Vec<::metrics::KeyValue>,
     ) -> Self {
         let metrics = CatalogMetrics::new(metrics_domain);
 
@@ -120,7 +120,7 @@ impl Catalog {
             tables: Default::default(),
             metrics,
             metrics_registry,
-            metric_labels,
+            metric_attributes,
         }
     }
 

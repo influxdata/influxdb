@@ -416,21 +416,21 @@ impl ChunkMetrics {
         self.row_groups_total.inc(1, &[]);
 
         for stat in statistics {
-            let labels = &[
+            let attributes = &[
                 KeyValue::new("encoding", stat.enc_type.clone()),
                 KeyValue::new("log_data_type", stat.log_data_type),
             ];
 
             // update number of columns
-            self.columns_total.inc(1, labels);
+            self.columns_total.inc(1, attributes);
 
             // update bytes allocated associated with columns
             self.column_allocated_bytes_total
-                .inc(stat.allocated_bytes, labels);
+                .inc(stat.allocated_bytes, attributes);
 
             // update bytes in use but excluded unused
             self.column_required_bytes_total
-                .inc(stat.required_bytes, labels);
+                .inc(stat.required_bytes, attributes);
 
             // update raw estimated bytes of NULL values
             self.column_raw_bytes_total.inc(
@@ -693,8 +693,8 @@ mod test {
     fn add_remove_tables() {
         let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
         let registry = reg.registry();
-        let domain =
-            registry.register_domain_with_labels("read_buffer", vec![KeyValue::new("db", "mydb")]);
+        let domain = registry
+            .register_domain_with_attributes("read_buffer", vec![KeyValue::new("db", "mydb")]);
 
         let mut chunk = ChunkBuilder::default()
             .metrics(ChunkMetrics::new(&domain))
