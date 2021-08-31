@@ -1068,10 +1068,7 @@ func TestService_handlePostNotificationEndpointOwner(t *testing.T) {
 
 func initNotificationEndpointService(f endpointTesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
 	ctx := context.Background()
-	store, _, err := influxTesting.NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := influxTesting.NewTestInmemStore(t)
 	logger := zaptest.NewLogger(t)
 
 	tenantStore := tenant.NewStore(store)

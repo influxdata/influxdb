@@ -23,10 +23,7 @@ import (
 func initBucketHttpService(f itesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
 	t.Helper()
 
-	s, stCloser, err := itesting.NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	s := itesting.NewTestInmemStore(t)
 
 	store := tenant.NewStore(s)
 	if f.IDGenerator != nil {
@@ -75,10 +72,7 @@ func initBucketHttpService(f itesting.BucketFields, t *testing.T) (influxdb.Buck
 		Client: httpClient,
 	}
 
-	return &client, "http_tenant", func() {
-		server.Close()
-		stCloser()
-	}
+	return &client, "http_tenant", server.Close
 }
 
 func TestHTTPBucketService(t *testing.T) {

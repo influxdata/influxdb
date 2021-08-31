@@ -15,16 +15,8 @@ func TestInmemBucketService(t *testing.T) {
 }
 
 func initInmemBucketService(f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
-	s, closeBolt, err := influxdbtesting.NewTestInmemStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
-	svc, op, closeSvc := initBucketService(s, f, t)
-	return svc, op, func() {
-		closeSvc()
-		closeBolt()
-	}
+	s := influxdbtesting.NewTestInmemStore(t)
+	return initBucketService(s, f, t)
 }
 
 func initBucketService(s kv.SchemaStore, f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
@@ -82,11 +74,7 @@ func initBucketService(s kv.SchemaStore, f influxdbtesting.BucketFields, t *test
 }
 
 func TestBucketFind(t *testing.T) {
-	s, close, err := influxdbtesting.NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer close()
+	s := influxdbtesting.NewTestInmemStore(t)
 
 	storage := tenant.NewStore(s)
 	svc := tenant.NewService(storage)
@@ -98,7 +86,7 @@ func TestBucketFind(t *testing.T) {
 		t.Fatal(err)
 	}
 	name := "thebucket"
-	_, _, err = svc.FindBuckets(context.Background(), influxdb.BucketFilter{
+	_, _, err := svc.FindBuckets(context.Background(), influxdb.BucketFilter{
 		Name: &name,
 		Org:  &o.Name,
 	})
@@ -108,11 +96,7 @@ func TestBucketFind(t *testing.T) {
 }
 
 func TestSystemBucketsInNameFind(t *testing.T) {
-	s, close, err := influxdbtesting.NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer close()
+	s := influxdbtesting.NewTestInmemStore(t)
 
 	storage := tenant.NewStore(s)
 	svc := tenant.NewService(storage)

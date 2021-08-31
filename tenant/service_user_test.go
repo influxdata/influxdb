@@ -17,11 +17,7 @@ func TestBoltUserService(t *testing.T) {
 }
 
 func initBoltUserService(f influxdbtesting.UserFields, t *testing.T) (influxdb.UserService, string, func()) {
-	s, closeBolt, err := influxdbtesting.NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
+	s, closeBolt := influxdbtesting.NewTestBoltStore(t)
 	svc, op, closeSvc := initUserService(s, f, t)
 	return svc, op, func() {
 		closeSvc()
@@ -53,11 +49,7 @@ func TestBoltPasswordService(t *testing.T) {
 }
 
 func initBoltPasswordsService(f influxdbtesting.PasswordFields, t *testing.T) (influxdb.PasswordsService, func()) {
-	s, closeStore, err := influxdbtesting.NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new bolt kv store: %v", err)
-	}
-
+	s, closeStore := influxdbtesting.NewTestBoltStore(t)
 	svc, closeSvc := initPasswordsService(s, f, t)
 	return svc, func() {
 		closeSvc()
@@ -91,10 +83,7 @@ func initPasswordsService(s kv.Store, f influxdbtesting.PasswordFields, t *testi
 }
 
 func TestFindPermissionsFromUser(t *testing.T) {
-	s, _, err := influxdbtesting.NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	s := influxdbtesting.NewTestInmemStore(t)
 	storage := tenant.NewStore(s)
 	svc := tenant.NewService(storage)
 
@@ -111,7 +100,7 @@ func TestFindPermissionsFromUser(t *testing.T) {
 	ctx := context.Background()
 
 	// createSomeURMS
-	err = svc.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
+	err := svc.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
 		UserID:       u.ID,
 		UserType:     influxdb.Member,
 		ResourceType: influxdb.OrgsResourceType,

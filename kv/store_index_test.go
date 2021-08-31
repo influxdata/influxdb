@@ -20,8 +20,7 @@ func TestIndexStore(t *testing.T) {
 	newFooIndexStore := func(t *testing.T, bktSuffix string) (*kv.IndexStore, func(), kv.Store) {
 		t.Helper()
 
-		kvStoreStore, done, err := itesting.NewTestBoltStore(t)
-		require.NoError(t, err)
+		kvStoreStore, done := itesting.NewTestBoltStore(t)
 
 		const resource = "foo"
 

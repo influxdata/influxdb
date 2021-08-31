@@ -16,11 +16,7 @@ func TestBoltLabelService(t *testing.T) {
 }
 
 func initBoltLabelService(f influxdbtesting.LabelFields, t *testing.T) (influxdb.LabelService, string, func()) {
-	s, closeBolt, err := influxdbtesting.NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
+	s, closeBolt := influxdbtesting.NewTestBoltStore(t)
 	svc, op, closeSvc := initLabelService(s, f, t)
 	return svc, op, func() {
 		closeSvc()

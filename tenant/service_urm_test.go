@@ -17,11 +17,7 @@ func TestBoltUserResourceMappingService(t *testing.T) {
 }
 
 func initBoltUserResourceMappingService(f influxdbtesting.UserResourceFields, t *testing.T) (influxdb.UserResourceMappingService, func()) {
-	s, closeBolt, err := influxdbtesting.NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
+	s, closeBolt := influxdbtesting.NewTestBoltStore(t)
 	svc, closeSvc := initUserResourceMappingService(s, f, t)
 	return svc, func() {
 		closeSvc()

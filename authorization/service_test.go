@@ -12,11 +12,7 @@ import (
 )
 
 func initBoltAuthService(f influxdbtesting.AuthorizationFields, t *testing.T) (influxdb.AuthorizationService, string, func()) {
-	s, closeBolt, err := influxdbtesting.NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
+	s, closeBolt := influxdbtesting.NewTestBoltStore(t)
 	svc, closeSvc := initAuthService(s, f, t)
 	return svc, "service_auth", func() {
 		closeSvc()

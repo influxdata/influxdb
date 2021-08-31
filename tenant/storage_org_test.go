@@ -207,12 +207,7 @@ func TestOrg(t *testing.T) {
 	}
 	for _, testScenario := range st {
 		t.Run(testScenario.name, func(t *testing.T) {
-			s, closeS, err := itesting.NewTestInmemStore(t)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer closeS()
-
+			s := itesting.NewTestInmemStore(t)
 			ts := tenant.NewStore(s, tenant.WithNow(func() time.Time {
 				return aTime
 			}))

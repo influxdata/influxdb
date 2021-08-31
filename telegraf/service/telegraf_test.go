@@ -16,11 +16,7 @@ func TestBoltTelegrafService(t *testing.T) {
 }
 
 func initBoltTelegrafService(f telegraftesting.TelegrafConfigFields, t *testing.T) (influxdb.TelegrafConfigStore, func()) {
-	s, closeBolt, err := itesting.NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
+	s, closeBolt := itesting.NewTestBoltStore(t)
 	svc, closeSvc := initTelegrafService(s, f, t)
 	return svc, func() {
 		closeSvc()

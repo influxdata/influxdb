@@ -875,11 +875,7 @@ func Delete(t *testing.T, init func(*testing.T, tenantFields) (*tenant.Service, 
 }
 
 func initBoltTenantService(t *testing.T, f tenantFields) (*tenant.Service, func()) {
-	s, closeBolt, err := itesting.NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
+	s, closeBolt := itesting.NewTestBoltStore(t)
 	store := tenant.NewStore(s)
 
 	if f.OrgIDGenerator != nil {

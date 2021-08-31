@@ -33,10 +33,7 @@ import (
 // NewMockTaskBackend returns a TaskBackend with mock services.
 func NewMockTaskBackend(t *testing.T) *TaskBackend {
 	t.Helper()
-	store, _, err := influxdbtesting.NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store  := influxdbtesting.NewTestInmemStore(t)
 	tenantService := tenant.NewService(tenant.NewStore(store))
 
 	return &TaskBackend{
@@ -827,10 +824,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 func TestTaskHandler_NotFoundStatus(t *testing.T) {
 	// Ensure that the HTTP handlers return 404s for missing resources, and OKs for matching.
 
-	store, _, err := influxdbtesting.NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := influxdbtesting.NewTestInmemStore(t)
 	tenantService := tenant.NewService(tenant.NewStore(store))
 
 	labelStore, _ := label.NewStore(store)
@@ -1225,10 +1219,7 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 // Test that org name to org ID translation happens properly in the HTTP layer.
 // Regression test for https://github.com/influxdata/influxdb/issues/12089.
 func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
-	i, _, err := influxdbtesting.NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	i := influxdbtesting.NewTestInmemStore(t)
 
 	ts := tenant.NewService(tenant.NewStore(i))
 	aStore, _ := authorization.NewStore(i)
@@ -1326,10 +1317,7 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 func TestTaskHandler_Sessions(t *testing.T) {
 	t.Skip("rework these")
 	// Common setup to get a working base for using tasks.
-	st, _, err := influxdbtesting.NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	st := influxdbtesting.NewTestInmemStore(t)
 
 	tStore := tenant.NewStore(st)
 	tSvc := tenant.NewService(tStore)

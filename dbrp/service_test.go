@@ -13,11 +13,7 @@ import (
 )
 
 func initDBRPMappingService(f itesting.DBRPMappingFields, t *testing.T) (influxdb.DBRPMappingService, func()) {
-	s, closeStore, err := itesting.NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new bolt kv store: %v", err)
-	}
-
+	s, closeStore := itesting.NewTestBoltStore(t)
 	if f.BucketSvc == nil {
 		f.BucketSvc = &mock.BucketService{
 			FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {

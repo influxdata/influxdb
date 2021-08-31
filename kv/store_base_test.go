@@ -20,8 +20,7 @@ func TestStoreBase(t *testing.T) {
 	newStoreBase := func(t *testing.T, bktSuffix string, encKeyFn, encBodyFn kv.EncodeEntFn, decFn kv.DecodeBucketValFn, decToEntFn kv.ConvertValToEntFn) (*kv.StoreBase, func(), kv.Store) {
 		t.Helper()
 
-		inmemSVC, done, err := itesting.NewTestBoltStore(t)
-		require.NoError(t, err)
+		svc, done := itesting.NewTestBoltStore(t)
 
 		bucket := []byte("foo_" + bktSuffix)
 		store := kv.NewStoreBase("foo", bucket, encKeyFn, encBodyFn, decFn, decToEntFn)
@@ -30,10 +29,9 @@ func TestStoreBase(t *testing.T) {
 		defer cancel()
 
 		migrationName := fmt.Sprintf("create bucket %q", string(bucket))
-		migration.CreateBuckets(migrationName, bucket).Up(ctx, inmemSVC)
-		require.NoError(t, err)
+		migration.CreateBuckets(migrationName, bucket).Up(ctx, svc)
 
-		return store, done, inmemSVC
+		return store, done, svc
 	}
 
 	newFooStoreBase := func(t *testing.T, bktSuffix string) (*kv.StoreBase, func(), kv.Store) {

@@ -330,10 +330,7 @@ var _ metric.EventRecorder = noopEventRecorder{}
 func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 	defer tracetesting.SetupInMemoryTracing(t.Name())()
 
-	store, _, err := itesting.NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := itesting.NewTestInmemStore(t)
 	orgSVC := tenant.NewService(tenant.NewStore(store))
 	b := &FluxBackend{
 		HTTPErrorHandler:    kithttp.ErrorHandler(0),

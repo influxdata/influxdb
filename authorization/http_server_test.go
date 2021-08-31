@@ -148,11 +148,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			s, _, err := itesting.NewTestInmemStore(t)
-			if err != nil {
-				t.Fatal(err)
-			}
-
+			s := itesting.NewTestInmemStore(t)
 			storage, err := NewStore(s)
 			if err != nil {
 				t.Fatal(err)
@@ -723,11 +719,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			s, _, err := itesting.NewTestInmemStore(t)
-			if err != nil {
-				t.Fatal(err)
-			}
-
+			s := itesting.NewTestInmemStore(t)
 			storage, err := NewStore(s)
 			if err != nil {
 				t.Fatal(err)

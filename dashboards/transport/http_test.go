@@ -1786,10 +1786,7 @@ func Test_dashboardCellIDPath(t *testing.T) {
 func initDashboardService(f dashboardstesting.DashboardFields, t *testing.T) (influxdb.DashboardService, string, func()) {
 	t.Helper()
 	log := zaptest.NewLogger(t)
-	store, _, err := itesting.NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := itesting.NewTestInmemStore(t)
 
 	kvsvc := kv.NewService(log, store, &mock.OrganizationService{})
 	kvsvc.IDGenerator = f.IDGenerator

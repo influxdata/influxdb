@@ -26,11 +26,7 @@ func TestNotificationEndpointService_WithBolt(t *testing.T) {
 }
 
 func initBoltNotificationEndpointService(f endpointsTesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
-	store, closeStore, err := itesting.NewTestBoltStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	store, closeStore := itesting.NewTestBoltStore(t)
 	svc, secretSVC, closeSvc := initNotificationEndpointService(store, f, t)
 	return svc, secretSVC, func() {
 		closeSvc()

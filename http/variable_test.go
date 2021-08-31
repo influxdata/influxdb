@@ -998,10 +998,7 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 }
 
 func initVariableService(f itesting.VariableFields, t *testing.T) (platform.VariableService, string, func()) {
-	store, _, err := itesting.NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := itesting.NewTestInmemStore(t)
 	tenantService := tenant.NewService(tenant.NewStore(store))
 
 	svc := kv.NewService(zaptest.NewLogger(t), store, tenantService)

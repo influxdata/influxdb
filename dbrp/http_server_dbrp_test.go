@@ -38,11 +38,7 @@ func initHttpService(t *testing.T) (influxdb.DBRPMappingService, *httptest.Serve
 		},
 	}
 
-	s, closeS, err := influxdbtesting.NewTestBoltStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	s, closeS := influxdbtesting.NewTestBoltStore(t)
 	svc := dbrp.NewService(ctx, bucketSvc, s)
 
 	server := httptest.NewServer(dbrp.NewHTTPHandler(zaptest.NewLogger(t), svc, orgSvc))

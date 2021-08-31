@@ -17,11 +17,7 @@ func TestBoltDashboardService(t *testing.T) {
 }
 
 func initBoltDashboardService(f dashboardtesting.DashboardFields, t *testing.T) (influxdb.DashboardService, string, func()) {
-	s, closeBolt, err := itesting.NewTestBoltStore(t)
-	if err != nil {
-		t.Fatalf("failed to create new kv store: %v", err)
-	}
-
+	s, closeBolt := itesting.NewTestBoltStore(t)
 	svc, op, closeSvc := initDashboardService(s, f, t)
 	return svc, op, func() {
 		closeSvc()

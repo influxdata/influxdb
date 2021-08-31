@@ -24,23 +24,12 @@ func TestInmemNotificationRuleStore(t *testing.T) {
 }
 
 func initInmemNotificationRuleStore(f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, taskmodel.TaskService, func()) {
-	store, _, err := itesting.NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	svc, tsvc, closeSvc := initNotificationRuleStore(store, f, t)
-	return svc, tsvc, func() {
-		closeSvc()
-	}
+	store := itesting.NewTestInmemStore(t)
+	return initNotificationRuleStore(store, f, t)
 }
 
 func initBoltNotificationRuleStore(f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, taskmodel.TaskService, func()) {
-	store, closeBolt, err := itesting.NewTestBoltStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	store, closeBolt := itesting.NewTestBoltStore(t)
 	svc, tsvc, closeSvc := initNotificationRuleStore(store, f, t)
 	return svc, tsvc, func() {
 		closeSvc()
