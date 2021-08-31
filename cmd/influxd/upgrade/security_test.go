@@ -8,15 +8,14 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/onboarding"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv/migration"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
+	"github.com/influxdata/influxdb/v2/onboarding"
 	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"github.com/influxdata/influxdb/v2/tenant"
 	authv1 "github.com/influxdata/influxdb/v2/v1/authorization"
