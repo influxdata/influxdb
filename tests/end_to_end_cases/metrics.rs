@@ -29,11 +29,11 @@ pub async fn test_row_timestamp() {
         .collect();
 
     let db_name = format!("{}_{}", scenario.org_id_str(), scenario.bucket_id_str());
-    let db_name_label = format!("db_name=\"{}\"", db_name);
+    let db_name_attribute = format!("db_name=\"{}\"", db_name);
 
     // Should only be enabled for the system table
     assert_eq!(lines.len(), 60);
     assert!(lines
         .iter()
-        .all(|x| x.contains("table=\"system\"") && x.contains(&db_name_label)));
+        .all(|x| x.contains("table=\"system\"") && x.contains(&db_name_attribute)));
 }
