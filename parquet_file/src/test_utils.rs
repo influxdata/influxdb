@@ -252,6 +252,50 @@ fn create_column_tag(
     schema_builder.tag(name);
 }
 
+fn create_columns_tag(
+    column_prefix: &str,
+    test_size: TestSize,
+    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    summaries: &mut Vec<ColumnSummary>,
+    schema_builder: &mut SchemaBuilder,
+) {
+    create_column_tag(
+        &format!("{}_tag_normal", column_prefix),
+        vec![
+            vec![Some("foo")],
+            vec![Some("bar")],
+            vec![Some("baz"), Some("foo")],
+        ],
+        arrow_cols,
+        summaries,
+        schema_builder,
+    );
+
+    if test_size.is_full() {
+        create_column_tag(
+            &format!("{}_tag_empty", column_prefix),
+            vec![vec![Some("")], vec![Some("")], vec![Some(""), Some("")]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_tag(
+            &format!("{}_tag_null_some", column_prefix),
+            vec![vec![None], vec![Some("bar")], vec![Some("baz"), None]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_tag(
+            &format!("{}_tag_null_all", column_prefix),
+            vec![vec![None], vec![None], vec![None, None]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+    }
+}
+
 fn create_column_field_string(
     name: &str,
     data: Vec<Vec<Option<&str>>>,
@@ -283,6 +327,49 @@ fn create_column_field_string(
     )
 }
 
+fn create_columns_field_string(
+    column_prefix: &str,
+    test_size: TestSize,
+    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    summaries: &mut Vec<ColumnSummary>,
+    schema_builder: &mut SchemaBuilder,
+) {
+    if test_size.is_full() {
+        create_column_field_string(
+            &format!("{}_field_string_normal", column_prefix),
+            vec![
+                vec![Some("foo")],
+                vec![Some("bar")],
+                vec![Some("baz"), Some("foo")],
+            ],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_string(
+            &format!("{}_field_string_empty", column_prefix),
+            vec![vec![Some("")], vec![Some("")], vec![Some(""), Some("")]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_string(
+            &format!("{}_field_string_null_some", column_prefix),
+            vec![vec![None], vec![Some("bar")], vec![Some("baz"), None]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_string(
+            &format!("{}_field_string_null_all", column_prefix),
+            vec![vec![None], vec![None], vec![None, None]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+    }
+}
+
 fn create_column_field_i64(
     name: &str,
     data: Vec<Vec<Option<i64>>>,
@@ -300,6 +387,50 @@ fn create_column_field_i64(
     )
 }
 
+fn create_columns_field_i64(
+    column_prefix: &str,
+    test_size: TestSize,
+    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    summaries: &mut Vec<ColumnSummary>,
+    schema_builder: &mut SchemaBuilder,
+) {
+    create_column_field_i64(
+        &format!("{}_field_i64_normal", column_prefix),
+        vec![vec![Some(-1)], vec![Some(2)], vec![Some(3), Some(4)]],
+        arrow_cols,
+        summaries,
+        schema_builder,
+    );
+
+    if test_size.is_full() {
+        create_column_field_i64(
+            &format!("{}_field_i64_range", column_prefix),
+            vec![
+                vec![Some(i64::MIN)],
+                vec![Some(i64::MAX)],
+                vec![Some(i64::MIN), Some(i64::MAX)],
+            ],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_i64(
+            &format!("{}_field_i64_null_some", column_prefix),
+            vec![vec![None], vec![Some(2)], vec![Some(3), None]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_i64(
+            &format!("{}_field_i64_null_all", column_prefix),
+            vec![vec![None], vec![None], vec![None, None]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+    }
+}
+
 fn create_column_field_u64(
     name: &str,
     data: Vec<Vec<Option<u64>>>,
@@ -315,6 +446,49 @@ fn create_column_field_u64(
         schema_builder,
         Statistics::U64,
     )
+}
+
+fn create_columns_field_u64(
+    column_prefix: &str,
+    test_size: TestSize,
+    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    summaries: &mut Vec<ColumnSummary>,
+    schema_builder: &mut SchemaBuilder,
+) {
+    if test_size.is_full() {
+        create_column_field_u64(
+            &format!("{}_field_u64_normal", column_prefix),
+            vec![vec![Some(1u64)], vec![Some(2)], vec![Some(3), Some(4)]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_u64(
+            &format!("{}_field_u64_range", column_prefix),
+            vec![
+                vec![Some(u64::MIN)],
+                vec![Some(u64::MAX)],
+                vec![Some(u64::MIN), Some(u64::MAX)],
+            ],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_u64(
+            &format!("{}_field_u64_null_some", column_prefix),
+            vec![vec![None], vec![Some(2)], vec![Some(3), None]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_u64(
+            &format!("{}_field_u64_null_all", column_prefix),
+            vec![vec![None], vec![None], vec![None, None]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+    }
 }
 
 fn create_column_field_f64(
@@ -363,6 +537,90 @@ fn create_column_field_f64(
     schema_builder.field(name, array_data_type.unwrap());
 }
 
+fn create_columns_field_f64(
+    column_prefix: &str,
+    test_size: TestSize,
+    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    summaries: &mut Vec<ColumnSummary>,
+    schema_builder: &mut SchemaBuilder,
+) {
+    if test_size.is_full() {
+        create_column_field_f64(
+            &format!("{}_field_f64_normal", column_prefix),
+            vec![
+                vec![Some(10.1)],
+                vec![Some(20.1)],
+                vec![Some(30.1), Some(40.1)],
+            ],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_f64(
+            &format!("{}_field_f64_inf", column_prefix),
+            vec![
+                vec![Some(0.0)],
+                vec![Some(f64::INFINITY)],
+                vec![Some(f64::NEG_INFINITY), Some(1.0)],
+            ],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_f64(
+            &format!("{}_field_f64_zero", column_prefix),
+            vec![
+                vec![Some(0.0)],
+                vec![Some(-0.0)],
+                vec![Some(0.0), Some(-0.0)],
+            ],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        let nan1 = f64::from_bits(0x7ff8000000000001);
+        let nan2 = f64::from_bits(0x7ff8000000000002);
+        assert!(nan1.is_nan());
+        assert!(nan2.is_nan());
+        create_column_field_f64(
+            &format!("{}_field_f64_nan_some", column_prefix),
+            vec![
+                vec![Some(nan1)],
+                vec![Some(2.0)],
+                vec![Some(1.0), Some(nan2)],
+            ],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_f64(
+            &format!("{}_field_f64_nan_all", column_prefix),
+            vec![
+                vec![Some(nan1)],
+                vec![Some(nan2)],
+                vec![Some(nan1), Some(nan2)],
+            ],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_f64(
+            &format!("{}_field_f64_null_some", column_prefix),
+            vec![vec![None], vec![Some(20.1)], vec![Some(30.1), None]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_f64(
+            &format!("{}_field_f64_null_all", column_prefix),
+            vec![vec![None], vec![None], vec![None, None]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+    }
+}
+
 fn create_column_field_bool(
     name: &str,
     data: Vec<Vec<Option<bool>>>,
@@ -378,6 +636,42 @@ fn create_column_field_bool(
         schema_builder,
         Statistics::Bool,
     )
+}
+
+fn create_columns_field_bool(
+    column_prefix: &str,
+    test_size: TestSize,
+    arrow_cols: &mut Vec<Vec<(String, ArrayRef, bool)>>,
+    summaries: &mut Vec<ColumnSummary>,
+    schema_builder: &mut SchemaBuilder,
+) {
+    if test_size.is_full() {
+        create_column_field_bool(
+            &format!("{}_field_bool_normal", column_prefix),
+            vec![
+                vec![Some(true)],
+                vec![Some(false)],
+                vec![Some(true), Some(false)],
+            ],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_bool(
+            &format!("{}_field_bool_null_some", column_prefix),
+            vec![vec![None], vec![Some(false)], vec![Some(true), None]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+        create_column_field_bool(
+            &format!("{}_field_bool_null_all", column_prefix),
+            vec![vec![None], vec![None], vec![None, None]],
+            arrow_cols,
+            summaries,
+            schema_builder,
+        );
+    }
 }
 
 fn create_column_field_generic<A, T, F>(
@@ -482,254 +776,58 @@ pub fn make_record_batch(
     let mut schema_builder = SchemaBuilder::new();
 
     // tag
-    create_column_tag(
-        &format!("{}_tag_normal", column_prefix),
-        vec![
-            vec![Some("foo")],
-            vec![Some("bar")],
-            vec![Some("baz"), Some("foo")],
-        ],
+    create_columns_tag(
+        column_prefix,
+        test_size,
         &mut arrow_cols,
         &mut summaries,
         &mut schema_builder,
     );
-    if test_size.is_full() {
-        create_column_tag(
-            &format!("{}_tag_empty", column_prefix),
-            vec![vec![Some("")], vec![Some("")], vec![Some(""), Some("")]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_tag(
-            &format!("{}_tag_null_some", column_prefix),
-            vec![vec![None], vec![Some("bar")], vec![Some("baz"), None]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_tag(
-            &format!("{}_tag_null_all", column_prefix),
-            vec![vec![None], vec![None], vec![None, None]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-    }
 
     // field: string
-    if test_size.is_full() {
-        create_column_field_string(
-            &format!("{}_field_string_normal", column_prefix),
-            vec![
-                vec![Some("foo")],
-                vec![Some("bar")],
-                vec![Some("baz"), Some("foo")],
-            ],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_string(
-            &format!("{}_field_string_empty", column_prefix),
-            vec![vec![Some("")], vec![Some("")], vec![Some(""), Some("")]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_string(
-            &format!("{}_field_string_null_some", column_prefix),
-            vec![vec![None], vec![Some("bar")], vec![Some("baz"), None]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_string(
-            &format!("{}_field_string_null_all", column_prefix),
-            vec![vec![None], vec![None], vec![None, None]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-    }
-
-    // field: i64
-    create_column_field_i64(
-        &format!("{}_field_i64_normal", column_prefix),
-        vec![vec![Some(-1)], vec![Some(2)], vec![Some(3), Some(4)]],
+    create_columns_field_string(
+        column_prefix,
+        test_size,
         &mut arrow_cols,
         &mut summaries,
         &mut schema_builder,
     );
-    if test_size.is_full() {
-        create_column_field_i64(
-            &format!("{}_field_i64_range", column_prefix),
-            vec![
-                vec![Some(i64::MIN)],
-                vec![Some(i64::MAX)],
-                vec![Some(i64::MIN), Some(i64::MAX)],
-            ],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_i64(
-            &format!("{}_field_i64_null_some", column_prefix),
-            vec![vec![None], vec![Some(2)], vec![Some(3), None]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_i64(
-            &format!("{}_field_i64_null_all", column_prefix),
-            vec![vec![None], vec![None], vec![None, None]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-    }
+
+    // field: i64
+    create_columns_field_i64(
+        column_prefix,
+        test_size,
+        &mut arrow_cols,
+        &mut summaries,
+        &mut schema_builder,
+    );
 
     // field: u64
-    if test_size.is_full() {
-        create_column_field_u64(
-            &format!("{}_field_u64_normal", column_prefix),
-            vec![vec![Some(1u64)], vec![Some(2)], vec![Some(3), Some(4)]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_u64(
-            &format!("{}_field_u64_range", column_prefix),
-            vec![
-                vec![Some(u64::MIN)],
-                vec![Some(u64::MAX)],
-                vec![Some(u64::MIN), Some(u64::MAX)],
-            ],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_u64(
-            &format!("{}_field_u64_null_some", column_prefix),
-            vec![vec![None], vec![Some(2)], vec![Some(3), None]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_u64(
-            &format!("{}_field_u64_null_all", column_prefix),
-            vec![vec![None], vec![None], vec![None, None]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-    }
+    create_columns_field_u64(
+        column_prefix,
+        test_size,
+        &mut arrow_cols,
+        &mut summaries,
+        &mut schema_builder,
+    );
 
     // field: f64
-    if test_size.is_full() {
-        create_column_field_f64(
-            &format!("{}_field_f64_normal", column_prefix),
-            vec![
-                vec![Some(10.1)],
-                vec![Some(20.1)],
-                vec![Some(30.1), Some(40.1)],
-            ],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_f64(
-            &format!("{}_field_f64_inf", column_prefix),
-            vec![
-                vec![Some(0.0)],
-                vec![Some(f64::INFINITY)],
-                vec![Some(f64::NEG_INFINITY), Some(1.0)],
-            ],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_f64(
-            &format!("{}_field_f64_zero", column_prefix),
-            vec![
-                vec![Some(0.0)],
-                vec![Some(-0.0)],
-                vec![Some(0.0), Some(-0.0)],
-            ],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        let nan1 = f64::from_bits(0x7ff8000000000001);
-        let nan2 = f64::from_bits(0x7ff8000000000002);
-        assert!(nan1.is_nan());
-        assert!(nan2.is_nan());
-        create_column_field_f64(
-            &format!("{}_field_f64_nan_some", column_prefix),
-            vec![
-                vec![Some(nan1)],
-                vec![Some(2.0)],
-                vec![Some(1.0), Some(nan2)],
-            ],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_f64(
-            &format!("{}_field_f64_nan_all", column_prefix),
-            vec![
-                vec![Some(nan1)],
-                vec![Some(nan2)],
-                vec![Some(nan1), Some(nan2)],
-            ],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_f64(
-            &format!("{}_field_f64_null_some", column_prefix),
-            vec![vec![None], vec![Some(20.1)], vec![Some(30.1), None]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_f64(
-            &format!("{}_field_f64_null_all", column_prefix),
-            vec![vec![None], vec![None], vec![None, None]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-    }
+    create_columns_field_f64(
+        column_prefix,
+        test_size,
+        &mut arrow_cols,
+        &mut summaries,
+        &mut schema_builder,
+    );
 
     // field: bool
-    if test_size.is_full() {
-        create_column_field_bool(
-            &format!("{}_field_bool_normal", column_prefix),
-            vec![
-                vec![Some(true)],
-                vec![Some(false)],
-                vec![Some(true), Some(false)],
-            ],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_bool(
-            &format!("{}_field_bool_null_some", column_prefix),
-            vec![vec![None], vec![Some(false)], vec![Some(true), None]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-        create_column_field_bool(
-            &format!("{}_field_bool_null_all", column_prefix),
-            vec![vec![None], vec![None], vec![None, None]],
-            &mut arrow_cols,
-            &mut summaries,
-            &mut schema_builder,
-        );
-    }
+    create_columns_field_bool(
+        column_prefix,
+        test_size,
+        &mut arrow_cols,
+        &mut summaries,
+        &mut schema_builder,
+    );
 
     // time
     create_column_timestamp(
