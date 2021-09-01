@@ -35,6 +35,7 @@
 -	[#22283](https://github.com/influxdata/influxdb/pull/22283): fix: require database authorization to see continuous queries
 -	[#22273](https://github.com/influxdata/influxdb/pull/22273): fix: return correct count of ErrNotExecuted
 -	[#22338](https://github.com/influxdata/influxdb/pull/22338): fix: TSI logfile race
+-	[#22348](https://github.com/influxdata/influxdb/pull/22348): fix: flux error properly read by cloud
 -	[#22229](https://github.com/influxdata/influxdb/pull/22229): fix: influxdb packages should depend on curl bc of use in systemd script
 
 v1.9.2 [unreleased]
