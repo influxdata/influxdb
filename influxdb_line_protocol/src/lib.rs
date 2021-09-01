@@ -24,6 +24,7 @@ use nom::{
     combinator::{map, opt, recognize},
     multi::many0,
     sequence::{preceded, separated_pair, terminated, tuple},
+    Parser,
 };
 use observability_deps::tracing::debug;
 use smallvec::SmallVec;
@@ -504,7 +505,7 @@ pub fn parse_lines(input: &str) -> impl Iterator<Item = Result<ParsedLine<'_>>> 
     })
 }
 
-/// Split `input` into invidividual lines to be parsed, based on the
+/// Split `input` into individual lines to be parsed, based on the
 /// rules of the Line Protocol format.
 ///
 /// This code is more or less a direct port of the [Go implementation of
@@ -715,6 +716,64 @@ pub fn timestamp(i: &str) -> IResult<&str, i64> {
     map_fail(integral_value_signed, |value| {
         value.parse().context(TimestampValueInvalid { value })
     })(i)
+}
+
+/// Parse delete predicate which is in form of conjunctive expressions with
+/// columns being compared to literals using = or != operators.
+/// Example: city = "Boston" AND building != 12 and month = 10
+/// This function is currently used to support Delete's gPRC API only.
+/// In the future, when we support all kinds of delete predicates supported in
+/// Datafusion, we may want to reuse the parser used by Datafusion to keep
+/// things consistent
+pub fn parse_delete_predicate(input: &str) -> Vec<BinaryExpr> {
+    // Convert everything after "and" into an expression string
+    let expr_strings = delete_predicate_to_expr_string(input);
+    let mut exprs: Vec<BinaryExpr> = vec![];
+    for s in expr_strings {
+        let expr = parse_delete_expression(s);
+        exprs.push(expr);
+    }
+    exprs
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct BinaryExpr {
+    pub column_name: String,
+    pub op: String,      // either "=" or "!="
+    pub literal: String, // constant
+}
+
+/// parse one binary expression column_name = literal
+fn parse_delete_expression(input: &str) -> BinaryExpr {
+    // See if this is an equality comparison
+    let expr = separated_pair(field_string_value, tag("="), field_value).parse(input);
+    if expr.is_err() {
+        // See if this is an inequality comparison
+        let expr = separated_pair(field_string_value, tag("!="), field_value).parse(input);
+        if let Err(e) = expr {
+            panic!("Invalid Delete Predicate: {}, {}", input, e);
+        }
+
+        let expr = expr.unwrap();
+        return BinaryExpr {
+            column_name: expr.1 .0.to_string(),
+            op: "!=".to_string(),
+            literal: expr.1 .1.to_string(),
+        };
+    }
+
+    let expr = expr.unwrap();
+    BinaryExpr {
+        column_name: expr.1 .0.to_string(),
+        op: "!=".to_string(),
+        literal: expr.1 .1.to_string(),
+    }
+}
+
+/// Split string after "and" into its own expression
+fn delete_predicate_to_expr_string(input: &str) -> Vec<&str> {
+    input.to_lowercase();
+    input.split("and").collect()
 }
 
 fn field_string_value(i: &str) -> IResult<&str, EscapedStr<'_>> {

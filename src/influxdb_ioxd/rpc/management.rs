@@ -4,8 +4,10 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use data_types::{server_id::ServerId, DatabaseName};
+use datafusion::logical_plan::{col, lit};
 use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound};
 use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
+use influxdb_line_protocol::parse_delete_predicate;
 use query::predicate::PredicateBuilder;
 use query::QueryDatabase;
 use server::rules::ProvidedDatabaseRules;
@@ -561,7 +563,7 @@ where
         let DeleteRequest {
             db_name,
             table_name,
-            delete_predicate: _,
+            delete_predicate,
             start_time,
             stop_time,
         } = request.into_inner();
@@ -575,7 +577,7 @@ where
 
         // parse and validate delete predicate which is a conjunctive expressions
         // with columns being compared to literals using = or != operators
-        // NGA: todo
+        let predicates = parse_delete_predicate(delete_predicate.as_str());
 
         // Validate that the database name is legit
         let db_name = DatabaseName::new(db_name).field("db_name")?;
@@ -584,11 +586,25 @@ where
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        // Build the delete predicate that include all delete expression and time range
-        let del_predicate = PredicateBuilder::new()
+        // Build the delete predicate that include the table to be deleted, all delete expressions, and time range
+        let mut del_predicate = PredicateBuilder::new()
+            .table(table_name.clone())
             .timestamp_range(start, stop)
-            //.add_expr  // NGA todo: repeat to add delete expressions here
             .build();
+        for expr in predicates {
+            let e = match expr.op.as_str() {
+                "=" => col(expr.column_name.as_str()).eq(lit(expr.literal)),
+                "!=" => col(expr.column_name.as_str()).eq(lit(expr.literal)),
+                _ => panic!(
+                    "{} operator not supported in delete expression",
+                    expr.op.as_str()
+                ),
+            };
+
+            del_predicate.exprs.push(e);
+        }
+
+        // NGA todo: need to validate if the table and all of its columns in delete predicate are legit?
 
         db.delete(&table_name, &del_predicate)
             .await

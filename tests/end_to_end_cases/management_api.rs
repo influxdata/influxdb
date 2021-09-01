@@ -1387,7 +1387,7 @@ async fn test_delete() {
     let stop = "1000";
 
     management_client
-        .delete(&db_name, table_name, delete_predicate, start, stop) // note that this function currently does nothing
+        .delete(&db_name, table_name, delete_predicate, start, stop)
         .await
         .unwrap();
 

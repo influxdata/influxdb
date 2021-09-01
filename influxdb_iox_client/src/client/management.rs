@@ -955,8 +955,8 @@ impl Client {
         let start_time = start_time.into();
         let stop_time = stop_time.into();
 
-        // NGA todo: Should parse and validate start_time, stop_time, and delete_predicate here
-        // at in client  or send them to the server and do the parsing and validation there?
+        // NGA question: Currently, the "parse and validate start_time, stop_time, and delete_predicate" is
+        // done in the server's delete function. Should do it here at the client side instead?
         self.inner
             .delete(DeleteRequest {
                 db_name,
