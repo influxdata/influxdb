@@ -23,7 +23,7 @@ var (
 	desc       = "testing testing"
 	connection = influxdb.RemoteConnection{
 		ID:               initID,
-		OrgID:            platform.ID(10), //createReq.OrgID,
+		OrgID:            platform.ID(10),
 		Name:             "test",
 		Description:      &desc,
 		RemoteURL:        "https://influxdb.cloud",
@@ -155,6 +155,23 @@ func TestUpdateAndGetConnection(t *testing.T) {
 	// Validate the updated connection to check that the new auth token persisted.
 	mockValidator.EXPECT().ValidateRemoteConnectionHTTPConfig(gomock.Any(), &updatedHttpConfig).Return(nil)
 	require.NoError(t, svc.ValidateRemoteConnection(ctx, initID))
+}
+
+func TestUpdateNoop(t *testing.T) {
+	t.Parallel()
+
+	svc, _, clean := newTestService(t)
+	defer clean(t)
+
+	// Create a connection.
+	created, err := svc.CreateRemoteConnection(ctx, createReq)
+	require.NoError(t, err)
+	require.Equal(t, connection, *created)
+
+	// Send a no-op update, assert nothing changed.
+	updated, err := svc.UpdateRemoteConnection(ctx, initID, influxdb.UpdateRemoteConnectionRequest{})
+	require.NoError(t, err)
+	require.Equal(t, connection, *updated)
 }
 
 func TestValidateUpdatedConnectionWithoutPersisting(t *testing.T) {
@@ -315,7 +332,7 @@ func newTestService(t *testing.T) (*service, *remotesMock.MockRemoteConnectionVa
 	mockValidator := remotesMock.NewMockRemoteConnectionValidator(gomock.NewController(t))
 	svc := service{
 		store:       store,
-		idGenerator: mock.NewIncrementingIDGenerator(platform.ID(1)),
+		idGenerator: mock.NewIncrementingIDGenerator(initID),
 		validator:   mockValidator,
 	}
 
