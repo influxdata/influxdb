@@ -953,7 +953,9 @@ mod tests {
     use mutable_buffer::chunk::ChunkMetrics as MBChunkMetrics;
     use parquet_file::{
         chunk::ParquetChunk,
-        test_utils::{make_chunk as make_parquet_chunk_with_store, make_iox_object_store},
+        test_utils::{
+            make_chunk as make_parquet_chunk_with_store, make_iox_object_store, TestSize,
+        },
     };
 
     #[test]
@@ -1121,7 +1123,7 @@ mod tests {
 
     async fn make_parquet_chunk(addr: ChunkAddr) -> ParquetChunk {
         let iox_object_store = make_iox_object_store().await;
-        make_parquet_chunk_with_store(iox_object_store, "foo", addr).await
+        make_parquet_chunk_with_store(iox_object_store, "foo", addr, TestSize::Full).await
     }
 
     fn chunk_addr() -> ChunkAddr {

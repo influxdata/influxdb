@@ -169,6 +169,7 @@ mod tests {
         storage::{MemWriter, Storage},
         test_utils::{
             create_partition_and_database_checkpoint, make_iox_object_store, make_record_batch,
+            TestSize,
         },
     };
     use chrono::Utc;
@@ -355,7 +356,8 @@ mod tests {
     ) -> CatalogParquetInfo {
         let table_name = Arc::from("table1");
         let partition_key = Arc::from("part1");
-        let (record_batches, _schema, _column_summaries, _num_rows) = make_record_batch("foo");
+        let (record_batches, _schema, _column_summaries, _num_rows) =
+            make_record_batch("foo", TestSize::Full);
 
         let storage = Storage::new(Arc::clone(iox_object_store));
         let (partition_checkpoint, database_checkpoint) = create_partition_and_database_checkpoint(
@@ -398,7 +400,8 @@ mod tests {
         iox_object_store: &Arc<IoxObjectStore>,
         chunk_id: u32,
     ) -> (ParquetFilePath, IoxParquetMetaData) {
-        let (record_batches, schema, _column_summaries, _num_rows) = make_record_batch("foo");
+        let (record_batches, schema, _column_summaries, _num_rows) =
+            make_record_batch("foo", TestSize::Full);
         let mut stream: SendableRecordBatchStream = Box::pin(MemoryStream::new(record_batches));
 
         let mem_writer = MemWriter::default();
