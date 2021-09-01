@@ -26,7 +26,7 @@ use object_store::{
 };
 use observability_deps::tracing::warn;
 use snafu::{ensure, ResultExt, Snafu};
-use std::{io, sync::Arc};
+use std::{collections::BTreeMap, io, sync::Arc};
 use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -111,9 +111,39 @@ impl IoxObjectStore {
             .collect())
     }
 
-    // TODO: Add a list_deleted_databases API that returns the names and generations of databases
-    // that contain tombstone files
-    // See: https://github.com/influxdata/influxdb_iox/issues/2198
+    /// List database names in object storage along with all existing generations for each database
+    /// and whether the generations are marked as deleted or not. Useful for finding candidates
+    /// to restore or to permanently delete. Makes many more calls to object storage than
+    /// [`IoxObjectStore::list_possible_databases`].
+    async fn list_all_databases(
+        inner: &ObjectStore,
+        server_id: ServerId,
+    ) -> Result<BTreeMap<DatabaseName<'static>, Vec<Generation>>> {
+        let path = paths::all_databases_path(inner, server_id);
+
+        let list_result = inner.list_with_delimiter(&path).await?;
+
+        let mut all_dbs = BTreeMap::new();
+
+        for prefix in list_result.common_prefixes {
+            let prefix_parsed: DirsAndFileName = prefix.into();
+            let last = prefix_parsed
+                .directories
+                .last()
+                .expect("path can't be empty");
+
+            if let Ok(db_name) = DatabaseName::new(last.encoded().to_string())
+                .log_if_error("invalid database directory")
+            {
+                let root_path = RootPath::new(inner, server_id, &db_name);
+                let generations = Self::list_generations(inner, &root_path).await?;
+
+                all_dbs.insert(db_name, generations);
+            }
+        }
+
+        Ok(all_dbs)
+    }
 
     // Private function to list all generation directories in object storage for a particular
     // database.
@@ -876,8 +906,6 @@ mod tests {
         server_id: ServerId,
         database_name: &DatabaseName<'static>,
     ) -> IoxObjectStore {
-        let root_path = RootPath::new(&object_store, server_id, database_name);
-
         let iox_object_store =
             IoxObjectStore::new(Arc::clone(&object_store), server_id, database_name)
                 .await
@@ -944,5 +972,128 @@ mod tests {
             .unwrap();
         possible.sort();
         assert_eq!(possible, vec![db_deleted, db_normal, not_a_db]);
+    }
+
+    #[tokio::test]
+    async fn list_all_databases_returns_generation_info() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+
+        // Create a normal database, will be in the list with one active generation
+        let db_normal = DatabaseName::new("db_normal").unwrap();
+        create_database(Arc::clone(&object_store), server_id, &db_normal).await;
+
+        // Create a database, then delete it - will be in the list with one inactive generation
+        let db_deleted = DatabaseName::new("db_deleted").unwrap();
+        let db_deleted_iox_store =
+            create_database(Arc::clone(&object_store), server_id, &db_deleted).await;
+        delete_database(&db_deleted_iox_store).await;
+
+        // Create, delete, create - will be in the list with one active and one inactive generation
+        let db_reincarnated = DatabaseName::new("db_reincarnated").unwrap();
+        let db_reincarnated_iox_store =
+            create_database(Arc::clone(&object_store), server_id, &db_reincarnated).await;
+        delete_database(&db_reincarnated_iox_store).await;
+        create_database(Arc::clone(&object_store), server_id, &db_reincarnated).await;
+
+        // Put a file in a directory that looks like a database directory but has no rules,
+        // will still be in the list with one active generation
+        let not_a_db = DatabaseName::new("not_a_db").unwrap();
+        let mut not_rules_path = object_store.new_path();
+        not_rules_path.push_all_dirs(&[&server_id.to_string(), not_a_db.as_str(), "0"]);
+        not_rules_path.set_file_name("not_rules.txt");
+        object_store
+            .put(
+                &not_rules_path,
+                stream::once(async move { Ok(Bytes::new()) }),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Put a file in a directory that's an invalid database name - this WON'T be in the list
+        let invalid_db_name = ("a".repeat(65)).to_string();
+        let mut invalid_db_name_rules_path = object_store.new_path();
+        invalid_db_name_rules_path.push_all_dirs(&[&server_id.to_string(), &invalid_db_name, "0"]);
+        invalid_db_name_rules_path.set_file_name("rules.pb");
+        object_store
+            .put(
+                &invalid_db_name_rules_path,
+                stream::once(async move { Ok(Bytes::new()) }),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Put a file in a directory that looks like a database name, but doesn't look like a
+        // generation directory - the database will be in the list but the generations will
+        // be empty.
+        let no_generations = DatabaseName::new("no_generations").unwrap();
+        let mut no_generations_path = object_store.new_path();
+        no_generations_path.push_all_dirs(&[
+            &server_id.to_string(),
+            no_generations.as_str(),
+            "not-a-generation",
+        ]);
+        no_generations_path.set_file_name("not_rules.txt");
+        object_store
+            .put(
+                &no_generations_path,
+                stream::once(async move { Ok(Bytes::new()) }),
+                None,
+            )
+            .await
+            .unwrap();
+
+        let all_dbs = IoxObjectStore::list_all_databases(&object_store, server_id)
+            .await
+            .unwrap();
+
+        let db_names: Vec<_> = all_dbs.keys().collect();
+        assert_eq!(
+            db_names,
+            vec![
+                &db_deleted,
+                &db_normal,
+                &db_reincarnated,
+                &no_generations,
+                &not_a_db
+            ]
+        );
+
+        let db_normal_generations = all_dbs.get(&db_normal).unwrap();
+        assert_eq!(db_normal_generations.len(), 1);
+        assert_eq!(db_normal_generations[0].id, 0);
+        assert!(db_normal_generations[0].is_active());
+
+        let db_deleted_generations = all_dbs.get(&db_deleted).unwrap();
+        assert_eq!(db_deleted_generations.len(), 1);
+        assert_eq!(db_deleted_generations[0].id, 0);
+        assert!(!db_deleted_generations[0].is_active());
+
+        let mut db_reincarnated_generations = all_dbs.get(&db_reincarnated).unwrap().clone();
+        db_reincarnated_generations.sort_by_key(|g| g.id);
+        assert_eq!(db_reincarnated_generations.len(), 2);
+        assert_eq!(db_reincarnated_generations[0].id, 0);
+        assert!(!db_reincarnated_generations[0].is_active());
+        assert_eq!(db_reincarnated_generations[1].id, 1);
+        assert!(db_reincarnated_generations[1].is_active());
+
+        // There is a database-looking directory with a generation-looking directory inside it
+        // that doesn't have a tombstone file, so as far as we know at this point this is a
+        // database. Actually using this database and finding out it's invalid is out of scope.
+        let not_a_db_generations = all_dbs.get(&not_a_db).unwrap();
+        assert_eq!(not_a_db_generations.len(), 1);
+        assert_eq!(not_a_db_generations[0].id, 0);
+        assert!(not_a_db_generations[0].is_active());
+
+        // There are files in this database directory, but none of them look like generation
+        // directories, so generations is empty.
+        let no_generations_generations = all_dbs.get(&no_generations).unwrap();
+        assert!(
+            no_generations_generations.is_empty(),
+            "got {:?}",
+            no_generations_generations
+        );
     }
 }
