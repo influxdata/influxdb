@@ -127,9 +127,10 @@ impl ObjectStoreApi for InMemory {
             .range((prefix)..)
             .take_while(|(k, _)| k.prefix_matches(prefix))
         {
-            let parts = k
-                .parts_after_prefix(prefix)
-                .expect("must have prefix if in range");
+            let parts = match k.parts_after_prefix(prefix) {
+                Some(parts) => parts,
+                None => continue,
+            };
 
             if parts.len() >= 2 {
                 let mut full_prefix = prefix.to_owned();
