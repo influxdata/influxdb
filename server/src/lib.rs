@@ -1257,10 +1257,14 @@ mod tests {
         },
     };
     use entry::test_helpers::lp_to_entry;
+    use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
     use iox_object_store::IoxObjectStore;
     use metrics::TestMetricRegistry;
-    use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
+    use object_store::{
+        path::{parsed::DirsAndFileName, ObjectStorePath},
+        ObjectStore, ObjectStoreApi,
+    };
     use parquet_file::catalog::{api::PreservedCatalog, test_helpers::TestCatalogState};
     use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner, QueryDatabase};
     use std::{
@@ -2051,6 +2055,86 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn init_too_many_active_generation_directories() {
+        let application = make_application();
+        let server_id = ServerId::try_from(1).unwrap();
+
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        let foo_db_name = DatabaseName::new("foo").unwrap();
+
+        // Create database
+        create_simple_database(&server, &foo_db_name)
+            .await
+            .expect("failed to create database");
+
+        // Delete it
+        server.delete_database(&foo_db_name).await.unwrap();
+
+        // Create it again
+        create_simple_database(&server, &foo_db_name)
+            .await
+            .expect("failed to create database");
+
+        // Delete it again
+        server.delete_database(&foo_db_name).await.unwrap();
+
+        std::mem::drop(server);
+
+        // Remove the tombstone files from both database generation directories
+        let mut db_path = application.object_store().new_path();
+        db_path.push_all_dirs(&[server_id.to_string().as_str(), foo_db_name.as_str()]);
+        let database_files: Vec<_> = application
+            .object_store()
+            .list(Some(&db_path))
+            .await
+            .unwrap()
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect();
+
+        // Delete all tombstone files
+        let mut deleted_something = false;
+        for file in database_files {
+            let parsed: DirsAndFileName = file.clone().into();
+            if parsed.file_name.unwrap().to_string() == "DELETED" {
+                application.object_store().delete(&file).await.unwrap();
+                deleted_something = true;
+            }
+        }
+        assert!(deleted_something);
+
+        // Restart the server
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+        // generic error MUST NOT be set
+        assert!(server.server_init_error().is_none());
+        // server is initialized
+        assert!(server.initialized());
+
+        // The database should be in an error state
+        let foo_database = server.database(&foo_db_name).unwrap();
+        let err = foo_database.wait_for_init().await.unwrap_err();
+        assert!(
+            matches!(
+                err.as_ref(),
+                database::InitError::DatabaseObjectStoreLookup {
+                    source: iox_object_store::IoxObjectStoreError::MultipleActiveDatabasesFound
+                }
+            ),
+            "got {:?}",
+            err
+        );
+        assert!(Arc::ptr_eq(&err, &foo_database.init_error().unwrap()));
+    }
+
+    #[tokio::test]
     async fn wipe_preserved_catalog() {
         // have the following DBs:
         // 1. existing => cannot be wiped
@@ -2155,7 +2239,8 @@ mod tests {
                 .wipe_preserved_catalog(&db_name_existing)
                 .unwrap_err()
                 .to_string(),
-            "error wiping preserved catalog: database (db_existing) in invalid state (Initialized) for transition (WipePreservedCatalog)"
+            "error wiping preserved catalog: database (db_existing) in invalid state (Initialized) \
+            for transition (WipePreservedCatalog)"
         );
         assert!(
             PreservedCatalog::exists(&existing.iox_object_store().unwrap())
@@ -2247,7 +2332,8 @@ mod tests {
                 .wipe_preserved_catalog(&db_name_created)
                 .unwrap_err()
                 .to_string(),
-            "error wiping preserved catalog: database (db_created) in invalid state (Initialized) for transition (WipePreservedCatalog)"
+            "error wiping preserved catalog: database (db_created) in invalid state (Initialized) \
+            for transition (WipePreservedCatalog)"
         );
         assert!(
             PreservedCatalog::exists(&created.iox_object_store().unwrap())
