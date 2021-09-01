@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -18,6 +19,7 @@ import (
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/feature/override"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -246,8 +248,21 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 			logFormatted("diff", results)
 			logFormatted("want", results)
 			logFormatted("got", results)
+
+			t.Logf("all data in %s:", t.Name())
+			logFormatted(t.Name(), allDataFromBucket(t, l, t.Name()))
 		}
 	}
+}
+
+func allDataFromBucket(t testing.TB, l *launcher.TestLauncher, bucket string) map[string]*bytes.Buffer {
+	q := fmt.Sprintf(`from(bucket: "%s") |> range(start: 0)`, bucket)
+	bs, err := http.SimpleQuery(l.URL(), q, l.Org.Name, l.Auth.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return map[string]*bytes.Buffer{bucket: bytes.NewBuffer(bs)}
 }
 
 func executeWithOptions(t testing.TB, l *launcher.TestLauncher, bucketOpt *ast.OptionStatement,
