@@ -37,7 +37,7 @@ func errLocalBucketNotFound(id platform.ID, cause error) error {
 	}
 }
 
-func NewService(store *sqlite.SqlStore, bktSvc influxdb.BucketService) *service {
+func NewService(store *sqlite.SqlStore, bktSvc BucketService) *service {
 	return &service{
 		store:         store,
 		idGenerator:   snowflake.NewIDGenerator(),
@@ -50,10 +50,16 @@ type ReplicationValidator interface {
 	ValidateReplication(context.Context, *internal.ReplicationHTTPConfig) error
 }
 
+type BucketService interface {
+	RLock()
+	RUnlock()
+	FindBucketByID(ctx context.Context, id platform.ID) (*influxdb.Bucket, error)
+}
+
 type service struct {
 	store         *sqlite.SqlStore
 	idGenerator   platform.IDGenerator
-	bucketService influxdb.BucketService
+	bucketService BucketService
 	validator     ReplicationValidator
 }
 
@@ -91,12 +97,12 @@ func (s service) ListReplications(ctx context.Context, filter influxdb.Replicati
 }
 
 func (s service) CreateReplication(ctx context.Context, request influxdb.CreateReplicationRequest) (*influxdb.Replication, error) {
+	s.bucketService.RLock()
+	defer s.bucketService.RUnlock()
+
 	s.store.Mu.Lock()
 	defer s.store.Mu.Unlock()
 
-	// Ensure the referenced bucket exist locally.
-	// NOTE: Since bucket metadata is stored in bolt, we don't have a FK in the DB to guard against
-	// a race condition where the referenced bucket is deleted after this check.
 	if _, err := s.bucketService.FindBucketByID(ctx, request.LocalBucketID); err != nil {
 		return nil, errLocalBucketNotFound(request.LocalBucketID, err)
 	}

@@ -48,6 +48,14 @@ func NewStore(kvStore kv.Store, opts ...StoreOption) *Store {
 	return store
 }
 
+func (s *Store) RLock() {
+	s.kvStore.RLock()
+}
+
+func (s *Store) RUnlock() {
+	s.kvStore.RUnlock()
+}
+
 // View opens up a transaction that will not write to any data. Implementing interfaces
 // should take care to ensure that all view transactions do not mutate any data.
 func (s *Store) View(ctx context.Context, fn func(kv.Tx) error) error {

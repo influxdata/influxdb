@@ -81,6 +81,8 @@ func TestCreateAndGetReplication(t *testing.T) {
 	defer clean(t)
 
 	insertRemote(t, svc.store, replication.RemoteID)
+	mocks.bucketSvc.EXPECT().RLock()
+	mocks.bucketSvc.EXPECT().RUnlock()
 	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
 		Return(&influxdb.Bucket{}, nil)
 
@@ -115,6 +117,8 @@ func TestCreateMissingBucket(t *testing.T) {
 
 	insertRemote(t, svc.store, replication.RemoteID)
 	bucketNotFound := errors.New("bucket not found")
+	mocks.bucketSvc.EXPECT().RLock()
+	mocks.bucketSvc.EXPECT().RUnlock()
 	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
 		Return(nil, bucketNotFound)
 
@@ -134,6 +138,8 @@ func TestCreateMissingRemote(t *testing.T) {
 	svc, mocks, clean := newTestService(t)
 	defer clean(t)
 
+	mocks.bucketSvc.EXPECT().RLock()
+	mocks.bucketSvc.EXPECT().RUnlock()
 	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
 		Return(&influxdb.Bucket{}, nil)
 
@@ -222,6 +228,8 @@ func TestUpdateAndGetReplication(t *testing.T) {
 
 	insertRemote(t, svc.store, replication.RemoteID)
 	insertRemote(t, svc.store, updatedReplication.RemoteID)
+	mocks.bucketSvc.EXPECT().RLock()
+	mocks.bucketSvc.EXPECT().RUnlock()
 	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
 		Return(&influxdb.Bucket{}, nil)
 
@@ -248,6 +256,8 @@ func TestUpdateMissingRemote(t *testing.T) {
 	defer clean(t)
 
 	insertRemote(t, svc.store, replication.RemoteID)
+	mocks.bucketSvc.EXPECT().RLock()
+	mocks.bucketSvc.EXPECT().RUnlock()
 	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
 		Return(&influxdb.Bucket{}, nil)
 
@@ -275,6 +285,8 @@ func TestUpdateNoop(t *testing.T) {
 	defer clean(t)
 
 	insertRemote(t, svc.store, replication.RemoteID)
+	mocks.bucketSvc.EXPECT().RLock()
+	mocks.bucketSvc.EXPECT().RUnlock()
 	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
 		Return(&influxdb.Bucket{}, nil)
 
@@ -299,6 +311,8 @@ func TestValidateUpdatedReplicationWithoutPersisting(t *testing.T) {
 		defer clean(t)
 
 		insertRemote(t, svc.store, replication.RemoteID)
+		mocks.bucketSvc.EXPECT().RLock()
+		mocks.bucketSvc.EXPECT().RUnlock()
 		mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
 			Return(&influxdb.Bucket{}, nil)
 
@@ -325,6 +339,8 @@ func TestValidateUpdatedReplicationWithoutPersisting(t *testing.T) {
 
 		insertRemote(t, svc.store, replication.RemoteID)
 		insertRemote(t, svc.store, updatedReplication.RemoteID)
+		mocks.bucketSvc.EXPECT().RLock()
+		mocks.bucketSvc.EXPECT().RUnlock()
 		mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
 			Return(&influxdb.Bucket{}, nil)
 
@@ -353,6 +369,8 @@ func TestValidateUpdatedReplicationWithoutPersisting(t *testing.T) {
 
 		insertRemote(t, svc.store, replication.RemoteID)
 		insertRemote(t, svc.store, updatedReplication.RemoteID)
+		mocks.bucketSvc.EXPECT().RLock()
+		mocks.bucketSvc.EXPECT().RUnlock()
 		mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
 			Return(&influxdb.Bucket{}, nil)
 
@@ -380,6 +398,8 @@ func TestDeleteReplication(t *testing.T) {
 	defer clean(t)
 
 	insertRemote(t, svc.store, replication.RemoteID)
+	mocks.bucketSvc.EXPECT().RLock()
+	mocks.bucketSvc.EXPECT().RUnlock()
 	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).
 		Return(&influxdb.Bucket{}, nil)
 
@@ -407,6 +427,8 @@ func TestListReplications(t *testing.T) {
 	createReq3.RemoteID = updatedReplication.RemoteID
 
 	setup := func(t *testing.T, svc *service, mocks mocks) []influxdb.Replication {
+		mocks.bucketSvc.EXPECT().RLock().Times(3)
+		mocks.bucketSvc.EXPECT().RUnlock().Times(3)
 		mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).Return(&influxdb.Bucket{}, nil).Times(2)
 		mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq2.LocalBucketID).Return(&influxdb.Bucket{}, nil)
 		insertRemote(t, svc.store, createReq.RemoteID)
@@ -492,7 +514,7 @@ func TestListReplications(t *testing.T) {
 }
 
 type mocks struct {
-	bucketSvc *mock.MockBucketService
+	bucketSvc *replicationsMock.MockBucketService
 	validator *replicationsMock.MockReplicationValidator
 }
 
@@ -508,7 +530,7 @@ func newTestService(t *testing.T) (*service, mocks, func(t *testing.T)) {
 
 	ctrl := gomock.NewController(t)
 	mocks := mocks{
-		bucketSvc: mock.NewMockBucketService(ctrl),
+		bucketSvc: replicationsMock.NewMockBucketService(ctrl),
 		validator: replicationsMock.NewMockReplicationValidator(ctrl),
 	}
 	svc := service{
