@@ -9,7 +9,8 @@ use influxdb_iox_client::{
     flight,
     format::QueryOutputFormat,
     management::{
-        self, generated_types::*, CreateDatabaseError, GetDatabaseError, ListDatabaseError,
+        self, generated_types::*, CreateDatabaseError, DeleteDatabaseError, GetDatabaseError,
+        ListDatabaseError,
     },
     write::{self, WriteError},
 };
@@ -29,6 +30,9 @@ pub enum Error {
 
     #[error("Error listing databases: {0}")]
     ListDatabaseError(#[from] ListDatabaseError),
+
+    #[error("Error deleting database: {0}")]
+    DeleteDatabaseError(#[from] DeleteDatabaseError),
 
     #[error("Error reading file {:?}: {}", file_name, source)]
     ReadingFile {
@@ -160,6 +164,13 @@ struct Query {
     format: String,
 }
 
+/// Delete a database
+#[derive(Debug, StructOpt)]
+struct Delete {
+    /// The name of the database to delete
+    name: String,
+}
+
 /// All possible subcommands for database
 #[derive(Debug, StructOpt)]
 enum Command {
@@ -171,6 +182,7 @@ enum Command {
     Chunk(chunk::Config),
     Partition(partition::Config),
     Recover(recover::Config),
+    Delete(Delete),
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
@@ -278,6 +290,11 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::Recover(config) => {
             recover::command(connection, config).await?;
+        }
+        Command::Delete(command) => {
+            let mut client = management::Client::new(connection);
+            client.delete_database(&command.name).await?;
+            println!("Deleted database {}", command.name);
         }
     }
 

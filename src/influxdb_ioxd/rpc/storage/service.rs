@@ -238,7 +238,7 @@ where
         info!(%db_name, ?range, predicate=%predicate.loggable(),"read filter");
 
         let ob = self.metrics.requests.observation();
-        let labels = &[
+        let attributes = &[
             KeyValue::new("operation", "read_filter"),
             KeyValue::new("db_name", db_name.to_string()),
         ];
@@ -247,9 +247,9 @@ where
             .await
             .map_err(|e| {
                 if e.is_internal() {
-                    ob.error_with_labels(labels);
+                    ob.error_with_attributes(attributes);
                 } else {
-                    ob.client_error_with_labels(labels);
+                    ob.client_error_with_attributes(attributes);
                 }
                 e.to_status()
             })?
@@ -257,7 +257,7 @@ where
             .map(Ok)
             .collect::<Vec<_>>();
 
-        ob.ok_with_labels(labels);
+        ob.ok_with_attributes(attributes);
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
@@ -285,13 +285,13 @@ where
         info!(%db_name, ?range, ?group_keys, ?group, ?aggregate,predicate=%predicate.loggable(),"read_group");
 
         let ob = self.metrics.requests.observation();
-        let labels = &[
+        let attributes = &[
             KeyValue::new("operation", "read_group"),
             KeyValue::new("db_name", db_name.to_string()),
         ];
 
         if hints != 0 {
-            ob.error_with_labels(labels);
+            ob.error_with_attributes(attributes);
             InternalHintsFieldNotSupported { hints }.fail()?
         }
 
@@ -305,14 +305,14 @@ where
                 aggregate_string: &aggregate_string,
             })
             .map_err(|e| {
-                ob.client_error_with_labels(labels);
+                ob.client_error_with_attributes(attributes);
                 e
             })?;
 
         let gby_agg = expr::make_read_group_aggregate(aggregate, group, group_keys)
             .context(ConvertingReadGroupAggregate { aggregate_string })
             .map_err(|e| {
-                ob.client_error_with_labels(labels);
+                ob.client_error_with_attributes(attributes);
                 e
             })?;
 
@@ -327,9 +327,9 @@ where
         .await
         .map_err(|e| {
             if e.is_internal() {
-                ob.error_with_labels(labels);
+                ob.error_with_attributes(attributes);
             } else {
-                ob.client_error_with_labels(labels);
+                ob.client_error_with_attributes(attributes);
             }
             e.to_status()
         })?
@@ -337,7 +337,7 @@ where
         .map(Ok)
         .collect::<Vec<_>>();
 
-        ob.ok_with_labels(labels);
+        ob.ok_with_attributes(attributes);
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
@@ -366,7 +366,7 @@ where
         info!(%db_name, ?range, ?window_every, ?offset, ?aggregate, ?window, predicate=%predicate.loggable(),"read_window_aggregate");
 
         let ob = self.metrics.requests.observation();
-        let labels = &[
+        let attributes = &[
             KeyValue::new("operation", "read_window_aggregate"),
             KeyValue::new("db_name", db_name.to_string()),
         ];
@@ -379,7 +379,7 @@ where
         let gby_agg = expr::make_read_window_aggregate(aggregate, window_every, offset, window)
             .context(ConvertingWindowAggregate { aggregate_string })
             .map_err(|e| {
-                ob.client_error_with_labels(labels);
+                ob.client_error_with_attributes(attributes);
                 e
             })?;
 
@@ -394,9 +394,9 @@ where
         .await
         .map_err(|e| {
             if e.is_internal() {
-                ob.error_with_labels(labels);
+                ob.error_with_attributes(attributes);
             } else {
-                ob.client_error_with_labels(labels);
+                ob.client_error_with_attributes(attributes);
             }
             e.to_status()
         })?
@@ -404,7 +404,7 @@ where
         .map(Ok)
         .collect::<Vec<_>>();
 
-        ob.ok_with_labels(labels);
+        ob.ok_with_attributes(attributes);
         Ok(tonic::Response::new(futures::stream::iter(results)))
     }
 
@@ -430,7 +430,7 @@ where
         info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_keys");
 
         let ob = self.metrics.requests.observation();
-        let labels = &[
+        let attributes = &[
             KeyValue::new("operation", "tag_keys"),
             KeyValue::new("db_name", db_name.to_string()),
         ];
@@ -448,9 +448,9 @@ where
         .await
         .map_err(|e| {
             if e.is_internal() {
-                ob.error_with_labels(labels);
+                ob.error_with_attributes(attributes);
             } else {
-                ob.client_error_with_labels(labels);
+                ob.client_error_with_attributes(attributes);
             }
             e.to_status()
         });
@@ -459,7 +459,7 @@ where
             .await
             .expect("sending tag_keys response to server");
 
-        ob.ok_with_labels(labels);
+        ob.ok_with_attributes(attributes);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -477,7 +477,7 @@ where
         let db_name = get_database_name(&tag_values_request)?;
 
         let ob = self.metrics.requests.observation();
-        let labels = &[
+        let attributes = &[
             KeyValue::new("operation", "tag_values"),
             KeyValue::new("db_name", db_name.to_string()),
         ];
@@ -497,7 +497,7 @@ where
             info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_values with tag_key=[x00] (measurement name)");
 
             if predicate.is_some() {
-                ob.client_error_with_labels(labels);
+                ob.client_error_with_attributes(attributes);
                 return Err(Error::NotYetImplemented {
                     operation: "tag_value for a measurement, with general predicate".to_string(),
                 }
@@ -508,9 +508,9 @@ where
                 .await
                 .map_err(|e| {
                     if e.is_internal() {
-                        ob.error_with_labels(labels);
+                        ob.error_with_attributes(attributes);
                     } else {
-                        ob.client_error_with_labels(labels);
+                        ob.client_error_with_attributes(attributes);
                     }
                     e
                 })
@@ -528,9 +528,9 @@ where
             .await
             .map_err(|e| {
                 if e.is_internal() {
-                    ob.error_with_labels(labels);
+                    ob.error_with_attributes(attributes);
                 } else {
-                    ob.client_error_with_labels(labels);
+                    ob.client_error_with_attributes(attributes);
                 }
                 e
             })?;
@@ -547,7 +547,7 @@ where
             let tag_key = String::from_utf8(tag_key)
                 .context(ConvertingTagKeyInTagValues)
                 .map_err(|e| {
-                    ob.client_error_with_labels(labels);
+                    ob.client_error_with_attributes(attributes);
                     e
                 })?;
 
@@ -571,7 +571,7 @@ where
             .await
             .expect("sending tag_values response to server");
 
-        ob.ok_with_labels(labels);
+        ob.ok_with_attributes(attributes);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -653,7 +653,7 @@ where
         info!(%db_name, ?range, predicate=%predicate.loggable(), "measurement_names");
 
         let ob = self.metrics.requests.observation();
-        let labels = &[
+        let attributes = &[
             KeyValue::new("operation", "measurement_names"),
             KeyValue::new("db_name", db_name.to_string()),
         ];
@@ -662,9 +662,9 @@ where
             .await
             .map_err(|e| {
                 if e.is_internal() {
-                    ob.error_with_labels(labels);
+                    ob.error_with_attributes(attributes);
                 } else {
-                    ob.client_error_with_labels(labels);
+                    ob.client_error_with_attributes(attributes);
                 }
                 e.to_status()
             });
@@ -673,7 +673,7 @@ where
             .await
             .expect("sending measurement names response to server");
 
-        ob.ok_with_labels(labels);
+        ob.ok_with_attributes(attributes);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -700,7 +700,7 @@ where
         info!(%db_name, ?range, %measurement, predicate=%predicate.loggable(), "measurement_tag_keys");
 
         let ob = self.metrics.requests.observation();
-        let labels = &[
+        let attributes = &[
             KeyValue::new("operation", "measurement_tag_keys"),
             KeyValue::new("db_name", db_name.to_string()),
         ];
@@ -718,9 +718,9 @@ where
         .await
         .map_err(|e| {
             if e.is_internal() {
-                ob.error_with_labels(labels);
+                ob.error_with_attributes(attributes);
             } else {
-                ob.client_error_with_labels(labels);
+                ob.client_error_with_attributes(attributes);
             }
             e.to_status()
         });
@@ -729,7 +729,7 @@ where
             .await
             .expect("sending measurement_tag_keys response to server");
 
-        ob.ok_with_labels(labels);
+        ob.ok_with_attributes(attributes);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -757,7 +757,7 @@ where
         info!(%db_name, ?range, %measurement, %tag_key, predicate=%predicate.loggable(), "measurement_tag_values");
 
         let ob = self.metrics.requests.observation();
-        let labels = &[
+        let attributes = &[
             KeyValue::new("operation", "measurement_tag_values"),
             KeyValue::new("db_name", db_name.to_string()),
         ];
@@ -776,9 +776,9 @@ where
         .await
         .map_err(|e| {
             if e.is_internal() {
-                ob.error_with_labels(labels);
+                ob.error_with_attributes(attributes);
             } else {
-                ob.client_error_with_labels(labels);
+                ob.client_error_with_attributes(attributes);
             }
             e.to_status()
         });
@@ -787,7 +787,7 @@ where
             .await
             .expect("sending measurement_tag_values response to server");
 
-        ob.ok_with_labels(labels);
+        ob.ok_with_attributes(attributes);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
@@ -814,7 +814,7 @@ where
         info!(%db_name, ?range, predicate=%predicate.loggable(), "measurement_fields");
 
         let ob = self.metrics.requests.observation();
-        let labels = &[
+        let attributes = &[
             KeyValue::new("operation", "measurement_fields"),
             KeyValue::new("db_name", db_name.to_string()),
         ];
@@ -837,9 +837,9 @@ where
         })
         .map_err(|e| {
             if e.is_internal() {
-                ob.error_with_labels(labels);
+                ob.error_with_attributes(attributes);
             } else {
-                ob.client_error_with_labels(labels);
+                ob.client_error_with_attributes(attributes);
             }
             e.to_status()
         })?;
@@ -848,7 +848,7 @@ where
             .await
             .expect("sending measurement_fields response to server");
 
-        ob.ok_with_labels(labels);
+        ob.ok_with_attributes(attributes);
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 }
@@ -1237,7 +1237,7 @@ mod tests {
             .test_storage
             .metrics_registry
             .has_metric_family("gRPC_requests_total")
-            .with_labels(&[
+            .with_attributes(&[
                 ("operation", operation),
                 ("db_name", "000000000000007b_00000000000001c8"),
                 ("status", status),

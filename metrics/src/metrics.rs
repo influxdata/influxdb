@@ -8,7 +8,7 @@ use opentelemetry::metrics::{Counter as OTCounter, ValueRecorder as OTHistogram}
 
 pub use opentelemetry::KeyValue;
 
-const RED_REQUEST_STATUS_LABEL: &str = "status";
+const RED_REQUEST_STATUS_ATTRIBUTE: &str = "status";
 
 /// Possible types of RED metric observation status.
 ///
@@ -67,7 +67,7 @@ impl Display for RedRequestStatus {
 pub struct RedMetric {
     requests: OTCounter<u64>,
     duration: OTHistogram<f64>,
-    default_labels: Vec<KeyValue>,
+    default_attributes: Vec<KeyValue>,
 }
 
 /// Workaround self-recursive OT instruments
@@ -75,7 +75,7 @@ pub struct RedMetric {
 impl std::fmt::Debug for RedMetric {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RedMetric")
-            .field("default_labels", &self.default_labels)
+            .field("default_attributes", &self.default_attributes)
             .finish()
     }
 }
@@ -84,20 +84,20 @@ impl RedMetric {
     pub(crate) fn new(
         requests: OTCounter<u64>,
         duration: OTHistogram<f64>,
-        mut default_labels: Vec<KeyValue>,
+        mut default_attributes: Vec<KeyValue>,
     ) -> Self {
-        // TODO(edd): decide what to do if `labels` contains
-        // RED_REQUEST_STATUS_LABEL.
-        // RedMetric always has a status label.
-        default_labels.insert(
+        // TODO(edd): decide what to do if `attributes` contains
+        // RED_REQUEST_STATUS_ATTRIBUTE.
+        // RedMetric always has a status attribute.
+        default_attributes.insert(
             0,
-            KeyValue::new(RED_REQUEST_STATUS_LABEL, RedRequestStatus::Ok.as_str()),
+            KeyValue::new(RED_REQUEST_STATUS_ATTRIBUTE, RedRequestStatus::Ok.as_str()),
         );
 
         Self {
             requests,
             duration,
-            default_labels,
+            default_attributes,
         }
     }
 
@@ -107,46 +107,49 @@ impl RedMetric {
         &self,
     ) -> RedObservation<impl Fn(RedRequestStatus, Duration, &[KeyValue]) + '_> {
         // The recording call-back
-        let record = move |status: RedRequestStatus, duration: Duration, labels: &[KeyValue]| {
-            let labels = if labels.is_empty() {
-                // If there are no labels specified just borrow defaults
-                Cow::Borrowed(&self.default_labels)
-            } else {
-                // Otherwise merge the provided labels and the defaults.
-                // Note: provided labels need to go last so that they overwrite
-                // any default labels.
-                //
-                // PERF(edd): this seems expensive to me.
-                let mut new_labels: Vec<KeyValue> = self.default_labels.clone();
-                new_labels.extend_from_slice(labels);
-                Cow::Owned(new_labels)
+        let record =
+            move |status: RedRequestStatus, duration: Duration, attributes: &[KeyValue]| {
+                let attributes = if attributes.is_empty() {
+                    // If there are no attributes specified just borrow defaults
+                    Cow::Borrowed(&self.default_attributes)
+                } else {
+                    // Otherwise merge the provided attributes and the defaults.
+                    // Note: provided attributes need to go last so that they overwrite
+                    // any default attributes.
+                    //
+                    // PERF(edd): this seems expensive to me.
+                    let mut new_attributes: Vec<KeyValue> = self.default_attributes.clone();
+                    new_attributes.extend_from_slice(attributes);
+                    Cow::Owned(new_attributes)
+                };
+
+                match status {
+                    RedRequestStatus::Ok => {
+                        self.requests.add(1, &attributes);
+                        self.duration.record(duration.as_secs_f64(), &attributes);
+                    }
+                    RedRequestStatus::ClientError => {
+                        let mut attributes = attributes.into_owned();
+                        attributes[0] = KeyValue::new(
+                            RED_REQUEST_STATUS_ATTRIBUTE,
+                            RedRequestStatus::ClientError.as_str(),
+                        );
+
+                        self.requests.add(1, &attributes);
+                        self.duration.record(duration.as_secs_f64(), &attributes);
+                    }
+                    RedRequestStatus::Error => {
+                        let mut attributes = attributes.into_owned();
+                        attributes[0] = KeyValue::new(
+                            RED_REQUEST_STATUS_ATTRIBUTE,
+                            RedRequestStatus::Error.as_str(),
+                        );
+
+                        self.requests.add(1, &attributes);
+                        self.duration.record(duration.as_secs_f64(), &attributes);
+                    }
+                };
             };
-
-            match status {
-                RedRequestStatus::Ok => {
-                    self.requests.add(1, &labels);
-                    self.duration.record(duration.as_secs_f64(), &labels);
-                }
-                RedRequestStatus::ClientError => {
-                    let mut labels = labels.into_owned();
-                    labels[0] = KeyValue::new(
-                        RED_REQUEST_STATUS_LABEL,
-                        RedRequestStatus::ClientError.as_str(),
-                    );
-
-                    self.requests.add(1, &labels);
-                    self.duration.record(duration.as_secs_f64(), &labels);
-                }
-                RedRequestStatus::Error => {
-                    let mut labels = labels.into_owned();
-                    labels[0] =
-                        KeyValue::new(RED_REQUEST_STATUS_LABEL, RedRequestStatus::Error.as_str());
-
-                    self.requests.add(1, &labels);
-                    self.duration.record(duration.as_secs_f64(), &labels);
-                }
-            };
-        };
 
         RedObservation::new(record)
     }
@@ -175,52 +178,57 @@ where
     /// Record that an observation was successful. The duration of the
     /// observation should be provided. Callers might prefer `ok` where the
     /// timing will be handled for them.
-    pub fn observe(&self, observation: RedRequestStatus, duration: Duration, labels: &[KeyValue]) {
-        (self.record)(observation, duration, labels);
+    pub fn observe(
+        &self,
+        observation: RedRequestStatus,
+        duration: Duration,
+        attributes: &[KeyValue],
+    ) {
+        (self.record)(observation, duration, attributes);
     }
 
     /// Record that the observation was successful. Timing of observation is
     /// handled automatically.
     pub fn ok(&self) {
-        self.ok_with_labels(&[])
+        self.ok_with_attributes(&[])
     }
 
-    /// Record that the observation was successful with provided labels.
+    /// Record that the observation was successful with provided attributes.
     /// Timing of observation is handled automatically.
-    pub fn ok_with_labels(&self, labels: &[KeyValue]) {
+    pub fn ok_with_attributes(&self, attributes: &[KeyValue]) {
         let duration = self.start.elapsed();
-        self.observe(RedRequestStatus::Ok, duration, labels);
+        self.observe(RedRequestStatus::Ok, duration, attributes);
     }
 
     /// Record that the observation was not successful but was still valid.
     /// `client_error` is the right thing to choose when the request failed perhaps
     /// due to client error. Timing of observation is handled automatically.
     pub fn client_error(&self) {
-        self.client_error_with_labels(&[])
+        self.client_error_with_attributes(&[])
     }
 
-    /// Record with labels that the observation was not successful but was still
+    /// Record with attributes that the observation was not successful but was still
     /// valid. `client_error` is the right thing to choose when the request failed
     /// perhaps due to client error. Timing of observation is handled
     /// automatically.
-    pub fn client_error_with_labels(&self, labels: &[KeyValue]) {
+    pub fn client_error_with_attributes(&self, attributes: &[KeyValue]) {
         let duration = self.start.elapsed();
-        self.observe(RedRequestStatus::ClientError, duration, labels);
+        self.observe(RedRequestStatus::ClientError, duration, attributes);
     }
 
     /// Record that the observation was not successful and results in an error
     /// caused by the service under observation. Timing of observation is
     /// handled automatically.
     pub fn error(&self) {
-        self.error_with_labels(&[]);
+        self.error_with_attributes(&[]);
     }
 
-    /// Record with labels that the observation was not successful and results
+    /// Record with attributes that the observation was not successful and results
     /// in an error caused by the service under observation. Timing of
     /// observation is handled automatically.
-    pub fn error_with_labels(&self, labels: &[KeyValue]) {
+    pub fn error_with_attributes(&self, attributes: &[KeyValue]) {
         let duration = self.start.elapsed();
-        self.observe(RedRequestStatus::Error, duration, labels);
+        self.observe(RedRequestStatus::Error, duration, attributes);
     }
 }
 
@@ -228,12 +236,12 @@ where
 /// It is best used to track increases in something over time.
 ///
 /// If you want to track some notion of success, failure and latency consider
-/// using a `REDMetric` instead rather than expressing that with labels on a
+/// using a `REDMetric` instead rather than expressing that with attributes on a
 /// `Counter`.
 #[derive(Clone)]
 pub struct Counter {
     counter: Option<OTCounter<u64>>,
-    default_labels: Vec<KeyValue>,
+    default_attributes: Vec<KeyValue>,
 }
 
 /// Workaround self-recursive OT instruments
@@ -241,7 +249,7 @@ pub struct Counter {
 impl std::fmt::Debug for Counter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Counter")
-            .field("default_labels", &self.default_labels)
+            .field("default_attributes", &self.default_attributes)
             .finish()
     }
 }
@@ -252,57 +260,57 @@ impl Counter {
     pub fn new_unregistered() -> Self {
         Self {
             counter: None,
-            default_labels: vec![],
+            default_attributes: vec![],
         }
     }
 
-    pub(crate) fn new(counter: OTCounter<u64>, default_labels: Vec<KeyValue>) -> Self {
+    pub(crate) fn new(counter: OTCounter<u64>, default_attributes: Vec<KeyValue>) -> Self {
         Self {
             counter: Some(counter),
-            default_labels,
+            default_attributes,
         }
     }
 
     // Increase the count by `value`.
     pub fn add(&self, value: u64) {
-        self.add_with_labels(value, &[]);
+        self.add_with_attributes(value, &[]);
     }
 
     /// Increase the count by `value` and associate the observation with the
-    /// provided labels.
-    pub fn add_with_labels(&self, value: u64, labels: &[KeyValue]) {
+    /// provided attributes.
+    pub fn add_with_attributes(&self, value: u64, attributes: &[KeyValue]) {
         let counter = match self.counter.as_ref() {
             Some(counter) => counter,
             None => return,
         };
 
-        let labels = match labels.is_empty() {
-            // If there are no labels specified just borrow defaults
-            true => Cow::Borrowed(&self.default_labels),
+        let attributes = match attributes.is_empty() {
+            // If there are no attributes specified just borrow defaults
+            true => Cow::Borrowed(&self.default_attributes),
             false => {
-                // Otherwise merge the provided labels and the defaults.
-                // Note: provided labels need to go last so that they overwrite
-                // any default labels.
+                // Otherwise merge the provided attributes and the defaults.
+                // Note: provided attributes need to go last so that they overwrite
+                // any default attributes.
                 //
                 // PERF(edd): this seems expensive to me.
-                let mut new_labels: Vec<KeyValue> = self.default_labels.clone();
-                new_labels.extend(labels.iter().cloned());
-                Cow::Owned(new_labels)
+                let mut new_attributes: Vec<KeyValue> = self.default_attributes.clone();
+                new_attributes.extend(attributes.iter().cloned());
+                Cow::Owned(new_attributes)
             }
         };
 
-        counter.add(value, &labels);
+        counter.add(value, &attributes);
     }
 
     // Increase the count by 1.
     pub fn inc(&self) {
-        self.add_with_labels(1, &[]);
+        self.add_with_attributes(1, &[]);
     }
 
     /// Increase the count by 1 and associate the observation with the provided
-    /// labels.
-    pub fn inc_with_labels(&self, labels: &[KeyValue]) {
-        self.add_with_labels(1, labels)
+    /// attributes.
+    pub fn inc_with_attributes(&self, attributes: &[KeyValue]) {
+        self.add_with_attributes(1, attributes)
     }
 }
 
@@ -310,7 +318,7 @@ impl Counter {
 #[derive(Clone)]
 pub struct Histogram {
     histogram: Option<OTHistogram<f64>>,
-    default_labels: Vec<KeyValue>,
+    default_attributes: Vec<KeyValue>,
 }
 
 /// Workaround self-recursive OT instruments
@@ -318,7 +326,7 @@ pub struct Histogram {
 impl std::fmt::Debug for Histogram {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Histogram")
-            .field("default_labels", &self.default_labels)
+            .field("default_attributes", &self.default_attributes)
             .finish()
     }
 }
@@ -329,45 +337,45 @@ impl Histogram {
     pub fn new_unregistered() -> Self {
         Self {
             histogram: None,
-            default_labels: vec![],
+            default_attributes: vec![],
         }
     }
 
-    pub(crate) fn new(histogram: OTHistogram<f64>, default_labels: Vec<KeyValue>) -> Self {
+    pub(crate) fn new(histogram: OTHistogram<f64>, default_attributes: Vec<KeyValue>) -> Self {
         Self {
             histogram: Some(histogram),
-            default_labels,
+            default_attributes,
         }
     }
 
-    /// Add a new observation to the histogram including the provided labels.
-    pub fn observe_with_labels(&self, observation: f64, labels: &[KeyValue]) {
+    /// Add a new observation to the histogram including the provided attributes.
+    pub fn observe_with_attributes(&self, observation: f64, attributes: &[KeyValue]) {
         let histogram = match self.histogram.as_ref() {
             Some(histogram) => histogram,
             None => return,
         };
 
-        // merge labels
-        let labels = if labels.is_empty() {
-            // If there are no labels specified just borrow defaults
-            Cow::Borrowed(&self.default_labels)
+        // merge attributes
+        let attributes = if attributes.is_empty() {
+            // If there are no attributes specified just borrow defaults
+            Cow::Borrowed(&self.default_attributes)
         } else {
-            // Otherwise merge the provided labels and the defaults.
-            // Note: provided labels need to go last so that they overwrite
-            // any default labels.
+            // Otherwise merge the provided attributes and the defaults.
+            // Note: provided attributes need to go last so that they overwrite
+            // any default attributes.
             //
             // PERF(edd): this seems expensive to me.
-            let mut new_labels: Vec<KeyValue> = self.default_labels.clone();
-            new_labels.extend_from_slice(labels);
-            Cow::Owned(new_labels)
+            let mut new_attributes: Vec<KeyValue> = self.default_attributes.clone();
+            new_attributes.extend_from_slice(attributes);
+            Cow::Owned(new_attributes)
         };
 
-        histogram.record(observation, &labels);
+        histogram.record(observation, &attributes);
     }
 
     /// Add a new observation to the histogram
     pub fn observe(&self, observation: f64) {
-        self.observe_with_labels(observation, &[]);
+        self.observe_with_attributes(observation, &[]);
     }
 
     /// A helper method for observing latencies. Returns a new timing instrument
@@ -391,11 +399,11 @@ impl<'a> HistogramTimer<'a> {
     }
 
     pub fn record(self) {
-        self.record_with_labels(&[]);
+        self.record_with_attributes(&[]);
     }
 
-    pub fn record_with_labels(self, labels: &[KeyValue]) {
+    pub fn record_with_attributes(self, attributes: &[KeyValue]) {
         self.histogram
-            .observe_with_labels(self.start.elapsed().as_secs_f64(), labels);
+            .observe_with_attributes(self.start.elapsed().as_secs_f64(), attributes);
     }
 }

@@ -72,14 +72,14 @@ impl CatalogMetrics {
             &chunk_lock_tracker,
         );
 
-        let storage_gauge = self.metrics_domain.register_gauge_metric_with_labels(
+        let storage_gauge = self.metrics_domain.register_gauge_metric_with_attributes(
             "loaded",
             Some("chunks"),
             "The number of chunks loaded in a each chunk storage location",
             &[KeyValue::new("table", table_name.to_string())],
         );
 
-        let row_gauge = self.metrics_domain.register_gauge_metric_with_labels(
+        let row_gauge = self.metrics_domain.register_gauge_metric_with_attributes(
             "loaded",
             Some("rows"),
             "The number of rows loaded in each chunk storage location",
@@ -150,7 +150,7 @@ impl TableMetrics {
             chunk_storage: self.chunk_storage.clone_empty(),
             row_count: self.row_count.clone_empty(),
             memory_metrics: self.memory_metrics.clone_empty(),
-            chunk_state: self.metrics_domain.register_counter_metric_with_labels(
+            chunk_state: self.metrics_domain.register_counter_metric_with_attributes(
                 "chunks",
                 None,
                 "In-memory chunks created in various life-cycle stages",

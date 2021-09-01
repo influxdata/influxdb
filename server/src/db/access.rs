@@ -41,9 +41,12 @@ struct AccessMetrics {
 }
 
 impl AccessMetrics {
-    fn new(metrics_registry: Arc<metrics::MetricRegistry>, metric_labels: Vec<KeyValue>) -> Self {
+    fn new(
+        metrics_registry: Arc<metrics::MetricRegistry>,
+        metric_attributes: Vec<KeyValue>,
+    ) -> Self {
         let pruning_domain =
-            metrics_registry.register_domain_with_labels("query_access", metric_labels);
+            metrics_registry.register_domain_with_attributes("query_access", metric_attributes);
 
         let pruned_chunks = pruning_domain.register_counter_metric(
             "pruned_chunks",
@@ -87,9 +90,9 @@ impl QueryCatalogAccess {
         catalog: Arc<Catalog>,
         jobs: Arc<JobRegistry>,
         metrics_registry: Arc<MetricRegistry>,
-        metric_labels: Vec<KeyValue>,
+        metric_attributes: Vec<KeyValue>,
     ) -> Self {
-        let access_metrics = AccessMetrics::new(metrics_registry, metric_labels);
+        let access_metrics = AccessMetrics::new(metrics_registry, metric_attributes);
         let chunk_access = Arc::new(ChunkAccess::new(Arc::clone(&catalog), access_metrics));
 
         let system_tables = Arc::new(SystemSchemaProvider::new(
@@ -160,14 +163,14 @@ impl PruningObserver for ChunkAccess {
     type Observed = DbChunk;
 
     fn was_pruned(&self, chunk: &Self::Observed) {
-        let labels = vec![KeyValue::new("table_name", chunk.table_name().to_string())];
+        let attributes = vec![KeyValue::new("table_name", chunk.table_name().to_string())];
         let num_rows = chunk.summary().total_count();
         self.access_metrics
             .pruned_chunks
-            .add_with_labels(1, &labels);
+            .add_with_attributes(1, &attributes);
         self.access_metrics
             .pruned_rows
-            .add_with_labels(num_rows, &labels);
+            .add_with_attributes(num_rows, &attributes);
         debug!(chunk_id = chunk.id(), num_rows, "pruned chunk from query")
     }
 

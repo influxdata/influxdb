@@ -150,7 +150,7 @@ pub async fn create_preserved_catalog(
 struct LoaderEmptyInput {
     domain: ::metrics::Domain,
     metrics_registry: Arc<::metrics::MetricRegistry>,
-    metric_labels: Vec<KeyValue>,
+    metric_attributes: Vec<KeyValue>,
     skip_replay: bool,
 }
 
@@ -161,16 +161,17 @@ impl LoaderEmptyInput {
         metrics_registry: Arc<MetricRegistry>,
         skip_replay: bool,
     ) -> Self {
-        let metric_labels = vec![
+        let metric_attributes = vec![
             KeyValue::new("db_name", db_name.to_string()),
             KeyValue::new("svr_id", format!("{}", server_id)),
         ];
-        let domain = metrics_registry.register_domain_with_labels("catalog", metric_labels.clone());
+        let domain =
+            metrics_registry.register_domain_with_attributes("catalog", metric_attributes.clone());
 
         Self {
             domain,
             metrics_registry,
-            metric_labels,
+            metric_attributes,
             skip_replay,
         }
     }
@@ -192,7 +193,7 @@ impl CatalogState for Loader {
                 Arc::from(db_name),
                 data.domain,
                 data.metrics_registry,
-                data.metric_labels,
+                data.metric_attributes,
             ),
             planner: (!data.skip_replay).then(ReplayPlanner::new),
         }
@@ -231,7 +232,7 @@ impl CatalogState for Loader {
         let metrics = self
             .catalog
             .metrics_registry
-            .register_domain_with_labels("parquet", self.catalog.metric_labels.clone());
+            .register_domain_with_attributes("parquet", self.catalog.metric_attributes.clone());
 
         let metrics = ParquetChunkMetrics::new(&metrics);
         let parquet_chunk = ParquetChunk::new(
@@ -356,7 +357,7 @@ mod tests {
         let empty_input = LoaderEmptyInput {
             domain: metrics_registry.register_domain("catalog"),
             metrics_registry,
-            metric_labels: vec![],
+            metric_attributes: vec![],
             skip_replay: false,
         };
         assert_catalog_state_implementation::<Loader, _>(empty_input, checkpoint_data_from_loader)

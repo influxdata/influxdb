@@ -79,7 +79,7 @@ async fn chunk_pruning_sql() {
     // Validate that the chunk was pruned using the metrics
     metric_registry
         .has_metric_family("query_access_pruned_chunks_total")
-        .with_labels(&[
+        .with_attributes(&[
             ("db_name", "placeholder"),
             ("table_name", "cpu"),
             ("svr_id", "1"),
@@ -91,7 +91,7 @@ async fn chunk_pruning_sql() {
     // Validate that the chunk was pruned using the metrics
     metric_registry
         .has_metric_family("query_access_pruned_rows_total")
-        .with_labels(&[
+        .with_attributes(&[
             ("db_name", "placeholder"),
             ("table_name", "cpu"),
             ("svr_id", "1"),
@@ -132,7 +132,7 @@ async fn chunk_pruning_influxrpc() {
     // Validate that the chunk was pruned using the metrics
     metric_registry
         .has_metric_family("query_access_pruned_chunks_total")
-        .with_labels(&[
+        .with_attributes(&[
             ("db_name", "placeholder"),
             ("table_name", "cpu"),
             ("svr_id", "1"),
@@ -144,7 +144,7 @@ async fn chunk_pruning_influxrpc() {
     // Validate that the chunk was pruned using the metrics
     metric_registry
         .has_metric_family("query_access_pruned_rows_total")
-        .with_labels(&[
+        .with_attributes(&[
             ("db_name", "placeholder"),
             ("table_name", "cpu"),
             ("svr_id", "1"),
