@@ -27,7 +27,7 @@ use object_store::{
 };
 use observability_deps::tracing::warn;
 use snafu::{ensure, ResultExt, Snafu};
-use std::{collections::BTreeMap, io, sync::Arc};
+use std::{collections::BTreeMap, fmt, io, str::FromStr, sync::Arc};
 use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -66,16 +66,39 @@ pub struct IoxObjectStore {
     transactions_path: TransactionsPath,
 }
 
+/// Identifier for a generation of a particular database
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
+pub struct GenerationId {
+    inner: usize,
+}
+
+impl FromStr for GenerationId {
+    type Err = std::num::ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self { inner: s.parse()? })
+    }
+}
+
+impl fmt::Display for GenerationId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.inner)
+    }
+}
+
 /// Private information about a database's generation.
 #[derive(Debug, Copy, Clone, PartialEq)]
 struct Generation {
-    id: usize,
+    id: GenerationId,
     deleted: Option<DateTime<Utc>>,
 }
 
 impl Generation {
     fn active(id: usize) -> Self {
-        Self { id, deleted: None }
+        Self {
+            id: GenerationId { inner: id },
+            deleted: None,
+        }
     }
 
     fn is_active(&self) -> bool {
@@ -215,7 +238,7 @@ impl IoxObjectStore {
         let next_generation_id = generations
             .iter()
             .max_by_key(|g| g.id)
-            .map(|max| max.id + 1)
+            .map(|max| max.id.inner + 1)
             .unwrap_or(0);
 
         Ok(Self::existing(
@@ -853,7 +876,7 @@ mod tests {
         assert_eq!(
             generations[0],
             Generation {
-                id: 0,
+                id: GenerationId { inner: 0 },
                 deleted: None,
             }
         );
@@ -864,7 +887,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(generations.len(), 1);
-        assert_eq!(generations[0].id, 0);
+        assert_eq!(generations[0].id, GenerationId { inner: 0 });
         assert!(!generations[0].is_active());
 
         let iox_object_store =
@@ -882,12 +905,12 @@ mod tests {
             .unwrap();
         assert_eq!(generations.len(), 2);
         generations.sort_by_key(|g| g.id);
-        assert_eq!(generations[0].id, 0);
+        assert_eq!(generations[0].id, GenerationId { inner: 0 });
         assert!(!generations[0].is_active());
         assert_eq!(
             generations[1],
             Generation {
-                id: 1,
+                id: GenerationId { inner: 1 },
                 deleted: None,
             }
         );
@@ -1055,20 +1078,20 @@ mod tests {
 
         let db_normal_generations = all_dbs.get(&db_normal).unwrap();
         assert_eq!(db_normal_generations.len(), 1);
-        assert_eq!(db_normal_generations[0].id, 0);
+        assert_eq!(db_normal_generations[0].id, GenerationId { inner: 0 });
         assert!(db_normal_generations[0].is_active());
 
         let db_deleted_generations = all_dbs.get(&db_deleted).unwrap();
         assert_eq!(db_deleted_generations.len(), 1);
-        assert_eq!(db_deleted_generations[0].id, 0);
+        assert_eq!(db_deleted_generations[0].id, GenerationId { inner: 0 });
         assert!(!db_deleted_generations[0].is_active());
 
         let mut db_reincarnated_generations = all_dbs.get(&db_reincarnated).unwrap().clone();
         db_reincarnated_generations.sort_by_key(|g| g.id);
         assert_eq!(db_reincarnated_generations.len(), 2);
-        assert_eq!(db_reincarnated_generations[0].id, 0);
+        assert_eq!(db_reincarnated_generations[0].id, GenerationId { inner: 0 });
         assert!(!db_reincarnated_generations[0].is_active());
-        assert_eq!(db_reincarnated_generations[1].id, 1);
+        assert_eq!(db_reincarnated_generations[1].id, GenerationId { inner: 1 });
         assert!(db_reincarnated_generations[1].is_active());
 
         // There is a database-looking directory with a generation-looking directory inside it
@@ -1076,7 +1099,7 @@ mod tests {
         // database. Actually using this database and finding out it's invalid is out of scope.
         let not_a_db_generations = all_dbs.get(&not_a_db).unwrap();
         assert_eq!(not_a_db_generations.len(), 1);
-        assert_eq!(not_a_db_generations[0].id, 0);
+        assert_eq!(not_a_db_generations[0].id, GenerationId { inner: 0 });
         assert!(not_a_db_generations[0].is_active());
 
         // There are files in this database directory, but none of them look like generation
