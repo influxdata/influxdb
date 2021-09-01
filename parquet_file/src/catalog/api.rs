@@ -238,9 +238,17 @@ pub struct PreservedCatalog {
     previous_tkey: RwLock<Option<TransactionKey>>,
     transaction_semaphore: Semaphore,
 
+    /// Object store that backs this catalog.
     iox_object_store: Arc<IoxObjectStore>,
 
+    /// If set, this UUID will be used for all transactions instead of a fresh UUIDv4.
+    ///
+    /// This can be useful for testing to achieve deterministic outputs.
     fixed_uuid: Option<Uuid>,
+
+    /// If set, this start time will be used for all transaction instead of "now".
+    ///
+    /// This can be useful for testing to achieve deterministic outputs.
     fixed_timestamp: Option<DateTime<Utc>>,
 }
 
