@@ -351,7 +351,7 @@ fn collect_rub(
     let table_name = table_name.to_string();
     let metrics = db
         .metrics_registry
-        .register_domain_with_labels("read_buffer", db.metric_labels.clone());
+        .register_domain_with_attributes("read_buffer", db.metric_attributes.clone());
     let chunk_metrics = read_buffer::ChunkMetrics::new(&metrics);
 
     async move {

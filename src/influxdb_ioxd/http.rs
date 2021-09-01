@@ -537,7 +537,7 @@ where
         .write_lines(&db_name, &lines, default_time)
         .await
         .map_err(|e| {
-            let labels = &[
+            let attributes = &[
                 metrics::KeyValue::new("status", "error"),
                 metrics::KeyValue::new("db_name", db_name.to_string()),
             ];
@@ -545,23 +545,26 @@ where
             server
                 .metrics()
                 .ingest_lines_total
-                .add_with_labels(num_lines as u64, labels);
+                .add_with_attributes(num_lines as u64, attributes);
 
             server
                 .metrics()
                 .ingest_fields_total
-                .add_with_labels(num_fields as u64, labels);
+                .add_with_attributes(num_fields as u64, attributes);
 
-            server.metrics().ingest_points_bytes_total.add_with_labels(
-                body.len() as u64,
-                &[
-                    metrics::KeyValue::new("status", "error"),
-                    metrics::KeyValue::new("db_name", db_name.to_string()),
-                ],
-            );
+            server
+                .metrics()
+                .ingest_points_bytes_total
+                .add_with_attributes(
+                    body.len() as u64,
+                    &[
+                        metrics::KeyValue::new("status", "error"),
+                        metrics::KeyValue::new("db_name", db_name.to_string()),
+                    ],
+                );
             debug!(?e, ?db_name, ?num_lines, "error writing lines");
 
-            obs.client_error_with_labels(&metric_kv); // user error
+            obs.client_error_with_attributes(&metric_kv); // user error
             match e {
                 server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
                     db_name: db_name.to_string(),
@@ -574,7 +577,7 @@ where
             }
         })?;
 
-    let labels = &[
+    let attributes = &[
         metrics::KeyValue::new("status", "ok"),
         metrics::KeyValue::new("db_name", db_name.to_string()),
     ];
@@ -582,20 +585,20 @@ where
     server
         .metrics()
         .ingest_lines_total
-        .add_with_labels(num_lines as u64, labels);
+        .add_with_attributes(num_lines as u64, attributes);
 
     server
         .metrics()
         .ingest_fields_total
-        .add_with_labels(num_fields as u64, labels);
+        .add_with_attributes(num_fields as u64, attributes);
 
     // line protocol bytes successfully written
     server
         .metrics()
         .ingest_points_bytes_total
-        .add_with_labels(body.len() as u64, labels);
+        .add_with_attributes(body.len() as u64, attributes);
 
-    obs.ok_with_labels(&metric_kv); // request completed successfully
+    obs.ok_with_attributes(&metric_kv); // request completed successfully
     Ok(Response::builder()
         .status(StatusCode::NO_CONTENT)
         .body(Body::empty())
@@ -671,7 +674,7 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .context(CreatingResponse)?;
 
     // successful query
-    obs.ok_with_labels(&metric_kv);
+    obs.ok_with_attributes(&metric_kv);
 
     Ok(response)
 }
@@ -686,7 +689,7 @@ async fn health<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .metrics()
         .http_requests
         .observation()
-        .ok_with_labels(&[metrics::KeyValue::new("path", path)]);
+        .ok_with_attributes(&[metrics::KeyValue::new("path", path)]);
 
     let response_body = "OK";
     Ok(Response::new(Body::from(response_body.to_string())))
@@ -702,7 +705,7 @@ async fn handle_metrics<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .metrics()
         .http_requests
         .observation()
-        .ok_with_labels(&[metrics::KeyValue::new("path", path)]);
+        .ok_with_attributes(&[metrics::KeyValue::new("path", path)]);
 
     let application = req
         .data::<Arc<ApplicationState>>()
@@ -762,7 +765,7 @@ async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
 
     let result = serde_json::to_string(&partition_keys).context(JsonGenerationError)?;
 
-    obs.ok_with_labels(&metric_kv);
+    obs.ok_with_attributes(&metric_kv);
     Ok(Response::new(Body::from(result)))
 }
 
@@ -1115,7 +1118,7 @@ mod tests {
         // The request completed successfully
         metric_registry
             .has_metric_family("http_request_duration_seconds")
-            .with_labels(&[
+            .with_attributes(&[
                 ("bucket", "MetricsBucket"),
                 ("org", "MetricsOrg"),
                 ("path", "/api/v2/write"),
@@ -1128,7 +1131,7 @@ mod tests {
         // A single successful point landed
         metric_registry
             .has_metric_family("ingest_points_total")
-            .with_labels(&[("db_name", "MetricsOrg_MetricsBucket"), ("status", "ok")])
+            .with_attributes(&[("db_name", "MetricsOrg_MetricsBucket"), ("status", "ok")])
             .counter()
             .eq(1.0)
             .unwrap();
@@ -1136,7 +1139,7 @@ mod tests {
         // Which consists of two fields
         metric_registry
             .has_metric_family("ingest_fields_total")
-            .with_labels(&[("db_name", "MetricsOrg_MetricsBucket"), ("status", "ok")])
+            .with_attributes(&[("db_name", "MetricsOrg_MetricsBucket"), ("status", "ok")])
             .counter()
             .eq(2.0)
             .unwrap();
@@ -1144,7 +1147,7 @@ mod tests {
         // Bytes of data were written
         metric_registry
             .has_metric_family("ingest_points_bytes_total")
-            .with_labels(&[("status", "ok"), ("db_name", "MetricsOrg_MetricsBucket")])
+            .with_attributes(&[("status", "ok"), ("db_name", "MetricsOrg_MetricsBucket")])
             .counter()
             .eq(98.0)
             .unwrap();
@@ -1163,7 +1166,7 @@ mod tests {
         // A single point was rejected
         metric_registry
             .has_metric_family("ingest_points_total")
-            .with_labels(&[("db_name", "NotMyOrg_NotMyBucket"), ("status", "error")])
+            .with_attributes(&[("db_name", "NotMyOrg_NotMyBucket"), ("status", "error")])
             .counter()
             .eq(1.0)
             .unwrap();

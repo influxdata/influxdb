@@ -30,6 +30,16 @@ impl ParquetFilePath {
         }
     }
 
+    /// Create a location for testing purposes w/ a fixed UUID.
+    pub fn new_for_testing(chunk_addr: &ChunkAddr, uuid: Uuid) -> Self {
+        Self {
+            table_name: Arc::clone(&chunk_addr.table_name),
+            partition_key: Arc::clone(&chunk_addr.partition_key),
+            chunk_id: chunk_addr.chunk_id,
+            uuid,
+        }
+    }
+
     /// Turn this into directories and file names to be added to a root path or to be serialized
     /// in protobuf.
     pub fn relative_dirs_and_file_name(&self) -> DirsAndFileName {

@@ -6,6 +6,12 @@ edition = "2018"
 default-run = "influxdb_iox"
 readme = "README.md"
 
+exclude = [
+    "LICENSE*", "*.txt", "*.md", "docs/",
+    "Dockerfile*", "docker/",
+    ".circleci/", "buf.yaml", ".kodiak.toml", ".github/", ".git*", ".editorconfig",
+    "perf/", "scripts/", "tools/"]
+
 
 [[bin]]
 name = "print_cpu"

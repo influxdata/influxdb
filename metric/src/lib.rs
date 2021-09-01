@@ -11,9 +11,9 @@
 //!
 //! 1. Require minimal additional dependencies to instrument a given crate
 //! 2. Decouple metric recording from metric export
-//! 3. Be easy to reason about what labels are associated with a given metric
+//! 3. Be easy to reason about what attributes are associated with a given metric
 //! 4. Be easy to grep for a given metric name
-//! 5. Allow amortizing any label manipulation over multiple metric records
+//! 5. Allow amortizing any attribute manipulation over multiple metric records
 //! 6. Individual metric recording should be as cheap as possible
 //! 7. Be possible to define histogram buckets on a per-metric basis
 //! 8. Allow exposing the recorded metrics to internal systems (e.g. lifecycle, system tables, etc...)

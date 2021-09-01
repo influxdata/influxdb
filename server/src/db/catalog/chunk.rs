@@ -274,7 +274,7 @@ impl CatalogChunk {
 
         metrics
             .state
-            .inc_with_labels(&[KeyValue::new("state", "open")]);
+            .inc_with_attributes(&[KeyValue::new("state", "open")]);
 
         let mut chunk = Self {
             addr,
@@ -311,7 +311,7 @@ impl CatalogChunk {
 
         metrics
             .state
-            .inc_with_labels(&[KeyValue::new("state", "compacted")]);
+            .inc_with_attributes(&[KeyValue::new("state", "compacted")]);
 
         let mut chunk = Self {
             addr,
@@ -630,9 +630,9 @@ impl CatalogChunk {
                 let s = mb_chunk.snapshot();
                 self.metrics
                     .state
-                    .inc_with_labels(&[KeyValue::new("state", "closed")]);
+                    .inc_with_attributes(&[KeyValue::new("state", "closed")]);
 
-                self.metrics.immutable_chunk_size.observe_with_labels(
+                self.metrics.immutable_chunk_size.observe_with_attributes(
                     mb_chunk.size() as f64,
                     &[KeyValue::new("state", "closed")],
                 );
@@ -679,9 +679,9 @@ impl CatalogChunk {
 
                     self.metrics
                         .state
-                        .inc_with_labels(&[KeyValue::new("state", "moving")]);
+                        .inc_with_attributes(&[KeyValue::new("state", "moving")]);
 
-                    self.metrics.immutable_chunk_size.observe_with_labels(
+                    self.metrics.immutable_chunk_size.observe_with_attributes(
                         chunk.size() as f64,
                         &[KeyValue::new("state", "moving")],
                     );
@@ -735,9 +735,9 @@ impl CatalogChunk {
                     ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
                         self.metrics
                             .state
-                            .inc_with_labels(&[KeyValue::new("state", "moved")]);
+                            .inc_with_attributes(&[KeyValue::new("state", "moved")]);
 
-                        self.metrics.immutable_chunk_size.observe_with_labels(
+                        self.metrics.immutable_chunk_size.observe_with_attributes(
                             chunk.size() as f64,
                             &[KeyValue::new("state", "moved")],
                         );
@@ -774,7 +774,7 @@ impl CatalogChunk {
                 self.set_lifecycle_action(ChunkLifecycleAction::Persisting, registration)?;
                 self.metrics
                     .state
-                    .inc_with_labels(&[KeyValue::new("state", "writing_os")]);
+                    .inc_with_attributes(&[KeyValue::new("state", "writing_os")]);
                 Ok(())
             }
             _ => {
@@ -809,9 +809,9 @@ impl CatalogChunk {
 
                         self.metrics
                             .state
-                            .inc_with_labels(&[KeyValue::new("state", "rub_and_os")]);
+                            .inc_with_attributes(&[KeyValue::new("state", "rub_and_os")]);
 
-                        self.metrics.immutable_chunk_size.observe_with_labels(
+                        self.metrics.immutable_chunk_size.observe_with_attributes(
                             (chunk.size() + db.size()) as f64,
                             &[KeyValue::new("state", "rub_and_os")],
                         );
@@ -847,9 +847,9 @@ impl CatalogChunk {
                 if let Some(rub_chunk) = read_buffer.take() {
                     self.metrics
                         .state
-                        .inc_with_labels(&[KeyValue::new("state", "os")]);
+                        .inc_with_attributes(&[KeyValue::new("state", "os")]);
 
-                    self.metrics.immutable_chunk_size.observe_with_labels(
+                    self.metrics.immutable_chunk_size.observe_with_attributes(
                         parquet.size() as f64,
                         &[KeyValue::new("state", "os")],
                     );
@@ -953,7 +953,9 @@ mod tests {
     use mutable_buffer::chunk::ChunkMetrics as MBChunkMetrics;
     use parquet_file::{
         chunk::ParquetChunk,
-        test_utils::{make_chunk as make_parquet_chunk_with_store, make_iox_object_store},
+        test_utils::{
+            make_chunk as make_parquet_chunk_with_store, make_iox_object_store, TestSize,
+        },
     };
 
     #[test]
@@ -1121,7 +1123,7 @@ mod tests {
 
     async fn make_parquet_chunk(addr: ChunkAddr) -> ParquetChunk {
         let iox_object_store = make_iox_object_store().await;
-        make_parquet_chunk_with_store(iox_object_store, "foo", addr).await
+        make_parquet_chunk_with_store(iox_object_store, "foo", addr, TestSize::Full).await
     }
 
     fn chunk_addr() -> ChunkAddr {

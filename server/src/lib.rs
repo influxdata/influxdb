@@ -935,7 +935,7 @@ where
         let db = self.db(db_name)?;
         let bytes = entry.data().len() as u64;
         db.store_entry(entry).await.map_err(|e| {
-            self.metrics.ingest_entries_bytes_total.add_with_labels(
+            self.metrics.ingest_entries_bytes_total.add_with_attributes(
                 bytes,
                 &[
                     metrics::KeyValue::new("status", "error"),
@@ -958,7 +958,7 @@ where
             }
         })?;
 
-        self.metrics.ingest_entries_bytes_total.add_with_labels(
+        self.metrics.ingest_entries_bytes_total.add_with_attributes(
             bytes,
             &[
                 metrics::KeyValue::new("status", "ok"),
@@ -1573,7 +1573,7 @@ mod tests {
 
         metric_registry
             .has_metric_family("ingest_entries_bytes_total")
-            .with_labels(&[("status", "ok"), ("db_name", "foo")])
+            .with_attributes(&[("status", "ok"), ("db_name", "foo")])
             .counter()
             .eq(240.0)
             .unwrap();

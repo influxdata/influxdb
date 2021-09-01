@@ -17,8 +17,8 @@ edition = "2018"
 dashmap = { version = "4.0.1" }
 hashbrown = "0.11"
 observability_deps = { path = "../observability_deps" }
-opentelemetry = "0.15"
-opentelemetry-prometheus = "0.8"
+opentelemetry = "0.16"
+opentelemetry-prometheus = "0.9"
 parking_lot = "0.11.1"
 prometheus = "0.12"
 snafu = "0.6"
