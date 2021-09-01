@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/iocounter"
+	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
@@ -43,6 +44,7 @@ const (
 type FluxBackend struct {
 	influxdb.HTTPErrorHandler
 	log                *zap.Logger
+	FluxLogEnabled     bool
 	QueryEventRecorder metric.EventRecorder
 
 	AlgoWProxy          FeatureProxyHandler
@@ -57,6 +59,7 @@ func NewFluxBackend(log *zap.Logger, b *APIBackend) *FluxBackend {
 	return &FluxBackend{
 		HTTPErrorHandler:   b.HTTPErrorHandler,
 		log:                log,
+		FluxLogEnabled:     b.FluxLogEnabled,
 		QueryEventRecorder: b.QueryEventRecorder,
 		AlgoWProxy:         b.AlgoWProxy,
 		ProxyQueryService: routingQueryService{
@@ -78,7 +81,8 @@ type HTTPDialect interface {
 type FluxHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
-	log *zap.Logger
+	log            *zap.Logger
+	FluxLogEnabled bool
 
 	Now                 func() time.Time
 	OrganizationService influxdb.OrganizationService
@@ -102,6 +106,7 @@ func NewFluxHandler(log *zap.Logger, b *FluxBackend) *FluxHandler {
 		Now:              time.Now,
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		log:              log,
+		FluxLogEnabled:   b.FluxLogEnabled,
 
 		ProxyQueryService:   b.ProxyQueryService,
 		OrganizationService: b.OrganizationService,
@@ -193,7 +198,8 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 	hd.SetHeaders(w)
 
 	cw := iocounter.Writer{Writer: w}
-	if _, err := h.ProxyQueryService.Query(ctx, &cw, req); err != nil {
+	stats, err := h.ProxyQueryService.Query(ctx, &cw, req)
+	if err != nil {
 		if cw.Count() == 0 {
 			// Only record the error headers IFF nothing has been written to w.
 			h.HandleHTTPError(ctx, err, w)
@@ -205,6 +211,33 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 			zap.Error(err),
 		)
 	}
+
+	// Detailed logging for flux queries if enabled
+	if h.FluxLogEnabled {
+		h.logFluxQuery(cw.Count(), stats, req.Request.Compiler, err)
+	}
+
+}
+
+func (h *FluxHandler) logFluxQuery(n int64, stats flux.Statistics, compiler flux.Compiler, err error) {
+	var q string
+	c, ok := compiler.(lang.FluxCompiler)
+	if !ok {
+		q = "unknown"
+	}
+	q = c.Query
+
+	h.log.Info("Executed Flux query",
+		zap.String("compiler_type", string(compiler.CompilerType())),
+		zap.Int64("response_size", n),
+		zap.String("query", q),
+		zap.Error(err),
+		zap.Duration("stat_total_duration", stats.TotalDuration),
+		zap.Duration("stat_compile_duration", stats.CompileDuration),
+		zap.Duration("stat_execute_duration", stats.ExecuteDuration),
+		zap.Int64("stat_max_allocated", stats.MaxAllocated),
+		zap.Int64("stat_total_allocated", stats.TotalAllocated),
+	)
 }
 
 type langRequest struct {
