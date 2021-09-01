@@ -67,6 +67,12 @@ pub struct IoxObjectStore {
 }
 
 /// Metadata about a deleted database that could be restored or permanently deleted.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DeletedDatabase {
+    name: DatabaseName<'static>,
+    generation_id: GenerationId,
+    deleted_at: DateTime<Utc>,
+}
 
 /// Identifier for a generation of a particular database
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
@@ -136,6 +142,48 @@ impl IoxObjectStore {
             })
             .collect())
     }
+
+    /// List databases marked as deleted in in object storage along with their generation IDs and
+    /// when they were deleted. Enables a user to choose a generation for a database that they
+    /// would want to restore or would want to delete permanently.
+    pub async fn list_deleted_databases(
+        inner: &ObjectStore,
+        server_id: ServerId,
+    ) -> Result<Vec<DeletedDatabase>> {
+        let mut deleted_databases = vec![];
+
+        let all_dbs = Self::list_all_databases(inner, server_id).await;
+
+        for (name, generations) in all_dbs? {
+            for deleted_gen in generations {
+                if let Generation {
+                    id,
+                    deleted: Some(deleted_at),
+                } = deleted_gen
+                {
+                    deleted_databases.push(DeletedDatabase {
+                        name: name.clone(),
+                        generation_id: id,
+                        deleted_at,
+                    });
+                }
+            }
+        }
+
+        Ok(deleted_databases)
+    }
+
+    // TODO: implement a function to restore a deleted database generation, given the
+    // relevant information returned from [`list_deleted_databases`].
+    // See https://github.com/influxdata/influxdb_iox/issues/2199
+    // pub async fn restore_deleted_database(
+    //     inner: &ObjectStore,
+    //     server_id: ServerId,
+    //     name: &DatabaseName<'_>,
+    //     generation_id: GenerationId,
+    // ) -> Result<()> {
+    //
+    // }
 
     /// List database names in object storage along with all existing generations for each database
     /// and whether the generations are marked as deleted or not. Useful for finding candidates
@@ -1112,5 +1160,104 @@ mod tests {
             "got {:?}",
             no_generations_generations
         );
+    }
+
+    #[tokio::test]
+    async fn list_deleted_databases_metadata() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+
+        // Create a normal database, will NOT be in the list of deleted databases
+        let db_normal = DatabaseName::new("db_normal").unwrap();
+        create_database(Arc::clone(&object_store), server_id, &db_normal).await;
+
+        // Create a database, then delete it - will be in the list once
+        let db_deleted = DatabaseName::new("db_deleted").unwrap();
+        let db_deleted_iox_store =
+            create_database(Arc::clone(&object_store), server_id, &db_deleted).await;
+        delete_database(&db_deleted_iox_store).await;
+
+        // Create, delete, create - will be in the list once
+        let db_reincarnated = DatabaseName::new("db_reincarnated").unwrap();
+        let db_reincarnated_iox_store =
+            create_database(Arc::clone(&object_store), server_id, &db_reincarnated).await;
+        delete_database(&db_reincarnated_iox_store).await;
+        create_database(Arc::clone(&object_store), server_id, &db_reincarnated).await;
+
+        // Create, delete, create, delete - will be in the list twice
+        let db_deleted_twice = DatabaseName::new("db_deleted_twice").unwrap();
+        let db_deleted_twice_iox_store =
+            create_database(Arc::clone(&object_store), server_id, &db_deleted_twice).await;
+        delete_database(&db_deleted_twice_iox_store).await;
+        let db_deleted_twice_iox_store =
+            create_database(Arc::clone(&object_store), server_id, &db_deleted_twice).await;
+        delete_database(&db_deleted_twice_iox_store).await;
+
+        // Put a file in a directory that looks like a database directory but has no rules,
+        // won't be in the list because there's no tombstone file
+        let not_a_db = DatabaseName::new("not_a_db").unwrap();
+        let mut not_rules_path = object_store.new_path();
+        not_rules_path.push_all_dirs(&[&server_id.to_string(), not_a_db.as_str(), "0"]);
+        not_rules_path.set_file_name("not_rules.txt");
+        object_store
+            .put(
+                &not_rules_path,
+                stream::once(async move { Ok(Bytes::new()) }),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Put a file in a directory that's an invalid database name - won't be in the list
+        let invalid_db_name = ("a".repeat(65)).to_string();
+        let mut invalid_db_name_rules_path = object_store.new_path();
+        invalid_db_name_rules_path.push_all_dirs(&[&server_id.to_string(), &invalid_db_name, "0"]);
+        invalid_db_name_rules_path.set_file_name("rules.pb");
+        object_store
+            .put(
+                &invalid_db_name_rules_path,
+                stream::once(async move { Ok(Bytes::new()) }),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Put a file in a directory that looks like a database name, but doesn't look like a
+        // generation directory - won't be in the list
+        let no_generations = DatabaseName::new("no_generations").unwrap();
+        let mut no_generations_path = object_store.new_path();
+        no_generations_path.push_all_dirs(&[
+            &server_id.to_string(),
+            no_generations.as_str(),
+            "not-a-generation",
+        ]);
+        no_generations_path.set_file_name("not_rules.txt");
+        object_store
+            .put(
+                &no_generations_path,
+                stream::once(async move { Ok(Bytes::new()) }),
+                None,
+            )
+            .await
+            .unwrap();
+
+        let mut deleted_dbs = IoxObjectStore::list_deleted_databases(&object_store, server_id)
+            .await
+            .unwrap();
+
+        deleted_dbs.sort_by_key(|d| (d.name.clone(), d.generation_id));
+
+        assert_eq!(deleted_dbs.len(), 4);
+
+        assert_eq!(deleted_dbs[0].name, db_deleted);
+        assert_eq!(deleted_dbs[0].generation_id.inner, 0);
+
+        assert_eq!(deleted_dbs[1].name, db_deleted_twice);
+        assert_eq!(deleted_dbs[1].generation_id.inner, 0);
+        assert_eq!(deleted_dbs[2].name, db_deleted_twice);
+        assert_eq!(deleted_dbs[2].generation_id.inner, 1);
+
+        assert_eq!(deleted_dbs[3].name, db_reincarnated);
+        assert_eq!(deleted_dbs[3].generation_id.inner, 0);
     }
 }
