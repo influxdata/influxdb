@@ -15,6 +15,7 @@
 //! files is managed outside of this crate.
 
 use bytes::{Bytes, BytesMut};
+use chrono::{DateTime, Utc};
 use data_types::{error::ErrorLogger, server_id::ServerId, DatabaseName};
 use futures::{
     stream::{self, BoxStream},
@@ -69,16 +70,16 @@ pub struct IoxObjectStore {
 #[derive(Debug, Copy, Clone, PartialEq)]
 struct Generation {
     id: usize,
-    deleted: bool,
+    deleted: Option<DateTime<Utc>>,
 }
 
 impl Generation {
     fn active(id: usize) -> Self {
-        Self { id, deleted: false }
+        Self { id, deleted: None }
     }
 
     fn is_active(&self) -> bool {
-        !self.deleted
+        self.deleted.is_none()
     }
 }
 
@@ -171,7 +172,8 @@ impl IoxObjectStore {
                 let deleted = generation_list_result
                     .objects
                     .into_iter()
-                    .any(|object| object.location == tombstone_file.inner);
+                    .find(|object| object.location == tombstone_file.inner)
+                    .map(|object| object.last_modified);
 
                 generations.push(Generation { id, deleted });
             } else {
@@ -852,7 +854,7 @@ mod tests {
             generations[0],
             Generation {
                 id: 0,
-                deleted: false
+                deleted: None,
             }
         );
 
@@ -862,13 +864,8 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(generations.len(), 1);
-        assert_eq!(
-            generations[0],
-            Generation {
-                id: 0,
-                deleted: true
-            }
-        );
+        assert_eq!(generations[0].id, 0);
+        assert!(!generations[0].is_active());
 
         let iox_object_store =
             IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
@@ -885,18 +882,13 @@ mod tests {
             .unwrap();
         assert_eq!(generations.len(), 2);
         generations.sort_by_key(|g| g.id);
-        assert_eq!(
-            generations[0],
-            Generation {
-                id: 0,
-                deleted: true
-            }
-        );
+        assert_eq!(generations[0].id, 0);
+        assert!(!generations[0].is_active());
         assert_eq!(
             generations[1],
             Generation {
                 id: 1,
-                deleted: false
+                deleted: None,
             }
         );
     }
