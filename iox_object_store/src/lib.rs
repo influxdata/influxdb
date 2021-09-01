@@ -66,6 +66,8 @@ pub struct IoxObjectStore {
     transactions_path: TransactionsPath,
 }
 
+/// Metadata about a deleted database that could be restored or permanently deleted.
+
 /// Identifier for a generation of a particular database
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct GenerationId {
