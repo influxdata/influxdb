@@ -2099,12 +2099,15 @@ mod tests {
             .collect();
 
         // Delete all tombstone files
+        let mut deleted_something = false;
         for file in database_files {
             let parsed: DirsAndFileName = file.clone().into();
             if parsed.file_name.unwrap().to_string() == "DELETED" {
                 application.object_store().delete(&file).await.unwrap();
+                deleted_something = true;
             }
         }
+        assert!(deleted_something);
 
         // Restart the server
         let server = make_server(Arc::clone(&application));
