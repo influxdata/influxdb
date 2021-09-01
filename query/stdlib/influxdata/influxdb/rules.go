@@ -975,7 +975,7 @@ func (p GroupWindowAggregateTransposeRule) Rewrite(ctx context.Context, pn plan.
 	switch spec := fnNode.ProcedureSpec().(type) {
 	case *universe.CountProcedureSpec:
 		newFnNode := plan.CreateUniquePhysicalNode(ctx, "sum", &universe.SumProcedureSpec{
-			AggregateConfig: spec.AggregateConfig,
+			SimpleAggregateConfig: spec.SimpleAggregateConfig,
 		})
 		plan.ReplaceNode(fnNode, newFnNode)
 		fnNode = newFnNode

@@ -42,7 +42,7 @@ require (
 	github.com/hashicorp/vault/api v1.0.2
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe
-	github.com/influxdata/flux v0.124.0
+	github.com/influxdata/flux v0.126.1-0.20210823165046-5dfeb5051ff8
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influx-cli/v2 v2.1.0-rc1.0.20210721210341-bfd929f4449e
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6

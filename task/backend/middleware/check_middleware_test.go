@@ -78,7 +78,9 @@ func newMockServices() mockedSvc {
 	return mockedSvc{
 		taskSvc: &mock.TaskService{
 			FindTaskByIDFn: func(_ context.Context, id influxdb.ID) (*influxdb.Task, error) { return &influxdb.Task{ID: id}, nil },
-			CreateTaskFn:   func(context.Context, influxdb.TaskCreate) (*influxdb.Task, error) { return &influxdb.Task{ID: 1}, nil },
+			CreateTaskFn: func(context.Context, influxdb.TaskCreate) (*influxdb.Task, error) {
+				return &influxdb.Task{ID: 1}, nil
+			},
 			UpdateTaskFn: func(_ context.Context, id influxdb.ID, _ influxdb.TaskUpdate) (*influxdb.Task, error) {
 				return &influxdb.Task{ID: id}, nil
 			},
