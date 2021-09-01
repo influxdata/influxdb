@@ -1,5 +1,13 @@
 ## unreleased
 
+### Go Version
+
+This release upgrades the project to `go` version 1.17.
+
+#### Minimum macOS Version
+
+Because of the version bump to `go`, the macOS build for this release requires at least version 10.13 High Sierra to run.
+
 ### `influx` CLI moved to separate repository
 
 The `influx` CLI has been moved to its [own GitHub repository](https://github.com/influxdata/influx-cli/). Release artifacts

@@ -178,8 +178,8 @@ commands:
           # GO_VERSION_HASH is from https://golang.org/dl/
           command: |
             mkdir -p ${HOME}/.tools
-            GO_VERSION=1.16.5
-            GO_VERSION_HASH=b12c23023b68de22f74c0524f10b753e7b08b1504cb7e417eccebdd3fae49061
+            GO_VERSION=1.17
+            GO_VERSION_HASH=6bf89fc4f5ad763871cf7eac80a2d594492de7a818303283f1366a7f6a30372d
             wget https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz
             echo "${GO_VERSION_HASH}  go${GO_VERSION}.linux-amd64.tar.gz" | sha256sum --check --
             tar -C ${HOME}/.tools -xzf go${GO_VERSION}.linux-amd64.tar.gz
@@ -360,7 +360,7 @@ jobs:
 
   godeps:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -370,10 +370,6 @@ jobs:
           name: Restore GOPATH/pkg/mod
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      # NOTE: On go1.16 `go mod download` and `go mod tidy` no longer agree
-      # with each other. The Go team recommends using `go mod tidy` to download
-      # all the modules needed for build/test, so we check tidiness while we're
-      # at it. See https://github.com/golang/go/issues/43994#issuecomment-770053099
       - run: make checktidy
       - save_cache:
           name: Save GOPATH/pkg/mod
@@ -383,7 +379,7 @@ jobs:
 
   golint:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -420,7 +416,7 @@ jobs:
 
   gotest:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17
     resource_class: large
     environment:
       TMPDIR: /mnt/ramdisk
@@ -448,7 +444,7 @@ jobs:
 
   fluxtest:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -463,7 +459,7 @@ jobs:
 
   tlstest:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -482,7 +478,7 @@ jobs:
 
   build:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17
     resource_class: large
     environment:
       TMPDIR: /mnt/ramdisk
@@ -727,7 +723,7 @@ jobs:
 
   e2e-monitor-ci:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17
     steps:
       - checkout
       - run:
