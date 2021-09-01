@@ -870,4 +870,79 @@ mod tests {
             }
         );
     }
+
+    async fn create_database(
+        object_store: Arc<ObjectStore>,
+        server_id: ServerId,
+        database_name: &DatabaseName<'static>,
+    ) -> IoxObjectStore {
+        let root_path = RootPath::new(&object_store, server_id, database_name);
+
+        let iox_object_store =
+            IoxObjectStore::new(Arc::clone(&object_store), server_id, database_name)
+                .await
+                .unwrap();
+
+        iox_object_store
+            .put_database_rules_file(Bytes::new())
+            .await
+            .unwrap();
+
+        iox_object_store
+    }
+
+    async fn delete_database(iox_object_store: &IoxObjectStore) {
+        iox_object_store.write_tombstone().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn list_possible_databases_returns_all_potential_databases() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+
+        // Create a normal database, will be in the list
+        let db_normal = DatabaseName::new("db_normal").unwrap();
+        create_database(Arc::clone(&object_store), server_id, &db_normal).await;
+
+        // Create a database, then delete it - will still be in the list
+        let db_deleted = DatabaseName::new("db_deleted").unwrap();
+        let db_deleted_iox_store =
+            create_database(Arc::clone(&object_store), server_id, &db_deleted).await;
+        delete_database(&db_deleted_iox_store).await;
+
+        // Put a file in a directory that looks like a database directory but has no rules,
+        // will still be in the list
+        let not_a_db = DatabaseName::new("not_a_db").unwrap();
+        let mut not_rules_path = object_store.new_path();
+        not_rules_path.push_all_dirs(&[&server_id.to_string(), not_a_db.as_str(), "0"]);
+        not_rules_path.set_file_name("not_rules.txt");
+        object_store
+            .put(
+                &not_rules_path,
+                stream::once(async move { Ok(Bytes::new()) }),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Put a file in a directory that's an invalid database name - this WON'T be in the list
+        let invalid_db_name = ("a".repeat(65)).to_string();
+        let mut invalid_db_name_rules_path = object_store.new_path();
+        invalid_db_name_rules_path.push_all_dirs(&[&server_id.to_string(), &invalid_db_name, "0"]);
+        invalid_db_name_rules_path.set_file_name("rules.pb");
+        object_store
+            .put(
+                &invalid_db_name_rules_path,
+                stream::once(async move { Ok(Bytes::new()) }),
+                None,
+            )
+            .await
+            .unwrap();
+
+        let mut possible = IoxObjectStore::list_possible_databases(&object_store, server_id)
+            .await
+            .unwrap();
+        possible.sort();
+        assert_eq!(possible, vec![db_deleted, db_normal, not_a_db]);
+    }
 }
