@@ -185,6 +185,73 @@ async fn test_create_database_immutable() {
 }
 
 #[tokio::test]
+async fn delete_database() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+    let db = &db_name;
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("create")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Ok"));
+
+    // Listing the databases includes the newly created database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(db));
+
+    // Delete the database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("delete")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(format!("Deleted database {}", db)));
+
+    // Listing the databases does not include the deleted database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(db).not());
+
+    // Deleting the database again is an error
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("delete")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "Error deleting database: Database not found",
+        ));
+}
+
+#[tokio::test]
 async fn test_get_chunks() {
     let server_fixture = ServerFixture::create_shared().await;
     let addr = server_fixture.grpc_base();

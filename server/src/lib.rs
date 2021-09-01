@@ -646,7 +646,7 @@ where
         let mut databases: Vec<_> = initialized.databases.iter().collect();
 
         // ensure the databases come back sorted by name
-        databases.sort_by_key(|(name, _db)| (*name).clone());
+        databases.sort_by_key(|(name, _db)| name.as_str());
 
         let databases = databases
             .into_iter()
