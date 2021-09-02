@@ -178,6 +178,24 @@ where
         Ok(Response::new(DeleteDatabaseResponse {}))
     }
 
+    async fn list_deleted_databases(
+        &self,
+        _: Request<ListDeletedDatabasesRequest>,
+    ) -> Result<Response<ListDeletedDatabasesResponse>, Status> {
+        let deleted_databases = self
+            .server
+            .list_deleted_databases()
+            .await
+            .map_err(default_server_error_handler)?
+            .into_iter()
+            .map(Into::into)
+            .collect();
+
+        Ok(Response::new(ListDeletedDatabasesResponse {
+            deleted_databases,
+        }))
+    }
+
     async fn list_chunks(
         &self,
         request: Request<ListChunksRequest>,

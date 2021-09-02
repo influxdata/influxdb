@@ -16,7 +16,12 @@
 
 use bytes::{Bytes, BytesMut};
 use chrono::{DateTime, Utc};
-use data_types::{error::ErrorLogger, server_id::ServerId, DatabaseName};
+use data_types::{
+    deleted_database::{DeletedDatabase, GenerationId},
+    error::ErrorLogger,
+    server_id::ServerId,
+    DatabaseName,
+};
 use futures::{
     stream::{self, BoxStream},
     Stream, StreamExt, TryStreamExt,
@@ -27,7 +32,7 @@ use object_store::{
 };
 use observability_deps::tracing::warn;
 use snafu::{ensure, ResultExt, Snafu};
-use std::{collections::BTreeMap, fmt, io, str::FromStr, sync::Arc};
+use std::{collections::BTreeMap, io, sync::Arc};
 use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -64,34 +69,6 @@ pub struct IoxObjectStore {
     generation_path: GenerationPath,
     data_path: DataPath,
     transactions_path: TransactionsPath,
-}
-
-/// Metadata about a deleted database that could be restored or permanently deleted.
-#[derive(Debug, Clone, PartialEq)]
-pub struct DeletedDatabase {
-    name: DatabaseName<'static>,
-    generation_id: GenerationId,
-    deleted_at: DateTime<Utc>,
-}
-
-/// Identifier for a generation of a particular database
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
-pub struct GenerationId {
-    inner: usize,
-}
-
-impl FromStr for GenerationId {
-    type Err = std::num::ParseIntError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self { inner: s.parse()? })
-    }
-}
-
-impl fmt::Display for GenerationId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.inner)
-    }
 }
 
 /// Private information about a database's generation.
