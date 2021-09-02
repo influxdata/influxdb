@@ -77,6 +77,7 @@ generated_types = { path = "generated_types" }
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
 internal_types = { path = "internal_types" }
+iox_object_store = { path = "iox_object_store" }
 logfmt = { path = "logfmt" }
 metric = { path = "metric" }
 metric_exporters = { path = "metric_exporters" }
@@ -86,6 +87,7 @@ num_cpus = "1.13.0"
 object_store = { path = "object_store" }
 observability_deps = { path = "observability_deps" }
 panic_logging = { path = "panic_logging" }
+parquet_file = { path = "parquet_file" }
 query = { path = "query" }
 read_buffer = { path = "read_buffer" }
 server = { path = "server" }

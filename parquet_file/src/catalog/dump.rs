@@ -31,26 +31,26 @@ pub struct DumpOptions {
     ///
     /// Since this contains the entire Apache Parquet metadata object this is quite verbose and is usually not
     /// recommended.
-    show_parquet_metadata: bool,
+    pub show_parquet_metadata: bool,
 
     /// Show debug output of [`IoxMetadata`](crate::metadata::IoxMetadata) if decoding succeeds, show the decoding
     /// error otherwise.
-    show_iox_metadata: bool,
+    pub show_iox_metadata: bool,
 
     /// Show debug output of [`Schema`](internal_types::schema::Schema) if decoding succeeds, show the decoding
     /// error otherwise.
-    show_schema: bool,
+    pub show_schema: bool,
 
     /// Show debug output of [`ColumnSummary`](data_types::partition_metadata::ColumnSummary) if decoding succeeds,
     /// show the decoding error otherwise.
-    show_statistics: bool,
+    pub show_statistics: bool,
 
     /// Show unparsed [`IoxParquetMetaData`] -- which are Apache Thrift bytes -- as part of the transaction actions.
     ///
     /// Since this binary data is usually quite hard to read, it is recommended to set this to `false` which will
     /// replace the actual bytes with `b"stripped"`. Use the other toggles to instead show the content of the Apache
     /// Thrift message.
-    show_unparsed_metadata: bool,
+    pub show_unparsed_metadata: bool,
 }
 
 /// Dump catalog content in text form to `writer`.
