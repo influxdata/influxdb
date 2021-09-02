@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/codes"
+	"github.com/influxdata/flux/dependencies/dependenciestest"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/lang"
@@ -53,7 +54,7 @@ var (
 	bothConfigs          = map[string]control.Config{"unlimited": config, "limited": limitedConfig}
 	executorDependencies = []flux.Dependency{
 		influxdb.Dependencies{
-			FluxDeps: executetest.NewTestExecuteDependencies(),
+			FluxDeps: dependenciestest.Default(),
 		},
 	}
 )
