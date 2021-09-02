@@ -45,7 +45,14 @@ pub enum Error {
 }
 
 #[derive(Debug)]
-struct RandomHelper<T: DataGenRng>(Mutex<RandomNumberGenerator<T>>);
+pub(crate) struct RandomHelper<T: DataGenRng>(Mutex<RandomNumberGenerator<T>>);
+
+impl<T: DataGenRng> RandomHelper<T> {
+    #[allow(dead_code)]
+    pub(crate) fn new(rng: Mutex<RandomNumberGenerator<T>>) -> Self {
+        Self(rng)
+    }
+}
 
 impl<T: DataGenRng> HelperDef for RandomHelper<T> {
     fn call<'reg: 'rc, 'rc>(
@@ -80,7 +87,7 @@ impl<T: DataGenRng> HelperDef for RandomHelper<T> {
 }
 
 #[derive(Debug)]
-struct FormatNowHelper;
+pub(crate) struct FormatNowHelper;
 
 impl HelperDef for FormatNowHelper {
     fn call<'reg: 'rc, 'rc>(

@@ -172,6 +172,7 @@ impl<T: DataGenRng> TagGenerator<T> {
     }
 
     fn generate(&mut self) -> Result<Vec<Tag>> {
+        println!("generate tag");
         let counter = self.increment().to_string();
         let cardinality_string = self.cardinality.to_string();
         let guid = self.rng.guid().to_string();

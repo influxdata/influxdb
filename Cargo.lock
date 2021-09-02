@@ -1904,6 +1904,7 @@ dependencies = [
  "rand_core 0.6.3",
  "rand_seeder",
  "serde",
+ "serde_json",
  "snafu",
  "test_helpers",
  "tokio",
