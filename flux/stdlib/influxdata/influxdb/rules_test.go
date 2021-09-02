@@ -1129,12 +1129,12 @@ func maxProcedureSpec() *universe.MaxProcedureSpec {
 }
 func countProcedureSpec() *universe.CountProcedureSpec {
 	return &universe.CountProcedureSpec{
-		AggregateConfig: execute.AggregateConfig{Columns: []string{execute.DefaultValueColLabel}},
+		SimpleAggregateConfig: execute.SimpleAggregateConfig{Columns: []string{execute.DefaultValueColLabel}},
 	}
 }
 func sumProcedureSpec() *universe.SumProcedureSpec {
 	return &universe.SumProcedureSpec{
-		AggregateConfig: execute.AggregateConfig{Columns: []string{execute.DefaultValueColLabel}},
+		SimpleAggregateConfig: execute.SimpleAggregateConfig{Columns: []string{execute.DefaultValueColLabel}},
 	}
 }
 func firstProcedureSpec() *universe.FirstProcedureSpec {
@@ -1149,7 +1149,7 @@ func lastProcedureSpec() *universe.LastProcedureSpec {
 }
 func meanProcedureSpec() *universe.MeanProcedureSpec {
 	return &universe.MeanProcedureSpec{
-		AggregateConfig: execute.AggregateConfig{Columns: []string{execute.DefaultValueColLabel}},
+		SimpleAggregateConfig: execute.SimpleAggregateConfig{Columns: []string{execute.DefaultValueColLabel}},
 	}
 }
 
@@ -1523,7 +1523,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Context: context.Background(),
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before: simplePlanWithWindowAgg(window1m, "mean", &universe.MeanProcedureSpec{
-			AggregateConfig: execute.AggregateConfig{Columns: []string{"_valmoo"}},
+			SimpleAggregateConfig: execute.SimpleAggregateConfig{Columns: []string{"_valmoo"}},
 		}),
 		NoChange: true,
 	})
@@ -1532,7 +1532,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Context: context.Background(),
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before: simplePlanWithWindowAgg(window1m, "mean", &universe.MeanProcedureSpec{
-			AggregateConfig: execute.AggregateConfig{Columns: []string{"_value", "_valmoo"}},
+			SimpleAggregateConfig: execute.SimpleAggregateConfig{Columns: []string{"_value", "_valmoo"}},
 		}),
 		NoChange: true,
 	})
