@@ -744,8 +744,6 @@ pub fn timestamp(i: &str) -> IResult<&str, i64> {
 /// Datafusion, we may want to reuse the parser used by Datafusion to keep
 /// things consistent
 pub fn parse_delete_predicate(input: &str) -> IResult<&str, Vec<BinaryExpr>> {
-    // Convert everything after "and" into an expression string
-    //let parse_result = delete_predicate_to_expr_strings(input);
     // Or expression is invalid
     if input.contains(" or ")
         || input.contains(" OR ")
@@ -765,17 +763,11 @@ pub fn parse_delete_predicate(input: &str) -> IResult<&str, Vec<BinaryExpr>> {
     let i = i.replace(" aND ", " and ");
     let i = i.replace(" anD ", " and ");
 
+    // Convert everything after "and" into an expression string
     let expr_strings: Vec<&str> = i.split(" and ").collect();
-    println!("expr_strings: {:#?}", expr_strings);
 
-    // if parse_result.is_err() {
-    //     return Err(nom::Err::Error(Error::InvalidDeleteExpression{value: input.to_string()}));
-    // }
-
-    // let expr_strings = parse_result.unwrap().1;
     let mut exprs: Vec<BinaryExpr> = vec![];
     for expr_str in expr_strings {
-        println!("expr_str: {}", expr_str);
         let expr = parse_delete_expression(expr_str)?;
         exprs.push(expr.1);
     }
@@ -815,11 +807,8 @@ impl BinaryExpr {
 ///    "col=abc"   -- abc is not embedded in a double quote
 ///    "col='abc'" -- abc is not embedded in a double quote. The single quote won't work
 fn parse_delete_expression(input: &str) -> IResult<&str, BinaryExpr> {
-    println!("Input: {}", input);
-
     // trim white spaces in front and at the end
     let input = input.trim();
-    println!("Input without space: {}", input);
 
     if input.contains(' ') {
         return Err(nom::Err::Error(Error::WhiteSpaceInDeleteExpression {
@@ -2375,115 +2364,93 @@ her"#,
         let input = "col=123";
         let result = parse_delete_expression(input).unwrap().1;
         let expected = BinaryExpr::new("col", "=", "123");
-        println!("Expr: {:#?}", result);
         assert_eq!(result, expected);
 
         let input = "  col=123 ";
         let result = parse_delete_expression(input).unwrap().1;
-        println!("Expr: {:#?}", result);
         assert_eq!(result, expected);
 
         let input = " CoL=123 ";
         let result = parse_delete_expression(input).unwrap().1;
         let expected = BinaryExpr::new("CoL", "=", "123");
-        println!("Expr: {:#?}", result);
         assert_eq!(result, expected);
 
         let input = "col!=123";
         let result = parse_delete_expression(input).unwrap().1;
         let expected = BinaryExpr::new("col", "!=", "123");
-        println!("Expr: {:#?}", result);
         assert_eq!(result, expected);
 
         let input = "col2!=123";
         let result = parse_delete_expression(input).unwrap().1;
         let expected = BinaryExpr::new("col2", "!=", "123");
-        println!("Expr: {:#?}", result);
         assert_eq!(result, expected);
 
         let input = r#"col2!="abc""#;
         let result = parse_delete_expression(input).unwrap().1;
         let expected = BinaryExpr::new("col2", "!=", "abc");
-        println!("Expr: {:#?}", result);
         assert_eq!(result, expected);
 
         let input = r#"col2="abc""#;
         let result = parse_delete_expression(input).unwrap().1;
         let expected = BinaryExpr::new("col2", "=", "abc");
-        println!("Expr: {:#?}", result);
         assert_eq!(result, expected);
 
         let input = " CoL!=123 ";
         let result = parse_delete_expression(input).unwrap().1;
         let expected = BinaryExpr::new("CoL", "!=", "123");
-        println!("Expr: {:#?}", result);
         assert_eq!(result, expected);
 
         // Negative tests: Invalid expressions
         let input = "random";
         let result = parse_delete_expression(input);
-        println!("Expr: {:#?}", result);
         assert!(result.is_err());
 
         let input = "random phrase";
         let result = parse_delete_expression(input);
-        println!("Expr: {:#?}", result);
         assert!(result.is_err());
 
         let input = "col2!=abc"; // abc not in double quote
-        let result = parse_delete_expression(input).unwrap().1;
-        let expected = BinaryExpr::new("col2", "!=", "abc");
-        println!("Expr: {:#?}", result);
-        assert_eq!(result, expected);
+        let result = parse_delete_expression(input);
+        assert!(result.is_err());
 
         let input = "col = 123"; // white space before and after "=""
         let result = parse_delete_expression(input);
-        println!("Expr: {:#?}", result);
         assert!(result.is_err());
 
         let input = " col = 123 ";
         let result = parse_delete_expression(input);
-        println!("Expr: {:#?}", result);
         assert!(result.is_err());
 
         let input = " CoL= 123 ";
         let result = parse_delete_expression(input);
-        println!("Expr: {:#?}", result);
         assert!(result.is_err());
 
         let input = " col != 123 ";
         let result = parse_delete_expression(input);
-        println!("Expr: {:#?}", result);
         assert!(result.is_err());
 
         let input = "col != 123";
         let result = parse_delete_expression(input);
-        println!("Expr: {:#?}", result);
         assert!(result.is_err());
 
         let input = "col>123";
         let result = parse_delete_expression(input);
-        println!("Expr: {:#?}", result);
         assert!(result.is_err());
 
         let input = "col>=123";
         let result = parse_delete_expression(input);
-        println!("Expr: {:#?}", result);
         assert!(result.is_err());
 
         let input = "col<123";
         let result = parse_delete_expression(input);
-        println!("Expr: {:#?}", result);
         assert!(result.is_err());
 
         let input = "col<=123";
         let result = parse_delete_expression(input);
-        println!("Expr: {:#?}", result);
         assert!(result.is_err());
 
         let input = "col between 123";
         let result = parse_delete_expression(input);
-        println!("Expr: {:#?}", result);
         assert!(result.is_err());
     }
 
@@ -2493,7 +2460,6 @@ her"#,
         let input = "col=123";
         let result = parse_delete_predicate(input).unwrap().1;
         let expected = vec![BinaryExpr::new("col", "=", "123")];
-        println!("Expr: {:#?}", result);
         assert_eq!(result, expected);
 
         let input = r#"col=123 and col2!="abc""#;
@@ -2502,7 +2468,6 @@ her"#,
             BinaryExpr::new("col", "=", "123"),
             BinaryExpr::new("col2", "!=", "abc"),
         ];
-        println!("Expr: {:#?}", result);
         assert_eq!(result, expected);
 
         let input = r#"temp=89.1 and city!="Boston" aNd day="Monday""#;
@@ -2512,18 +2477,15 @@ her"#,
             BinaryExpr::new("city", "!=", "Boston"),
             BinaryExpr::new("day", "=", "Monday"),
         ];
-        println!("Expr: {:#?}", result);
         assert_eq!(result, expected);
 
         // Negative tests: invalid predicate
         let input = r#"temp=89.1 or city!="Boston""#; // OR
         let result = parse_delete_predicate(input);
-        println!("Expr: {:#?}", result);
         assert!(result.is_err());
 
         let input = r#"temp=89.1 AND city!="Boston" OR day="Monday"#; // OR
         let result = parse_delete_predicate(input);
-        println!("Expr: {:#?}", result);
         assert!(result.is_err());
     }
 }

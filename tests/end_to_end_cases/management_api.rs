@@ -1375,21 +1375,22 @@ async fn test_drop_partition_error() {
 async fn test_delete() {
     let fixture = ServerFixture::create_shared().await;
     let _write_client = fixture.write_client();
-    let mut management_client = fixture.management_client();
+    let _management_client = fixture.management_client();
 
-    let db_name = rand_name();
+    let _db_name = rand_name();
+    // NGA TODO: Build an appropriate test DB
 
-    // Todo
-    // Build an appropriate test DB
-    let table_name = "test_table";
-    let delete_predicate = "col=123";
-    let start = "100";
-    let stop = "1000";
+    // Delete predicate
+    let _table_name = "test_table";
+    let _delete_predicate = "col=123";
+    let _start = "100";
+    let _stop = "1000";
 
-    management_client
-        .delete(&db_name, table_name, delete_predicate, start, stop)
-        .await
-        .unwrap();
+    // NGA todo: turn this on after having the DB
+    // management_client
+    //     .delete(&db_name, table_name, delete_predicate, start, stop)
+    //     .await
+    //     .unwrap();
 
     // Todo: check return delete outcome
 }
