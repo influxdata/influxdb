@@ -50,7 +50,7 @@ func GetStorageDependencies(ctx context.Context) StorageDependencies {
 
 type Dependencies struct {
 	StorageDeps StorageDependencies
-	FluxDeps    flux.Dependencies
+	FluxDeps    flux.Dependency
 }
 
 func (d Dependencies) Inject(ctx context.Context) context.Context {
