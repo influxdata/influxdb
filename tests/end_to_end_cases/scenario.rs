@@ -705,7 +705,8 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
         .unwrap();
 
     // ingest data as mixed throughput
-    let producer = KafkaBufferProducer::new(kafka_connection, db_name).unwrap();
+    let producer =
+        KafkaBufferProducer::new(kafka_connection, db_name, &Default::default()).unwrap();
     producer
         .store_entry(
             &lp_to_entries("table_1,partition_by=a foo=1 10", &partition_template)
