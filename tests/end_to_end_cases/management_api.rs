@@ -1382,7 +1382,7 @@ async fn test_delete() {
     // Todo
     // Build an appropriate test DB
     let table_name = "test_table";
-    let delete_predicate = "col = 123";
+    let delete_predicate = "col=123";
     let start = "100";
     let stop = "1000";
 

@@ -2,6 +2,7 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 use std::time::Duration;
 
+#[ignore]
 #[tokio::test]
 async fn test_logging() {
     Command::cargo_bin("influxdb_iox")

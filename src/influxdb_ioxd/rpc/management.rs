@@ -571,13 +571,42 @@ where
         use influxdb_line_protocol::timestamp;
 
         // Parse and Validate start time and stop time
-        let start = timestamp(start_time.as_str()).unwrap().1;
-        let stop = timestamp(stop_time.as_str()).unwrap().1;
-        assert!(start < stop, "Stop time has to be after start time");
+        let start_result = timestamp(start_time.as_str());
+        if start_result.is_err() {
+            let error_str = format!("Delete start time is invalid: {}", start_time);
+            return Err(default_server_error_handler(Error::DeleteExpression {
+                expr: error_str,
+            }));
+        }
+        let stop_result = timestamp(start_time.as_str());
+        if stop_result.is_err() {
+            let error_str = format!("Delete start time is invalid: {}", stop_time);
+            return Err(default_server_error_handler(Error::DeleteExpression {
+                expr: error_str,
+            }));
+        }
+        let start = start_result.unwrap().1;
+        let stop = stop_result.unwrap().1;
+        if start > stop {
+            let error_str = format!(
+                "Delete start time, {}, must be smaller than stop time, {}",
+                start, stop
+            );
+            return Err(default_server_error_handler(Error::DeleteExpression {
+                expr: error_str,
+            }));
+        }
 
         // parse and validate delete predicate which is a conjunctive expressions
         // with columns being compared to literals using = or != operators
-        let predicates = parse_delete_predicate(delete_predicate.as_str());
+        let parse_result = parse_delete_predicate(delete_predicate.as_str());
+        if parse_result.is_err() {
+            // cannot parse the delete expression
+            return Err(default_server_error_handler(Error::DeleteExpression {
+                expr: delete_predicate,
+            }));
+        }
+        let predicates = parse_result.unwrap().1;
 
         // Validate that the database name is legit
         let db_name = DatabaseName::new(db_name).field("db_name")?;
@@ -595,12 +624,14 @@ where
             let e = match expr.op.as_str() {
                 "=" => col(expr.column_name.as_str()).eq(lit(expr.literal)),
                 "!=" => col(expr.column_name.as_str()).eq(lit(expr.literal)),
-                _ => panic!(
-                    "{} operator not supported in delete expression",
-                    expr.op.as_str()
-                ),
+                _ => {
+                    let error_str =
+                        format!("{} operator not supported in delete expression", expr.op);
+                    return Err(default_server_error_handler(Error::DeleteExpression {
+                        expr: error_str,
+                    }));
+                }
             };
-
             del_predicate.exprs.push(e);
         }
 
