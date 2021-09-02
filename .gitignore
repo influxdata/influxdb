@@ -6,5 +6,6 @@
 *.tsm
 **/.DS_Store
 **/.vscode
+massif.out.*
 query_tests/cases/**/*.out
 valgrind-out.txt
