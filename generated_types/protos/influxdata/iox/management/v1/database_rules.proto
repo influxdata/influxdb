@@ -158,6 +158,10 @@ message WriteBufferConnection {
   //
   // This depends on `type` and can configure aspects like timeouts.
   map<string, string> connection_config = 6;
+
+  // Specifies if the sequencers (e.g. for Kafka in form of a topic w/ `n_sequencers` partitions) should be
+  // automatically created if they do not existing prior to reading or writing.
+  bool auto_create_sequencers = 7;
 }
 
 message RoutingConfig {

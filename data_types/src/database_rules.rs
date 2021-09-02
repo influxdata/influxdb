@@ -98,6 +98,10 @@ pub struct WriteBufferConnection {
     ///
     /// This depends on [`type_`](Self::type_) and can configure aspects like timeouts.
     pub connection_config: HashMap<String, String>,
+
+    /// Specifies if the sequencers (e.g. for Kafka in form of a topic w/ [`n_sequencers`](Self::n_sequencers)
+    /// partitions) should be automatically created if they do not existing prior to reading or writing.
+    pub auto_create_sequencers: bool,
 }
 
 impl Default for WriteBufferConnection {
@@ -109,6 +113,7 @@ impl Default for WriteBufferConnection {
             n_sequencers: DEFAULT_N_SEQUENCERS,
             creation_config: Default::default(),
             connection_config: Default::default(),
+            auto_create_sequencers: Default::default(),
         }
     }
 }

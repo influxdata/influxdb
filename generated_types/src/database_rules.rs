@@ -156,6 +156,7 @@ impl From<WriteBufferConnection> for management::WriteBufferConnection {
             n_sequencers: v.n_sequencers,
             creation_config: v.creation_config,
             connection_config: v.connection_config,
+            auto_create_sequencers: v.auto_create_sequencers,
         }
     }
 }
@@ -192,6 +193,7 @@ impl TryFrom<management::WriteBufferConnection> for WriteBufferConnection {
             n_sequencers,
             creation_config: proto.creation_config,
             connection_config: proto.connection_config,
+            auto_create_sequencers: proto.auto_create_sequencers,
         })
     }
 }
