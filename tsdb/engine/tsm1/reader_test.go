@@ -1866,6 +1866,92 @@ func TestTSMReader_References(t *testing.T) {
 	}
 }
 
+func TestBatchKeyIterator_Errors(t *testing.T) {
+	const MaxErrors = 10
+
+	dir, name := createTestTSM(t)
+	defer os.RemoveAll(dir)
+	fr, err := os.Open(name)
+	if err != nil {
+		t.Fatalf("unexpected error opening file %s: %v", name, err)
+	}
+	r, err := NewTSMReader(fr)
+	if err != nil {
+		// Only have a deferred close if we could not create the TSMReader
+		defer func() {
+			if e := fr.Close(); e != nil {
+				t.Fatalf("unexpected error closing %s: %v", name, e)
+			}
+		}()
+
+		t.Fatalf("unexpected error creating TSMReader for %s: %v", name, err)
+	}
+	defer func() {
+		if e := r.Close(); e != nil {
+			t.Fatalf("error closing TSMReader for %s: %v", name, e)
+		}
+	}()
+	interrupts := make(chan struct{})
+	var iter KeyIterator
+	if iter, err = NewTSMBatchKeyIterator(3, false, MaxErrors, interrupts, []string{name}, r); err != nil {
+		t.Fatalf("unexpected error creating tsmBatchKeyIterator: %v", err)
+	}
+	for i := 0; i < MaxErrors*2; i++ {
+		saved := iter.(*tsmBatchKeyIterator).AppendError(fmt.Errorf("fake error: %d", i))
+		if i < MaxErrors && !saved {
+			t.Fatalf("error unexpectedly not saved: %d", i)
+		}
+		if i >= MaxErrors && saved {
+			t.Fatalf("error unexpectedly saved: %d", i)
+		}
+	}
+	if errCnt := len(iter.Err().(TSMErrors)); errCnt != MaxErrors {
+		t.Fatalf("saved wrong number of errors: expected %d, got %d", MaxErrors, errCnt)
+	}
+}
+
+func createTestTSM(t *testing.T) (dir string, name string) {
+	dir = MustTempDir()
+	f := mustTempFile(dir)
+	name = f.Name()
+	w, err := NewTSMWriter(f)
+	if err != nil {
+		f.Close()
+		t.Fatalf("unexpected error creating writer for %s: %v", name, err)
+	}
+	defer func() {
+		if e := w.Close(); e != nil {
+			t.Fatalf("write TSM close of %s: %v", name, err)
+		}
+	}()
+
+	var data = map[string][]Value{
+		"float":  []Value{NewValue(1, 1.0)},
+		"int":    []Value{NewValue(1, int64(1))},
+		"uint":   []Value{NewValue(1, ^uint64(0))},
+		"bool":   []Value{NewValue(1, true)},
+		"string": []Value{NewValue(1, "foo")},
+	}
+
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if err := w.Write([]byte(k), data[k]); err != nil {
+			t.Fatalf("write TSM value: %v", err)
+		}
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("write TSM index: %v", err)
+	}
+
+	return dir, name
+}
+
 func BenchmarkIndirectIndex_UnmarshalBinary(b *testing.B) {
 	index := NewIndexWriter()
 	for i := 0; i < 100000; i++ {

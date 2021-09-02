@@ -40,6 +40,10 @@ const (
 
 	// TSMFileExtension is the extension used for TSM files.
 	TSMFileExtension = "tsm"
+
+	// DefaultMaxSavedErrors is the number of errors that are stored by a TSMBatchKeyReader before
+	// subsequent errors are discarded
+	DefaultMaxSavedErrors = 100
 )
 
 var (
@@ -954,7 +958,7 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) ([
 		return nil, nil
 	}
 
-	tsm, err := NewTSMBatchKeyIterator(size, fast, intC, tsmFiles, trs...)
+	tsm, err := NewTSMBatchKeyIterator(size, fast, DefaultMaxSavedErrors, intC, tsmFiles, trs...)
 	if err != nil {
 		return nil, err
 	}
@@ -1660,15 +1664,25 @@ type tsmBatchKeyIterator struct {
 	// without decode
 	merged    blocks
 	interrupt chan struct{}
+
+	// maxErrors is the maximum number of errors to store before discarding.
+	maxErrors int
 }
 
-func (t *tsmBatchKeyIterator) AppendError(err error) {
-	t.errs = append(t.errs, err)
+func (t *tsmBatchKeyIterator) AppendError(err error) bool {
+	if t.maxErrors > len(t.errs) {
+		t.errs = append(t.errs, err)
+		// Was the error stored?
+		return true
+	} else {
+		// Was the error dropped
+		return false
+	}
 }
 
 // NewTSMBatchKeyIterator returns a new TSM key iterator from readers.
 // size indicates the maximum number of values to encode in a single block.
-func NewTSMBatchKeyIterator(size int, fast bool, interrupt chan struct{}, tsmFiles []string, readers ...*TSMReader) (KeyIterator, error) {
+func NewTSMBatchKeyIterator(size int, fast bool, maxErrors int, interrupt chan struct{}, tsmFiles []string, readers ...*TSMReader) (KeyIterator, error) {
 	var iter []*BlockIterator
 	for _, r := range readers {
 		iter = append(iter, r.BlockIterator())
@@ -1689,6 +1703,7 @@ func NewTSMBatchKeyIterator(size int, fast bool, interrupt chan struct{}, tsmFil
 		mergedBooleanValues:  &tsdb.BooleanArray{},
 		mergedStringValues:   &tsdb.StringArray{},
 		interrupt:            interrupt,
+		maxErrors:            maxErrors,
 	}, nil
 }
 
