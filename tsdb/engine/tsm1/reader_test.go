@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -1896,7 +1897,8 @@ func TestBatchKeyIterator_Errors(t *testing.T) {
 	if iter, err = NewTSMBatchKeyIterator(3, false, MaxErrors, interrupts, []string{name}, r); err != nil {
 		t.Fatalf("unexpected error creating tsmBatchKeyIterator: %v", err)
 	}
-	for i := 0; i < MaxErrors*2; i++ {
+	var i int
+	for i = 0; i < MaxErrors*2; i++ {
 		saved := iter.(*tsmBatchKeyIterator).AppendError(fmt.Errorf("fake error: %d", i))
 		if i < MaxErrors && !saved {
 			t.Fatalf("error unexpectedly not saved: %d", i)
@@ -1905,8 +1907,13 @@ func TestBatchKeyIterator_Errors(t *testing.T) {
 			t.Fatalf("error unexpectedly saved: %d", i)
 		}
 	}
-	if errCnt := len(iter.Err().(TSMErrors)); errCnt != MaxErrors {
+	errs := iter.Err()
+	if errCnt := len(errs.(TSMErrors)); errCnt != (MaxErrors + 1) {
 		t.Fatalf("saved wrong number of errors: expected %d, got %d", MaxErrors, errCnt)
+	}
+	expected := fmt.Sprintf("additional errors dropped: %d", i-MaxErrors)
+	if strings.Compare(errs.(TSMErrors)[MaxErrors].Error(), expected) != 0 {
+		t.Fatalf("expected: '%s', got: '%s", expected, errs.(TSMErrors)[MaxErrors].Error())
 	}
 }
 

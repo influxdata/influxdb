@@ -1667,6 +1667,8 @@ type tsmBatchKeyIterator struct {
 
 	// maxErrors is the maximum number of errors to store before discarding.
 	maxErrors int
+	// overflowErrors is the number of errors we have ignored.
+	overflowErrors int
 }
 
 func (t *tsmBatchKeyIterator) AppendError(err error) bool {
@@ -1676,6 +1678,7 @@ func (t *tsmBatchKeyIterator) AppendError(err error) bool {
 		return true
 	} else {
 		// Was the error dropped
+		t.overflowErrors++
 		return false
 	}
 }
@@ -1931,7 +1934,12 @@ func (k *tsmBatchKeyIterator) Err() error {
 	if len(k.errs) == 0 {
 		return nil
 	}
-	return k.errs
+	// Copy the errors before appending the dropped error count
+	var errs TSMErrors
+	errs = make([]error, 0, len(k.errs)+1)
+	errs = append(errs, k.errs...)
+	errs = append(errs, fmt.Errorf("additional errors dropped: %d", k.overflowErrors))
+	return errs
 }
 
 type cacheKeyIterator struct {
