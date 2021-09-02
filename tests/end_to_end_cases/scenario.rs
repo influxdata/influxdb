@@ -10,8 +10,9 @@ use arrow::{
 use data_types::chunk_metadata::{ChunkStorage, ChunkSummary};
 use entry::test_helpers::lp_to_entries;
 use futures::prelude::*;
-use influxdb_iox_client::management::generated_types::database_rules::WriteBufferConnection;
 use influxdb_iox_client::management::generated_types::partition_template;
+use influxdb_iox_client::management::generated_types::write_buffer_connection;
+use influxdb_iox_client::management::generated_types::WriteBufferConnection;
 use prost::Message;
 use rand::{
     distributions::{Alphanumeric, Standard},
@@ -303,7 +304,7 @@ pub struct DatabaseBuilder {
     name: String,
     partition_template: PartitionTemplate,
     lifecycle_rules: LifecycleRules,
-    write_buffer: Option<database_rules::WriteBufferConnection>,
+    write_buffer: Option<WriteBufferConnection>,
     table_whitelist: Option<Vec<String>>,
 }
 
@@ -362,7 +363,7 @@ impl DatabaseBuilder {
         self
     }
 
-    pub fn write_buffer(mut self, write_buffer: database_rules::WriteBufferConnection) -> Self {
+    pub fn write_buffer(mut self, write_buffer: WriteBufferConnection) -> Self {
         self.write_buffer = Some(write_buffer);
         self
     }
@@ -678,9 +679,12 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
         .management_client()
         .create_database(DatabaseRules {
             name: db_name.to_string(),
-            write_buffer_connection: Some(WriteBufferConnection::Reading(
-                kafka_connection.to_string(),
-            )),
+            write_buffer_connection: Some(WriteBufferConnection {
+                direction: write_buffer_connection::Direction::Read.into(),
+                r#type: "kafka".to_string(),
+                connection: kafka_connection.to_string(),
+                ..Default::default()
+            }),
             partition_template: Some(PartitionTemplate {
                 parts: vec![partition_template::Part {
                     part: Some(partition_template::part::Part::Column(
