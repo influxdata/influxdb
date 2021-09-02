@@ -4,7 +4,8 @@ use std::time::Duration;
 use thiserror::Error;
 
 use data_types::database_rules::{
-    DatabaseRules, RoutingConfig, RoutingRules, WriteBufferConnection,
+    DatabaseRules, RoutingConfig, RoutingRules, WriteBufferConnection, WriteBufferDirection,
+    DEFAULT_N_SEQUENCERS,
 };
 use data_types::DatabaseName;
 
@@ -119,7 +120,7 @@ impl TryFrom<management::RoutingConfig> for RoutingConfig {
 
 /// Wrapper around a `prost` error so that
 /// users of this crate do not have a direct dependency
-/// on the prost crate.  
+/// on the prost crate.
 #[derive(Debug, Error)]
 pub enum ProstError {
     #[error("failed to encode protobuf: {0}")]
@@ -145,27 +146,69 @@ pub fn encode_database_rules(
     Ok(prost::Message::encode(rules, bytes)?)
 }
 
-impl From<WriteBufferConnection> for management::database_rules::WriteBufferConnection {
+impl From<WriteBufferConnection> for management::WriteBufferConnection {
     fn from(v: WriteBufferConnection) -> Self {
-        match v {
-            WriteBufferConnection::Writing(c) => Self::Writing(c),
-            WriteBufferConnection::Reading(c) => Self::Reading(c),
+        let direction: management::write_buffer_connection::Direction = v.direction.into();
+        Self {
+            direction: direction.into(),
+            r#type: v.type_,
+            connection: v.connection,
+            n_sequencers: v.n_sequencers,
+            creation_config: v.creation_config,
+            connection_config: v.connection_config,
         }
     }
 }
 
-impl TryFrom<management::database_rules::WriteBufferConnection> for WriteBufferConnection {
+impl From<WriteBufferDirection> for management::write_buffer_connection::Direction {
+    fn from(v: WriteBufferDirection) -> Self {
+        match v {
+            WriteBufferDirection::Read => Self::Read,
+            WriteBufferDirection::Write => Self::Write,
+        }
+    }
+}
+
+impl TryFrom<management::WriteBufferConnection> for WriteBufferConnection {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::WriteBufferConnection) -> Result<Self, Self::Error> {
+        use management::write_buffer_connection::Direction;
+
+        let direction: Direction =
+            Direction::from_i32(proto.direction).ok_or_else(|| FieldViolation {
+                field: "direction".to_string(),
+                description: "Cannot decode enum variant from i32".to_string(),
+            })?;
+        let n_sequencers = match proto.n_sequencers {
+            0 => DEFAULT_N_SEQUENCERS,
+            n => n,
+        };
+
+        Ok(Self {
+            direction: direction.try_into()?,
+            type_: proto.r#type,
+            connection: proto.connection,
+            n_sequencers,
+            creation_config: proto.creation_config,
+            connection_config: proto.connection_config,
+        })
+    }
+}
+
+impl TryFrom<management::write_buffer_connection::Direction> for WriteBufferDirection {
     type Error = FieldViolation;
 
     fn try_from(
-        proto: management::database_rules::WriteBufferConnection,
+        proto: management::write_buffer_connection::Direction,
     ) -> Result<Self, Self::Error> {
-        use management::database_rules::WriteBufferConnection;
+        use management::write_buffer_connection::Direction;
 
-        Ok(match proto {
-            WriteBufferConnection::Writing(c) => Self::Writing(c),
-            WriteBufferConnection::Reading(c) => Self::Reading(c),
-        })
+        match proto {
+            Direction::Unspecified => Err(FieldViolation::required("direction")),
+            Direction::Write => Ok(Self::Write),
+            Direction::Read => Ok(Self::Read),
+        }
     }
 }
 

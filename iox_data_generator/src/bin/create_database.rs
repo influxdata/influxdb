@@ -85,7 +85,12 @@ Examples:
                 sink: Some(management::sink::Sink::Kafka(KafkaProducer {})),
             }),
         })),
-        write_buffer_connection: Some(WriteBufferConnection::Writing(kafka.to_string())),
+        write_buffer_connection: Some(WriteBufferConnection {
+            direction: write_buffer_connection::Direction::Write.into(),
+            r#type: "kafka".to_string(),
+            connection: kafka.to_string(),
+            ..Default::default()
+        }),
     };
     let reader_database_rules = DatabaseRules {
         name: db_name.clone(),
@@ -111,7 +116,12 @@ Examples:
                 sink: Some(management::sink::Sink::Kafka(KafkaProducer {})),
             }),
         })),
-        write_buffer_connection: Some(WriteBufferConnection::Reading(kafka.to_string())),
+        write_buffer_connection: Some(WriteBufferConnection {
+            direction: write_buffer_connection::Direction::Read.into(),
+            r#type: "kafka".to_string(),
+            connection: kafka.to_string(),
+            ..Default::default()
+        }),
     };
 
     // Create the writer db

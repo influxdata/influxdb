@@ -59,10 +59,58 @@ pub struct DatabaseRules {
     pub write_buffer_connection: Option<WriteBufferConnection>,
 }
 
+/// If the buffer is used for reading or writing.
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub enum WriteBufferConnection {
-    Writing(String),
-    Reading(String),
+pub enum WriteBufferDirection {
+    /// Writes into the buffer aka "producer".
+    Write,
+
+    /// Reads from the buffer aka "consumer".
+    Read,
+}
+
+pub const DEFAULT_N_SEQUENCERS: u32 = 1;
+
+/// Configures the use of a write buffer.
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct WriteBufferConnection {
+    /// If the buffer is used for reading or writing.
+    pub direction: WriteBufferDirection,
+
+    /// Which type should be used (e.g. "kafka", "mock")
+    pub type_: String,
+
+    /// Connection string, depends on [`type_`](Self::type_).
+    pub connection: String,
+
+    /// Number of sequencers.
+    ///
+    /// How they are implemented depends on [`type_`](Self::type_), e.g. for Kafka this is mapped to the number of
+    /// partitions.
+    pub n_sequencers: u32,
+
+    /// Special configs to by applied when sequencers are created.
+    ///
+    /// This depends on [`type_`](Self::type_) and can setup parameters like retention policy.
+    pub creation_config: HashMap<String, String>,
+
+    /// Special configs to be applied when establishing the connection.
+    ///
+    /// This depends on [`type_`](Self::type_) and can configure aspects like timeouts.
+    pub connection_config: HashMap<String, String>,
+}
+
+impl Default for WriteBufferConnection {
+    fn default() -> Self {
+        Self {
+            direction: WriteBufferDirection::Read,
+            type_: "unspecified".to_string(),
+            connection: Default::default(),
+            n_sequencers: DEFAULT_N_SEQUENCERS,
+            creation_config: Default::default(),
+            connection_config: Default::default(),
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]

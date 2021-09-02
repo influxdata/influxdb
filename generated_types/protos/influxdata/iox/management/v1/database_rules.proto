@@ -113,11 +113,51 @@ message DatabaseRules {
   // Defaults to 500 seconds.
   google.protobuf.Duration worker_cleanup_avg_sleep = 10;
 
-  // Optionally, the address of the write buffer for writing or reading/restoring data
-  oneof write_buffer_connection {
-    string writing = 11;
-    string reading = 12;
+  // These were the old write buffer connection strings.
+  reserved 11, 12;
+
+  // Optionally, the connection for the write buffer for writing or reading/restoring data.
+  WriteBufferConnection write_buffer_connection = 13;
+}
+
+// Configures the use of a write buffer.
+message WriteBufferConnection {
+  enum Direction {
+    // Unspecified direction, will be treated as an error.
+    DIRECTION_UNSPECIFIED = 0;
+
+    // Writes into the buffer aka "producer".
+    DIRECTION_WRITE = 1;
+
+    // Reads from the buffer aka "consumer".
+    DIRECTION_READ = 2;
   }
+
+  // If the buffer is used for reading or writing.
+  Direction direction = 1;
+
+  // Which type should be used (e.g. "kafka", "mock")
+  string type = 2;
+
+  // Connection string, depends on `type`.
+  string connection = 3;
+
+  // Number of sequencers.
+  //
+  // Defaults to 1.
+  //
+  // How they are implemented depends on `type`, e.g. for Kafka this is mapped to the number of partitions.
+  uint32 n_sequencers = 4;
+
+  // Special configs to by applied when sequencers are created.
+  //
+  // This depends on `type` and can setup parameters like retention policy.
+  map<string, string> creation_config = 5;
+
+  // Special configs to be applied when establishing the connection.
+  //
+  // This depends on `type` and can configure aspects like timeouts.
+  map<string, string> connection_config = 6;
 }
 
 message RoutingConfig {

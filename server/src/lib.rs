@@ -1253,7 +1253,7 @@ mod tests {
         chunk_metadata::ChunkAddr,
         database_rules::{
             DatabaseRules, HashRing, LifecycleRules, PartitionTemplate, ShardConfig, TemplatePart,
-            WriteBufferConnection, NO_SHARD_CONFIG,
+            WriteBufferConnection, WriteBufferDirection, NO_SHARD_CONFIG,
         },
     };
     use entry::test_helpers::lp_to_entry;
@@ -2395,9 +2395,12 @@ mod tests {
             lifecycle_rules: Default::default(),
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
-            write_buffer_connection: Some(WriteBufferConnection::Writing(
-                "mock://my_mock".to_string(),
-            )),
+            write_buffer_connection: Some(WriteBufferConnection {
+                direction: WriteBufferDirection::Write,
+                type_: "mock".to_string(),
+                connection: "my_mock".to_string(),
+                ..Default::default()
+            }),
         };
         server
             .create_database(make_provided_rules(rules))
