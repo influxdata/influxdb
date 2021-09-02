@@ -121,7 +121,7 @@ fn make_server(
 
     // if this ID isn't set the server won't be usable until this is set via an API
     // call
-    if let Some(id) = config.server_id {
+    if let Some(id) = config.server_id_config.server_id {
         app_server.set_id(id).expect("server id already set");
     } else {
         warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
@@ -370,7 +370,7 @@ mod tests {
             "--grpc-bind",
             "127.0.0.1:0",
         ]);
-        config.server_id = server_id.map(|x| x.try_into().unwrap());
+        config.server_id_config.server_id = server_id.map(|x| x.try_into().unwrap());
         config
     }
 
