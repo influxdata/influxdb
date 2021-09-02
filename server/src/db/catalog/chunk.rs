@@ -347,7 +347,7 @@ impl CatalogChunk {
         let meta = Arc::new(ChunkMetadata {
             table_summary: Arc::clone(chunk.table_summary()),
             schema: chunk.schema(),
-            delete_predicates: Arc::new(vec![]), //todo: consider to use the one of the given chunk if appropriate
+            delete_predicates: Arc::new(vec![]), //NGA todo: consider to use the one of the given chunk if appropriate
         });
 
         let stage = ChunkStage::Persisted {
@@ -675,7 +675,7 @@ impl CatalogChunk {
                 let metadata = ChunkMetadata {
                     table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: s.full_schema(),
-                    delete_predicates: Arc::new(vec![]), //todo: consider to use the one of the mb_chunk if appropriate
+                    delete_predicates: Arc::new(vec![]), //NGA todo: consider to use the one of the mb_chunk if appropriate
                 };
 
                 self.stage = ChunkStage::Frozen {
@@ -764,7 +764,7 @@ impl CatalogChunk {
                 *meta = Arc::new(ChunkMetadata {
                     table_summary: Arc::clone(&meta.table_summary),
                     schema,
-                    delete_predicates: Arc::new(vec![]), //todo: consider to use the one of the given chunk if appropriate
+                    delete_predicates: Arc::new(vec![]), //NGA todo: consider to use the one of the given chunk if appropriate
                 });
 
                 match &representation {

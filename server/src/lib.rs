@@ -221,16 +221,6 @@ pub enum Error {
 
     #[snafu(display("delete expression is invalid: {}", expr))]
     DeleteExpression { expr: String },
-    // #[snafu(display("delete time is invalid: {}", time))]
-    // DeleteTime {
-    //     time: String
-    // },
-
-    // #[snafu(display("delete time range is invalid: {} - {}", start_time, end_time))]
-    // DeleteTimeRange {
-    //     start_time: String,
-    //     end_time: String
-    // },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
