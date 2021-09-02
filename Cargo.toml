@@ -7,10 +7,23 @@ default-run = "influxdb_iox"
 readme = "README.md"
 
 exclude = [
-    "LICENSE*", "*.txt", "*.md", "docs/",
-    "Dockerfile*", "docker/",
-    ".circleci/", "buf.yaml", ".kodiak.toml", ".github/", ".git*", ".editorconfig",
-    "perf/", "scripts/", "tools/"]
+    "*.md",
+    "*.txt",
+    ".circleci/",
+    ".editorconfig",
+    ".git*",
+    ".github/",
+    ".kodiak.toml",
+    "Dockerfile*",
+    "LICENSE*",
+    "buf.yaml",
+    "docker/",
+    "docs/",
+    "massif.out.*",
+    "perf/",
+    "scripts/",
+    "tools/",
+]
 
 
 [[bin]]
