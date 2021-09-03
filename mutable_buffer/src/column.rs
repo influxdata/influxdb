@@ -319,24 +319,29 @@ impl Column {
         }
     }
 
-    /// The approximate memory size of the data in the column. Note that
-    /// the space taken for the tag string values is represented in
-    /// the dictionary size in the chunk that holds the table that has this
-    /// column. The size returned here is only for their identifiers.
+    /// The approximate memory size of the data in the column.
+    ///
+    /// This includes the size of `self`.
     pub fn size(&self) -> usize {
         let data_size = match &self.data {
-            ColumnData::F64(v, stats) => mem::size_of::<f64>() * v.len() + mem::size_of_val(&stats),
-            ColumnData::I64(v, stats) => mem::size_of::<i64>() * v.len() + mem::size_of_val(&stats),
-            ColumnData::U64(v, stats) => mem::size_of::<u64>() * v.len() + mem::size_of_val(&stats),
+            ColumnData::F64(v, stats) => {
+                mem::size_of::<f64>() * v.capacity() + mem::size_of_val(&stats)
+            }
+            ColumnData::I64(v, stats) => {
+                mem::size_of::<i64>() * v.capacity() + mem::size_of_val(&stats)
+            }
+            ColumnData::U64(v, stats) => {
+                mem::size_of::<u64>() * v.capacity() + mem::size_of_val(&stats)
+            }
             ColumnData::Bool(v, stats) => v.byte_len() + mem::size_of_val(&stats),
             ColumnData::Tag(v, dictionary, stats) => {
-                mem::size_of::<DID>() * v.len() + dictionary.size() + mem::size_of_val(&stats)
+                mem::size_of::<DID>() * v.capacity() + dictionary.size() + mem::size_of_val(&stats)
             }
             ColumnData::String(v, stats) => {
                 v.size() + mem::size_of_val(&stats) + stats.string_size()
             }
         };
-        data_size + self.valid.byte_len()
+        mem::size_of::<Self>() + data_size + self.valid.byte_len()
     }
 
     pub fn to_arrow(&self) -> Result<ArrayRef> {

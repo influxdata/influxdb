@@ -2107,13 +2107,18 @@ mod tests {
         assert_metric("catalog_loaded_rows", "object_store", 0.0);
 
         // verify chunk size updated
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 44).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 700)
+            .unwrap();
 
         // write into same chunk again.
         write_lp(db.as_ref(), "cpu bar=2 20").await;
+        write_lp(db.as_ref(), "cpu bar=3 30").await;
+        write_lp(db.as_ref(), "cpu bar=4 40").await;
+        write_lp(db.as_ref(), "cpu bar=5 50").await;
 
         // verify chunk size updated
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 60).unwrap();
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 764)
+            .unwrap();
 
         // Still only one chunk open
         test_db
@@ -2131,7 +2136,7 @@ mod tests {
         assert_metric("catalog_loaded_chunks", "mutable_buffer", 1.0);
         assert_metric("catalog_loaded_chunks", "read_buffer", 0.0);
         assert_metric("catalog_loaded_chunks", "object_store", 0.0);
-        assert_metric("catalog_loaded_rows", "mutable_buffer", 2.0);
+        assert_metric("catalog_loaded_rows", "mutable_buffer", 5.0);
         assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
         assert_metric("catalog_loaded_rows", "object_store", 0.0);
 
@@ -2153,7 +2158,7 @@ mod tests {
         assert_metric("catalog_loaded_chunks", "mutable_buffer", 1.0);
         assert_metric("catalog_loaded_chunks", "read_buffer", 0.0);
         assert_metric("catalog_loaded_chunks", "object_store", 0.0);
-        assert_metric("catalog_loaded_rows", "mutable_buffer", 2.0);
+        assert_metric("catalog_loaded_rows", "mutable_buffer", 5.0);
         assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
         assert_metric("catalog_loaded_rows", "object_store", 0.0);
 
@@ -2181,12 +2186,12 @@ mod tests {
         assert_metric("catalog_loaded_chunks", "read_buffer", 1.0);
         assert_metric("catalog_loaded_chunks", "object_store", 0.0);
         assert_metric("catalog_loaded_rows", "mutable_buffer", 0.0);
-        assert_metric("catalog_loaded_rows", "read_buffer", 2.0);
+        assert_metric("catalog_loaded_rows", "read_buffer", 5.0);
         assert_metric("catalog_loaded_rows", "object_store", 0.0);
 
         // verify chunk size updated (chunk moved from closing to moving to moved)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0).unwrap();
-        let expected_read_buffer_size = 1916;
+        let expected_read_buffer_size = 1922;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -2234,8 +2239,8 @@ mod tests {
         assert_metric("catalog_loaded_chunks", "read_buffer", 1.0);
         assert_metric("catalog_loaded_chunks", "object_store", 1.0);
         assert_metric("catalog_loaded_rows", "mutable_buffer", 0.0);
-        assert_metric("catalog_loaded_rows", "read_buffer", 2.0);
-        assert_metric("catalog_loaded_rows", "object_store", 2.0);
+        assert_metric("catalog_loaded_rows", "read_buffer", 5.0);
+        assert_metric("catalog_loaded_rows", "object_store", 5.0);
 
         db.unload_read_buffer("cpu", "1970-01-01T00", 1).unwrap();
 
@@ -2253,7 +2258,7 @@ mod tests {
         assert_metric("catalog_loaded_chunks", "object_store", 1.0);
         assert_metric("catalog_loaded_rows", "mutable_buffer", 0.0);
         assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
-        assert_metric("catalog_loaded_rows", "object_store", 2.0);
+        assert_metric("catalog_loaded_rows", "object_store", 5.0);
 
         // verify chunk size not increased for OS (it was in OS before unload)
         catalog_chunk_size_bytes_metric_eq(
@@ -2574,7 +2579,7 @@ mod tests {
                 ("svr_id", "1"),
             ])
             .histogram()
-            .sample_sum_eq(280.0)
+            .sample_sum_eq(5085.0)
             .unwrap();
 
         // RB chunk size
@@ -3161,7 +3166,7 @@ mod tests {
             id: 0,
             storage: ChunkStorage::OpenMutableBuffer,
             lifecycle_action: None,
-            memory_bytes: 70,      // memory_size
+            memory_bytes: 1006,    // memory_size
             object_store_bytes: 0, // os_size
             row_count: 1,
             time_of_last_access: None,
@@ -3479,7 +3484,7 @@ mod tests {
                 id: 1,
                 storage: ChunkStorage::OpenMutableBuffer,
                 lifecycle_action,
-                memory_bytes: 87,
+                memory_bytes: 1303,
                 object_store_bytes: 0, // no OS chunks
                 row_count: 1,
                 time_of_last_access: None,
@@ -3501,7 +3506,7 @@ mod tests {
             );
         }
 
-        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 87);
+        assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 1303);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2766);
         assert_eq!(db.catalog.metrics().memory().object_store(), 2007);
     }

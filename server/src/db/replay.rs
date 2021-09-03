@@ -742,7 +742,7 @@ mod tests {
                     tokio::sync::Mutex::new(Box::new(write_buffer) as _),
                 )))
                 .lifecycle_rules(data_types::database_rules::LifecycleRules {
-                    buffer_size_hard: Some(NonZeroUsize::new(10_000).unwrap()),
+                    buffer_size_hard: Some(NonZeroUsize::new(12_000).unwrap()),
                     late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
                     catalog_transactions_until_checkpoint,
                     mub_row_threshold: NonZeroUsize::new(10).unwrap(),

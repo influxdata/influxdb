@@ -110,7 +110,13 @@ impl DbChunk {
 
         let (state, meta) = match chunk.stage() {
             ChunkStage::Open { mb_chunk, .. } => {
-                let snapshot = mb_chunk.snapshot();
+                let (snapshot, just_cached) = mb_chunk.snapshot();
+
+                // the snapshot might be cached, so we need to update the chunk metrics
+                if just_cached {
+                    chunk.update_metrics();
+                }
+
                 let state = State::MutableBuffer {
                     chunk: Arc::clone(&snapshot),
                 };

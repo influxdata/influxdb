@@ -276,7 +276,7 @@ impl CatalogChunk {
             .state
             .inc_with_attributes(&[KeyValue::new("state", "open")]);
 
-        let mut chunk = Self {
+        let chunk = Self {
             addr,
             stage,
             lifecycle_action: None,
@@ -313,7 +313,7 @@ impl CatalogChunk {
             .state
             .inc_with_attributes(&[KeyValue::new("state", "compacted")]);
 
-        let mut chunk = Self {
+        let chunk = Self {
             addr,
             stage,
             lifecycle_action: None,
@@ -350,7 +350,7 @@ impl CatalogChunk {
             meta,
         };
 
-        let mut chunk = Self {
+        let chunk = Self {
             addr,
             stage,
             lifecycle_action: None,
@@ -412,7 +412,7 @@ impl CatalogChunk {
     }
 
     /// Updates `self.metrics` to match the contents of `self.stage`
-    fn update_metrics(&mut self) {
+    pub fn update_metrics(&self) {
         match &self.stage {
             ChunkStage::Open { mb_chunk } => {
                 self.metrics.memory_metrics.set_mub_only(mb_chunk.size());
@@ -627,7 +627,7 @@ impl CatalogChunk {
                 assert!(self.time_closed.is_none());
 
                 self.time_closed = Some(Utc::now());
-                let s = mb_chunk.snapshot();
+                let (s, _) = mb_chunk.snapshot();
                 self.metrics
                     .state
                     .inc_with_attributes(&[KeyValue::new("state", "closed")]);
@@ -880,9 +880,7 @@ impl CatalogChunk {
         self.set_lifecycle_action(ChunkLifecycleAction::Dropping, registration)?;
 
         // set memory metrics to 0 to stop accounting for this chunk within the catalog
-        self.metrics.memory_metrics.mutable_buffer.set(0);
-        self.metrics.memory_metrics.read_buffer.set(0);
-        self.metrics.memory_metrics.object_store.set(0);
+        self.metrics.memory_metrics.set_to_zero();
 
         Ok(())
     }
