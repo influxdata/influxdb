@@ -16,31 +16,60 @@ type EntryResVec = Vec<Result<SequencedEntry, WriteBufferError>>;
 /// Mocked entries for [`MockBufferForWriting`] and [`MockBufferForReading`].
 #[derive(Debug, Clone)]
 pub struct MockBufferSharedState {
-    entries: Arc<Mutex<BTreeMap<u32, EntryResVec>>>,
+    /// Lock-protected entries.
+    ///
+    /// The inner `Option` is `None` if the sequencers are not created yet.
+    entries: Arc<Mutex<Option<BTreeMap<u32, EntryResVec>>>>,
 }
 
 impl MockBufferSharedState {
     /// Create new shared state w/ N sequencers.
+    ///
+    /// This is equivalent to [`uninitialized`](Self::uninitialized) followed by [`init`](Self::init).
     pub fn empty_with_n_sequencers(n_sequencers: NonZeroU32) -> Self {
+        let state = Self::uninitialized();
+        state.init(n_sequencers);
+        state
+    }
+
+    /// Create new shared state w/o any sequencers.
+    pub fn uninitialized() -> Self {
+        Self {
+            entries: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// Initialize shared state w/ N sequencers.
+    ///
+    /// # Panics
+    /// - when state is already initialized
+    pub fn init(&self, n_sequencers: NonZeroU32) {
+        let mut guard = self.entries.lock();
+
+        if guard.is_some() {
+            panic!("already initialized");
+        }
+
         let entries: BTreeMap<_, _> = (0..n_sequencers.get())
             .map(|sequencer_id| (sequencer_id, vec![]))
             .collect();
-
-        Self {
-            entries: Arc::new(Mutex::new(entries)),
-        }
+        *guard = Some(entries);
     }
 
     /// Push a new entry to the specified sequencer.
     ///
     /// # Panics
     /// - when given entry is not sequenced
+    /// - when no sequencer was initialized
     /// - when specified sequencer does not exist
     /// - when sequence number in entry is not larger the current maximum
     pub fn push_entry(&self, entry: SequencedEntry) {
         let sequence = entry.sequence().expect("entry must be sequenced");
-        let mut entries = self.entries.lock();
+
+        let mut guard = self.entries.lock();
+        let entries = guard.as_mut().expect("no sequencers initialized");
         let entry_vec = entries.get_mut(&sequence.id).expect("invalid sequencer ID");
+
         let max_sequence_number = entry_vec
             .iter()
             .filter_map(|entry_res| {
@@ -58,27 +87,33 @@ impl MockBufferSharedState {
                 max_sequence_number
             );
         }
+
         entry_vec.push(Ok(entry));
     }
 
     /// Push error to specified sequencer.
     ///
     /// # Panics
+    /// - when no sequencer was initialized
     /// - when sequencer does not exist
     pub fn push_error(&self, error: WriteBufferError, sequencer_id: u32) {
-        let mut entries = self.entries.lock();
+        let mut guard = self.entries.lock();
+        let entries = guard.as_mut().expect("no sequencers initialized");
         let entry_vec = entries
             .get_mut(&sequencer_id)
             .expect("invalid sequencer ID");
+
         entry_vec.push(Err(error));
     }
 
     /// Get messages (entries and errors) for specified sequencer.
     ///
     /// # Panics
+    /// - when no sequencer was initialized
     /// - when sequencer does not exist
     pub fn get_messages(&self, sequencer_id: u32) -> Vec<Result<SequencedEntry, WriteBufferError>> {
-        let mut entries = self.entries.lock();
+        let mut guard = self.entries.lock();
+        let entries = guard.as_mut().expect("no sequencers initialized");
         let entry_vec = entries
             .get_mut(&sequencer_id)
             .expect("invalid sequencer ID");
@@ -95,9 +130,11 @@ impl MockBufferSharedState {
     /// Provides a way to wipe messages (e.g. to simulate retention periods in Kafka)
     ///
     /// # Panics
+    /// - when no sequencer was initialized
     /// - when sequencer does not exist
     pub fn clear_messages(&self, sequencer_id: u32) {
-        let mut entries = self.entries.lock();
+        let mut guard = self.entries.lock();
+        let entries = guard.as_mut().expect("no sequencers initialized");
         let entry_vec = entries
             .get_mut(&sequencer_id)
             .expect("invalid sequencer ID");
@@ -124,7 +161,8 @@ impl WriteBufferWriting for MockBufferForWriting {
         entry: &Entry,
         sequencer_id: u32,
     ) -> Result<(Sequence, DateTime<Utc>), WriteBufferError> {
-        let mut entries = self.state.entries.lock();
+        let mut guard = self.state.entries.lock();
+        let entries = guard.as_mut().unwrap();
         let sequencer_entries = entries.get_mut(&sequencer_id).unwrap();
 
         let sequence_number = sequencer_entries
@@ -196,7 +234,11 @@ pub struct MockBufferForReading {
 
 impl MockBufferForReading {
     pub fn new(state: MockBufferSharedState) -> Self {
-        let n_sequencers = state.entries.lock().len() as u32;
+        let n_sequencers = {
+            let guard = state.entries.lock();
+            let entries = guard.as_ref().expect("TODO");
+            entries.len() as u32
+        };
         let playback_states: BTreeMap<_, _> = (0..n_sequencers)
             .map(|sequencer_id| {
                 (
@@ -236,10 +278,11 @@ impl WriteBufferReading for MockBufferForReading {
             let playback_states = Arc::clone(&self.playback_states);
 
             let stream = stream::poll_fn(move |_ctx| {
-                let entries = shared_state.entries.lock();
-                let mut playback_states = playback_states.lock();
-
+                let guard = shared_state.entries.lock();
+                let entries = guard.as_ref().unwrap();
                 let entry_vec = entries.get(&sequencer_id).unwrap();
+
+                let mut playback_states = playback_states.lock();
                 let playback_state = playback_states.get_mut(&sequencer_id).unwrap();
 
                 while entry_vec.len() > playback_state.vector_index {
@@ -278,7 +321,8 @@ impl WriteBufferReading for MockBufferForReading {
                 let shared_state = shared_state.clone();
 
                 let fut = async move {
-                    let entries = shared_state.entries.lock();
+                    let guard = shared_state.entries.lock();
+                    let entries = guard.as_ref().unwrap();
                     let entry_vec = entries.get(&sequencer_id).unwrap();
                     let watermark = entry_vec
                         .iter()
@@ -445,6 +489,19 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "no sequencers initialized")]
+    fn test_state_push_entry_panic_uninitialized() {
+        let state = MockBufferSharedState::uninitialized();
+        let entry = lp_to_entry("upc,region=east user=1 100");
+        let sequence = Sequence::new(0, 0);
+        state.push_entry(SequencedEntry::new_from_sequence(
+            sequence,
+            Utc::now(),
+            entry,
+        ));
+    }
+
+    #[test]
     #[should_panic(
         expected = "sequence number 13 is less/equal than current max sequencer number 13"
     )]
@@ -497,6 +554,14 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "no sequencers initialized")]
+    fn test_state_push_error_panic_uninitialized() {
+        let state = MockBufferSharedState::uninitialized();
+        let error = "foo".to_string().into();
+        state.push_error(error, 0);
+    }
+
+    #[test]
     #[should_panic(expected = "invalid sequencer ID")]
     fn test_state_get_messages_panic_wrong_sequencer() {
         let state =
@@ -505,11 +570,25 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "no sequencers initialized")]
+    fn test_state_get_messages_panic_uninitialized() {
+        let state = MockBufferSharedState::uninitialized();
+        state.get_messages(0);
+    }
+
+    #[test]
     #[should_panic(expected = "invalid sequencer ID")]
     fn test_state_clear_messages_panic_wrong_sequencer() {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         state.clear_messages(2);
+    }
+
+    #[test]
+    #[should_panic(expected = "no sequencers initialized")]
+    fn test_state_clear_messages_panic_uninitialized() {
+        let state = MockBufferSharedState::uninitialized();
+        state.clear_messages(0);
     }
 
     #[test]
@@ -573,5 +652,49 @@ mod tests {
             writer.store_entry(&entry, 0).await.unwrap_err().to_string(),
             "Something bad happened on the way to writing an entry in the write buffer"
         );
+    }
+
+    #[test]
+    fn test_delayed_init() {
+        let state = MockBufferSharedState::uninitialized();
+        state.init(NonZeroU32::try_from(2).unwrap());
+
+        let entry = lp_to_entry("upc,region=east user=1 100");
+        let sequence_1 = Sequence::new(0, 11);
+        state.push_entry(SequencedEntry::new_from_sequence(
+            sequence_1,
+            Utc::now(),
+            entry,
+        ));
+
+        assert_eq!(state.get_messages(0).len(), 1);
+        assert_eq!(state.get_messages(1).len(), 0);
+
+        let error = "foo".to_string().into();
+        state.push_error(error, 1);
+
+        assert_eq!(state.get_messages(0).len(), 1);
+        assert_eq!(state.get_messages(1).len(), 1);
+
+        state.clear_messages(0);
+
+        assert_eq!(state.get_messages(0).len(), 0);
+        assert_eq!(state.get_messages(1).len(), 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "already initialized")]
+    fn test_double_init_pancis() {
+        let state = MockBufferSharedState::uninitialized();
+        state.init(NonZeroU32::try_from(2).unwrap());
+        state.init(NonZeroU32::try_from(2).unwrap());
+    }
+
+    #[test]
+    #[should_panic(expected = "already initialized")]
+    fn test_init_after_constructor_pancis() {
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
+        state.init(NonZeroU32::try_from(2).unwrap());
     }
 }
