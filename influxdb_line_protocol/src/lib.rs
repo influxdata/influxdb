@@ -1175,6 +1175,7 @@ fn escape_and_write_value(
 #[cfg(test)]
 mod test {
     use super::*;
+    use chrono::DateTime;
     use smallvec::smallvec;
     use test_helpers::approximately_equal;
 
@@ -1809,36 +1810,6 @@ bar value2=2i 123"#;
         assert_eq!(vals[0].timestamp, Some(123));
         assert_eq!(vals[0].field_set[0].0, "value1");
         assert_eq!(vals[0].field_set[0].1.unwrap_i64(), 1);
-    }
-
-    #[test]
-    fn parse_timestamp() {
-        let input = r#"123"#;
-        let time = timestamp(input).unwrap();
-        assert_eq!(time.1, 123);
-    }
-
-    #[test]
-    fn parse_timestamp_negative() {
-        let input = r#"-123"#;
-        let time = timestamp(input).unwrap();
-        assert_eq!(time.1, -123);
-    }
-
-    #[test]
-    fn parse_timestamp_out_of_range() {
-        let input = r#"99999999999999999999999999999999"#;
-        let time = timestamp(input);
-        assert!(
-            matches!(
-                time,
-                Err(nom::Err::Failure(
-                    super::Error::TimestampValueInvalid { .. }
-                ))
-            ),
-            "Wrong error: {:?}",
-            time,
-        );
     }
 
     #[test]

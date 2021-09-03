@@ -534,4 +534,6 @@ mod tests {
 
         assert_eq!(p.to_string(), "Predicate table_names: {my_table} field_columns: {f1, f2} partition_key: 'the_key' range: [1 - 100] exprs: [#foo Eq Int32(42)]");
     }
+
+    // NGA todo: let add some delete predicate tests here
 }

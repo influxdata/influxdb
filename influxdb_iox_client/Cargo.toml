@@ -13,10 +13,12 @@ format = ["arrow"]
 arrow_util = { path = "../arrow_util" }
 client_util = { path = "../client_util" }
 generated_types = { path = "../generated_types" }
+influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 
 # Crates.io dependencies, in alphabetical order
 arrow = { version = "5.0", optional = true }
 arrow-flight = { version = "5.0", optional = true }
+chrono = "0.4"
 futures-util = { version = "0.3.1", optional = true }
 prost = "0.8"
 rand = "0.8.3"

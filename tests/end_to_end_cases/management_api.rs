@@ -1,5 +1,6 @@
 use std::{fs::set_permissions, os::unix::fs::PermissionsExt};
 
+use arrow_util::assert_batches_sorted_eq;
 use generated_types::{
     google::protobuf::{Duration, Empty},
     influxdata::iox::management::v1::{
@@ -1374,26 +1375,74 @@ async fn test_drop_partition_error() {
 #[tokio::test]
 async fn test_delete() {
     let fixture = ServerFixture::create_shared().await;
-    let _write_client = fixture.write_client();
-    let _management_client = fixture.management_client();
+    let mut write_client = fixture.write_client();
+    let mut management_client = fixture.management_client();
+    let mut flight_client = fixture.flight_client();
 
-    let _db_name = rand_name();
-    // NGA TODO: Build an appropriate test DB
+    // DB name and rules
+    let db_name = rand_name();
+    let rules = DatabaseRules {
+        name: db_name.clone(),
+        ..Default::default()
+    };
 
-    // Delete predicate
-    let _table_name = "test_table";
-    let _delete_predicate = "col=123";
-    let _start = "100";
-    let _stop = "1000";
+    // create that db
+    management_client
+        .create_database(rules.clone())
+        .await
+        .expect("create database failed");
 
-    // NGA todo: turn this on after having the DB
-    // management_client
-    //     .delete(&db_name, table_name, delete_predicate, start, stop)
-    //     .await
-    //     .unwrap();
+    // Load a few rows of data
+    let lp_lines = vec![
+        "cpu,region=west user=23.2 100",
+        "cpu,region=west user=21.0 150",
+        "disk,region=east bytes=99i 200",
+    ];
+    
+    let num_lines_written = write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("write succeded");
 
-    // Todo: check return delete outcome
+    assert_eq!(num_lines_written, 3);
+
+    // Query cpu
+    let mut query_results = flight_client
+        .perform_query(db_name.clone(), "select * from cpu")
+        .await.unwrap();
+    let batches = query_results.to_batches().await.unwrap();
+    let expected = [
+        "+--------+--------------------------------+------+",
+        "| region | time                           | user |",
+        "+--------+--------------------------------+------+",
+        "| west   | 1970-01-01T00:00:00.000000100Z | 23.2 |",
+        "| west   | 1970-01-01T00:00:00.000000150Z | 21   |",
+        "+--------+--------------------------------+------+",
+    ];
+    assert_batches_sorted_eq!(&expected, &batches);
+     
+    // Delete some data
+    // todo
+
+    // query to verify data deleted
+    let mut query_results = flight_client
+        .perform_query(db_name, "select * from cpu")
+        .await.unwrap();
+    let batches = query_results.to_batches().await.unwrap();
+    let expected = [
+        "+--------+--------------------------------+------+",
+        "| region | time                           | user |",
+        "+--------+--------------------------------+------+",
+        "| west   | 1970-01-01T00:00:00.000000100Z | 23.2 |",
+        "| west   | 1970-01-01T00:00:00.000000150Z | 21   |",
+        "+--------+--------------------------------+------+",
+    ];
+    assert_batches_sorted_eq!(&expected, &batches);
+
+    // Negative Delete test to get error messages
+    // todo
 }
+
 #[tokio::test]
 async fn test_persist_partition() {
     use data_types::chunk_metadata::ChunkStorage;

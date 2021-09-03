@@ -563,51 +563,12 @@ where
         let DeleteRequest {
             db_name,
             table_name,
-            delete_predicate,
-            start_time,
-            stop_time,
+            parse_delete,
+            // delete_predicate,
+            // start_time,
+            // stop_time,
         } = request.into_inner();
-
-        use influxdb_line_protocol::timestamp;
-
-        // Parse and Validate start time and stop time
-        let start_result = timestamp(start_time.as_str());
-        if start_result.is_err() {
-            let error_str = format!("Delete start time is invalid: {}", start_time);
-            return Err(default_server_error_handler(Error::DeleteExpression {
-                expr: error_str,
-            }));
-        }
-        let stop_result = timestamp(start_time.as_str());
-        if stop_result.is_err() {
-            let error_str = format!("Delete start time is invalid: {}", stop_time);
-            return Err(default_server_error_handler(Error::DeleteExpression {
-                expr: error_str,
-            }));
-        }
-        let start = start_result.unwrap().1;
-        let stop = stop_result.unwrap().1;
-        if start > stop {
-            let error_str = format!(
-                "Delete start time, {}, must be smaller than stop time, {}",
-                start, stop
-            );
-            return Err(default_server_error_handler(Error::DeleteExpression {
-                expr: error_str,
-            }));
-        }
-
-        // parse and validate delete predicate which is a conjunctive expressions
-        // with columns being compared to literals using = or != operators
-        let parse_result = parse_delete_predicate(delete_predicate.as_str());
-        if parse_result.is_err() {
-            // cannot parse the delete expression
-            return Err(default_server_error_handler(Error::DeleteExpression {
-                expr: delete_predicate,
-            }));
-        }
-        let predicates = parse_result.unwrap().1;
-
+        
         // Validate that the database name is legit
         let db_name = DatabaseName::new(db_name).field("db_name")?;
         let db = self
@@ -615,27 +576,26 @@ where
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        // Build the delete predicate that include the table to be deleted, all delete expressions, and time range
-        let mut del_predicate = PredicateBuilder::new()
-            .table(table_name.clone())
-            .timestamp_range(start, stop)
-            .build();
-        for expr in predicates {
-            let e = match expr.op.as_str() {
-                "=" => col(expr.column_name.as_str()).eq(lit(expr.literal)),
-                "!=" => col(expr.column_name.as_str()).eq(lit(expr.literal)),
-                _ => {
-                    let error_str =
-                        format!("{} operator not supported in delete expression", expr.op);
-                    return Err(default_server_error_handler(Error::DeleteExpression {
-                        expr: error_str,
-                    }));
-                }
-            };
-            del_predicate.exprs.push(e);
-        }
-
         // NGA todo: need to validate if the table and all of its columns in delete predicate are legit?
+        let mut del_predicate = PredicateBuilder::new() 
+            .table(table_name.clone())
+            //.timestamp_range(start, stop)
+            .build();
+        // NGA todo: add time rage and predicate
+        // for expr in predicates {
+        //     let e = match expr.op.as_str() {
+        //         "=" => col(expr.column_name.as_str()).eq(lit(expr.literal)),
+        //         "!=" => col(expr.column_name.as_str()).eq(lit(expr.literal)),
+        //         _ => {
+        //             let error_str =
+        //                 format!("{} operator not supported in delete expression", expr.op);
+        //             return Err(default_server_error_handler(Error::DeleteExpression {
+        //                 expr: error_str,
+        //             }));
+        //         }
+        //     };
+        //     del_predicate.exprs.push(e);
+        // }
 
         db.delete(&table_name, &del_predicate)
             .await

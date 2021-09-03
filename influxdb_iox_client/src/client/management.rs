@@ -3,6 +3,7 @@ use thiserror::Error;
 use self::generated_types::{management_service_client::ManagementServiceClient, *};
 
 use crate::connection::Connection;
+use crate::parser::{self, ParseDelete};
 use ::generated_types::google::longrunning::Operation;
 
 use std::convert::TryInto;
@@ -360,6 +361,12 @@ pub enum DropPartitionError {
 /// Errors returned by [`Client::delete`]
 #[derive(Debug, Error)]
 pub enum DeleteError {
+    /// Invalid time range or predicate
+    /// The error message is sent back from the original one which 
+    /// will include the detail
+    #[error("Invalid input: {}", .0)]
+    ParseErr(parser::Error),    
+
     /// Database not found
     #[error("Not found: {}", .0)]
     NotFound(String),
@@ -945,32 +952,39 @@ impl Client {
         &mut self,
         db_name: impl Into<String> + Send,
         table_name: impl Into<String> + Send,
-        delete_predicate: impl Into<String> + Send,
+        predicate: impl Into<String> + Send,
         start_time: impl Into<String> + Send,
         stop_time: impl Into<String> + Send,
     ) -> Result<(), DeleteError> {
         let db_name = db_name.into();
         let table_name = table_name.into();
-        let delete_predicate = delete_predicate.into();
+        let predicate = predicate.into();
         let start_time = start_time.into();
         let stop_time = stop_time.into();
 
-        // NGA question: Currently, the "parse and validate start_time, stop_time, and delete_predicate" is
-        // done in the server's delete function. Should do it here at the client side instead?
-        self.inner
-            .delete(DeleteRequest {
-                db_name,
-                table_name,
-                delete_predicate,
-                start_time,
-                stop_time,
-            })
-            .await
-            .map_err(|status| match status.code() {
-                tonic::Code::NotFound => DeleteError::NotFound(status.message().to_string()),
-                tonic::Code::Unavailable => DeleteError::Unavailable(status),
-                _ => DeleteError::ServerError(status),
-            })?;
+        // parse the time range and predicate
+        let parse_delete = ParseDelete::parse_delete(start_time.as_str(), stop_time.as_str(), predicate.as_str());
+        match parse_delete {
+            Err(e) => return Err(DeleteError::ParseErr(e)),
+            Ok(parse_delete) => {
+                self.inner
+                    .delete(DeleteRequest {
+                        db_name,
+                        table_name,
+                        parse_delete,
+                        // delete_predicate,
+                        // start_time,
+                        // stop_time,
+                    })
+                    .await
+                    .map_err(|status| match status.code() {
+                        tonic::Code::NotFound => DeleteError::NotFound(status.message().to_string()),
+                        tonic::Code::Unavailable => DeleteError::Unavailable(status),
+                        _ => DeleteError::ServerError(status),
+                    })?;
+            },
+            _ => {},
+        }
 
         // NGA todo: return a handle to the delete?
         Ok(())
