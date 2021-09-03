@@ -1928,6 +1928,7 @@ name = "iox_object_store"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "chrono",
  "data_types",
  "futures",
  "object_store",
