@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use data_types::database_rules::{
     DatabaseRules, RoutingConfig, RoutingRules, WriteBufferConnection, WriteBufferDirection,
-    DEFAULT_N_SEQUENCERS,
+    WriteBufferSequencerCreation, DEFAULT_N_SEQUENCERS,
 };
 use data_types::DatabaseName;
 
@@ -154,10 +154,8 @@ impl From<WriteBufferConnection> for management::WriteBufferConnection {
             direction: direction.into(),
             r#type: v.type_,
             connection: v.connection,
-            n_sequencers: v.n_sequencers.get(),
-            creation_config: v.creation_config,
             connection_config: v.connection_config,
-            auto_create_sequencers: v.auto_create_sequencers,
+            auto_create_sequencers: v.auto_create_sequencers.map(|x| x.into()),
         }
     }
 }
@@ -167,6 +165,15 @@ impl From<WriteBufferDirection> for management::write_buffer_connection::Directi
         match v {
             WriteBufferDirection::Read => Self::Read,
             WriteBufferDirection::Write => Self::Write,
+        }
+    }
+}
+
+impl From<WriteBufferSequencerCreation> for management::WriteBufferSequencerCreation {
+    fn from(v: WriteBufferSequencerCreation) -> Self {
+        Self {
+            n_sequencers: v.n_sequencers.get(),
+            creation_config: v.creation_config,
         }
     }
 }
@@ -187,11 +194,12 @@ impl TryFrom<management::WriteBufferConnection> for WriteBufferConnection {
             direction: direction.try_into()?,
             type_: proto.r#type,
             connection: proto.connection,
-            n_sequencers: NonZeroU32::try_from(proto.n_sequencers)
-                .unwrap_or_else(|_| NonZeroU32::try_from(DEFAULT_N_SEQUENCERS).unwrap()),
-            creation_config: proto.creation_config,
             connection_config: proto.connection_config,
-            auto_create_sequencers: proto.auto_create_sequencers,
+            auto_create_sequencers: proto
+                .auto_create_sequencers
+                .map(|x| x.try_into())
+                .transpose()
+                .field("auto_create_sequencers")?,
         })
     }
 }
@@ -209,6 +217,18 @@ impl TryFrom<management::write_buffer_connection::Direction> for WriteBufferDire
             Direction::Write => Ok(Self::Write),
             Direction::Read => Ok(Self::Read),
         }
+    }
+}
+
+impl TryFrom<management::WriteBufferSequencerCreation> for WriteBufferSequencerCreation {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::WriteBufferSequencerCreation) -> Result<Self, Self::Error> {
+        Ok(Self {
+            n_sequencers: NonZeroU32::try_from(proto.n_sequencers)
+                .unwrap_or_else(|_| NonZeroU32::try_from(DEFAULT_N_SEQUENCERS).unwrap()),
+            creation_config: proto.creation_config,
+        })
     }
 }
 
