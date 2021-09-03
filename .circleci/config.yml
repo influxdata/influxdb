@@ -257,7 +257,7 @@ commands:
       - run:
           name: Install goreleaser
           environment:
-            GORELEASER_VERSION: 0.164.0
+            GORELEASER_VERSION: 0.177.0
           command: |
             curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh && \
               sh goreleaser-install -b ${GOPATH}/bin v${GORELEASER_VERSION} && \
