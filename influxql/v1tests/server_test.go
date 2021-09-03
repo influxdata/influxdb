@@ -3,6 +3,8 @@ package v1tests
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/stretchr/testify/require"
 	"net/url"
 	"strconv"
 	"strings"
@@ -4718,12 +4720,75 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 		fmt.Sprintf(`other,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
 	}
 
+
+	ctx := context.Background()
+
+	client := s.MustNewAdminClient()
+	bucket2 := influxdb.Bucket{
+		OrgID:               s.DefaultOrgID,
+		Name: "b2",
+	}
+	bucket3 := influxdb.Bucket{
+		OrgID:               s.DefaultOrgID,
+		Name: "b3",
+	}
+	require.NoError(t, client.CreateBucket(ctx, &bucket2))
+	require.NoError(t, client.CreateBucket(ctx, &bucket3))
+
+	require.NoError(t, client.DBRPMappingService.Create(ctx, &influxdb.DBRPMapping{
+		Database:        "db0",
+		RetentionPolicy: "rp1",
+		Default:         false,
+		OrganizationID:  s.DefaultOrgID,
+		BucketID:        bucket2.ID,
+	}))
+
+	require.NoError(t, client.DBRPMappingService.Create(ctx, &influxdb.DBRPMapping{
+		Database:        "db1",
+		RetentionPolicy: "rp0",
+		Default:         false,
+		OrganizationID:  s.DefaultOrgID,
+		BucketID:        bucket3.ID,
+	}))
+
+
+	rp1Writes := []string{
+		fmt.Sprintf(`other2,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+	}
+
+	db1Writes := []string{
+		fmt.Sprintf(`cpu,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		fmt.Sprintf(`disk,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+	}
+
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
 		&Write{data: strings.Join(writes, "\n")},
+		&Write{bucketID: bucket2.ID, data: strings.Join(rp1Writes, "\n")},
+		&Write{bucketID: bucket3.ID, data: strings.Join(db1Writes, "\n")},
 	}
 
 	test.addQueries([]*Query{
+		{
+			name:    `show measurements`,
+			command: "SHOW MEASUREMENTS",
+			// *unlike* 1.x, InfluxDB 2 shows measurements from the default retention policy when the rp is not specified, not all retention policies
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"],["other"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		{
+			name:    `show measurements with rp parameter`,
+			command: "SHOW MEASUREMENTS",
+			// we ignore the rp parameter for show measurements
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"],["other"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp1"}},
+		},
+		{
+			name:    `show measurements with on`,
+			command: "SHOW MEASUREMENTS on db0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"],["other"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+		},
 		{
 			name:    `show measurements with limit 2`,
 			command: "SHOW MEASUREMENTS LIMIT 2",
@@ -4756,7 +4821,6 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 		},
 		{
 			name:    `show measurements where tag does not match a regular expression`,
-			skip:    "See https://github.com/influxdata/idpe/issues/7587 Issue: Inequalities",
 			command: "SHOW MEASUREMENTS WHERE region !~ /ca.*/",
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
@@ -4797,9 +4861,38 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"error":"SHOW MEASUREMENTS doesn't support time in WHERE clause"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
+		{
+			name:    `show measurements bad wildcard`,
+			command: "SHOW MEASUREMENTS on *",
+			exp:     `{"results":[{"statement_id":0,"error":"query 'SHOW MEASUREMENTS ON *' not supported. use 'ON *.*' or specify a database"}]}`,
+			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+		},
+		{
+			name:    `show measurements bad rp wildcard`,
+			command: "SHOW MEASUREMENTS on *.rp0",
+			exp:     `{"results":[{"statement_id":0,"error":"query 'SHOW MEASUREMENTS ON *.rp' not supported. use 'ON *.*' or specify a database"}]}`,
+			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+		},
+		{
+			name:    `show measurements on specific rp`,
+			command: "SHOW MEASUREMENTS on db0.rp0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name","database","retention policy"],"values":[["cpu","db0","rp0"],["gpu","db0","rp0"],["other","db0","rp0"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+		},
+		{
+			name:    `show measurements on all rps`,
+			command: "SHOW MEASUREMENTS on db0.*",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name","database","retention policy"],"values":[["cpu","db0","rp0"],["gpu","db0","rp0"],["other","db0","rp0"],["other2","db0","rp1"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+		},
+		{
+			name:    `show measurements on all dbs and rps`,
+			command: "SHOW MEASUREMENTS on *.*",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name","database","retention policy"],"values":[["cpu","db0","rp0"],["gpu","db0","rp0"],["other","db0","rp0"],["other2","db0","rp1"],["cpu","db1","rp0"],["disk","db1","rp0"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+		},
 	}...)
 
-	ctx := context.Background()
 	test.Run(ctx, t, s)
 }
 

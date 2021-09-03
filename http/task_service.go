@@ -612,11 +612,6 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
 	task, err := h.TaskService.CreateTask(ctx, req.TaskCreate)
 	if err != nil {
 		if e, ok := err.(AuthzError); ok {

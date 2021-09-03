@@ -85,7 +85,8 @@ func (q *Query) Execute(ctx context.Context, t *testing.T, db string, c *tests.C
 }
 
 type Write struct {
-	data string
+	data     string
+	bucketID platform.ID
 }
 
 type Writes []*Write
@@ -190,7 +191,11 @@ func (qt *Test) init(ctx context.Context, t *testing.T, p *tests.DefaultPipeline
 func (qt *Test) writeTestData(ctx context.Context, t *testing.T, c *tests.Client) {
 	t.Helper()
 	for _, w := range qt.writes {
-		err := c.WriteTo(ctx, influxdb.BucketFilter{ID: &qt.bucketID, OrganizationID: &qt.orgID}, strings.NewReader(w.data))
+		bucketID := &qt.bucketID
+		if w.bucketID != 0 {
+			bucketID = &w.bucketID
+		}
+		err := c.WriteTo(ctx, influxdb.BucketFilter{ID: bucketID, OrganizationID: &qt.orgID}, strings.NewReader(w.data))
 		require.NoError(t, err)
 	}
 }
