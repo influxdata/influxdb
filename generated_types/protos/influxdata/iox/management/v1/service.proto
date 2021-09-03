@@ -37,6 +37,8 @@ service ManagementService {
 
   rpc DeleteDatabase(DeleteDatabaseRequest) returns (DeleteDatabaseResponse);
 
+  rpc RestoreDatabase(RestoreDatabaseRequest) returns (RestoreDatabaseResponse);
+
   // List deleted databases and their metadata.
   rpc ListDeletedDatabases(ListDeletedDatabasesRequest) returns (ListDeletedDatabasesResponse);
 
@@ -173,6 +175,16 @@ message DeleteDatabaseRequest {
 }
 
 message DeleteDatabaseResponse {}
+
+message RestoreDatabaseRequest {
+	// The generation ID of the deleted database.
+  uint64 generation_id = 1;
+
+  // the name of the database
+  string db_name = 2;
+}
+
+message RestoreDatabaseResponse {}
 
 message ListDeletedDatabasesRequest {}
 
@@ -461,7 +473,7 @@ message DeleteRequest {
   // table name
   string table_name = 2;
 
-  // start time range 
+  // start time range
   string start_time = 3;
 
   // stop time range

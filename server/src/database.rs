@@ -86,6 +86,9 @@ pub enum Error {
 
     #[snafu(display("no active database named {} to delete", db_name))]
     NoActiveDatabaseToDelete { db_name: String },
+
+    #[snafu(display("cannot restore database named {} that is already active", db_name))]
+    CannotRestoreActiveDatabase { db_name: String },
 }
 
 #[derive(Debug, Snafu)]
@@ -239,6 +242,36 @@ impl Database {
                 Arc::new(InitError::NoActiveDatabase),
             );
             shared.state_notify.notify_waiters();
+        }
+
+        Ok(())
+    }
+
+    /// Mark this database as restored.
+    pub async fn restore(&self, iox_object_store: IoxObjectStore) -> Result<(), Error> {
+        let db_name = &self.shared.config.name;
+
+        let handle = {
+            let state = self.shared.state.read();
+
+            // Can't restore an already active database.
+            ensure!(!state.is_active(), CannotRestoreActiveDatabase { db_name });
+
+            state.try_freeze().context(TransitionInProgress {
+                db_name,
+                state: state.state_code(),
+            })?
+        };
+
+        let shared = Arc::clone(&self.shared);
+
+        {
+            // Reset the state to initializing with the given iox object storage
+            let mut state = shared.state.write();
+            *state.unfreeze(handle) =
+                DatabaseState::DatabaseObjectStoreFound(DatabaseStateDatabaseObjectStoreFound {
+                    iox_object_store: Arc::new(iox_object_store),
+                });
         }
 
         Ok(())

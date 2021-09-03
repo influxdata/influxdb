@@ -145,6 +145,26 @@ pub enum DeleteDatabaseError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by Client::delete_database
+#[derive(Debug, Error)]
+pub enum RestoreDatabaseError {
+    /// Database not found
+    #[error("Database not found")]
+    DatabaseNotFound,
+
+    /// Server indicated that it is not (yet) available
+    #[error("Server unavailable: {}", .0.message())]
+    Unavailable(tonic::Status),
+
+    /// Server ID is not set
+    #[error("Server ID not set")]
+    NoServerId,
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
 /// Errors returned by Client::list_chunks
 #[derive(Debug, Error)]
 pub enum ListChunksError {
@@ -634,6 +654,28 @@ impl Client {
                 tonic::Code::FailedPrecondition => DeleteDatabaseError::NoServerId,
                 tonic::Code::Unavailable => DeleteDatabaseError::Unavailable(status),
                 _ => DeleteDatabaseError::ServerError(status),
+            })?;
+
+        Ok(())
+    }
+
+    /// Restore database
+    pub async fn restore_database(
+        &mut self,
+        db_name: impl Into<String> + Send,
+        generation_id: usize,
+    ) -> Result<(), RestoreDatabaseError> {
+        self.inner
+            .restore_database(RestoreDatabaseRequest {
+                db_name: db_name.into(),
+                generation_id: generation_id as u64,
+            })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => RestoreDatabaseError::DatabaseNotFound,
+                tonic::Code::FailedPrecondition => RestoreDatabaseError::NoServerId,
+                tonic::Code::Unavailable => RestoreDatabaseError::Unavailable(status),
+                _ => RestoreDatabaseError::ServerError(status),
             })?;
 
         Ok(())

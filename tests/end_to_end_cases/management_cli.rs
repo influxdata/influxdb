@@ -342,7 +342,52 @@ async fn delete_database() {
         .arg(addr)
         .assert()
         .success()
+        .stdout(
+            predicate::str::contains(format!("0               {}", db))
+                .and(predicate::str::contains(format!("1               {}", db))),
+        );
+
+    // Restore generation 0
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("restore")
+        .arg("0")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(format!(
+            "Restored database {}",
+            db
+        )));
+
+    // This database is back in the active list
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
         .stdout(predicate::str::contains(db));
+
+    // Only generation 1 is in the deleted list
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--deleted")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains(format!("1               {}", db))
+                .and(predicate::str::contains(format!("0               {}", db)).not()),
+        );
 }
 
 #[tokio::test]

@@ -152,6 +152,14 @@ pub enum Error {
     #[snafu(display("{}", source))]
     CannotMarkDatabaseDeleted { source: crate::database::Error },
 
+    #[snafu(display("{}", source))]
+    CannotRestoreDatabaseInObjectStorage {
+        source: iox_object_store::IoxObjectStoreError,
+    },
+
+    #[snafu(display("{}", source))]
+    CannotRestoreDatabase { source: crate::database::Error },
+
     #[snafu(display("database already exists: {}", db_name))]
     DatabaseAlreadyExists { db_name: String },
 
@@ -681,6 +689,53 @@ where
     pub async fn delete_database(&self, db_name: &DatabaseName<'static>) -> Result<()> {
         let database = self.database(db_name)?;
         database.delete().await.context(CannotMarkDatabaseDeleted)?;
+        Ok(())
+    }
+
+    /// Restore a database and generation that has been marked as deleted. Return an error if no
+    /// database with this generation can be found, or if there's already an active database with
+    /// this name.
+    pub async fn restore_database(
+        &self,
+        db_name: &DatabaseName<'static>,
+        generation_id: u64,
+    ) -> Result<()> {
+        let (server_id, database) = {
+            let state = self.shared.state.read();
+            let initialized = state.initialized()?;
+
+            let database = Arc::clone(
+                initialized
+                    .databases
+                    .get(db_name)
+                    .context(DatabaseNotFound { db_name })?,
+            );
+
+            if let Some(init_error) = database.init_error() {
+                if !matches!(&*init_error, database::InitError::NoActiveDatabase) {
+                    return DatabaseAlreadyExists { db_name }.fail();
+                }
+            }
+
+            (initialized.server_id, database)
+        };
+
+        let iox_object_store = IoxObjectStore::restore_database(
+            Arc::clone(self.shared.application.object_store()),
+            server_id,
+            db_name,
+            GenerationId {
+                inner: generation_id as usize,
+            },
+        )
+        .await
+        .context(CannotRestoreDatabaseInObjectStorage)?;
+
+        database
+            .restore(iox_object_store)
+            .await
+            .context(CannotRestoreDatabase)?;
+
         Ok(())
     }
 

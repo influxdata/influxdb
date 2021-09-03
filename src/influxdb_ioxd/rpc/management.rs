@@ -179,6 +179,22 @@ where
         Ok(Response::new(DeleteDatabaseResponse {}))
     }
 
+    async fn restore_database(
+        &self,
+        request: Request<RestoreDatabaseRequest>,
+    ) -> Result<Response<RestoreDatabaseResponse>, Status> {
+        let request = request.into_inner();
+        let db_name = DatabaseName::new(request.db_name).field("db_name")?;
+        let generation_id = request.generation_id;
+
+        self.server
+            .restore_database(&db_name, generation_id)
+            .await
+            .map_err(default_server_error_handler)?;
+
+        Ok(Response::new(RestoreDatabaseResponse {}))
+    }
+
     async fn list_deleted_databases(
         &self,
         _: Request<ListDeletedDatabasesRequest>,
