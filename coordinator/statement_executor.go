@@ -718,45 +718,110 @@ func (e *StatementExecutor) executeShowGrantsForUserStatement(q *influxql.ShowGr
 	return []*models.Row{row}, nil
 }
 
+type measurementRow struct {
+	name []byte
+	db, rp string
+}
+
 func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.ExecutionContext, q *influxql.ShowMeasurementsStatement) error {
-	if q.Database == "" {
+	if q.Database == "" && !q.WildcardDatabase {
 		return ErrDatabaseNameRequired
 	}
 
-	names, err := e.TSDBStore.MeasurementNames(ctx.Context, ctx.Authorizer, q.Database, q.Condition)
-	if err != nil || len(names) == 0 {
-		return ctx.Send(&query.Result{
-			Err: err,
-		})
+	onlyPrintMeasurements := !(q.WildcardDatabase || q.WildcardRetentionPolicy || q.RetentionPolicy != "")
+
+	var sources []struct{
+		db, rp string
+	}
+	if q.WildcardDatabase {
+		if q.RetentionPolicy != "" {
+			return ctx.Send(&query.Result{
+				Err: fmt.Errorf("query 'SHOW MEASUREMENTS ON *.rp' not supported. use 'ON *.*' or specify a database"),
+			})
+		}
+		if !q.WildcardRetentionPolicy {
+			return ctx.Send(&query.Result{
+				Err: fmt.Errorf("query 'SHOW MEASUREMENTS ON *' not supported. use 'ON *.*' or specify a database"),
+			})
+		}
+		for _, dbInfo := range e.MetaClient.Databases() {
+			for _, rpInfo := range dbInfo.RetentionPolicies {
+				sources = append(sources, struct{ db, rp string }{dbInfo.Name, rpInfo.Name})
+			}
+		}
+	} else if q.WildcardRetentionPolicy {
+		dbInfo := e.MetaClient.Database(q.Database)
+		if dbInfo == nil {
+			return ctx.Send(&query.Result{
+				Err: fmt.Errorf("unknown database %s", dbInfo.Name),
+			})
+		}
+		for _, rpInfo := range dbInfo.RetentionPolicies {
+			sources = append(sources, struct{ db, rp string }{dbInfo.Name, rpInfo.Name})
+		}
+	} else {
+		sources = append(sources, struct{ db, rp string }{q.Database, q.RetentionPolicy})
+	}
+
+	var rows []measurementRow
+	for _, source := range sources {
+		names, err := e.TSDBStore.MeasurementNames(ctx.Context, ctx.Authorizer, source.db, source.rp, q.Condition)
+		if err != nil {
+			return ctx.Send(&query.Result{
+				Err: err,
+			})
+		}
+		for _, name := range names {
+			rows = append(rows, measurementRow{
+				name: name,
+				db:   source.db,
+				rp:   source.rp,
+			})
+		}
 	}
 
 	if q.Offset > 0 {
-		if q.Offset >= len(names) {
-			names = nil
+		if q.Offset >= len(rows) {
+			rows = nil
 		} else {
-			names = names[q.Offset:]
+			rows = rows[q.Offset:]
 		}
 	}
 
 	if q.Limit > 0 {
-		if q.Limit < len(names) {
-			names = names[:q.Limit]
+		if q.Limit < len(rows) {
+			rows = rows[:q.Limit]
 		}
 	}
 
-	values := make([][]interface{}, len(names))
-	for i, name := range names {
-		values[i] = []interface{}{string(name)}
+	if len(rows) == 0 {
+		return ctx.Send(&query.Result{})
 	}
 
-	if len(values) == 0 {
-		return ctx.Send(&query.Result{})
+	if onlyPrintMeasurements {
+		values := make([][]interface{}, len(rows))
+		for i, r := range rows {
+			values[i] = []interface{}{string(r.name)}
+		}
+
+		return ctx.Send(&query.Result{
+			Series: []*models.Row{{
+				Name:    "measurements",
+				Columns: []string{"name"},
+				Values:  values,
+			}},
+		})
+	}
+
+	values := make([][]interface{}, len(rows))
+	for i, r := range rows {
+		values[i] = []interface{}{string(r.name), r.db, r.rp}
 	}
 
 	return ctx.Send(&query.Result{
 		Series: []*models.Row{{
 			Name:    "measurements",
-			Columns: []string{"name"},
+			Columns: []string{"name", "database", "retention policy"},
 			Values:  values,
 		}},
 	})
@@ -1404,7 +1469,7 @@ type TSDBStore interface {
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
 
-	MeasurementNames(ctx context.Context, auth query.FineAuthorizer, database string, cond influxql.Expr) ([][]byte, error)
+	MeasurementNames(ctx context.Context, auth query.FineAuthorizer, database string, retentionPolicy string, cond influxql.Expr) ([][]byte, error)
 	TagKeys(ctx context.Context, auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
 	TagValues(ctx context.Context, auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 

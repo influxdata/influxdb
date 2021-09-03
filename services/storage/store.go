@@ -428,7 +428,8 @@ func (s *Store) MeasurementNames(ctx context.Context, req *MeasurementNamesReque
 
 	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
-	values, err := s.TSDBStore.MeasurementNames(ctx, auth, database, expr)
+	// NOTE: this preserves the existing flux behaviour of ignoring the retention policy here
+	values, err := s.TSDBStore.MeasurementNames(ctx, auth, database, "", expr)
 	if err != nil {
 		return nil, err
 	}

@@ -93,7 +93,7 @@ func (s *TSDBStoreMock) ExpandSources(sources influxql.Sources) (influxql.Source
 func (s *TSDBStoreMock) ImportShard(id uint64, r io.Reader) error {
 	return s.ImportShardFn(id, r)
 }
-func (s *TSDBStoreMock) MeasurementNames(ctx context.Context, auth query.FineAuthorizer, database string, cond influxql.Expr) ([][]byte, error) {
+func (s *TSDBStoreMock) MeasurementNames(ctx context.Context, auth query.FineAuthorizer, database string, retentionPolicy string, cond influxql.Expr) ([][]byte, error) {
 	return s.MeasurementNamesFn(auth, database, cond)
 }
 func (s *TSDBStoreMock) MeasurementSeriesCounts(database string) (measuments int, series int) {

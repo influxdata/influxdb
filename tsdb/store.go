@@ -1565,9 +1565,23 @@ func (s *Store) WriteToShard(writeCtx WriteContext, shardID uint64, points []mod
 // MeasurementNames returns a slice of all measurements. Measurements accepts an
 // optional condition expression. If cond is nil, then all measurements for the
 // database will be returned.
-func (s *Store) MeasurementNames(ctx context.Context, auth query.FineAuthorizer, database string, cond influxql.Expr) ([][]byte, error) {
+// retentionPolicy is only valid for tsi databases, inmem will error.
+func (s *Store) MeasurementNames(ctx context.Context, auth query.FineAuthorizer, database string, retentionPolicy string, cond influxql.Expr) ([][]byte, error) {
+	var filterFunc func(sh *Shard) bool
+	if retentionPolicy == "" {
+		filterFunc = byDatabase(database)
+	} else {
+		// We don't support retention-policy level index checks on inmem since we only have a database-level index.
+		if s.EngineOptions.IndexVersion != TSI1IndexName {
+			return nil, fmt.Errorf("retention policy filter for measurements not supported for index %s", s.EngineOptions.IndexVersion)
+		}
+		filterFunc = func(sh *Shard) bool {
+			return sh.Database() == database && sh.RetentionPolicy() == retentionPolicy
+		}
+	}
+
 	s.mu.RLock()
-	shards := s.filterShards(byDatabase(database))
+	shards := s.filterShards(filterFunc)
 	s.mu.RUnlock()
 
 	sfile := s.seriesFile(database)
