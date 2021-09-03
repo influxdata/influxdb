@@ -1,0 +1,16 @@
+[[queries]]
+name = "example query, no expected result"
+sql = "select count(*) from cpu"
+
+[[queries]]
+name = "example query, expected result in string"
+sql = "select count(*) from cpu"
+expect = """
+COUNT(Uint8(1))
+3
+"""
+
+[[queries]]
+name = "example query, expected result in file"
+sql = "select count(*) from cpu"
+expect_filename = "foo.csv"
