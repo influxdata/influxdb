@@ -2,6 +2,7 @@ use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc, task::Poll};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use data_types::database_rules::WriteBufferSequencerCreation;
 use entry::{Entry, Sequence, SequencedEntry};
 use futures::{stream, FutureExt, StreamExt};
 use parking_lot::Mutex;
@@ -50,10 +51,13 @@ impl MockBufferSharedState {
             panic!("already initialized");
         }
 
-        let entries: BTreeMap<_, _> = (0..n_sequencers.get())
+        *guard = Some(Self::init_inner(n_sequencers));
+    }
+
+    fn init_inner(n_sequencers: NonZeroU32) -> BTreeMap<u32, EntryResVec> {
+        (0..n_sequencers.get())
             .map(|sequencer_id| (sequencer_id, vec![]))
-            .collect();
-        *guard = Some(entries);
+            .collect()
     }
 
     /// Push a new entry to the specified sequencer.
@@ -141,6 +145,15 @@ impl MockBufferSharedState {
 
         entry_vec.clear();
     }
+
+    fn maybe_auto_init(&self, auto_create_sequencers: Option<&WriteBufferSequencerCreation>) {
+        if let Some(cfg) = auto_create_sequencers {
+            let mut guard = self.entries.lock();
+            if guard.is_none() {
+                *guard = Some(Self::init_inner(cfg.n_sequencers));
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -149,8 +162,20 @@ pub struct MockBufferForWriting {
 }
 
 impl MockBufferForWriting {
-    pub fn new(state: MockBufferSharedState) -> Self {
-        Self { state }
+    pub fn new(
+        state: MockBufferSharedState,
+        auto_create_sequencers: Option<&WriteBufferSequencerCreation>,
+    ) -> Result<Self, WriteBufferError> {
+        state.maybe_auto_init(auto_create_sequencers);
+
+        {
+            let guard = state.entries.lock();
+            if guard.is_none() {
+                return Err("no sequencers initialized".to_string().into());
+            }
+        }
+
+        Ok(Self { state })
     }
 }
 
@@ -233,10 +258,20 @@ pub struct MockBufferForReading {
 }
 
 impl MockBufferForReading {
-    pub fn new(state: MockBufferSharedState) -> Self {
+    pub fn new(
+        state: MockBufferSharedState,
+        auto_create_sequencers: Option<&WriteBufferSequencerCreation>,
+    ) -> Result<Self, WriteBufferError> {
+        state.maybe_auto_init(auto_create_sequencers);
+
         let n_sequencers = {
             let guard = state.entries.lock();
-            let entries = guard.as_ref().expect("TODO");
+            let entries = match guard.as_ref() {
+                Some(entries) => entries,
+                None => {
+                    return Err("no sequencers initialized".to_string().into());
+                }
+            };
             entries.len() as u32
         };
         let playback_states: BTreeMap<_, _> = (0..n_sequencers)
@@ -251,10 +286,10 @@ impl MockBufferForReading {
             })
             .collect();
 
-        Self {
+        Ok(Self {
             shared_state: state,
             playback_states: Arc::new(Mutex::new(playback_states)),
-        }
+        })
     }
 }
 
@@ -436,13 +471,24 @@ mod tests {
 
         async fn new_context(&self, n_sequencers: NonZeroU32) -> Self::Context {
             MockTestContext {
-                state: MockBufferSharedState::empty_with_n_sequencers(n_sequencers),
+                state: MockBufferSharedState::uninitialized(),
+                n_sequencers,
             }
         }
     }
 
     struct MockTestContext {
         state: MockBufferSharedState,
+        n_sequencers: NonZeroU32,
+    }
+
+    impl MockTestContext {
+        fn auto_create_sequencers(&self, value: bool) -> Option<WriteBufferSequencerCreation> {
+            value.then(|| WriteBufferSequencerCreation {
+                n_sequencers: self.n_sequencers,
+                ..Default::default()
+            })
+        }
     }
 
     #[async_trait]
@@ -451,12 +497,24 @@ mod tests {
 
         type Reading = MockBufferForReading;
 
-        async fn writing(&self) -> Result<Self::Writing, WriteBufferError> {
-            Ok(MockBufferForWriting::new(self.state.clone()))
+        async fn writing(
+            &self,
+            auto_create_sequencers: bool,
+        ) -> Result<Self::Writing, WriteBufferError> {
+            MockBufferForWriting::new(
+                self.state.clone(),
+                self.auto_create_sequencers(auto_create_sequencers).as_ref(),
+            )
         }
 
-        async fn reading(&self) -> Result<Self::Reading, WriteBufferError> {
-            Ok(MockBufferForReading::new(self.state.clone()))
+        async fn reading(
+            &self,
+            auto_create_sequencers: bool,
+        ) -> Result<Self::Reading, WriteBufferError> {
+            MockBufferForReading::new(
+                self.state.clone(),
+                self.auto_create_sequencers(auto_create_sequencers).as_ref(),
+            )
         }
     }
 

@@ -494,12 +494,18 @@ mod tests {
 
         type Reading = KafkaBufferConsumer;
 
-        async fn writing(&self) -> Result<Self::Writing, WriteBufferError> {
+        async fn writing(
+            &self,
+            _auto_create_sequencers: bool,
+        ) -> Result<Self::Writing, WriteBufferError> {
             KafkaBufferProducer::new(&self.conn, &self.database_name, &Default::default())
                 .map_err(|e| e.into())
         }
 
-        async fn reading(&self) -> Result<Self::Reading, WriteBufferError> {
+        async fn reading(
+            &self,
+            _auto_create_sequencers: bool,
+        ) -> Result<Self::Reading, WriteBufferError> {
             let server_id = self.server_id_counter.fetch_add(1, Ordering::SeqCst);
             let server_id = ServerId::try_from(server_id).unwrap();
 

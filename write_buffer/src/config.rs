@@ -115,7 +115,8 @@ impl WriteBufferConfigFactory {
             }
             "mock" => match self.get_mock(&cfg.connection)? {
                 Mock::Normal(state) => {
-                    let mock_buffer = MockBufferForWriting::new(state);
+                    let mock_buffer =
+                        MockBufferForWriting::new(state, cfg.auto_create_sequencers.as_ref())?;
                     Arc::new(mock_buffer) as _
                 }
                 Mock::AlwaysFailing => {
@@ -152,7 +153,8 @@ impl WriteBufferConfigFactory {
             }
             "mock" => match self.get_mock(&cfg.connection)? {
                 Mock::Normal(state) => {
-                    let mock_buffer = MockBufferForReading::new(state);
+                    let mock_buffer =
+                        MockBufferForReading::new(state, cfg.auto_create_sequencers.as_ref())?;
                     Box::new(mock_buffer) as _
                 }
                 Mock::AlwaysFailing => {
