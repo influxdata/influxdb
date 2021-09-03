@@ -74,6 +74,7 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
 }
 
 pub mod test_utils {
+    //! Generic tests for all write buffer implementations.
     use std::{convert::TryFrom, num::NonZeroU32, time::Duration};
 
     use async_trait::async_trait;
@@ -83,23 +84,43 @@ pub mod test_utils {
 
     use super::{WriteBufferReading, WriteBufferWriting};
 
+    /// Adapter to make a concrete write buffer implementation work w/ [`perform_generic_tests`].
     #[async_trait]
     pub trait TestAdapter: Send + Sync {
+        /// The context type that is used.
         type Context: TestContext;
 
+        /// Create a new context.
+        ///
+        /// This will be called multiple times during the test suite. Each resulting context must represent an isolated
+        /// environment.
         async fn new_context(&self, n_sequencers: NonZeroU32) -> Self::Context;
     }
 
+    /// Context used during testing.
+    ///
+    /// Represents an isolated environment. Actions like sequencer creations and writes must not leak across context boundaries.
     #[async_trait]
     pub trait TestContext: Send + Sync {
+        /// Write buffer writer implementation specific to this context and adapter.
         type Writing: WriteBufferWriting;
+
+        /// Write buffer reader implementation specific to this context and adapter.
         type Reading: WriteBufferReading;
 
+        /// Create new writer.
         fn writing(&self) -> Self::Writing;
 
+        /// Create new reader.
         async fn reading(&self) -> Self::Reading;
     }
 
+    /// Generic test suite that must be passed by all proper write buffer implementations.
+    ///
+    /// See [`TestAdapter`] for how to make a concrete write buffer implementation work with this test suite.
+    ///
+    /// Note that you might need more tests on top of this to assert specific implementation behaviors, edge cases, and
+    /// error handling.
     pub async fn perform_generic_tests<T>(adapter: T)
     where
         T: TestAdapter,
@@ -113,6 +134,12 @@ pub mod test_utils {
         test_timestamp(&adapter).await;
     }
 
+    /// Test IO with a single writer and single reader stream.
+    ///
+    /// This tests that:
+    /// - streams process data in order
+    /// - readers can handle the "pending" state w/o erroring
+    /// - readers unblock after being in "pending" state
     async fn test_single_stream_io<T>(adapter: &T)
     where
         T: TestAdapter,
@@ -162,6 +189,10 @@ pub mod test_utils {
         assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
     }
 
+    /// Tests multiple subsequently created streams from a single reader.
+    ///
+    /// This tests that:
+    /// - readers remember their offset (and "pending" state) even when streams are dropped
     async fn test_multi_stream_io<T>(adapter: &T)
     where
         T: TestAdapter,
@@ -220,6 +251,11 @@ pub mod test_utils {
         assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
     }
 
+    /// Test single reader-writer IO w/ multiple sequencers.
+    ///
+    /// This tests that:
+    /// - writes go to and reads come from the right sequencer, aka that sequencers provide a namespace-like isolation
+    /// - "pending" states are specific to a sequencer
     async fn test_multi_sequencer_io<T>(adapter: &T)
     where
         T: TestAdapter,
@@ -273,6 +309,12 @@ pub mod test_utils {
         assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
     }
 
+    /// Test multiple multiple writers and multiple readers on multiple sequencers.
+    ///
+    /// This tests that:
+    /// - writes go to and reads come from the right sequencer, similar to [`test_multi_sequencer_io`] but less
+    ///   detailled
+    /// - multiple writers can write to a single sequencer
     async fn test_multi_writer_multi_reader<T>(adapter: &T)
     where
         T: TestAdapter,
@@ -305,6 +347,13 @@ pub mod test_utils {
         .await;
     }
 
+    /// Test seek implemention of readers.
+    ///
+    /// This tests that:
+    /// - seeking is specific to the reader AND sequencer
+    /// - forward and backwards seeking works
+    /// - seeking past the end of the known content works (results in "pending" status and remembers sequence number and
+    ///   not just "next entry")
     async fn test_seek<T>(adapter: &T)
     where
         T: TestAdapter,
@@ -365,6 +414,11 @@ pub mod test_utils {
         reader_1.seek(0, 42).await.unwrap();
     }
 
+    /// Test watermark fetching.
+    ///
+    /// This tests that:
+    /// - watermarks for empty sequencers is 0
+    /// - watermarks for non-empty sequencers is "last sequence ID plus 1"
     async fn test_watermark<T>(adapter: &T)
     where
         T: TestAdapter,
@@ -408,6 +462,7 @@ pub mod test_utils {
         assert_eq!((stream_2.fetch_high_watermark)().await.unwrap(), mark_2 + 1);
     }
 
+    /// Test that timestamps reported by the readers are sane.
     async fn test_timestamp<T>(adapter: &T)
     where
         T: TestAdapter,
@@ -450,6 +505,9 @@ pub mod test_utils {
         assert_eq!(ts_entry, reported_ts);
     }
 
+    /// Assert that the content of the reader is as expected.
+    ///
+    /// This will read `expected.len()` from the reader and then ensures that the stream is pending.
     async fn assert_reader_content<R>(reader: &mut R, expected: &[(u32, &[&Entry])])
     where
         R: WriteBufferReading,
