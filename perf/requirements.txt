@@ -1,0 +1,9 @@
+docker>=5.0,<6
+grpc-requests>=0.1,<0.2
+grpcio>=1.39,<1.40
+grpcio-reflection>=1.39,<1.40
+protobuf>=3.17,<3.18
+minio
+requests
+toml
+urllib3

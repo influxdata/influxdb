@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     convert::{TryFrom, TryInto},
     sync::Arc,
     time::Duration,
@@ -90,6 +90,7 @@ impl KafkaBufferProducer {
     pub fn new(
         conn: impl Into<String>,
         database_name: impl Into<String>,
+        connection_config: &HashMap<String, String>,
     ) -> Result<Self, KafkaError> {
         let conn = conn.into();
         let database_name = database_name.into();
@@ -102,6 +103,9 @@ impl KafkaBufferProducer {
         cfg.set("request.required.acks", "all"); // equivalent to acks=-1
         cfg.set("compression.type", "snappy");
         cfg.set("statistics.interval.ms", "15000");
+        for (k, v) in connection_config {
+            cfg.set(k, v);
+        }
 
         let producer: FutureProducer = cfg.create()?;
 
@@ -246,6 +250,7 @@ impl KafkaBufferConsumer {
         conn: impl Into<String> + Send + Sync,
         server_id: ServerId,
         database_name: impl Into<String> + Send + Sync,
+        connection_config: &HashMap<String, String>,
     ) -> Result<Self, KafkaError> {
         let conn = conn.into();
         let database_name = database_name.into();
@@ -256,6 +261,9 @@ impl KafkaBufferConsumer {
         cfg.set("enable.auto.commit", "false");
         cfg.set("statistics.interval.ms", "15000");
         cfg.set("queued.max.messages.kbytes", "10000");
+        for (k, v) in connection_config {
+            cfg.set(k, v);
+        }
 
         // Create a unique group ID for this database's consumer as we don't want to create
         // consumer groups.
@@ -484,15 +492,20 @@ mod tests {
         type Reading = KafkaBufferConsumer;
 
         fn writing(&self) -> Self::Writing {
-            KafkaBufferProducer::new(&self.conn, &self.database_name).unwrap()
+            KafkaBufferProducer::new(&self.conn, &self.database_name, &Default::default()).unwrap()
         }
 
         async fn reading(&self) -> Self::Reading {
             let server_id = self.server_id_counter.fetch_add(1, Ordering::SeqCst);
             let server_id = ServerId::try_from(server_id).unwrap();
-            KafkaBufferConsumer::new(&self.conn, server_id, &self.database_name)
-                .await
-                .unwrap()
+            KafkaBufferConsumer::new(
+                &self.conn,
+                server_id,
+                &self.database_name,
+                &Default::default(),
+            )
+            .await
+            .unwrap()
         }
     }
 

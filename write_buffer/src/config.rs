@@ -109,7 +109,8 @@ impl WriteBufferConfigFactory {
 
         let writer = match &cfg.type_[..] {
             "kafka" => {
-                let kafka_buffer = KafkaBufferProducer::new(&cfg.connection, db_name)?;
+                let kafka_buffer =
+                    KafkaBufferProducer::new(&cfg.connection, db_name, &cfg.connection_config)?;
                 Arc::new(kafka_buffer) as _
             }
             "mock" => match self.get_mock(&cfg.connection)? {
@@ -140,8 +141,13 @@ impl WriteBufferConfigFactory {
 
         let reader = match &cfg.type_[..] {
             "kafka" => {
-                let kafka_buffer =
-                    KafkaBufferConsumer::new(&cfg.connection, server_id, db_name).await?;
+                let kafka_buffer = KafkaBufferConsumer::new(
+                    &cfg.connection,
+                    server_id,
+                    db_name,
+                    &cfg.connection_config,
+                )
+                .await?;
                 Box::new(kafka_buffer) as _
             }
             "mock" => match self.get_mock(&cfg.connection)? {
