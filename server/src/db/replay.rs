@@ -538,7 +538,7 @@ mod tests {
         ///
         /// # Default
         /// 1
-        n_sequencers: u32,
+        n_sequencers: NonZeroU32,
 
         /// How often a catalog checkpoint should be created during persistence.
         ///
@@ -874,7 +874,7 @@ mod tests {
     impl Default for ReplayTest {
         fn default() -> Self {
             Self {
-                n_sequencers: 1,
+                n_sequencers: NonZeroU32::try_from(1).unwrap(),
                 catalog_transactions_until_checkpoint: NonZeroU64::new(u64::MAX).unwrap(),
                 steps: vec![],
             }
@@ -1192,7 +1192,7 @@ mod tests {
         //   table 1, partition b: part of the new data in sequencer 1
         //   table 2: partition a: from sequencer 1, not persisted but recovered during replay
         ReplayTest {
-            n_sequencers: 3,
+            n_sequencers: NonZeroU32::try_from(3).unwrap(),
             steps: vec![
                 Step::Ingest(vec![
                     TestSequencedEntry {
@@ -2233,7 +2233,7 @@ mod tests {
         //
         // This is a regression test for https://github.com/influxdata/influxdb_iox/issues/2215
         ReplayTest {
-            n_sequencers: 2,
+            n_sequencers: NonZeroU32::try_from(2).unwrap(),
             steps: vec![
                 Step::Ingest(vec![
                     TestSequencedEntry {
@@ -2362,7 +2362,7 @@ mod tests {
         //
         // This is a regression test for https://github.com/influxdata/influxdb_iox/issues/2215
         ReplayTest {
-            n_sequencers: 2,
+            n_sequencers: NonZeroU32::try_from(2).unwrap(),
             steps: vec![
                 Step::Ingest(vec![
                     TestSequencedEntry {
@@ -2586,7 +2586,8 @@ mod tests {
     #[tokio::test]
     async fn replay_fail_sequencers_change() {
         // create write buffer w/ sequencer 0 and 1
-        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(2);
+        let write_buffer_state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         let write_buffer = MockBufferForReading::new(write_buffer_state);
 
         // create DB
@@ -2627,7 +2628,8 @@ mod tests {
     #[tokio::test]
     async fn replay_fail_lost_entry() {
         // create write buffer state with sequence number 0 and 2, 1 is missing
-        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let write_buffer_state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 0),
             Utc::now(),
@@ -2680,7 +2682,8 @@ mod tests {
         // 0 -> 3 + 1 = 4
         // 1 -> 1 + 1 = 2
         // 2 -> no content = 0
-        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(3);
+        let write_buffer_state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(3).unwrap());
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 0),
             Utc::now(),

@@ -334,7 +334,7 @@ impl KafkaBufferConsumer {
 }
 
 pub mod test_utils {
-    use std::time::Duration;
+    use std::{num::NonZeroU32, time::Duration};
 
     use rdkafka::{
         admin::{
@@ -402,13 +402,13 @@ pub mod test_utils {
     pub async fn create_kafka_topic(
         kafka_connection: &str,
         database_name: &str,
-        n_sequencers: u32,
+        n_sequencers: NonZeroU32,
     ) {
         let admin = admin_client(kafka_connection);
 
         let topic = NewTopic::new(
             database_name,
-            n_sequencers as i32,
+            n_sequencers.get() as i32,
             TopicReplication::Fixed(1),
         )
         .set("cleanup.policy", "delete")
@@ -441,7 +441,10 @@ pub mod test_utils {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::{
+        num::NonZeroU32,
+        sync::atomic::{AtomicU32, Ordering},
+    };
 
     use uuid::Uuid;
 
@@ -467,7 +470,7 @@ mod tests {
     impl TestAdapter for KafkaTestAdapter {
         type Context = KafkaTestContext;
 
-        async fn new_context(&self, n_sequencers: u32) -> Self::Context {
+        async fn new_context(&self, n_sequencers: NonZeroU32) -> Self::Context {
             let database_name = format!("test_topic_{}", Uuid::new_v4());
             create_kafka_topic(&self.conn, &database_name, n_sequencers).await;
 

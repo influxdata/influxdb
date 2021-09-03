@@ -1637,7 +1637,8 @@ mod tests {
     async fn write_with_write_buffer_no_mutable_buffer() {
         // Writes should be forwarded to the write buffer and *not* rejected if the write buffer is
         // configured and the mutable buffer isn't
-        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let write_buffer_state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state.clone()));
         let test_db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
@@ -1659,7 +1660,8 @@ mod tests {
     async fn write_to_write_buffer_and_mutable_buffer() {
         // Writes should be forwarded to the write buffer *and* the mutable buffer if both are
         // configured.
-        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let write_buffer_state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state.clone()));
         let db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
@@ -1707,7 +1709,8 @@ mod tests {
 
     #[tokio::test]
     async fn read_from_write_buffer_write_to_mutable_buffer() {
-        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let write_buffer_state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         let ingest_ts1 = Utc.timestamp_millis(42);
         let ingest_ts2 = Utc.timestamp_millis(1337);
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
@@ -1855,7 +1858,8 @@ mod tests {
         // setup write buffer
         // these numbers are handtuned to trigger hard buffer limits w/o making the test too big
         let n_entries = 50u64;
-        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let write_buffer_state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         for sequence_number in 0..n_entries {
             let lp = format!(
                 "table_1,tag_partition_by=a foo=\"hello\",bar=1 {}",
@@ -1926,7 +1930,8 @@ mod tests {
 
     #[tokio::test]
     async fn error_converting_data_from_write_buffer_to_sequenced_entry_is_reported() {
-        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let write_buffer_state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         write_buffer_state.push_error(
             String::from("Something bad happened on the way to creating a SequencedEntry").into(),
             0,
@@ -2974,7 +2979,8 @@ mod tests {
     async fn write_updates_persistence_windows() {
         // Writes should update the persistence windows when there
         // is a write buffer configured.
-        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let write_buffer_state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state));
         let db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
@@ -3022,7 +3028,8 @@ mod tests {
         let entry = lp_to_entry("cpu bar=1 10");
         let partition_key = "1970-01-01T00";
 
-        let write_buffer_state = MockBufferSharedState::empty_with_n_sequencers(2);
+        let write_buffer_state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 0),
             Utc::now(),

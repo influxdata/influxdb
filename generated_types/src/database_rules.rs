@@ -1,4 +1,5 @@
 use std::convert::{TryFrom, TryInto};
+use std::num::NonZeroU32;
 use std::time::Duration;
 
 use thiserror::Error;
@@ -153,7 +154,7 @@ impl From<WriteBufferConnection> for management::WriteBufferConnection {
             direction: direction.into(),
             r#type: v.type_,
             connection: v.connection,
-            n_sequencers: v.n_sequencers,
+            n_sequencers: v.n_sequencers.get(),
             creation_config: v.creation_config,
             connection_config: v.connection_config,
             auto_create_sequencers: v.auto_create_sequencers,
@@ -181,16 +182,13 @@ impl TryFrom<management::WriteBufferConnection> for WriteBufferConnection {
                 field: "direction".to_string(),
                 description: "Cannot decode enum variant from i32".to_string(),
             })?;
-        let n_sequencers = match proto.n_sequencers {
-            0 => DEFAULT_N_SEQUENCERS,
-            n => n,
-        };
 
         Ok(Self {
             direction: direction.try_into()?,
             type_: proto.r#type,
             connection: proto.connection,
-            n_sequencers,
+            n_sequencers: NonZeroU32::try_from(proto.n_sequencers)
+                .unwrap_or_else(|_| NonZeroU32::try_from(DEFAULT_N_SEQUENCERS).unwrap()),
             creation_config: proto.creation_config,
             connection_config: proto.connection_config,
             auto_create_sequencers: proto.auto_create_sequencers,

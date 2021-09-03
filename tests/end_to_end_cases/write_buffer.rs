@@ -13,7 +13,7 @@ use rdkafka::{
     producer::{FutureProducer, FutureRecord},
     ClientConfig, Message, Offset, TopicPartitionList,
 };
-use std::convert::TryFrom;
+use std::{convert::TryFrom, num::NonZeroU32};
 use test_helpers::assert_contains;
 use write_buffer::{kafka::test_utils::create_kafka_topic, maybe_skip_kafka_integration};
 
@@ -174,7 +174,12 @@ async fn reads_come_from_kafka() {
     cfg.set("message.timeout.ms", "5000");
 
     // Create a partition with 2 topics in Kafka BEFORE creating the DB
-    create_kafka_topic(&kafka_connection, &db_name, 2).await;
+    create_kafka_topic(
+        &kafka_connection,
+        &db_name,
+        NonZeroU32::try_from(2).unwrap(),
+    )
+    .await;
 
     DatabaseBuilder::new(db_name.clone())
         .write_buffer(write_buffer_connection)

@@ -1,4 +1,6 @@
+use std::convert::TryFrom;
 use std::iter::once;
+use std::num::NonZeroU32;
 use std::time::Duration;
 use std::{convert::TryInto, str, u32};
 use std::{sync::Arc, time::SystemTime};
@@ -667,7 +669,7 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
     fixture.wait_server_initialized().await;
 
     // setup Kafka
-    create_kafka_topic(kafka_connection, db_name, 1).await;
+    create_kafka_topic(kafka_connection, db_name, NonZeroU32::try_from(1).unwrap()).await;
 
     // Create database
     let partition_template = data_types::database_rules::PartitionTemplate {

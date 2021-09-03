@@ -1031,7 +1031,8 @@ mod tests {
     #[tokio::test]
     async fn skip_replay() {
         // create write buffer
-        let state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         let partition_template = PartitionTemplate {
             parts: vec![TemplatePart::Column("partition_by".to_string())],
         };

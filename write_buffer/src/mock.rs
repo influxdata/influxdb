@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc, task::Poll};
+use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc, task::Poll};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -21,8 +21,8 @@ pub struct MockBufferSharedState {
 
 impl MockBufferSharedState {
     /// Create new shared state w/ N sequencers.
-    pub fn empty_with_n_sequencers(n_sequencers: u32) -> Self {
-        let entries: BTreeMap<_, _> = (0..n_sequencers)
+    pub fn empty_with_n_sequencers(n_sequencers: NonZeroU32) -> Self {
+        let entries: BTreeMap<_, _> = (0..n_sequencers.get())
             .map(|sequencer_id| (sequencer_id, vec![]))
             .collect();
 
@@ -376,6 +376,8 @@ impl WriteBufferReading for MockBufferForReadingThatAlwaysErrors {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryFrom;
+
     use entry::test_helpers::lp_to_entry;
 
     use crate::core::test_utils::{perform_generic_tests, TestAdapter, TestContext};
@@ -388,7 +390,7 @@ mod tests {
     impl TestAdapter for MockTestAdapter {
         type Context = MockTestContext;
 
-        async fn new_context(&self, n_sequencers: u32) -> Self::Context {
+        async fn new_context(&self, n_sequencers: NonZeroU32) -> Self::Context {
             MockTestContext {
                 state: MockBufferSharedState::empty_with_n_sequencers(n_sequencers),
             }
@@ -422,7 +424,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "entry must be sequenced")]
     fn test_state_push_entry_panic_unsequenced() {
-        let state = MockBufferSharedState::empty_with_n_sequencers(2);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         let entry = lp_to_entry("upc,region=east user=1 100");
         state.push_entry(SequencedEntry::new_unsequenced(entry));
     }
@@ -430,7 +433,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "invalid sequencer ID")]
     fn test_state_push_entry_panic_wrong_sequencer() {
-        let state = MockBufferSharedState::empty_with_n_sequencers(2);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         let entry = lp_to_entry("upc,region=east user=1 100");
         let sequence = Sequence::new(2, 0);
         state.push_entry(SequencedEntry::new_from_sequence(
@@ -445,7 +449,8 @@ mod tests {
         expected = "sequence number 13 is less/equal than current max sequencer number 13"
     )]
     fn test_state_push_entry_panic_wrong_sequence_number_equal() {
-        let state = MockBufferSharedState::empty_with_n_sequencers(2);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         let entry = lp_to_entry("upc,region=east user=1 100");
         let sequence = Sequence::new(1, 13);
         state.push_entry(SequencedEntry::new_from_sequence(
@@ -465,7 +470,8 @@ mod tests {
         expected = "sequence number 12 is less/equal than current max sequencer number 13"
     )]
     fn test_state_push_entry_panic_wrong_sequence_number_less() {
-        let state = MockBufferSharedState::empty_with_n_sequencers(2);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         let entry = lp_to_entry("upc,region=east user=1 100");
         let sequence_1 = Sequence::new(1, 13);
         let sequence_2 = Sequence::new(1, 12);
@@ -484,7 +490,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "invalid sequencer ID")]
     fn test_state_push_error_panic_wrong_sequencer() {
-        let state = MockBufferSharedState::empty_with_n_sequencers(2);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         let error = "foo".to_string().into();
         state.push_error(error, 2);
     }
@@ -492,20 +499,23 @@ mod tests {
     #[test]
     #[should_panic(expected = "invalid sequencer ID")]
     fn test_state_get_messages_panic_wrong_sequencer() {
-        let state = MockBufferSharedState::empty_with_n_sequencers(2);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         state.get_messages(2);
     }
 
     #[test]
     #[should_panic(expected = "invalid sequencer ID")]
     fn test_state_clear_messages_panic_wrong_sequencer() {
-        let state = MockBufferSharedState::empty_with_n_sequencers(2);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         state.clear_messages(2);
     }
 
     #[test]
     fn test_clear_messages() {
-        let state = MockBufferSharedState::empty_with_n_sequencers(2);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
 
         let entry = lp_to_entry("upc,region=east user=1 100");
         let sequence_1 = Sequence::new(0, 11);

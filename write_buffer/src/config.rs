@@ -177,7 +177,7 @@ impl Default for WriteBufferConfigFactory {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
+    use std::{convert::TryFrom, num::NonZeroU32};
 
     use data_types::DatabaseName;
 
@@ -259,7 +259,8 @@ mod tests {
     async fn test_writing_mock() {
         let mut factory = WriteBufferConfigFactory::new();
 
-        let state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         let mock_name = "some_mock";
         factory.register_mock(mock_name.to_string(), state);
 
@@ -299,7 +300,8 @@ mod tests {
     async fn test_reading_mock() {
         let mut factory = WriteBufferConfigFactory::new();
 
-        let state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         let mock_name = "some_mock";
         factory.register_mock(mock_name.to_string(), state);
 
@@ -420,7 +422,8 @@ mod tests {
     fn test_register_mock_twice_panics() {
         let mut factory = WriteBufferConfigFactory::new();
 
-        let state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         let mock_name = "some_mock";
         factory.register_always_fail_mock(mock_name.to_string());
         factory.register_mock(mock_name.to_string(), state);

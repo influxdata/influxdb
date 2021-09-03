@@ -74,7 +74,7 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
 }
 
 pub mod test_utils {
-    use std::time::Duration;
+    use std::{convert::TryFrom, num::NonZeroU32, time::Duration};
 
     use async_trait::async_trait;
     use chrono::{DateTime, TimeZone, Utc};
@@ -87,7 +87,7 @@ pub mod test_utils {
     pub trait TestAdapter: Send + Sync {
         type Context: TestContext;
 
-        async fn new_context(&self, n_sequencers: u32) -> Self::Context;
+        async fn new_context(&self, n_sequencers: NonZeroU32) -> Self::Context;
     }
 
     #[async_trait]
@@ -117,7 +117,7 @@ pub mod test_utils {
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(1).await;
+        let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
         let entry_1 = lp_to_entry("upc user=1 100");
         let entry_2 = lp_to_entry("upc user=2 200");
@@ -166,7 +166,7 @@ pub mod test_utils {
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(1).await;
+        let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
         let entry_1 = lp_to_entry("upc user=1 100");
         let entry_2 = lp_to_entry("upc user=2 200");
@@ -224,7 +224,7 @@ pub mod test_utils {
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(2).await;
+        let context = adapter.new_context(NonZeroU32::try_from(2).unwrap()).await;
 
         let entry_1 = lp_to_entry("upc user=1 100");
         let entry_2 = lp_to_entry("upc user=2 200");
@@ -277,7 +277,7 @@ pub mod test_utils {
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(2).await;
+        let context = adapter.new_context(NonZeroU32::try_from(2).unwrap()).await;
 
         let entry_east_1 = lp_to_entry("upc,region=east user=1 100");
         let entry_east_2 = lp_to_entry("upc,region=east user=2 200");
@@ -309,7 +309,7 @@ pub mod test_utils {
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(2).await;
+        let context = adapter.new_context(NonZeroU32::try_from(2).unwrap()).await;
 
         let waker = futures::task::noop_waker();
         let mut cx = futures::task::Context::from_waker(&waker);
@@ -369,7 +369,7 @@ pub mod test_utils {
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(2).await;
+        let context = adapter.new_context(NonZeroU32::try_from(2).unwrap()).await;
 
         let entry_east_1 = lp_to_entry("upc,region=east user=1 100");
         let entry_east_2 = lp_to_entry("upc,region=east user=2 200");
@@ -412,7 +412,7 @@ pub mod test_utils {
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(1).await;
+        let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
         let entry = lp_to_entry("upc user=1 100");
 
