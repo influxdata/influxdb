@@ -407,12 +407,12 @@ mod tests {
 
         type Reading = MockBufferForReading;
 
-        fn writing(&self) -> Self::Writing {
-            MockBufferForWriting::new(self.state.clone())
+        async fn writing(&self) -> Result<Self::Writing, WriteBufferError> {
+            Ok(MockBufferForWriting::new(self.state.clone()))
         }
 
-        async fn reading(&self) -> Self::Reading {
-            MockBufferForReading::new(self.state.clone())
+        async fn reading(&self) -> Result<Self::Reading, WriteBufferError> {
+            Ok(MockBufferForReading::new(self.state.clone()))
         }
     }
 
