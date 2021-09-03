@@ -126,23 +126,23 @@ impl MBChunk {
         Ok(())
     }
 
-    /// Returns a queryable snapshot of this chunk
+    /// Returns a queryable snapshot of this chunk and an indicator if the snapshot was just cached.
     #[cfg(not(feature = "nocache"))]
-    pub fn snapshot(&self) -> Arc<ChunkSnapshot> {
+    pub fn snapshot(&self) -> (Arc<ChunkSnapshot>, bool) {
         let mut guard = self.snapshot.lock();
         if let Some(snapshot) = &*guard {
-            return Arc::clone(snapshot);
+            return (Arc::clone(snapshot), false);
         }
 
         let snapshot = Arc::new(ChunkSnapshot::new(self));
         *guard = Some(Arc::clone(&snapshot));
-        snapshot
+        (snapshot, true)
     }
 
-    /// Returns a queryable snapshot of this chunk
+    /// Returns a queryable snapshot of this chunk and an indicator if the snapshot was just cached.
     #[cfg(feature = "nocache")]
-    pub fn snapshot(&self) -> Arc<ChunkSnapshot> {
-        Arc::new(ChunkSnapshot::new(self))
+    pub fn snapshot(&self) -> (Arc<ChunkSnapshot>, bool) {
+        (Arc::new(ChunkSnapshot::new(self)), false)
     }
 
     /// Return the name of the table in this chunk
@@ -227,14 +227,26 @@ impl MBChunk {
     /// Return the approximate memory size of the chunk, in bytes including the
     /// dictionary, tables, and their rows.
     ///
+    /// This includes the size of `self`.
+    ///
     /// Note: This does not include the size of any cached ChunkSnapshot
     pub fn size(&self) -> usize {
-        // TODO: Better accounting of non-column data (#1565)
-        self.columns
+        let size_self = std::mem::size_of::<Self>();
+
+        let size_columns = self
+            .columns
             .iter()
-            .map(|(k, v)| k.len() + v.size())
-            .sum::<usize>()
-            + self.table_name.len()
+            .map(|(k, v)| k.capacity() + v.size())
+            .sum::<usize>();
+
+        let size_table_name = self.table_name.len();
+
+        let snapshot_size = {
+            let guard = self.snapshot.lock();
+            guard.as_ref().map(|snapshot| snapshot.size()).unwrap_or(0)
+        };
+
+        size_self + size_columns + size_table_name + snapshot_size
     }
 
     /// Returns an iterator over (column_name, estimated_size) for all
@@ -814,12 +826,16 @@ mod tests {
         let lp = vec!["cpu,host=a val=23 1", "cpu,host=b val=2 1"].join("\n");
         let mut chunk = write_lp_to_new_chunk(&lp).unwrap();
 
-        let s1 = chunk.snapshot();
-        let s2 = chunk.snapshot();
+        let (s1, c1) = chunk.snapshot();
+        assert!(c1);
+        let (s2, c2) = chunk.snapshot();
+        assert!(!c2);
 
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
-        let s3 = chunk.snapshot();
-        let s4 = chunk.snapshot();
+        let (s3, c3) = chunk.snapshot();
+        assert!(c3);
+        let (s4, c4) = chunk.snapshot();
+        assert!(!c4);
 
         assert_eq!(Arc::as_ptr(&s1), Arc::as_ptr(&s2));
         assert_ne!(Arc::as_ptr(&s1), Arc::as_ptr(&s3));
@@ -846,8 +862,12 @@ mod tests {
         write_lp_to_chunk(&lp, &mut chunk).unwrap();
         let s3 = chunk.size();
 
-        // Should increase by a constant amount each time
-        assert_eq!(s2 - s1, s3 - s2);
+        // Should increase or stay identical (if array capacities are sufficient) each time
+        assert!(s2 >= s1);
+        assert!(s3 >= s2);
+
+        // also assume that we wrote enough data to bump the capacity at least once
+        assert!(s3 > s1);
     }
 
     #[test]
