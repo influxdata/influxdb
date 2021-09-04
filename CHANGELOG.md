@@ -129,6 +129,7 @@ Because of the version bump to `go`, the macOS build for this release requires a
 1. [21522](https://github.com/influxdata/influxdb/pull/21522): Replace telemetry file name with slug for `ttf`, `woff`, and `eot` files.
 1. [21540](https://github.com/influxdata/influxdb/pull/21540): Enable use of absolute path for `--upgrade-log` when running `influxd upgrade` on Windows.
 1. [21545](https://github.com/influxdata/influxdb/pull/21545): Make InfluxQL meta queries respect query timeouts.
+1. [21783](https://github.com/influxdata/influxdb/pull/21783): Enable organization paging
 
 ## v2.0.6 [2021-04-29]
 

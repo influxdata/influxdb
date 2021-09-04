@@ -88,15 +88,13 @@ func newOrgResponse(o influxdb.Organization) orgResponse {
 }
 
 type orgsResponse struct {
-	Links         map[string]string `json:"links"`
-	Organizations []orgResponse     `json:"orgs"`
+	Links         *influxdb.PagingLinks `json:"links"`
+	Organizations []orgResponse         `json:"orgs"`
 }
 
-func newOrgsResponse(orgs []*influxdb.Organization) *orgsResponse {
+func newOrgsResponse(orgs []*influxdb.Organization, opts influxdb.FindOptions, f influxdb.OrganizationFilter) *orgsResponse {
 	res := orgsResponse{
-		Links: map[string]string{
-			"self": "/api/v2/orgs",
-		},
+		Links:         influxdb.NewPagingLinks(prefixOrganizations, opts, f, len(orgs)),
 		Organizations: []orgResponse{},
 	}
 	for _, org := range orgs {
@@ -177,7 +175,7 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log.Debug("Orgs retrieved", zap.String("org", fmt.Sprint(orgs)))
 
-	h.api.Respond(w, r, http.StatusOK, newOrgsResponse(orgs))
+	h.api.Respond(w, r, http.StatusOK, newOrgsResponse(orgs, *opts, filter))
 }
 
 // handlePatchOrg is the HTTP handler for the PATH /api/v2/orgs route.

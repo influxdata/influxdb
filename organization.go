@@ -87,3 +87,17 @@ func ErrInternalOrgServiceError(op string, err error) *errors.Error {
 		Err:  err,
 	}
 }
+
+func (f OrganizationFilter) QueryParams() map[string][]string {
+	queryParams := make(map[string][]string)
+	if f.Name != nil {
+		queryParams["org"] = []string{*f.Name}
+	}
+	if f.ID != nil {
+		queryParams["orgID"] = []string{f.ID.String()}
+	}
+	if f.UserID != nil {
+		queryParams["userID"] = []string{f.UserID.String()}
+	}
+	return queryParams
+}
