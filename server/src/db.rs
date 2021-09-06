@@ -1639,7 +1639,8 @@ mod tests {
         // configured and the mutable buffer isn't
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
-        let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state.clone()));
+        let write_buffer =
+            Arc::new(MockBufferForWriting::new(write_buffer_state.clone(), None).unwrap());
         let test_db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .lifecycle_rules(LifecycleRules {
@@ -1662,7 +1663,8 @@ mod tests {
         // configured.
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
-        let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state.clone()));
+        let write_buffer =
+            Arc::new(MockBufferForWriting::new(write_buffer_state.clone(), None).unwrap());
         let db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .build()
@@ -1723,7 +1725,7 @@ mod tests {
             ingest_ts2,
             lp_to_entry("cpu bar=2 20\ncpu bar=3 30"),
         ));
-        let write_buffer = MockBufferForReading::new(write_buffer_state);
+        let write_buffer = MockBufferForReading::new(write_buffer_state, None).unwrap();
 
         let test_db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Reading(Arc::new(
@@ -1876,7 +1878,7 @@ mod tests {
             Utc::now(),
             lp_to_entry("table_2,partition_by=a foo=1 0"),
         ));
-        let write_buffer = MockBufferForReading::new(write_buffer_state);
+        let write_buffer = MockBufferForReading::new(write_buffer_state, None).unwrap();
 
         // create DB
         let partition_template = PartitionTemplate {
@@ -1936,7 +1938,7 @@ mod tests {
             String::from("Something bad happened on the way to creating a SequencedEntry").into(),
             0,
         );
-        let write_buffer = MockBufferForReading::new(write_buffer_state);
+        let write_buffer = MockBufferForReading::new(write_buffer_state, None).unwrap();
 
         let test_db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Reading(Arc::new(
@@ -2981,7 +2983,7 @@ mod tests {
         // is a write buffer configured.
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
-        let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state));
+        let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state, None).unwrap());
         let db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Writing(Arc::clone(&write_buffer) as _))
             .build()
@@ -3050,7 +3052,7 @@ mod tests {
             Utc::now(),
             entry,
         ));
-        let write_buffer = MockBufferForReading::new(write_buffer_state);
+        let write_buffer = MockBufferForReading::new(write_buffer_state, None).unwrap();
 
         let db = TestDb::builder()
             .write_buffer(WriteBufferConfig::Reading(Arc::new(

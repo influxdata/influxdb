@@ -741,7 +741,7 @@ mod tests {
             catalog_transactions_until_checkpoint: NonZeroU64,
             now: Instant,
         ) -> (TestDb, CancellationToken, JoinHandle<()>) {
-            let write_buffer = MockBufferForReading::new(write_buffer_state);
+            let write_buffer = MockBufferForReading::new(write_buffer_state, None).unwrap();
             let test_db = TestDb::builder()
                 .object_store(object_store)
                 .server_id(server_id)
@@ -2588,7 +2588,7 @@ mod tests {
         // create write buffer w/ sequencer 0 and 1
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
-        let write_buffer = MockBufferForReading::new(write_buffer_state);
+        let write_buffer = MockBufferForReading::new(write_buffer_state, None).unwrap();
 
         // create DB
         let db = TestDb::builder()
@@ -2640,7 +2640,7 @@ mod tests {
             Utc::now(),
             lp_to_entry("cpu bar=1 10"),
         ));
-        let write_buffer = MockBufferForReading::new(write_buffer_state);
+        let write_buffer = MockBufferForReading::new(write_buffer_state, None).unwrap();
 
         // create DB
         let db = TestDb::builder()
@@ -2699,7 +2699,7 @@ mod tests {
             Utc::now(),
             lp_to_entry("cpu bar=11 11"),
         ));
-        let write_buffer = MockBufferForReading::new(write_buffer_state.clone());
+        let write_buffer = MockBufferForReading::new(write_buffer_state.clone(), None).unwrap();
 
         // create DB
         let test_db = TestDb::builder()

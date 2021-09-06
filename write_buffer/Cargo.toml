@@ -7,13 +7,11 @@ edition = "2018"
 async-trait = "0.1"
 chrono = "0.4"
 data_types = { path = "../data_types" }
+dotenv = "0.15.0"
 entry = { path = "../entry" }
 futures = "0.3"
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11.2"
 rdkafka = "0.26.0"
 tokio = { version = "1.11", features = ["macros", "fs"] }
-
-[dev-dependencies]
-dotenv = "0.15.0"
 uuid = { version = "0.8", features = ["serde", "v4"] }

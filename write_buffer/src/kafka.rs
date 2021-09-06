@@ -1,17 +1,20 @@
 use std::{
     collections::{BTreeMap, HashMap},
     convert::{TryFrom, TryInto},
+    num::NonZeroU32,
     sync::Arc,
     time::Duration,
 };
 
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
-use data_types::server_id::ServerId;
+use data_types::{database_rules::WriteBufferSequencerCreation, server_id::ServerId};
 use entry::{Entry, Sequence, SequencedEntry};
 use futures::{FutureExt, StreamExt};
 use observability_deps::tracing::{debug, info};
 use rdkafka::{
+    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
+    client::DefaultClientContext,
     consumer::{BaseConsumer, Consumer, StreamConsumer},
     error::KafkaError,
     producer::{FutureProducer, FutureRecord},
@@ -87,24 +90,49 @@ impl WriteBufferWriting for KafkaBufferProducer {
 }
 
 impl KafkaBufferProducer {
-    pub fn new(
-        conn: impl Into<String>,
-        database_name: impl Into<String>,
+    pub async fn new(
+        conn: impl Into<String> + Send,
+        database_name: impl Into<String> + Send,
         connection_config: &HashMap<String, String>,
-    ) -> Result<Self, KafkaError> {
+        auto_create_sequencers: Option<&WriteBufferSequencerCreation>,
+    ) -> Result<Self, WriteBufferError> {
         let conn = conn.into();
         let database_name = database_name.into();
 
         let mut cfg = ClientConfig::new();
-        cfg.set("bootstrap.servers", &conn);
+
+        // these configs can be overwritten
         cfg.set("message.timeout.ms", "5000");
         cfg.set("message.max.bytes", "31457280");
         cfg.set("queue.buffering.max.kbytes", "31457280");
         cfg.set("request.required.acks", "all"); // equivalent to acks=-1
         cfg.set("compression.type", "snappy");
         cfg.set("statistics.interval.ms", "15000");
+
+        // user overrides
         for (k, v) in connection_config {
             cfg.set(k, v);
+        }
+
+        // these configs are set in stone
+        cfg.set("bootstrap.servers", &conn);
+        cfg.set("allow.auto.create.topics", "false");
+
+        // handle auto-creation
+        if get_partitions(&database_name, &cfg).await?.is_empty() {
+            if let Some(cfg) = auto_create_sequencers {
+                create_kafka_topic(
+                    &conn,
+                    &database_name,
+                    cfg.n_sequencers,
+                    &cfg.creation_config,
+                )
+                .await?;
+            } else {
+                return Err("no partitions found and auto-creation not requested"
+                    .to_string()
+                    .into());
+            }
         }
 
         let producer: FutureProducer = cfg.create()?;
@@ -251,19 +279,27 @@ impl KafkaBufferConsumer {
         server_id: ServerId,
         database_name: impl Into<String> + Send + Sync,
         connection_config: &HashMap<String, String>,
-    ) -> Result<Self, KafkaError> {
+        auto_create_sequencers: Option<&WriteBufferSequencerCreation>,
+    ) -> Result<Self, WriteBufferError> {
         let conn = conn.into();
         let database_name = database_name.into();
 
         let mut cfg = ClientConfig::new();
-        cfg.set("bootstrap.servers", &conn);
+
+        // these configs can be overwritten
         cfg.set("session.timeout.ms", "6000");
-        cfg.set("enable.auto.commit", "false");
         cfg.set("statistics.interval.ms", "15000");
         cfg.set("queued.max.messages.kbytes", "10000");
+
+        // user overrides
         for (k, v) in connection_config {
             cfg.set(k, v);
         }
+
+        // these configs are set in stone
+        cfg.set("bootstrap.servers", &conn);
+        cfg.set("enable.auto.commit", "false");
+        cfg.set("allow.auto.create.topics", "false");
 
         // Create a unique group ID for this database's consumer as we don't want to create
         // consumer groups.
@@ -273,7 +309,23 @@ impl KafkaBufferConsumer {
         cfg.set("auto.offset.reset", "smallest");
 
         // figure out which partitions exists
-        let partitions = Self::get_partitions(&database_name, &cfg).await?;
+        let mut partitions = get_partitions(&database_name, &cfg).await?;
+        if partitions.is_empty() {
+            if let Some(cfg2) = auto_create_sequencers {
+                create_kafka_topic(
+                    &conn,
+                    &database_name,
+                    cfg2.n_sequencers,
+                    &cfg2.creation_config,
+                )
+                .await?;
+                partitions = get_partitions(&database_name, &cfg).await?;
+            } else {
+                return Err("no partitions found and auto-creation not requested"
+                    .to_string()
+                    .into());
+            }
+        }
         info!(%database_name, ?partitions, "found Kafka partitions");
 
         // setup a single consumer per partition, at least until https://github.com/fede1024/rust-rdkafka/pull/351 is
@@ -307,42 +359,70 @@ impl KafkaBufferConsumer {
             consumers,
         })
     }
+}
 
-    async fn get_partitions(
-        database_name: &str,
-        cfg: &ClientConfig,
-    ) -> Result<Vec<u32>, KafkaError> {
-        let database_name = database_name.to_string();
+async fn get_partitions(database_name: &str, cfg: &ClientConfig) -> Result<Vec<u32>, KafkaError> {
+    let database_name = database_name.to_string();
+    let cfg = cfg.clone();
+
+    let metadata = tokio::task::spawn_blocking(move || {
         let probe_consumer: BaseConsumer = cfg.create()?;
 
-        let metadata = tokio::task::spawn_blocking(move || {
-            probe_consumer.fetch_metadata(Some(&database_name), Duration::from_secs(60))
-        })
-        .await
-        .expect("subtask failed")?;
-        let topic_metadata = metadata.topics().get(0).expect("requested a single topic");
+        probe_consumer.fetch_metadata(Some(&database_name), Duration::from_secs(60))
+    })
+    .await
+    .expect("subtask failed")?;
 
-        let mut partitions: Vec<_> = topic_metadata
-            .partitions()
-            .iter()
-            .map(|partition_metdata| partition_metdata.id().try_into().unwrap())
-            .collect();
-        partitions.sort_unstable();
+    let topic_metadata = metadata.topics().get(0).expect("requested a single topic");
 
-        Ok(partitions)
+    let mut partitions: Vec<_> = topic_metadata
+        .partitions()
+        .iter()
+        .map(|partition_metdata| partition_metdata.id().try_into().unwrap())
+        .collect();
+    partitions.sort_unstable();
+
+    Ok(partitions)
+}
+
+fn admin_client(kafka_connection: &str) -> Result<AdminClient<DefaultClientContext>, KafkaError> {
+    let mut cfg = ClientConfig::new();
+    cfg.set("bootstrap.servers", kafka_connection);
+    cfg.set("message.timeout.ms", "5000");
+    cfg.create()
+}
+
+/// Create Kafka topic for testing.
+async fn create_kafka_topic(
+    kafka_connection: &str,
+    database_name: &str,
+    n_sequencers: NonZeroU32,
+    cfg: &HashMap<String, String>,
+) -> Result<(), KafkaError> {
+    let admin = admin_client(kafka_connection)?;
+
+    let mut topic = NewTopic::new(
+        database_name,
+        n_sequencers.get() as i32,
+        TopicReplication::Fixed(1),
+    );
+    for (k, v) in cfg {
+        topic = topic.set(k, v);
     }
+
+    let opts = AdminOptions::default();
+    admin.create_topics([&topic], &opts).await?;
+
+    Ok(())
 }
 
 pub mod test_utils {
-    use std::{num::NonZeroU32, time::Duration};
+    use std::{collections::HashMap, time::Duration};
 
-    use rdkafka::{
-        admin::{
-            AdminClient, AdminOptions, AlterConfig, NewTopic, ResourceSpecifier, TopicReplication,
-        },
-        client::DefaultClientContext,
-        ClientConfig,
-    };
+    use rdkafka::admin::{AdminOptions, AlterConfig, ResourceSpecifier};
+    use uuid::Uuid;
+
+    use super::admin_client;
 
     /// Get the testing Kafka connection string or return current scope.
     ///
@@ -391,32 +471,13 @@ pub mod test_utils {
         }};
     }
 
-    fn admin_client(kafka_connection: &str) -> AdminClient<DefaultClientContext> {
-        let mut cfg = ClientConfig::new();
-        cfg.set("bootstrap.servers", kafka_connection);
-        cfg.set("message.timeout.ms", "5000");
-        cfg.create().unwrap()
-    }
-
-    /// Create Kafka topic for testing.
-    pub async fn create_kafka_topic(
-        kafka_connection: &str,
-        database_name: &str,
-        n_sequencers: NonZeroU32,
-    ) {
-        let admin = admin_client(kafka_connection);
-
-        let topic = NewTopic::new(
-            database_name,
-            n_sequencers.get() as i32,
-            TopicReplication::Fixed(1),
-        )
-        .set("cleanup.policy", "delete")
-        .set("retention.ms", "-1")
-        .set("segment.ms", "10");
-
-        let opts = AdminOptions::default();
-        admin.create_topics([&topic], &opts).await.unwrap();
+    /// Create topic creation config that is ideal for testing and works with [`purge_kafka_topic`]
+    pub fn kafka_sequencer_creation_config() -> HashMap<String, String> {
+        let mut cfg: HashMap<String, String> = Default::default();
+        cfg.insert("cleanup.policy".to_string(), "delete".to_string());
+        cfg.insert("retention.ms".to_string(), "-1".to_string());
+        cfg.insert("segment.ms".to_string(), "10".to_string());
+        cfg
     }
 
     /// Purge all records from given topic.
@@ -424,7 +485,7 @@ pub mod test_utils {
     /// **WARNING: Until <https://github.com/fede1024/rust-rdkafka/issues/385> is fixed, this requires a server-wide
     ///            `log.retention.check.interval.ms` of 100ms!**
     pub async fn purge_kafka_topic(kafka_connection: &str, database_name: &str) {
-        let admin = admin_client(kafka_connection);
+        let admin = admin_client(kafka_connection).unwrap();
         let opts = AdminOptions::default();
 
         let cfg =
@@ -437,6 +498,11 @@ pub mod test_utils {
             AlterConfig::new(ResourceSpecifier::Topic(database_name)).set("retention.ms", "-1");
         admin.alter_configs([&cfg], &opts).await.unwrap();
     }
+
+    /// Generated random topic name for testing.
+    pub fn random_kafka_topic() -> String {
+        format!("test_topic_{}", Uuid::new_v4())
+    }
 }
 
 #[cfg(test)]
@@ -446,15 +512,13 @@ mod tests {
         sync::atomic::{AtomicU32, Ordering},
     };
 
-    use uuid::Uuid;
-
     use crate::{
         core::test_utils::{perform_generic_tests, TestAdapter, TestContext},
-        kafka::test_utils::create_kafka_topic,
+        kafka::test_utils::random_kafka_topic,
         maybe_skip_kafka_integration,
     };
 
-    use super::*;
+    use super::{test_utils::kafka_sequencer_creation_config, *};
 
     struct KafkaTestAdapter {
         conn: String,
@@ -471,13 +535,11 @@ mod tests {
         type Context = KafkaTestContext;
 
         async fn new_context(&self, n_sequencers: NonZeroU32) -> Self::Context {
-            let database_name = format!("test_topic_{}", Uuid::new_v4());
-            create_kafka_topic(&self.conn, &database_name, n_sequencers).await;
-
             KafkaTestContext {
                 conn: self.conn.clone(),
-                database_name,
+                database_name: random_kafka_topic(),
                 server_id_counter: AtomicU32::new(1),
+                n_sequencers,
             }
         }
     }
@@ -486,6 +548,16 @@ mod tests {
         conn: String,
         database_name: String,
         server_id_counter: AtomicU32,
+        n_sequencers: NonZeroU32,
+    }
+
+    impl KafkaTestContext {
+        fn auto_create_sequencers(&self, value: bool) -> Option<WriteBufferSequencerCreation> {
+            value.then(|| WriteBufferSequencerCreation {
+                n_sequencers: self.n_sequencers,
+                creation_config: kafka_sequencer_creation_config(),
+            })
+        }
     }
 
     #[async_trait]
@@ -496,15 +568,20 @@ mod tests {
 
         async fn writing(
             &self,
-            _auto_create_sequencers: bool,
+            auto_create_sequencers: bool,
         ) -> Result<Self::Writing, WriteBufferError> {
-            KafkaBufferProducer::new(&self.conn, &self.database_name, &Default::default())
-                .map_err(|e| e.into())
+            KafkaBufferProducer::new(
+                &self.conn,
+                &self.database_name,
+                &Default::default(),
+                self.auto_create_sequencers(auto_create_sequencers).as_ref(),
+            )
+            .await
         }
 
         async fn reading(
             &self,
-            _auto_create_sequencers: bool,
+            auto_create_sequencers: bool,
         ) -> Result<Self::Reading, WriteBufferError> {
             let server_id = self.server_id_counter.fetch_add(1, Ordering::SeqCst);
             let server_id = ServerId::try_from(server_id).unwrap();
@@ -514,9 +591,9 @@ mod tests {
                 server_id,
                 &self.database_name,
                 &Default::default(),
+                self.auto_create_sequencers(auto_create_sequencers).as_ref(),
             )
             .await
-            .map_err(|e| e.into())
         }
     }
 

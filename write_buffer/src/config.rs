@@ -109,8 +109,13 @@ impl WriteBufferConfigFactory {
 
         let writer = match &cfg.type_[..] {
             "kafka" => {
-                let kafka_buffer =
-                    KafkaBufferProducer::new(&cfg.connection, db_name, &cfg.connection_config)?;
+                let kafka_buffer = KafkaBufferProducer::new(
+                    &cfg.connection,
+                    db_name,
+                    &cfg.connection_config,
+                    cfg.auto_create_sequencers.as_ref(),
+                )
+                .await?;
                 Arc::new(kafka_buffer) as _
             }
             "mock" => match self.get_mock(&cfg.connection)? {
@@ -147,6 +152,7 @@ impl WriteBufferConfigFactory {
                     server_id,
                     db_name,
                     &cfg.connection_config,
+                    cfg.auto_create_sequencers.as_ref(),
                 )
                 .await?;
                 Box::new(kafka_buffer) as _
@@ -181,9 +187,12 @@ impl Default for WriteBufferConfigFactory {
 mod tests {
     use std::{convert::TryFrom, num::NonZeroU32};
 
-    use data_types::DatabaseName;
+    use data_types::{database_rules::WriteBufferSequencerCreation, DatabaseName};
 
-    use crate::mock::MockBufferSharedState;
+    use crate::{
+        kafka::test_utils::random_kafka_topic, maybe_skip_kafka_integration,
+        mock::MockBufferSharedState,
+    };
 
     use super::*;
 
@@ -205,15 +214,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_writing_kafka() {
+        let conn = maybe_skip_kafka_integration!();
         let factory = WriteBufferConfigFactory::new();
-
         let server_id = ServerId::try_from(1).unwrap();
 
-        let mut rules = DatabaseRules::new(DatabaseName::new("foo").unwrap());
+        let mut rules = DatabaseRules::new(DatabaseName::try_from(random_kafka_topic()).unwrap());
         rules.write_buffer_connection = Some(WriteBufferConnection {
             direction: WriteBufferDirection::Write,
             type_: "kafka".to_string(),
-            connection: "127.0.0.1:2".to_string(),
+            connection: conn,
+            auto_create_sequencers: Some(WriteBufferSequencerCreation::default()),
             ..Default::default()
         });
 
@@ -230,17 +240,17 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "waits forever to connect until https://github.com/influxdata/influxdb_iox/issues/2189 is solved"]
     async fn test_reading_kafka() {
+        let conn = maybe_skip_kafka_integration!();
         let factory = WriteBufferConfigFactory::new();
-
         let server_id = ServerId::try_from(1).unwrap();
 
-        let mut rules = DatabaseRules::new(DatabaseName::new("foo").unwrap());
+        let mut rules = DatabaseRules::new(DatabaseName::try_from(random_kafka_topic()).unwrap());
         rules.write_buffer_connection = Some(WriteBufferConnection {
             direction: WriteBufferDirection::Read,
             type_: "kafka".to_string(),
-            connection: "127.0.0.1:2".to_string(),
+            connection: conn,
+            auto_create_sequencers: Some(WriteBufferSequencerCreation::default()),
             ..Default::default()
         });
 
