@@ -27,4 +27,4 @@ tonic = { version = "0.5.0" }
 
 [dev-dependencies] # In alphabetical order
 serde_json = "1.0"
-tokio = { version = "1.0", features = ["macros"] }
+tokio = { version = "1.11", features = ["macros"] }

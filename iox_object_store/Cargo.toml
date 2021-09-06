@@ -12,6 +12,6 @@ futures = "0.3"
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 snafu = "0.6"
-tokio = { version = "1.0", features = ["macros", "time"] }
+tokio = { version = "1.11", features = ["macros", "time"] }
 tokio-stream = "0.1"
 uuid = { version = "0.8", features = ["serde", "v4"] }
