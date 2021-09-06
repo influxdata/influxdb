@@ -1,6 +1,11 @@
 use data_types::job::Job;
 use parking_lot::Mutex;
-use std::{collections::BTreeMap, convert::Infallible, ops::DerefMut, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    convert::Infallible,
+    ops::DerefMut,
+    sync::Arc,
+};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
 
 const JOB_HISTORY_SIZE: usize = 1000;
@@ -73,8 +78,8 @@ impl JobRegistry {
         let mut lock = self.inner.lock();
         let mut_ref = lock.deref_mut();
 
-        let reclaimed = mut_ref.registry.reclaim();
-        mut_ref.metrics.update(&mut_ref.registry, reclaimed);
+        let (_reclaimed, pruned) = mut_ref.registry.reclaim();
+        mut_ref.metrics.update(&mut_ref.registry, pruned);
         mut_ref.registry.tracked_len()
     }
 }
@@ -82,9 +87,17 @@ impl JobRegistry {
 #[derive(Debug)]
 struct JobRegistryMetrics {
     active_gauge: metric::Metric<metric::U64Gauge>,
+
+    // Accumulates jobs that were pruned from the limited job history. This is required to not saturate the completed
+    // count after a while.
+    completed_accu: BTreeMap<metric::Attributes, u64>,
+
     cpu_time_histogram: metric::Metric<metric::DurationHistogram>,
     wall_time_histogram: metric::Metric<metric::DurationHistogram>,
-    reclaimed_accu: BTreeMap<metric::Attributes, u64>,
+
+    // Set of jobs for which we already accounted data but that are still tracked. We must not account these
+    // jobs a second time.
+    completed_but_still_tracked: BTreeSet<TaskId>,
 }
 
 impl JobRegistryMetrics {
@@ -92,6 +105,7 @@ impl JobRegistryMetrics {
         Self {
             active_gauge: metric_registry_v2
                 .register_metric("influxdb_iox_job_count", "Number of known jobs"),
+            completed_accu: Default::default(),
             cpu_time_histogram: metric_registry_v2.register_metric(
                 "influxdb_iox_job_completed_cpu_nanoseconds",
                 "CPU time of of completed jobs in nanoseconds",
@@ -100,46 +114,44 @@ impl JobRegistryMetrics {
                 "influxdb_iox_job_completed_wall_nanoseconds",
                 "Wall time of of completed jobs in nanoseconds",
             ),
-            reclaimed_accu: Default::default(),
+            completed_but_still_tracked: Default::default(),
         }
     }
 
-    fn update(
-        &mut self,
-        registry: &TaskRegistryWithHistory<Job>,
-        reclaimed: Vec<TaskTracker<Job>>,
-    ) {
-        // scan reclaimed jobs
-        for job in reclaimed {
-            let attr = Self::job_to_gauge_attributes(&job);
-            self.reclaimed_accu
-                .entry(attr.clone())
-                .and_modify(|x| *x += 1)
-                .or_insert(1);
-
-            let status = job.get_status();
-            if let Some(nanos) = status.cpu_nanos() {
-                self.cpu_time_histogram
-                    .recorder(attr.clone())
-                    .record(std::time::Duration::from_nanos(nanos as u64));
-            }
-            if let Some(nanos) = status.wall_nanos() {
-                self.wall_time_histogram
-                    .recorder(attr)
-                    .record(std::time::Duration::from_nanos(nanos as u64));
-            }
-        }
-
-        // scan current jobs
-        let mut accumulator: BTreeMap<metric::Attributes, u64> = self.reclaimed_accu.clone();
-        for job in registry.tracked() {
-            // completed jobs are passed in explicitly
-            if job.is_complete() {
+    fn update(&mut self, registry: &TaskRegistryWithHistory<Job>, pruned: Vec<TaskTracker<Job>>) {
+        // scan pruned jobs
+        for job in pruned {
+            assert!(job.is_complete());
+            if self.completed_but_still_tracked.remove(&job.id()) {
+                // already accounted
                 continue;
             }
 
+            self.process_completed_job(&job);
+        }
+
+        // scan current completed jobs
+        let (tracked_completed, tracked_other): (Vec<_>, Vec<_>) = registry
+            .tracked()
+            .into_iter()
+            .partition(|job| job.is_complete());
+        for job in tracked_completed {
+            if !self.completed_but_still_tracked.insert(job.id()) {
+                // already accounted
+                continue;
+            }
+
+            self.process_completed_job(&job);
+        }
+
+        // scan current not-completed jobs
+        let mut accumulator: BTreeMap<metric::Attributes, u64> = self.completed_accu.clone();
+        for job in tracked_other {
             let attr = Self::job_to_gauge_attributes(&job);
-            accumulator.entry(attr).and_modify(|x| *x += 1).or_insert(1);
+            accumulator
+                .entry(attr.clone())
+                .and_modify(|x| *x += 1)
+                .or_insert(1);
         }
 
         // emit metric
@@ -162,5 +174,25 @@ impl JobRegistryMetrics {
                     .unwrap_or_else(|| status.name()),
             ),
         ])
+    }
+
+    fn process_completed_job(&mut self, job: &TaskTracker<Job>) {
+        let attr = Self::job_to_gauge_attributes(job);
+        self.completed_accu
+            .entry(attr.clone())
+            .and_modify(|x| *x += 1)
+            .or_insert(1);
+
+        let status = job.get_status();
+        if let Some(nanos) = status.cpu_nanos() {
+            self.cpu_time_histogram
+                .recorder(attr.clone())
+                .record(std::time::Duration::from_nanos(nanos as u64));
+        }
+        if let Some(nanos) = status.wall_nanos() {
+            self.wall_time_histogram
+                .recorder(attr)
+                .record(std::time::Duration::from_nanos(nanos as u64));
+        }
     }
 }
