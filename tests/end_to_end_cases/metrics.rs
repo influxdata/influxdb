@@ -1,5 +1,6 @@
 use crate::common::server_fixture::ServerFixture;
 use crate::end_to_end_cases::scenario::Scenario;
+use test_helpers::assert_contains;
 
 #[tokio::test]
 pub async fn test_row_timestamp() {
@@ -36,4 +37,28 @@ pub async fn test_row_timestamp() {
     assert!(lines
         .iter()
         .all(|x| x.contains("table=\"system\"") && x.contains(&db_name_attribute)));
+}
+
+#[tokio::test]
+pub async fn test_jemalloc_metrics() {
+    let server_fixture = ServerFixture::create_shared().await;
+
+    let client = reqwest::Client::new();
+    let url = format!("{}/metrics", server_fixture.http_base());
+
+    let payload = client.get(&url).send().await.unwrap().text().await.unwrap();
+
+    let lines: Vec<_> = payload
+        .trim()
+        .split('\n')
+        .filter(|x| x.starts_with("jemalloc_memstats_bytes"))
+        .collect();
+
+    assert_eq!(lines.len(), 6);
+    assert_contains!(lines[0], "jemalloc_memstats_bytes{stat=\"active\"}");
+    assert_contains!(lines[1], "jemalloc_memstats_bytes{stat=\"alloc\"}");
+    assert_contains!(lines[2], "jemalloc_memstats_bytes{stat=\"metadata\"}");
+    assert_contains!(lines[3], "jemalloc_memstats_bytes{stat=\"mapped\"}");
+    assert_contains!(lines[4], "jemalloc_memstats_bytes{stat=\"resident\"}");
+    assert_contains!(lines[5], "jemalloc_memstats_bytes{stat=\"retained\"}");
 }

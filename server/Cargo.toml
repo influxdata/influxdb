@@ -47,7 +47,6 @@ serde = "1.0"
 serde_json = "1.0"
 snafu = "0.6"
 snap = "1.0.0"
-tikv-jemalloc-ctl = "0.4.0"
 trace = { path = "../trace" }
 tokio = { version = "1.11", features = ["macros", "time"] }
 tokio-util = { version = "0.6.3" }
