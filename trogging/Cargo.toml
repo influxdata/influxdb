@@ -13,7 +13,7 @@ observability_deps = { path = "../observability_deps" }
 thiserror = "1.0.28"
 tracing-log = "0.1"
 tracing-subscriber = "0.2"
-structopt = { version = "0.3.21", optional = true }
+structopt = { version = "0.3.23", optional = true }
 
 [dev-dependencies]
 synchronized-writer = "1"
