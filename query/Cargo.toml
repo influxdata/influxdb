@@ -26,7 +26,7 @@ futures = "0.3"
 hashbrown = "0.11"
 internal_types = { path = "../internal_types" }
 metrics = { path = "../metrics" }
-parking_lot = "0.11.1"
+parking_lot = "0.11.2"
 regex = "1"
 snafu = "0.6.3"
 tokio = { version = "1.0", features = ["macros"] }
