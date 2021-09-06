@@ -133,7 +133,7 @@ impl JobRegistryMetrics {
         // scan current jobs
         let mut accumulator: BTreeMap<metric::Attributes, u64> = self.reclaimed_accu.clone();
         for job in registry.tracked() {
-            // completed jobs are passed in explicitely
+            // completed jobs are passed in explicitly
             if job.is_complete() {
                 continue;
             }
