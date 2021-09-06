@@ -55,11 +55,21 @@ where
     }
 
     /// Reclaims jobs into the historical archive
-    pub fn reclaim(&mut self) {
+    ///
+    /// Returns list of reclaimed jobs as well as a list of jobs that were pruned from the history.
+    pub fn reclaim(&mut self) -> (Vec<TaskTracker<T>>, Vec<TaskTracker<T>>) {
+        let mut reclaimed = vec![];
+        let mut pruned = vec![];
+
         for job in self.registry.reclaim() {
             info!(?job, "job finished");
-            self.history.push(job.id(), job)
+            reclaimed.push(job.clone());
+            if let Some((_pruned_id, pruned_job)) = self.history.push(job.id(), job) {
+                pruned.push(pruned_job);
+            }
         }
+
+        (reclaimed, pruned)
     }
 }
 
@@ -100,16 +110,18 @@ impl<K: Copy + Hash + Eq + Ord, V> SizeLimitedHashMap<K, V> {
     /// Push a new value into the ring buffer
     ///
     /// If a value with the given key already exists, it will replace the value
-    /// Otherwise it will add the key and value to the buffer
+    /// Otherwise it will add the key and value to the buffer.
     ///
     /// If there is insufficient capacity it will drop the oldest key value pair
-    /// from the buffer
-    pub fn push(&mut self, key: K, value: V) {
+    /// from the buffer.
+    ///
+    /// This returns the replaced value (if any).
+    pub fn push(&mut self, key: K, value: V) -> Option<(K, V)> {
         if let Entry::Occupied(occupied) = self.values.entry(key) {
             // If already exists - replace existing value
             occupied.replace_entry(value);
 
-            return;
+            return None;
         }
 
         if self.ring.len() < self.capacity {
@@ -118,20 +130,22 @@ impl<K: Copy + Hash + Eq + Ord, V> SizeLimitedHashMap<K, V> {
             self.ring.push(key);
             self.values.insert(key, value);
 
-            return;
+            return None;
         }
 
         // Need to swap something out of the ring
-        let mut old = key;
-        std::mem::swap(&mut self.ring[self.start_idx], &mut old);
+        let mut old_key = key;
+        std::mem::swap(&mut self.ring[self.start_idx], &mut old_key);
 
         self.start_idx += 1;
         if self.start_idx == self.capacity {
             self.start_idx = 0;
         }
 
-        self.values.remove(&old);
+        let old_value = self.values.remove(&old_key).unwrap();
         self.values.insert(key, value);
+
+        Some((old_key, old_value))
     }
 }
 
@@ -149,22 +163,22 @@ mod tests {
 
         let mut ring = SizeLimitedHashMap::new(5);
         for i in 0..=4 {
-            ring.push(i, i);
+            assert_eq!(ring.push(i, i), None);
         }
 
         expect(&ring, &[0, 1, 2, 3, 4]);
 
         // Expect rollover
-        ring.push(5, 5);
+        assert_eq!(ring.push(5, 5), Some((0, 0)));
         expect(&ring, &[1, 2, 3, 4, 5]);
 
         for i in 6..=9 {
-            ring.push(i, i);
+            assert!(ring.push(i, i).is_some());
         }
         expect(&ring, &[5, 6, 7, 8, 9]);
 
         for i in 10..=52 {
-            ring.push(i + 10, i);
+            assert!(ring.push(i + 10, i).is_some());
         }
         expect(&ring, &[48, 49, 50, 51, 52]);
         assert_eq!(*ring.get(&60).unwrap(), 50);
