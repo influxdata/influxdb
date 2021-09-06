@@ -566,13 +566,12 @@ where
             parse_delete,
         } = request.into_inner();
 
-        let parse_delete = parse_delete
-            .ok_or_else(|| {
-                tonic::Status::unavailable(format!(
-                    "Delete Predicate has not yet been loaded for table ({}) of database ({})",
-                    table_name, db_name
-                ))
-            })?;
+        let parse_delete = parse_delete.ok_or_else(|| {
+            tonic::Status::unavailable(format!(
+                "Delete Predicate has not yet been loaded for table ({}) of database ({})",
+                table_name, db_name
+            ))
+        })?;
 
         let provided_parse_delete: ProvidedParseDelete = parse_delete
             .try_into()
@@ -588,9 +587,12 @@ where
         // NGA todo: need to validate if the table and all of its columns in delete predicate are legit?
 
         // Build the predicate
-        let mut del_predicate = PredicateBuilder::new() 
+        let mut del_predicate = PredicateBuilder::new()
             .table(table_name.clone())
-            .timestamp_range(provided_parse_delete.start_time, provided_parse_delete.stop_time)
+            .timestamp_range(
+                provided_parse_delete.start_time,
+                provided_parse_delete.stop_time,
+            )
             .build();
         // Add the predicate binary expressions
         for expr in provided_parse_delete.predicate {

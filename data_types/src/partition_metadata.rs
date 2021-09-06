@@ -163,38 +163,6 @@ impl TableSummary {
     }
 }
 
-/// Delete information
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct DeleteInfo {
-    /// Database name
-    pub db_name: Arc<str>,
-
-    /// Table with data to delete
-    pub table_name: Arc<str>,
-
-    /// Delete Predicate
-    // Ideally, this can be any complicated expressions that DataFusion supports
-    // but in our first version, we only support what our read buffer does which is
-    // conjunctive expressions with columns being compared to literals using = or != operators.
-    pub delete_predicate: Arc<str>,
-
-    /// Start time range of deleting data
-    pub start_time: Arc<str>,
-
-    /// Stop time range of deleting data
-    pub stop_time: Arc<str>,
-}
-
-impl std::fmt::Display for DeleteInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Delete('{}':'{}':'{}')",
-            self.db_name, self.table_name, self.delete_predicate
-        )
-    }
-}
-
 // Replicate this enum here as it can't be derived from the existing statistics
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub enum InfluxDbType {

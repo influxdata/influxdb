@@ -223,8 +223,7 @@ pub enum Error {
     DeleteExpression { expr: String },
 
     #[snafu(display("delete start time, stop time, and predicate are not provided:"))]
-    EmptyDeletePredicate { },
-
+    EmptyDeletePredicate {},
     // #[snafu(display("error while converting Parse Delete: {}", source))]
     // ParseDeleteConverting { source: String },
 }

@@ -22,11 +22,11 @@ use crate::timestamp;
 pub enum Error {
     /// Invalid time format
     #[error("Invalid timestamp: {}", .0)]
-   InvalidTimestamp(String),
+    InvalidTimestamp(String),
 
-   /// Invalid time range
-   #[error("Invalid time range: ({}, {})", .0, .1)]
-   InvalidTimeRange(String, String),
+    /// Invalid time range
+    #[error("Invalid time range: ({}, {})", .0, .1)]
+    InvalidTimeRange(String, String),
 }
 
 /// Result type for Parser Cient
@@ -41,7 +41,7 @@ pub struct ProvidedParseDelete {
     pub predicate: Vec<ProvidedDeleteBinaryExpr>,
 }
 
-/// Single Binary expression of delete which 
+/// Single Binary expression of delete which
 /// in the form of "column = value" or column != value"
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
 pub struct ProvidedDeleteBinaryExpr {
@@ -70,16 +70,17 @@ impl ProvidedDeleteOp {
 }
 
 impl ProvidedParseDelete {
-
     /// Create a ProvidedParseDelete
     pub fn new(start_time: i64, stop_time: i64, predicate: Vec<ProvidedDeleteBinaryExpr>) -> Self {
         Self {
-            start_time, stop_time, predicate,
+            start_time,
+            stop_time,
+            predicate,
         }
     }
 
     /// Parse and convert the delete grpc API into ProvidedParseDelete to send to server
-    pub fn parse_delete(start: &str, stop: &str, predicate: &str) -> Result<Self>{
+    pub fn parse_delete(start: &str, stop: &str, predicate: &str) -> Result<Self> {
         // parse and check time range
         let (start_time, stop_time) = Self::parse_time_range(start, stop)?;
 
@@ -94,7 +95,7 @@ impl ProvidedParseDelete {
         Ok(vec![])
     }
 
-    /// Parse a time and return its time in nanosecond 
+    /// Parse a time and return its time in nanosecond
     pub fn parse_time(input: &str) -> Result<i64> {
         // This input can be in timestamp form that end with Z such as 1970-01-01T00:00:00Z
         // See examples here https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/delete/#delete-all-points-within-a-specified-time-frame
@@ -113,7 +114,7 @@ impl ProvidedParseDelete {
                     }
                 }
             }
-        }     
+        }
     }
 
     /// Parse a time range [start, stop]
@@ -121,13 +122,12 @@ impl ProvidedParseDelete {
         let start_time = Self::parse_time(start)?;
         let stop_time = Self::parse_time(stop)?;
         if start_time > stop_time {
-            return Err(Error::InvalidTimeRange(start.to_string(), stop.to_string()))
+            return Err(Error::InvalidTimeRange(start.to_string(), stop.to_string()));
         }
-        
+
         Ok((start_time, stop_time))
     }
 }
-
 
 #[cfg(test)]
 mod test {
@@ -147,11 +147,17 @@ mod test {
         let expected = (100, 200);
         assert_eq!(result, expected);
 
-        let start = r#"1970-01-01T00:00:00Z"#;
+        let start = r#"1970-01-01T00:00:00Z"#; // this is nano 0
         let stop = r#"1970-01-01T00:00:00Z"#;
         let result = ProvidedParseDelete::parse_time_range(start, stop).unwrap();
         let expected = (0, 0);
         assert_eq!(result, expected);
+
+        // let start = r#"1970-01-01T00:00:00Z"#;  // this is nano 0
+        // let stop = r#"now()"#;  // -- Not working. Need to find a way to test this
+        // let result = ProvidedParseDelete::parse_time_range(start, stop).unwrap();
+        // let expected = (0, 0);
+        // assert_eq!(result, expected);
 
         let start = r#"1970-01-01T00:00:00Z"#;
         let stop = r#"100"#;
@@ -174,17 +180,17 @@ mod test {
         assert!(result.is_err());
 
         let start = r#"100"#;
-        let stop = r#"50"#;  // this is nano 0
+        let stop = r#"50"#; // this is nano 0
         let result = ProvidedParseDelete::parse_time_range(start, stop);
         assert!(result.is_err());
 
         let start = r#"100"#;
-        let stop = r#"1970-01-01T00:00:00Z"#;  // this is nano 0
+        let stop = r#"1970-01-01T00:00:00Z"#; // this is nano 0
         let result = ProvidedParseDelete::parse_time_range(start, stop);
         assert!(result.is_err());
 
         let start = r#"1971-09-01T00:00:10Z"#;
-        let stop  = r#"1971-09-01T00:00:05Z"#;  // this is nano 0
+        let stop = r#"1971-09-01T00:00:05Z"#; // this is nano 0
         let result = ProvidedParseDelete::parse_time_range(start, stop);
         assert!(result.is_err());
     }
@@ -242,5 +248,4 @@ mod test {
         let time = ProvidedParseDelete::parse_time(input);
         assert!(time.is_err());
     }
-
 }

@@ -3,10 +3,10 @@ use crate::{
     influxdata::iox::management::v1 as management,
 };
 
-use influxdb_line_protocol::delete_parser::{ProvidedDeleteBinaryExpr, ProvidedDeleteOp, ProvidedParseDelete};
-use std::{
-    convert::{TryFrom, TryInto},
+use influxdb_line_protocol::delete_parser::{
+    ProvidedDeleteBinaryExpr, ProvidedDeleteOp, ProvidedParseDelete,
 };
+use std::convert::{TryFrom, TryInto};
 
 impl From<ProvidedDeleteOp> for management::DeleteOp {
     fn from(op: ProvidedDeleteOp) -> Self {
@@ -24,17 +24,14 @@ impl TryFrom<management::DeleteOp> for ProvidedDeleteOp {
         match proto {
             management::DeleteOp::Eq => Ok(Self::Eq),
             management::DeleteOp::NotEq => Ok(Self::NotEq),
+            management::DeleteOp::Unspecified => Err(FieldViolation::required("")),
         }
     }
 }
 
 impl From<ProvidedDeleteBinaryExpr> for management::DeleteBinaryExpr {
     fn from(bin_expr: ProvidedDeleteBinaryExpr) -> Self {
-        let ProvidedDeleteBinaryExpr {
-            column,
-            op,
-            value,
-        } = bin_expr;
+        let ProvidedDeleteBinaryExpr { column, op, value } = bin_expr;
 
         Self {
             column,
@@ -48,14 +45,9 @@ impl TryFrom<management::DeleteBinaryExpr> for ProvidedDeleteBinaryExpr {
     type Error = FieldViolation;
 
     fn try_from(proto: management::DeleteBinaryExpr) -> Result<Self, Self::Error> {
+        let management::DeleteBinaryExpr { column, op, value } = proto;
 
-        let management::DeleteBinaryExpr {
-            column,
-            op,
-            value
-        }  = proto;
-
-        Ok( Self {
+        Ok(Self {
             column,
             op: management::DeleteOp::from_i32(op).required("op")?,
             value,
@@ -84,21 +76,18 @@ impl TryFrom<management::ParseDelete> for ProvidedParseDelete {
     type Error = FieldViolation;
 
     fn try_from(proto: management::ParseDelete) -> Result<Self, Self::Error> {
-
         let management::ParseDelete {
             start_time,
             stop_time,
-            exprs
-        }  = proto;
+            exprs,
+        } = proto;
 
-        let pred_result: Result<Vec<ProvidedDeleteBinaryExpr>, Self::Error> = exprs
-            .into_iter()
-            .map(TryInto::try_into)
-            .collect();
+        let pred_result: Result<Vec<ProvidedDeleteBinaryExpr>, Self::Error> =
+            exprs.into_iter().map(TryInto::try_into).collect();
 
         let pred = pred_result?;
 
-        Ok( Self {
+        Ok(Self {
             start_time,
             stop_time,
             predicate: pred,

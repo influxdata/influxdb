@@ -3,7 +3,7 @@ use thiserror::Error;
 use self::generated_types::{management_service_client::ManagementServiceClient, *};
 
 use crate::connection::Connection;
-use ::generated_types::{google::longrunning::Operation};
+use ::generated_types::google::longrunning::Operation;
 use influxdb_line_protocol::delete_parser::{self, ProvidedParseDelete};
 
 use std::convert::TryInto;
@@ -362,10 +362,10 @@ pub enum DropPartitionError {
 #[derive(Debug, Error)]
 pub enum DeleteError {
     /// Invalid time range or predicate
-    /// The error message is sent back from the original one which 
+    /// The error message is sent back from the original one which
     /// will include the detail
     #[error("Invalid input: {}", .0)]
-    ParseErr(delete_parser::Error),    
+    ParseErr(delete_parser::Error),
 
     /// Database not found
     #[error("Not found: {}", .0)]
@@ -963,20 +963,26 @@ impl Client {
         let stop_time = stop_time.into();
 
         // parse the time range and predicate
-        let parse_delete_result = ProvidedParseDelete::parse_delete(start_time.as_str(), stop_time.as_str(), predicate.as_str());
+        let parse_delete_result = ProvidedParseDelete::parse_delete(
+            start_time.as_str(),
+            stop_time.as_str(),
+            predicate.as_str(),
+        );
         match parse_delete_result {
             Err(e) => return Err(DeleteError::ParseErr(e)),
             Ok(parse_delete) => {
                 let mgm_parse_delete = Some(parse_delete.into());
                 self.inner
-                    .delete ( DeleteRequest {
+                    .delete(DeleteRequest {
                         db_name,
                         table_name,
                         parse_delete: mgm_parse_delete,
                     })
                     .await
                     .map_err(|status| match status.code() {
-                        tonic::Code::NotFound => DeleteError::NotFound(status.message().to_string()),
+                        tonic::Code::NotFound => {
+                            DeleteError::NotFound(status.message().to_string())
+                        }
                         tonic::Code::Unavailable => DeleteError::Unavailable(status),
                         _ => DeleteError::ServerError(status),
                     })?;

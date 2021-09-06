@@ -3,7 +3,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::chunk_metadata::ChunkAddr;
-use crate::partition_metadata::{DeleteInfo, PartitionAddr};
+use crate::partition_metadata::PartitionAddr;
 
 /// Metadata associated with a set of background tasks
 /// Used in combination with TrackerRegistry
@@ -42,9 +42,6 @@ pub enum Job {
 
     /// Wipe preserved catalog
     WipePreservedCatalog { db_name: Arc<str> },
-
-    /// Delete data from a table
-    Delete { delete_info: DeleteInfo },
 }
 
 impl Job {
@@ -59,7 +56,6 @@ impl Job {
             Self::DropChunk { chunk, .. } => Some(&chunk.db_name),
             Self::DropPartition { partition, .. } => Some(&partition.db_name),
             Self::WipePreservedCatalog { db_name, .. } => Some(db_name),
-            Self::Delete { delete_info, .. } => Some(&delete_info.db_name),
         }
     }
 
@@ -74,7 +70,6 @@ impl Job {
             Self::DropChunk { chunk, .. } => Some(&chunk.partition_key),
             Self::DropPartition { partition, .. } => Some(&partition.partition_key),
             Self::WipePreservedCatalog { .. } => None,
-            Self::Delete { .. } => None,
         }
     }
 
@@ -89,7 +84,6 @@ impl Job {
             Self::DropChunk { chunk, .. } => Some(&chunk.table_name),
             Self::DropPartition { partition, .. } => Some(&partition.table_name),
             Self::WipePreservedCatalog { .. } => None,
-            Self::Delete { delete_info, .. } => Some(&delete_info.table_name),
         }
     }
 
@@ -104,7 +98,6 @@ impl Job {
             Self::DropChunk { chunk, .. } => Some(vec![chunk.chunk_id]),
             Self::DropPartition { .. } => None,
             Self::WipePreservedCatalog { .. } => None,
-            Self::Delete { .. } => None,
         }
     }
 
@@ -121,7 +114,6 @@ impl Job {
                 "Drop partition from memory and (if persisted) from object store"
             }
             Self::WipePreservedCatalog { .. } => "Wipe preserved catalog",
-            Self::Delete { .. } => "Delete data from table",
         }
     }
 }

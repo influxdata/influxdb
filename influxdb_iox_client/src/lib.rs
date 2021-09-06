@@ -26,4 +26,3 @@ pub use client_util::connection;
 pub mod format;
 
 mod client;
-

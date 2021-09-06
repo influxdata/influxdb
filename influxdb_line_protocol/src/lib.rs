@@ -26,7 +26,6 @@ use nom::{
     combinator::{map, opt, recognize},
     multi::many0,
     sequence::{preceded, separated_pair, terminated, tuple},
-    Parser,
 };
 use observability_deps::tracing::debug;
 use smallvec::SmallVec;
@@ -665,13 +664,6 @@ fn field_value(i: &str) -> IResult<&str, FieldValue<'_>> {
     alt((int, uint, float, string, boolv))(i)
 }
 
-fn delete_predicate_field_key(i: &str) -> IResult<&str, EscapedStr<'_>> {
-    let normal_char = take_while1(|c| {
-        !is_whitespace_boundary_char(c) && c != '=' && c != '\\' && c != '!' && c != '<' && c != '>'
-    });
-    escaped_value(normal_char)(i)
-}
-
 fn field_integer_value(i: &str) -> IResult<&str, i64> {
     let tagged_value = terminated(integral_value_signed, tag("i"));
     map_fail(tagged_value, |value| {
@@ -734,107 +726,6 @@ pub fn timestamp(i: &str) -> IResult<&str, i64> {
     map_fail(integral_value_signed, |value| {
         value.parse().context(TimestampValueInvalid { value })
     })(i)
-}
-
-/// Parse delete predicate which is in form of conjunctive expressions with
-/// columns being compared to literals using = or != operators.
-///
-/// Example: city = "Boston" AND building != 12 and month = 10
-///
-/// This function is currently used to support Delete's gPRC API only.
-/// In the future, when we support all kinds of delete predicates supported in
-/// Datafusion, we may want to reuse the parser used by Datafusion to keep
-/// things consistent
-pub fn parse_delete_predicate(input: &str) -> IResult<&str, Vec<BinaryExpr>> {
-    // Or expression is invalid
-    if input.contains(" or ")
-        || input.contains(" OR ")
-        || input.contains(" Or ")
-        || input.contains(" oR ")
-    {
-        return Err(nom::Err::Error(Error::OrInDeleteExpression {
-            value: input.to_string(),
-        }));
-    }
-
-    // This is very silly and expensive
-    let i = input.replace(" AND ", " and ");
-    let i = i.replace(" And ", " and ");
-    let i = i.replace(" AnD ", " and ");
-    let i = i.replace(" aNd ", " and ");
-    let i = i.replace(" aND ", " and ");
-    let i = i.replace(" anD ", " and ");
-
-    // Convert everything after "and" into an expression string
-    let expr_strings: Vec<&str> = i.split(" and ").collect();
-
-    let mut exprs: Vec<BinaryExpr> = vec![];
-    for expr_str in expr_strings {
-        let expr = parse_delete_expression(expr_str)?;
-        exprs.push(expr.1);
-    }
-    Ok((input, exprs))
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct BinaryExpr {
-    pub column_name: String,
-    pub op: String,      // either "=" or "!="
-    pub literal: String, // constant
-}
-
-impl BinaryExpr {
-    pub fn new(col: &str, o: &str, lit: &str) -> Self {
-        Self {
-            column_name: col.to_string(),
-            op: o.to_string(),
-            literal: lit.to_string(),
-        }
-    }
-}
-
-/// Parse a single binary expression of a column being compared to literals using = or != operators
-///
-/// Note that we currently not allow white spaces in the middle of the expression
-///
-/// Examples of valid expressions:
-///    " col=1000  "
-///    r#"col!="abc""#  -- Not there must be double quotes around abc
-///
-/// Examples of invalid expressions:
-///    "col =100"  -- white space after col
-///    "col= 100"  -- white space before 100
-///    "col>100"  -- greater
-///    "col<=100"  -- less and equal
-///    "col=abc"   -- abc is not embedded in a double quote
-///    "col='abc'" -- abc is not embedded in a double quote. The single quote won't work
-fn parse_delete_expression(input: &str) -> IResult<&str, BinaryExpr> {
-    // trim white spaces in front and at the end
-    let input = input.trim();
-
-    if input.contains(' ') {
-        return Err(nom::Err::Error(Error::WhiteSpaceInDeleteExpression {
-            value: input.to_string(),
-        }));
-    }
-
-    // See if this is an equality comparison
-    let expr = separated_pair(delete_predicate_field_key, tag("="), field_value).parse(input);
-    if expr.is_err() {
-        // See if this is an inequality comparison
-        let expr =
-            separated_pair(delete_predicate_field_key, tag("!="), field_value).parse(input)?;
-        return Ok((
-            input,
-            BinaryExpr::new(expr.1 .0.as_str(), "!=", expr.1 .1.to_string().as_str()),
-        ));
-    }
-
-    let expr = expr.unwrap();
-    Ok((
-        input,
-        BinaryExpr::new(expr.1 .0.as_str(), "=", expr.1 .1.to_string().as_str()),
-    ))
 }
 
 fn field_string_value(i: &str) -> IResult<&str, EscapedStr<'_>> {
@@ -1177,7 +1068,6 @@ fn escape_and_write_value(
 #[cfg(test)]
 mod test {
     use super::*;
-    use chrono::DateTime;
     use smallvec::smallvec;
     use test_helpers::approximately_equal;
 
@@ -2329,136 +2219,5 @@ her"#,
         let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].tag_value("asdf"), None);
-    }
-
-    #[test]
-    fn test_parse_delete_expression() {
-        // Positive tests: valid expressions
-        let input = "col=123";
-        let result = parse_delete_expression(input).unwrap().1;
-        let expected = BinaryExpr::new("col", "=", "123");
-        assert_eq!(result, expected);
-
-        let input = "  col=123 ";
-        let result = parse_delete_expression(input).unwrap().1;
-        assert_eq!(result, expected);
-
-        let input = " CoL=123 ";
-        let result = parse_delete_expression(input).unwrap().1;
-        let expected = BinaryExpr::new("CoL", "=", "123");
-        assert_eq!(result, expected);
-
-        let input = "col!=123";
-        let result = parse_delete_expression(input).unwrap().1;
-        let expected = BinaryExpr::new("col", "!=", "123");
-        assert_eq!(result, expected);
-
-        let input = "col2!=123";
-        let result = parse_delete_expression(input).unwrap().1;
-        let expected = BinaryExpr::new("col2", "!=", "123");
-        assert_eq!(result, expected);
-
-        let input = r#"col2!="abc""#;
-        let result = parse_delete_expression(input).unwrap().1;
-        let expected = BinaryExpr::new("col2", "!=", "abc");
-        assert_eq!(result, expected);
-
-        let input = r#"col2="abc""#;
-        let result = parse_delete_expression(input).unwrap().1;
-        let expected = BinaryExpr::new("col2", "=", "abc");
-        assert_eq!(result, expected);
-
-        let input = " CoL!=123 ";
-        let result = parse_delete_expression(input).unwrap().1;
-        let expected = BinaryExpr::new("CoL", "!=", "123");
-        assert_eq!(result, expected);
-
-        // Negative tests: Invalid expressions
-        let input = "random";
-        let result = parse_delete_expression(input);
-        assert!(result.is_err());
-
-        let input = "random phrase";
-        let result = parse_delete_expression(input);
-        assert!(result.is_err());
-
-        let input = "col2!=abc"; // abc not in double quote
-        let result = parse_delete_expression(input);
-        assert!(result.is_err());
-
-        let input = "col = 123"; // white space before and after "=""
-        let result = parse_delete_expression(input);
-        assert!(result.is_err());
-
-        let input = " col = 123 ";
-        let result = parse_delete_expression(input);
-        assert!(result.is_err());
-
-        let input = " CoL= 123 ";
-        let result = parse_delete_expression(input);
-        assert!(result.is_err());
-
-        let input = " col != 123 ";
-        let result = parse_delete_expression(input);
-        assert!(result.is_err());
-
-        let input = "col != 123";
-        let result = parse_delete_expression(input);
-        assert!(result.is_err());
-
-        let input = "col>123";
-        let result = parse_delete_expression(input);
-        assert!(result.is_err());
-
-        let input = "col>=123";
-        let result = parse_delete_expression(input);
-        assert!(result.is_err());
-
-        let input = "col<123";
-        let result = parse_delete_expression(input);
-        assert!(result.is_err());
-
-        let input = "col<=123";
-        let result = parse_delete_expression(input);
-        assert!(result.is_err());
-
-        let input = "col between 123";
-        let result = parse_delete_expression(input);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_parse_delete_predicate() {
-        // Positive tests: valid predicate
-        let input = "col=123";
-        let result = parse_delete_predicate(input).unwrap().1;
-        let expected = vec![BinaryExpr::new("col", "=", "123")];
-        assert_eq!(result, expected);
-
-        let input = r#"col=123 and col2!="abc""#;
-        let result = parse_delete_predicate(input).unwrap().1;
-        let expected = vec![
-            BinaryExpr::new("col", "=", "123"),
-            BinaryExpr::new("col2", "!=", "abc"),
-        ];
-        assert_eq!(result, expected);
-
-        let input = r#"temp=89.1 and city!="Boston" aNd day="Monday""#;
-        let result = parse_delete_predicate(input).unwrap().1;
-        let expected = vec![
-            BinaryExpr::new("temp", "=", "89.1"),
-            BinaryExpr::new("city", "!=", "Boston"),
-            BinaryExpr::new("day", "=", "Monday"),
-        ];
-        assert_eq!(result, expected);
-
-        // Negative tests: invalid predicate
-        let input = r#"temp=89.1 or city!="Boston""#; // OR
-        let result = parse_delete_predicate(input);
-        assert!(result.is_err());
-
-        let input = r#"temp=89.1 AND city!="Boston" OR day="Monday"#; // OR
-        let result = parse_delete_predicate(input);
-        assert!(result.is_err());
     }
 }

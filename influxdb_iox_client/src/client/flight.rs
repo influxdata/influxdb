@@ -222,7 +222,7 @@ impl PerformQuery {
     pub async fn to_batches(&mut self) -> Result<Vec<RecordBatch>, Error> {
         let mut batches = Vec::new();
         while let Some(data) = self.next().await? {
-             batches.push(data);
+            batches.push(data);
         }
 
         Ok(batches)

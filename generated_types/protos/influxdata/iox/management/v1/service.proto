@@ -433,24 +433,10 @@ message DeleteRequest {
   // table name
   string table_name = 2;
 
-  // a struct of delete info defined in ParseDelete
+  // a delete info: time range and predicate of other binary expressions
   ParseDelete parse_delete = 3;
-
-  // // delete predicate
-  // // Ideally, this can be any complicated expressions that DataFusion supports
-  // // but in our first version, we only support what our read buffer does which is 
-  // // conjunctive expressions with columns being compared to literals using = or != operators.
-  // // Also, to avoid user making mistake deleting the whole table, we will force them to
-  // // inlcude delete time range start and stop in different fields defined below
-  // string delete_predicate = 3;
-
-  // // start time range of deleting data
-  // string start_time = 4;
-
-  // // stop time range of deleting data
-  // string stop_time = 5;
 }
 
 message DeleteResponse {
-  // NGA todo: response something?
+  // NGA todo: define an appropriate response
 }

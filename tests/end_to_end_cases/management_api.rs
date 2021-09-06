@@ -1398,7 +1398,7 @@ async fn test_delete() {
         "cpu,region=west user=21.0 150",
         "disk,region=east bytes=99i 200",
     ];
-    
+
     let num_lines_written = write_client
         .write(&db_name, lp_lines.join("\n"))
         .await
@@ -1409,7 +1409,8 @@ async fn test_delete() {
     // Query cpu
     let mut query_results = flight_client
         .perform_query(db_name.clone(), "select * from cpu")
-        .await.unwrap();
+        .await
+        .unwrap();
     let batches = query_results.to_batches().await.unwrap();
     let expected = [
         "+--------+--------------------------------+------+",
@@ -1420,14 +1421,15 @@ async fn test_delete() {
         "+--------+--------------------------------+------+",
     ];
     assert_batches_sorted_eq!(&expected, &batches);
-     
+
     // Delete some data
     // todo
 
     // query to verify data deleted
     let mut query_results = flight_client
         .perform_query(db_name, "select * from cpu")
-        .await.unwrap();
+        .await
+        .unwrap();
     let batches = query_results.to_batches().await.unwrap();
     let expected = [
         "+--------+--------------------------------+------+",
