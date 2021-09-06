@@ -128,7 +128,7 @@ hyper = "0.14"
 libc = { version = "0.2" }
 log = "0.4"
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
-parking_lot = "0.11.1"
+parking_lot = "0.11.2"
 itertools = "0.10.1"
 parquet = "5.0"
 # used by arrow/datafusion anyway
@@ -167,7 +167,7 @@ influxdb_storage_client = { path = "influxdb_storage_client" }
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["flight"] }
 test_helpers = { path = "test_helpers" }
 synchronized-writer = "1"
-parking_lot = "0.11.1"
+parking_lot = "0.11.2"
 write_buffer = { path = "write_buffer" }
 
 # Crates.io dependencies, in alphabetical order
