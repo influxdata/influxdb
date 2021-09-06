@@ -142,7 +142,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.67"
 serde_urlencoded = "0.7.0"
 snafu = "0.6.9"
-structopt = "0.3.21"
+structopt = "0.3.23"
 thiserror = "1.0.28"
 tikv-jemalloc-ctl = { version = "0.4.0" }
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "parking_lot", "signal"] }
