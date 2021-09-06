@@ -7,7 +7,7 @@ use data_types::{server_id::ServerId, DatabaseName};
 use datafusion::logical_plan::{col, lit};
 use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound};
 use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
-use influxdb_line_protocol::parse_delete_predicate;
+use influxdb_line_protocol::delete_parser::{ProvidedDeleteOp, ProvidedParseDelete};
 use query::predicate::PredicateBuilder;
 use query::QueryDatabase;
 use server::rules::ProvidedDatabaseRules;
@@ -564,11 +564,20 @@ where
             db_name,
             table_name,
             parse_delete,
-            // delete_predicate,
-            // start_time,
-            // stop_time,
         } = request.into_inner();
-        
+
+        let parse_delete = parse_delete
+            .ok_or_else(|| {
+                tonic::Status::unavailable(format!(
+                    "Delete Predicate has not yet been loaded for table ({}) of database ({})",
+                    table_name, db_name
+                ))
+            })?;
+
+        let provided_parse_delete: ProvidedParseDelete = parse_delete
+            .try_into()
+            .map_err(|e: FieldViolation| e.scope("parse_delete"))?;
+
         // Validate that the database name is legit
         let db_name = DatabaseName::new(db_name).field("db_name")?;
         let db = self
@@ -577,25 +586,20 @@ where
             .map_err(default_server_error_handler)?;
 
         // NGA todo: need to validate if the table and all of its columns in delete predicate are legit?
+
+        // Build the predicate
         let mut del_predicate = PredicateBuilder::new() 
             .table(table_name.clone())
-            //.timestamp_range(start, stop)
+            .timestamp_range(provided_parse_delete.start_time, provided_parse_delete.stop_time)
             .build();
-        // NGA todo: add time rage and predicate
-        // for expr in predicates {
-        //     let e = match expr.op.as_str() {
-        //         "=" => col(expr.column_name.as_str()).eq(lit(expr.literal)),
-        //         "!=" => col(expr.column_name.as_str()).eq(lit(expr.literal)),
-        //         _ => {
-        //             let error_str =
-        //                 format!("{} operator not supported in delete expression", expr.op);
-        //             return Err(default_server_error_handler(Error::DeleteExpression {
-        //                 expr: error_str,
-        //             }));
-        //         }
-        //     };
-        //     del_predicate.exprs.push(e);
-        // }
+        // Add the predicate binary expressions
+        for expr in provided_parse_delete.predicate {
+            let e = match expr.op {
+                ProvidedDeleteOp::Eq => col(expr.column.as_str()).eq(lit(expr.value)),
+                ProvidedDeleteOp::NotEq => col(expr.column.as_str()).not_eq(lit(expr.value)),
+            };
+            del_predicate.exprs.push(e);
+        }
 
         db.delete(&table_name, &del_predicate)
             .await

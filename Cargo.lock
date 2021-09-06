@@ -1337,6 +1337,7 @@ dependencies = [
  "data_types",
  "futures",
  "google_types",
+ "influxdb_line_protocol",
  "num_cpus",
  "observability_deps",
  "proc-macro2",
@@ -1827,9 +1828,11 @@ dependencies = [
  "chrono",
  "nom",
  "observability_deps",
+ "serde",
  "smallvec",
  "snafu",
  "test_helpers",
+ "thiserror",
 ]
 
 [[package]]

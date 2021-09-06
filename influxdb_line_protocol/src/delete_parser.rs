@@ -14,7 +14,8 @@ use thiserror::Error;
 use serde::{Deserialize, Serialize};
 
 use chrono::DateTime;
-use influxdb_line_protocol::timestamp;
+
+use crate::timestamp;
 
 /// Parse Error
 #[derive(Debug, Error)]
@@ -32,42 +33,52 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Parser for Delete predicate and time range
-#[derive(Debug,  Deserialize, Serialize, PartialEq,Clone)]
-pub struct ParseDelete {
-    start_time: i64,
-    stop_time: i64,
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
+pub struct ProvidedParseDelete {
+    pub start_time: i64,
+    pub stop_time: i64,
     // conjunctive predicate of binary expressions of = or !=
-    predicate: Vec<DeleteBinaryExpr>,
+    pub predicate: Vec<ProvidedDeleteBinaryExpr>,
 }
 
 /// Single Binary expression of delete which 
 /// in the form of "column = value" or column != value"
-#[derive(Debug,  Deserialize, Serialize, PartialEq,Clone)]
-pub struct DeleteBinaryExpr {
-    key: String,
-    op: DeleteOp,
-    value: String, // NGA Todo: should be enum like FieldValue
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
+pub struct ProvidedDeleteBinaryExpr {
+    pub column: String,
+    pub op: ProvidedDeleteOp,
+    pub value: String, // NGA Todo: should be enum like FieldValue
 }
 
 /// Delete Operator which either "=" or "!="
-#[derive(Debug,  Deserialize, Serialize, PartialEq, Clone, Copy)]
-pub enum DeleteOp {
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize, Deserialize)]
+pub enum ProvidedDeleteOp {
     /// represent "="
     Eq,
     /// represet "!="
     NotEq,
 }
 
-impl ParseDelete {
+impl ProvidedDeleteOp {
+    /// Return a str representation of this DeleteOp
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Eq => "Eq",
+            Self::NotEq => "NotEq",
+        }
+    }
+}
 
-    /// Create a ParseDelete
-    pub fn new(start_time: i64, stop_time: i64, predicate: Vec<DeleteBinaryExpr>) -> Self {
+impl ProvidedParseDelete {
+
+    /// Create a ProvidedParseDelete
+    pub fn new(start_time: i64, stop_time: i64, predicate: Vec<ProvidedDeleteBinaryExpr>) -> Self {
         Self {
             start_time, stop_time, predicate,
         }
     }
 
-    /// Parse and convert the delete grpc API into ParseDelete to send to server
+    /// Parse and convert the delete grpc API into ProvidedParseDelete to send to server
     pub fn parse_delete(start: &str, stop: &str, predicate: &str) -> Result<Self>{
         // parse and check time range
         let (start_time, stop_time) = Self::parse_time_range(start, stop)?;
@@ -79,7 +90,7 @@ impl ParseDelete {
     }
 
     /// Parse the predicate
-    pub fn parse_predicate(_predicate: &str) -> Result<Vec<DeleteBinaryExpr>> {
+    pub fn parse_predicate(_predicate: &str) -> Result<Vec<ProvidedDeleteBinaryExpr>> {
         Ok(vec![])
     }
 
@@ -126,31 +137,31 @@ mod test {
     fn test_time_range_valid() {
         let start = r#"100"#;
         let stop = r#"100"#;
-        let result = ParseDelete::parse_time_range(start, stop).unwrap();
+        let result = ProvidedParseDelete::parse_time_range(start, stop).unwrap();
         let expected = (100, 100);
         assert_eq!(result, expected);
 
         let start = r#"100"#;
         let stop = r#"200"#;
-        let result = ParseDelete::parse_time_range(start, stop).unwrap();
+        let result = ProvidedParseDelete::parse_time_range(start, stop).unwrap();
         let expected = (100, 200);
         assert_eq!(result, expected);
 
         let start = r#"1970-01-01T00:00:00Z"#;
         let stop = r#"1970-01-01T00:00:00Z"#;
-        let result = ParseDelete::parse_time_range(start, stop).unwrap();
+        let result = ProvidedParseDelete::parse_time_range(start, stop).unwrap();
         let expected = (0, 0);
         assert_eq!(result, expected);
 
         let start = r#"1970-01-01T00:00:00Z"#;
         let stop = r#"100"#;
-        let result = ParseDelete::parse_time_range(start, stop).unwrap();
+        let result = ProvidedParseDelete::parse_time_range(start, stop).unwrap();
         let expected = (0, 100);
         assert_eq!(result, expected);
 
         let start = r#"1970-01-01T00:00:00Z"#;
         let stop = r#"1970-01-01T00:01:00Z"#;
-        let result = ParseDelete::parse_time_range(start, stop).unwrap();
+        let result = ProvidedParseDelete::parse_time_range(start, stop).unwrap();
         let expected = (0, 60000000000);
         assert_eq!(result, expected);
     }
@@ -159,45 +170,45 @@ mod test {
     fn test_time_range_invalid() {
         let start = r#"100"#;
         let stop = r#"-100"#;
-        let result = ParseDelete::parse_time_range(start, stop);
+        let result = ProvidedParseDelete::parse_time_range(start, stop);
         assert!(result.is_err());
 
         let start = r#"100"#;
         let stop = r#"50"#;  // this is nano 0
-        let result = ParseDelete::parse_time_range(start, stop);
+        let result = ProvidedParseDelete::parse_time_range(start, stop);
         assert!(result.is_err());
 
         let start = r#"100"#;
         let stop = r#"1970-01-01T00:00:00Z"#;  // this is nano 0
-        let result = ParseDelete::parse_time_range(start, stop);
+        let result = ProvidedParseDelete::parse_time_range(start, stop);
         assert!(result.is_err());
 
         let start = r#"1971-09-01T00:00:10Z"#;
         let stop  = r#"1971-09-01T00:00:05Z"#;  // this is nano 0
-        let result = ParseDelete::parse_time_range(start, stop);
+        let result = ProvidedParseDelete::parse_time_range(start, stop);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_parse_timestamp() {
         let input = r#"123"#;
-        let time = ParseDelete::parse_time(input).unwrap();
+        let time = ProvidedParseDelete::parse_time(input).unwrap();
         assert_eq!(time, 123);
 
         // must parse time
         let input = r#"1970-01-01T00:00:00Z"#;
-        let time = ParseDelete::parse_time(input).unwrap();
+        let time = ProvidedParseDelete::parse_time(input).unwrap();
         assert_eq!(time, 0);
 
         let input = r#"1971-02-01T15:30:21Z"#;
-        let time = ParseDelete::parse_time(input).unwrap();
+        let time = ProvidedParseDelete::parse_time(input).unwrap();
         assert_eq!(time, 34270221000000000);
     }
 
     #[test]
     fn test_parse_timestamp_negative() {
         let input = r#"-123"#;
-        let time = ParseDelete::parse_time(input).unwrap();
+        let time = ProvidedParseDelete::parse_time(input).unwrap();
         assert_eq!(time, -123);
     }
 
@@ -207,20 +218,20 @@ mod test {
     fn test_parse_timestamp_invalid() {
         // It turn out this is not invalid but return1 123
         let input = r#"123gdb"#;
-        let time = ParseDelete::parse_time(input).unwrap();
+        let time = ProvidedParseDelete::parse_time(input).unwrap();
         assert_eq!(time, 123);
         //assert!(time.is_err());
 
         // must parse time
         // It turn out this is not invalid but return1 1970
         let input = r#"1970-01-01T00:00:00"#;
-        let time = ParseDelete::parse_time(input).unwrap();
+        let time = ProvidedParseDelete::parse_time(input).unwrap();
         assert_eq!(time, 1970);
         //assert!(time.is_err());
 
         // It turn out this is not invalid but return1 1971
         let input = r#"1971-02-01:30:21Z"#;
-        let time = ParseDelete::parse_time(input).unwrap();
+        let time = ProvidedParseDelete::parse_time(input).unwrap();
         assert_eq!(time, 1971);
         //assert!(time.is_err());
     }
@@ -228,7 +239,7 @@ mod test {
     #[test]
     fn test_parse_timestamp_out_of_range() {
         let input = r#"99999999999999999999999999999999"#;
-        let time = ParseDelete::parse_time(input);
+        let time = ProvidedParseDelete::parse_time(input);
         assert!(time.is_err());
     }
 

@@ -6,6 +6,7 @@ import "google/longrunning/operations.proto";
 import "google/protobuf/field_mask.proto";
 import "influxdata/iox/management/v1/database_rules.proto";
 import "influxdata/iox/management/v1/chunk.proto";
+import "influxdata/iox/management/v1/parse_delete.proto";
 import "influxdata/iox/management/v1/partition.proto";
 
 service ManagementService {
@@ -433,7 +434,7 @@ message DeleteRequest {
   string table_name = 2;
 
   // a struct of delete info defined in ParseDelete
-  ParseDelete parse_delete = 3;  // NGA todo: create a ParseDelete message for the corresponding ParseDelete struct
+  ParseDelete parse_delete = 3;
 
   // // delete predicate
   // // Ideally, this can be any complicated expressions that DataFusion supports

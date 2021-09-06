@@ -10,9 +10,6 @@ pub mod write;
 /// Client for long running operations API
 pub mod operations;
 
-/// Parser for client
-pub mod parser;
-
 #[cfg(feature = "flight")]
 /// Client for query API (based on Arrow flight)
 pub mod flight;

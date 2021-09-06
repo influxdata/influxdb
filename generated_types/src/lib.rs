@@ -128,6 +128,7 @@ pub mod database_rules;
 pub mod database_state;
 pub mod google;
 pub mod job;
+pub mod parse_delete;
 
 #[cfg(test)]
 mod tests {

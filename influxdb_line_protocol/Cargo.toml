@@ -10,6 +10,8 @@ nom = "6"
 smallvec = "1.2.0"
 snafu = "0.6.2"
 observability_deps = { path = "../observability_deps" }
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "1.0.28"
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }

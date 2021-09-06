@@ -16,6 +16,8 @@
     clippy::clone_on_ref_ptr
 )]
 
+pub mod delete_parser;
+
 use fmt::Display;
 use nom::{
     branch::alt,
