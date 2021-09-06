@@ -4107,7 +4107,6 @@ dependencies = [
  "snafu",
  "snap",
  "test_helpers",
- "tikv-jemalloc-ctl",
  "tokio",
  "tokio-util",
  "trace",

@@ -16,6 +16,7 @@ use std::{convert::TryFrom, net::SocketAddr, sync::Arc};
 use trace::TraceCollector;
 
 mod http;
+mod jemalloc;
 mod planner;
 mod rpc;
 pub(crate) mod serving_readiness;
@@ -177,6 +178,12 @@ pub async fn main(config: Config) -> Result<()> {
     std::mem::forget(f);
 
     let application = make_application(&config).await?;
+
+    // Register jemalloc metrics
+    application
+        .metric_registry_v2()
+        .register_instrument("jemalloc_metrics", jemalloc::JemallocMetrics::new);
+
     let app_server = make_server(Arc::clone(&application), &config);
 
     let grpc_listener = grpc_listener(config.grpc_bind_address).await?;

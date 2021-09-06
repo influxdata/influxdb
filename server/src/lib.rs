@@ -86,7 +86,6 @@ use influxdb_line_protocol::ParsedLine;
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use lifecycle::LockableChunk;
-use metrics::{KeyValue, MetricObserverBuilder};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use rand::seq::SliceRandom;
@@ -268,38 +267,6 @@ impl ServerMetrics {
         // Server manages multiple domains.
         let http_domain = registry.register_domain("http");
         let ingest_domain = registry.register_domain("ingest");
-        let jemalloc_domain = registry.register_domain("jemalloc");
-
-        // This isn't really a property of the server, perhaps it should be somewhere else?
-        jemalloc_domain.register_observer(None, &[], |observer: MetricObserverBuilder<'_>| {
-            observer.register_gauge_u64(
-                "memstats",
-                Some("bytes"),
-                "jemalloc memstats",
-                |observer| {
-                    use tikv_jemalloc_ctl::{epoch, stats};
-                    epoch::advance().unwrap();
-
-                    let active = stats::active::read().unwrap();
-                    observer.observe(active as u64, &[KeyValue::new("stat", "active")]);
-
-                    let allocated = stats::allocated::read().unwrap();
-                    observer.observe(allocated as u64, &[KeyValue::new("stat", "alloc")]);
-
-                    let metadata = stats::metadata::read().unwrap();
-                    observer.observe(metadata as u64, &[KeyValue::new("stat", "metadata")]);
-
-                    let mapped = stats::mapped::read().unwrap();
-                    observer.observe(mapped as u64, &[KeyValue::new("stat", "mapped")]);
-
-                    let resident = stats::resident::read().unwrap();
-                    observer.observe(resident as u64, &[KeyValue::new("stat", "resident")]);
-
-                    let retained = stats::retained::read().unwrap();
-                    observer.observe(retained as u64, &[KeyValue::new("stat", "retained")]);
-                },
-            )
-        });
 
         Self {
             http_requests: http_domain.register_red_metric(None),
