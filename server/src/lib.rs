@@ -221,11 +221,6 @@ pub enum Error {
 
     #[snafu(display("delete expression is invalid: {}", expr))]
     DeleteExpression { expr: String },
-
-    #[snafu(display("delete start time, stop time, and predicate are not provided:"))]
-    EmptyDeletePredicate {},
-    // #[snafu(display("error while converting Parse Delete: {}", source))]
-    // ParseDeleteConverting { source: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

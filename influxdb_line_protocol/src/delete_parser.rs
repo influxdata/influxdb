@@ -91,6 +91,8 @@ impl ProvidedParseDelete {
     }
 
     /// Parse the predicate
+    // NGA TODO: parse the delete predicate which is a conjunctive expression of many
+    // binary expressions of 'colum = constant' or 'column != constant'
     pub fn parse_predicate(_predicate: &str) -> Result<Vec<ProvidedDeleteBinaryExpr>> {
         Ok(vec![])
     }

@@ -2,7 +2,7 @@ syntax = "proto3";
 package influxdata.iox.management.v1;
 option go_package = "github.com/influxdata/iox/management/v1";
 
- // Which storage system is a chunk located in?
+// Operators supported in delete binary expressions
  enum DeleteOp {
     // not specified 
     DELETE_OP_UNSPECIFIED = 0;
@@ -14,7 +14,7 @@ option go_package = "github.com/influxdata/iox/management/v1";
     DELETE_OP_NOT_EQ = 2;
  }
 
- // a delete binary expression  which  is in form of 'column_name = contant`
+ // a delete binary expression is either 'column_name = constant'
  // or 'column_name != constant'
  message DeleteBinaryExpr {
     // Left hand side which is a column name

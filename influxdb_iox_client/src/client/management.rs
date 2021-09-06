@@ -963,20 +963,22 @@ impl Client {
         let stop_time = stop_time.into();
 
         // parse the time range and predicate
-        let parse_delete_result = ProvidedParseDelete::parse_delete(
+        let provided_parse_delete_result = ProvidedParseDelete::parse_delete(
             start_time.as_str(),
             stop_time.as_str(),
             predicate.as_str(),
         );
-        match parse_delete_result {
+
+        match provided_parse_delete_result {
             Err(e) => return Err(DeleteError::ParseErr(e)),
-            Ok(parse_delete) => {
-                let mgm_parse_delete = Some(parse_delete.into());
+            Ok(provided_parse_delete) => {
+                // Send the delete request to server
+                let parse_delete = Some(provided_parse_delete.into());
                 self.inner
                     .delete(DeleteRequest {
                         db_name,
                         table_name,
-                        parse_delete: mgm_parse_delete,
+                        parse_delete,
                     })
                     .await
                     .map_err(|status| match status.code() {

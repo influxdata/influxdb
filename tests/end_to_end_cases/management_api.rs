@@ -1426,6 +1426,7 @@ async fn test_delete() {
     // todo
 
     // query to verify data deleted
+    // todo: when the delete is done and integrated, the below test must fail
     let mut query_results = flight_client
         .perform_query(db_name, "select * from cpu")
         .await

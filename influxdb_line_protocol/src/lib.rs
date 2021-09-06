@@ -71,15 +71,6 @@ pub enum Error {
         value: String,
     },
 
-    #[snafu(display(r#"Unable to parse delete expression with white space '{}'"#, value))]
-    WhiteSpaceInDeleteExpression { value: String },
-
-    #[snafu(display(r#"OR is not allowed on delete expression '{}'"#, value))]
-    OrInDeleteExpression { value: String },
-
-    #[snafu(display(r#"Invalid  delete expression '{}'"#, value))]
-    InvalidDeleteExpression { value: String },
-
     // This error is for compatibility with the Go parser
     #[snafu(display(
         r#"Measurements, tag keys and values, and field keys may not end with a backslash"#

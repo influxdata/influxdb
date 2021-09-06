@@ -584,7 +584,7 @@ where
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        // NGA todo: need to validate if the table and all of its columns in delete predicate are legit?
+        // NGA todo: we may want to validate if the table and all of its columns in delete predicate are legit
 
         // Build the predicate
         let mut del_predicate = PredicateBuilder::new()

@@ -1,3 +1,4 @@
+//! Conversion code to management Delete API structures and vice versa
 use crate::{
     google::{FieldViolation, FromFieldOpt},
     influxdata::iox::management::v1 as management,
@@ -8,6 +9,7 @@ use influxdb_line_protocol::delete_parser::{
 };
 use std::convert::{TryFrom, TryInto};
 
+/// ProvidedDeleteOp to management API DeleteOp
 impl From<ProvidedDeleteOp> for management::DeleteOp {
     fn from(op: ProvidedDeleteOp) -> Self {
         match op {
@@ -17,6 +19,7 @@ impl From<ProvidedDeleteOp> for management::DeleteOp {
     }
 }
 
+/// management API DeleteOp to ProvidedDeleteOp
 impl TryFrom<management::DeleteOp> for ProvidedDeleteOp {
     type Error = FieldViolation;
 
@@ -28,6 +31,8 @@ impl TryFrom<management::DeleteOp> for ProvidedDeleteOp {
         }
     }
 }
+
+/// ProvidedDeleteBinary to management API DeleteBinaryExpr
 
 impl From<ProvidedDeleteBinaryExpr> for management::DeleteBinaryExpr {
     fn from(bin_expr: ProvidedDeleteBinaryExpr) -> Self {
@@ -41,6 +46,7 @@ impl From<ProvidedDeleteBinaryExpr> for management::DeleteBinaryExpr {
     }
 }
 
+/// management API DeleteBinaryExpr to ProvidedDeleteBinary
 impl TryFrom<management::DeleteBinaryExpr> for ProvidedDeleteBinaryExpr {
     type Error = FieldViolation;
 
@@ -55,7 +61,7 @@ impl TryFrom<management::DeleteBinaryExpr> for ProvidedDeleteBinaryExpr {
     }
 }
 
-/// Conversion code to management API chunk structure
+/// ProvidedParseDelete to management API ParseDelete
 impl From<ProvidedParseDelete> for management::ParseDelete {
     fn from(parse_delete: ProvidedParseDelete) -> Self {
         let ProvidedParseDelete {
@@ -72,6 +78,7 @@ impl From<ProvidedParseDelete> for management::ParseDelete {
     }
 }
 
+/// management API ParseDelete to ProvidedParseDelete
 impl TryFrom<management::ParseDelete> for ProvidedParseDelete {
     type Error = FieldViolation;
 
