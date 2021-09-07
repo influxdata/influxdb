@@ -3103,6 +3103,7 @@ mod tests {
             time_of_first_write: Utc.timestamp_nanos(1),
             time_of_last_write: Utc.timestamp_nanos(1),
             time_closed: None,
+            order: 5,
         }];
 
         let size: usize = db
@@ -3393,6 +3394,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
                 time_closed: None,
+                order: 5,
             },
             ChunkSummary {
                 partition_key: Arc::from("1970-01-05T15"),
@@ -3407,6 +3409,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
                 time_closed: None,
+                order: 6,
             },
             ChunkSummary {
                 partition_key: Arc::from("1970-01-05T15"),
@@ -3421,6 +3424,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
                 time_closed: None,
+                order: 5,
             },
         ];
 

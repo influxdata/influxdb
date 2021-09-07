@@ -588,6 +588,7 @@ impl CatalogChunk {
             time_of_first_write: self.time_of_first_write,
             time_of_last_write: self.time_of_last_write,
             time_closed: self.time_closed,
+            order: self.order,
         }
     }
 

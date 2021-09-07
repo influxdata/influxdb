@@ -536,6 +536,7 @@ async fn test_chunk_get() {
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
+            order: 0,
         },
         Chunk {
             partition_key: "disk".into(),
@@ -550,6 +551,7 @@ async fn test_chunk_get() {
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
+            order: 0,
         },
     ];
     assert_eq!(
@@ -721,6 +723,7 @@ async fn test_list_partition_chunks() {
         time_of_first_write: None,
         time_of_last_write: None,
         time_closed: None,
+        order: 0,
     }];
 
     assert_eq!(
@@ -1061,6 +1064,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
                 memory_bytes,
                 object_store_bytes,
                 row_count,
+                order,
                 ..
             } = summary;
             Chunk {
@@ -1076,6 +1080,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
                 time_closed: None,
                 memory_bytes,
                 object_store_bytes,
+                order,
             }
         })
         .collect::<Vec<_>>()
