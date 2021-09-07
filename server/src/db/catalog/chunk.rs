@@ -1116,7 +1116,7 @@ mod tests {
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
 
-        MBChunk::new(MBChunkMetrics::new_unregistered(), batch).unwrap()
+        MBChunk::new(MBChunkMetrics::new_unregistered(), batch, None).unwrap()
     }
 
     async fn make_parquet_chunk(addr: ChunkAddr) -> ParquetChunk {

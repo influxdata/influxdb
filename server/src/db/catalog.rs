@@ -343,6 +343,7 @@ mod tests {
         let mb_chunk = mutable_buffer::chunk::MBChunk::new(
             mutable_buffer::chunk::ChunkMetrics::new_unregistered(),
             batch,
+            None,
         )
         .unwrap();
 
