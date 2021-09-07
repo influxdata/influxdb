@@ -6,14 +6,14 @@ use hashbrown::HashMap;
 
 use crate::KeyValue;
 use hashbrown::hash_map::RawEntryMut;
-use opentelemetry::labels::{DefaultLabelEncoder, LabelSet};
+use opentelemetry::attributes::{AttributeSet, DefaultAttributeEncoder};
 
-/// A `Gauge` allows tracking multiple usize values by label set
+/// A `Gauge` allows tracking multiple usize values by attribute set
 ///
-/// Metrics can be recorded directly on the Gauge or when the labels are
+/// Metrics can be recorded directly on the Gauge or when the attributes are
 /// known ahead of time a `GaugeValue` can be obtained with `Gauge::gauge_value`
 ///
-/// When a `Gauge` is dropped any contributions it made to any label sets
+/// When a `Gauge` is dropped any contributions it made to any attribute sets
 /// will be deducted
 #[derive(Debug)]
 pub struct Gauge {
@@ -22,7 +22,7 @@ pub struct Gauge {
     /// Any contributions made by this instance of `Gauge` to the totals
     /// stored in `GaugeState`
     values: HashMap<String, GaugeValue>,
-    default_labels: Vec<KeyValue>,
+    default_attributes: Vec<KeyValue>,
 }
 
 impl Gauge {
@@ -37,43 +37,43 @@ impl Gauge {
         Self {
             state: Arc::new(Default::default()),
             values: Default::default(),
-            default_labels: vec![],
+            default_attributes: vec![],
         }
     }
 
-    pub(crate) fn new(state: Arc<GaugeState>, default_labels: Vec<KeyValue>) -> Self {
+    pub(crate) fn new(state: Arc<GaugeState>, default_attributes: Vec<KeyValue>) -> Self {
         Self {
             values: Default::default(),
             state,
-            default_labels,
+            default_attributes,
         }
     }
 
-    /// Gets a `GaugeValue` for a given set of labels
-    /// This allows fast value updates and retrieval when the labels are known in advance
-    pub fn gauge_value(&self, labels: &[KeyValue]) -> GaugeValue {
-        let (encoded, keys) = self.encode_labels(labels);
+    /// Gets a `GaugeValue` for a given set of attributes
+    /// This allows fast value updates and retrieval when the attributes are known in advance
+    pub fn gauge_value(&self, attributes: &[KeyValue]) -> GaugeValue {
+        let (encoded, keys) = self.encode_attributes(attributes);
         self.state.gauge_value_encoded(encoded, keys)
     }
 
-    pub fn inc(&mut self, delta: usize, labels: &[KeyValue]) {
-        self.call(labels, |observer| observer.inc(delta))
+    pub fn inc(&mut self, delta: usize, attributes: &[KeyValue]) {
+        self.call(attributes, |observer| observer.inc(delta))
     }
 
-    pub fn decr(&mut self, delta: usize, labels: &[KeyValue]) {
-        self.call(labels, |observer| observer.decr(delta))
+    pub fn decr(&mut self, delta: usize, attributes: &[KeyValue]) {
+        self.call(attributes, |observer| observer.decr(delta))
     }
 
-    pub fn set(&mut self, value: usize, labels: &[KeyValue]) {
-        self.call(labels, |observer| observer.set(value))
+    pub fn set(&mut self, value: usize, attributes: &[KeyValue]) {
+        self.call(attributes, |observer| observer.set(value))
     }
 
-    fn encode_labels(&self, labels: &[KeyValue]) -> (String, LabelSet) {
-        GaugeState::encode_labels(self.default_labels.iter().chain(labels).cloned())
+    fn encode_attributes(&self, attributes: &[KeyValue]) -> (String, AttributeSet) {
+        GaugeState::encode_attributes(self.default_attributes.iter().chain(attributes).cloned())
     }
 
-    fn call(&mut self, labels: &[KeyValue], f: impl Fn(&mut GaugeValue)) {
-        let (encoded, keys) = self.encode_labels(labels);
+    fn call(&mut self, attributes: &[KeyValue], f: impl Fn(&mut GaugeValue)) {
+        let (encoded, keys) = self.encode_attributes(attributes);
 
         match self.values.raw_entry_mut().from_key(&encoded) {
             RawEntryMut::Occupied(mut occupied) => f(occupied.get_mut()),
@@ -91,31 +91,31 @@ impl Gauge {
 /// The shared state for a `Gauge`
 #[derive(Debug, Default)]
 pub(crate) struct GaugeState {
-    /// Keep tracks of every label set observed by this gauge
+    /// Keep tracks of every attribute set observed by this gauge
     ///
-    /// The key is a sorted encoding of this label set, that reconciles
+    /// The key is a sorted encoding of this attribute set, that reconciles
     /// duplicates in the same manner as OpenTelemetry (it uses the same encoder)
     /// which appears to be last-writer-wins
     values: DashMap<String, (GaugeValue, Vec<KeyValue>)>,
 }
 
 impl GaugeState {
-    /// Visits the totals for all recorded label sets
+    /// Visits the totals for all recorded attribute sets
     pub fn visit_values(&self, f: impl Fn(usize, &[KeyValue])) {
         for data in self.values.iter() {
-            let (data, labels) = data.value();
-            f(data.get_total(), labels)
+            let (data, attributes) = data.value();
+            f(data.get_total(), attributes)
         }
     }
 
-    fn encode_labels(labels: impl IntoIterator<Item = KeyValue>) -> (String, LabelSet) {
-        let set = LabelSet::from_labels(labels);
-        let encoded = set.encoded(Some(&DefaultLabelEncoder));
+    fn encode_attributes(attributes: impl IntoIterator<Item = KeyValue>) -> (String, AttributeSet) {
+        let set = AttributeSet::from_attributes(attributes);
+        let encoded = set.encoded(Some(&DefaultAttributeEncoder));
 
         (encoded, set)
     }
 
-    fn gauge_value_encoded(&self, encoded: String, keys: LabelSet) -> GaugeValue {
+    fn gauge_value_encoded(&self, encoded: String, keys: AttributeSet) -> GaugeValue {
         self.values
             .entry(encoded)
             .or_insert_with(|| {
@@ -145,7 +145,7 @@ struct GaugeValueShared {
 /// will be deducted from the `GaugeValue` total
 ///
 /// Each `GaugeValue` stores a reference to `GaugeValueShared`. The construction
-/// of `Gauge` ensures that all registered `GaugeValue`s for the same label set
+/// of `Gauge` ensures that all registered `GaugeValue`s for the same attribute set
 /// refer to the same `GaugeValueShared` that isn't shared with any others
 ///
 /// Each `GaugeValue` also stores its local observation, when updated it also

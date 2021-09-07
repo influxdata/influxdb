@@ -36,7 +36,7 @@ num_cpus = "1.13.0"
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 once_cell = { version = "1.4.0", features = ["race"] }
-parking_lot = "0.11.1"
+parking_lot = "0.11.2"
 parquet_file = { path = "../parquet_file" }
 persistence_windows = { path = "../persistence_windows" }
 query = { path = "../query" }
@@ -47,9 +47,8 @@ serde = "1.0"
 serde_json = "1.0"
 snafu = "0.6"
 snap = "1.0.0"
-tikv-jemalloc-ctl = "0.4.0"
 trace = { path = "../trace" }
-tokio = { version = "1.0", features = ["macros", "time"] }
+tokio = { version = "1.11", features = ["macros", "time"] }
 tokio-util = { version = "0.6.3" }
 tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["serde", "v4"] }
@@ -58,7 +57,7 @@ write_buffer = { path = "../write_buffer" }
 [dev-dependencies] # In alphabetical order
 arrow_util = { path = "../arrow_util" }
 datafusion = { path = "../datafusion" }
-tokio = { version = "1.0", features = ["macros", "time"] }
+tokio = { version = "1.11", features = ["macros", "time"] }
 test_helpers = { path = "../test_helpers" }
 
 [features]

@@ -6,6 +6,25 @@ edition = "2018"
 default-run = "influxdb_iox"
 readme = "README.md"
 
+exclude = [
+    "*.md",
+    "*.txt",
+    ".circleci/",
+    ".editorconfig",
+    ".git*",
+    ".github/",
+    ".kodiak.toml",
+    "Dockerfile*",
+    "LICENSE*",
+    "buf.yaml",
+    "docker/",
+    "docs/",
+    "massif.out.*",
+    "perf/",
+    "scripts/",
+    "tools/",
+]
+
 
 [[bin]]
 name = "print_cpu"
@@ -71,6 +90,7 @@ generated_types = { path = "generated_types" }
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
 internal_types = { path = "internal_types" }
+iox_object_store = { path = "iox_object_store" }
 logfmt = { path = "logfmt" }
 metric = { path = "metric" }
 metric_exporters = { path = "metric_exporters" }
@@ -80,6 +100,7 @@ num_cpus = "1.13.0"
 object_store = { path = "object_store" }
 observability_deps = { path = "observability_deps" }
 panic_logging = { path = "panic_logging" }
+parquet_file = { path = "parquet_file" }
 query = { path = "query" }
 read_buffer = { path = "read_buffer" }
 server = { path = "server" }
@@ -107,9 +128,9 @@ hyper = "0.14"
 libc = { version = "0.2" }
 log = "0.4"
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
-parking_lot = "0.11.1"
+parking_lot = "0.11.2"
 itertools = "0.10.1"
-parquet = "5.0"
+parquet = "5.3"
 # used by arrow/datafusion anyway
 prettytable-rs = "0.8"
 pprof = { version = "^0.5", default-features = false, features = ["flamegraph", "protobuf"], optional = true }
@@ -121,10 +142,10 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.67"
 serde_urlencoded = "0.7.0"
 snafu = "0.6.9"
-structopt = "0.3.21"
+structopt = "0.3.23"
 thiserror = "1.0.28"
 tikv-jemalloc-ctl = { version = "0.4.0" }
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "parking_lot", "signal"] }
+tokio = { version = "1.11", features = ["macros", "rt-multi-thread", "parking_lot", "signal"] }
 tokio-stream = { version = "0.1.2", features = ["net"] }
 tokio-util = { version = "0.6.3" }
 tonic = "0.5.0"
@@ -146,7 +167,7 @@ influxdb_storage_client = { path = "influxdb_storage_client" }
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["flight"] }
 test_helpers = { path = "test_helpers" }
 synchronized-writer = "1"
-parking_lot = "0.11.1"
+parking_lot = "0.11.2"
 write_buffer = { path = "write_buffer" }
 
 # Crates.io dependencies, in alphabetical order

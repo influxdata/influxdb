@@ -16,6 +16,7 @@ use std::{convert::TryFrom, net::SocketAddr, sync::Arc};
 use trace::TraceCollector;
 
 mod http;
+mod jemalloc;
 mod planner;
 mod rpc;
 pub(crate) mod serving_readiness;
@@ -121,7 +122,7 @@ fn make_server(
 
     // if this ID isn't set the server won't be usable until this is set via an API
     // call
-    if let Some(id) = config.server_id {
+    if let Some(id) = config.server_id_config.server_id {
         app_server.set_id(id).expect("server id already set");
     } else {
         warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
@@ -177,6 +178,12 @@ pub async fn main(config: Config) -> Result<()> {
     std::mem::forget(f);
 
     let application = make_application(&config).await?;
+
+    // Register jemalloc metrics
+    application
+        .metric_registry_v2()
+        .register_instrument("jemalloc_metrics", jemalloc::JemallocMetrics::new);
+
     let app_server = make_server(Arc::clone(&application), &config);
 
     let grpc_listener = grpc_listener(config.grpc_bind_address).await?;
@@ -370,7 +377,7 @@ mod tests {
             "--grpc-bind",
             "127.0.0.1:0",
         ]);
-        config.server_id = server_id.map(|x| x.try_into().unwrap());
+        config.server_id_config.server_id = server_id.map(|x| x.try_into().unwrap());
         config
     }
 

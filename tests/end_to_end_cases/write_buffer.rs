@@ -4,7 +4,9 @@ use crate::{
 };
 use arrow_util::assert_batches_sorted_eq;
 use entry::{test_helpers::lp_to_entry, Entry};
-use generated_types::influxdata::iox::management::v1::database_rules::WriteBufferConnection;
+use generated_types::influxdata::iox::management::v1::{
+    write_buffer_connection::Direction as WriteBufferDirection, WriteBufferConnection,
+};
 use influxdb_iox_client::write::WriteError;
 use rdkafka::{
     consumer::{Consumer, StreamConsumer},
@@ -22,7 +24,12 @@ async fn writes_go_to_kafka() {
     // set up a database with a write buffer pointing at kafka
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
-    let write_buffer_connection = WriteBufferConnection::Writing(kafka_connection.to_string());
+    let write_buffer_connection = WriteBufferConnection {
+        direction: WriteBufferDirection::Write.into(),
+        r#type: "kafka".to_string(),
+        connection: kafka_connection.to_string(),
+        ..Default::default()
+    };
 
     DatabaseBuilder::new(db_name.clone())
         .write_buffer(write_buffer_connection)
@@ -74,7 +81,12 @@ async fn writes_go_to_kafka_whitelist() {
     // set up a database with a write buffer pointing at kafka
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
-    let write_buffer_connection = WriteBufferConnection::Writing(kafka_connection.to_string());
+    let write_buffer_connection = WriteBufferConnection {
+        direction: WriteBufferDirection::Write.into(),
+        r#type: "kafka".to_string(),
+        connection: kafka_connection.to_string(),
+        ..Default::default()
+    };
 
     DatabaseBuilder::new(db_name.clone())
         .write_buffer(write_buffer_connection)
@@ -149,7 +161,12 @@ async fn reads_come_from_kafka() {
     // set up a database to read from Kafka
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
-    let write_buffer_connection = WriteBufferConnection::Reading(kafka_connection.to_string());
+    let write_buffer_connection = WriteBufferConnection {
+        direction: WriteBufferDirection::Read.into(),
+        r#type: "kafka".to_string(),
+        connection: kafka_connection.to_string(),
+        ..Default::default()
+    };
 
     // Common Kafka config
     let mut cfg = ClientConfig::new();
@@ -238,7 +255,12 @@ async fn cant_write_to_db_reading_from_kafka() {
     // set up a database to read from Kafka
     let server = ServerFixture::create_shared().await;
     let db_name = rand_name();
-    let write_buffer_connection = WriteBufferConnection::Reading(kafka_connection.to_string());
+    let write_buffer_connection = WriteBufferConnection {
+        direction: WriteBufferDirection::Read.into(),
+        r#type: "kafka".to_string(),
+        connection: kafka_connection.to_string(),
+        ..Default::default()
+    };
 
     DatabaseBuilder::new(db_name.clone())
         .write_buffer(write_buffer_connection)

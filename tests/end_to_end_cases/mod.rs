@@ -1,3 +1,4 @@
+mod debug_cli;
 mod flight_api;
 mod freeze;
 mod http;

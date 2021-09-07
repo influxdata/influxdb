@@ -1,0 +1,18 @@
+name = "example"
+
+[[agents]]
+name = "cap_write_{{agent_id}}"
+count = 3
+sampling_interval = "10s"
+
+[[agents.measurements]]
+name = "cpu"
+
+[[agents.measurements.tags]]
+name = "host"
+value = "host-{{agent_id}}"
+
+[[agents.measurements.fields]]
+name = "usage_user"
+f64_range = [0.0, 100.0]
+

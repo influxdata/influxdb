@@ -15,15 +15,9 @@ use parking_lot::Mutex;
 use prometheus::{Encoder, Registry, TextEncoder};
 
 use observability_deps::tracing::*;
-use opentelemetry::{
-    metrics::{
-        registry::RegistryMeterProvider, Meter as OTMeter, MeterProvider, ObserverResult,
-        ValueRecorderBuilder,
-    },
-    sdk::{
-        export::metrics::ExportKindSelector,
-        metrics::{controllers, selectors::simple::Selector},
-    },
+use opentelemetry::metrics::{
+    registry::RegistryMeterProvider, Meter as OTMeter, MeterProvider, ObserverResult,
+    ValueRecorderBuilder,
 };
 
 pub use crate::gauge::*;
@@ -61,7 +55,7 @@ pub struct MetricRegistry {
     /// These are registered on a single shared map to ensure if gauges with the
     /// the same metric name are registered on different metrics domains they
     /// both get the same underlying Gauge. If this didn't occur and both gauges
-    /// were used to publish to the same label set, they wouldn't be able to see
+    /// were used to publish to the same attribute set, they wouldn't be able to see
     /// each other contributions, and only one would be reported to OT
     gauges: Arc<Mutex<HashMap<String, Arc<GaugeState>>>>,
 }
@@ -127,13 +121,17 @@ impl MetricRegistry {
 
     /// This method should be used to register a new domain such as a
     /// sub-system, crate or similar.
-    pub fn register_domain_with_labels(&self, name: &'static str, labels: Vec<KeyValue>) -> Domain {
+    pub fn register_domain_with_attributes(
+        &self,
+        name: &'static str,
+        attributes: Vec<KeyValue>,
+    ) -> Domain {
         let meter = self.provider.meter(name, None);
         Domain::new(
             name,
             meter,
             Arc::clone(&self.observers),
-            labels,
+            attributes,
             Arc::clone(&self.gauges),
         )
     }
@@ -145,24 +143,17 @@ impl Default for MetricRegistry {
         let default_histogram_boundaries = vec![
             0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
         ];
-        let selector = Box::new(Selector::Histogram(default_histogram_boundaries.clone()));
-        let controller = controllers::pull(selector, Box::new(ExportKindSelector::Cumulative))
-            // Disables caching
-            .with_cache_period(std::time::Duration::from_secs(0))
-            // Remember all metrics observed, not just recently updated
-            .with_memory(true)
-            .build();
 
         // Initialise the prometheus exporter
         let default_summary_quantiles = vec![0.5, 0.9, 0.99];
 
-        let exporter = PrometheusExporter::new(
-            registry,
-            controller,
-            default_summary_quantiles,
-            default_histogram_boundaries,
-        )
-        .unwrap();
+        let exporter = opentelemetry_prometheus::exporter()
+            .with_registry(registry)
+            // Disables caching
+            .with_cache_period(std::time::Duration::from_secs(0))
+            .with_default_summary_quantiles(default_summary_quantiles)
+            .with_default_histogram_boundaries(default_histogram_boundaries)
+            .init();
 
         let provider = exporter.provider().unwrap();
         let observers = Arc::new(ObserverCollection::new(provider.meter("observers", None)));
@@ -186,7 +177,7 @@ impl Default for MetricRegistry {
 pub struct Domain {
     name: &'static str,
     meter: OTMeter,
-    default_labels: Vec<KeyValue>,
+    default_attributes: Vec<KeyValue>,
 
     /// A copy of the observer collection from the owning `MetricRegistry`
     observers: Arc<ObserverCollection>,
@@ -200,13 +191,13 @@ impl Domain {
         name: &'static str,
         meter: OTMeter,
         observers: Arc<ObserverCollection>,
-        default_labels: Vec<KeyValue>,
+        default_attributes: Vec<KeyValue>,
         gauges: Arc<Mutex<HashMap<String, Arc<GaugeState>>>>,
     ) -> Self {
         Self {
             name,
             meter,
-            default_labels,
+            default_attributes,
             observers,
             gauges,
         }
@@ -247,15 +238,15 @@ impl Domain {
     /// `mydomain.somename.requests.total`
     /// `mydomain.somename.requests.duration.seconds`
     pub fn register_red_metric(&self, subname: Option<&str>) -> metrics::RedMetric {
-        self.register_red_metric_with_labels(subname, vec![])
+        self.register_red_metric_with_attributes(subname, vec![])
     }
 
-    /// As `register_red_metric` but with a set of default labels. These labels
+    /// As `register_red_metric` but with a set of default attributes. These attributes
     /// will be associated with each observation given to the metric.
-    pub fn register_red_metric_with_labels(
+    pub fn register_red_metric_with_attributes(
         &self,
         name: Option<&str>,
-        default_labels: Vec<KeyValue>,
+        default_attributes: Vec<KeyValue>,
     ) -> metrics::RedMetric {
         let requests = self
             .meter
@@ -277,7 +268,7 @@ impl Domain {
         metrics::RedMetric::new(
             requests,
             duration,
-            [&self.default_labels[..], &default_labels[..]].concat(),
+            [&self.default_attributes[..], &default_attributes[..]].concat(),
         )
     }
 
@@ -296,16 +287,16 @@ impl Domain {
         unit: Option<&str>,
         description: impl Into<String>,
     ) -> metrics::Counter {
-        self.register_counter_metric_with_labels(name, unit, description, vec![])
+        self.register_counter_metric_with_attributes(name, unit, description, vec![])
     }
 
-    /// Registers a new counter metric with default labels.
-    pub fn register_counter_metric_with_labels(
+    /// Registers a new counter metric with default attributes.
+    pub fn register_counter_metric_with_attributes(
         &self,
         name: &str,
         unit: Option<&str>,
         description: impl Into<String>,
-        default_labels: Vec<KeyValue>,
+        default_attributes: Vec<KeyValue>,
     ) -> metrics::Counter {
         let counter = self
             .meter
@@ -315,7 +306,7 @@ impl Domain {
 
         metrics::Counter::new(
             counter,
-            [&self.default_labels[..], &default_labels[..]].concat(),
+            [&self.default_attributes[..], &default_attributes[..]].concat(),
         )
     }
 
@@ -344,7 +335,7 @@ impl Domain {
             .f64_value_recorder(self.build_metric_name(attribute, Some(name), Some(unit), None))
             .with_description(description);
 
-        HistogramBuilder::new(histogram).with_labels(self.default_labels.clone())
+        HistogramBuilder::new(histogram).with_attributes(self.default_attributes.clone())
     }
 
     /// Registers a new gauge metric.
@@ -365,16 +356,16 @@ impl Domain {
         unit: Option<&str>,
         description: impl Into<String>,
     ) -> Gauge {
-        self.register_gauge_metric_with_labels(name, unit, description, &[])
+        self.register_gauge_metric_with_attributes(name, unit, description, &[])
     }
 
-    /// Registers a new gauge metric with default labels.
-    pub fn register_gauge_metric_with_labels(
+    /// Registers a new gauge metric with default attributes.
+    pub fn register_gauge_metric_with_attributes(
         &self,
         name: &str,
         unit: Option<&str>,
         description: impl Into<String>,
-        default_labels: &[KeyValue],
+        default_attributes: &[KeyValue],
     ) -> Gauge {
         let name = self.build_metric_name(name, None, unit, None);
 
@@ -386,30 +377,35 @@ impl Domain {
                 let captured = Arc::clone(&gauge);
                 self.observers
                     .u64_value_observer(key, description, move |observer| {
-                        captured.visit_values(|data, labels| observer.observe(data as u64, labels));
+                        captured.visit_values(|data, attributes| {
+                            observer.observe(data as u64, attributes)
+                        });
                     });
 
                 Arc::clone(vacant.insert(gauge))
             }
         };
-        Gauge::new(gauge, [&self.default_labels[..], default_labels].concat())
+        Gauge::new(
+            gauge,
+            [&self.default_attributes[..], default_attributes].concat(),
+        )
     }
 
     /// An observer can be used to provide asynchronous fetching of values from an object
     ///
     /// NB: If you register multiple observers with the same measurement name, they MUST
-    /// publish to disjoint label sets. If two or more observers publish to the same
-    /// measurement name and label set only one will be reported
+    /// publish to disjoint attribute sets. If two or more observers publish to the same
+    /// measurement name and attribute set only one will be reported
     pub fn register_observer(
         &self,
         subname: Option<&str>,
-        default_labels: &[KeyValue],
+        default_attributes: &[KeyValue],
         observer: impl MetricObserver,
     ) {
         observer.register(MetricObserverBuilder {
             domain: self,
             subname,
-            labels: [&self.default_labels[..], default_labels].concat(),
+            attributes: [&self.default_attributes[..], default_attributes].concat(),
         });
     }
 }
@@ -432,7 +428,7 @@ impl<T: FnOnce(MetricObserverBuilder<'_>)> MetricObserver for T {
 pub struct MetricObserverBuilder<'a> {
     domain: &'a Domain,
     subname: Option<&'a str>,
-    labels: Vec<KeyValue>,
+    attributes: Vec<KeyValue>,
 }
 
 impl<'a> MetricObserverBuilder<'a> {
@@ -450,7 +446,7 @@ impl<'a> MetricObserverBuilder<'a> {
             self.domain
                 .build_metric_name(name, self.subname, unit, None),
             description,
-            TaggedObserverResult::with_callback(self.labels.clone(), callback),
+            TaggedObserverResult::with_callback(self.attributes.clone(), callback),
         )
     }
 
@@ -468,7 +464,7 @@ impl<'a> MetricObserverBuilder<'a> {
             self.domain
                 .build_metric_name(name, self.subname, unit, None),
             description,
-            TaggedObserverResult::with_callback(self.labels.to_owned(), callback),
+            TaggedObserverResult::with_callback(self.attributes.to_owned(), callback),
         )
     }
 
@@ -486,7 +482,7 @@ impl<'a> MetricObserverBuilder<'a> {
             self.domain
                 .build_metric_name(name, self.subname, unit, Some("total")),
             description,
-            TaggedObserverResult::with_callback(self.labels.to_owned(), callback),
+            TaggedObserverResult::with_callback(self.attributes.to_owned(), callback),
         )
     }
 
@@ -504,7 +500,7 @@ impl<'a> MetricObserverBuilder<'a> {
             self.domain
                 .build_metric_name(name, self.subname, unit, Some("bucket")),
             description,
-            TaggedObserverResult::with_callback(self.labels.to_owned(), callback),
+            TaggedObserverResult::with_callback(self.attributes.to_owned(), callback),
         )
     }
 
@@ -522,7 +518,7 @@ impl<'a> MetricObserverBuilder<'a> {
             self.domain
                 .build_metric_name(name, self.subname, unit, Some("total")),
             description,
-            TaggedObserverResult::with_callback(self.labels.to_owned(), callback),
+            TaggedObserverResult::with_callback(self.attributes.to_owned(), callback),
         )
     }
 }
@@ -530,7 +526,7 @@ impl<'a> MetricObserverBuilder<'a> {
 #[derive(Debug)]
 pub struct TaggedObserverResult<'a, T> {
     observer: &'a ObserverResult<T>,
-    labels: &'a [KeyValue],
+    attributes: &'a [KeyValue],
 }
 
 impl<'a, T> TaggedObserverResult<'a, T>
@@ -538,7 +534,7 @@ where
     T: Into<opentelemetry::metrics::Number>,
 {
     fn with_callback<F>(
-        labels: Vec<KeyValue>,
+        attributes: Vec<KeyValue>,
         callback: F,
     ) -> impl Fn(&ObserverResult<T>) + Send + Sync + 'static
     where
@@ -547,22 +543,22 @@ where
         move |observer| {
             callback(TaggedObserverResult {
                 observer,
-                labels: labels.as_slice(),
+                attributes: attributes.as_slice(),
             })
         }
     }
 
-    pub fn observe(&self, value: T, labels: &[KeyValue]) {
+    pub fn observe(&self, value: T, attributes: &[KeyValue]) {
         // This does not handle duplicates, it is unclear that it should
-        let labels: Vec<_> = self.labels.iter().chain(labels).cloned().collect();
-        self.observer.observe(value, &labels)
+        let attributes: Vec<_> = self.attributes.iter().chain(attributes).cloned().collect();
+        self.observer.observe(value, &attributes)
     }
 }
 
 #[derive(Debug)]
 pub struct HistogramBuilder<'a> {
     histogram: ValueRecorderBuilder<'a, f64>,
-    labels: Option<Vec<KeyValue>>,
+    attributes: Option<Vec<KeyValue>>,
     boundaries: Option<Vec<f64>>,
 }
 
@@ -570,21 +566,21 @@ impl<'a> HistogramBuilder<'a> {
     fn new(histogram: ValueRecorderBuilder<'a, f64>) -> Self {
         Self {
             histogram,
-            labels: None,
+            attributes: None,
             boundaries: None,
         }
     }
 
-    /// Set some default labels on the Histogram metric.
-    pub fn with_labels(self, labels: Vec<KeyValue>) -> Self {
-        let labels = match self.labels {
-            Some(existing_labels) => [&existing_labels[..], &labels[..]].concat(),
-            None => labels,
+    /// Set some default attributes on the Histogram metric.
+    pub fn with_attributes(self, attributes: Vec<KeyValue>) -> Self {
+        let attributes = match self.attributes {
+            Some(existing_attributes) => [&existing_attributes[..], &attributes[..]].concat(),
+            None => attributes,
         };
 
         Self {
             histogram: self.histogram,
-            labels: Some(labels),
+            attributes: Some(attributes),
             boundaries: None,
         }
     }
@@ -593,21 +589,21 @@ impl<'a> HistogramBuilder<'a> {
     pub fn with_bucket_boundaries(self, boundaries: Vec<f64>) -> Self {
         Self {
             histogram: self.histogram,
-            labels: self.labels,
+            attributes: self.attributes,
             boundaries: Some(boundaries),
         }
     }
 
     /// Initialise the Histogram metric ready for observations.
     pub fn init(self) -> metrics::Histogram {
-        let labels = self.labels.unwrap_or_default();
+        let attributes = self.attributes.unwrap_or_default();
         let boundaries = self.boundaries.unwrap_or_default();
 
         if !boundaries.is_empty() {
             todo!("histogram boundaries not yet configurable.");
         }
 
-        metrics::Histogram::new(self.histogram.init(), labels)
+        metrics::Histogram::new(self.histogram.init(), attributes)
     }
 }
 
@@ -639,19 +635,19 @@ mod test {
         ob.observe(metrics::RedRequestStatus::Ok, duration, &[]);
 
         reg.has_metric_family("http_requests_total")
-            .with_labels(&[("status", "ok")])
+            .with_attributes(&[("status", "ok")])
             .counter()
             .eq(1.0)
             .unwrap();
 
         reg.has_metric_family("http_request_duration_seconds")
-            .with_labels(&[("status", "ok")])
+            .with_attributes(&[("status", "ok")])
             .histogram()
             .sample_count_eq(1)
             .unwrap();
 
         reg.has_metric_family("http_request_duration_seconds")
-            .with_labels(&[("status", "ok")])
+            .with_attributes(&[("status", "ok")])
             .histogram()
             .sample_sum_eq(0.1)
             .unwrap();
@@ -713,7 +709,7 @@ mod test {
     }
 
     #[test]
-    fn red_metric_labels() {
+    fn red_metric_attributes() {
         let reg = TestMetricRegistry::default();
         let domain = reg.registry().register_domain("ftp");
 
@@ -723,7 +719,7 @@ mod test {
         // Get an observation to start measuring something.
         let ob = metric.observation();
 
-        // Usually a caller would use `ob.ok_with_labels(labels)`;
+        // Usually a caller would use `ob.ok_with_attributes(attributes)`;
         ob.observe(
             metrics::RedRequestStatus::Ok,
             Duration::from_millis(100),
@@ -788,7 +784,7 @@ mod test {
         let domain = reg.registry().register_domain("http");
 
         // create a counter metric
-        let metric = domain.register_counter_metric_with_labels(
+        let metric = domain.register_counter_metric_with_attributes(
             "mem",
             Some("bytes"),
             "total bytes consumed",
@@ -797,16 +793,16 @@ mod test {
 
         metric.inc();
         metric.add(22);
-        metric.inc_with_labels(&[KeyValue::new("tier", "b")]);
+        metric.inc_with_attributes(&[KeyValue::new("tier", "b")]);
 
         reg.has_metric_family("http_mem_bytes_total")
-            .with_labels(&[("tier", "a")])
+            .with_attributes(&[("tier", "a")])
             .counter()
             .eq(23.0)
             .unwrap();
 
         reg.has_metric_family("http_mem_bytes_total")
-            .with_labels(&[("tier", "b")])
+            .with_attributes(&[("tier", "b")])
             .counter()
             .eq(1.0)
             .unwrap();
@@ -825,7 +821,7 @@ mod test {
                 "seconds",
                 "The distribution of chunk conversion latencies",
             )
-            .with_labels(vec![KeyValue::new("db", "mydb")]) // Optional
+            .with_attributes(vec![KeyValue::new("db", "mydb")]) // Optional
             // .with_bucket_boundaries(vec![1,2,3]) <- this is a future TODO
             .init();
 
@@ -837,28 +833,28 @@ mod test {
         std::thread::sleep(Duration::from_millis(20));
 
         // will record a duration >= 20ms
-        ob.record_with_labels(&[KeyValue::new("stage", "beta")]);
+        ob.record_with_attributes(&[KeyValue::new("stage", "beta")]);
 
         reg.has_metric_family("chunker_conversion_duration_seconds")
-            .with_labels(&[("db", "mydb")])
+            .with_attributes(&[("db", "mydb")])
             .histogram()
             .sample_count_eq(1)
             .unwrap();
 
         reg.has_metric_family("chunker_conversion_duration_seconds")
-            .with_labels(&[("db", "mydb")])
+            .with_attributes(&[("db", "mydb")])
             .histogram()
             .sample_sum_eq(22.32)
             .unwrap();
 
         reg.has_metric_family("chunker_conversion_duration_seconds")
-            .with_labels(&[("db", "mydb"), ("stage", "beta")])
+            .with_attributes(&[("db", "mydb"), ("stage", "beta")])
             .histogram()
             .sample_count_eq(1)
             .unwrap();
 
         reg.has_metric_family("chunker_conversion_duration_seconds")
-            .with_labels(&[("db", "mydb"), ("stage", "beta")])
+            .with_attributes(&[("db", "mydb"), ("stage", "beta")])
             .histogram()
             .sample_sum_gte(0.02) // 20ms
             .unwrap();
@@ -866,13 +862,13 @@ mod test {
         // TODO(edd): need to figure out how to set custom buckets then
         // these assertions can be tested.
         // reg.has_metric_family("chunker_conversion_duration_seconds")
-        //     .with_labels(&[("db", "mydb"), ("stage", "beta")])
+        //     .with_attributes(&[("db", "mydb"), ("stage", "beta")])
         //     .histogram()
         //     .bucket_cumulative_count_eq(11.2, 1)
         //     .unwrap();
 
         // reg.has_metric_family("chunker_conversion_duration_seconds")
-        //     .with_labels(&[("db", "mydb"), ("stage", "beta")])
+        //     .with_attributes(&[("db", "mydb"), ("stage", "beta")])
         //     .histogram()
         //     .bucket_cumulative_count_eq(0.12, 0)
         //     .unwrap();
@@ -884,7 +880,7 @@ mod test {
         let domain = reg.registry().register_domain("http");
 
         // create a gauge metric
-        let mut metric = domain.register_gauge_metric_with_labels(
+        let mut metric = domain.register_gauge_metric_with_attributes(
             "mem",
             Some("bytes"),
             "currently used bytes",
@@ -900,19 +896,19 @@ mod test {
         metric.set(43, &[KeyValue::new("beer", "c")]);
 
         reg.has_metric_family("http_mem_bytes")
-            .with_labels(&[("tier", "a")])
+            .with_attributes(&[("tier", "a")])
             .gauge()
             .eq(40.0)
             .unwrap();
 
         reg.has_metric_family("http_mem_bytes")
-            .with_labels(&[("tier", "b")])
+            .with_attributes(&[("tier", "b")])
             .gauge()
             .eq(42.0)
             .unwrap();
 
         reg.has_metric_family("http_mem_bytes")
-            .with_labels(&[("tier", "a"), ("beer", "c")])
+            .with_attributes(&[("tier", "a"), ("beer", "c")])
             .gauge()
             .eq(43.0)
             .unwrap();
@@ -933,21 +929,21 @@ mod test {
 
         metric.inc(100, &[KeyValue::new("me", "new")]);
         reg.has_metric_family("http_mem_bytes")
-            .with_labels(&[("tier", "a"), ("me", "new")])
+            .with_attributes(&[("tier", "a"), ("me", "new")])
             .gauge()
             .eq(100.0)
             .unwrap();
 
         metric.inc(11, &[KeyValue::new("me", "new")]);
         reg.has_metric_family("http_mem_bytes")
-            .with_labels(&[("tier", "a"), ("me", "new")])
+            .with_attributes(&[("tier", "a"), ("me", "new")])
             .gauge()
             .eq(111.0)
             .unwrap();
 
         metric.decr(11, &[]);
         reg.has_metric_family("http_mem_bytes")
-            .with_labels(&[("tier", "a")])
+            .with_attributes(&[("tier", "a")])
             .gauge()
             .eq(29.0)
             .unwrap();
@@ -989,7 +985,7 @@ mod test {
         );
 
         reg.has_metric_family("http_mem_bytes")
-            .with_labels(&[("tier", "a")])
+            .with_attributes(&[("tier", "a")])
             .gauge()
             .eq(40.0)
             .unwrap();
@@ -1000,13 +996,13 @@ mod test {
         }
 
         reg.has_metric_family("http_mem_bytes")
-            .with_labels(&[("tier", "a")])
+            .with_attributes(&[("tier", "a")])
             .gauge()
             .eq(42.0)
             .unwrap();
 
         reg.has_metric_family("http_disk_bytes")
-            .with_labels(&[("beer", "b"), ("tier", "a")])
+            .with_attributes(&[("beer", "b"), ("tier", "a")])
             .gauge()
             .eq(43.0)
             .unwrap();
@@ -1031,7 +1027,7 @@ mod test {
             .init();
 
         reg.has_metric_family("mem")
-            .with_labels(&[("a", "b")])
+            .with_attributes(&[("a", "b")])
             .counter()
             .eq(23.)
             .unwrap();
@@ -1039,7 +1035,7 @@ mod test {
         // If this passes it implies the upstream SDK has been fixed and the hacky
         // observer shim can be removed
         reg.has_metric_family("mem")
-            .with_labels(&[("c", "d")])
+            .with_attributes(&[("c", "d")])
             .counter()
             .eq(232.)
             .expect_err("expected default SDK to not handle correctly");
@@ -1084,64 +1080,64 @@ mod test {
         });
 
         reg.has_metric_family("test_mem")
-            .with_labels(&[("a", "b")])
+            .with_attributes(&[("a", "b")])
             .gauge()
             .eq(1.)
             .unwrap();
 
         reg.has_metric_family("test_mem")
-            .with_labels(&[("c", "d")])
+            .with_attributes(&[("c", "d")])
             .gauge()
             .eq(2.)
             .unwrap();
 
         reg.has_metric_family("test_mem")
-            .with_labels(&[("e", "f")])
+            .with_attributes(&[("e", "f")])
             .gauge()
             .eq(3.)
             .unwrap();
 
         reg.has_metric_family("test_mem")
-            .with_labels(&[("g", "h")])
+            .with_attributes(&[("g", "h")])
             .gauge()
             .eq(4.)
             .unwrap();
 
         reg.has_metric_family("test_disk_total")
-            .with_labels(&[("a", "b")])
+            .with_attributes(&[("a", "b")])
             .counter()
             .eq(1.)
             .unwrap();
 
         reg.has_metric_family("test_float_total")
-            .with_labels(&[("a", "b")])
+            .with_attributes(&[("a", "b")])
             .counter()
             .eq(1.)
             .unwrap();
 
         reg.has_metric_family("test_gauge")
-            .with_labels(&[("a", "b")])
+            .with_attributes(&[("a", "b")])
             .gauge()
             .eq(1.)
             .unwrap();
 
         reg.has_metric_family("test_gauge")
-            .with_labels(&[("c", "d")])
+            .with_attributes(&[("c", "d")])
             .gauge()
             .eq(2.)
             .unwrap();
     }
 
     #[test]
-    fn test_default_labels() {
+    fn test_default_attributes() {
         let reg = TestMetricRegistry::default();
         let registry = reg.registry();
         let domain =
-            registry.register_domain_with_labels("test", vec![KeyValue::new("foo", "bar")]);
+            registry.register_domain_with_attributes("test", vec![KeyValue::new("foo", "bar")]);
 
         // Test Gauge
 
-        let mut guage = domain.register_gauge_metric_with_labels(
+        let mut guage = domain.register_gauge_metric_with_attributes(
             "mem",
             Some("bytes"),
             "currently used bytes",
@@ -1150,12 +1146,12 @@ mod test {
         guage.set(2, &[]);
 
         reg.has_metric_family("test_mem_bytes")
-            .with_labels(&[("foo", "bar"), ("tier", "a")])
+            .with_attributes(&[("foo", "bar"), ("tier", "a")])
             .gauge()
             .eq(2.)
             .unwrap();
 
-        let mut guage = domain.register_gauge_metric_with_labels(
+        let mut guage = domain.register_gauge_metric_with_attributes(
             "override",
             Some("bytes"),
             "currently used bytes",
@@ -1164,12 +1160,12 @@ mod test {
         guage.set(2, &[]);
 
         reg.has_metric_family("test_override_bytes")
-            .with_labels(&[("foo", "ooh")])
+            .with_attributes(&[("foo", "ooh")])
             .gauge()
             .eq(2.)
             .unwrap();
 
-        let mut guage = domain.register_gauge_metric_with_labels(
+        let mut guage = domain.register_gauge_metric_with_attributes(
             "override2",
             Some("bytes"),
             "currently used bytes",
@@ -1178,14 +1174,14 @@ mod test {
         guage.set(2, &[KeyValue::new("foo", "heh")]);
 
         reg.has_metric_family("test_override2_bytes")
-            .with_labels(&[("foo", "heh")])
+            .with_attributes(&[("foo", "heh")])
             .gauge()
             .eq(2.)
             .unwrap();
 
         // Test Counter
 
-        let counter = domain.register_counter_metric_with_labels(
+        let counter = domain.register_counter_metric_with_attributes(
             "mem",
             Some("bytes"),
             "currently used bytes",
@@ -1194,12 +1190,12 @@ mod test {
         counter.add(2);
 
         reg.has_metric_family("test_mem_bytes_total")
-            .with_labels(&[("foo", "bar"), ("tier", "a")])
+            .with_attributes(&[("foo", "bar"), ("tier", "a")])
             .counter()
             .eq(2.)
             .unwrap();
 
-        let counter = domain.register_counter_metric_with_labels(
+        let counter = domain.register_counter_metric_with_attributes(
             "override",
             Some("bytes"),
             "currently used bytes",
@@ -1208,21 +1204,21 @@ mod test {
         counter.add(2);
 
         reg.has_metric_family("test_override_bytes_total")
-            .with_labels(&[("foo", "ooh")])
+            .with_attributes(&[("foo", "ooh")])
             .counter()
             .eq(2.)
             .unwrap();
 
-        let counter = domain.register_counter_metric_with_labels(
+        let counter = domain.register_counter_metric_with_attributes(
             "override2",
             Some("bytes"),
             "currently used bytes",
             vec![KeyValue::new("foo", "ooh")],
         );
-        counter.inc_with_labels(&[KeyValue::new("foo", "heh")]);
+        counter.inc_with_attributes(&[KeyValue::new("foo", "heh")]);
 
         reg.has_metric_family("test_override2_bytes_total")
-            .with_labels(&[("foo", "heh")])
+            .with_attributes(&[("foo", "heh")])
             .counter()
             .eq(1.)
             .unwrap();
@@ -1234,7 +1230,7 @@ mod test {
         });
 
         reg.has_metric_family("test_observer_f64")
-            .with_labels(&[("foo", "bar")])
+            .with_attributes(&[("foo", "bar")])
             .gauge()
             .eq(2.)
             .unwrap();
@@ -1246,7 +1242,7 @@ mod test {
         });
 
         reg.has_metric_family("test_observer_f64")
-            .with_labels(&[("foo", "bar"), ("inner", "foo")])
+            .with_attributes(&[("foo", "bar"), ("inner", "foo")])
             .gauge()
             .eq(2.)
             .unwrap();
@@ -1262,7 +1258,7 @@ mod test {
         );
 
         reg.has_metric_family("test_observer_u64")
-            .with_labels(&[("foo", "bar"), ("inner", "foo"), ("bingo", "bongo")])
+            .with_attributes(&[("foo", "bar"), ("inner", "foo"), ("bingo", "bongo")])
             .gauge()
             .eq(9.)
             .unwrap();
@@ -1281,7 +1277,7 @@ mod test {
         );
 
         reg.has_metric_family("test_observer_f64")
-            .with_labels(&[("foo", "boo"), ("inner", "foo"), ("bingo", "bongo")])
+            .with_attributes(&[("foo", "boo"), ("inner", "foo"), ("bingo", "bongo")])
             .gauge()
             .eq(4.)
             .unwrap();
@@ -1300,7 +1296,7 @@ mod test {
         );
 
         reg.has_metric_family("test_observer_f64")
-            .with_labels(&[("foo", "foo"), ("inner", "foo"), ("bingo", "bongo")])
+            .with_attributes(&[("foo", "foo"), ("inner", "foo"), ("bingo", "bongo")])
             .gauge()
             .eq(6.)
             .unwrap();
@@ -1316,7 +1312,7 @@ mod test {
         );
 
         reg.has_metric_family("test_observer_u64_total")
-            .with_labels(&[("foo", "woo"), ("inner", "foo"), ("bingo", "bongo")])
+            .with_attributes(&[("foo", "woo"), ("inner", "foo"), ("bingo", "bongo")])
             .counter()
             .eq(6.)
             .unwrap();
@@ -1327,9 +1323,9 @@ mod test {
         let reg = TestMetricRegistry::default();
         let registry = reg.registry();
         let domain =
-            registry.register_domain_with_labels("catalog", vec![KeyValue::new("foo", "bar")]);
+            registry.register_domain_with_attributes("catalog", vec![KeyValue::new("foo", "bar")]);
 
-        let gauge = domain.register_gauge_metric_with_labels(
+        let gauge = domain.register_gauge_metric_with_attributes(
             "chunk_mem",
             Some("bytes"),
             "bytes tracker",
@@ -1340,7 +1336,7 @@ mod test {
         let mut b = gauge.gauge_value(&[KeyValue::new("state", "mub")]);
 
         reg.has_metric_family("catalog_chunk_mem_bytes")
-            .with_labels(&[("foo", "bar"), ("state", "mub")])
+            .with_attributes(&[("foo", "bar"), ("state", "mub")])
             .gauge()
             .eq(0.)
             .unwrap();
@@ -1348,7 +1344,7 @@ mod test {
         a.set(2);
 
         reg.has_metric_family("catalog_chunk_mem_bytes")
-            .with_labels(&[("foo", "bar"), ("state", "mub")])
+            .with_attributes(&[("foo", "bar"), ("state", "mub")])
             .gauge()
             .eq(2.)
             .unwrap();
@@ -1357,7 +1353,7 @@ mod test {
         a.inc(2);
 
         reg.has_metric_family("catalog_chunk_mem_bytes")
-            .with_labels(&[("foo", "bar"), ("state", "mub")])
+            .with_attributes(&[("foo", "bar"), ("state", "mub")])
             .gauge()
             .eq(9.)
             .unwrap();
@@ -1365,7 +1361,7 @@ mod test {
         std::mem::drop(b);
 
         reg.has_metric_family("catalog_chunk_mem_bytes")
-            .with_labels(&[("foo", "bar"), ("state", "mub")])
+            .with_attributes(&[("foo", "bar"), ("state", "mub")])
             .gauge()
             .eq(4.)
             .unwrap();
@@ -1373,7 +1369,7 @@ mod test {
         std::mem::drop(a);
 
         reg.has_metric_family("catalog_chunk_mem_bytes")
-            .with_labels(&[("foo", "bar"), ("state", "mub")])
+            .with_attributes(&[("foo", "bar"), ("state", "mub")])
             .gauge()
             .eq(0.)
             .unwrap();
@@ -1384,7 +1380,7 @@ mod test {
         let reg = TestMetricRegistry::default();
         let registry = reg.registry();
         let domain =
-            registry.register_domain_with_labels("catalog", vec![KeyValue::new("foo", "bar")]);
+            registry.register_domain_with_attributes("catalog", vec![KeyValue::new("foo", "bar")]);
 
         let mut gauge1 = domain.register_gauge_metric("read_buffer", None, "testy");
 
@@ -1392,7 +1388,7 @@ mod test {
 
         gauge1.inc(5, &[KeyValue::new("enc", "foo")]);
         reg.has_metric_family("catalog_read_buffer")
-            .with_labels(&[("foo", "bar"), ("enc", "foo")])
+            .with_attributes(&[("foo", "bar"), ("enc", "foo")])
             .gauge()
             .eq(5.)
             .unwrap();
@@ -1400,7 +1396,7 @@ mod test {
         gauge2.inc(7, &[KeyValue::new("enc", "foo")]);
 
         reg.has_metric_family("catalog_read_buffer")
-            .with_labels(&[("foo", "bar"), ("enc", "foo")])
+            .with_attributes(&[("foo", "bar"), ("enc", "foo")])
             .gauge()
             .eq(12.)
             .unwrap();
@@ -1408,7 +1404,7 @@ mod test {
         gauge2.inc(7, &[KeyValue::new("enc", "bar")]);
 
         reg.has_metric_family("catalog_read_buffer")
-            .with_labels(&[("foo", "bar"), ("enc", "bar")])
+            .with_attributes(&[("foo", "bar"), ("enc", "bar")])
             .gauge()
             .eq(7.)
             .unwrap();
@@ -1416,13 +1412,13 @@ mod test {
         std::mem::drop(gauge2);
 
         reg.has_metric_family("catalog_read_buffer")
-            .with_labels(&[("foo", "bar"), ("enc", "bar")])
+            .with_attributes(&[("foo", "bar"), ("enc", "bar")])
             .gauge()
             .eq(0.)
             .unwrap();
 
         reg.has_metric_family("catalog_read_buffer")
-            .with_labels(&[("foo", "bar"), ("enc", "foo")])
+            .with_attributes(&[("foo", "bar"), ("enc", "foo")])
             .gauge()
             .eq(5.)
             .unwrap();
@@ -1430,7 +1426,7 @@ mod test {
         std::mem::drop(gauge1);
 
         reg.has_metric_family("catalog_read_buffer")
-            .with_labels(&[("foo", "bar"), ("enc", "foo")])
+            .with_attributes(&[("foo", "bar"), ("enc", "foo")])
             .gauge()
             .eq(0.)
             .unwrap();

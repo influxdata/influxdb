@@ -19,7 +19,7 @@ use crate::{
         },
     },
     metadata::IoxParquetMetaData,
-    test_utils::{chunk_addr, make_iox_object_store, make_metadata},
+    test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize},
 };
 
 #[derive(Clone, Debug, Default)]
@@ -189,8 +189,13 @@ where
     // add files
     {
         for chunk_id in 0..5 {
-            let (path, metadata) =
-                make_metadata(&iox_object_store, "ok", chunk_addr(chunk_id)).await;
+            let (path, metadata) = make_metadata(
+                &iox_object_store,
+                "ok",
+                chunk_addr(chunk_id),
+                TestSize::Full,
+            )
+            .await;
             state
                 .add(
                     Arc::clone(&iox_object_store),
@@ -215,7 +220,8 @@ where
 
     // add and remove in the same transaction
     {
-        let (path, metadata) = make_metadata(&iox_object_store, "ok", chunk_addr(5)).await;
+        let (path, metadata) =
+            make_metadata(&iox_object_store, "ok", chunk_addr(5), TestSize::Full).await;
         state
             .add(
                 Arc::clone(&iox_object_store),
@@ -249,7 +255,8 @@ where
 
     // add, remove, add in the same transaction
     {
-        let (path, metadata) = make_metadata(&iox_object_store, "ok", chunk_addr(6)).await;
+        let (path, metadata) =
+            make_metadata(&iox_object_store, "ok", chunk_addr(6), TestSize::Full).await;
         state
             .add(
                 Arc::clone(&iox_object_store),
@@ -298,7 +305,8 @@ where
         // TODO: Error handling should disambiguate between chunk collision and filename collision
 
         // chunk with same ID already exists (should also not change the metadata)
-        let (path, metadata) = make_metadata(&iox_object_store, "fail", chunk_addr(0)).await;
+        let (path, metadata) =
+            make_metadata(&iox_object_store, "fail", chunk_addr(0), TestSize::Full).await;
         let err = state
             .add(
                 Arc::clone(&iox_object_store),
@@ -335,7 +343,8 @@ where
         assert!(matches!(err, Error::ParquetFileAlreadyExists { .. }));
 
         // this transaction will still work
-        let (path, metadata) = make_metadata(&iox_object_store, "ok", chunk_addr(7)).await;
+        let (path, metadata) =
+            make_metadata(&iox_object_store, "ok", chunk_addr(7), TestSize::Full).await;
         let metadata = Arc::new(metadata);
         state
             .add(

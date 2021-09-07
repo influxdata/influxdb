@@ -1,18 +1,19 @@
 //! This module implements the `database` CLI command
-use std::{fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr};
 
-use structopt::StructOpt;
-use thiserror::Error;
-
+use chrono::{DateTime, Utc};
 use influxdb_iox_client::{
     connection::Connection,
     flight,
     format::QueryOutputFormat,
     management::{
-        self, generated_types::*, CreateDatabaseError, GetDatabaseError, ListDatabaseError,
+        self, generated_types::*, CreateDatabaseError, DeleteDatabaseError, GetDatabaseError,
+        ListDatabaseError,
     },
     write::{self, WriteError},
 };
+use std::{convert::TryInto, fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr};
+use structopt::StructOpt;
+use thiserror::Error;
 
 mod chunk;
 mod partition;
@@ -29,6 +30,9 @@ pub enum Error {
 
     #[error("Error listing databases: {0}")]
     ListDatabaseError(#[from] ListDatabaseError),
+
+    #[error("Error deleting database: {0}")]
+    DeleteDatabaseError(#[from] DeleteDatabaseError),
 
     #[error("Error reading file {:?}: {}", file_name, source)]
     ReadingFile {
@@ -121,7 +125,11 @@ struct Create {
 
 /// Get list of databases
 #[derive(Debug, StructOpt)]
-struct List {}
+struct List {
+    /// Whether to list databases marked as deleted instead, to restore or permanently delete.
+    #[structopt(long)]
+    deleted: bool,
+}
 
 /// Return configuration of specific database
 #[derive(Debug, StructOpt)]
@@ -160,6 +168,13 @@ struct Query {
     format: String,
 }
 
+/// Delete a database
+#[derive(Debug, StructOpt)]
+struct Delete {
+    /// The name of the database to delete
+    name: String,
+}
+
 /// All possible subcommands for database
 #[derive(Debug, StructOpt)]
 enum Command {
@@ -171,6 +186,7 @@ enum Command {
     Chunk(chunk::Config),
     Partition(partition::Config),
     Recover(recover::Config),
+    Delete(Delete),
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
@@ -214,10 +230,29 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
             println!("Ok");
         }
-        Command::List(_) => {
+        Command::List(list) => {
             let mut client = management::Client::new(connection);
-            let names = client.list_database_names().await?;
-            println!("{}", names.join("\n"))
+            if list.deleted {
+                let deleted = client.list_deleted_databases().await?;
+                println!("Deleted at                      | Generation ID | Name");
+                println!("--------------------------------+---------------+--------");
+                for database in deleted {
+                    let deleted_at = database
+                        .deleted_at
+                        .and_then(|t| {
+                            let dt: Result<DateTime<Utc>, _> = t.try_into();
+                            dt.ok().map(|d| d.to_string())
+                        })
+                        .unwrap_or_else(|| String::from("Unknown"));
+                    println!(
+                        "{:<33}{:<16}{}",
+                        deleted_at, database.generation_id, database.db_name,
+                    );
+                }
+            } else {
+                let names = client.list_database_names().await?;
+                println!("{}", names.join("\n"))
+            }
         }
         Command::Get(get) => {
             let Get {
@@ -278,6 +313,11 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::Recover(config) => {
             recover::command(connection, config).await?;
+        }
+        Command::Delete(command) => {
+            let mut client = management::Client::new(connection);
+            client.delete_database(&command.name).await?;
+            println!("Deleted database {}", command.name);
         }
     }
 

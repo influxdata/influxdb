@@ -237,6 +237,15 @@ async fn test_list_databases() {
         assert!(rules.lifecycle_rules.is_some());
     }
 
+    // validate that neither database appears in the list of deleted databases
+    let deleted_databases = client
+        .list_deleted_databases()
+        .await
+        .expect("list deleted databases failed");
+    let names: Vec<_> = deleted_databases.into_iter().map(|db| db.db_name).collect();
+    assert!(!names.contains(&name1));
+    assert!(!names.contains(&name2));
+
     // now fetch without defaults, and neither should have their rules filled in
     let omit_defaults = true;
     let databases: Vec<_> = client
@@ -256,6 +265,54 @@ async fn test_list_databases() {
     for rules in &databases {
         assert!(rules.lifecycle_rules.is_none());
     }
+
+    // now delete one of the databases; it should not appear whether we're omitting defaults or not
+    client.delete_database(&name1).await.unwrap();
+
+    let omit_defaults = false;
+    let databases: Vec<_> = client
+        .list_databases(omit_defaults)
+        .await
+        .expect("list databases failed")
+        .into_iter()
+        // names may contain the names of other databases created by
+        // concurrent tests as well
+        .filter(|rules| rules.name == name1 || rules.name == name2)
+        .collect();
+
+    let names: Vec<_> = databases.iter().map(|rules| rules.name.clone()).collect();
+
+    assert!(!dbg!(&names).contains(&name1));
+    assert!(dbg!(&names).contains(&name2));
+
+    let omit_defaults = true;
+    let databases: Vec<_> = client
+        .list_databases(omit_defaults)
+        .await
+        .expect("list databases failed")
+        .into_iter()
+        // names may contain the names of other databases created by
+        // concurrent tests as well
+        .filter(|rules| rules.name == name1 || rules.name == name2)
+        .collect();
+
+    let names: Vec<_> = databases.iter().map(|rules| rules.name.clone()).collect();
+    assert!(!dbg!(&names).contains(&name1));
+    assert!(dbg!(&names).contains(&name2));
+
+    // The deleted database should be included in the list of deleted databases
+    let deleted_databases = client
+        .list_deleted_databases()
+        .await
+        .expect("list deleted databases failed");
+
+    assert!(
+        deleted_databases
+            .iter()
+            .any(|db| db.db_name == name1 && db.generation_id == 0),
+        "could not find expected database in {:?}",
+        deleted_databases
+    );
 }
 
 #[tokio::test]
@@ -468,7 +525,7 @@ async fn test_chunk_get() {
             id: 0,
             storage: ChunkStorage::OpenMutableBuffer.into(),
             lifecycle_action,
-            memory_bytes: 100,
+            memory_bytes: 1016,
             object_store_bytes: 0,
             row_count: 2,
             time_of_last_access: None,
@@ -482,7 +539,7 @@ async fn test_chunk_get() {
             id: 0,
             storage: ChunkStorage::OpenMutableBuffer.into(),
             lifecycle_action,
-            memory_bytes: 82,
+            memory_bytes: 1018,
             object_store_bytes: 0,
             row_count: 1,
             time_of_last_access: None,
@@ -653,7 +710,7 @@ async fn test_list_partition_chunks() {
         id: 0,
         storage: ChunkStorage::OpenMutableBuffer.into(),
         lifecycle_action: ChunkLifecycleAction::Unspecified.into(),
-        memory_bytes: 100,
+        memory_bytes: 1016,
         object_store_bytes: 0,
         row_count: 2,
         time_of_last_access: None,

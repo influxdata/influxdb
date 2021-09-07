@@ -12,11 +12,11 @@ hashbrown = "0.11"
 lock_api = "0.4.4"
 metrics = { path = "../metrics" }
 observability_deps = { path = "../observability_deps" }
-parking_lot = "0.11.1"
+parking_lot = "0.11.2"
 pin-project = "1.0"
-tokio = { version = "1.0", features = ["macros", "time"] }
+tokio = { version = "1.11", features = ["macros", "time"] }
 tokio-util = { version = "0.6.3" }
 
 [dev-dependencies]
 # Need the multi-threaded executor for testing
-tokio = { version = "1.0", features = ["macros", "time", "rt-multi-thread"] }
+tokio = { version = "1.11", features = ["macros", "time", "rt-multi-thread"] }

@@ -71,6 +71,7 @@
 use async_trait::async_trait;
 use data_types::{
     database_rules::{NodeGroup, RoutingRules, ShardConfig, ShardId, Sink},
+    deleted_database::DeletedDatabase,
     error::ErrorLogger,
     job::Job,
     server_id::ServerId,
@@ -85,7 +86,6 @@ use influxdb_line_protocol::ParsedLine;
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use lifecycle::LockableChunk;
-use metrics::{KeyValue, MetricObserverBuilder};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use rand::seq::SliceRandom;
@@ -221,6 +221,9 @@ pub enum Error {
 
     #[snafu(display("delete expression is invalid: {}", expr))]
     DeleteExpression { expr: String },
+
+    #[snafu(display("error listing deleted databases in object storage: {}", source))]
+    ListDeletedDatabases { source: object_store::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -267,38 +270,6 @@ impl ServerMetrics {
         // Server manages multiple domains.
         let http_domain = registry.register_domain("http");
         let ingest_domain = registry.register_domain("ingest");
-        let jemalloc_domain = registry.register_domain("jemalloc");
-
-        // This isn't really a property of the server, perhaps it should be somewhere else?
-        jemalloc_domain.register_observer(None, &[], |observer: MetricObserverBuilder<'_>| {
-            observer.register_gauge_u64(
-                "memstats",
-                Some("bytes"),
-                "jemalloc memstats",
-                |observer| {
-                    use tikv_jemalloc_ctl::{epoch, stats};
-                    epoch::advance().unwrap();
-
-                    let active = stats::active::read().unwrap();
-                    observer.observe(active as u64, &[KeyValue::new("stat", "active")]);
-
-                    let allocated = stats::allocated::read().unwrap();
-                    observer.observe(allocated as u64, &[KeyValue::new("stat", "alloc")]);
-
-                    let metadata = stats::metadata::read().unwrap();
-                    observer.observe(metadata as u64, &[KeyValue::new("stat", "metadata")]);
-
-                    let mapped = stats::mapped::read().unwrap();
-                    observer.observe(mapped as u64, &[KeyValue::new("stat", "mapped")]);
-
-                    let resident = stats::resident::read().unwrap();
-                    observer.observe(resident as u64, &[KeyValue::new("stat", "resident")]);
-
-                    let retained = stats::retained::read().unwrap();
-                    observer.observe(retained as u64, &[KeyValue::new("stat", "retained")]);
-                },
-            )
-        });
 
         Self {
             http_requests: http_domain.register_red_metric(None),
@@ -649,7 +620,7 @@ where
         let mut databases: Vec<_> = initialized.databases.iter().collect();
 
         // ensure the databases come back sorted by name
-        databases.sort_by_key(|(name, _db)| (*name).clone());
+        databases.sort_by_key(|(name, _db)| name.as_str());
 
         let databases = databases
             .into_iter()
@@ -753,6 +724,22 @@ where
         let database = self.database(db_name)?;
         database.delete().await.context(CannotMarkDatabaseDeleted)?;
         Ok(())
+    }
+
+    /// List all deleted databases in object storage.
+    pub async fn list_deleted_databases(&self) -> Result<Vec<DeletedDatabase>> {
+        let server_id = {
+            let state = self.shared.state.read();
+            let initialized = state.initialized()?;
+            initialized.server_id
+        };
+
+        Ok(IoxObjectStore::list_deleted_databases(
+            self.shared.application.object_store(),
+            server_id,
+        )
+        .await
+        .context(ListDeletedDatabases)?)
     }
 
     pub async fn write_pb(&self, database_batch: pb::DatabaseBatch) -> Result<()> {
@@ -938,7 +925,7 @@ where
         let db = self.db(db_name)?;
         let bytes = entry.data().len() as u64;
         db.store_entry(entry).await.map_err(|e| {
-            self.metrics.ingest_entries_bytes_total.add_with_labels(
+            self.metrics.ingest_entries_bytes_total.add_with_attributes(
                 bytes,
                 &[
                     metrics::KeyValue::new("status", "error"),
@@ -961,7 +948,7 @@ where
             }
         })?;
 
-        self.metrics.ingest_entries_bytes_total.add_with_labels(
+        self.metrics.ingest_entries_bytes_total.add_with_attributes(
             bytes,
             &[
                 metrics::KeyValue::new("status", "ok"),
@@ -1256,14 +1243,18 @@ mod tests {
         chunk_metadata::ChunkAddr,
         database_rules::{
             DatabaseRules, HashRing, LifecycleRules, PartitionTemplate, ShardConfig, TemplatePart,
-            WriteBufferConnection, NO_SHARD_CONFIG,
+            WriteBufferConnection, WriteBufferDirection, NO_SHARD_CONFIG,
         },
     };
     use entry::test_helpers::lp_to_entry;
+    use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
     use iox_object_store::IoxObjectStore;
     use metrics::TestMetricRegistry;
-    use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
+    use object_store::{
+        path::{parsed::DirsAndFileName, ObjectStorePath},
+        ObjectStore, ObjectStoreApi,
+    };
     use parquet_file::catalog::{api::PreservedCatalog, test_helpers::TestCatalogState};
     use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner, QueryDatabase};
     use std::{
@@ -1576,7 +1567,7 @@ mod tests {
 
         metric_registry
             .has_metric_family("ingest_entries_bytes_total")
-            .with_labels(&[("status", "ok"), ("db_name", "foo")])
+            .with_attributes(&[("status", "ok"), ("db_name", "foo")])
             .counter()
             .eq(240.0)
             .unwrap();
@@ -2054,6 +2045,86 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn init_too_many_active_generation_directories() {
+        let application = make_application();
+        let server_id = ServerId::try_from(1).unwrap();
+
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        let foo_db_name = DatabaseName::new("foo").unwrap();
+
+        // Create database
+        create_simple_database(&server, &foo_db_name)
+            .await
+            .expect("failed to create database");
+
+        // Delete it
+        server.delete_database(&foo_db_name).await.unwrap();
+
+        // Create it again
+        create_simple_database(&server, &foo_db_name)
+            .await
+            .expect("failed to create database");
+
+        // Delete it again
+        server.delete_database(&foo_db_name).await.unwrap();
+
+        std::mem::drop(server);
+
+        // Remove the tombstone files from both database generation directories
+        let mut db_path = application.object_store().new_path();
+        db_path.push_all_dirs(&[server_id.to_string().as_str(), foo_db_name.as_str()]);
+        let database_files: Vec<_> = application
+            .object_store()
+            .list(Some(&db_path))
+            .await
+            .unwrap()
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect();
+
+        // Delete all tombstone files
+        let mut deleted_something = false;
+        for file in database_files {
+            let parsed: DirsAndFileName = file.clone().into();
+            if parsed.file_name.unwrap().to_string() == "DELETED" {
+                application.object_store().delete(&file).await.unwrap();
+                deleted_something = true;
+            }
+        }
+        assert!(deleted_something);
+
+        // Restart the server
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+        // generic error MUST NOT be set
+        assert!(server.server_init_error().is_none());
+        // server is initialized
+        assert!(server.initialized());
+
+        // The database should be in an error state
+        let foo_database = server.database(&foo_db_name).unwrap();
+        let err = foo_database.wait_for_init().await.unwrap_err();
+        assert!(
+            matches!(
+                err.as_ref(),
+                database::InitError::DatabaseObjectStoreLookup {
+                    source: iox_object_store::IoxObjectStoreError::MultipleActiveDatabasesFound
+                }
+            ),
+            "got {:?}",
+            err
+        );
+        assert!(Arc::ptr_eq(&err, &foo_database.init_error().unwrap()));
+    }
+
+    #[tokio::test]
     async fn wipe_preserved_catalog() {
         // have the following DBs:
         // 1. existing => cannot be wiped
@@ -2158,7 +2229,8 @@ mod tests {
                 .wipe_preserved_catalog(&db_name_existing)
                 .unwrap_err()
                 .to_string(),
-            "error wiping preserved catalog: database (db_existing) in invalid state (Initialized) for transition (WipePreservedCatalog)"
+            "error wiping preserved catalog: database (db_existing) in invalid state (Initialized) \
+            for transition (WipePreservedCatalog)"
         );
         assert!(
             PreservedCatalog::exists(&existing.iox_object_store().unwrap())
@@ -2250,7 +2322,8 @@ mod tests {
                 .wipe_preserved_catalog(&db_name_created)
                 .unwrap_err()
                 .to_string(),
-            "error wiping preserved catalog: database (db_created) in invalid state (Initialized) for transition (WipePreservedCatalog)"
+            "error wiping preserved catalog: database (db_created) in invalid state (Initialized) \
+            for transition (WipePreservedCatalog)"
         );
         assert!(
             PreservedCatalog::exists(&created.iox_object_store().unwrap())
@@ -2312,9 +2385,12 @@ mod tests {
             lifecycle_rules: Default::default(),
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
-            write_buffer_connection: Some(WriteBufferConnection::Writing(
-                "mock://my_mock".to_string(),
-            )),
+            write_buffer_connection: Some(WriteBufferConnection {
+                direction: WriteBufferDirection::Write,
+                type_: "mock".to_string(),
+                connection: "my_mock".to_string(),
+                ..Default::default()
+            }),
         };
         server
             .create_database(make_provided_rules(rules))
@@ -2353,5 +2429,105 @@ mod tests {
 
         let provided_rules: ProvidedDatabaseRules = rules.try_into().unwrap();
         provided_rules
+    }
+
+    #[tokio::test]
+    async fn job_metrics() {
+        let application = make_application();
+        let server = make_server(Arc::clone(&application));
+
+        let wait_nanos = 1000;
+        let job = application
+            .job_registry()
+            .spawn_dummy_job(vec![wait_nanos], None);
+
+        job.join().await;
+
+        // need to force-update metrics
+        application.job_registry().reclaim();
+
+        let mut reporter = metric::RawReporter::default();
+        application.metric_registry_v2().report(&mut reporter);
+
+        server.shutdown();
+        server.join().await.unwrap();
+
+        // ========== influxdb_iox_job_count ==========
+        let observations: Vec<_> = reporter
+            .observations()
+            .iter()
+            .filter(|observation| observation.metric_name == "influxdb_iox_job_count")
+            .collect();
+        assert_eq!(observations.len(), 1);
+
+        let gauge = observations[0];
+        assert_eq!(gauge.kind, metric::MetricKind::U64Gauge);
+
+        let observations: Vec<_> = gauge
+            .observations
+            .iter()
+            .filter(|(attributes, _)| {
+                attributes
+                    .iter()
+                    .any(|(k, v)| (k == &"status") && (v == "Success"))
+            })
+            .collect();
+        assert_eq!(observations.len(), 1);
+
+        let (attributes, observation) = &observations[0];
+        assert_eq!(
+            attributes,
+            &metric::Attributes::from(&[
+                ("description", "Dummy Job, for testing"),
+                ("status", "Success"),
+            ])
+        );
+        assert_eq!(observation, &metric::Observation::U64Gauge(1));
+
+        // ========== influxdb_iox_job_completed_cpu_nanoseconds ==========
+        let observations: Vec<_> = reporter
+            .observations()
+            .iter()
+            .filter(|observation| {
+                observation.metric_name == "influxdb_iox_job_completed_cpu_nanoseconds"
+            })
+            .collect();
+        assert_eq!(observations.len(), 1);
+
+        let histogram = observations[0];
+        assert_eq!(histogram.kind, metric::MetricKind::DurationHistogram);
+        assert_eq!(histogram.observations.len(), 1);
+
+        let (attributes, _) = &histogram.observations[0];
+        assert_eq!(
+            attributes,
+            &metric::Attributes::from(&[
+                ("description", "Dummy Job, for testing"),
+                ("status", "Success"),
+            ])
+        );
+
+        // ========== influxdb_iox_job_completed_wall_nanoseconds ==========
+        let observations: Vec<_> = reporter
+            .observations()
+            .iter()
+            .filter(|observation| {
+                observation.metric_name == "influxdb_iox_job_completed_wall_nanoseconds"
+            })
+            .collect();
+        assert_eq!(observations.len(), 1);
+
+        let histogram = observations[0];
+        assert_eq!(histogram.kind, metric::MetricKind::DurationHistogram);
+        assert_eq!(histogram.observations.len(), 1);
+
+        let (attributes, _) = &histogram.observations[0];
+        assert_eq!(
+            attributes,
+            &metric::Attributes::from(&[
+                ("description", "Dummy Job, for testing"),
+                ("status", "Success"),
+            ])
+        );
     }
 }

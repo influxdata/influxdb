@@ -5,12 +5,12 @@ authors = ["Dom Dwyer <dom@itsallbroken.com>"]
 edition = "2018"
 
 [features]
-flight = ["arrow", "arrow-flight", "serde/derive", "serde_json", "futures-util"]
+flight = ["arrow", "arrow-flight", "arrow_util", "serde/derive", "serde_json", "futures-util"]
 format = ["arrow"]
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
-arrow_util = { path = "../arrow_util" }
+arrow_util = { path = "../arrow_util", optional = true }
 client_util = { path = "../client_util" }
 generated_types = { path = "../generated_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
@@ -29,4 +29,4 @@ tonic = { version = "0.5.0" }
 
 [dev-dependencies] # In alphabetical order
 serde_json = "1.0"
-tokio = { version = "1.0", features = ["macros"] }
+tokio = { version = "1.11", features = ["macros"] }

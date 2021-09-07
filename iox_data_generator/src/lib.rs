@@ -16,13 +16,15 @@
 //!
 //! [go-gen]: https://github.com/influxdata/influxdb/pull/12710
 
-#![deny(rust_2018_idioms)]
+#![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
     missing_docs,
     clippy::explicit_iter_loop,
-    clippy::use_self
+    clippy::future_not_send,
+    clippy::use_self,
+    clippy::clone_on_ref_ptr
 )]
 
 use crate::substitution::Substitute;

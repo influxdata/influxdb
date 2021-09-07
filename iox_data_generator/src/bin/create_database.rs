@@ -1,9 +1,13 @@
-#![deny(rust_2018_idioms)]
+//! CLI to create databases.
+#![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
+    missing_docs,
     clippy::explicit_iter_loop,
-    clippy::use_self
+    clippy::future_not_send,
+    clippy::use_self,
+    clippy::clone_on_ref_ptr
 )]
 
 use clap::{App, Arg};
@@ -85,7 +89,12 @@ Examples:
                 sink: Some(management::sink::Sink::Kafka(KafkaProducer {})),
             }),
         })),
-        write_buffer_connection: Some(WriteBufferConnection::Writing(kafka.to_string())),
+        write_buffer_connection: Some(WriteBufferConnection {
+            direction: write_buffer_connection::Direction::Write.into(),
+            r#type: "kafka".to_string(),
+            connection: kafka.to_string(),
+            ..Default::default()
+        }),
     };
     let reader_database_rules = DatabaseRules {
         name: db_name.clone(),
@@ -111,7 +120,12 @@ Examples:
                 sink: Some(management::sink::Sink::Kafka(KafkaProducer {})),
             }),
         })),
-        write_buffer_connection: Some(WriteBufferConnection::Reading(kafka.to_string())),
+        write_buffer_connection: Some(WriteBufferConnection {
+            direction: write_buffer_connection::Direction::Read.into(),
+            r#type: "kafka".to_string(),
+            connection: kafka.to_string(),
+            ..Default::default()
+        }),
     };
 
     // Create the writer db

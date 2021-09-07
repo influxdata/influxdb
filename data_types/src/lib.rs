@@ -15,6 +15,7 @@ pub mod consistent_hasher;
 mod database_name;
 pub mod database_rules;
 pub mod database_state;
+pub mod deleted_database;
 pub mod error;
 pub mod instant;
 pub mod job;

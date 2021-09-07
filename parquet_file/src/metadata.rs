@@ -849,14 +849,20 @@ mod tests {
 
     use crate::test_utils::{
         chunk_addr, create_partition_and_database_checkpoint, load_parquet_from_store, make_chunk,
-        make_chunk_no_row_group, make_iox_object_store,
+        make_chunk_no_row_group, make_iox_object_store, TestSize,
     };
 
     #[tokio::test]
     async fn test_restore_from_file() {
         // setup: preserve chunk to object store
         let iox_object_store = make_iox_object_store().await;
-        let chunk = make_chunk(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
+        let chunk = make_chunk(
+            Arc::clone(&iox_object_store),
+            "foo",
+            chunk_addr(1),
+            TestSize::Full,
+        )
+        .await;
         let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
             .await
             .unwrap();
@@ -883,7 +889,13 @@ mod tests {
     async fn test_restore_from_thrift() {
         // setup: write chunk to object store and only keep thrift-encoded metadata
         let iox_object_store = make_iox_object_store().await;
-        let chunk = make_chunk(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
+        let chunk = make_chunk(
+            Arc::clone(&iox_object_store),
+            "foo",
+            chunk_addr(1),
+            TestSize::Full,
+        )
+        .await;
         let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
             .await
             .unwrap();
@@ -907,8 +919,13 @@ mod tests {
     async fn test_restore_from_file_no_row_group() {
         // setup: preserve chunk to object store
         let iox_object_store = make_iox_object_store().await;
-        let chunk =
-            make_chunk_no_row_group(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
+        let chunk = make_chunk_no_row_group(
+            Arc::clone(&iox_object_store),
+            "foo",
+            chunk_addr(1),
+            TestSize::Full,
+        )
+        .await;
         let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
             .await
             .unwrap();
@@ -932,8 +949,13 @@ mod tests {
     async fn test_restore_from_thrift_no_row_group() {
         // setup: write chunk to object store and only keep thrift-encoded metadata
         let iox_object_store = make_iox_object_store().await;
-        let chunk =
-            make_chunk_no_row_group(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
+        let chunk = make_chunk_no_row_group(
+            Arc::clone(&iox_object_store),
+            "foo",
+            chunk_addr(1),
+            TestSize::Full,
+        )
+        .await;
         let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
             .await
             .unwrap();
@@ -958,7 +980,13 @@ mod tests {
     #[tokio::test]
     async fn test_make_chunk() {
         let iox_object_store = make_iox_object_store().await;
-        let chunk = make_chunk(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
+        let chunk = make_chunk(
+            Arc::clone(&iox_object_store),
+            "foo",
+            chunk_addr(1),
+            TestSize::Full,
+        )
+        .await;
         let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
             .await
             .unwrap();
@@ -990,8 +1018,13 @@ mod tests {
     #[tokio::test]
     async fn test_make_chunk_no_row_group() {
         let iox_object_store = make_iox_object_store().await;
-        let chunk =
-            make_chunk_no_row_group(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
+        let chunk = make_chunk_no_row_group(
+            Arc::clone(&iox_object_store),
+            "foo",
+            chunk_addr(1),
+            TestSize::Full,
+        )
+        .await;
         let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
             .await
             .unwrap();
@@ -1092,7 +1125,13 @@ mod tests {
     async fn test_parquet_metadata_size() {
         // setup: preserve chunk to object store
         let iox_object_store = make_iox_object_store().await;
-        let chunk = make_chunk(Arc::clone(&iox_object_store), "foo", chunk_addr(1)).await;
+        let chunk = make_chunk(
+            Arc::clone(&iox_object_store),
+            "foo",
+            chunk_addr(1),
+            TestSize::Full,
+        )
+        .await;
         let parquet_data = load_parquet_from_store(&chunk, iox_object_store)
             .await
             .unwrap();

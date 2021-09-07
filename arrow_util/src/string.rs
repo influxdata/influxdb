@@ -93,7 +93,7 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> PackedStringArray<K> {
 
     /// Return the amount of memory in bytes taken up by this array
     pub fn size(&self) -> usize {
-        self.storage.len() + self.offsets.len() * std::mem::size_of::<K>()
+        self.storage.capacity() + self.offsets.capacity() * std::mem::size_of::<K>()
     }
 
     pub fn into_inner(self) -> (Vec<K>, String) {

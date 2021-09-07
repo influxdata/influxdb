@@ -3,8 +3,8 @@
 use crate::{
     influxdb_ioxd::{self, serving_readiness::ServingReadinessState},
     object_store::ObjectStoreConfig,
+    server_id::ServerIdConfig,
 };
-use data_types::server_id::ServerId;
 use std::{net::SocketAddr, net::ToSocketAddrs};
 use structopt::StructOpt;
 use thiserror::Error;
@@ -54,7 +54,6 @@ impl From<BooleanFlag> for bool {
         matches!(yes_no, BooleanFlag::True)
     }
 }
-
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "run",
@@ -83,14 +82,9 @@ pub struct Config {
     #[structopt(flatten)]
     pub(crate) object_store_config: ObjectStoreConfig,
 
-    /// The identifier for the server.
-    ///
-    /// Used for writing to object storage and as an identifier that is added to
-    /// replicated writes, write buffer segments, and Chunks. Must be unique in
-    /// a group of connected or semi-connected IOx servers. Must be a nonzero
-    /// number that can be represented by a 32-bit unsigned integer.
-    #[structopt(long = "--server-id", env = "INFLUXDB_IOX_ID")]
-    pub server_id: Option<ServerId>,
+    // object store config
+    #[structopt(flatten)]
+    pub(crate) server_id_config: ServerIdConfig,
 
     /// The address on which IOx will serve HTTP API requests.
     #[structopt(

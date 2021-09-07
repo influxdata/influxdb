@@ -11,9 +11,9 @@
 //!
 //! 1. Require minimal additional dependencies to instrument a given crate
 //! 2. Decouple metric recording from metric export
-//! 3. Be easy to reason about what labels are associated with a given metric
+//! 3. Be easy to reason about what attributes are associated with a given metric
 //! 4. Be easy to grep for a given metric name
-//! 5. Allow amortizing any label manipulation over multiple metric records
+//! 5. Allow amortizing any attribute manipulation over multiple metric records
 //! 6. Individual metric recording should be as cheap as possible
 //! 7. Be possible to define histogram buckets on a per-metric basis
 //! 8. Allow exposing the recorded metrics to internal systems (e.g. lifecycle, system tables, etc...)
@@ -43,7 +43,7 @@
 //! associated with a single `Observation`.
 //!
 //! It is common for each set of `Attributes` to be recorded independently despite sharing
-//! the same `Instrument` name. To avoid code duplication `Metric` encodes this scenario.
+//! the same metric name. `Metric` is an `Instrument` that encodes this scenario.
 //!
 //! A `MetricObserver` is an object that reports a single `Observation`.
 //!
@@ -197,12 +197,22 @@ impl Registry {
 
     /// If an instrument already exists with the provided `name`, returns it
     ///
-    /// Otherwise, invokes `create` to create a new `Instrument`,
-    /// stores it in this `Registry` and returns it
+    /// Otherwise, invokes `create` to create a new `Instrument`, stores it in this `Registry`,
+    /// and returns it
+    ///
+    /// An application might choose to register a custom Instrument, instead of using a Metric,
+    /// when it wishes to defer some computation to report time. For example, reporting
+    /// metrics from systems that cannot be instrumented with `Metric` directly (e.g. jemalloc)
+    ///
+    /// Note: An instrument name is not required to match the metric name(s) reported by the
+    /// instrument, however:
+    ///
+    /// - instruments will report in order of their instrument name
+    /// - not all reporters may handle the same metric name being reported multiple times
     ///
     /// Panics if an `Instrument` has already been registered with this name but a different type
     ///
-    /// Panics if the metric name is illegal
+    /// Panics if the instrument name is illegal
     pub fn register_instrument<F: FnOnce() -> I, I: Instrument + Clone + 'static>(
         &self,
         name: &'static str,

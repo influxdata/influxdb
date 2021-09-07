@@ -4,6 +4,7 @@ option go_package = "github.com/influxdata/iox/management/v1";
 
 import "google/longrunning/operations.proto";
 import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
 import "influxdata/iox/management/v1/database_rules.proto";
 import "influxdata/iox/management/v1/chunk.proto";
 import "influxdata/iox/management/v1/parse_delete.proto";
@@ -35,6 +36,9 @@ service ManagementService {
   rpc UpdateDatabase(UpdateDatabaseRequest) returns (UpdateDatabaseResponse);
 
   rpc DeleteDatabase(DeleteDatabaseRequest) returns (DeleteDatabaseResponse);
+
+	// List deleted databases and their metadata.
+	rpc ListDeletedDatabases(ListDeletedDatabasesRequest) returns (ListDeletedDatabasesResponse);
 
   // List chunks available on this database
   rpc ListChunks(ListChunksRequest) returns (ListChunksResponse);
@@ -169,6 +173,24 @@ message DeleteDatabaseRequest {
 }
 
 message DeleteDatabaseResponse {}
+
+message ListDeletedDatabasesRequest {}
+
+message ListDeletedDatabasesResponse {
+	repeated DeletedDatabase deleted_databases = 1;
+}
+
+// This resource represents a deleted database.
+message DeletedDatabase {
+	// The generation ID of the deleted database.
+  uint64 generation_id = 1;
+
+	// The UTC datetime at which this database was deleted.
+	google.protobuf.Timestamp deleted_at = 2;
+
+  // The name of the deleted database.
+  string db_name = 3;
+}
 
 message ListChunksRequest {
   // the name of the database

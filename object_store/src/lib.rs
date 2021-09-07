@@ -740,6 +740,7 @@ mod tests {
             "mydb/wb/000/000/002.segment",
             "mydb/wb/001/001/000.segment",
             "mydb/wb/foo.json",
+            "mydb/wbwbwb/111/222/333.segment",
             "mydb/data/whatevs",
         ]
         .iter()

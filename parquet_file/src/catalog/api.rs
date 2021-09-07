@@ -8,6 +8,7 @@ use crate::{
     },
     metadata::IoxParquetMetaData,
 };
+use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::catalog::v1 as proto;
@@ -237,7 +238,18 @@ pub struct PreservedCatalog {
     previous_tkey: RwLock<Option<TransactionKey>>,
     transaction_semaphore: Semaphore,
 
+    /// Object store that backs this catalog.
     iox_object_store: Arc<IoxObjectStore>,
+
+    /// If set, this UUID will be used for all transactions instead of a fresh UUIDv4.
+    ///
+    /// This can be useful for testing to achieve deterministic outputs.
+    fixed_uuid: Option<Uuid>,
+
+    /// If set, this start time will be used for all transaction instead of "now".
+    ///
+    /// This can be useful for testing to achieve deterministic outputs.
+    fixed_timestamp: Option<DateTime<Utc>>,
 }
 
 impl PreservedCatalog {
@@ -311,6 +323,37 @@ impl PreservedCatalog {
     where
         S: CatalogState + Send + Sync,
     {
+        Self::new_empty_inner::<S>(iox_object_store, state_data, None, None).await
+    }
+
+    /// Same as [`new_empty`](Self::new_empty) but for testing.
+    pub async fn new_empty_for_testing<S>(
+        iox_object_store: Arc<IoxObjectStore>,
+        state_data: S::EmptyInput,
+        fixed_uuid: Uuid,
+        fixed_timestamp: DateTime<Utc>,
+    ) -> Result<(Self, S)>
+    where
+        S: CatalogState + Send + Sync,
+    {
+        Self::new_empty_inner::<S>(
+            iox_object_store,
+            state_data,
+            Some(fixed_uuid),
+            Some(fixed_timestamp),
+        )
+        .await
+    }
+
+    pub async fn new_empty_inner<S>(
+        iox_object_store: Arc<IoxObjectStore>,
+        state_data: S::EmptyInput,
+        fixed_uuid: Option<Uuid>,
+        fixed_timestamp: Option<DateTime<Utc>>,
+    ) -> Result<(Self, S)>
+    where
+        S: CatalogState + Send + Sync,
+    {
         if Self::exists(&iox_object_store).await? {
             return Err(Error::AlreadyExists {});
         }
@@ -320,6 +363,8 @@ impl PreservedCatalog {
             previous_tkey: RwLock::new(None),
             transaction_semaphore: Semaphore::new(1),
             iox_object_store,
+            fixed_uuid,
+            fixed_timestamp,
         };
 
         // add empty transaction
@@ -443,6 +488,8 @@ impl PreservedCatalog {
                 previous_tkey: RwLock::new(last_tkey),
                 transaction_semaphore: Semaphore::new(1),
                 iox_object_store,
+                fixed_uuid: None,
+                fixed_timestamp: None,
             },
             state,
         )))
@@ -455,13 +502,9 @@ impl PreservedCatalog {
     /// the state after `await` (esp. post-blocking). This system is fair, which means that
     /// transactions are given out in the order they were requested.
     pub async fn open_transaction(&self) -> TransactionHandle<'_> {
-        self.open_transaction_with_uuid(Uuid::new_v4()).await
-    }
-
-    /// Crate-private API to open an transaction with a specified UUID. Should only be used for
-    /// catalog rebuilding or with a fresh V4-UUID!
-    pub(crate) async fn open_transaction_with_uuid(&self, uuid: Uuid) -> TransactionHandle<'_> {
-        TransactionHandle::new(self, uuid).await
+        let uuid = self.fixed_uuid.unwrap_or_else(Uuid::new_v4);
+        let start_timestamp = self.fixed_timestamp.unwrap_or_else(Utc::now);
+        TransactionHandle::new(self, uuid, start_timestamp).await
     }
 
     /// Get latest revision counter.
@@ -500,7 +543,11 @@ struct OpenTransaction {
 impl OpenTransaction {
     /// Private API to create new transaction, users should always use
     /// [`PreservedCatalog::open_transaction`].
-    fn new(previous_tkey: &Option<TransactionKey>, uuid: Uuid) -> Self {
+    fn new(
+        previous_tkey: &Option<TransactionKey>,
+        uuid: Uuid,
+        start_timestamp: DateTime<Utc>,
+    ) -> Self {
         let (revision_counter, previous_uuid) = match previous_tkey {
             Some(tkey) => (tkey.revision_counter + 1, tkey.uuid.to_string()),
             None => (0, String::new()),
@@ -513,7 +560,7 @@ impl OpenTransaction {
                 uuid: uuid.to_string(),
                 revision_counter,
                 previous_uuid,
-                start_timestamp: Some(Utc::now().into()),
+                start_timestamp: Some(start_timestamp.into()),
                 encoding: proto::transaction::Encoding::Delta.into(),
             },
         }
@@ -535,7 +582,7 @@ impl OpenTransaction {
     /// in-progress transaction), use [`record_action`](Self::record_action).
     fn handle_action<S>(
         state: &mut S,
-        action: &proto::transaction::action::Action,
+        action: proto::transaction::action::Action,
         iox_object_store: &Arc<IoxObjectStore>,
     ) -> Result<()>
     where
@@ -543,10 +590,7 @@ impl OpenTransaction {
     {
         match action {
             proto::transaction::action::Action::Upgrade(u) => {
-                UnsupportedUpgrade {
-                    format: u.format.clone(),
-                }
-                .fail()?;
+                UnsupportedUpgrade { format: u.format }.fail()?;
             }
             proto::transaction::action::Action::AddParquet(a) => {
                 let path =
@@ -554,7 +598,7 @@ impl OpenTransaction {
                         .context(ProtobufParseError)?;
                 let file_size_bytes = a.file_size_bytes as usize;
 
-                let metadata = IoxParquetMetaData::from_thrift_bytes(a.metadata.clone());
+                let metadata = IoxParquetMetaData::from_thrift_bytes(a.metadata.as_ref().to_vec());
 
                 // try to decode to ensure catalog is OK
                 metadata.decode().context(MetadataDecodingFailed)?;
@@ -683,8 +727,8 @@ impl OpenTransaction {
         }
 
         // apply
-        for action in &proto.actions {
-            if let Some(action) = action.action.as_ref() {
+        for action in proto.actions {
+            if let Some(action) = action.action {
                 Self::handle_action(state, action, iox_object_store)?;
             }
         }
@@ -719,7 +763,11 @@ pub struct TransactionHandle<'c> {
 }
 
 impl<'c> TransactionHandle<'c> {
-    async fn new(catalog: &'c PreservedCatalog, uuid: Uuid) -> TransactionHandle<'c> {
+    async fn new(
+        catalog: &'c PreservedCatalog,
+        uuid: Uuid,
+        start_timestamp: DateTime<Utc>,
+    ) -> TransactionHandle<'c> {
         // first acquire semaphore (which is only being used for transactions), then get state lock
         let permit = catalog
             .transaction_semaphore
@@ -728,7 +776,7 @@ impl<'c> TransactionHandle<'c> {
             .expect("semaphore should not be closed");
         let previous_tkey_guard = catalog.previous_tkey.write();
 
-        let transaction = OpenTransaction::new(&previous_tkey_guard, uuid);
+        let transaction = OpenTransaction::new(&previous_tkey_guard, uuid, start_timestamp);
 
         // free state for readers again
         drop(previous_tkey_guard);
@@ -837,7 +885,7 @@ impl<'c> TransactionHandle<'c> {
             .record_action(proto::transaction::action::Action::AddParquet(
                 proto::AddParquet {
                     path: Some(proto_parse::unparse_dirs_and_filename(path)),
-                    metadata: metadata.thrift_bytes().to_vec(),
+                    metadata: Bytes::from(metadata.thrift_bytes().to_vec()),
                     file_size_bytes: *file_size_bytes as u64,
                 },
             ));
@@ -924,7 +972,7 @@ impl<'c> CheckpointHandle<'c> {
                         proto::AddParquet {
                             path: Some(proto_parse::unparse_dirs_and_filename(&path)),
                             file_size_bytes: file_size_bytes as u64,
-                            metadata: metadata.thrift_bytes().to_vec(),
+                            metadata: Bytes::from(metadata.thrift_bytes().to_vec()),
                         },
                     )),
                 })
@@ -979,7 +1027,7 @@ mod tests {
     use crate::catalog::test_helpers::{
         assert_catalog_state_implementation, break_catalog_with_weird_version, TestCatalogState,
     };
-    use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata};
+    use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize};
 
     #[tokio::test]
     async fn test_create_empty() {
@@ -1583,7 +1631,8 @@ mod tests {
         // create another transaction on-top that adds a file (this transaction will be required to load the full state)
         {
             let addr = chunk_addr(1337);
-            let (path, metadata) = make_metadata(&iox_object_store, "foo", addr.clone()).await;
+            let (path, metadata) =
+                make_metadata(&iox_object_store, "foo", addr.clone(), TestSize::Full).await;
 
             let mut transaction = catalog.open_transaction().await;
             let info = CatalogParquetInfo {
@@ -1742,7 +1791,8 @@ mod tests {
         {
             let mut t = catalog.open_transaction().await;
 
-            let (path, metadata) = make_metadata(iox_object_store, "foo", chunk_addr(0)).await;
+            let (path, metadata) =
+                make_metadata(iox_object_store, "foo", chunk_addr(0), TestSize::Full).await;
             expected.push((path.clone(), metadata.clone()));
             let info = CatalogParquetInfo {
                 path,
@@ -1752,7 +1802,8 @@ mod tests {
             state.insert(info.clone()).unwrap();
             t.add_parquet(&info);
 
-            let (path, metadata) = make_metadata(iox_object_store, "bar", chunk_addr(1)).await;
+            let (path, metadata) =
+                make_metadata(iox_object_store, "bar", chunk_addr(1), TestSize::Full).await;
             expected.push((path.clone(), metadata.clone()));
             let info = CatalogParquetInfo {
                 path,
@@ -1762,7 +1813,8 @@ mod tests {
             state.insert(info.clone()).unwrap();
             t.add_parquet(&info);
 
-            let (path, metadata) = make_metadata(iox_object_store, "bar", chunk_addr(2)).await;
+            let (path, metadata) =
+                make_metadata(iox_object_store, "bar", chunk_addr(2), TestSize::Full).await;
             expected.push((path.clone(), metadata.clone()));
             let info = CatalogParquetInfo {
                 path,
@@ -1772,7 +1824,8 @@ mod tests {
             state.insert(info.clone()).unwrap();
             t.add_parquet(&info);
 
-            let (path, metadata) = make_metadata(iox_object_store, "foo", chunk_addr(3)).await;
+            let (path, metadata) =
+                make_metadata(iox_object_store, "foo", chunk_addr(3), TestSize::Full).await;
             expected.push((path.clone(), metadata.clone()));
             let info = CatalogParquetInfo {
                 path,
@@ -1790,7 +1843,8 @@ mod tests {
 
         // modify catalog with examples
         {
-            let (path, metadata) = make_metadata(iox_object_store, "foo", chunk_addr(4)).await;
+            let (path, metadata) =
+                make_metadata(iox_object_store, "foo", chunk_addr(4), TestSize::Full).await;
             expected.push((path.clone(), metadata.clone()));
 
             let mut t = catalog.open_transaction().await;
@@ -1818,7 +1872,8 @@ mod tests {
         {
             let mut t = catalog.open_transaction().await;
 
-            let (path, metadata) = make_metadata(iox_object_store, "foo", chunk_addr(1)).await;
+            let (path, metadata) =
+                make_metadata(iox_object_store, "foo", chunk_addr(1), TestSize::Full).await;
             let info = CatalogParquetInfo {
                 path,
                 file_size_bytes: 33,

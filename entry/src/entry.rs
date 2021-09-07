@@ -856,7 +856,7 @@ impl<'a> TableBatch<'a> {
         }
     }
 
-    fn timestamps(&self) -> Result<flatbuffers::Vector<'_, i64>> {
+    pub fn timestamps(&self) -> Result<flatbuffers::Vector<'_, i64>> {
         match self
             .fb
             .columns()

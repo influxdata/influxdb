@@ -576,6 +576,21 @@ impl Client {
         Ok(names)
     }
 
+    /// List deleted databases and metadata
+    pub async fn list_deleted_databases(
+        &mut self,
+    ) -> Result<Vec<DeletedDatabase>, ListDatabaseError> {
+        let response = self
+            .inner
+            .list_deleted_databases(ListDeletedDatabasesRequest {})
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::Unavailable => ListDatabaseError::Unavailable(status),
+                _ => ListDatabaseError::ServerError(status),
+            })?;
+        Ok(response.into_inner().deleted_databases)
+    }
+
     /// Get database configuration
     ///
     /// If `omit_defaults` is false, return the current configuration

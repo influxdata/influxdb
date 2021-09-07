@@ -13,4 +13,4 @@ tonic = { version = "0.5.0" }
 tower = "0.4"
 
 [dev-dependencies]
-tokio = { version = "1.0", features = ["macros"] }
+tokio = { version = "1.11", features = ["macros"] }

@@ -955,7 +955,9 @@ struct DatabaseStateInitialized {
 #[cfg(test)]
 mod tests {
     use chrono::Utc;
-    use data_types::database_rules::{PartitionTemplate, TemplatePart, WriteBufferConnection};
+    use data_types::database_rules::{
+        PartitionTemplate, TemplatePart, WriteBufferConnection, WriteBufferDirection,
+    };
     use entry::{test_helpers::lp_to_entries, Sequence, SequencedEntry};
     use object_store::ObjectStore;
     use write_buffer::{config::WriteBufferConfigFactory, mock::MockBufferSharedState};
@@ -1071,9 +1073,12 @@ mod tests {
             },
             routing_rules: None,
             worker_cleanup_avg_sleep: Duration::from_secs(2),
-            write_buffer_connection: Some(WriteBufferConnection::Reading(
-                "mock://my_mock".to_string(),
-            )),
+            write_buffer_connection: Some(WriteBufferConnection {
+                direction: WriteBufferDirection::Read,
+                type_: "mock".to_string(),
+                connection: "my_mock".to_string(),
+                ..Default::default()
+            }),
         };
         Database::create(
             Arc::clone(&application),

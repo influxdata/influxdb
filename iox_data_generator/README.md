@@ -67,7 +67,7 @@ instance to write to Kafka and the database in the "reader" IOx instance to read
 you run it with:
 
 ```
-cargo run -p iox_data_generator --bin create_database -- --writer 127.0.0.1:8082 --reader 127.0.0.1:8086 mlb_pirates
+cargo run --release -p iox_data_generator --bin create_database -- --writer 127.0.0.1:8082 --reader 127.0.0.1:8086 mlb_pirates
 ```
 
 This script adds 3 rows to a `writer_test` table because [this issue with the Kafka Consumer
@@ -81,7 +81,7 @@ from an existing schema as a guide. In this example, we're going to use
 Next, run the data generation tool as follows:
 
 ```
-cargo run -p iox_data_generator -- --spec iox_data_generator/schemas/cap-write.toml --continue --host 127.0.0.1:8080 --token arbitrary --org mlb --bucket pirates
+cargo run --release -p iox_data_generator -- --spec iox_data_generator/schemas/cap-write.toml --continue --host 127.0.0.1:8080 --token arbitrary --org mlb --bucket pirates
 ```
 
 - `--spec iox_data_generator/schemas/cap-write.toml` sets the schema you want to use to generate the data
@@ -100,7 +100,7 @@ is,
 
 ```
 # in your influxdb_iox checkout
-cargo run -- sql -h http://127.0.0.1:8086
+cargo run --release -- sql -h http://127.0.0.1:8086
 ```
 
 Connecting to the writer instance won't show any data.

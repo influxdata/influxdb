@@ -14,12 +14,14 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
             description: "Writer ID must be set".to_string(),
         }
         .into(),
-        Error::DatabaseNotInitialized { db_name } => tonic::Status::unavailable(
-            format!("Database ({}) is not yet initialized", db_name)
-        ),
-        Error::ServerNotInitialized{ server_id } => tonic::Status::unavailable(
-            format!("Server ID is set ({}) but server is not yet initialized (e.g. DBs and remotes are not loaded). Server is not yet ready to read/write data.", server_id)
-        ),
+        Error::DatabaseNotInitialized { db_name } => {
+            tonic::Status::unavailable(format!("Database ({}) is not yet initialized", db_name))
+        }
+        Error::ServerNotInitialized { server_id } => tonic::Status::unavailable(format!(
+            "Server ID is set ({}) but server is not yet initialized (e.g. DBs and remotes \
+                     are not loaded). Server is not yet ready to read/write data.",
+            server_id
+        )),
         Error::DatabaseNotFound { db_name } => NotFound {
             resource_type: "database".to_string(),
             resource_name: db_name,
@@ -36,8 +38,10 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
             description: "hard buffer limit reached".to_string(),
         }
         .into(),
-        source @ Error::WritingOnlyAllowedThroughWriteBuffer { .. } |
-            source @ Error::LineConversion { .. } => tonic::Status::failed_precondition(source.to_string()),
+        source @ Error::WritingOnlyAllowedThroughWriteBuffer { .. }
+        | source @ Error::LineConversion { .. } => {
+            tonic::Status::failed_precondition(source.to_string())
+        }
         Error::NoRemoteConfigured { node_group } => NotFound {
             resource_type: "remote".to_string(),
             resource_name: format!("{:?}", node_group),
@@ -45,17 +49,20 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         }
         .into(),
         Error::RemoteError { source } => tonic::Status::unavailable(source.to_string()),
-        Error::WipePreservedCatalog { source } => default_database_error_handler(source),
+        Error::WipePreservedCatalog { source } | Error::CannotMarkDatabaseDeleted { source } => {
+            default_database_error_handler(source)
+        }
         Error::DeleteExpression { expr } => PreconditionViolation {
             category: "Delete Expression".to_string(),
             subject: "influxdata.com/iox".to_string(),
             description: expr,
         }
         .into(),
+
         error => {
             error!(?error, "Unexpected error");
             InternalError {}.into()
-        },
+        }
     }
 }
 

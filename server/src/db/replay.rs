@@ -312,12 +312,12 @@ fn filter_entry(
     partition_key: &str,
     table_batch: &TableBatch<'_>,
     replay_plan: &ReplayPlan,
-) -> bool {
+) -> (bool, Option<Vec<bool>>) {
     let sequence = sequence.expect("write buffer results must be sequenced");
     let table_name = table_batch.name();
 
     // Check if we have a partition checkpoint that contains data for this specific sequencer
-    let flush_ts_and_sequence_range = replay_plan
+    let min_unpersisted_ts_and_sequence_range = replay_plan
         .last_partition_checkpoint(table_name, partition_key)
         .map(|partition_checkpoint| {
             partition_checkpoint
@@ -326,21 +326,28 @@ fn filter_entry(
         })
         .flatten();
 
-    match flush_ts_and_sequence_range {
-        Some((_ts, min_max)) => {
+    match min_unpersisted_ts_and_sequence_range {
+        Some((min_unpersisted_ts, min_max)) => {
             // Figure out what the sequence number tells us about the entire batch
             match SequenceNumberSection::compare(sequence.number, min_max) {
                 SequenceNumberSection::Persisted => {
                     // skip the entire batch
-                    false
+                    (false, None)
                 }
                 SequenceNumberSection::PartiallyPersisted => {
                     // TODO: implement row filtering, for now replay the entire batch
-                    true
+                    let maybe_mask = table_batch.timestamps().ok().map(|timestamps| {
+                        let min_unpersisted_ts = min_unpersisted_ts.timestamp_nanos();
+                        timestamps
+                            .into_iter()
+                            .map(|ts_row| ts_row >= min_unpersisted_ts)
+                            .collect::<Vec<bool>>()
+                    });
+                    (true, maybe_mask)
                 }
                 SequenceNumberSection::Unpersisted => {
                     // replay entire batch
-                    true
+                    (true, None)
                 }
             }
         }
@@ -350,7 +357,7 @@ fn filter_entry(
             // - Unknown sequencer (at least from the partitions point of view).
             //
             // => Replay full batch.
-            true
+            (true, None)
         }
     }
 }
@@ -742,7 +749,7 @@ mod tests {
                     tokio::sync::Mutex::new(Box::new(write_buffer) as _),
                 )))
                 .lifecycle_rules(data_types::database_rules::LifecycleRules {
-                    buffer_size_hard: Some(NonZeroUsize::new(10_000).unwrap()),
+                    buffer_size_hard: Some(NonZeroUsize::new(12_000).unwrap()),
                     late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
                     catalog_transactions_until_checkpoint,
                     mub_row_threshold: NonZeroUsize::new(10).unwrap(),
@@ -1750,6 +1757,115 @@ mod tests {
                             "| table_2    | OpenMutableBuffer | 0         | 0         | 1         |",
                             "| table_3    | ObjectStoreOnly   | 10        | 10        | 1         |",
                             "+------------+-------------------+-----------+-----------+-----------+",
+                        ],
+                    ),
+                ]),
+            ],
+            ..Default::default()
+        }
+        .run()
+        .await
+    }
+
+    #[tokio::test]
+    async fn replay_prune_rows() {
+        ReplayTest {
+            steps: vec![
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 0,
+                        lp: "table_1,tag_partition_by=a,tag=1 bar=10 10",
+                    },
+                ]),
+                Step::Await(vec![
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| bar | tag | tag_partition_by | time                           |",
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| 10  | 1   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "+-----+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                ]),
+                Step::MakeWritesPersistable,
+                Step::Ingest(vec![
+                    TestSequencedEntry {
+                        sequencer_id: 0,
+                        sequence_number: 1,
+                        // same time as first entry in that partition but different tag + some later data
+                        lp: "table_1,tag_partition_by=a,tag=2 bar=20 10\ntable_1,tag_partition_by=a,tag=3 bar=30 30",
+                    },
+                ]),
+                Step::Await(vec![
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| bar | tag | tag_partition_by | time                           |",
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| 10  | 1   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 20  | 2   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 30  | 3   | a                | 1970-01-01T00:00:00.000000030Z |",
+                            "+-----+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                ]),
+                Step::Persist(vec![("table_1", "tag_partition_by_a")]),
+                Step::Assert(vec![
+                    // chunks do not overlap
+                    Check::Query(
+                        "select storage, min_value, max_value, row_count from system.chunk_columns where column_name = 'time' order by min_value, storage",
+                        vec![
+                            "+--------------------------+-----------+-----------+-----------+",
+                            "| storage                  | min_value | max_value | row_count |",
+                            "+--------------------------+-----------+-----------+-----------+",
+                            "| ReadBufferAndObjectStore | 10        | 10        | 2         |",
+                            "| ReadBuffer               | 30        | 30        | 1         |",
+                            "+--------------------------+-----------+-----------+-----------+",
+                        ],
+                    ),
+                ]),
+                Step::Restart,
+                Step::Assert(vec![
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| bar | tag | tag_partition_by | time                           |",
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| 10  | 1   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 20  | 2   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "+-----+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                ]),
+                Step::Replay,
+                Step::Assert(vec![
+                    Check::Query(
+                        "select * from table_1 order by bar",
+                        vec![
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| bar | tag | tag_partition_by | time                           |",
+                            "+-----+-----+------------------+--------------------------------+",
+                            "| 10  | 1   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 20  | 2   | a                | 1970-01-01T00:00:00.000000010Z |",
+                            "| 30  | 3   | a                | 1970-01-01T00:00:00.000000030Z |",
+                            "+-----+-----+------------------+--------------------------------+",
+                        ],
+                    ),
+                    // chunks do not overlap
+                    Check::Query(
+                        "select storage, min_value, max_value, row_count from system.chunk_columns where column_name = 'time' order by min_value, storage",
+                        vec![
+                            "+-------------------+-----------+-----------+-----------+",
+                            "| storage           | min_value | max_value | row_count |",
+                            "+-------------------+-----------+-----------+-----------+",
+                            "| ObjectStoreOnly   | 10        | 10        | 2         |",
+                            "| OpenMutableBuffer | 30        | 30        | 1         |",
+                            "+-------------------+-----------+-----------+-----------+",
                         ],
                     ),
                 ]),

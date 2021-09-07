@@ -72,14 +72,14 @@ impl CatalogMetrics {
             &chunk_lock_tracker,
         );
 
-        let storage_gauge = self.metrics_domain.register_gauge_metric_with_labels(
+        let storage_gauge = self.metrics_domain.register_gauge_metric_with_attributes(
             "loaded",
             Some("chunks"),
             "The number of chunks loaded in a each chunk storage location",
             &[KeyValue::new("table", table_name.to_string())],
         );
 
-        let row_gauge = self.metrics_domain.register_gauge_metric_with_labels(
+        let row_gauge = self.metrics_domain.register_gauge_metric_with_attributes(
             "loaded",
             Some("rows"),
             "The number of rows loaded in each chunk storage location",
@@ -150,7 +150,7 @@ impl TableMetrics {
             chunk_storage: self.chunk_storage.clone_empty(),
             row_count: self.row_count.clone_empty(),
             memory_metrics: self.memory_metrics.clone_empty(),
-            chunk_state: self.metrics_domain.register_counter_metric_with_labels(
+            chunk_state: self.metrics_domain.register_counter_metric_with_attributes(
                 "chunks",
                 None,
                 "In-memory chunks created in various life-cycle stages",
@@ -214,82 +214,122 @@ impl PartitionMetrics {
 ///
 /// This can then be used within each `CatalogChunk` to record its observations for
 /// the different storages
-#[derive(Debug)]
 pub struct StorageGauge {
-    pub(super) mutable_buffer: GaugeValue,
-    pub(super) read_buffer: GaugeValue,
-    pub(super) object_store: GaugeValue,
+    inner: Mutex<StorageGaugeInner>,
+}
+
+impl std::fmt::Debug for StorageGauge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StorageGauge").finish_non_exhaustive()
+    }
+}
+
+struct StorageGaugeInner {
+    mutable_buffer: GaugeValue,
+    read_buffer: GaugeValue,
+    object_store: GaugeValue,
 }
 
 impl StorageGauge {
     pub(super) fn new_unregistered() -> Self {
-        Self {
+        let inner = StorageGaugeInner {
             mutable_buffer: GaugeValue::new_unregistered(),
             read_buffer: GaugeValue::new_unregistered(),
             object_store: GaugeValue::new_unregistered(),
+        };
+        Self {
+            inner: Mutex::new(inner),
         }
     }
 
     pub(super) fn new(gauge: &Gauge) -> Self {
-        Self {
+        let inner = StorageGaugeInner {
             mutable_buffer: gauge.gauge_value(&[KeyValue::new("location", "mutable_buffer")]),
             read_buffer: gauge.gauge_value(&[KeyValue::new("location", "read_buffer")]),
             object_store: gauge.gauge_value(&[KeyValue::new("location", "object_store")]),
+        };
+        Self {
+            inner: Mutex::new(inner),
         }
     }
 
-    pub(super) fn set_mub_only(&mut self, value: usize) {
-        self.mutable_buffer.set(value);
-        self.read_buffer.set(0);
-        self.object_store.set(0);
+    pub(super) fn set_mub_only(&self, value: usize) {
+        let mut guard = self.inner.lock();
+
+        guard.mutable_buffer.set(value);
+        guard.read_buffer.set(0);
+        guard.object_store.set(0);
     }
 
-    pub(super) fn set_rub_only(&mut self, value: usize) {
-        self.mutable_buffer.set(0);
-        self.read_buffer.set(value);
-        self.object_store.set(0);
+    pub(super) fn set_rub_only(&self, value: usize) {
+        let mut guard = self.inner.lock();
+
+        guard.mutable_buffer.set(0);
+        guard.read_buffer.set(value);
+        guard.object_store.set(0);
     }
 
-    pub(super) fn set_rub_and_object_store_only(&mut self, rub: usize, parquet: usize) {
-        self.mutable_buffer.set(0);
-        self.read_buffer.set(rub);
-        self.object_store.set(parquet);
+    pub(super) fn set_rub_and_object_store_only(&self, rub: usize, parquet: usize) {
+        let mut guard = self.inner.lock();
+
+        guard.mutable_buffer.set(0);
+        guard.read_buffer.set(rub);
+        guard.object_store.set(parquet);
     }
 
-    pub(super) fn set_object_store_only(&mut self, value: usize) {
-        self.mutable_buffer.set(0);
-        self.read_buffer.set(0);
-        self.object_store.set(value);
+    pub(super) fn set_object_store_only(&self, value: usize) {
+        let mut guard = self.inner.lock();
+
+        guard.mutable_buffer.set(0);
+        guard.read_buffer.set(0);
+        guard.object_store.set(value);
+    }
+
+    pub(super) fn set_to_zero(&self) {
+        let mut guard = self.inner.lock();
+
+        guard.mutable_buffer.set(0);
+        guard.read_buffer.set(0);
+        guard.object_store.set(0);
     }
 
     fn clone_empty(&self) -> Self {
+        let guard = self.inner.lock();
+
+        let inner = StorageGaugeInner {
+            mutable_buffer: guard.mutable_buffer.clone_empty(),
+            read_buffer: guard.read_buffer.clone_empty(),
+            object_store: guard.object_store.clone_empty(),
+        };
         Self {
-            mutable_buffer: self.mutable_buffer.clone_empty(),
-            read_buffer: self.read_buffer.clone_empty(),
-            object_store: self.object_store.clone_empty(),
+            inner: Mutex::new(inner),
         }
     }
 
     /// Returns the total for the mutable buffer
     pub fn mutable_buffer(&self) -> usize {
-        self.mutable_buffer.get_total()
+        let guard = self.inner.lock();
+        guard.mutable_buffer.get_total()
     }
 
     /// Returns the total for the read buffer
     pub fn read_buffer(&self) -> usize {
-        self.read_buffer.get_total()
+        let guard = self.inner.lock();
+        guard.read_buffer.get_total()
     }
 
     /// Returns the total for object storage
     pub fn object_store(&self) -> usize {
-        self.object_store.get_total()
+        let guard = self.inner.lock();
+        guard.object_store.get_total()
     }
 
     /// Returns the total over all storages
     pub fn total(&self) -> usize {
-        self.mutable_buffer.get_total()
-            + self.read_buffer.get_total()
-            + self.object_store.get_total()
+        let guard = self.inner.lock();
+        guard.mutable_buffer.get_total()
+            + guard.read_buffer.get_total()
+            + guard.object_store.get_total()
     }
 }
 
