@@ -101,10 +101,10 @@ impl PointsWriterBuilder {
     /// Write points to the API at the specified host and put them in the
     /// specified org and bucket.
     pub async fn new_api(
-        host: impl Into<String>,
-        org: impl Into<String>,
-        bucket: impl Into<String>,
-        token: impl Into<String>,
+        host: impl Into<String> + Send,
+        org: impl Into<String> + Send,
+        bucket: impl Into<String> + Send,
+        token: impl Into<String> + Send,
         create_bucket: bool,
         org_id: Option<&str>,
     ) -> Result<Self> {
@@ -302,10 +302,10 @@ mod test {
         fn written_data(self, agent_name: &str) -> String {
             match self.config {
                 PointsWriterConfig::Vector(agents_by_name) => {
-                    let bytes_ref = agents_by_name
-                        .get(agent_name)
-                        .expect("Should have written some data, did not find any for this agent")
-                        .clone();
+                    let bytes_ref =
+                        Arc::clone(agents_by_name.get(agent_name).expect(
+                            "Should have written some data, did not find any for this agent",
+                        ));
                     let bytes = bytes_ref
                         .lock()
                         .expect("Should have been able to get a lock");
