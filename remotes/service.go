@@ -39,8 +39,6 @@ type service struct {
 	validator   RemoteConnectionValidator
 }
 
-var _ influxdb.RemoteConnectionService = (*service)(nil)
-
 func (s service) ListRemoteConnections(ctx context.Context, filter influxdb.RemoteConnectionListFilter) (*influxdb.RemoteConnections, error) {
 	q := sq.Select("id", "org_id", "name", "description", "remote_url", "remote_org_id", "allow_insecure_tls").
 		From("remotes").

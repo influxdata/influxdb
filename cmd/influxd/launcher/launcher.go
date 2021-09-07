@@ -853,13 +853,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	)
 
 	remotesSvc := remotes.NewService(m.sqlStore)
-	remotesServer := remotesTransport.NewRemoteConnectionHandler(
-		m.log.With(zap.String("handler", "remotes")),
-		remotes.NewLoggingService(
-			m.log.With(zap.String("service", "remotes")),
-			remotes.NewMetricCollectingService(m.reg, remotesSvc),
-		),
-	)
+	remotesServer := remotesTransport.NewInstrumentedRemotesHandler(
+		m.log.With(zap.String("handler", "remotes")), m.reg, remotesSvc)
 
 	replicationSvc := replications.NewService(m.sqlStore, ts)
 	replicationServer := replicationTransport.NewReplicationHandler(
