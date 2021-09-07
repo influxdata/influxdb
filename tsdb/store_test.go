@@ -143,61 +143,6 @@ func TestStore_CreateShard(t *testing.T) {
 	}
 }
 
-func TestStore_CreateMixedShards(t *testing.T) {
-
-	test := func(t *testing.T, index1 string, index2 string) {
-		s := MustOpenStore(t, index1)
-		defer s.Close()
-
-		// Create a new shard and verify that it exists.
-		if err := s.CreateShard(context.Background(), "db0", "rp0", 1, true); err != nil {
-			t.Fatal(err)
-		} else if sh := s.Shard(1); sh == nil {
-			t.Fatalf("expected shard")
-		}
-
-		s.EngineOptions.IndexVersion = index2
-		s.index = index2
-		if err := s.Reopen(t); err != nil {
-			t.Fatal(err)
-		}
-
-		// Create another shard and verify that it exists.
-		if err := s.CreateShard(context.Background(), "db0", "rp0", 2, true); err != nil {
-			t.Fatal(err)
-		} else if sh := s.Shard(2); sh == nil {
-			t.Fatalf("expected shard")
-		}
-
-		// Reopen shard and recheck.
-		if err := s.Reopen(t); err != nil {
-			t.Fatal(err)
-		} else if sh := s.Shard(1); sh == nil {
-			t.Fatalf("expected shard(1)")
-		} else if sh = s.Shard(2); sh == nil {
-			t.Fatalf("expected shard(2)")
-		}
-
-		sh := s.Shard(1)
-		if sh.IndexType() != index1 {
-			t.Fatalf("got index %v, expected %v", sh.IndexType(), index1)
-		}
-
-		sh = s.Shard(2)
-		if sh.IndexType() != index2 {
-			t.Fatalf("got index %v, expected %v", sh.IndexType(), index2)
-		}
-	}
-
-	indexes := tsdb.RegisteredIndexes()
-	for i := range indexes {
-		j := (i + 1) % len(indexes)
-		index1 := indexes[i]
-		index2 := indexes[j]
-		t.Run(fmt.Sprintf("%s-%s", index1, index2), func(t *testing.T) { test(t, index1, index2) })
-	}
-}
-
 func TestStore_DropConcurrentWriteMultipleShards(t *testing.T) {
 
 	test := func(t *testing.T, index string) {
