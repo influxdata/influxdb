@@ -3,6 +3,13 @@ version: "2.1"
 orbs:
   terraform: circleci/terraform@2.1.0
 
+executors:
+  linux-machine:
+    machine:
+      image: ubuntu-2004:202107-02
+      docker_layer_caching: true
+      resource_class: large
+
 parameters:
   aws_teardown:
     default: false
@@ -279,27 +286,6 @@ commands:
             echo 'export GOPATH=/home/circleci/go' >> $BASH_ENV
             echo 'export PATH=${GOPATH}/bin:${PATH}' >> $BASH_ENV
       - run:
-          name: Install updated Docker
-          command: |
-            export BUILDKIT_PROGRESS=plain
-            export DOCKER_BUILDKIT=1
-            export DOCKER_CLI_EXPERIMENTAL=enabled
-            echo 'export BUILDKIT_PROGRESS=plain' >> $BASH_ENV
-            echo 'export DOCKER_BUILDKIT=1' >> $BASH_ENV
-            echo 'export DOCKER_CLI_EXPERIMENTAL=enabled' >> $BASH_ENV
-
-            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-            sudo add-apt-repository \
-              "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-              $(lsb_release -cs) \
-              stable"
-            sudo apt-get update
-            sudo apt-get install -y \
-              containerd.io \
-              docker-ce \
-              docker-ce-cli
-            sudo service docker restart
-      - run:
           name: Set up Docker cross-builder
           command: |
             # Get jq to parse binfmt output.
@@ -527,9 +513,7 @@ jobs:
           command: docker push quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
 
   cross_build:
-    machine:
-      image: ubuntu-2004:202010-01
-    resource_class: large
+    executor: linux-machine
     environment:
       TMPDIR: /mnt/ramdisk
     steps:
@@ -613,8 +597,7 @@ jobs:
 
 
   perf_test:
-    machine:
-      image: ubuntu-2004:202010-01
+    executor: linux-machine
     parameters:
       format:
         type: string
@@ -636,10 +619,9 @@ jobs:
             TEST_FORMAT=<< parameters.format >>
             TEST_RECORD_INGEST_RESULTS=<< parameters.record_ingest_results >>
             scripts/ci/perf_test.sh
+
   aws_destroy_by_date:
-    machine:
-      enabled: true
-      docker_layer_caching: true
+    executor: linux-machine
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -669,9 +651,7 @@ jobs:
               fi
             done
   aws_destroy_by_name:
-    machine:
-      enabled: true
-      docker_layer_caching: true
+    executor: linux-machine
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -689,9 +669,7 @@ jobs:
             AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
 
   deploy_nightly:
-    machine:
-      image: ubuntu-2004:202010-01
-    resource_class: large
+    executor: linux-machine
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -740,7 +718,7 @@ jobs:
           destination: test_artifacts/results/shared
 
   litmus_daily:
-    machine: true
+    executor: linux-machine
     steps:
       - attach_workspace:
           at: ~/project
@@ -761,7 +739,7 @@ jobs:
           path: ~/project
 
   litmus_integration:
-    machine: true
+    executor: linux-machine
     steps:
       - attach_workspace:
           at: ~/project
@@ -781,7 +759,7 @@ jobs:
           path: ~/project
 
   grace_daily:
-    machine: true
+    executor: linux-machine
     steps:
       - attach_workspace:
           at: ~/project
@@ -796,8 +774,7 @@ jobs:
           path: ~/project/results
 
   share-testing-image:
-    machine:
-      image: ubuntu-2004:202010-01
+    executor: linux-machine
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - attach_workspace:
