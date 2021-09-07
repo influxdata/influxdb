@@ -63,8 +63,6 @@ type service struct {
 	validator     ReplicationValidator
 }
 
-var _ influxdb.ReplicationService = (*service)(nil)
-
 func (s service) ListReplications(ctx context.Context, filter influxdb.ReplicationListFilter) (*influxdb.Replications, error) {
 	q := sq.Select(
 		"id", "org_id", "name", "description",

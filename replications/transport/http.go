@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -10,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -39,16 +41,54 @@ var (
 	}
 )
 
+type ReplicationService interface {
+	// ListReplications returns all info about registered replications matching a filter.
+	ListReplications(context.Context, influxdb.ReplicationListFilter) (*influxdb.Replications, error)
+
+	// CreateReplication registers a new replication stream.
+	CreateReplication(context.Context, influxdb.CreateReplicationRequest) (*influxdb.Replication, error)
+
+	// ValidateNewReplication validates that the given settings for a replication are usable,
+	// without persisting the configuration.
+	ValidateNewReplication(context.Context, influxdb.CreateReplicationRequest) error
+
+	// GetReplication returns metadata about the replication with the given ID.
+	GetReplication(context.Context, platform.ID) (*influxdb.Replication, error)
+
+	// UpdateReplication updates the settings for the replication with the given ID.
+	UpdateReplication(context.Context, platform.ID, influxdb.UpdateReplicationRequest) (*influxdb.Replication, error)
+
+	// ValidateUpdatedReplication valdiates that a replication is still usable after applying the
+	// given update, without persisting the new configuration.
+	ValidateUpdatedReplication(context.Context, platform.ID, influxdb.UpdateReplicationRequest) error
+
+	// DeleteReplication deletes all info for the replication with the given ID.
+	DeleteReplication(context.Context, platform.ID) error
+
+	// ValidateReplication checks that the replication with the given ID is still usable with its
+	// persisted settings.
+	ValidateReplication(context.Context, platform.ID) error
+}
+
 type ReplicationHandler struct {
 	chi.Router
 
 	log *zap.Logger
 	api *kithttp.API
 
-	replicationsService influxdb.ReplicationService
+	replicationsService ReplicationService
 }
 
-func NewReplicationHandler(log *zap.Logger, svc influxdb.ReplicationService) *ReplicationHandler {
+func NewInstrumentedReplicationHandler(log *zap.Logger, reg prometheus.Registerer, svc ReplicationService) *ReplicationHandler {
+	// Collect metrics.
+	svc = newMetricCollectingService(reg, svc)
+	// Wrap logging.
+	svc = newLoggingService(log, svc)
+
+	return newReplicationHandler(log, svc)
+}
+
+func newReplicationHandler(log *zap.Logger, svc ReplicationService) *ReplicationHandler {
 	h := &ReplicationHandler{
 		log:                 log,
 		api:                 kithttp.NewAPI(kithttp.WithLog(log)),

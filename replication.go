@@ -1,7 +1,6 @@
 package influxdb
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -16,35 +15,6 @@ const (
 var ErrMaxQueueSizeTooSmall = errors.Error{
 	Code: errors.EInvalid,
 	Msg:  fmt.Sprintf("maxQueueSize too small, must be at least %d", MinReplicationMaxQueueSizeBytes),
-}
-
-type ReplicationService interface {
-	// ListReplications returns all info about registered replications matching a filter.
-	ListReplications(context.Context, ReplicationListFilter) (*Replications, error)
-
-	// CreateReplication registers a new replication stream.
-	CreateReplication(context.Context, CreateReplicationRequest) (*Replication, error)
-
-	// ValidateNewReplication validates that the given settings for a replication are usable,
-	// without persisting the configuration.
-	ValidateNewReplication(context.Context, CreateReplicationRequest) error
-
-	// GetReplication returns metadata about the replication with the given ID.
-	GetReplication(context.Context, platform.ID) (*Replication, error)
-
-	// UpdateReplication updates the settings for the replication with the given ID.
-	UpdateReplication(context.Context, platform.ID, UpdateReplicationRequest) (*Replication, error)
-
-	// ValidateUpdatedReplication valdiates that a replication is still usable after applying the
-	// given update, without persisting the new configuration.
-	ValidateUpdatedReplication(context.Context, platform.ID, UpdateReplicationRequest) error
-
-	// DeleteReplication deletes all info for the replication with the given ID.
-	DeleteReplication(context.Context, platform.ID) error
-
-	// ValidateReplication checks that the replication with the given ID is still usable with its
-	// persisted settings.
-	ValidateReplication(context.Context, platform.ID) error
 }
 
 // Replication contains all info about a replication that should be returned to users.

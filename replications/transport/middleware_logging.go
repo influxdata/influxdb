@@ -1,4 +1,4 @@
-package replications
+package transport
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewLoggingService(logger *zap.Logger, underlying influxdb.ReplicationService) *loggingService {
+func newLoggingService(logger *zap.Logger, underlying ReplicationService) *loggingService {
 	return &loggingService{
 		logger:     logger,
 		underlying: underlying,
@@ -18,10 +18,10 @@ func NewLoggingService(logger *zap.Logger, underlying influxdb.ReplicationServic
 
 type loggingService struct {
 	logger     *zap.Logger
-	underlying influxdb.ReplicationService
+	underlying ReplicationService
 }
 
-var _ influxdb.ReplicationService = (*loggingService)(nil)
+var _ ReplicationService = (*loggingService)(nil)
 
 func (l loggingService) ListReplications(ctx context.Context, filter influxdb.ReplicationListFilter) (rs *influxdb.Replications, err error) {
 	defer func(start time.Time) {

@@ -1,4 +1,4 @@
-package remotes
+package transport
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewLoggingService(logger *zap.Logger, underlying influxdb.RemoteConnectionService) *loggingService {
+func newLoggingService(logger *zap.Logger, underlying RemoteConnectionService) *loggingService {
 	return &loggingService{
 		logger:     logger,
 		underlying: underlying,
@@ -18,10 +18,10 @@ func NewLoggingService(logger *zap.Logger, underlying influxdb.RemoteConnectionS
 
 type loggingService struct {
 	logger     *zap.Logger
-	underlying influxdb.RemoteConnectionService
+	underlying RemoteConnectionService
 }
 
-var _ influxdb.RemoteConnectionService = (*loggingService)(nil)
+var _ RemoteConnectionService = (*loggingService)(nil)
 
 func (l loggingService) ListRemoteConnections(ctx context.Context, filter influxdb.RemoteConnectionListFilter) (cs *influxdb.RemoteConnections, err error) {
 	defer func(start time.Time) {

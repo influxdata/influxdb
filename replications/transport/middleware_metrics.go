@@ -1,4 +1,4 @@
-package replications
+package transport
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func NewMetricCollectingService(reg prometheus.Registerer, underlying influxdb.ReplicationService, opts ...metric.ClientOptFn) *metricsService {
+func newMetricCollectingService(reg prometheus.Registerer, underlying ReplicationService, opts ...metric.ClientOptFn) *metricsService {
 	o := metric.ApplyMetricOpts(opts...)
 	return &metricsService{
 		rec:        metric.New(reg, o.ApplySuffix("replication")),
@@ -19,10 +19,10 @@ func NewMetricCollectingService(reg prometheus.Registerer, underlying influxdb.R
 
 type metricsService struct {
 	rec        *metric.REDClient
-	underlying influxdb.ReplicationService
+	underlying ReplicationService
 }
 
-var _ influxdb.ReplicationService = (*metricsService)(nil)
+var _ ReplicationService = (*metricsService)(nil)
 
 func (m metricsService) ListReplications(ctx context.Context, filter influxdb.ReplicationListFilter) (*influxdb.Replications, error) {
 	rec := m.rec.Record("find_replications")
