@@ -1,5 +1,7 @@
 package testing
 
+import "runtime"
+
 var FluxEndToEndSkipList = map[string]map[string]string{
 	"universe": {
 		// TODO(adam) determine the reason for these test failures.
@@ -173,6 +175,12 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 	"contrib/RohanSreerama5/naiveBayesClassifier": {
 		"bayes": "error calling tableFind: ",
 	},
+}
+
+func init() {
+	if runtime.GOOS != "amd64" {
+		FluxEndToEndSkipList["universe"]["holt_winters"] = "expected HoltWinters outputs only valid on amd64"
+	}
 }
 
 type PerTestFeatureFlagMap = map[string]map[string]map[string]string
