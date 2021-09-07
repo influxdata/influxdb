@@ -516,7 +516,7 @@ pub mod test_utils {
     ///
     /// This tests that:
     /// - both writer and reader cannot be constructed when sequencers are missing
-    /// - both writer and reader cannot be auto-create sequencers
+    /// - both writer and reader can be auto-create sequencers
     async fn test_sequencer_auto_creation<T>(adapter: &T)
     where
         T: TestAdapter,

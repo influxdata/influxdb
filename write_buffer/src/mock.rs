@@ -742,7 +742,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "already initialized")]
-    fn test_double_init_pancis() {
+    fn test_double_init_panics() {
         let state = MockBufferSharedState::uninitialized();
         state.init(NonZeroU32::try_from(2).unwrap());
         state.init(NonZeroU32::try_from(2).unwrap());
@@ -750,7 +750,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "already initialized")]
-    fn test_init_after_constructor_pancis() {
+    fn test_init_after_constructor_panics() {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         state.init(NonZeroU32::try_from(2).unwrap());
