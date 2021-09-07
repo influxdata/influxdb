@@ -2,9 +2,9 @@ Closes #
 
 Describe your proposed changes here.
 
+<!-- Please DO NOT update the CHANGELOG, as this is now handled by automation. -->
 <!-- Checkboxes below this note can be erased if not applicable to your Pull Request. -->
 
-- [ ] [CHANGELOG.md](https://github.com/influxdata/influxdb/blob/master/CHANGELOG.md) updated with a link to the PR (not the Issue)
 - [ ] [Well-formatted commit messages](https://www.conventionalcommits.org/en/v1.0.0-beta.3/)
 - [ ] Rebased/mergeable
 - [ ] Tests pass
