@@ -526,19 +526,28 @@ where
             for (set_position, value) in &mut self.it {
                 loop {
                     let (idx_mask, included) = mask.next().expect("inclusion mask too short");
+
                     if !included {
                         self.exluded_count += 1;
                     }
-                    if idx_mask == set_position {
-                        if *included {
-                            let set_position = set_position
-                                .checked_sub(self.exluded_count)
-                                .expect("set positions broken");
-                            return Some((set_position, value));
-                        } else {
-                            // exclude this value
-                            break;
-                        }
+
+                    if idx_mask < set_position {
+                        continue;
+                    }
+                    assert_eq!(
+                        idx_mask, set_position,
+                        "`idx_mask` ({}) should never jump over `set_position` ({}), this is a bug",
+                        idx_mask, set_position
+                    );
+
+                    if *included {
+                        let set_position = set_position
+                            .checked_sub(self.exluded_count)
+                            .expect("set positions broken");
+                        return Some((set_position, value));
+                    } else {
+                        // exclude this value
+                        break;
                     }
                 }
             }
