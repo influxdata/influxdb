@@ -898,7 +898,11 @@ impl QueryChunkMeta for TestChunk {
         Arc::clone(&self.schema)
     }
 
+    // return a reference to delete predicates of the chunk
     fn delete_predicates(&self) -> Arc<Vec<Predicate>> {
+        // Since this is the test chunk and its focus is not (yet) on
+        // deletion, return an empty delete predicate now which means nothing is deleted
+        // from this test chunk
         let pred: Vec<Predicate> = vec![];
         Arc::new(pred)
     }

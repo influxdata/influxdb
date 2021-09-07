@@ -9,6 +9,8 @@
     clippy::clone_on_ref_ptr
 )]
 
+use std::fmt::Display;
+
 use thiserror::Error;
 
 use serde::{Deserialize, Serialize};
@@ -59,6 +61,15 @@ pub enum ProvidedDeleteOp {
     NotEq,
 }
 
+impl Display for ProvidedDeleteOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Eq => write!(f, "Eq"),
+            Self::NotEq => write!(f, "NotEq"),
+        }
+    }
+}
+
 impl ProvidedDeleteOp {
     /// Return a str representation of this DeleteOp
     pub fn as_str(&self) -> &'static str {
@@ -80,7 +91,7 @@ impl ProvidedParseDelete {
     }
 
     /// Parse and convert the delete grpc API into ProvidedParseDelete to send to server
-    pub fn parse_delete(start: &str, stop: &str, predicate: &str) -> Result<Self> {
+    pub fn try_new(start: &str, stop: &str, predicate: &str) -> Result<Self> {
         // parse and check time range
         let (start_time, stop_time) = Self::parse_time_range(start, stop)?;
 

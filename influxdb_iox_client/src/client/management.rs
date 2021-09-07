@@ -963,7 +963,7 @@ impl Client {
         let stop_time = stop_time.into();
 
         // parse the time range and predicate
-        let provided_parse_delete_result = ProvidedParseDelete::parse_delete(
+        let provided_parse_delete_result = ProvidedParseDelete::try_new(
             start_time.as_str(),
             stop_time.as_str(),
             predicate.as_str(),
