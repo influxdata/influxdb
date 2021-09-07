@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/replications/mock"
 	"github.com/stretchr/testify/assert"
 	tmock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -314,7 +314,7 @@ func TestReplicationHandler(t *testing.T) {
 func newTestServer(t *testing.T) (*httptest.Server, *mock.MockReplicationService) {
 	ctrl := gomock.NewController(t)
 	svc := mock.NewMockReplicationService(ctrl)
-	server := annotatedTestServer(NewReplicationHandler(zaptest.NewLogger(t), svc))
+	server := annotatedTestServer(newReplicationHandler(zaptest.NewLogger(t), svc))
 	return httptest.NewServer(server), svc
 }
 

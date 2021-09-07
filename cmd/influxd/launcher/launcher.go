@@ -857,13 +857,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		m.log.With(zap.String("handler", "remotes")), m.reg, remotesSvc)
 
 	replicationSvc := replications.NewService(m.sqlStore, ts)
-	replicationServer := replicationTransport.NewReplicationHandler(
-		m.log.With(zap.String("handler", "replications")),
-		replications.NewLoggingService(
-			m.log.With(zap.String("service", "replications")),
-			replications.NewMetricCollectingService(m.reg, replicationSvc),
-		),
-	)
+	replicationServer := replicationTransport.NewInstrumentedReplicationHandler(
+		m.log.With(zap.String("handler", "replications")), m.reg, replicationSvc)
 
 	platformHandler := http.NewPlatformHandler(
 		m.apibackend,
