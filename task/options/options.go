@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/interpreter"
+	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2/pkg/pointer"
 )
@@ -47,18 +47,7 @@ type Duration struct {
 }
 
 func (a Duration) String() string {
-	// NOTE: This is a copy of `formatDurationLiteral` from the flux codebase.
-	// We copy it here so we can break the dependency on the Go formatter in this method without a change in behavior.
-	// The Rust-based formatter doesn't expose an interface for formatting individual nodes.
-	builder := strings.Builder{}
-	formatDuration := func(d ast.Duration) {
-		builder.WriteString(strconv.FormatInt(d.Magnitude, 10))
-		builder.WriteString(d.Unit)
-	}
-	for _, d := range a.Node.Values {
-		formatDuration(d)
-	}
-	return builder.String()
+	return parser.FormatDuration(&a.Node)
 }
 
 // Parse parses a string into a Duration.
