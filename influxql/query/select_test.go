@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -40,15 +41,16 @@ func floatIterator(fSlice []float64, name, tags string, startTime, step int64) *
 
 func TestSelect(t *testing.T) {
 	for _, tt := range []struct {
-		name   string
-		q      string
-		typ    influxql.DataType
-		fields map[string]influxql.DataType
-		expr   string
-		itrs   []query.Iterator
-		rows   []query.Row
-		now    time.Time
-		err    string
+		name     string
+		q        string
+		typ      influxql.DataType
+		fields   map[string]influxql.DataType
+		expr     string
+		itrs     []query.Iterator
+		rows     []query.Row
+		now      time.Time
+		err      string
+		onlyArch string
 	}{
 		{
 			name: "Min",
@@ -2831,6 +2833,7 @@ func TestSelect(t *testing.T) {
 				{Time: 20 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{11.960623419918432}},
 				{Time: 22 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{7.953140268154609}},
 			},
+			onlyArch: "amd64",
 		},
 		{
 			name: "DuplicateSelectors",
@@ -2881,6 +2884,10 @@ func TestSelect(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.onlyArch != "" && runtime.GOARCH != tt.onlyArch {
+				t.Skipf("Expected outputs of %s only valid when GOARCH = %s", tt.name, tt.onlyArch)
+			}
+
 			shardMapper := ShardMapper{
 				MapShardsFn: func(_ context.Context, sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
 					var fields map[string]influxql.DataType
