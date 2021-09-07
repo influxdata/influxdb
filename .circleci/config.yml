@@ -122,6 +122,7 @@ workflows:
               only:
                 - master
     jobs:
+      - changelog
       - godeps
       - gotest:
           requires:
@@ -137,6 +138,7 @@ workflows:
             - godeps
       - deploy_nightly:
           requires:
+            - changelog
             - gotest
             - golint
             - tlstest
@@ -809,3 +811,35 @@ jobs:
             docker load < docker-image.tar
             docker tag quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} quay.io/influxdb/oss-acceptance:latest
             docker push quay.io/influxdb/oss-acceptance:latest
+  changelog:
+    machine:
+      image: ubuntu-2004:202010-01
+    steps:
+      - checkout
+      - install_core_deps
+      - run:
+          name: Run script
+          command: |
+            set -x
+            git clone --depth=1 --branch v0.2.5 https://github.com/orhun/git-cliff
+            cd git-cliff
+            cargo install git-cliff
+            cd ..
+
+            TIMESTAMP="$(date -u '+%Y%m%d')"
+            COMMIT_FILE_PATH="scripts/ci/changelog-commit.txt"
+            LAST_COMMIT=$(cat $COMMIT_FILE_PATH)
+            NEWEST_COMMIT=${CIRCLE_SHA1}
+            ./scripts/ci/update-changelog.sh \
+              --commit-range "$LAST_COMMIT..$NEWEST_COMMIT" \
+              --prepend CHANGELOG.md \
+              -- \
+              --tag $TIMESTAMP
+            echo ${CIRCLE_SHA1} > $COMMIT_FILE_PATH
+            git add CHANGELOG.md $COMMIT_FILE_PATH
+            git config user.email "team-edge@influxdata.com"
+            git config user.name "Edge Team CircleCI Automation"
+            git commit -m "changelog: update $TIMESTAMP [skip ci]"
+            git push origin $CIRCLE_BRANCH
+      - store_artifacts:
+          path: CHANGELOG.md
