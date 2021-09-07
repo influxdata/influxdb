@@ -197,9 +197,7 @@ impl TryFrom<management::WriteBufferConnection> for WriteBufferConnection {
             connection_config: proto.connection_config,
             auto_create_sequencers: proto
                 .auto_create_sequencers
-                .map(|x| x.try_into())
-                .transpose()
-                .field("auto_create_sequencers")?,
+                .optional("auto_create_sequencers")?,
         })
     }
 }
