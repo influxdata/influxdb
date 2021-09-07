@@ -2,6 +2,7 @@ package query_test
 
 import (
 	"math"
+	"runtime"
 	"testing"
 	"time"
 
@@ -16,6 +17,10 @@ func almostEqual(got, exp float64) bool {
 }
 
 func TestHoltWinters_AusTourists(t *testing.T) {
+	if runtime.GOARCH != "amd64" {
+		t.Skip("Expected HoltWinters outputs only valid when GOARCH = amd64")
+	}
+
 	hw := query.NewFloatHoltWintersReducer(10, 4, false, 1)
 	// Dataset from http://www.inside-r.org/packages/cran/fpp/docs/austourists
 	austourists := []query.FloatPoint{
@@ -102,6 +107,10 @@ func TestHoltWinters_AusTourists(t *testing.T) {
 }
 
 func TestHoltWinters_AusTourists_Missing(t *testing.T) {
+	if runtime.GOARCH != "amd64" {
+		t.Skip("Expected HoltWinters outputs only valid when GOARCH = amd64")
+	}
+
 	hw := query.NewFloatHoltWintersReducer(10, 4, false, 1)
 	// Dataset from http://www.inside-r.org/packages/cran/fpp/docs/austourists
 	austourists := []query.FloatPoint{
@@ -181,6 +190,10 @@ func TestHoltWinters_AusTourists_Missing(t *testing.T) {
 }
 
 func TestHoltWinters_USPopulation(t *testing.T) {
+	if runtime.GOARCH != "amd64" {
+		t.Skip("Expected HoltWinters outputs only valid when GOARCH = amd64")
+	}
+
 	series := []query.FloatPoint{
 		{Time: 1, Value: 3.93},
 		{Time: 2, Value: 5.31},
@@ -254,6 +267,10 @@ func TestHoltWinters_USPopulation(t *testing.T) {
 }
 
 func TestHoltWinters_USPopulation_Missing(t *testing.T) {
+	if runtime.GOARCH != "amd64" {
+		t.Skip("Expected HoltWinters outputs only valid when GOARCH = amd64")
+	}
+
 	series := []query.FloatPoint{
 		{Time: 1, Value: 3.93},
 		{Time: 2, Value: 5.31},
@@ -323,6 +340,10 @@ func TestHoltWinters_USPopulation_Missing(t *testing.T) {
 	}
 }
 func TestHoltWinters_RoundTime(t *testing.T) {
+	if runtime.GOARCH != "amd64" {
+		t.Skip("Expected HoltWinters outputs only valid when GOARCH = amd64")
+	}
+
 	maxTime := time.Unix(0, influxql.MaxTime).Round(time.Second).UnixNano()
 	data := []query.FloatPoint{
 		{Time: maxTime - int64(5*time.Second), Value: 1},
@@ -359,6 +380,10 @@ func TestHoltWinters_RoundTime(t *testing.T) {
 }
 
 func TestHoltWinters_MaxTime(t *testing.T) {
+	if runtime.GOARCH != "amd64" {
+		t.Skip("Expected HoltWinters outputs only valid when GOARCH = amd64")
+	}
+
 	data := []query.FloatPoint{
 		{Time: influxql.MaxTime - 1, Value: 1},
 		{Time: influxql.MaxTime, Value: 2},
