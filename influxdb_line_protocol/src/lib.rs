@@ -16,6 +16,8 @@
     clippy::clone_on_ref_ptr
 )]
 
+pub mod delete_parser;
+
 use fmt::Display;
 use nom::{
     branch::alt,
@@ -504,7 +506,7 @@ pub fn parse_lines(input: &str) -> impl Iterator<Item = Result<ParsedLine<'_>>> 
     })
 }
 
-/// Split `input` into invidividual lines to be parsed, based on the
+/// Split `input` into individual lines to be parsed, based on the
 /// rules of the Line Protocol format.
 ///
 /// This code is more or less a direct port of the [Go implementation of
@@ -711,7 +713,7 @@ fn integral_value_signed(i: &str) -> IResult<&str, &str> {
     recognize(preceded(opt(tag("-")), digit1))(i)
 }
 
-fn timestamp(i: &str) -> IResult<&str, i64> {
+pub fn timestamp(i: &str) -> IResult<&str, i64> {
     map_fail(integral_value_signed, |value| {
         value.parse().context(TimestampValueInvalid { value })
     })(i)

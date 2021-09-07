@@ -9,7 +9,7 @@ use crate::{
             chunk::{CatalogChunk, ChunkStage},
             partition::Partition,
             table::TableSchemaUpsertHandle,
-            Catalog, TableNameFilter,
+            Catalog, Error as CatalogError, TableNameFilter,
         },
         lifecycle::{LockableCatalogChunk, LockableCatalogPartition, WeakDb},
     },
@@ -114,6 +114,16 @@ pub enum Error {
     WriteEntryInitial {
         partition_key: String,
         source: mutable_buffer::chunk::Error,
+    },
+
+    #[snafu(display(
+        "Cannot delete data from non-existing table, {}: {}",
+        table_name,
+        source
+    ))]
+    DeleteFromTable {
+        table_name: String,
+        source: CatalogError,
     },
 
     #[snafu(display(
@@ -634,16 +644,22 @@ impl Db {
     /// Delete data from  a table on a specified predicate
     pub async fn delete(
         self: &Arc<Self>,
-        _table_name: &str,
-        _delete_predicate: &str, //todo: this might be a Predicate dta type
+        table_name: &str,
+        delete_predicate: &Predicate,
     ) -> Result<()> {
-        let partitions = self.catalog.partitions();
-        for partition in &partitions {
+        // get all partitions of this table
+        let table = self
+            .catalog
+            .table(table_name)
+            .context(DeleteFromTable { table_name })?;
+        let partitions = table.partitions();
+        for partition in partitions {
             let partition = partition.write();
             let chunks = partition.chunks();
-            for _chunk in chunks {
-                // todo
-                // if this is the chunk of the table, add delete_predicate into the chunk's delete_predicates
+            for chunk in chunks {
+                // NGA todo: verify where to close MUB before adding the predicate
+                let mut chunk = chunk.write();
+                chunk.add_delete_predicate(delete_predicate);
             }
         }
 

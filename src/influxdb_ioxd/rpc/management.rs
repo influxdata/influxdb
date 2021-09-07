@@ -4,8 +4,11 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use data_types::{server_id::ServerId, DatabaseName};
+use datafusion::logical_plan::{col, lit};
 use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound};
 use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
+use influxdb_line_protocol::delete_parser::{ProvidedDeleteOp, ProvidedParseDelete};
+use query::predicate::PredicateBuilder;
 use query::QueryDatabase;
 use server::rules::ProvidedDatabaseRules;
 use server::{ApplicationState, ConnectionManager, Error, Server};
@@ -578,10 +581,19 @@ where
         let DeleteRequest {
             db_name,
             table_name,
-            delete_predicate,
-            start_time: _,
-            stop_time: _,
+            parse_delete,
         } = request.into_inner();
+
+        let parse_delete = parse_delete.ok_or_else(|| {
+            tonic::Status::unavailable(format!(
+                "Delete Predicate has not yet been loaded for table ({}) of database ({})",
+                table_name, db_name
+            ))
+        })?;
+
+        let provided_parse_delete: ProvidedParseDelete = parse_delete
+            .try_into()
+            .map_err(|e: FieldViolation| e.scope("parse_delete"))?;
 
         // Validate that the database name is legit
         let db_name = DatabaseName::new(db_name).field("db_name")?;
@@ -590,14 +602,30 @@ where
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        // Todo
-        // Convert start_time and stop_time to time range
-        // and make a new predicate that is a conjunction of the time range and the delete_predicate
+        // NGA todo: we may want to validate if the table and all of its columns in delete predicate are legit
 
-        db.delete(&table_name, &delete_predicate)
+        // Build the predicate
+        let mut del_predicate = PredicateBuilder::new()
+            .table(table_name.clone())
+            .timestamp_range(
+                provided_parse_delete.start_time,
+                provided_parse_delete.stop_time,
+            )
+            .build();
+        // Add the predicate binary expressions
+        for expr in provided_parse_delete.predicate {
+            let e = match expr.op {
+                ProvidedDeleteOp::Eq => col(expr.column.as_str()).eq(lit(expr.value)),
+                ProvidedDeleteOp::NotEq => col(expr.column.as_str()).not_eq(lit(expr.value)),
+            };
+            del_predicate.exprs.push(e);
+        }
+
+        db.delete(&table_name, &del_predicate)
             .await
             .map_err(default_db_error_handler)?;
 
+        // NGA todo: return a delete handle with the response?
         Ok(Response::new(DeleteResponse {}))
     }
 }

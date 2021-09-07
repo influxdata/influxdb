@@ -14,6 +14,7 @@ use metrics::{Counter, Histogram, KeyValue};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
+use query::predicate::Predicate;
 use read_buffer::RBChunk;
 use snafu::Snafu;
 use std::sync::Arc;
@@ -74,6 +75,9 @@ pub struct ChunkMetadata {
 
     /// The schema for the table in this Chunk
     pub schema: Arc<Schema>,
+
+    /// Delete predicates of this chunk
+    pub delete_predicates: Arc<Vec<Predicate>>,
 }
 
 /// Different memory representations of a frozen chunk.
@@ -305,6 +309,7 @@ impl CatalogChunk {
             meta: Arc::new(ChunkMetadata {
                 table_summary: Arc::new(chunk.table_summary()),
                 schema,
+                delete_predicates: Arc::new(vec![]), //NGA todo: consider to use the one of the given chunk if appropriate
             }),
             representation: ChunkStageFrozenRepr::ReadBuffer(Arc::new(chunk)),
         };
@@ -342,6 +347,7 @@ impl CatalogChunk {
         let meta = Arc::new(ChunkMetadata {
             table_summary: Arc::clone(chunk.table_summary()),
             schema: chunk.schema(),
+            delete_predicates: Arc::new(vec![]), //NGA todo: consider to use the one of the given chunk if appropriate
         });
 
         let stage = ChunkStage::Persisted {
@@ -454,6 +460,34 @@ impl CatalogChunk {
                     .set_object_store_only(parquet.size());
                 self.metrics.row_count.set_object_store_only(parquet.rows());
                 self.metrics.chunk_storage.set_object_store_only(1);
+            }
+        }
+    }
+
+    pub fn add_delete_predicate(&mut self, _delete_predicate: &Predicate) {
+        match &self.stage {
+            ChunkStage::Open { mb_chunk: _ } => {
+                // NGA todo:
+                // Close the MUB
+                // Add the delete_predicate to it
+            }
+            ChunkStage::Frozen { representation, .. } => match representation {
+                ChunkStageFrozenRepr::MutableBufferSnapshot(_snapshot) => {
+                    // NGA todo
+                }
+                ChunkStageFrozenRepr::ReadBuffer(_rb_chunk) => {
+                    // NGA todo
+                }
+            },
+            ChunkStage::Persisted {
+                parquet: _,
+                read_buffer: Some(_read_buffer),
+                ..
+            } => {
+                // NGA todo
+            }
+            ChunkStage::Persisted { parquet: _, .. } => {
+                // NGA todo
             }
         }
     }
@@ -641,6 +675,7 @@ impl CatalogChunk {
                 let metadata = ChunkMetadata {
                     table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: s.full_schema(),
+                    delete_predicates: Arc::new(vec![]), //NGA todo: consider to use the one of the mb_chunk if appropriate
                 };
 
                 self.stage = ChunkStage::Frozen {
@@ -729,6 +764,7 @@ impl CatalogChunk {
                 *meta = Arc::new(ChunkMetadata {
                     table_summary: Arc::clone(&meta.table_summary),
                     schema,
+                    delete_predicates: Arc::new(vec![]), //NGA todo: consider to use the one of the given chunk if appropriate
                 });
 
                 match &representation {

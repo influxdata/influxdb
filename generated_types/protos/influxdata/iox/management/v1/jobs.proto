@@ -40,7 +40,6 @@ message OperationMetadata {
     PersistChunks persist_chunks = 11;
     DropChunk drop_chunk = 12;
     DropPartition drop_partition = 17;
-    Delete delete = 18;
   }
 }
 

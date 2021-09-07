@@ -501,7 +501,6 @@ mod tests {
         assert_eq!(predicate.exprs[6], col("city").not_eq(lit("Braintree")));
         assert_eq!(predicate.exprs[7], lit(5).eq(col("city")));
     }
-
     #[test]
     fn predicate_display_ts() {
         // TODO make this a doc example?
@@ -535,4 +534,6 @@ mod tests {
 
         assert_eq!(p.to_string(), "Predicate table_names: {my_table} field_columns: {f1, f2} partition_key: 'the_key' range: [1 - 100] exprs: [#foo Eq Int32(42)]");
     }
+
+    // NGA todo: let add some delete predicate tests here
 }

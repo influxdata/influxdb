@@ -1,0 +1,40 @@
+syntax = "proto3";
+package influxdata.iox.management.v1;
+option go_package = "github.com/influxdata/iox/management/v1";
+
+// Operators supported in delete binary expressions
+ enum DeleteOp {
+    // not specified 
+    DELETE_OP_UNSPECIFIED = 0;
+    
+    // "="
+    DELETE_OP_EQ = 1;
+
+    // "!="
+    DELETE_OP_NOT_EQ = 2;
+ }
+
+ // a delete binary expression is either 'column_name = constant'
+ // or 'column_name != constant'
+ message DeleteBinaryExpr {
+    // Left hand side which is a column name
+    string column = 1;
+
+    // Operator
+    DeleteOp op = 2;
+
+    // Right hand side which is literal/constant
+    string value = 3; 
+ }
+
+// A description of a delete predicate
+message ParseDelete {
+    // start time in nanosecond of a range to be deleted
+    int64 start_time = 1;
+
+    // stop time in nanosecodn of a range to be deleted
+    int64 stop_time = 2;
+
+    // list of delete predicate binary expressions
+    repeated DeleteBinaryExpr exprs = 3;
+}

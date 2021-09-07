@@ -123,6 +123,7 @@ impl DbChunk {
                 let meta = ChunkMetadata {
                     table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: snapshot.full_schema(),
+                    delete_predicates: Arc::new(vec![]), //todo: consider to use the one of the given chunk if appropriate
                 };
                 (state, Arc::new(meta))
             }
@@ -494,6 +495,11 @@ impl QueryChunkMeta for DbChunk {
 
     fn schema(&self) -> Arc<Schema> {
         Arc::clone(&self.meta.schema)
+    }
+
+    // return a reference to delete predicates of the chunk
+    fn delete_predicates(&self) -> Arc<Vec<Predicate>> {
+        Arc::clone(&self.meta.delete_predicates)
     }
 }
 

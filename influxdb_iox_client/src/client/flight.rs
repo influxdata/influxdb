@@ -217,4 +217,14 @@ impl PerformQuery {
             dictionaries_by_field,
         )?))
     }
+
+    /// Return all record batches of it
+    pub async fn to_batches(&mut self) -> Result<Vec<RecordBatch>, Error> {
+        let mut batches = Vec::new();
+        while let Some(data) = self.next().await? {
+            batches.push(data);
+        }
+
+        Ok(batches)
+    }
 }

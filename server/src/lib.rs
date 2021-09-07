@@ -219,6 +219,9 @@ pub enum Error {
     #[snafu(display("database failed to initialize: {}", source))]
     DatabaseInit { source: Arc<database::InitError> },
 
+    #[snafu(display("delete expression is invalid: {}", expr))]
+    DeleteExpression { expr: String },
+
     #[snafu(display("error listing deleted databases in object storage: {}", source))]
     ListDeletedDatabases { source: object_store::Error },
 }
