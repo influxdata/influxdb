@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -10401,6 +10402,12 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 	"contrib/RohanSreerama5/naiveBayesClassifier": {
 		"bayes": "error calling tableFind: ",
 	},
+}
+
+func init() {
+	if runtime.GOOS != "amd64" {
+		FluxEndToEndSkipList["universe"]["holt_winters"] = "expected HoltWinters outputs only valid on amd64"
+	}
 }
 
 func TestFluxEndToEnd(t *testing.T) {
