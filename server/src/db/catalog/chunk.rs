@@ -219,6 +219,9 @@ pub struct CatalogChunk {
     /// Time at which this chunk was marked as closed. Note this is
     /// not the same as the timestamps on the data itself
     time_closed: Option<DateTime<Utc>>,
+
+    /// Order of this chunk relative to other overlapping chunks.
+    order: u32,
 }
 
 macro_rules! unexpected_state {
@@ -272,6 +275,7 @@ impl CatalogChunk {
         chunk: mutable_buffer::chunk::MBChunk,
         time_of_write: DateTime<Utc>,
         metrics: ChunkMetrics,
+        order: u32,
     ) -> Self {
         assert_eq!(chunk.table_name(), &addr.table_name);
 
@@ -286,6 +290,7 @@ impl CatalogChunk {
             time_of_first_write: time_of_write,
             time_of_last_write: time_of_write,
             time_closed: None,
+            order,
         };
         chunk.update_metrics();
         chunk
@@ -294,6 +299,7 @@ impl CatalogChunk {
     /// Creates a new RUB chunk from the provided RUB chunk and metadata
     ///
     /// Panics if the provided chunk is empty
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new_rub_chunk(
         addr: ChunkAddr,
         chunk: read_buffer::RBChunk,
@@ -302,6 +308,7 @@ impl CatalogChunk {
         schema: Arc<Schema>,
         metrics: ChunkMetrics,
         delete_predicates: Arc<Vec<Predicate>>,
+        order: u32,
     ) -> Self {
         let stage = ChunkStage::Frozen {
             meta: Arc::new(ChunkMetadata {
@@ -321,6 +328,7 @@ impl CatalogChunk {
             time_of_first_write,
             time_of_last_write,
             time_closed: None,
+            order,
         };
         chunk.update_metrics();
         chunk
@@ -335,6 +343,7 @@ impl CatalogChunk {
         time_of_last_write: DateTime<Utc>,
         metrics: ChunkMetrics,
         delete_predicates: Arc<Vec<Predicate>>,
+        order: u32,
     ) -> Self {
         assert_eq!(chunk.table_name(), addr.table_name.as_ref());
 
@@ -360,6 +369,7 @@ impl CatalogChunk {
             time_of_first_write,
             time_of_last_write,
             time_closed: None,
+            order,
         };
         chunk.update_metrics();
         chunk
@@ -410,6 +420,10 @@ impl CatalogChunk {
 
     pub fn time_closed(&self) -> Option<DateTime<Utc>> {
         self.time_closed
+    }
+
+    pub fn order(&self) -> u32 {
+        self.order
     }
 
     /// Updates `self.metrics` to match the contents of `self.stage`
@@ -1216,6 +1230,7 @@ mod tests {
             mb_chunk,
             time_of_write,
             ChunkMetrics::new_unregistered(),
+            5,
         )
     }
 
@@ -1233,6 +1248,7 @@ mod tests {
             now,
             ChunkMetrics::new_unregistered(),
             Arc::new(vec![] as Vec<Predicate>),
+            6,
         )
     }
 }
