@@ -122,7 +122,7 @@ pub struct Substitute {
 
 impl Substitute {
     /// Compile and evaluate a template once. If you need to evaluate
-    /// it multiple times, construct an instance via [`new`].
+    /// it multiple times, construct an instance via [`new`](Self::new).
     ///
     /// If a placeholder appears in a template but not in the list of
     /// substitution values, this will return an error.
@@ -136,8 +136,8 @@ impl Substitute {
     }
 
     /// Compiles the handlebars template once, then allows reusing the
-    /// template multiple times via [`evaluate`]. If you don't need to
-    /// reuse the template, you can use [`once`].
+    /// template multiple times via [`evaluate`](Self::evaluate). If you don't need to
+    /// reuse the template, you can use [`once`](Self::once).
     pub fn new<T: DataGenRng>(
         template: impl Into<String>,
         rng: RandomNumberGenerator<T>,
