@@ -35,7 +35,6 @@ func (s *bucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 	if err := s.replicationDeleter.DeleteBucketReplications(ctx, id); err != nil {
 		s.logger.Error("Failed to delete replications for bucket",
 			zap.String("bucket_id", id.String()), zap.Error(err))
-		// TODO: Should we return some sort of error in this case? The DBRP service only logs.
 	}
 	return nil
 }
