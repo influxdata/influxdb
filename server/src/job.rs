@@ -164,7 +164,7 @@ impl JobRegistryMetrics {
         let metadata = job.metadata();
         let status = job.get_status();
 
-        metric::Attributes::from(&[
+        let mut attributes = metric::Attributes::from(&[
             ("description", metadata.description()),
             (
                 "status",
@@ -173,7 +173,15 @@ impl JobRegistryMetrics {
                     .map(|result| result.name())
                     .unwrap_or_else(|| status.name()),
             ),
-        ])
+        ]);
+        if let Some(db_name) = metadata.db_name() {
+            attributes.insert("db_name", db_name.to_string());
+        }
+        if let Some(table) = metadata.table_name() {
+            attributes.insert("table", table.to_string());
+        }
+
+        attributes
     }
 
     fn process_completed_job(&mut self, job: &TaskTracker<Job>) {
