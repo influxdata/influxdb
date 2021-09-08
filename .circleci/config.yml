@@ -825,10 +825,5 @@ jobs:
               -- \
               --tag $TIMESTAMP
             echo ${CIRCLE_SHA1} > $COMMIT_FILE_PATH
-            git add CHANGELOG.md $COMMIT_FILE_PATH
-            git config user.email "team-edge@influxdata.com"
-            git config user.name "Edge Team CircleCI Automation"
-            git commit -m "changelog: update $TIMESTAMP [skip ci]"
-            git push origin $CIRCLE_BRANCH
       - store_artifacts:
           path: CHANGELOG.md
