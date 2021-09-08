@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 tmpdir=$(mktemp -d)
 trap "{ rm -rf ${tmpdir}; }" EXIT
