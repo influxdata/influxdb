@@ -46,8 +46,11 @@ GO_TEST_CMD=go test
 # Allow for a subset of tests to be specified.
 GO_TEST_PATHS=./...
 
+# Allow for overriding pkg-config in CI when our utility script causes problems (i.e. on Windows).
+PKG_CONFIG=$(PWD)/scripts/pkg-config.sh
+
 # Test vars can be used by all recursive Makefiles
-export PKG_CONFIG:=$(PWD)/scripts/pkg-config.sh
+export PKG_CONFIG
 export GO_BUILD=env GO111MODULE=on go build $(GO_BUILD_ARGS) -ldflags "$(LDFLAGS)"
 export GO_BUILD_SM=env GO111MODULE=on go build $(GO_BUILD_ARGS) -ldflags "-s -w $(LDFLAGS)"
 export GO_INSTALL=env GO111MODULE=on go install $(GO_BUILD_ARGS) -ldflags "$(LDFLAGS)"

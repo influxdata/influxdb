@@ -27,8 +27,16 @@ curl -Ls https://github.com/influxdata/ui/releases/download/OSS-Master/sha256.tx
 curl -L https://github.com/influxdata/ui/releases/download/OSS-Master/build.tar.gz --output build.tar.gz
 
 # Verify the checksums match; exit if they don't.
-echo "$(cat sha256.txt)" | sha256sum --check -- \
-    || { echo "Checksums did not match for downloaded UI assets!"; exit 1; }
+if [ $(uname) = Darwin ]; then
+    # MacOS doesn't come with sha256sum natively.
+    # It's available via `brew install coreutils` but requires some extra PATH-setting,
+    # so this is probably easier for end users.
+    echo "$(cat sha256.txt)" | shasum -a 256 --check -- \
+        || { echo "Checksums did not match for downloaded UI assets!"; exit 1; }
+else
+    echo "$(cat sha256.txt)" | sha256sum --check -- \
+        || { echo "Checksums did not match for downloaded UI assets!"; exit 1; }
+fi
 
 # Extract the assets and clean up.
 mkdir -p "$STATIC_DIR/data"
