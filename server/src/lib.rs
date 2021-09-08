@@ -2484,13 +2484,11 @@ mod tests {
         );
         assert_eq!(observation, &metric::Observation::U64Gauge(1));
 
-        // ========== influxdb_iox_job_completed_cpu_nanoseconds ==========
+        // ========== influxdb_iox_job_completed_cpu ==========
         let observations: Vec<_> = reporter
             .observations()
             .iter()
-            .filter(|observation| {
-                observation.metric_name == "influxdb_iox_job_completed_cpu_nanoseconds"
-            })
+            .filter(|observation| observation.metric_name == "influxdb_iox_job_completed_cpu")
             .collect();
         assert_eq!(observations.len(), 1);
 
@@ -2507,13 +2505,11 @@ mod tests {
             ])
         );
 
-        // ========== influxdb_iox_job_completed_wall_nanoseconds ==========
+        // ========== influxdb_iox_job_completed_wall ==========
         let observations: Vec<_> = reporter
             .observations()
             .iter()
-            .filter(|observation| {
-                observation.metric_name == "influxdb_iox_job_completed_wall_nanoseconds"
-            })
+            .filter(|observation| observation.metric_name == "influxdb_iox_job_completed_wall")
             .collect();
         assert_eq!(observations.len(), 1);
 

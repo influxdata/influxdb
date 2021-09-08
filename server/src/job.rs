@@ -107,12 +107,12 @@ impl JobRegistryMetrics {
                 .register_metric("influxdb_iox_job_count", "Number of known jobs"),
             completed_accu: Default::default(),
             cpu_time_histogram: metric_registry_v2.register_metric(
-                "influxdb_iox_job_completed_cpu_nanoseconds",
-                "CPU time of of completed jobs in nanoseconds",
+                "influxdb_iox_job_completed_cpu",
+                "CPU time of of completed jobs",
             ),
             wall_time_histogram: metric_registry_v2.register_metric(
-                "influxdb_iox_job_completed_wall_nanoseconds",
-                "Wall time of of completed jobs in nanoseconds",
+                "influxdb_iox_job_completed_wall",
+                "Wall time of of completed jobs",
             ),
             completed_but_still_tracked: Default::default(),
         }
