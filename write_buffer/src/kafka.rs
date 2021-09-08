@@ -8,7 +8,7 @@ use std::{
 
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
-use data_types::{database_rules::WriteBufferSequencerCreation, server_id::ServerId};
+use data_types::{database_rules::WriteBufferCreationConfig, server_id::ServerId};
 use entry::{Entry, Sequence, SequencedEntry};
 use futures::{FutureExt, StreamExt};
 use observability_deps::tracing::{debug, info};
@@ -94,7 +94,7 @@ impl KafkaBufferProducer {
         conn: impl Into<String> + Send,
         database_name: impl Into<String> + Send,
         connection_config: &HashMap<String, String>,
-        auto_create_sequencers: Option<&WriteBufferSequencerCreation>,
+        creation_config: Option<&WriteBufferCreationConfig>,
     ) -> Result<Self, WriteBufferError> {
         let conn = conn.into();
         let database_name = database_name.into();
@@ -120,14 +120,8 @@ impl KafkaBufferProducer {
 
         // handle auto-creation
         if get_partitions(&database_name, &cfg).await?.is_empty() {
-            if let Some(cfg) = auto_create_sequencers {
-                create_kafka_topic(
-                    &conn,
-                    &database_name,
-                    cfg.n_sequencers,
-                    &cfg.creation_config,
-                )
-                .await?;
+            if let Some(cfg) = creation_config {
+                create_kafka_topic(&conn, &database_name, cfg.n_sequencers, &cfg.options).await?;
             } else {
                 return Err("no partitions found and auto-creation not requested"
                     .to_string()
@@ -279,7 +273,7 @@ impl KafkaBufferConsumer {
         server_id: ServerId,
         database_name: impl Into<String> + Send + Sync,
         connection_config: &HashMap<String, String>,
-        auto_create_sequencers: Option<&WriteBufferSequencerCreation>,
+        creation_config: Option<&WriteBufferCreationConfig>,
     ) -> Result<Self, WriteBufferError> {
         let conn = conn.into();
         let database_name = database_name.into();
@@ -311,14 +305,8 @@ impl KafkaBufferConsumer {
         // figure out which partitions exists
         let mut partitions = get_partitions(&database_name, &cfg).await?;
         if partitions.is_empty() {
-            if let Some(cfg2) = auto_create_sequencers {
-                create_kafka_topic(
-                    &conn,
-                    &database_name,
-                    cfg2.n_sequencers,
-                    &cfg2.creation_config,
-                )
-                .await?;
+            if let Some(cfg2) = creation_config {
+                create_kafka_topic(&conn, &database_name, cfg2.n_sequencers, &cfg2.options).await?;
                 partitions = get_partitions(&database_name, &cfg).await?;
             } else {
                 return Err("no partitions found and auto-creation not requested"
@@ -486,7 +474,7 @@ pub mod test_utils {
     }
 
     /// Create topic creation config that is ideal for testing and works with [`purge_kafka_topic`]
-    pub fn kafka_sequencer_creation_config() -> HashMap<String, String> {
+    pub fn kafka_sequencer_options() -> HashMap<String, String> {
         let mut cfg: HashMap<String, String> = Default::default();
         cfg.insert("cleanup.policy".to_string(), "delete".to_string());
         cfg.insert("retention.ms".to_string(), "-1".to_string());
@@ -535,7 +523,7 @@ mod tests {
         maybe_skip_kafka_integration,
     };
 
-    use super::{test_utils::kafka_sequencer_creation_config, *};
+    use super::{test_utils::kafka_sequencer_options, *};
 
     struct KafkaTestAdapter {
         conn: String,
@@ -569,10 +557,10 @@ mod tests {
     }
 
     impl KafkaTestContext {
-        fn auto_create_sequencers(&self, value: bool) -> Option<WriteBufferSequencerCreation> {
-            value.then(|| WriteBufferSequencerCreation {
+        fn creation_config(&self, value: bool) -> Option<WriteBufferCreationConfig> {
+            value.then(|| WriteBufferCreationConfig {
                 n_sequencers: self.n_sequencers,
-                creation_config: kafka_sequencer_creation_config(),
+                options: kafka_sequencer_options(),
             })
         }
     }
@@ -583,23 +571,17 @@ mod tests {
 
         type Reading = KafkaBufferConsumer;
 
-        async fn writing(
-            &self,
-            auto_create_sequencers: bool,
-        ) -> Result<Self::Writing, WriteBufferError> {
+        async fn writing(&self, creation_config: bool) -> Result<Self::Writing, WriteBufferError> {
             KafkaBufferProducer::new(
                 &self.conn,
                 &self.database_name,
                 &Default::default(),
-                self.auto_create_sequencers(auto_create_sequencers).as_ref(),
+                self.creation_config(creation_config).as_ref(),
             )
             .await
         }
 
-        async fn reading(
-            &self,
-            auto_create_sequencers: bool,
-        ) -> Result<Self::Reading, WriteBufferError> {
+        async fn reading(&self, creation_config: bool) -> Result<Self::Reading, WriteBufferError> {
             let server_id = self.server_id_counter.fetch_add(1, Ordering::SeqCst);
             let server_id = ServerId::try_from(server_id).unwrap();
 
@@ -608,7 +590,7 @@ mod tests {
                 server_id,
                 &self.database_name,
                 &Default::default(),
-                self.auto_create_sequencers(auto_create_sequencers).as_ref(),
+                self.creation_config(creation_config).as_ref(),
             )
             .await
         }
@@ -629,7 +611,7 @@ mod tests {
             &conn,
             &database_name,
             NonZeroU32::try_from(1).unwrap(),
-            &kafka_sequencer_creation_config(),
+            &kafka_sequencer_options(),
         )
         .await
         .unwrap();
@@ -637,7 +619,7 @@ mod tests {
             &conn,
             &database_name,
             NonZeroU32::try_from(1).unwrap(),
-            &kafka_sequencer_creation_config(),
+            &kafka_sequencer_options(),
         )
         .await
         .unwrap();

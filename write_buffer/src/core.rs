@@ -109,16 +109,10 @@ pub mod test_utils {
         type Reading: WriteBufferReading;
 
         /// Create new writer.
-        async fn writing(
-            &self,
-            auto_create_sequencers: bool,
-        ) -> Result<Self::Writing, WriteBufferError>;
+        async fn writing(&self, creation_config: bool) -> Result<Self::Writing, WriteBufferError>;
 
         /// Create new reader.
-        async fn reading(
-            &self,
-            auto_create_sequencers: bool,
-        ) -> Result<Self::Reading, WriteBufferError>;
+        async fn reading(&self, creation_config: bool) -> Result<Self::Reading, WriteBufferError>;
     }
 
     /// Generic test suite that must be passed by all proper write buffer implementations.

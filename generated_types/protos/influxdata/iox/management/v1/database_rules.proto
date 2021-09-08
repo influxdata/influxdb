@@ -152,14 +152,14 @@ message WriteBufferConnection {
 
   // Specifies if the sequencers (e.g. for Kafka in form of a topic w/ `n_sequencers` partitions) should be
   // automatically created if they do not existing prior to reading or writing.
-  WriteBufferSequencerCreation auto_create_sequencers = 8;
+  WriteBufferCreationConfig creation_config = 8;
 }
 
 // Configs sequencer auto-creation for write buffers.
 //
 // What that means depends on the used write buffer, e.g. for Kafka this will create a new topic w/ `n_sequencers`
 // partitions.
-message WriteBufferSequencerCreation {
+message WriteBufferCreationConfig {
   // Number of sequencers.
   //
   // Defaults to 1.
@@ -170,7 +170,7 @@ message WriteBufferSequencerCreation {
   // Special configs to by applied when sequencers are created.
   //
   // This depends on `type` and can setup parameters like retention policy.
-  map<string, string> creation_config = 2;
+  map<string, string> options = 2;
 }
 
 message RoutingConfig {

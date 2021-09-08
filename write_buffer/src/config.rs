@@ -113,7 +113,7 @@ impl WriteBufferConfigFactory {
                     &cfg.connection,
                     db_name,
                     &cfg.connection_config,
-                    cfg.auto_create_sequencers.as_ref(),
+                    cfg.creation_config.as_ref(),
                 )
                 .await?;
                 Arc::new(kafka_buffer) as _
@@ -121,7 +121,7 @@ impl WriteBufferConfigFactory {
             "mock" => match self.get_mock(&cfg.connection)? {
                 Mock::Normal(state) => {
                     let mock_buffer =
-                        MockBufferForWriting::new(state, cfg.auto_create_sequencers.as_ref())?;
+                        MockBufferForWriting::new(state, cfg.creation_config.as_ref())?;
                     Arc::new(mock_buffer) as _
                 }
                 Mock::AlwaysFailing => {
@@ -152,7 +152,7 @@ impl WriteBufferConfigFactory {
                     server_id,
                     db_name,
                     &cfg.connection_config,
-                    cfg.auto_create_sequencers.as_ref(),
+                    cfg.creation_config.as_ref(),
                 )
                 .await?;
                 Box::new(kafka_buffer) as _
@@ -160,7 +160,7 @@ impl WriteBufferConfigFactory {
             "mock" => match self.get_mock(&cfg.connection)? {
                 Mock::Normal(state) => {
                     let mock_buffer =
-                        MockBufferForReading::new(state, cfg.auto_create_sequencers.as_ref())?;
+                        MockBufferForReading::new(state, cfg.creation_config.as_ref())?;
                     Box::new(mock_buffer) as _
                 }
                 Mock::AlwaysFailing => {
@@ -187,7 +187,7 @@ impl Default for WriteBufferConfigFactory {
 mod tests {
     use std::{convert::TryFrom, num::NonZeroU32};
 
-    use data_types::{database_rules::WriteBufferSequencerCreation, DatabaseName};
+    use data_types::{database_rules::WriteBufferCreationConfig, DatabaseName};
 
     use crate::{
         kafka::test_utils::random_kafka_topic, maybe_skip_kafka_integration,
@@ -223,7 +223,7 @@ mod tests {
             direction: WriteBufferDirection::Write,
             type_: "kafka".to_string(),
             connection: conn,
-            auto_create_sequencers: Some(WriteBufferSequencerCreation::default()),
+            creation_config: Some(WriteBufferCreationConfig::default()),
             ..Default::default()
         });
 
@@ -250,7 +250,7 @@ mod tests {
             direction: WriteBufferDirection::Read,
             type_: "kafka".to_string(),
             connection: conn,
-            auto_create_sequencers: Some(WriteBufferSequencerCreation::default()),
+            creation_config: Some(WriteBufferCreationConfig::default()),
             ..Default::default()
         });
 

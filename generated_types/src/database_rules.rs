@@ -5,8 +5,8 @@ use std::time::Duration;
 use thiserror::Error;
 
 use data_types::database_rules::{
-    DatabaseRules, RoutingConfig, RoutingRules, WriteBufferConnection, WriteBufferDirection,
-    WriteBufferSequencerCreation, DEFAULT_N_SEQUENCERS,
+    DatabaseRules, RoutingConfig, RoutingRules, WriteBufferConnection, WriteBufferCreationConfig,
+    WriteBufferDirection, DEFAULT_N_SEQUENCERS,
 };
 use data_types::DatabaseName;
 
@@ -155,7 +155,7 @@ impl From<WriteBufferConnection> for management::WriteBufferConnection {
             r#type: v.type_,
             connection: v.connection,
             connection_config: v.connection_config,
-            auto_create_sequencers: v.auto_create_sequencers.map(|x| x.into()),
+            creation_config: v.creation_config.map(|x| x.into()),
         }
     }
 }
@@ -169,11 +169,11 @@ impl From<WriteBufferDirection> for management::write_buffer_connection::Directi
     }
 }
 
-impl From<WriteBufferSequencerCreation> for management::WriteBufferSequencerCreation {
-    fn from(v: WriteBufferSequencerCreation) -> Self {
+impl From<WriteBufferCreationConfig> for management::WriteBufferCreationConfig {
+    fn from(v: WriteBufferCreationConfig) -> Self {
         Self {
             n_sequencers: v.n_sequencers.get(),
-            creation_config: v.creation_config,
+            options: v.options,
         }
     }
 }
@@ -195,9 +195,7 @@ impl TryFrom<management::WriteBufferConnection> for WriteBufferConnection {
             type_: proto.r#type,
             connection: proto.connection,
             connection_config: proto.connection_config,
-            auto_create_sequencers: proto
-                .auto_create_sequencers
-                .optional("auto_create_sequencers")?,
+            creation_config: proto.creation_config.optional("creation_config")?,
         })
     }
 }
@@ -218,14 +216,14 @@ impl TryFrom<management::write_buffer_connection::Direction> for WriteBufferDire
     }
 }
 
-impl TryFrom<management::WriteBufferSequencerCreation> for WriteBufferSequencerCreation {
+impl TryFrom<management::WriteBufferCreationConfig> for WriteBufferCreationConfig {
     type Error = FieldViolation;
 
-    fn try_from(proto: management::WriteBufferSequencerCreation) -> Result<Self, Self::Error> {
+    fn try_from(proto: management::WriteBufferCreationConfig) -> Result<Self, Self::Error> {
         Ok(Self {
             n_sequencers: NonZeroU32::try_from(proto.n_sequencers)
                 .unwrap_or_else(|_| NonZeroU32::try_from(DEFAULT_N_SEQUENCERS).unwrap()),
-            creation_config: proto.creation_config,
+            options: proto.options,
         })
     }
 }

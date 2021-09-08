@@ -8,7 +8,7 @@ use generated_types::influxdata::iox::management::v1::{
     write_buffer_connection::Direction as WriteBufferDirection, WriteBufferConnection,
 };
 use influxdb_iox_client::{
-    management::{generated_types::WriteBufferSequencerCreation, CreateDatabaseError},
+    management::{generated_types::WriteBufferCreationConfig, CreateDatabaseError},
     write::WriteError,
 };
 use rdkafka::{
@@ -18,9 +18,7 @@ use rdkafka::{
 };
 use std::convert::TryFrom;
 use test_helpers::assert_contains;
-use write_buffer::{
-    kafka::test_utils::kafka_sequencer_creation_config, maybe_skip_kafka_integration,
-};
+use write_buffer::{kafka::test_utils::kafka_sequencer_options, maybe_skip_kafka_integration};
 
 #[tokio::test]
 async fn writes_go_to_kafka() {
@@ -33,9 +31,9 @@ async fn writes_go_to_kafka() {
         direction: WriteBufferDirection::Write.into(),
         r#type: "kafka".to_string(),
         connection: kafka_connection.to_string(),
-        auto_create_sequencers: Some(WriteBufferSequencerCreation {
+        creation_config: Some(WriteBufferCreationConfig {
             n_sequencers: 1,
-            creation_config: kafka_sequencer_creation_config(),
+            options: kafka_sequencer_options(),
         }),
         ..Default::default()
     };
@@ -94,9 +92,9 @@ async fn writes_go_to_kafka_whitelist() {
         direction: WriteBufferDirection::Write.into(),
         r#type: "kafka".to_string(),
         connection: kafka_connection.to_string(),
-        auto_create_sequencers: Some(WriteBufferSequencerCreation {
+        creation_config: Some(WriteBufferCreationConfig {
             n_sequencers: 1,
-            creation_config: kafka_sequencer_creation_config(),
+            options: kafka_sequencer_options(),
         }),
         ..Default::default()
     };
@@ -178,9 +176,9 @@ async fn reads_come_from_kafka() {
         direction: WriteBufferDirection::Read.into(),
         r#type: "kafka".to_string(),
         connection: kafka_connection.to_string(),
-        auto_create_sequencers: Some(WriteBufferSequencerCreation {
+        creation_config: Some(WriteBufferCreationConfig {
             n_sequencers: 2,
-            creation_config: kafka_sequencer_creation_config(),
+            options: kafka_sequencer_options(),
         }),
         ..Default::default()
     };
@@ -273,9 +271,9 @@ async fn cant_write_to_db_reading_from_kafka() {
         direction: WriteBufferDirection::Read.into(),
         r#type: "kafka".to_string(),
         connection: kafka_connection.to_string(),
-        auto_create_sequencers: Some(WriteBufferSequencerCreation {
+        creation_config: Some(WriteBufferCreationConfig {
             n_sequencers: 1,
-            creation_config: kafka_sequencer_creation_config(),
+            options: kafka_sequencer_options(),
         }),
         ..Default::default()
     };

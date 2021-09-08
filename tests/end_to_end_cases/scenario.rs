@@ -32,7 +32,7 @@ use generated_types::{
 };
 use influxdb_iox_client::{connection::Connection, flight::PerformQuery};
 use write_buffer::core::WriteBufferWriting;
-use write_buffer::kafka::test_utils::{kafka_sequencer_creation_config, purge_kafka_topic};
+use write_buffer::kafka::test_utils::{kafka_sequencer_options, purge_kafka_topic};
 use write_buffer::kafka::KafkaBufferProducer;
 
 use crate::common::server_fixture::{ServerFixture, DEFAULT_SERVER_ID};
@@ -689,9 +689,9 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
                 direction: write_buffer_connection::Direction::Read.into(),
                 r#type: "kafka".to_string(),
                 connection: kafka_connection.to_string(),
-                auto_create_sequencers: Some(WriteBufferSequencerCreation {
+                creation_config: Some(WriteBufferCreationConfig {
                     n_sequencers: 1,
-                    creation_config: kafka_sequencer_creation_config(),
+                    options: kafka_sequencer_options(),
                 }),
                 ..Default::default()
             }),
@@ -715,15 +715,15 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
         .unwrap();
 
     // ingest data as mixed throughput
-    let auto_create_sequencers = Some(data_types::database_rules::WriteBufferSequencerCreation {
+    let creation_config = Some(data_types::database_rules::WriteBufferCreationConfig {
         n_sequencers: NonZeroU32::try_from(1).unwrap(),
-        creation_config: kafka_sequencer_creation_config(),
+        options: kafka_sequencer_options(),
     });
     let producer = KafkaBufferProducer::new(
         kafka_connection,
         db_name,
         &Default::default(),
-        auto_create_sequencers.as_ref(),
+        creation_config.as_ref(),
     )
     .await
     .unwrap();

@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc, task::Poll};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use data_types::database_rules::WriteBufferSequencerCreation;
+use data_types::database_rules::WriteBufferCreationConfig;
 use entry::{Entry, Sequence, SequencedEntry};
 use futures::{stream, FutureExt, StreamExt};
 use parking_lot::Mutex;
@@ -146,8 +146,8 @@ impl MockBufferSharedState {
         entry_vec.clear();
     }
 
-    fn maybe_auto_init(&self, auto_create_sequencers: Option<&WriteBufferSequencerCreation>) {
-        if let Some(cfg) = auto_create_sequencers {
+    fn maybe_auto_init(&self, creation_config: Option<&WriteBufferCreationConfig>) {
+        if let Some(cfg) = creation_config {
             let mut guard = self.entries.lock();
             if guard.is_none() {
                 *guard = Some(Self::init_inner(cfg.n_sequencers));
@@ -164,9 +164,9 @@ pub struct MockBufferForWriting {
 impl MockBufferForWriting {
     pub fn new(
         state: MockBufferSharedState,
-        auto_create_sequencers: Option<&WriteBufferSequencerCreation>,
+        creation_config: Option<&WriteBufferCreationConfig>,
     ) -> Result<Self, WriteBufferError> {
-        state.maybe_auto_init(auto_create_sequencers);
+        state.maybe_auto_init(creation_config);
 
         {
             let guard = state.entries.lock();
@@ -260,9 +260,9 @@ pub struct MockBufferForReading {
 impl MockBufferForReading {
     pub fn new(
         state: MockBufferSharedState,
-        auto_create_sequencers: Option<&WriteBufferSequencerCreation>,
+        creation_config: Option<&WriteBufferCreationConfig>,
     ) -> Result<Self, WriteBufferError> {
-        state.maybe_auto_init(auto_create_sequencers);
+        state.maybe_auto_init(creation_config);
 
         let n_sequencers = {
             let guard = state.entries.lock();
@@ -483,8 +483,8 @@ mod tests {
     }
 
     impl MockTestContext {
-        fn auto_create_sequencers(&self, value: bool) -> Option<WriteBufferSequencerCreation> {
-            value.then(|| WriteBufferSequencerCreation {
+        fn creation_config(&self, value: bool) -> Option<WriteBufferCreationConfig> {
+            value.then(|| WriteBufferCreationConfig {
                 n_sequencers: self.n_sequencers,
                 ..Default::default()
             })
@@ -497,23 +497,17 @@ mod tests {
 
         type Reading = MockBufferForReading;
 
-        async fn writing(
-            &self,
-            auto_create_sequencers: bool,
-        ) -> Result<Self::Writing, WriteBufferError> {
+        async fn writing(&self, creation_config: bool) -> Result<Self::Writing, WriteBufferError> {
             MockBufferForWriting::new(
                 self.state.clone(),
-                self.auto_create_sequencers(auto_create_sequencers).as_ref(),
+                self.creation_config(creation_config).as_ref(),
             )
         }
 
-        async fn reading(
-            &self,
-            auto_create_sequencers: bool,
-        ) -> Result<Self::Reading, WriteBufferError> {
+        async fn reading(&self, creation_config: bool) -> Result<Self::Reading, WriteBufferError> {
             MockBufferForReading::new(
                 self.state.clone(),
-                self.auto_create_sequencers(auto_create_sequencers).as_ref(),
+                self.creation_config(creation_config).as_ref(),
             )
         }
     }
