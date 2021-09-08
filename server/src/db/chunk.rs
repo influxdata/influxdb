@@ -85,6 +85,7 @@ pub struct DbChunk {
     meta: Arc<ChunkMetadata>,
     time_of_first_write: DateTime<Utc>,
     time_of_last_write: DateTime<Utc>,
+    order: u32,
 }
 
 #[derive(Debug)]
@@ -171,6 +172,7 @@ impl DbChunk {
             meta,
             time_of_first_write: chunk.time_of_first_write(),
             time_of_last_write: chunk.time_of_last_write(),
+            order: chunk.order(),
         })
     }
 
@@ -200,6 +202,7 @@ impl DbChunk {
             access_recorder: chunk.access_recorder().clone(),
             time_of_first_write: chunk.time_of_first_write(),
             time_of_last_write: chunk.time_of_last_write(),
+            order: chunk.order(),
         })
     }
 
@@ -486,6 +489,10 @@ impl QueryChunk for DbChunk {
             State::ReadBuffer { .. } => "RUB",
             State::ParquetFile { .. } => "OS",
         }
+    }
+
+    fn order(&self) -> u32 {
+        self.order
     }
 }
 

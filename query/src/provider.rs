@@ -535,6 +535,14 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         // Note that we may need to sort/deduplicate based on tag
         // columns which do not appear in the output
 
+        // We need to sort chunks before creating the execution plan. For that, the chunk order is used. Since the order
+        // only sorts overlapping chunks, we also use the chunk ID for deterministic outputs.
+        let chunks = {
+            let mut chunks = chunks;
+            chunks.sort_unstable_by_key(|c| (c.order(), c.id()));
+            chunks
+        };
+
         let pk_schema = Self::compute_pk_schema(&chunks);
         let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
 
