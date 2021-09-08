@@ -1828,11 +1828,13 @@ name = "influxdb_line_protocol"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "datafusion 0.1.0",
  "nom",
  "observability_deps",
  "serde",
  "smallvec",
  "snafu",
+ "sqlparser",
  "test_helpers",
  "thiserror",
 ]
@@ -3328,6 +3330,7 @@ dependencies = [
  "regex",
  "snafu",
  "test_helpers",
+ "thiserror",
  "tokio",
  "tokio-stream",
  "trace",

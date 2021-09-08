@@ -52,10 +52,16 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         Error::WipePreservedCatalog { source } | Error::CannotMarkDatabaseDeleted { source } => {
             default_database_error_handler(source)
         }
-        Error::DeleteExpression { expr } => PreconditionViolation {
-            category: "Delete Expression".to_string(),
-            subject: "influxdata.com/iox".to_string(),
-            description: expr,
+        Error::DeleteExpression {
+            start_time,
+            stop_time,
+            predicate,
+        } => FieldViolation {
+            field: format!(
+                "time range: [{}, {}], predicate: {}",
+                start_time, stop_time, predicate
+            ),
+            description: "Invalid time range or predicate".to_string(),
         }
         .into(),
         Error::DatabaseInit { source } => {

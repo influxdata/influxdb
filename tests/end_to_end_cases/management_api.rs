@@ -1480,7 +1480,15 @@ async fn test_delete() {
     assert_batches_sorted_eq!(&expected, &batches);
 
     // Delete some data
-    // todo
+    let table = "cpu";
+    let start = "100";
+    let stop = "120";
+    let pred = "region = west";
+    let _del = management_client
+        .delete(db_name.clone(), table, start, stop, pred)
+        .await
+        .unwrap();
+    // todo: The delete function  above just parses the input, nothing deleted in DB yet
 
     // query to verify data deleted
     // todo: when the delete is done and integrated, the below test must fail
