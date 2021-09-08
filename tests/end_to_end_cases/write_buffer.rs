@@ -7,7 +7,10 @@ use entry::{test_helpers::lp_to_entry, Entry};
 use generated_types::influxdata::iox::management::v1::{
     write_buffer_connection::Direction as WriteBufferDirection, WriteBufferConnection,
 };
-use influxdb_iox_client::write::WriteError;
+use influxdb_iox_client::{
+    management::{generated_types::WriteBufferCreationConfig, CreateDatabaseError},
+    write::WriteError,
+};
 use rdkafka::{
     consumer::{Consumer, StreamConsumer},
     producer::{FutureProducer, FutureRecord},
@@ -15,7 +18,7 @@ use rdkafka::{
 };
 use std::convert::TryFrom;
 use test_helpers::assert_contains;
-use write_buffer::{kafka::test_utils::create_kafka_topic, maybe_skip_kafka_integration};
+use write_buffer::{kafka::test_utils::kafka_sequencer_options, maybe_skip_kafka_integration};
 
 #[tokio::test]
 async fn writes_go_to_kafka() {
@@ -28,6 +31,10 @@ async fn writes_go_to_kafka() {
         direction: WriteBufferDirection::Write.into(),
         r#type: "kafka".to_string(),
         connection: kafka_connection.to_string(),
+        creation_config: Some(WriteBufferCreationConfig {
+            n_sequencers: 1,
+            options: kafka_sequencer_options(),
+        }),
         ..Default::default()
     };
 
@@ -85,6 +92,10 @@ async fn writes_go_to_kafka_whitelist() {
         direction: WriteBufferDirection::Write.into(),
         r#type: "kafka".to_string(),
         connection: kafka_connection.to_string(),
+        creation_config: Some(WriteBufferCreationConfig {
+            n_sequencers: 1,
+            options: kafka_sequencer_options(),
+        }),
         ..Default::default()
     };
 
@@ -165,6 +176,10 @@ async fn reads_come_from_kafka() {
         direction: WriteBufferDirection::Read.into(),
         r#type: "kafka".to_string(),
         connection: kafka_connection.to_string(),
+        creation_config: Some(WriteBufferCreationConfig {
+            n_sequencers: 2,
+            options: kafka_sequencer_options(),
+        }),
         ..Default::default()
     };
 
@@ -172,9 +187,6 @@ async fn reads_come_from_kafka() {
     let mut cfg = ClientConfig::new();
     cfg.set("bootstrap.servers", &kafka_connection);
     cfg.set("message.timeout.ms", "5000");
-
-    // Create a partition with 2 topics in Kafka BEFORE creating the DB
-    create_kafka_topic(&kafka_connection, &db_name, 2).await;
 
     DatabaseBuilder::new(db_name.clone())
         .write_buffer(write_buffer_connection)
@@ -259,6 +271,10 @@ async fn cant_write_to_db_reading_from_kafka() {
         direction: WriteBufferDirection::Read.into(),
         r#type: "kafka".to_string(),
         connection: kafka_connection.to_string(),
+        creation_config: Some(WriteBufferCreationConfig {
+            n_sequencers: 1,
+            options: kafka_sequencer_options(),
+        }),
         ..Default::default()
     };
 
@@ -282,4 +298,30 @@ async fn cant_write_to_db_reading_from_kafka() {
         )
     );
     assert!(matches!(dbg!(err), WriteError::ServerError(_)));
+}
+
+#[tokio::test]
+async fn test_create_database_missing_write_buffer_sequencers() {
+    let kafka_connection = maybe_skip_kafka_integration!();
+
+    // set up a database to read from Kafka
+    let server = ServerFixture::create_shared().await;
+    let db_name = rand_name();
+    let write_buffer_connection = WriteBufferConnection {
+        direction: WriteBufferDirection::Read.into(),
+        r#type: "kafka".to_string(),
+        connection: kafka_connection.to_string(),
+        ..Default::default()
+    };
+
+    let err = DatabaseBuilder::new(db_name.clone())
+        .write_buffer(write_buffer_connection)
+        .try_build(server.grpc_channel())
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(&err, CreateDatabaseError::InvalidArgument { .. }),
+        "{}",
+        &err
+    );
 }

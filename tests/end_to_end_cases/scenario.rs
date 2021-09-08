@@ -1,4 +1,6 @@
+use std::convert::TryFrom;
 use std::iter::once;
+use std::num::NonZeroU32;
 use std::time::Duration;
 use std::{convert::TryInto, str, u32};
 use std::{sync::Arc, time::SystemTime};
@@ -13,6 +15,7 @@ use futures::prelude::*;
 use influxdb_iox_client::management::generated_types::partition_template;
 use influxdb_iox_client::management::generated_types::write_buffer_connection;
 use influxdb_iox_client::management::generated_types::WriteBufferConnection;
+use influxdb_iox_client::management::CreateDatabaseError;
 use prost::Message;
 use rand::{
     distributions::{Alphanumeric, Standard},
@@ -29,7 +32,7 @@ use generated_types::{
 };
 use influxdb_iox_client::{connection::Connection, flight::PerformQuery};
 use write_buffer::core::WriteBufferWriting;
-use write_buffer::kafka::test_utils::{create_kafka_topic, purge_kafka_topic};
+use write_buffer::kafka::test_utils::{kafka_sequencer_options, purge_kafka_topic};
 use write_buffer::kafka::KafkaBufferProducer;
 
 use crate::common::server_fixture::{ServerFixture, DEFAULT_SERVER_ID};
@@ -379,7 +382,7 @@ impl DatabaseBuilder {
     }
 
     // Build a database
-    pub async fn build(self, channel: Connection) {
+    pub async fn try_build(self, channel: Connection) -> Result<(), CreateDatabaseError> {
         let mut management_client = influxdb_iox_client::management::Client::new(channel);
 
         let routing_rules = if self.write_buffer.is_some() {
@@ -437,6 +440,12 @@ impl DatabaseBuilder {
                 routing_rules,
                 write_buffer_connection: self.write_buffer,
             })
+            .await
+    }
+
+    // Build a database
+    pub async fn build(self, channel: Connection) {
+        self.try_build(channel)
             .await
             .expect("create database failed");
     }
@@ -666,9 +675,6 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
         .unwrap();
     fixture.wait_server_initialized().await;
 
-    // setup Kafka
-    create_kafka_topic(kafka_connection, db_name, 1).await;
-
     // Create database
     let partition_template = data_types::database_rules::PartitionTemplate {
         parts: vec![data_types::database_rules::TemplatePart::Column(
@@ -683,6 +689,10 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
                 direction: write_buffer_connection::Direction::Read.into(),
                 r#type: "kafka".to_string(),
                 connection: kafka_connection.to_string(),
+                creation_config: Some(WriteBufferCreationConfig {
+                    n_sequencers: 1,
+                    options: kafka_sequencer_options(),
+                }),
                 ..Default::default()
             }),
             partition_template: Some(PartitionTemplate {
@@ -705,8 +715,18 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
         .unwrap();
 
     // ingest data as mixed throughput
-    let producer =
-        KafkaBufferProducer::new(kafka_connection, db_name, &Default::default()).unwrap();
+    let creation_config = Some(data_types::database_rules::WriteBufferCreationConfig {
+        n_sequencers: NonZeroU32::try_from(1).unwrap(),
+        options: kafka_sequencer_options(),
+    });
+    let producer = KafkaBufferProducer::new(
+        kafka_connection,
+        db_name,
+        &Default::default(),
+        creation_config.as_ref(),
+    )
+    .await
+    .unwrap();
     producer
         .store_entry(
             &lp_to_entries("table_1,partition_by=a foo=1 10", &partition_template)

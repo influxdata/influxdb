@@ -74,32 +74,53 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
 }
 
 pub mod test_utils {
-    use std::time::Duration;
+    //! Generic tests for all write buffer implementations.
+    use std::{convert::TryFrom, num::NonZeroU32, time::Duration};
 
     use async_trait::async_trait;
     use chrono::{DateTime, TimeZone, Utc};
     use entry::{test_helpers::lp_to_entry, Entry};
     use futures::{StreamExt, TryStreamExt};
 
-    use super::{WriteBufferReading, WriteBufferWriting};
+    use super::{WriteBufferError, WriteBufferReading, WriteBufferWriting};
 
+    /// Adapter to make a concrete write buffer implementation work w/ [`perform_generic_tests`].
     #[async_trait]
     pub trait TestAdapter: Send + Sync {
+        /// The context type that is used.
         type Context: TestContext;
 
-        async fn new_context(&self, n_sequencers: u32) -> Self::Context;
+        /// Create a new context.
+        ///
+        /// This will be called multiple times during the test suite. Each resulting context must represent an isolated
+        /// environment.
+        async fn new_context(&self, n_sequencers: NonZeroU32) -> Self::Context;
     }
 
+    /// Context used during testing.
+    ///
+    /// Represents an isolated environment. Actions like sequencer creations and writes must not leak across context boundaries.
     #[async_trait]
     pub trait TestContext: Send + Sync {
+        /// Write buffer writer implementation specific to this context and adapter.
         type Writing: WriteBufferWriting;
+
+        /// Write buffer reader implementation specific to this context and adapter.
         type Reading: WriteBufferReading;
 
-        fn writing(&self) -> Self::Writing;
+        /// Create new writer.
+        async fn writing(&self, creation_config: bool) -> Result<Self::Writing, WriteBufferError>;
 
-        async fn reading(&self) -> Self::Reading;
+        /// Create new reader.
+        async fn reading(&self, creation_config: bool) -> Result<Self::Reading, WriteBufferError>;
     }
 
+    /// Generic test suite that must be passed by all proper write buffer implementations.
+    ///
+    /// See [`TestAdapter`] for how to make a concrete write buffer implementation work with this test suite.
+    ///
+    /// Note that you might need more tests on top of this to assert specific implementation behaviors, edge cases, and
+    /// error handling.
     pub async fn perform_generic_tests<T>(adapter: T)
     where
         T: TestAdapter,
@@ -111,20 +132,27 @@ pub mod test_utils {
         test_seek(&adapter).await;
         test_watermark(&adapter).await;
         test_timestamp(&adapter).await;
+        test_sequencer_auto_creation(&adapter).await;
     }
 
+    /// Test IO with a single writer and single reader stream.
+    ///
+    /// This tests that:
+    /// - streams process data in order
+    /// - readers can handle the "pending" state w/o erroring
+    /// - readers unblock after being in "pending" state
     async fn test_single_stream_io<T>(adapter: &T)
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(1).await;
+        let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
         let entry_1 = lp_to_entry("upc user=1 100");
         let entry_2 = lp_to_entry("upc user=2 200");
         let entry_3 = lp_to_entry("upc user=3 300");
 
-        let writer = context.writing();
-        let mut reader = context.reading().await;
+        let writer = context.writing(true).await.unwrap();
+        let mut reader = context.reading(true).await.unwrap();
 
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
@@ -162,18 +190,22 @@ pub mod test_utils {
         assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
     }
 
+    /// Tests multiple subsequently created streams from a single reader.
+    ///
+    /// This tests that:
+    /// - readers remember their offset (and "pending" state) even when streams are dropped
     async fn test_multi_stream_io<T>(adapter: &T)
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(1).await;
+        let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
         let entry_1 = lp_to_entry("upc user=1 100");
         let entry_2 = lp_to_entry("upc user=2 200");
         let entry_3 = lp_to_entry("upc user=3 300");
 
-        let writer = context.writing();
-        let mut reader = context.reading().await;
+        let writer = context.writing(true).await.unwrap();
+        let mut reader = context.reading(true).await.unwrap();
 
         let waker = futures::task::noop_waker();
         let mut cx = futures::task::Context::from_waker(&waker);
@@ -220,18 +252,23 @@ pub mod test_utils {
         assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
     }
 
+    /// Test single reader-writer IO w/ multiple sequencers.
+    ///
+    /// This tests that:
+    /// - writes go to and reads come from the right sequencer, aka that sequencers provide a namespace-like isolation
+    /// - "pending" states are specific to a sequencer
     async fn test_multi_sequencer_io<T>(adapter: &T)
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(2).await;
+        let context = adapter.new_context(NonZeroU32::try_from(2).unwrap()).await;
 
         let entry_1 = lp_to_entry("upc user=1 100");
         let entry_2 = lp_to_entry("upc user=2 200");
         let entry_3 = lp_to_entry("upc user=3 300");
 
-        let writer = context.writing();
-        let mut reader = context.reading().await;
+        let writer = context.writing(true).await.unwrap();
+        let mut reader = context.reading(true).await.unwrap();
 
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 2);
@@ -273,20 +310,26 @@ pub mod test_utils {
         assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
     }
 
+    /// Test multiple multiple writers and multiple readers on multiple sequencers.
+    ///
+    /// This tests that:
+    /// - writes go to and reads come from the right sequencer, similar to [`test_multi_sequencer_io`] but less
+    ///   detailled
+    /// - multiple writers can write to a single sequencer
     async fn test_multi_writer_multi_reader<T>(adapter: &T)
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(2).await;
+        let context = adapter.new_context(NonZeroU32::try_from(2).unwrap()).await;
 
         let entry_east_1 = lp_to_entry("upc,region=east user=1 100");
         let entry_east_2 = lp_to_entry("upc,region=east user=2 200");
         let entry_west_1 = lp_to_entry("upc,region=west user=1 200");
 
-        let writer_1 = context.writing();
-        let writer_2 = context.writing();
-        let mut reader_1 = context.reading().await;
-        let mut reader_2 = context.reading().await;
+        let writer_1 = context.writing(true).await.unwrap();
+        let writer_2 = context.writing(true).await.unwrap();
+        let mut reader_1 = context.reading(true).await.unwrap();
+        let mut reader_2 = context.reading(true).await.unwrap();
 
         // TODO: do not hard-code sequencer IDs here but provide a proper interface
         writer_1.store_entry(&entry_east_1, 0).await.unwrap();
@@ -305,11 +348,18 @@ pub mod test_utils {
         .await;
     }
 
+    /// Test seek implemention of readers.
+    ///
+    /// This tests that:
+    /// - seeking is specific to the reader AND sequencer
+    /// - forward and backwards seeking works
+    /// - seeking past the end of the known content works (results in "pending" status and remembers sequence number and
+    ///   not just "next entry")
     async fn test_seek<T>(adapter: &T)
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(2).await;
+        let context = adapter.new_context(NonZeroU32::try_from(2).unwrap()).await;
 
         let waker = futures::task::noop_waker();
         let mut cx = futures::task::Context::from_waker(&waker);
@@ -319,13 +369,13 @@ pub mod test_utils {
         let entry_east_3 = lp_to_entry("upc,region=east user=3 300");
         let entry_west_1 = lp_to_entry("upc,region=west user=1 200");
 
-        let writer = context.writing();
+        let writer = context.writing(true).await.unwrap();
         let _sequence_number_east_1 = writer.store_entry(&entry_east_1, 0).await.unwrap().0.number;
         let sequence_number_east_2 = writer.store_entry(&entry_east_2, 0).await.unwrap().0.number;
         let _sequence_number_west_1 = writer.store_entry(&entry_west_1, 1).await.unwrap().0.number;
 
-        let mut reader_1 = context.reading().await;
-        let mut reader_2 = context.reading().await;
+        let mut reader_1 = context.reading(true).await.unwrap();
+        let mut reader_2 = context.reading(true).await.unwrap();
 
         // forward seek
         reader_1.seek(0, sequence_number_east_2).await.unwrap();
@@ -365,18 +415,23 @@ pub mod test_utils {
         reader_1.seek(0, 42).await.unwrap();
     }
 
+    /// Test watermark fetching.
+    ///
+    /// This tests that:
+    /// - watermarks for empty sequencers is 0
+    /// - watermarks for non-empty sequencers is "last sequence ID plus 1"
     async fn test_watermark<T>(adapter: &T)
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(2).await;
+        let context = adapter.new_context(NonZeroU32::try_from(2).unwrap()).await;
 
         let entry_east_1 = lp_to_entry("upc,region=east user=1 100");
         let entry_east_2 = lp_to_entry("upc,region=east user=2 200");
         let entry_west_1 = lp_to_entry("upc,region=west user=1 200");
 
-        let writer = context.writing();
-        let mut reader = context.reading().await;
+        let writer = context.writing(true).await.unwrap();
+        let mut reader = context.reading(true).await.unwrap();
 
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 2);
@@ -408,16 +463,17 @@ pub mod test_utils {
         assert_eq!((stream_2.fetch_high_watermark)().await.unwrap(), mark_2 + 1);
     }
 
+    /// Test that timestamps reported by the readers are sane.
     async fn test_timestamp<T>(adapter: &T)
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(1).await;
+        let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
 
         let entry = lp_to_entry("upc user=1 100");
 
-        let writer = context.writing();
-        let mut reader = context.reading().await;
+        let writer = context.writing(true).await.unwrap();
+        let mut reader = context.reading(true).await.unwrap();
 
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
@@ -450,10 +506,41 @@ pub mod test_utils {
         assert_eq!(ts_entry, reported_ts);
     }
 
+    /// Test that sequencer auto-creation works.
+    ///
+    /// This tests that:
+    /// - both writer and reader cannot be constructed when sequencers are missing
+    /// - both writer and reader can be auto-create sequencers
+    async fn test_sequencer_auto_creation<T>(adapter: &T)
+    where
+        T: TestAdapter,
+    {
+        // fail when sequencers are missing
+        let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
+        context.writing(false).await.unwrap_err();
+        context.reading(false).await.unwrap_err();
+
+        // writer can create sequencers
+        let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
+        context.writing(true).await.unwrap();
+        context.writing(false).await.unwrap();
+        context.reading(false).await.unwrap();
+
+        // reader can create sequencers
+        let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
+        context.reading(true).await.unwrap();
+        context.reading(false).await.unwrap();
+        context.writing(false).await.unwrap();
+    }
+
+    /// Assert that the content of the reader is as expected.
+    ///
+    /// This will read `expected.len()` from the reader and then ensures that the stream is pending.
     async fn assert_reader_content<R>(reader: &mut R, expected: &[(u32, &[&Entry])])
     where
         R: WriteBufferReading,
     {
+        // Ensure content of the streams
         let mut streams = reader.streams();
         assert_eq!(streams.len(), expected.len());
         streams.sort_by_key(|(sequencer_id, _stream)| *sequencer_id);
@@ -464,18 +551,33 @@ pub mod test_utils {
             assert_eq!(actual_sequencer_id, *expected_sequencer_id);
 
             // we need to limit the stream to `expected.len()` elements, otherwise it might be pending forever
-            let mut results: Vec<_> = actual_stream
+            let results: Vec<_> = actual_stream
                 .stream
                 .take(expected_entries.len())
                 .try_collect()
                 .await
                 .unwrap();
-            results.sort_by_key(|entry| {
-                let sequence = entry.sequence().unwrap();
-                (sequence.id, sequence.number)
-            });
             let actual_entries: Vec<_> = results.iter().map(|entry| entry.entry()).collect();
             assert_eq!(&&actual_entries[..], expected_entries);
+        }
+
+        // Ensure that streams a pending
+        let mut streams = reader.streams();
+        assert_eq!(streams.len(), expected.len());
+        streams.sort_by_key(|(sequencer_id, _stream)| *sequencer_id);
+
+        let waker = futures::task::noop_waker();
+        let mut cx = futures::task::Context::from_waker(&waker);
+
+        for (
+            (actual_sequencer_id, mut actual_stream),
+            (expected_sequencer_id, _expected_entries),
+        ) in streams.into_iter().zip(expected.iter())
+        {
+            assert_eq!(actual_sequencer_id, *expected_sequencer_id);
+
+            // empty stream is pending
+            assert!(actual_stream.stream.poll_next_unpin(&mut cx).is_pending());
         }
     }
 

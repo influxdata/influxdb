@@ -109,13 +109,19 @@ impl WriteBufferConfigFactory {
 
         let writer = match &cfg.type_[..] {
             "kafka" => {
-                let kafka_buffer =
-                    KafkaBufferProducer::new(&cfg.connection, db_name, &cfg.connection_config)?;
+                let kafka_buffer = KafkaBufferProducer::new(
+                    &cfg.connection,
+                    db_name,
+                    &cfg.connection_config,
+                    cfg.creation_config.as_ref(),
+                )
+                .await?;
                 Arc::new(kafka_buffer) as _
             }
             "mock" => match self.get_mock(&cfg.connection)? {
                 Mock::Normal(state) => {
-                    let mock_buffer = MockBufferForWriting::new(state);
+                    let mock_buffer =
+                        MockBufferForWriting::new(state, cfg.creation_config.as_ref())?;
                     Arc::new(mock_buffer) as _
                 }
                 Mock::AlwaysFailing => {
@@ -146,13 +152,15 @@ impl WriteBufferConfigFactory {
                     server_id,
                     db_name,
                     &cfg.connection_config,
+                    cfg.creation_config.as_ref(),
                 )
                 .await?;
                 Box::new(kafka_buffer) as _
             }
             "mock" => match self.get_mock(&cfg.connection)? {
                 Mock::Normal(state) => {
-                    let mock_buffer = MockBufferForReading::new(state);
+                    let mock_buffer =
+                        MockBufferForReading::new(state, cfg.creation_config.as_ref())?;
                     Box::new(mock_buffer) as _
                 }
                 Mock::AlwaysFailing => {
@@ -177,11 +185,14 @@ impl Default for WriteBufferConfigFactory {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
+    use std::{convert::TryFrom, num::NonZeroU32};
 
-    use data_types::DatabaseName;
+    use data_types::{database_rules::WriteBufferCreationConfig, DatabaseName};
 
-    use crate::mock::MockBufferSharedState;
+    use crate::{
+        kafka::test_utils::random_kafka_topic, maybe_skip_kafka_integration,
+        mock::MockBufferSharedState,
+    };
 
     use super::*;
 
@@ -203,15 +214,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_writing_kafka() {
+        let conn = maybe_skip_kafka_integration!();
         let factory = WriteBufferConfigFactory::new();
-
         let server_id = ServerId::try_from(1).unwrap();
 
-        let mut rules = DatabaseRules::new(DatabaseName::new("foo").unwrap());
+        let mut rules = DatabaseRules::new(DatabaseName::try_from(random_kafka_topic()).unwrap());
         rules.write_buffer_connection = Some(WriteBufferConnection {
             direction: WriteBufferDirection::Write,
             type_: "kafka".to_string(),
-            connection: "127.0.0.1:2".to_string(),
+            connection: conn,
+            creation_config: Some(WriteBufferCreationConfig::default()),
             ..Default::default()
         });
 
@@ -228,17 +240,17 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "waits forever to connect until https://github.com/influxdata/influxdb_iox/issues/2189 is solved"]
     async fn test_reading_kafka() {
+        let conn = maybe_skip_kafka_integration!();
         let factory = WriteBufferConfigFactory::new();
-
         let server_id = ServerId::try_from(1).unwrap();
 
-        let mut rules = DatabaseRules::new(DatabaseName::new("foo").unwrap());
+        let mut rules = DatabaseRules::new(DatabaseName::try_from(random_kafka_topic()).unwrap());
         rules.write_buffer_connection = Some(WriteBufferConnection {
             direction: WriteBufferDirection::Read,
             type_: "kafka".to_string(),
-            connection: "127.0.0.1:2".to_string(),
+            connection: conn,
+            creation_config: Some(WriteBufferCreationConfig::default()),
             ..Default::default()
         });
 
@@ -259,7 +271,8 @@ mod tests {
     async fn test_writing_mock() {
         let mut factory = WriteBufferConfigFactory::new();
 
-        let state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         let mock_name = "some_mock";
         factory.register_mock(mock_name.to_string(), state);
 
@@ -299,7 +312,8 @@ mod tests {
     async fn test_reading_mock() {
         let mut factory = WriteBufferConfigFactory::new();
 
-        let state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         let mock_name = "some_mock";
         factory.register_mock(mock_name.to_string(), state);
 
@@ -420,7 +434,8 @@ mod tests {
     fn test_register_mock_twice_panics() {
         let mut factory = WriteBufferConfigFactory::new();
 
-        let state = MockBufferSharedState::empty_with_n_sequencers(1);
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         let mock_name = "some_mock";
         factory.register_always_fail_mock(mock_name.to_string());
         factory.register_mock(mock_name.to_string(), state);

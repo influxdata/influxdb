@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::num::NonZeroU64;
 use std::time::Duration;
 use std::{
@@ -83,25 +84,14 @@ pub struct WriteBufferConnection {
     /// Connection string, depends on [`type_`](Self::type_).
     pub connection: String,
 
-    /// Number of sequencers.
-    ///
-    /// How they are implemented depends on [`type_`](Self::type_), e.g. for Kafka this is mapped to the number of
-    /// partitions.
-    pub n_sequencers: u32,
-
-    /// Special configs to by applied when sequencers are created.
-    ///
-    /// This depends on [`type_`](Self::type_) and can setup parameters like retention policy.
-    pub creation_config: HashMap<String, String>,
-
     /// Special configs to be applied when establishing the connection.
     ///
     /// This depends on [`type_`](Self::type_) and can configure aspects like timeouts.
     pub connection_config: HashMap<String, String>,
 
-    /// Specifies if the sequencers (e.g. for Kafka in form of a topic w/ [`n_sequencers`](Self::n_sequencers)
-    /// partitions) should be automatically created if they do not existing prior to reading or writing.
-    pub auto_create_sequencers: bool,
+    /// Specifies if the sequencers (e.g. for Kafka in form of a topic) should be automatically created if they do not
+    /// existing prior to reading or writing.
+    pub creation_config: Option<WriteBufferCreationConfig>,
 }
 
 impl Default for WriteBufferConnection {
@@ -110,10 +100,35 @@ impl Default for WriteBufferConnection {
             direction: WriteBufferDirection::Read,
             type_: "unspecified".to_string(),
             connection: Default::default(),
-            n_sequencers: DEFAULT_N_SEQUENCERS,
-            creation_config: Default::default(),
             connection_config: Default::default(),
-            auto_create_sequencers: Default::default(),
+            creation_config: Default::default(),
+        }
+    }
+}
+
+/// Configs sequencer auto-creation for write buffers.
+///
+/// What that means depends on the used write buffer, e.g. for Kafka this will create a new topic w/
+/// [`n_sequencers`](Self::n_sequencers) partitions.
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct WriteBufferCreationConfig {
+    /// Number of sequencers.
+    ///
+    /// How they are implemented depends on [type](WriteBufferConnection::type_), e.g. for Kafka this is mapped to the
+    /// number of partitions.
+    pub n_sequencers: NonZeroU32,
+
+    /// Special configs to by applied when sequencers are created.
+    ///
+    /// This depends on [type](WriteBufferConnection::type_) and can setup parameters like retention policy.
+    pub options: HashMap<String, String>,
+}
+
+impl Default for WriteBufferCreationConfig {
+    fn default() -> Self {
+        Self {
+            n_sequencers: NonZeroU32::try_from(DEFAULT_N_SEQUENCERS).unwrap(),
+            options: Default::default(),
         }
     }
 }
