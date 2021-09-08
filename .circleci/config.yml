@@ -1,5 +1,11 @@
 version: "2.1"
 
+executors:
+  linux-machine:
+    machine:
+      image: ubuntu-2004:202107-02
+      resource_class: large
+
 parameters:
   aws_teardown:
     default: false
@@ -101,6 +107,36 @@ workflows:
     when: << pipeline.parameters.aws_teardown >>
     jobs:
       - aws_destroy_by_name
+
+  nightly:
+    #triggers:
+    #  - schedule:
+    #      cron: "0 5 * * *"
+    #      filters:
+    #        branches:
+    #          only:
+    #            - "2.0"
+    jobs:
+      - godeps
+      - jsdeps
+      - gotest:
+          requires:
+            - godeps
+      - golint:
+          requires:
+            - godeps
+      - fluxtest:
+          requires:
+            - godeps
+      - tlstest:
+          requires:
+            - godeps
+      - deploy_nightly:
+          requires:
+            - gotest
+            - golint
+            - fluxtest
+            - tlstest
 
   release:
     jobs:
@@ -271,9 +307,15 @@ commands:
     parameters:
       publish_release:
         type: boolean
+      nightly:
+        type: boolean
+        default: false
     steps:
       - when:
-          condition: << parameters.publish_release >>
+          condition:
+            or:
+              - << parameters.publish_release >>
+              - << parameters.nightly >>
           steps:
             - run:
                 name: Import GPG key
@@ -335,19 +377,46 @@ commands:
             docker buildx build --target dependency-base --platform linux/amd64,linux/arm64 docker/influxd
       - install_cross_bin_deps
       - unless:
-          condition: << parameters.publish_release >>
+          condition:
+            or:
+              - << parameters.publish_release >>
+              - << parameters.nightly >>
           steps:
             - run:
                 name: Build release
                 # `goreleaser release --skip-publish` builds Docker images, but doesn't push them.
                 # As opposed to `goreleaser build`, which stops before building Dockers.
-                command: goreleaser --debug release --skip-publish --skip-sign -p 1 --rm-dist --skip-validate
+                command: S3_FOLDER="influxdb/releases/" VERSION="$(git describe)" goreleaser --debug release --skip-publish --skip-sign -p 1 --rm-dist --skip-validate
       - when:
           condition: << parameters.publish_release >>
           steps:
             - run:
                 name: Publish release
-                command: goreleaser --debug release -p 1 --rm-dist --skip-validate
+                command: |
+                  S3_FOLDER="influxdb/releases/" \
+                  VERSION=${CIRCLE_TAG} \
+                  goreleaser \
+                    --debug \
+                    release \
+                      -p 1 \
+                      --rm-dist \
+                      --skip-validate
+      - when:
+          condition: << parameters.nightly >>
+          steps:
+            - run:
+                name: Publish nightly
+                #TODO: remove --skip-publish flag
+                command: |
+                  S3_FOLDER="platform/nightlies/2.0" \
+                  VERSION="2.0-nightly" \
+                  goreleaser \
+                    --debug \
+                    release \
+                      --skip-publish \
+                      -p 1 \
+                      --rm-dist \
+                      --skip-validate
 
 jobs:
   ####################
@@ -516,7 +585,7 @@ jobs:
       - install_core_deps
       - install_cross_bin_deps
       # Build the static binary for linux
-      - run: goreleaser build --snapshot --single-target
+      - run: S3_FOLDER="influxdb/releases/" VERSION="$(git describe)" goreleaser build --snapshot --single-target
       - store_artifacts:
           path: dist
       - persist_to_workspace:
@@ -721,6 +790,33 @@ jobs:
           paths:
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
+
+  deploy_nightly:
+    executor: linux-machine
+    environment:
+      TMPDIR: /mnt/ramdisk
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - run:
+          name: Create RAM disk
+          command: |
+            sudo mkdir -p ${TMPDIR}
+            sudo mount -t tmpfs -o size=4G tmpfs ${TMPDIR}
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
+      - install_core_deps
+      - upgrade_go
+      - run_goreleaser:
+          publish_release: false
+          nightly: true
+      - persist_to_workspace:
+          root: .
+          paths:
+            - dist/influxd_linux_amd64/influxd
+
 
   #################################
   ### e2e/integration test jobs ###
