@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/sqlite"
 	"github.com/mattn/go-sqlite3"
+	"go.uber.org/zap"
 )
 
 var errReplicationNotFound = &ierrors.Error{
@@ -37,12 +38,13 @@ func errLocalBucketNotFound(id platform.ID, cause error) error {
 	}
 }
 
-func NewService(store *sqlite.SqlStore, bktSvc BucketService) *service {
+func NewService(store *sqlite.SqlStore, bktSvc BucketService, log *zap.Logger) *service {
 	return &service{
 		store:         store,
 		idGenerator:   snowflake.NewIDGenerator(),
 		bucketService: bktSvc,
 		validator:     internal.NewValidator(),
+		log:           log,
 	}
 }
 
@@ -61,6 +63,7 @@ type service struct {
 	idGenerator   platform.IDGenerator
 	bucketService BucketService
 	validator     ReplicationValidator
+	log           *zap.Logger
 }
 
 func (s service) ListReplications(ctx context.Context, filter influxdb.ReplicationListFilter) (*influxdb.Replications, error) {
@@ -261,6 +264,26 @@ func (s service) DeleteReplication(ctx context.Context, id platform.ID) error {
 		}
 		return err
 	}
+	return nil
+}
+
+func (s service) DeleteBucketReplications(ctx context.Context, localBucketID platform.ID) error {
+	s.store.Mu.Lock()
+	defer s.store.Mu.Unlock()
+
+	q := sq.Delete("replications").Where(sq.Eq{"local_bucket_id": localBucketID}).Suffix("RETURNING id")
+	query, args, err := q.ToSql()
+	if err != nil {
+		return err
+	}
+
+	var deleted []string
+	if err := s.store.DB.SelectContext(ctx, &deleted, query, args...); err != nil {
+		return err
+	}
+	s.log.Debug("Deleted all replications for local bucket",
+		zap.String("bucket_id", localBucketID.String()), zap.Strings("ids", deleted))
+
 	return nil
 }
 
