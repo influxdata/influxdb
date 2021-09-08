@@ -2206,6 +2206,7 @@ dependencies = [
  "metric",
  "observability_deps",
  "prometheus",
+ "test_helpers",
 ]
 
 [[package]]

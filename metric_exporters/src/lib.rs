@@ -29,7 +29,9 @@ use prometheus::{
 ///
 #[derive(Debug)]
 pub struct PrometheusTextEncoder<'a, W: Write> {
-    metric: Option<MetricFamily>,
+    /// metric family together with a flag indicating that it was used
+    metric: Option<(MetricFamily, bool)>,
+
     encoder: TextEncoder,
     writer: &'a mut W,
 }
@@ -72,15 +74,13 @@ impl<'a, W: Write> metric::Reporter for PrometheusTextEncoder<'a, W> {
         metric.set_help(description.to_string());
         metric.set_field_type(metric_type);
 
-        self.metric = Some(metric)
+        self.metric = Some((metric, false))
     }
 
     fn report_observation(&mut self, attributes: &Attributes, observation: Observation) {
-        let metrics = self
-            .metric
-            .as_mut()
-            .expect("no metric in progress")
-            .mut_metric();
+        let (metrics, used) = self.metric.as_mut().expect("no metric in progress");
+
+        let metrics = metrics.mut_metric();
 
         let mut metric = Metric::new();
 
@@ -157,11 +157,18 @@ impl<'a, W: Write> metric::Reporter for PrometheusTextEncoder<'a, W> {
                 metric.set_histogram(histogram)
             }
         };
-        metrics.push(metric)
+        metrics.push(metric);
+
+        *used = true;
     }
 
     fn finish_metric(&mut self) {
-        if let Some(family) = self.metric.take() {
+        if let Some((family, used)) = self.metric.take() {
+            if !used {
+                // just don't report the metric
+                return;
+            }
+
             match self.encoder.encode(&[family], self.writer) {
                 Ok(_) => {}
                 Err(e) => error!(%e, "error encoding metric family"),
@@ -174,13 +181,17 @@ impl<'a, W: Write> metric::Reporter for PrometheusTextEncoder<'a, W> {
 mod tests {
     use super::*;
     use metric::{
-        DurationCounter, DurationGauge, Metric, Registry, U64Counter, U64Histogram,
-        U64HistogramOptions,
+        DurationCounter, DurationGauge, DurationHistogram, Metric, Registry, U64Counter,
+        U64Histogram, U64HistogramOptions,
     };
     use std::time::Duration;
+    use test_helpers::assert_not_contains;
 
     #[test]
     fn test_encode() {
+        // tap tracing to check for errors
+        let tracing_capture = test_helpers::tracing::TracingCapture::new();
+
         let registry = Registry::new();
 
         let counter: Metric<U64Counter> = registry.register_metric("foo", "a counter metric");
@@ -220,6 +231,9 @@ mod tests {
             .recorder(&[("tag1", "value1")])
             .inc(Duration::from_millis(1200));
 
+        // unused metrics must not result in an error
+        let _unused: Metric<DurationHistogram> = registry.register_metric("unused", "unused");
+
         let mut buffer = Vec::new();
         let mut encoder = PrometheusTextEncoder::new(&mut buffer);
         registry.report(&mut encoder);
@@ -254,6 +268,9 @@ foo_total{tag1="value",tag2="value2"} 7
 "#
         .trim_start();
 
-        assert_eq!(&buffer, expected, "{}", buffer)
+        assert_eq!(&buffer, expected, "{}", buffer);
+
+        // no errors
+        assert_not_contains!(tracing_capture.to_string(), "error");
     }
 }
