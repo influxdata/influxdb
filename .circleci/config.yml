@@ -550,6 +550,7 @@ jobs:
   pkg_run_test:
     executor: terraform/default
     steps:
+      - bail_if_forked
       - attach_workspace:
           at: /tmp/workspace
       - checkout
