@@ -24,9 +24,37 @@ use sqlparser::{
     parser::Parser,
 };
 
-use thiserror::Error;
+use snafu::Snafu;
 
 use chrono::DateTime;
+
+// Parse Delete Predicates
+/// Parse Error
+#[derive(Debug, Snafu)]
+pub enum Error {
+    /// Invalid time format
+    #[snafu(display("Invalid timestamp: {}", value))]
+    InvalidTimestamp { value: String },
+
+    /// Invalid time range
+    #[snafu(display("Invalid time range: ({}, {})", start, stop))]
+    InvalidTimeRange { start: String, stop: String },
+
+    /// Predicate syntax error
+    #[snafu(display("Invalid predicate syntax: ({})", value))]
+    InvalidSyntax { value: String },
+
+    /// Predicate semantics error
+    #[snafu(display("Invalid predicate semantics: ({})", value))]
+    InvalidSemantics { value: String },
+
+    /// Predicate include non supported expression
+    #[snafu(display("Delete predicate must be conjunctive expressions of binary 'column_name = literal' or 'column_ame != literal': ({})", value))]
+    NotSupportPredicate { value: String },
+}
+
+/// Result type for Parser Cient
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// This `Predicate` represents the empty predicate (aka that
 /// evaluates to true for all rows).
@@ -403,34 +431,6 @@ impl PredicateBuilder {
     }
 }
 
-// Parse Delete Predicates
-/// Parse Error
-#[derive(Debug, Error)]
-pub enum Error {
-    /// Invalid time format
-    #[error("Invalid timestamp: {}", .0)]
-    InvalidTimestamp(String),
-
-    /// Invalid time range
-    #[error("Invalid time range: ({}, {})", .0, .1)]
-    InvalidTimeRange(String, String),
-
-    /// Predicate syntax error
-    #[error("Invalid predicate syntax: ({})", .0)]
-    InvalidSyntax(String),
-
-    /// Predicate semantics error
-    #[error("Invalid predicate semantics: ({})", .0)]
-    InvalidSemantics(String),
-
-    /// Predicate include non supported expression
-    #[error("Delete predicate must be conjunctive expressions of binary 'column_name = literal' or 'column_ame != literal': ({})", .0)]
-    NotSupportPredicate(String),
-}
-
-/// Result type for Parser Cient
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-
 /// Parser for Delete predicate and time range
 #[derive(Debug, Clone)]
 pub struct ParseDeletePredicate {
@@ -483,11 +483,13 @@ impl ParseDeletePredicate {
         match ast {
             Err(parse_err) => {
                 let error_str = format!("{}, {}", predicate, parse_err);
-                Err(Error::InvalidSyntax(error_str))
+                Err(Error::InvalidSyntax { value: error_str })
             }
             Ok(mut stmt) => {
                 if stmt.len() != 1 {
-                    return Err(Error::InvalidSemantics(predicate.to_string()));
+                    return Err(Error::InvalidSemantics {
+                        value: predicate.to_string(),
+                    });
                 }
 
                 let stmt = stmt.pop();
@@ -501,11 +503,15 @@ impl ParseDeletePredicate {
                         let mut exprs = vec![];
                         let split = Self::split_members(table_name, &expr, &mut exprs);
                         if !split {
-                            return Err(Error::NotSupportPredicate(predicate.to_string()));
+                            return Err(Error::NotSupportPredicate {
+                                value: predicate.to_string(),
+                            });
                         }
                         Ok(exprs)
                     }
-                    _ => Err(Error::InvalidSemantics(predicate.to_string())),
+                    _ => Err(Error::InvalidSemantics {
+                        value: predicate.to_string(),
+                    }),
                 }
             }
         }
@@ -609,7 +615,7 @@ impl ParseDeletePredicate {
                     Err(nano_err) => {
                         // wrong format, return both error
                         let error_str = format!("{}, {}", timestamp_err, nano_err);
-                        Err(Error::InvalidTimestamp(error_str))
+                        Err(Error::InvalidTimestamp { value: error_str })
                     }
                 }
             }
@@ -621,7 +627,10 @@ impl ParseDeletePredicate {
         let start_time = Self::parse_time(start)?;
         let stop_time = Self::parse_time(stop)?;
         if start_time > stop_time {
-            return Err(Error::InvalidTimeRange(start.to_string(), stop.to_string()));
+            return Err(Error::InvalidTimeRange {
+                start: start.to_string(),
+                stop: stop.to_string(),
+            });
         }
 
         Ok((start_time, stop_time))

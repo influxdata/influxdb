@@ -30,9 +30,8 @@ metrics = { path = "../metrics" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11.2"
 regex = "1"
-snafu = "0.6.3"
+snafu = "0.6.9"
 sqlparser = "0.10.0"
-thiserror = "1.0.28"
 tokio = { version = "1.11", features = ["macros"] }
 tokio-stream = "0.1.2"
 trace = { path = "../trace" }

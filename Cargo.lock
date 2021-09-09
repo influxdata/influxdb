@@ -3326,7 +3326,6 @@ dependencies = [
  "snafu",
  "sqlparser",
  "test_helpers",
- "thiserror",
  "tokio",
  "tokio-stream",
  "trace",
