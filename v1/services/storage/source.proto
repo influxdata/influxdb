@@ -10,9 +10,9 @@ option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
 
 message ReadSource {
-  // Database identifies which database to query.
-  string database = 1;
+  // OrgID specifies the organization identifier for this request.
+  uint64 org_id = 1 [(gogoproto.customname) = "OrgID"];
 
-  // RetentionPolicy identifies which retention policy to query.
-  string retention_policy = 2 [(gogoproto.customname) = "RetentionPolicy"];
+  // BucketID specifies the bucket in the organization.
+  uint64 bucket_id = 2 [(gogoproto.customname) = "BucketID"];
 }

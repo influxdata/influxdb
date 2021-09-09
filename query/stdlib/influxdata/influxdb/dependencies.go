@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/influxdata/flux"
+	influxdeps "github.com/influxdata/flux/dependencies/influxdb"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/query"
@@ -22,6 +23,12 @@ type StorageDependencies struct {
 }
 
 func (d StorageDependencies) Inject(ctx context.Context) context.Context {
+	ctx = influxdeps.Dependency{
+		Provider: Provider{
+			Reader:       d.FromDeps.Reader,
+			BucketLookup: d.FromDeps.BucketLookup,
+		},
+	}.Inject(ctx)
 	return context.WithValue(ctx, dependenciesKey, d)
 }
 
