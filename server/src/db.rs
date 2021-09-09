@@ -356,6 +356,9 @@ pub struct Db {
     /// The metrics registry to inject into created components in the Db.
     metrics_registry: Arc<metrics::MetricRegistry>,
 
+    /// The global metrics registry
+    metrics_registry_v2: Arc<metric::Registry>,
+
     /// Catalog interface for query
     catalog_access: Arc<QueryCatalogAccess>,
 
@@ -409,6 +412,7 @@ pub(crate) struct DatabaseToCommit {
     pub(crate) catalog: Catalog,
     pub(crate) rules: Arc<DatabaseRules>,
     pub(crate) write_buffer: Option<WriteBufferConfig>,
+    pub(crate) metrics_registry_v2: Arc<metric::Registry>,
 }
 
 impl Db {
@@ -445,6 +449,7 @@ impl Db {
             catalog,
             jobs,
             metrics_registry,
+            metrics_registry_v2: database_to_commit.metrics_registry_v2,
             catalog_access,
             worker_iterations_lifecycle: AtomicUsize::new(0),
             worker_iterations_cleanup: AtomicUsize::new(0),
@@ -1326,13 +1331,8 @@ impl Db {
                             handle_chunk_write(&mut *chunk)
                         }
                         None => {
-                            let metrics = self.metrics_registry.register_domain_with_attributes(
-                                "mutable_buffer",
-                                self.metric_attributes.clone(),
-                            );
-
                             let chunk_result = MBChunk::new(
-                                MutableBufferChunkMetrics::new(&metrics),
+                                MutableBufferChunkMetrics::new(self.metrics_registry_v2.as_ref()),
                                 table_batch,
                                 mask.as_ref().map(|x| x.as_ref()),
                             )

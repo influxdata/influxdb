@@ -129,11 +129,7 @@ pub(super) fn write_chunk_to_object_store(
                 .context(WritingToObjectStore)?;
             let parquet_metadata = Arc::new(parquet_metadata);
 
-            let metrics = db
-                .catalog
-                .metrics_registry
-                .register_domain_with_attributes("parquet", db.catalog.metric_attributes.clone());
-            let metrics = ParquetChunkMetrics::new(&metrics);
+            let metrics = ParquetChunkMetrics::new(db.metrics_registry_v2.as_ref());
             let parquet_chunk = Arc::new(
                 ParquetChunk::new(
                     &path,

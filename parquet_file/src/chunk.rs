@@ -71,7 +71,7 @@ impl ChunkMetrics {
         Self {}
     }
 
-    pub fn new(_metrics: &metrics::Domain) -> Self {
+    pub fn new(_metrics: &metric::Registry) -> Self {
         Self {}
     }
 }

@@ -126,6 +126,7 @@ impl TestDbBuilder {
             catalog,
             write_buffer: self.write_buffer,
             exec,
+            metrics_registry_v2: Arc::clone(&metrics_registry_v2),
         };
 
         TestDb {

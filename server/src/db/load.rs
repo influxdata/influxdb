@@ -69,7 +69,9 @@ pub async fn load_or_create_preserved_catalog(
         Ok(Some((preserved_catalog, loader))) => {
             // successfull load
             info!("Found existing catalog for DB {}", db_name);
-            let Loader { catalog, planner } = loader;
+            let Loader {
+                catalog, planner, ..
+            } = loader;
             let plan = planner
                 .map(|planner| planner.build())
                 .transpose()
@@ -143,7 +145,9 @@ pub async fn create_preserved_catalog(
     .await
     .context(CannotCreateCatalog)?;
 
-    let Loader { catalog, planner } = loader;
+    let Loader {
+        catalog, planner, ..
+    } = loader;
     let plan = planner
         .map(|planner| planner.build())
         .transpose()
@@ -191,6 +195,7 @@ impl LoaderEmptyInput {
 struct Loader {
     catalog: Catalog,
     planner: Option<ReplayPlanner>,
+    metrics_registry_v2: Arc<metric::Registry>,
 }
 
 impl CatalogState for Loader {
@@ -202,10 +207,11 @@ impl CatalogState for Loader {
                 Arc::from(db_name),
                 data.domain,
                 data.metrics_registry,
-                data.metrics_registry_v2,
+                Arc::clone(&data.metrics_registry_v2),
                 data.metric_attributes,
             ),
             planner: (!data.skip_replay).then(ReplayPlanner::new),
+            metrics_registry_v2: Arc::new(Default::default()),
         }
     }
 
@@ -239,12 +245,7 @@ impl CatalogState for Loader {
         }
 
         // Create a parquet chunk for this chunk
-        let metrics = self
-            .catalog
-            .metrics_registry
-            .register_domain_with_attributes("parquet", self.catalog.metric_attributes.clone());
-
-        let metrics = ParquetChunkMetrics::new(&metrics);
+        let metrics = ParquetChunkMetrics::new(self.metrics_registry_v2.as_ref());
         let parquet_chunk = ParquetChunk::new(
             &info.path,
             iox_object_store,

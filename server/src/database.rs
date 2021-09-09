@@ -906,6 +906,7 @@ impl DatabaseStateRulesLoaded {
             preserved_catalog,
             catalog,
             write_buffer,
+            metrics_registry_v2: Arc::clone(shared.application.metric_registry_v2()),
         };
 
         let db = Db::new(

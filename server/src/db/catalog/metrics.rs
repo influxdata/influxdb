@@ -22,6 +22,7 @@ fn report_timestamp_metrics(table_name: &str) -> bool {
 pub struct CatalogMetrics {
     /// Name of the database
     db_name: Arc<str>,
+
     /// Metrics registry
     metrics_registry: Arc<metric::Registry>,
 
