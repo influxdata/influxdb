@@ -1,7 +1,7 @@
 //! This module contains helper code for building `Entry` from line protocol and the
 //! `DatabaseRules` configuration.
 
-use std::{collections::BTreeMap, convert::TryFrom, fmt::Formatter, num::NonZeroU64};
+use std::{collections::BTreeMap, convert::TryFrom, fmt::Formatter};
 
 use chrono::{DateTime, TimeZone, Utc};
 use flatbuffers::{FlatBufferBuilder, Follow, ForwardsUOffset, Vector, VectorIter, WIPOffset};
@@ -1695,43 +1695,6 @@ enum ColumnRaw<'a> {
     U64(Vec<u64>),
     String(Vec<&'a str>),
     Bool(Vec<bool>),
-}
-
-#[derive(Debug, PartialOrd, PartialEq, Copy, Clone)]
-pub struct ClockValue(NonZeroU64);
-
-impl ClockValue {
-    pub fn new(v: NonZeroU64) -> Self {
-        Self(v)
-    }
-
-    pub fn get(&self) -> NonZeroU64 {
-        self.0
-    }
-
-    pub fn get_u64(&self) -> u64 {
-        self.0.get()
-    }
-}
-
-impl TryFrom<u64> for ClockValue {
-    type Error = ClockValueError;
-
-    fn try_from(value: u64) -> Result<Self, Self::Error> {
-        NonZeroU64::new(value)
-            .map(Self)
-            .context(ValueMayNotBeZero)
-            .map_err(Into::into)
-    }
-}
-
-#[derive(Debug, Snafu)]
-pub struct ClockValueError(InnerClockValueError);
-
-#[derive(Debug, Snafu)]
-enum InnerClockValueError {
-    #[snafu(display("Clock values must not be zero"))]
-    ValueMayNotBeZero,
 }
 
 #[derive(Debug, Clone)]
