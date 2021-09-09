@@ -9,10 +9,7 @@
     clippy::clone_on_ref_ptr
 )]
 
-use datafusion::{
-    logical_plan::{Column, Expr, Operator},
-    scalar::ScalarValue,
-};
+use datafusion::logical_plan::{lit, Column, Expr, Operator};
 
 use sqlparser::{
     ast::{BinaryOperator, Expr as SqlParserExpr, Ident, Statement, Value},
@@ -21,8 +18,6 @@ use sqlparser::{
 };
 
 use thiserror::Error;
-
-//use serde::{Deserialize, Serialize};
 
 use chrono::DateTime;
 
@@ -86,7 +81,7 @@ impl ParseDeletePredicate {
     }
 
     /// Parse the predicate and convert it into datafusion expression
-    /// parse the delete predicate which is a conjunctive expression of many
+    /// A delete predicate is a conjunctive expression of many
     /// binary expressions of 'colum = constant' or 'column != constant'
     ///
     pub fn parse_predicate(table_name: &str, predicate: &str) -> Result<Vec<Expr>> {
@@ -146,8 +141,8 @@ impl ParseDeletePredicate {
         predicate: &SqlParserExpr,
         predicates: &mut Vec<Expr>,
     ) -> bool {
-        // Th below code built to be compatible with
-        //  https://github.com/influxdata/idpe/blob/master/influxdbv2/predicate/parser_test.go
+        // The below code built to be compatible with
+        // https://github.com/influxdata/influxdb/blob/master/predicate/parser_test.go
         match predicate {
             SqlParserExpr::BinaryOp {
                 left,
@@ -181,31 +176,27 @@ impl ParseDeletePredicate {
                     _ => return false, // not a column name
                 };
 
-                // verify if right is a literal
+                // verify if right is a literal or an identifier (e.g column name)
                 let value = match &**right {
                     SqlParserExpr::Identifier(Ident {
                         value,
                         quote_style: _,
-                    }) => Expr::Literal(ScalarValue::Utf8(Some(value.to_string()))),
+                    }) => lit(value.to_string()),
                     SqlParserExpr::Value(Value::DoubleQuotedString(value)) => {
-                        Expr::Literal(ScalarValue::Utf8(Some(value.to_string())))
+                        lit(value.to_string())
                     }
                     SqlParserExpr::Value(Value::SingleQuotedString(value)) => {
-                        Expr::Literal(ScalarValue::Utf8(Some(value.to_string())))
+                        lit(value.to_string())
                     }
                     SqlParserExpr::Value(Value::NationalStringLiteral(value)) => {
-                        Expr::Literal(ScalarValue::Utf8(Some(value.to_string())))
+                        lit(value.to_string())
                     }
-                    SqlParserExpr::Value(Value::HexStringLiteral(value)) => {
-                        Expr::Literal(ScalarValue::Utf8(Some(value.to_string())))
-                    }
-                    SqlParserExpr::Value(Value::Number(v, _)) => {
-                        Expr::Literal(ScalarValue::Float64(Some(v.parse().unwrap())))
-                    }
-                    // NGA todo: how to now this is an integer?
-                    SqlParserExpr::Value(Value::Boolean(v)) => {
-                        Expr::Literal(ScalarValue::Boolean(Some(*v)))
-                    }
+                    SqlParserExpr::Value(Value::HexStringLiteral(value)) => lit(value.to_string()),
+                    SqlParserExpr::Value(Value::Number(v, _)) => match v.parse::<i64>() {
+                        Ok(v) => lit(v),
+                        Err(_) => lit(v.parse::<f64>().unwrap()),
+                    },
+                    SqlParserExpr::Value(Value::Boolean(v)) => lit(*v),
                     _ => return false, // not a literal
                 };
 
@@ -259,7 +250,6 @@ impl ParseDeletePredicate {
 #[cfg(test)]
 mod test {
     use datafusion::logical_plan::{col, lit};
-    use sqlparser::test_utils::number;
 
     use super::*;
 
@@ -378,81 +368,10 @@ mod test {
     }
 
     #[test]
-    fn test_sqlparser() {
-        // test how to use sqlparser
-        let dialect = sqlparser::dialect::GenericDialect {};
-
-        // string from IOx management API
-        let iox_delete_predicate = r#"city = Boston and cost !=100 and state != "MA""#;
-
-        // convert it to Delete SQL
-        let mut sql = "DELETE FROM table_name WHERE ".to_string();
-        sql.push_str(iox_delete_predicate);
-
-        // parse the delete sql
-        let mut ast = Parser::parse_sql(&dialect, sql.as_str()).unwrap();
-        println!("AST: {:#?}", ast);
-
-        // verify the parsed content
-        assert_eq!(ast.len(), 1);
-        let stmt = ast.pop().unwrap();
-        match stmt {
-            Statement::Delete {
-                table_name: _,
-                selection,
-                ..
-            } => {
-                // Verify selection
-                let results = selection.unwrap();
-
-                // city = Boston
-                let left = SqlParserExpr::BinaryOp {
-                    left: Box::new(SqlParserExpr::Identifier(Ident::new("city"))),
-                    op: BinaryOperator::Eq,
-                    right: Box::new(SqlParserExpr::Identifier(Ident::new("Boston"))),
-                };
-
-                // cost !=100
-                let right = SqlParserExpr::BinaryOp {
-                    left: Box::new(SqlParserExpr::Identifier(Ident::new("cost"))),
-                    op: BinaryOperator::NotEq,
-                    right: Box::new(SqlParserExpr::Value(number("100"))),
-                };
-
-                // city = Boston and cost !=100
-                let left = SqlParserExpr::BinaryOp {
-                    left: Box::new(left),
-                    op: BinaryOperator::And,
-                    right: Box::new(right),
-                };
-
-                // state != "MA"  -- Note the double quote
-                let right = SqlParserExpr::BinaryOp {
-                    left: Box::new(SqlParserExpr::Identifier(Ident::new("state"))),
-                    op: BinaryOperator::NotEq,
-                    right: Box::new(SqlParserExpr::Identifier(Ident::with_quote('"', "MA"))),
-                };
-
-                // city = Boston and cost !=100 and state != "MA"
-                let expected = SqlParserExpr::BinaryOp {
-                    left: Box::new(left),
-                    op: BinaryOperator::And,
-                    right: Box::new(right),
-                };
-
-                assert_eq!(results, expected);
-            }
-            _ => {
-                panic!("Your sql is not a delete statement");
-            }
-        }
-    }
-
-    #[test]
     fn test_parse_predicate() {
         let table = "test";
 
-        let pred = r#"city= Boston and cost !=100 and state != "MA""#;
+        let pred = r#"city= Boston and cost !=100 and state != "MA" AND temp=87.5"#;
         let result = ParseDeletePredicate::parse_predicate(table, pred).unwrap();
 
         println!("{:#?}", result);
@@ -460,9 +379,12 @@ mod test {
         let mut expected = vec![];
         let e = col("test.city").eq(lit("Boston"));
         expected.push(e);
-        let e = col("test.cost").not_eq(lit(100.0));
+        let val: i64 = 100;
+        let e = col("test.cost").not_eq(lit(val));
         expected.push(e);
         let e = col("test.state").not_eq(lit("MA"));
+        expected.push(e);
+        let e = col("test.temp").eq(lit(87.5));
         expected.push(e);
 
         assert_eq!(result, expected)
@@ -476,7 +398,7 @@ mod test {
         let result = ParseDeletePredicate::parse_predicate(table, pred);
         assert!(result.is_err());
 
-        let pred = r#"city= Boston and cost !=100+1 and state != "MA""#; // 1001
+        let pred = r#"city= Boston and cost !=100+1 and state != "MA""#; // 100 + 1
         let result = ParseDeletePredicate::parse_predicate(table, pred);
         assert!(result.is_err());
 
@@ -509,7 +431,8 @@ mod test {
         assert_eq!(result.stop_time, 200);
 
         let mut expected = vec![];
-        let e = col("test.cost").not_eq(lit(100.0));
+        let num: i64 = 100;
+        let e = col("test.cost").not_eq(lit(num));
         expected.push(e);
         assert_eq!(result.predicate, expected);
     }
