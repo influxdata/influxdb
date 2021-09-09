@@ -67,7 +67,6 @@ mod chunk;
 mod lifecycle;
 pub mod load;
 pub mod pred;
-mod process_clock;
 mod replay;
 mod streams;
 mod system_tables;
@@ -357,13 +356,11 @@ pub struct Db {
     /// The metrics registry to inject into created components in the Db.
     metrics_registry: Arc<metrics::MetricRegistry>,
 
+    /// The global metrics registry
+    metrics_registry_v2: Arc<metric::Registry>,
+
     /// Catalog interface for query
     catalog_access: Arc<QueryCatalogAccess>,
-
-    /// Process clock used in establishing a partial ordering of operations via a Lamport Clock.
-    ///
-    /// Value is nanoseconds since the Unix Epoch.
-    process_clock: process_clock::ProcessClock,
 
     /// Number of iterations of the worker lifecycle loop for this Db
     worker_iterations_lifecycle: AtomicUsize,
@@ -415,6 +412,7 @@ pub(crate) struct DatabaseToCommit {
     pub(crate) catalog: Catalog,
     pub(crate) rules: Arc<DatabaseRules>,
     pub(crate) write_buffer: Option<WriteBufferConfig>,
+    pub(crate) metrics_registry_v2: Arc<metric::Registry>,
 }
 
 impl Db {
@@ -442,8 +440,6 @@ impl Db {
         );
         let catalog_access = Arc::new(catalog_access);
 
-        let process_clock = process_clock::ProcessClock::new();
-
         let this = Self {
             rules,
             server_id,
@@ -453,8 +449,8 @@ impl Db {
             catalog,
             jobs,
             metrics_registry,
+            metrics_registry_v2: database_to_commit.metrics_registry_v2,
             catalog_access,
-            process_clock,
             worker_iterations_lifecycle: AtomicUsize::new(0),
             worker_iterations_cleanup: AtomicUsize::new(0),
             metric_attributes,
@@ -1335,13 +1331,8 @@ impl Db {
                             handle_chunk_write(&mut *chunk)
                         }
                         None => {
-                            let metrics = self.metrics_registry.register_domain_with_attributes(
-                                "mutable_buffer",
-                                self.metric_attributes.clone(),
-                            );
-
                             let chunk_result = MBChunk::new(
-                                MutableBufferChunkMetrics::new(&metrics),
+                                MutableBufferChunkMetrics::new(self.metrics_registry_v2.as_ref()),
                                 table_batch,
                                 mask.as_ref().map(|x| x.as_ref()),
                             )
@@ -1583,6 +1574,7 @@ mod tests {
     use futures::{stream, StreamExt, TryStreamExt};
     use internal_types::{schema::Schema, selection::Selection};
     use iox_object_store::ParquetFilePath;
+    use metric::Observation;
     use object_store::ObjectStore;
     use parquet_file::{
         catalog::test_helpers::TestCatalogState,
@@ -2318,20 +2310,27 @@ mod tests {
         summary.record(Utc.timestamp_nanos(650000000000));
         summary.record(Utc.timestamp_nanos(650000000010));
 
-        for (minute, count) in summary.cumulative_counts() {
-            let minute = (minute * 60).to_string();
-            test_db
-                .metric_registry
-                .has_metric_family("catalog_row_time_seconds_bucket")
-                .with_attributes(&[
-                    ("svr_id", "1"),
-                    ("db_name", "placeholder"),
-                    ("table", "write_metrics_test"),
-                    ("le", minute.as_str()),
-                ])
-                .counter()
-                .eq(count as _)
-                .unwrap();
+        let mut reporter = metric::RawReporter::default();
+        test_db.metrics_registry_v2.report(&mut reporter);
+
+        let observation = reporter
+            .metric("catalog_row_time")
+            .unwrap()
+            .observation(&[("db_name", "placeholder"), ("table", "write_metrics_test")])
+            .unwrap();
+
+        let histogram = match observation {
+            Observation::DurationHistogram(histogram) => histogram,
+            _ => unreachable!(),
+        };
+        assert_eq!(histogram.buckets.len(), 60);
+
+        for ((minute, count), observation) in
+            summary.counts.iter().enumerate().zip(&histogram.buckets)
+        {
+            let minute = Duration::from_secs((minute * 60) as u64);
+            assert_eq!(observation.le, minute);
+            assert_eq!(*count as u64, observation.count)
         }
     }
 
@@ -3804,33 +3803,32 @@ mod tests {
 
         write_lp(db.as_ref(), "cpu bar=1 10").await;
 
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_lock_total")
-            .with_attributes(&[
+        let mut reporter = metric::RawReporter::default();
+        test_db.metrics_registry_v2.report(&mut reporter);
+
+        let exclusive = reporter
+            .metric("catalog_lock")
+            .unwrap()
+            .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
                 ("table", "cpu"),
-                ("svr_id", "10"),
                 ("access", "exclusive"),
             ])
-            .counter()
-            .eq(1.)
             .unwrap();
+        assert_eq!(exclusive, &Observation::U64Counter(1));
 
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_lock_total")
-            .with_attributes(&[
+        let shared = reporter
+            .metric("catalog_lock")
+            .unwrap()
+            .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
                 ("table", "cpu"),
-                ("svr_id", "10"),
                 ("access", "shared"),
             ])
-            .counter()
-            .eq(0.)
             .unwrap();
+        assert_eq!(shared, &Observation::U64Counter(0));
 
         let chunks = db.catalog.chunks();
         assert_eq!(chunks.len(), 1);
@@ -3856,75 +3854,70 @@ mod tests {
         std::mem::drop(chunk_b);
         task.await.unwrap();
 
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_lock_total")
-            .with_attributes(&[
+        let mut reporter = metric::RawReporter::default();
+        test_db.metrics_registry_v2.report(&mut reporter);
+
+        let exclusive = reporter
+            .metric("catalog_lock")
+            .unwrap()
+            .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
                 ("table", "cpu"),
-                ("svr_id", "10"),
                 ("access", "exclusive"),
             ])
-            .counter()
-            .eq(1.)
             .unwrap();
+        assert_eq!(exclusive, &Observation::U64Counter(1));
 
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_lock_total")
-            .with_attributes(&[
+        let shared = reporter
+            .metric("catalog_lock")
+            .unwrap()
+            .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
                 ("table", "cpu"),
-                ("svr_id", "10"),
                 ("access", "shared"),
             ])
-            .counter()
-            .eq(1.)
             .unwrap();
+        assert_eq!(shared, &Observation::U64Counter(1));
 
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_lock_total")
-            .with_attributes(&[
+        let exclusive_chunk = reporter
+            .metric("catalog_lock")
+            .unwrap()
+            .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "chunk"),
                 ("table", "cpu"),
-                ("svr_id", "10"),
                 ("access", "exclusive"),
             ])
-            .counter()
-            .eq(2.)
             .unwrap();
+        assert_eq!(exclusive_chunk, &Observation::U64Counter(2));
 
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_lock_total")
-            .with_attributes(&[
+        let shared_chunk = reporter
+            .metric("catalog_lock")
+            .unwrap()
+            .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "chunk"),
                 ("table", "cpu"),
-                ("svr_id", "10"),
                 ("access", "shared"),
             ])
-            .counter()
-            .eq(1.)
             .unwrap();
+        assert_eq!(shared_chunk, &Observation::U64Counter(1));
 
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_lock_wait_seconds_total")
-            .with_attributes(&[
+        let shared_chunk_wait = reporter
+            .metric("catalog_lock_wait")
+            .unwrap()
+            .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "chunk"),
-                ("svr_id", "10"),
                 ("table", "cpu"),
                 ("access", "shared"),
             ])
-            .counter()
-            .gt(0.07)
             .unwrap();
+        assert!(
+            matches!(shared_chunk_wait, Observation::DurationCounter(d) if d > &Duration::from_millis(70))
+        )
     }
 
     #[tokio::test]

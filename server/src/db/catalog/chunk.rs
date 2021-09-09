@@ -242,7 +242,7 @@ pub struct ChunkMetrics {
     pub(super) memory_metrics: StorageGauge,
 
     /// Track ingested timestamps
-    pub(super) timestamp_histogram: TimestampHistogram,
+    pub(super) timestamp_histogram: Option<TimestampHistogram>,
 }
 
 impl ChunkMetrics {
@@ -497,7 +497,9 @@ impl CatalogChunk {
     /// `time_of_write` is the wall clock time of the write
     /// `timestamps` is a summary of the row timestamps contained in the write
     pub fn record_write(&mut self, time_of_write: DateTime<Utc>, timestamps: &TimestampSummary) {
-        self.metrics.timestamp_histogram.add(timestamps);
+        if let Some(timestamp_histogram) = self.metrics.timestamp_histogram.as_ref() {
+            timestamp_histogram.add(timestamps)
+        }
         self.access_recorder.record_access_now();
 
         self.time_of_first_write = self.time_of_first_write.min(time_of_write);

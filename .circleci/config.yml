@@ -152,6 +152,40 @@ jobs:
           command: cargo test --no-default-features --features=heappy end_to_end
       - cache_save
 
+  test_perf:
+    machine:
+      image: ubuntu-2004:202107-02
+    resource_class: xlarge
+    steps:
+      - run: sudo apt update
+      - run:
+          name: Install required compile tools
+          command: sudo apt install curl clang lld pkg-config libssl-dev --yes --no-install-recommends
+      - checkout
+
+      - run:
+          name: Install Rust
+          command: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
+
+      - run:
+          name: Install perf.py dependencies
+          command: python3 -m pip install -r perf/requirements.txt
+
+      - restore_cache:
+          keys:
+            - cargo-lock-{{ checksum "Cargo.lock" }}
+      - run:
+          name: Prime Rust build cache
+          command: cargo build --package influxdb_iox --features jaeger --bin influxdb_iox --package iox_data_generator --bin iox_data_generator
+      - save_cache:
+          key: cargo-lock-{{ checksum "Cargo.lock" }}
+          paths:
+            - target
+
+      - run:
+          name: Run basic perf test to ensure that perf.py works
+          command: perf/perf.py --debug --no-volumes --object-store memory battery-0
+
   test_kafka_integration:
     machine: true
     resource_class: xlarge
@@ -345,6 +379,7 @@ workflows:
       - protobuf-lint
       - test
       - test_heappy
+      - test_perf
       - test_kafka_integration
       - test_influxdb2_client
       - build

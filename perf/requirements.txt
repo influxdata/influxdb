@@ -6,4 +6,5 @@ protobuf>=3.17,<3.18
 minio
 requests
 toml
+typing_extensions
 urllib3

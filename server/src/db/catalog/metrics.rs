@@ -1,9 +1,14 @@
-use crate::db::catalog::chunk::ChunkMetrics;
-use data_types::write_summary::TimestampSummary;
-use metrics::{Counter, Gauge, GaugeValue, Histogram, KeyValue, MetricObserverBuilder};
-use parking_lot::Mutex;
 use std::sync::Arc;
-use tracker::{LockTracker, RwLock};
+use std::time::Duration;
+
+use parking_lot::Mutex;
+
+use data_types::write_summary::TimestampSummary;
+use metric::{Attributes, DurationHistogram, DurationHistogramOptions};
+use metrics::{Counter, Gauge, GaugeValue, Histogram, KeyValue};
+use tracker::{LockMetrics, RwLock};
+
+use crate::db::catalog::chunk::ChunkMetrics;
 
 const TIMESTAMP_METRICS_ENABLE_ENV: &str = "INFLUXDB_IOX_ROW_TIMESTAMP_METRICS";
 fn report_timestamp_metrics(table_name: &str) -> bool {
@@ -15,6 +20,12 @@ fn report_timestamp_metrics(table_name: &str) -> bool {
 
 #[derive(Debug)]
 pub struct CatalogMetrics {
+    /// Name of the database
+    db_name: Arc<str>,
+
+    /// Metrics registry
+    metrics_registry: Arc<metric::Registry>,
+
     /// Metrics domain
     metrics_domain: Arc<metrics::Domain>,
 
@@ -23,7 +34,11 @@ pub struct CatalogMetrics {
 }
 
 impl CatalogMetrics {
-    pub fn new(metrics_domain: metrics::Domain) -> Self {
+    pub fn new(
+        db_name: Arc<str>,
+        metrics_domain: metrics::Domain,
+        metrics_registry: Arc<metric::Registry>,
+    ) -> Self {
         let chunks_mem_usage = metrics_domain.register_gauge_metric(
             "chunks_mem_usage",
             Some("bytes"),
@@ -31,6 +46,8 @@ impl CatalogMetrics {
         );
 
         Self {
+            db_name,
+            metrics_registry,
             memory_metrics: StorageGauge::new(&chunks_mem_usage),
             metrics_domain: Arc::new(metrics_domain),
         }
@@ -42,35 +59,29 @@ impl CatalogMetrics {
     }
 
     pub(super) fn new_table_metrics(&self, table_name: &str) -> TableMetrics {
-        let table_lock_tracker = Default::default();
-        self.metrics_domain.register_observer(
-            None,
-            &[
-                KeyValue::new("lock", "table"),
-                KeyValue::new("table", table_name.to_string()),
-            ],
-            &table_lock_tracker,
-        );
+        let base_attributes = metric::Attributes::from([
+            ("db_name", self.db_name.to_string().into()),
+            ("table", table_name.to_string().into()),
+        ]);
 
-        let partition_lock_tracker = Default::default();
-        self.metrics_domain.register_observer(
-            None,
-            &[
-                KeyValue::new("lock", "partition"),
-                KeyValue::new("table", table_name.to_string()),
-            ],
-            &partition_lock_tracker,
-        );
+        let mut lock_attributes = base_attributes.clone();
+        lock_attributes.insert("lock", "table");
+        let table_lock_metrics = Arc::new(LockMetrics::new(
+            self.metrics_registry.as_ref(),
+            lock_attributes.clone(),
+        ));
 
-        let chunk_lock_tracker = Default::default();
-        self.metrics_domain.register_observer(
-            None,
-            &[
-                KeyValue::new("lock", "chunk"),
-                KeyValue::new("table", table_name.to_string()),
-            ],
-            &chunk_lock_tracker,
-        );
+        lock_attributes.insert("lock", "partition");
+        let partition_lock_metrics = Arc::new(LockMetrics::new(
+            self.metrics_registry.as_ref(),
+            lock_attributes.clone(),
+        ));
+
+        lock_attributes.insert("lock", "chunk");
+        let chunk_lock_metrics = Arc::new(LockMetrics::new(
+            self.metrics_registry.as_ref(),
+            lock_attributes,
+        ));
 
         let storage_gauge = self.metrics_domain.register_gauge_metric_with_attributes(
             "loaded",
@@ -86,23 +97,17 @@ impl CatalogMetrics {
             &[KeyValue::new("table", table_name.to_string())],
         );
 
-        let timestamp_histogram = Default::default();
-        if report_timestamp_metrics(table_name) {
-            self.metrics_domain.register_observer(
-                None,
-                &[KeyValue::new("table", table_name.to_string())],
-                &timestamp_histogram,
-            );
-        }
+        let timestamp_histogram = report_timestamp_metrics(table_name)
+            .then(|| TimestampHistogram::new(self.metrics_registry.as_ref(), base_attributes));
 
         TableMetrics {
             metrics_domain: Arc::clone(&self.metrics_domain),
             chunk_storage: StorageGauge::new(&storage_gauge),
             row_count: StorageGauge::new(&row_gauge),
             memory_metrics: self.memory_metrics.clone_empty(),
-            table_lock_tracker,
-            partition_lock_tracker,
-            chunk_lock_tracker,
+            table_lock_metrics,
+            partition_lock_metrics,
+            chunk_lock_metrics,
             timestamp_histogram,
         }
     }
@@ -122,30 +127,30 @@ pub struct TableMetrics {
     /// Catalog memory metrics
     memory_metrics: StorageGauge,
 
-    /// Lock tracker for table-level locks
-    table_lock_tracker: LockTracker,
+    /// Lock metrics for table-level locks
+    table_lock_metrics: Arc<LockMetrics>,
 
-    /// Lock tracker for partition-level locks
-    partition_lock_tracker: LockTracker,
+    /// Lock metrics for partition-level locks
+    partition_lock_metrics: Arc<LockMetrics>,
 
-    /// Lock tracker for chunk-level locks
-    chunk_lock_tracker: LockTracker,
+    /// Lock metrics for chunk-level locks
+    chunk_lock_metrics: Arc<LockMetrics>,
 
     /// Track ingested timestamps
-    timestamp_histogram: TimestampHistogram,
+    timestamp_histogram: Option<TimestampHistogram>,
 }
 
 impl TableMetrics {
     pub(super) fn new_table_lock<T>(&self, t: T) -> RwLock<T> {
-        self.table_lock_tracker.new_lock(t)
+        self.table_lock_metrics.new_lock(t)
     }
 
     pub(super) fn new_partition_lock<T>(&self, t: T) -> RwLock<T> {
-        self.partition_lock_tracker.new_lock(t)
+        self.partition_lock_metrics.new_lock(t)
     }
 
     pub(super) fn new_partition_metrics(&self) -> PartitionMetrics {
-        // Lock tracker for chunk-level locks
+        // Lock metrics for chunk-level locks
         PartitionMetrics {
             chunk_storage: self.chunk_storage.clone_empty(),
             row_count: self.row_count.clone_empty(),
@@ -165,7 +170,7 @@ impl TableMetrics {
                     "The new size of an immutable chunk",
                 )
                 .init(),
-            chunk_lock_tracker: self.chunk_lock_tracker.clone(),
+            chunk_lock_metrics: Arc::clone(&self.chunk_lock_metrics),
             timestamp_histogram: self.timestamp_histogram.clone(),
         }
     }
@@ -186,16 +191,16 @@ pub struct PartitionMetrics {
 
     immutable_chunk_size: Histogram,
 
-    /// Lock Tracker for chunk-level locks
-    chunk_lock_tracker: LockTracker,
+    /// Lock metrics for chunk-level locks
+    chunk_lock_metrics: Arc<LockMetrics>,
 
     /// Track ingested timestamps
-    timestamp_histogram: TimestampHistogram,
+    timestamp_histogram: Option<TimestampHistogram>,
 }
 
 impl PartitionMetrics {
     pub(super) fn new_chunk_lock<T>(&self, t: T) -> RwLock<T> {
-        self.chunk_lock_tracker.new_lock(t)
+        self.chunk_lock_metrics.new_lock(t)
     }
 
     pub(super) fn new_chunk_metrics(&self) -> ChunkMetrics {
@@ -335,35 +340,34 @@ impl StorageGauge {
 
 /// A Histogram-inspired metric for reporting `TimestampSummary`
 ///
-/// This is partly to workaround limitations defining custom Histogram bucketing in OTEL
-/// and also because it can be implemented more efficiently as the set of values is fixed
-///
 /// Like `TimestampSummary`, this is bucketed based on minute within the hour
 /// It will therefore wrap around on the hour
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub(super) struct TimestampHistogram {
-    inner: Arc<Mutex<TimestampSummary>>,
+    inner: metric::DurationHistogram,
 }
 
 impl TimestampHistogram {
-    pub(super) fn add(&self, summary: &TimestampSummary) {
-        self.inner.lock().merge(summary)
-    }
-}
-
-impl metrics::MetricObserver for &TimestampHistogram {
-    fn register(self, builder: MetricObserverBuilder<'_>) {
-        let inner = Arc::clone(&self.inner);
-        builder.register_histogram_bucket(
-            "row_time",
-            Some("seconds"),
+    fn new(registry: &metric::Registry, attributes: impl Into<Attributes>) -> Self {
+        let histogram: metric::Metric<DurationHistogram> = registry.register_metric_with_options(
+            "catalog_row_time",
             "The cumulative distribution of the ingested row timestamps",
-            move |result| {
-                let inner = inner.lock();
-                for (min, total) in inner.cumulative_counts() {
-                    result.observe(total, &[KeyValue::new("le", (min * 60).to_string())])
-                }
+            || {
+                DurationHistogramOptions::new(
+                    (0..60).map(|minute| Duration::from_secs(minute * 60)),
+                )
             },
-        )
+        );
+
+        Self {
+            inner: histogram.recorder(attributes),
+        }
+    }
+
+    pub(super) fn add(&self, summary: &TimestampSummary) {
+        for (minute, count) in summary.counts.iter().enumerate() {
+            self.inner
+                .record_multiple(Duration::from_secs(minute as u64 * 60), *count as u64)
+        }
     }
 }

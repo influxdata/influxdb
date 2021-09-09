@@ -2206,6 +2206,7 @@ dependencies = [
  "metric",
  "observability_deps",
  "prometheus",
+ "test_helpers",
 ]
 
 [[package]]
@@ -2317,7 +2318,7 @@ dependencies = [
  "hashbrown",
  "influxdb_line_protocol",
  "internal_types",
- "metrics",
+ "metric",
  "observability_deps",
  "parking_lot",
  "snafu",
@@ -2890,7 +2891,7 @@ dependencies = [
  "generated_types",
  "internal_types",
  "iox_object_store",
- "metrics",
+ "metric",
  "object_store",
  "observability_deps",
  "parking_lot",
@@ -5002,7 +5003,7 @@ dependencies = [
  "futures",
  "hashbrown",
  "lock_api",
- "metrics",
+ "metric",
  "observability_deps",
  "parking_lot",
  "pin-project 1.0.8",

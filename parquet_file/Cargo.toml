@@ -16,7 +16,7 @@ futures = "0.3.7"
 generated_types = { path = "../generated_types" }
 internal_types = { path = "../internal_types" }
 iox_object_store = { path = "../iox_object_store" }
-metrics = { path = "../metrics" }
+metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
 parquet = "5.0"

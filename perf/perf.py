@@ -35,13 +35,20 @@ def main():
     parser.add_argument('--object-store', help='object store type', default='s3', choices=('memory', 's3', 'file'))
     parser.add_argument('--kafka-zookeeper', help='use Kafka/ZooKeeper instead of Redpanda', action='store_true')
     parser.add_argument('--hold', help='keep all services running after tests complete', action='store_true')
-    parser.add_argument('--cleanup', help='remove Docker assets and exit (TODO terminate IOx processes)', action='store_true')
+    parser.add_argument('--cleanup', help='remove Docker assets and exit (TODO terminate IOx processes)',
+                        action='store_true')
+    parser.add_argument('--no-volumes', help='do not mount Docker volumes', action='store_true')
     parser.add_argument('batteries', help='name of directories containing test batteries, or "all"', nargs='*')
     args = parser.parse_args()
 
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-    dc = docker.from_env()
+    try:
+        dc = docker.from_env()
+    except docker.errors.DockerException as e:
+        print('failed to communicate with Docker, is Docker running?')
+        exit(1)
+
     if args.cleanup:
         docker_cleanup_resources(dc)
         return
@@ -63,6 +70,7 @@ def main():
                 exit(1)
 
     processes = {}
+    tests_pass = True
 
     try:
         if not args.skip_build:
@@ -70,12 +78,12 @@ def main():
 
         docker_create_network(dc)
         if args.kafka_zookeeper:
-            docker_run_zookeeper(dc)
-            docker_run_kafka(dc)
+            docker_run_zookeeper(dc, args.no_volumes)
+            docker_run_kafka(dc, args.no_volumes)
         else:
-            docker_run_redpanda(dc)
+            docker_run_redpanda(dc, args.no_volumes)
         if args.object_store == 's3':
-            docker_run_minio(dc)
+            docker_run_minio(dc, args.no_volumes)
         docker_run_jaeger(dc)
         processes['iox_router'] = exec_iox(1, 'iox_router', debug=args.debug, object_store=args.object_store)
         processes['iox_writer'] = exec_iox(2, 'iox_writer', debug=args.debug, object_store=args.object_store)
@@ -83,11 +91,13 @@ def main():
 
         print('-' * 40)
         for battery in batteries:
-            run_test_battery(battery, 1, 2, debug=args.debug)
+            if not run_test_battery(battery, 1, 2, debug=args.debug):
+                tests_pass = False
         print('-' * 40)
 
     except Exception as e:
         print(e)
+        tests_pass = False
 
     if args.hold:
         print('subprocesses are still running, ctrl-C to terminate and exit')
@@ -109,6 +119,9 @@ def main():
         if exit_code != 0:
             print('%s exited with %d' % (service_name, exit_code))
     docker_cleanup_resources(dc)
+
+    if not tests_pass:
+        exit(1)
 
 
 def docker_cleanup_resources(dc):
@@ -190,7 +203,7 @@ def check_port_open(addr, port):
     return port_open
 
 
-def docker_run_redpanda(dc):
+def docker_run_redpanda(dc, no_volumes):
     image = 'vectorized/redpanda:v21.7.6'
     command = ['redpanda', 'start',
                '--overprovisioned', '--smp 1', '--memory 128M', '--reserve-memory', '0M', '--node-id', '0',
@@ -198,10 +211,13 @@ def docker_run_redpanda(dc):
                '--advertise-kafka-addr', 'CLIENT://kafka:9092,EXTERNAL://localhost:9093']
     name = '%s-%s' % (ioxperf_name, 'redpanda')
     ports = {'9093/tcp': 9093}
-    volumes = {os.path.join(os.getcwd(), 'volumes/redpanda'): {
-        'bind': '/var/lib/redpanda/data',
-        'mode': 'rw',
-    }}
+    if no_volumes:
+        volumes = None
+    else:
+        volumes = {os.path.join(os.getcwd(), 'volumes/redpanda'): {
+            'bind': '/var/lib/redpanda/data',
+            'mode': 'rw',
+        }}
     docker_pull_image_if_needed(dc, image)
     container = dc.containers.run(image=image, command=command, detach=True, name=name, hostname='kafka',
                                   labels=ioxperf_labels, network=ioxperf_name, ports=ports, volumes=volumes)
@@ -219,17 +235,20 @@ def docker_run_redpanda(dc):
     return container
 
 
-def docker_run_zookeeper(dc):
+def docker_run_zookeeper(dc, no_volumes):
     image = 'docker.io/bitnami/zookeeper:3'
     name = '%s-%s' % (ioxperf_name, 'zookeeper')
     ports = {'2181/tcp': 2181}
     env = {
         'ALLOW_ANONYMOUS_LOGIN': 'yes',
     }
-    volumes = {os.path.join(os.getcwd(), 'volumes/zookeeper'): {
-        'bind': '/bitnami/zookeeper',
-        'mode': 'rw',
-    }}
+    if no_volumes:
+        volumes = None
+    else:
+        volumes = {os.path.join(os.getcwd(), 'volumes/zookeeper'): {
+            'bind': '/bitnami/zookeeper',
+            'mode': 'rw',
+        }}
     docker_pull_image_if_needed(dc, image)
     container = dc.containers.run(image=image, detach=True, environment=env, name=name, hostname='zookeeper',
                                   labels=ioxperf_labels, network=ioxperf_name, ports=ports, volumes=volumes)
@@ -247,7 +266,7 @@ def docker_run_zookeeper(dc):
     return container
 
 
-def docker_run_kafka(dc):
+def docker_run_kafka(dc, no_volumes):
     image = 'docker.io/bitnami/kafka:2'
     name = '%s-%s' % (ioxperf_name, 'kafka')
     ports = {'9093/tcp': 9093}
@@ -260,10 +279,13 @@ def docker_run_kafka(dc):
         'KAFKA_INTER_BROKER_LISTENER_NAME': 'CLIENT',
         'KAFKA_CFG_LOG_RETENTION_CHECK_INTERVAL_MS': '100',
     }
-    volumes = {os.path.join(os.getcwd(), 'volumes/kafka'): {
-        'bind': '/bitname/kafka',
-        'mode': 'rw',
-    }}
+    if no_volumes:
+        volumes = None
+    else:
+        volumes = {os.path.join(os.getcwd(), 'volumes/kafka'): {
+            'bind': '/bitname/kafka',
+            'mode': 'rw',
+        }}
     docker_pull_image_if_needed(dc, image)
     container = dc.containers.run(image=image, detach=True, environment=env, name=name, hostname='kafka',
                                   labels=ioxperf_labels, network=ioxperf_name, ports=ports, volumes=volumes)
@@ -281,15 +303,18 @@ def docker_run_kafka(dc):
     return container
 
 
-def docker_run_minio(dc):
+def docker_run_minio(dc, no_volumes):
     image = 'minio/minio:RELEASE.2021-08-05T22-01-19Z'
     command = 'server --address 0.0.0.0:9000 --console-address 0.0.0.0:9001 /data'
     name = '%s-%s' % (ioxperf_name, 'minio')
     ports = {'9000/tcp': 9000, '9001/tcp': 9001}
-    volumes = {os.path.join(os.getcwd(), 'volumes/minio'): {
-        'bind': '/data',
-        'mode': 'rw',
-    }}
+    if no_volumes:
+        volumes = None
+    else:
+        volumes = {os.path.join(os.getcwd(), 'volumes/minio'): {
+            'bind': '/data',
+            'mode': 'rw',
+        }}
     env = {
         'MINIO_ROOT_USER': 'minio',
         'MINIO_ROOT_PASSWORD': 'miniominio',
@@ -356,7 +381,7 @@ def cargo_build_iox(debug=False):
     if not debug:
         args += ['--release']
     args += ['--package', 'influxdb_iox', '--features', 'aws,jaeger', '--bin', 'influxdb_iox']
-    args += ['--package', 'iox_data_generator', '--bin', 'iox_data_generator', '--bin', 'create_database']
+    args += ['--package', 'iox_data_generator', '--bin', 'iox_data_generator']
     subprocess.run(args=args)
 
     print('building IOx finished in %.2fs' % (time.time() - t))
@@ -423,8 +448,10 @@ def exec_iox(id, service_name, debug=False, object_store='memory', print_only=Fa
                 # fall through to retry
                 pass
         try:
-            server_status_response = router.request('influxdata.iox.management.v1.ManagementService', 'GetServerStatus', None)
-            if 'server_status' in server_status_response and server_status_response['server_status']['initialized'] is True:
+            server_status_response = router.request('influxdata.iox.management.v1.ManagementService', 'GetServerStatus',
+                                                    None)
+            if 'server_status' in server_status_response and server_status_response['server_status'][
+                'initialized'] is True:
                 break
         except:
             # fall through to retry
@@ -461,7 +488,16 @@ def grpc_create_database(router_id, writer_id):
             },
             'routing_config': {'sink': {'kafka': {}}},
             'worker_cleanup_avg_sleep': '500s',
-            'writing': '127.0.0.1:9093',
+            'write_buffer_connection': {
+                'direction': 'DIRECTION_WRITE',
+                'type': 'kafka',
+                'connection': '127.0.0.1:9093',
+                'connection_config': {},
+                'creation_config': {
+                    'n_sequencers': 1,
+                    'options': {},
+                },
+            },
         },
     }
 
@@ -487,7 +523,16 @@ def grpc_create_database(router_id, writer_id):
             },
             'routing_config': {'sink': {'kafka': {}}},
             'worker_cleanup_avg_sleep': '500s',
-            'reading': '127.0.0.1:9093',
+            'write_buffer_connection': {
+                'direction': 'DIRECTION_READ',
+                'type': 'kafka',
+                'connection': '127.0.0.1:9093',
+                'connection_config': {},
+                'creation_config': {
+                    'n_sequencers': 1,
+                    'options': {},
+                },
+            },
         },
     }
 
@@ -545,6 +590,7 @@ def grpc_create_database(router_id, writer_id):
 
 def run_test_battery(battery_name, router_id, writer_id, debug=False):
     print('starting test battery "%s"' % battery_name)
+    failed = False
 
     # Write
 
@@ -580,6 +626,7 @@ def run_test_battery(battery_name, router_id, writer_id, debug=False):
             print('query missing SQL query')
             print(query)
             print()
+            failed = True
             continue
         sql = query['sql']
         name = query['name']
@@ -594,17 +641,19 @@ def run_test_battery(battery_name, router_id, writer_id, debug=False):
 
         if not response.ok:
             print(response.reason)
-            print(response.content.text)
+            print(response.content.decode('UTF-8'))
             print()
+            failed = True
             continue
 
-        got = response.content.text.strip()
+        got = response.content.decode('UTF-8').strip()
         print('time: %s' % time_delta)
         if 'expect' in query:
             expect = query['expect'].strip()
             if expect != got:
                 print('expected: %s' % expect)
                 print('got: %s' % got)
+                failed = True
             else:
                 print('OK')
 
@@ -613,11 +662,13 @@ def run_test_battery(battery_name, router_id, writer_id, debug=False):
             if not path.is_file():
                 print('file "%s" not found' % path)
                 print()
+                failed = True
                 continue
             expect = open(path).read().strip()
             if expect != got:
                 print('expected: %s' % expect)
                 print('got: %s' % got)
+                failed = True
             else:
                 print('OK')
         else:
@@ -626,6 +677,7 @@ def run_test_battery(battery_name, router_id, writer_id, debug=False):
         print()
 
     print('completed test battery "%s"' % battery_name)
+    return not failed
 
 
 if __name__ == "__main__":

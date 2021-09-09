@@ -164,6 +164,7 @@ impl Database {
             Arc::clone(&iox_object_store),
             server_id,
             Arc::clone(application.metric_registry()),
+            Arc::clone(application.metric_registry_v2()),
             true,
         )
         .await
@@ -880,6 +881,7 @@ impl DatabaseStateRulesLoaded {
             Arc::clone(&self.iox_object_store),
             shared.config.server_id,
             Arc::clone(shared.application.metric_registry()),
+            Arc::clone(shared.application.metric_registry_v2()),
             shared.config.wipe_catalog_on_error,
             shared.config.skip_replay,
         )
@@ -904,6 +906,7 @@ impl DatabaseStateRulesLoaded {
             preserved_catalog,
             catalog,
             write_buffer,
+            metrics_registry_v2: Arc::clone(shared.application.metric_registry_v2()),
         };
 
         let db = Db::new(

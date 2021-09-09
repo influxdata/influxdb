@@ -11,3 +11,4 @@ metric = { path = "../metric" }
 prometheus = "0.12"
 
 [dev-dependencies] # In alphabetical order
+test_helpers = { path = "../test_helpers" }

@@ -2448,7 +2448,7 @@ mod tests {
         let wait_nanos = 1000;
         let job = application
             .job_registry()
-            .spawn_dummy_job(vec![wait_nanos], None);
+            .spawn_dummy_job(vec![wait_nanos], Some(Arc::from("some_db")));
 
         job.join().await;
 
@@ -2462,81 +2462,37 @@ mod tests {
         server.join().await.unwrap();
 
         // ========== influxdb_iox_job_count ==========
-        let observations: Vec<_> = reporter
-            .observations()
-            .iter()
-            .filter(|observation| observation.metric_name == "influxdb_iox_job_count")
-            .collect();
-        assert_eq!(observations.len(), 1);
-
-        let gauge = observations[0];
-        assert_eq!(gauge.kind, metric::MetricKind::U64Gauge);
-
-        let observations: Vec<_> = gauge
-            .observations
-            .iter()
-            .filter(|(attributes, _)| {
-                attributes
-                    .iter()
-                    .any(|(k, v)| (k == &"status") && (v == "Success"))
-            })
-            .collect();
-        assert_eq!(observations.len(), 1);
-
-        let (attributes, observation) = &observations[0];
-        assert_eq!(
-            attributes,
-            &metric::Attributes::from(&[
+        let metric = reporter.metric("influxdb_iox_job_count").unwrap();
+        assert_eq!(metric.kind, metric::MetricKind::U64Gauge);
+        let observation = metric
+            .observation(&[
                 ("description", "Dummy Job, for testing"),
                 ("status", "Success"),
+                ("db_name", "some_db"),
             ])
-        );
+            .unwrap();
         assert_eq!(observation, &metric::Observation::U64Gauge(1));
 
-        // ========== influxdb_iox_job_completed_cpu_nanoseconds ==========
-        let observations: Vec<_> = reporter
-            .observations()
-            .iter()
-            .filter(|observation| {
-                observation.metric_name == "influxdb_iox_job_completed_cpu_nanoseconds"
-            })
-            .collect();
-        assert_eq!(observations.len(), 1);
-
-        let histogram = observations[0];
-        assert_eq!(histogram.kind, metric::MetricKind::DurationHistogram);
-        assert_eq!(histogram.observations.len(), 1);
-
-        let (attributes, _) = &histogram.observations[0];
-        assert_eq!(
-            attributes,
-            &metric::Attributes::from(&[
+        // ========== influxdb_iox_job_completed_cpu ==========
+        let metric = reporter.metric("influxdb_iox_job_completed_cpu").unwrap();
+        assert_eq!(metric.kind, metric::MetricKind::DurationHistogram);
+        metric
+            .observation(&[
                 ("description", "Dummy Job, for testing"),
                 ("status", "Success"),
+                ("db_name", "some_db"),
             ])
-        );
+            .unwrap();
 
-        // ========== influxdb_iox_job_completed_wall_nanoseconds ==========
-        let observations: Vec<_> = reporter
-            .observations()
-            .iter()
-            .filter(|observation| {
-                observation.metric_name == "influxdb_iox_job_completed_wall_nanoseconds"
-            })
-            .collect();
-        assert_eq!(observations.len(), 1);
-
-        let histogram = observations[0];
-        assert_eq!(histogram.kind, metric::MetricKind::DurationHistogram);
-        assert_eq!(histogram.observations.len(), 1);
-
-        let (attributes, _) = &histogram.observations[0];
-        assert_eq!(
-            attributes,
-            &metric::Attributes::from(&[
+        // ========== influxdb_iox_job_completed_wall ==========
+        let metric = reporter.metric("influxdb_iox_job_completed_wall").unwrap();
+        assert_eq!(metric.kind, metric::MetricKind::DurationHistogram);
+        metric
+            .observation(&[
                 ("description", "Dummy Job, for testing"),
                 ("status", "Success"),
+                ("db_name", "some_db"),
             ])
-        );
+            .unwrap();
     }
 }

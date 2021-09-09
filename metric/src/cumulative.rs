@@ -20,6 +20,12 @@ pub struct CumulativeGauge {
     state: Arc<AtomicU64>,
 }
 
+impl CumulativeGauge {
+    pub fn fetch(&self) -> u64 {
+        self.state.load(Ordering::Relaxed)
+    }
+}
+
 impl MetricObserver for CumulativeGauge {
     type Recorder = CumulativeRecorder;
 
@@ -35,7 +41,7 @@ impl MetricObserver for CumulativeGauge {
     }
 
     fn observe(&self) -> Observation {
-        Observation::U64Gauge(self.state.load(Ordering::Relaxed))
+        Observation::U64Gauge(self.fetch())
     }
 }
 

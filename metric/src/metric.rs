@@ -143,6 +143,97 @@ impl<T: Default> MakeMetricObserver for T {
     }
 }
 
+/// In most cases the recorder for a `MetricObserver` is stateless, in fact in many cases
+/// `MetricObserver::Recorder = Self`. This means applications wishing to record observations
+/// for many different sets of attributes can just use `Metric<T>` and construct reporters
+/// dynamically
+///
+/// ```
+/// use metric::{Registry, Metric, U64Gauge, Attributes};
+///
+/// let registry = Registry::new();
+/// let metric: Metric<U64Gauge> = registry.register_metric("foo", "description");
+///
+/// metric.recorder(&[("foo", "bar")]).set(21);
+/// metric.recorder(&[("fiz", "bar")]).set(34);
+///
+/// assert_eq!(metric.get_observer(&Attributes::from(&[("foo", "bar")])).unwrap().fetch(), 21);
+/// assert_eq!(metric.get_observer(&Attributes::from(&[("fiz", "bar")])).unwrap().fetch(), 34);
+/// ```
+///
+/// However, some `MetricObserver` are stateful, for example, `CumulativeGauge`. In this case
+/// dropping the recorder clears any contribution it made to the metric's total
+///
+/// ```
+/// use metric::{Registry, Metric, CumulativeGauge, Attributes};
+///
+/// let registry = Registry::new();
+/// let metric: Metric<CumulativeGauge> = registry.register_metric("foo", "description");
+///
+/// metric.recorder(&[("foo", "bar")]).set(21);
+/// metric.recorder(&[("fiz", "bar")]).set(34);
+///
+/// // Recorders dropped immediately and so they don't record anything!
+/// assert_eq!(metric.get_observer(&Attributes::from(&[("foo", "bar")])).unwrap().fetch(), 0);
+/// assert_eq!(metric.get_observer(&Attributes::from(&[("fiz", "bar")])).unwrap().fetch(), 0);
+/// ```
+///
+/// `RecorderCollection` exists to address this situation, as unlike `Metric` it retains the
+/// `MetricObserver::Recorder` and ensures they live as long as the `RecorderCollection`
+///
+/// ```
+/// use metric::{Registry, Metric, CumulativeGauge, RecorderCollection, Attributes};
+///
+/// let registry = Registry::new();
+/// let metric: Metric<CumulativeGauge> = registry.register_metric("foo", "description");
+///
+/// let mut r1 = RecorderCollection::new(metric.clone());
+/// let mut r2 = RecorderCollection::new(metric.clone());
+///
+/// r1.recorder(&[("foo", "bar")]).set(21);
+/// r1.recorder(&[("fiz", "bar")]).set(34);
+/// r2.recorder(&[("foo", "bar")]).set(12);
+///
+/// assert_eq!(metric.get_observer(&Attributes::from(&[("foo", "bar")])).unwrap().fetch(), 21 + 12);
+/// assert_eq!(metric.get_observer(&Attributes::from(&[("fiz", "bar")])).unwrap().fetch(), 34);
+///
+/// std::mem::drop(r1);
+///
+/// assert_eq!(metric.get_observer(&Attributes::from(&[("foo", "bar")])).unwrap().fetch(), 12);
+/// assert_eq!(metric.get_observer(&Attributes::from(&[("fiz", "bar")])).unwrap().fetch(), 0);
+///
+/// std::mem::drop(r2);
+///
+/// assert_eq!(metric.get_observer(&Attributes::from(&[("foo", "bar")])).unwrap().fetch(), 0);
+/// assert_eq!(metric.get_observer(&Attributes::from(&[("fiz", "bar")])).unwrap().fetch(), 0);
+/// ```
+///
+#[derive(Debug)]
+pub struct RecorderCollection<T: MetricObserver> {
+    metric: Metric<T>,
+    recorders: BTreeMap<Attributes, T::Recorder>,
+}
+
+impl<T: MetricObserver> RecorderCollection<T> {
+    /// Create a new `RecorderCollection` from the provided `Metric`
+    pub fn new(metric: Metric<T>) -> Self {
+        Self {
+            metric,
+            recorders: Default::default(),
+        }
+    }
+
+    /// Retrieves a type that can be used to report observations for a given set of attributes
+    ///
+    /// The value returned is cached on this `RecorderCollection` and lives as long as it does
+    pub fn recorder(&mut self, attributes: impl Into<Attributes>) -> &mut T::Recorder {
+        let metric = &self.metric;
+        self.recorders
+            .entry(attributes.into())
+            .or_insert_with_key(|key| metric.recorder(key.clone()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
