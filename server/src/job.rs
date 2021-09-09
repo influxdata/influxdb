@@ -5,6 +5,7 @@ use std::{
     convert::Infallible,
     ops::DerefMut,
     sync::Arc,
+    time::Duration,
 };
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
 
@@ -106,16 +107,47 @@ impl JobRegistryMetrics {
             active_gauge: metric_registry_v2
                 .register_metric("influxdb_iox_job_count", "Number of known jobs"),
             completed_accu: Default::default(),
-            cpu_time_histogram: metric_registry_v2.register_metric(
-                "influxdb_iox_job_completed_cpu_nanoseconds",
-                "CPU time of of completed jobs in nanoseconds",
+            cpu_time_histogram: metric_registry_v2.register_metric_with_options(
+                "influxdb_iox_job_completed_cpu",
+                "CPU time of of completed jobs",
+                Self::duration_histogram_options,
             ),
-            wall_time_histogram: metric_registry_v2.register_metric(
-                "influxdb_iox_job_completed_wall_nanoseconds",
-                "Wall time of of completed jobs in nanoseconds",
+            wall_time_histogram: metric_registry_v2.register_metric_with_options(
+                "influxdb_iox_job_completed_wall",
+                "Wall time of of completed jobs",
+                Self::duration_histogram_options,
             ),
             completed_but_still_tracked: Default::default(),
         }
+    }
+
+    fn duration_histogram_options() -> metric::DurationHistogramOptions {
+        metric::DurationHistogramOptions::new(vec![
+            Duration::from_millis(5),
+            Duration::from_millis(10),
+            Duration::from_millis(25),
+            Duration::from_millis(50),
+            Duration::from_millis(100),
+            Duration::from_millis(250),
+            Duration::from_millis(500),
+            Duration::from_millis(1000),
+            Duration::from_millis(2500),
+            Duration::from_millis(5000),
+            Duration::from_millis(10000),
+            Duration::from_millis(1_000),
+            Duration::from_millis(2_500),
+            Duration::from_millis(5_000),
+            Duration::from_millis(10_000),
+            Duration::from_millis(25_000),
+            Duration::from_millis(50_000),
+            Duration::from_millis(100_000),
+            Duration::from_millis(250_000),
+            Duration::from_millis(500_000),
+            Duration::from_millis(1_000_000),
+            Duration::from_millis(2_500_000),
+            Duration::from_millis(5_000_000),
+            metric::DURATION_MAX,
+        ])
     }
 
     fn update(&mut self, registry: &TaskRegistryWithHistory<Job>, pruned: Vec<TaskTracker<Job>>) {
@@ -164,7 +196,7 @@ impl JobRegistryMetrics {
         let metadata = job.metadata();
         let status = job.get_status();
 
-        metric::Attributes::from(&[
+        let mut attributes = metric::Attributes::from(&[
             ("description", metadata.description()),
             (
                 "status",
@@ -173,7 +205,15 @@ impl JobRegistryMetrics {
                     .map(|result| result.name())
                     .unwrap_or_else(|| status.name()),
             ),
-        ])
+        ]);
+        if let Some(db_name) = metadata.db_name() {
+            attributes.insert("db_name", db_name.to_string());
+        }
+        if let Some(table) = metadata.table_name() {
+            attributes.insert("table", table.to_string());
+        }
+
+        attributes
     }
 
     fn process_completed_job(&mut self, job: &TaskTracker<Job>) {
