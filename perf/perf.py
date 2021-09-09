@@ -492,10 +492,11 @@ def grpc_create_database(router_id, writer_id):
                 'direction': 'DIRECTION_WRITE',
                 'type': 'kafka',
                 'connection': '127.0.0.1:9093',
-                'n_sequencers': 1,
-                'creation_config': {},
                 'connection_config': {},
-                'auto_create_sequencers': False,
+                'creation_config': {
+                    'n_sequencers': 1,
+                    'options': {},
+                },
             },
         },
     }
@@ -526,10 +527,11 @@ def grpc_create_database(router_id, writer_id):
                 'direction': 'DIRECTION_READ',
                 'type': 'kafka',
                 'connection': '127.0.0.1:9093',
-                'n_sequencers': 1,
-                'creation_config': {},
                 'connection_config': {},
-                'auto_create_sequencers': False,
+                'creation_config': {
+                    'n_sequencers': 1,
+                    'options': {},
+                },
             },
         },
     }
