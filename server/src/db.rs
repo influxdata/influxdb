@@ -2310,20 +2310,27 @@ mod tests {
         summary.record(Utc.timestamp_nanos(650000000000));
         summary.record(Utc.timestamp_nanos(650000000010));
 
-        for (minute, count) in summary.cumulative_counts() {
-            let minute = (minute * 60).to_string();
-            test_db
-                .metric_registry
-                .has_metric_family("catalog_row_time_seconds_bucket")
-                .with_attributes(&[
-                    ("svr_id", "1"),
-                    ("db_name", "placeholder"),
-                    ("table", "write_metrics_test"),
-                    ("le", minute.as_str()),
-                ])
-                .counter()
-                .eq(count as _)
-                .unwrap();
+        let mut reporter = metric::RawReporter::default();
+        test_db.metrics_registry_v2.report(&mut reporter);
+
+        let observation = reporter
+            .metric("catalog_row_time")
+            .unwrap()
+            .observation(&[("db_name", "placeholder"), ("table", "write_metrics_test")])
+            .unwrap();
+
+        let histogram = match observation {
+            Observation::DurationHistogram(histogram) => histogram,
+            _ => unreachable!(),
+        };
+        assert_eq!(histogram.buckets.len(), 60);
+
+        for ((minute, count), observation) in
+            summary.counts.iter().enumerate().zip(&histogram.buckets)
+        {
+            let minute = Duration::from_secs((minute * 60) as u64);
+            assert_eq!(observation.le, minute);
+            assert_eq!(*count as u64, observation.count)
         }
     }
 

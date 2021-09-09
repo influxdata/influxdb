@@ -98,11 +98,16 @@ pub struct DurationHistogram {
 
 impl DurationHistogram {
     pub fn record(&self, value: Duration) {
-        self.inner.record(
+        self.record_multiple(value, 1)
+    }
+
+    pub fn record_multiple(&self, value: Duration, count: u64) {
+        self.inner.record_multiple(
             value
                 .as_nanos()
                 .try_into()
                 .expect("cannot fit duration into u64"),
+            count,
         )
     }
 }
