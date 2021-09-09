@@ -192,6 +192,9 @@ workflows:
     jobs:
       - build_and_test
       - pkg_run_test:
+          filters:
+            branches:
+              ignore: /pull\/[0-9]+/
           requires:
             - build_and_test
       - perf_test:
