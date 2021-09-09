@@ -418,6 +418,46 @@ func TestDeleteReplication(t *testing.T) {
 	require.Nil(t, got)
 }
 
+func TestDeleteReplications(t *testing.T) {
+	t.Parallel()
+
+	svc, mocks, clean := newTestService(t)
+	defer clean(t)
+
+	// Deleting when there is no bucket is OK.
+	require.NoError(t, svc.DeleteBucketReplications(ctx, replication.LocalBucketID))
+
+	// Register a handful of replications.
+	createReq2, createReq3 := createReq, createReq
+	createReq2.Name, createReq3.Name = "test2", "test3"
+	createReq2.LocalBucketID = platform.ID(77777)
+	createReq3.RemoteID = updatedReplication.RemoteID
+	mocks.bucketSvc.EXPECT().RLock().Times(3)
+	mocks.bucketSvc.EXPECT().RUnlock().Times(3)
+	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq.LocalBucketID).Return(&influxdb.Bucket{}, nil).Times(2)
+	mocks.bucketSvc.EXPECT().FindBucketByID(gomock.Any(), createReq2.LocalBucketID).Return(&influxdb.Bucket{}, nil)
+	insertRemote(t, svc.store, createReq.RemoteID)
+	insertRemote(t, svc.store, createReq3.RemoteID)
+
+	for _, req := range []influxdb.CreateReplicationRequest{createReq, createReq2, createReq3} {
+		_, err := svc.CreateReplication(ctx, req)
+		require.NoError(t, err)
+	}
+
+	listed, err := svc.ListReplications(ctx, influxdb.ReplicationListFilter{OrgID: replication.OrgID})
+	require.NoError(t, err)
+	require.Len(t, listed.Replications, 3)
+
+	// Delete 2/3 by bucket ID.
+	require.NoError(t, svc.DeleteBucketReplications(ctx, createReq.LocalBucketID))
+
+	// Ensure they were deleted.
+	listed, err = svc.ListReplications(ctx, influxdb.ReplicationListFilter{OrgID: replication.OrgID})
+	require.NoError(t, err)
+	require.Len(t, listed.Replications, 1)
+	require.Equal(t, createReq2.LocalBucketID, listed.Replications[0].LocalBucketID)
+}
+
 func TestListReplications(t *testing.T) {
 	t.Parallel()
 
@@ -538,6 +578,7 @@ func newTestService(t *testing.T) (*service, mocks, func(t *testing.T)) {
 		idGenerator:   mock.NewIncrementingIDGenerator(initID),
 		bucketService: mocks.bucketSvc,
 		validator:     mocks.validator,
+		log:           logger,
 	}
 
 	return &svc, mocks, clean
