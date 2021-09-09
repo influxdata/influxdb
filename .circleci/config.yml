@@ -768,6 +768,19 @@ jobs:
           command: ./dist/influxd_linux_amd64/influxd --store=memory --log-level=debug
           background: true
       - run: mkdir -p ~/project/results
+      - run:
+          name: Wait for influxd to bind HTTP port
+          command: |
+            attempts=0
+            max_attempts=30
+            while ! curl localhost:8086/health; do
+              attempts=$((attempts+1))
+              if [[ $attempts = $max_attempts ]]; then
+                >&2 echo influxd "didn't" start in time
+                exit 1
+              fi
+              sleep 1
+            done
       - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project/results:/grace/test-results/grace-results quay.io/influxdb/grace:daily
       - store_artifacts:
           path: ~/project/results
