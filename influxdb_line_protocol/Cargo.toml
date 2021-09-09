@@ -5,15 +5,10 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
-chrono = "0.4"
-datafusion = { path = "../datafusion" }
 nom = "6"
 smallvec = "1.2.0"
 snafu = "0.6.2"
 observability_deps = { path = "../observability_deps" }
-serde = { version = "1.0", features = ["derive"] }
-sqlparser = "0.10.0"
-thiserror = "1.0.28"
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }
