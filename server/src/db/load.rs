@@ -49,6 +49,7 @@ pub async fn load_or_create_preserved_catalog(
     iox_object_store: Arc<IoxObjectStore>,
     server_id: ServerId,
     metrics_registry: Arc<MetricRegistry>,
+    metrics_registry_v2: Arc<::metric::Registry>,
     wipe_on_error: bool,
     skip_replay: bool,
 ) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
@@ -59,6 +60,7 @@ pub async fn load_or_create_preserved_catalog(
             db_name,
             server_id,
             Arc::clone(&metrics_registry),
+            Arc::clone(&metrics_registry_v2),
             skip_replay,
         ),
     )
@@ -86,6 +88,7 @@ pub async fn load_or_create_preserved_catalog(
                 Arc::clone(&iox_object_store),
                 server_id,
                 Arc::clone(&metrics_registry),
+                metrics_registry_v2,
                 skip_replay,
             )
             .await
@@ -105,6 +108,7 @@ pub async fn load_or_create_preserved_catalog(
                     Arc::clone(&iox_object_store),
                     server_id,
                     Arc::clone(&metrics_registry),
+                    metrics_registry_v2,
                     skip_replay,
                 )
                 .await
@@ -123,6 +127,7 @@ pub async fn create_preserved_catalog(
     iox_object_store: Arc<IoxObjectStore>,
     server_id: ServerId,
     metrics_registry: Arc<MetricRegistry>,
+    metrics_registry_v2: Arc<metric::Registry>,
     skip_replay: bool,
 ) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
     let (preserved_catalog, loader) = PreservedCatalog::new_empty(
@@ -130,7 +135,8 @@ pub async fn create_preserved_catalog(
         LoaderEmptyInput::new(
             db_name,
             server_id,
-            Arc::clone(&metrics_registry),
+            metrics_registry,
+            metrics_registry_v2,
             skip_replay,
         ),
     )
@@ -150,6 +156,7 @@ pub async fn create_preserved_catalog(
 struct LoaderEmptyInput {
     domain: ::metrics::Domain,
     metrics_registry: Arc<::metrics::MetricRegistry>,
+    metrics_registry_v2: Arc<::metric::Registry>,
     metric_attributes: Vec<KeyValue>,
     skip_replay: bool,
 }
@@ -159,6 +166,7 @@ impl LoaderEmptyInput {
         db_name: &str,
         server_id: ServerId,
         metrics_registry: Arc<MetricRegistry>,
+        metrics_registry_v2: Arc<metric::Registry>,
         skip_replay: bool,
     ) -> Self {
         let metric_attributes = vec![
@@ -171,6 +179,7 @@ impl LoaderEmptyInput {
         Self {
             domain,
             metrics_registry,
+            metrics_registry_v2,
             metric_attributes,
             skip_replay,
         }
@@ -193,6 +202,7 @@ impl CatalogState for Loader {
                 Arc::from(db_name),
                 data.domain,
                 data.metrics_registry,
+                data.metrics_registry_v2,
                 data.metric_attributes,
             ),
             planner: (!data.skip_replay).then(ReplayPlanner::new),
@@ -334,12 +344,12 @@ mod tests {
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
 
-        let metrics_registry = Arc::new(metrics::MetricRegistry::new());
         load_or_create_preserved_catalog(
             &db_name,
             iox_object_store,
             server_id,
-            metrics_registry,
+            Default::default(),
+            Default::default(),
             true,
             false,
         )
@@ -357,6 +367,7 @@ mod tests {
         let empty_input = LoaderEmptyInput {
             domain: metrics_registry.register_domain("catalog"),
             metrics_registry,
+            metrics_registry_v2: Default::default(),
             metric_attributes: vec![],
             skip_replay: false,
         };

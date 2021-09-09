@@ -22,6 +22,7 @@ use write_buffer::config::WriteBufferConfig;
 pub struct TestDb {
     pub db: Arc<Db>,
     pub metric_registry: metrics::TestMetricRegistry,
+    pub metrics_registry_v2: Arc<metric::Registry>,
     pub replay_plan: ReplayPlan,
 }
 
@@ -79,13 +80,15 @@ impl TestDbBuilder {
             target_query_partitions: 4,
         }));
 
-        let metrics_registry = Arc::new(metrics::MetricRegistry::new());
+        let metric_registry = Arc::new(metrics::MetricRegistry::new());
+        let metrics_registry_v2 = Arc::new(metric::Registry::new());
 
         let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
             db_name.as_str(),
             Arc::clone(&iox_object_store),
             server_id,
-            Arc::clone(&metrics_registry),
+            Arc::clone(&metric_registry),
+            Arc::clone(&metrics_registry_v2),
             false,
             false,
         )
@@ -126,7 +129,8 @@ impl TestDbBuilder {
         };
 
         TestDb {
-            metric_registry: metrics::TestMetricRegistry::new(metrics_registry),
+            metric_registry: metrics::TestMetricRegistry::new(metric_registry),
+            metrics_registry_v2,
             db: Db::new(
                 database_to_commit,
                 Arc::new(JobRegistry::new(Default::default())),

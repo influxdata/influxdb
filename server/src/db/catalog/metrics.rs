@@ -3,7 +3,7 @@ use data_types::write_summary::TimestampSummary;
 use metrics::{Counter, Gauge, GaugeValue, Histogram, KeyValue, MetricObserverBuilder};
 use parking_lot::Mutex;
 use std::sync::Arc;
-use tracker::{LockTracker, RwLock};
+use tracker::{LockMetrics, RwLock};
 
 const TIMESTAMP_METRICS_ENABLE_ENV: &str = "INFLUXDB_IOX_ROW_TIMESTAMP_METRICS";
 fn report_timestamp_metrics(table_name: &str) -> bool {
@@ -15,6 +15,11 @@ fn report_timestamp_metrics(table_name: &str) -> bool {
 
 #[derive(Debug)]
 pub struct CatalogMetrics {
+    /// Name of the database
+    db_name: Arc<str>,
+    /// Metrics registry
+    metrics_registry: Arc<metric::Registry>,
+
     /// Metrics domain
     metrics_domain: Arc<metrics::Domain>,
 
@@ -23,7 +28,11 @@ pub struct CatalogMetrics {
 }
 
 impl CatalogMetrics {
-    pub fn new(metrics_domain: metrics::Domain) -> Self {
+    pub fn new(
+        db_name: Arc<str>,
+        metrics_domain: metrics::Domain,
+        metrics_registry: Arc<metric::Registry>,
+    ) -> Self {
         let chunks_mem_usage = metrics_domain.register_gauge_metric(
             "chunks_mem_usage",
             Some("bytes"),
@@ -31,6 +40,8 @@ impl CatalogMetrics {
         );
 
         Self {
+            db_name,
+            metrics_registry,
             memory_metrics: StorageGauge::new(&chunks_mem_usage),
             metrics_domain: Arc::new(metrics_domain),
         }
@@ -42,35 +53,26 @@ impl CatalogMetrics {
     }
 
     pub(super) fn new_table_metrics(&self, table_name: &str) -> TableMetrics {
-        let table_lock_tracker = Default::default();
-        self.metrics_domain.register_observer(
-            None,
-            &[
-                KeyValue::new("lock", "table"),
-                KeyValue::new("table", table_name.to_string()),
-            ],
-            &table_lock_tracker,
-        );
+        let mut attributes = metric::Attributes::from([
+            ("db_name", self.db_name.to_string().into()),
+            ("table", table_name.to_string().into()),
+        ]);
 
-        let partition_lock_tracker = Default::default();
-        self.metrics_domain.register_observer(
-            None,
-            &[
-                KeyValue::new("lock", "partition"),
-                KeyValue::new("table", table_name.to_string()),
-            ],
-            &partition_lock_tracker,
-        );
+        attributes.insert("lock", "table");
+        let table_lock_metrics = Arc::new(LockMetrics::new(
+            self.metrics_registry.as_ref(),
+            attributes.clone(),
+        ));
 
-        let chunk_lock_tracker = Default::default();
-        self.metrics_domain.register_observer(
-            None,
-            &[
-                KeyValue::new("lock", "chunk"),
-                KeyValue::new("table", table_name.to_string()),
-            ],
-            &chunk_lock_tracker,
-        );
+        attributes.insert("lock", "partition");
+        let partition_lock_metrics = Arc::new(LockMetrics::new(
+            self.metrics_registry.as_ref(),
+            attributes.clone(),
+        ));
+
+        attributes.insert("lock", "chunk");
+        let chunk_lock_metrics =
+            Arc::new(LockMetrics::new(self.metrics_registry.as_ref(), attributes));
 
         let storage_gauge = self.metrics_domain.register_gauge_metric_with_attributes(
             "loaded",
@@ -100,9 +102,9 @@ impl CatalogMetrics {
             chunk_storage: StorageGauge::new(&storage_gauge),
             row_count: StorageGauge::new(&row_gauge),
             memory_metrics: self.memory_metrics.clone_empty(),
-            table_lock_tracker,
-            partition_lock_tracker,
-            chunk_lock_tracker,
+            table_lock_metrics,
+            partition_lock_metrics,
+            chunk_lock_metrics,
             timestamp_histogram,
         }
     }
@@ -122,14 +124,14 @@ pub struct TableMetrics {
     /// Catalog memory metrics
     memory_metrics: StorageGauge,
 
-    /// Lock tracker for table-level locks
-    table_lock_tracker: LockTracker,
+    /// Lock metrics for table-level locks
+    table_lock_metrics: Arc<LockMetrics>,
 
-    /// Lock tracker for partition-level locks
-    partition_lock_tracker: LockTracker,
+    /// Lock metrics for partition-level locks
+    partition_lock_metrics: Arc<LockMetrics>,
 
-    /// Lock tracker for chunk-level locks
-    chunk_lock_tracker: LockTracker,
+    /// Lock metrics for chunk-level locks
+    chunk_lock_metrics: Arc<LockMetrics>,
 
     /// Track ingested timestamps
     timestamp_histogram: TimestampHistogram,
@@ -137,15 +139,15 @@ pub struct TableMetrics {
 
 impl TableMetrics {
     pub(super) fn new_table_lock<T>(&self, t: T) -> RwLock<T> {
-        self.table_lock_tracker.new_lock(t)
+        self.table_lock_metrics.new_lock(t)
     }
 
     pub(super) fn new_partition_lock<T>(&self, t: T) -> RwLock<T> {
-        self.partition_lock_tracker.new_lock(t)
+        self.partition_lock_metrics.new_lock(t)
     }
 
     pub(super) fn new_partition_metrics(&self) -> PartitionMetrics {
-        // Lock tracker for chunk-level locks
+        // Lock metrics for chunk-level locks
         PartitionMetrics {
             chunk_storage: self.chunk_storage.clone_empty(),
             row_count: self.row_count.clone_empty(),
@@ -165,7 +167,7 @@ impl TableMetrics {
                     "The new size of an immutable chunk",
                 )
                 .init(),
-            chunk_lock_tracker: self.chunk_lock_tracker.clone(),
+            chunk_lock_metrics: Arc::clone(&self.chunk_lock_metrics),
             timestamp_histogram: self.timestamp_histogram.clone(),
         }
     }
@@ -186,8 +188,8 @@ pub struct PartitionMetrics {
 
     immutable_chunk_size: Histogram,
 
-    /// Lock Tracker for chunk-level locks
-    chunk_lock_tracker: LockTracker,
+    /// Lock metrics for chunk-level locks
+    chunk_lock_metrics: Arc<LockMetrics>,
 
     /// Track ingested timestamps
     timestamp_histogram: TimestampHistogram,
@@ -195,7 +197,7 @@ pub struct PartitionMetrics {
 
 impl PartitionMetrics {
     pub(super) fn new_chunk_lock<T>(&self, t: T) -> RwLock<T> {
-        self.chunk_lock_tracker.new_lock(t)
+        self.chunk_lock_metrics.new_lock(t)
     }
 
     pub(super) fn new_chunk_metrics(&self) -> ChunkMetrics {

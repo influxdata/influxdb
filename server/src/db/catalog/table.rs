@@ -197,20 +197,18 @@ impl<'a> TableSchemaUpsertHandle<'a> {
 #[cfg(test)]
 mod tests {
     use internal_types::schema::{InfluxColumnType, InfluxFieldType};
-    use tracker::LockTracker;
 
     use super::*;
 
     #[test]
     fn test_handle_no_change() {
-        let lock_tracker = LockTracker::default();
         let table_schema_orig = SchemaBuilder::new()
             .measurement("m1")
             .influx_column("tag1", InfluxColumnType::Tag)
             .influx_column("tag2", InfluxColumnType::Tag)
             .build()
             .unwrap();
-        let table_schema = lock_tracker.new_lock(Arc::new(table_schema_orig.clone()));
+        let table_schema = RwLock::new(Arc::new(table_schema_orig.clone()));
 
         // writing with the same schema must not trigger a change
         let schema1 = SchemaBuilder::new()
@@ -262,14 +260,13 @@ mod tests {
 
     #[test]
     fn test_handle_might_change() {
-        let lock_tracker = LockTracker::default();
         let table_schema_orig = SchemaBuilder::new()
             .measurement("m1")
             .influx_column("tag1", InfluxColumnType::Tag)
             .influx_column("tag2", InfluxColumnType::Tag)
             .build()
             .unwrap();
-        let table_schema = lock_tracker.new_lock(Arc::new(table_schema_orig));
+        let table_schema = RwLock::new(Arc::new(table_schema_orig));
 
         let new_schema = SchemaBuilder::new()
             .measurement("m1")
@@ -299,14 +296,13 @@ mod tests {
 
     #[test]
     fn test_handle_error() {
-        let lock_tracker = LockTracker::default();
         let table_schema_orig = SchemaBuilder::new()
             .measurement("m1")
             .influx_column("tag1", InfluxColumnType::Tag)
             .influx_column("tag2", InfluxColumnType::Tag)
             .build()
             .unwrap();
-        let table_schema = lock_tracker.new_lock(Arc::new(table_schema_orig.clone()));
+        let table_schema = RwLock::new(Arc::new(table_schema_orig.clone()));
 
         let schema1 = SchemaBuilder::new()
             .measurement("m1")

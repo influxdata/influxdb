@@ -318,6 +318,16 @@ pub struct ObservationSet {
     pub observations: Vec<(Attributes, Observation)>,
 }
 
+impl ObservationSet {
+    /// Returns the observation for a given set of attributes if any
+    pub fn observation(&self, attributes: impl Into<Attributes>) -> Option<&Observation> {
+        let attributes = attributes.into();
+        self.observations
+            .iter()
+            .find_map(|(a, o)| if a == &attributes { Some(o) } else { None })
+    }
+}
+
 /// A `Reporter` that records the raw data submitted
 #[derive(Debug, Clone, Default)]
 pub struct RawReporter {
@@ -359,6 +369,13 @@ impl Reporter for RawReporter {
 }
 
 impl RawReporter {
+    /// Returns the observation set for a given metric name if any
+    pub fn metric(&self, metric_name: &str) -> Option<&ObservationSet> {
+        self.observations()
+            .iter()
+            .find(|observation| observation.metric_name == metric_name)
+    }
+
     /// Returns a list of `ObservationSet` for each reported metric
     pub fn observations(&self) -> &Vec<ObservationSet> {
         assert!(self.in_progress.is_none(), "metric observation in progress");
@@ -420,19 +437,34 @@ impl Attributes {
     pub fn iter(&self) -> std::collections::btree_map::Iter<'_, &'static str, Cow<'static, str>> {
         self.0.iter()
     }
+
+    /// Sets the given key, overriding it if already set
+    pub fn insert(&mut self, key: &'static str, value: impl Into<Cow<'static, str>>) {
+        self.0.insert(key, value.into());
+    }
 }
 
-impl<'a, I> From<I> for Attributes
-where
-    I: IntoIterator<Item = &'a (&'static str, &'static str)>,
-{
-    fn from(iterator: I) -> Self {
+impl<'a, const N: usize> From<&'a [(&'static str, &'static str); N]> for Attributes {
+    fn from(iterator: &'a [(&'static str, &'static str); N]) -> Self {
         Self(
             iterator
-                .into_iter()
+                .iter()
                 .map(|(key, value)| {
                     assert_legal_key(key);
                     (*key, Cow::Borrowed(*value))
+                })
+                .collect(),
+        )
+    }
+}
+
+impl<const N: usize> From<[(&'static str, Cow<'static, str>); N]> for Attributes {
+    fn from(iterator: [(&'static str, Cow<'static, str>); N]) -> Self {
+        Self(
+            IntoIterator::into_iter(iterator)
+                .map(|(key, value)| {
+                    assert_legal_key(key);
+                    (key, value)
                 })
                 .collect(),
         )

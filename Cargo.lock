@@ -5002,7 +5002,7 @@ dependencies = [
  "futures",
  "hashbrown",
  "lock_api",
- "metrics",
+ "metric",
  "observability_deps",
  "parking_lot",
  "pin-project 1.0.8",

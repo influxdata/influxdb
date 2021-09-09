@@ -1,9 +1,8 @@
-use metrics::{KeyValue, MetricObserver, MetricObserverBuilder};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
 
-type RawRwLock = InstrumentRawRwLock<parking_lot::RawRwLock>;
+use metric::{Attributes, DurationCounter, Metric, U64Counter};
+
+type RawRwLock = InstrumentedRawRwLock<parking_lot::RawRwLock>;
 
 /// An instrumented Read-Write Lock
 pub type RwLock<T> = lock_api::RwLock<RawRwLock, T>;
@@ -13,126 +12,89 @@ pub type MappedRwLockReadGuard<'a, T> = lock_api::MappedRwLockReadGuard<'a, RawR
 pub type MappedRwLockWriteGuard<'a, T> = lock_api::MappedRwLockWriteGuard<'a, RawRwLock, T>;
 pub type RwLockUpgradableReadGuard<'a, T> = lock_api::RwLockUpgradableReadGuard<'a, RawRwLock, T>;
 
-/// A Lock tracker can be used to create instrumented read-write locks
-/// that will record contention metrics
-#[derive(Default, Debug, Clone)]
-pub struct LockTracker {
-    inner: Arc<LockTrackerShared>,
+#[derive(Debug)]
+pub struct LockMetrics {
+    exclusive_count: U64Counter,
+    shared_count: U64Counter,
+    upgradeable_count: U64Counter,
+    upgrade_count: U64Counter,
+    exclusive_wait: DurationCounter,
+    shared_wait: DurationCounter,
+    upgradeable_wait: DurationCounter,
+    upgrade_wait: DurationCounter,
 }
 
-impl LockTracker {
-    pub fn new_lock<T>(&self, t: T) -> RwLock<T> {
-        use lock_api::RawRwLock;
-        RwLock::const_new(
-            InstrumentRawRwLock {
-                inner: parking_lot::RawRwLock::INIT,
-                shared: Some(Arc::clone(&self.inner)),
+impl LockMetrics {
+    pub fn new(registry: &metric::Registry, attributes: impl Into<Attributes>) -> Self {
+        let mut attributes = attributes.into();
+
+        let count: Metric<U64Counter> = registry.register_metric(
+            "catalog_lock",
+            "number of times the tracked locks have been obtained",
+        );
+
+        let wait: Metric<DurationCounter> = registry.register_metric(
+            "catalog_lock_wait",
+            "time spent waiting to acquire any of the tracked locks",
+        );
+
+        attributes.insert("access", "exclusive");
+        let exclusive_count = count.recorder(attributes.clone());
+        let exclusive_wait = wait.recorder(attributes.clone());
+
+        attributes.insert("access", "shared");
+        let shared_count = count.recorder(attributes.clone());
+        let shared_wait = wait.recorder(attributes.clone());
+
+        attributes.insert("access", "upgradeable");
+        let upgradeable_count = count.recorder(attributes.clone());
+        let upgradeable_wait = wait.recorder(attributes.clone());
+
+        attributes.insert("access", "upgrade");
+        let upgrade_count = count.recorder(attributes.clone());
+        let upgrade_wait = wait.recorder(attributes);
+
+        Self {
+            exclusive_count,
+            shared_count,
+            upgradeable_count,
+            upgrade_count,
+            exclusive_wait,
+            shared_wait,
+            upgradeable_wait,
+            upgrade_wait,
+        }
+    }
+
+    pub fn new_unregistered() -> Self {
+        Self {
+            exclusive_count: Default::default(),
+            shared_count: Default::default(),
+            upgradeable_count: Default::default(),
+            upgrade_count: Default::default(),
+            exclusive_wait: Default::default(),
+            shared_wait: Default::default(),
+            upgradeable_wait: Default::default(),
+            upgrade_wait: Default::default(),
+        }
+    }
+
+    pub fn new_lock<T: Sized>(self: &Arc<Self>, t: T) -> RwLock<T> {
+        self.new_lock_raw(t)
+    }
+
+    pub fn new_lock_raw<R: lock_api::RawRwLock, T: Sized>(
+        self: &Arc<Self>,
+        t: T,
+    ) -> lock_api::RwLock<InstrumentedRawRwLock<R>, T> {
+        lock_api::RwLock::const_new(
+            InstrumentedRawRwLock {
+                inner: R::INIT,
+                metrics: Some(Arc::clone(self)),
             },
             t,
         )
     }
-
-    pub fn exclusive_count(&self) -> u64 {
-        self.inner.exclusive_count.load(Ordering::Relaxed)
-    }
-
-    pub fn shared_count(&self) -> u64 {
-        self.inner.shared_count.load(Ordering::Relaxed)
-    }
-
-    pub fn upgradeable_count(&self) -> u64 {
-        self.inner.upgradeable_count.load(Ordering::Relaxed)
-    }
-
-    pub fn upgrade_count(&self) -> u64 {
-        self.inner.upgrade_count.load(Ordering::Relaxed)
-    }
-
-    pub fn exclusive_wait_nanos(&self) -> u64 {
-        self.inner.exclusive_wait_nanos.load(Ordering::Relaxed)
-    }
-
-    pub fn shared_wait_nanos(&self) -> u64 {
-        self.inner.shared_wait_nanos.load(Ordering::Relaxed)
-    }
-
-    pub fn upgradeable_wait_nanos(&self) -> u64 {
-        self.inner.upgradeable_wait_nanos.load(Ordering::Relaxed)
-    }
-
-    pub fn upgrade_wait_nanos(&self) -> u64 {
-        self.inner.upgrade_wait_nanos.load(Ordering::Relaxed)
-    }
-}
-
-impl MetricObserver for &LockTracker {
-    fn register(self, builder: MetricObserverBuilder<'_>) {
-        let inner = Arc::clone(&self.inner);
-        builder.register_counter_u64(
-            "lock",
-            None,
-            "number of times the tracked locks have been obtained",
-            move |observer| {
-                observer.observe(
-                    inner.exclusive_count.load(Ordering::Relaxed),
-                    &[KeyValue::new("access", "exclusive")],
-                );
-                observer.observe(
-                    inner.shared_count.load(Ordering::Relaxed),
-                    &[KeyValue::new("access", "shared")],
-                );
-                observer.observe(
-                    inner.upgradeable_count.load(Ordering::Relaxed),
-                    &[KeyValue::new("access", "upgradeable")],
-                );
-                observer.observe(
-                    inner.upgrade_count.load(Ordering::Relaxed),
-                    &[KeyValue::new("access", "upgrade")],
-                )
-            },
-        );
-
-        let inner = Arc::clone(&self.inner);
-        builder.register_counter_f64(
-            "lock_wait",
-            Some("seconds"),
-            "time spent waiting to acquire any of the tracked locks",
-            move |observer| {
-                observer.observe(
-                    Duration::from_nanos(inner.exclusive_wait_nanos.load(Ordering::Relaxed))
-                        .as_secs_f64(),
-                    &[KeyValue::new("access", "exclusive")],
-                );
-                observer.observe(
-                    Duration::from_nanos(inner.shared_wait_nanos.load(Ordering::Relaxed))
-                        .as_secs_f64(),
-                    &[KeyValue::new("access", "shared")],
-                );
-                observer.observe(
-                    Duration::from_nanos(inner.upgradeable_wait_nanos.load(Ordering::Relaxed))
-                        .as_secs_f64(),
-                    &[KeyValue::new("access", "upgradeable")],
-                );
-                observer.observe(
-                    Duration::from_nanos(inner.upgrade_wait_nanos.load(Ordering::Relaxed))
-                        .as_secs_f64(),
-                    &[KeyValue::new("access", "upgrade")],
-                );
-            },
-        );
-    }
-}
-
-#[derive(Debug, Default)]
-struct LockTrackerShared {
-    exclusive_count: AtomicU64,
-    shared_count: AtomicU64,
-    upgradeable_count: AtomicU64,
-    upgrade_count: AtomicU64,
-    exclusive_wait_nanos: AtomicU64,
-    shared_wait_nanos: AtomicU64,
-    upgradeable_wait_nanos: AtomicU64,
-    upgrade_wait_nanos: AtomicU64,
 }
 
 /// The RAII-goop for locks is provided by lock_api with individual crates
@@ -140,7 +102,7 @@ struct LockTrackerShared {
 ///
 /// This is a raw lock implementation that wraps another and instruments it
 #[derive(Debug)]
-pub struct InstrumentRawRwLock<R: Sized> {
+pub struct InstrumentedRawRwLock<R: Sized> {
     inner: R,
 
     /// Stores the tracking data if any
@@ -153,7 +115,7 @@ pub struct InstrumentRawRwLock<R: Sized> {
     /// This field is therefore optional. There is no way to access
     /// this field from a RwLock anyway, so ultimately it makes no difference
     /// that tracking is effectively disabled for default constructed locks
-    shared: Option<Arc<LockTrackerShared>>,
+    metrics: Option<Arc<LockMetrics>>,
 }
 
 /// # Safety
@@ -164,16 +126,16 @@ pub struct InstrumentRawRwLock<R: Sized> {
 /// exists.
 ///
 /// This is done by delegating to the wrapped RawRwLock implementation
-unsafe impl<R: lock_api::RawRwLock + Sized> lock_api::RawRwLock for InstrumentRawRwLock<R> {
+unsafe impl<R: lock_api::RawRwLock + Sized> lock_api::RawRwLock for InstrumentedRawRwLock<R> {
     const INIT: Self = Self {
         inner: R::INIT,
-        shared: None,
+        metrics: None,
     };
     type GuardMarker = R::GuardMarker;
 
     /// Acquires a shared lock, blocking the current thread until it is able to do so.
     fn lock_shared(&self) {
-        match &self.shared {
+        match &self.metrics {
             Some(shared) => {
                 // Early return if possible - Instant::now is not necessarily cheap
                 if self.try_lock_shared() {
@@ -182,11 +144,9 @@ unsafe impl<R: lock_api::RawRwLock + Sized> lock_api::RawRwLock for InstrumentRa
 
                 let now = std::time::Instant::now();
                 self.inner.lock_shared();
-                let elapsed = now.elapsed().as_nanos() as u64;
-                shared.shared_count.fetch_add(1, Ordering::Relaxed);
-                shared
-                    .shared_wait_nanos
-                    .fetch_add(elapsed, Ordering::Relaxed);
+                let elapsed = now.elapsed();
+                shared.shared_count.inc(1);
+                shared.shared_wait.inc(elapsed);
             }
             None => self.inner.lock_shared(),
         }
@@ -195,9 +155,9 @@ unsafe impl<R: lock_api::RawRwLock + Sized> lock_api::RawRwLock for InstrumentRa
     /// Attempts to acquire a shared lock without blocking.
     fn try_lock_shared(&self) -> bool {
         let ret = self.inner.try_lock_shared();
-        if let Some(shared) = &self.shared {
+        if let Some(shared) = &self.metrics {
             if ret {
-                shared.shared_count.fetch_add(1, Ordering::Relaxed);
+                shared.shared_count.inc(1);
             }
         }
         ret
@@ -215,7 +175,7 @@ unsafe impl<R: lock_api::RawRwLock + Sized> lock_api::RawRwLock for InstrumentRa
 
     /// Acquires an exclusive lock, blocking the current thread until it is able to do so.
     fn lock_exclusive(&self) {
-        match &self.shared {
+        match &self.metrics {
             Some(shared) => {
                 // Early return if possible - Instant::now is not necessarily cheap
                 if self.try_lock_exclusive() {
@@ -224,11 +184,9 @@ unsafe impl<R: lock_api::RawRwLock + Sized> lock_api::RawRwLock for InstrumentRa
 
                 let now = std::time::Instant::now();
                 self.inner.lock_exclusive();
-                let elapsed = now.elapsed().as_nanos() as u64;
-                shared.exclusive_count.fetch_add(1, Ordering::Relaxed);
-                shared
-                    .exclusive_wait_nanos
-                    .fetch_add(elapsed, Ordering::Relaxed);
+                let elapsed = now.elapsed();
+                shared.exclusive_count.inc(1);
+                shared.exclusive_wait.inc(elapsed);
             }
             None => self.inner.lock_exclusive(),
         }
@@ -237,9 +195,9 @@ unsafe impl<R: lock_api::RawRwLock + Sized> lock_api::RawRwLock for InstrumentRa
     /// Attempts to acquire an exclusive lock without blocking.
     fn try_lock_exclusive(&self) -> bool {
         let ret = self.inner.try_lock_exclusive();
-        if let Some(shared) = &self.shared {
+        if let Some(shared) = &self.metrics {
             if ret {
-                shared.exclusive_count.fetch_add(1, Ordering::Relaxed);
+                shared.exclusive_count.inc(1);
             }
         }
         ret
@@ -271,10 +229,10 @@ unsafe impl<R: lock_api::RawRwLock + Sized> lock_api::RawRwLock for InstrumentRa
 ///
 /// This is done by delegating to the wrapped RawRwLock implementation
 unsafe impl<R: lock_api::RawRwLockUpgrade + Sized> lock_api::RawRwLockUpgrade
-    for InstrumentRawRwLock<R>
+    for InstrumentedRawRwLock<R>
 {
     fn lock_upgradable(&self) {
-        match &self.shared {
+        match &self.metrics {
             Some(shared) => {
                 // Early return if possible - Instant::now is not necessarily cheap
                 if self.try_lock_upgradable() {
@@ -283,11 +241,9 @@ unsafe impl<R: lock_api::RawRwLockUpgrade + Sized> lock_api::RawRwLockUpgrade
 
                 let now = std::time::Instant::now();
                 self.inner.lock_upgradable();
-                let elapsed = now.elapsed().as_nanos() as u64;
-                shared.upgradeable_count.fetch_add(1, Ordering::Relaxed);
-                shared
-                    .upgradeable_wait_nanos
-                    .fetch_add(elapsed, Ordering::Relaxed);
+                let elapsed = now.elapsed();
+                shared.upgradeable_count.inc(1);
+                shared.upgradeable_wait.inc(elapsed);
             }
             None => self.inner.lock_upgradable(),
         }
@@ -295,9 +251,9 @@ unsafe impl<R: lock_api::RawRwLockUpgrade + Sized> lock_api::RawRwLockUpgrade
 
     fn try_lock_upgradable(&self) -> bool {
         let ret = self.inner.try_lock_upgradable();
-        if let Some(shared) = &self.shared {
+        if let Some(shared) = &self.metrics {
             if ret {
-                shared.upgradeable_count.fetch_add(1, Ordering::Relaxed);
+                shared.upgradeable_count.inc(1);
             }
         }
         ret
@@ -308,7 +264,7 @@ unsafe impl<R: lock_api::RawRwLockUpgrade + Sized> lock_api::RawRwLockUpgrade
     }
 
     unsafe fn upgrade(&self) {
-        match &self.shared {
+        match &self.metrics {
             Some(shared) => {
                 // Early return if possible - Instant::now is not necessarily cheap
                 if self.try_upgrade() {
@@ -317,11 +273,9 @@ unsafe impl<R: lock_api::RawRwLockUpgrade + Sized> lock_api::RawRwLockUpgrade
 
                 let now = std::time::Instant::now();
                 self.inner.upgrade();
-                let elapsed = now.elapsed().as_nanos() as u64;
-                shared.upgrade_count.fetch_add(1, Ordering::Relaxed);
-                shared
-                    .upgrade_wait_nanos
-                    .fetch_add(elapsed, Ordering::Relaxed);
+                let elapsed = now.elapsed();
+                shared.upgrade_count.inc(1);
+                shared.upgrade_wait.inc(elapsed);
             }
             None => self.inner.upgrade(),
         }
@@ -329,9 +283,9 @@ unsafe impl<R: lock_api::RawRwLockUpgrade + Sized> lock_api::RawRwLockUpgrade
 
     unsafe fn try_upgrade(&self) -> bool {
         let ret = self.inner.try_upgrade();
-        if let Some(shared) = &self.shared {
+        if let Some(shared) = &self.metrics {
             if ret {
-                shared.upgrade_count.fetch_add(1, Ordering::Relaxed);
+                shared.upgrade_count.inc(1);
             }
         }
         ret
@@ -340,26 +294,27 @@ unsafe impl<R: lock_api::RawRwLockUpgrade + Sized> lock_api::RawRwLockUpgrade
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::time::Duration;
+
+    use super::*;
 
     #[test]
     fn test_counts() {
-        let tracker = LockTracker::default();
-
-        let lock = tracker.new_lock(32);
+        let metrics = Arc::new(LockMetrics::new_unregistered());
+        let lock = metrics.new_lock(32);
         let _ = lock.read();
         let _ = lock.write();
         let _ = lock.read();
 
-        assert_eq!(tracker.exclusive_count(), 1);
-        assert_eq!(tracker.shared_count(), 2);
+        assert_eq!(metrics.exclusive_count.fetch(), 1);
+        assert_eq!(metrics.shared_count.fetch(), 2);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_shared_wait_time() {
-        let tracker = LockTracker::default();
-        let l1 = Arc::new(tracker.new_lock(32));
+        let metrics = Arc::new(LockMetrics::new_unregistered());
+
+        let l1 = Arc::new(metrics.new_lock(32));
         let l2 = Arc::clone(&l1);
 
         let write = l1.write();
@@ -372,17 +327,17 @@ mod tests {
 
         join.await.unwrap();
 
-        assert_eq!(tracker.exclusive_count(), 1);
-        assert_eq!(tracker.shared_count(), 1);
-        assert!(tracker.exclusive_wait_nanos() < 100_000);
-        assert!(tracker.shared_wait_nanos() > Duration::from_millis(80).as_nanos() as u64);
-        assert!(tracker.shared_wait_nanos() < Duration::from_millis(200).as_nanos() as u64);
+        assert_eq!(metrics.exclusive_count.fetch(), 1);
+        assert_eq!(metrics.shared_count.fetch(), 1);
+        assert!(metrics.exclusive_wait.fetch() < Duration::from_micros(100));
+        assert!(metrics.shared_wait.fetch() > Duration::from_millis(80));
+        assert!(metrics.shared_wait.fetch() < Duration::from_millis(200));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_exclusive_wait_time() {
-        let tracker = LockTracker::default();
-        let l1 = Arc::new(tracker.new_lock(32));
+        let metrics = Arc::new(LockMetrics::new_unregistered());
+        let l1 = Arc::new(metrics.new_lock(32));
         let l2 = Arc::clone(&l1);
 
         let read = l1.read();
@@ -395,19 +350,19 @@ mod tests {
 
         join.await.unwrap();
 
-        assert_eq!(tracker.exclusive_count(), 1);
-        assert_eq!(tracker.shared_count(), 1);
-        assert!(tracker.shared_wait_nanos() < 100_000);
-        assert!(tracker.exclusive_wait_nanos() > Duration::from_millis(80).as_nanos() as u64);
-        assert!(tracker.exclusive_wait_nanos() < Duration::from_millis(200).as_nanos() as u64);
+        assert_eq!(metrics.exclusive_count.fetch(), 1);
+        assert_eq!(metrics.shared_count.fetch(), 1);
+        assert!(metrics.shared_wait.fetch() < Duration::from_micros(100));
+        assert!(metrics.exclusive_wait.fetch() > Duration::from_millis(80));
+        assert!(metrics.exclusive_wait.fetch() < Duration::from_millis(200));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_multiple() {
-        let tracker = LockTracker::default();
-        let l1 = Arc::new(tracker.new_lock(32));
+        let metrics = Arc::new(LockMetrics::new_unregistered());
+        let l1 = Arc::new(metrics.new_lock(32));
         let l1_captured = Arc::clone(&l1);
-        let l2 = Arc::new(tracker.new_lock(12));
+        let l2 = Arc::new(metrics.new_lock(12));
         let l2_captured = Arc::clone(&l2);
 
         let r1 = l1.read();
@@ -423,17 +378,17 @@ mod tests {
 
         join.await.unwrap();
 
-        assert_eq!(tracker.exclusive_count(), 2);
-        assert_eq!(tracker.shared_count(), 2);
-        assert!(tracker.shared_wait_nanos() < 100_000);
-        assert!(tracker.exclusive_wait_nanos() > Duration::from_millis(80).as_nanos() as u64);
-        assert!(tracker.exclusive_wait_nanos() < Duration::from_millis(200).as_nanos() as u64);
+        assert_eq!(metrics.exclusive_count.fetch(), 2);
+        assert_eq!(metrics.shared_count.fetch(), 2);
+        assert!(metrics.shared_wait.fetch() < Duration::from_micros(100));
+        assert!(metrics.exclusive_wait.fetch() > Duration::from_millis(80));
+        assert!(metrics.exclusive_wait.fetch() < Duration::from_millis(200));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_upgradeable() {
-        let tracker = LockTracker::default();
-        let l1 = Arc::new(tracker.new_lock(32));
+        let metrics = Arc::new(LockMetrics::new_unregistered());
+        let l1 = Arc::new(metrics.new_lock(32));
         let l1_captured = Arc::clone(&l1);
 
         let r1 = l1.upgradable_read();
@@ -446,22 +401,22 @@ mod tests {
 
         join.await.unwrap();
 
-        assert_eq!(tracker.exclusive_count(), 1);
-        assert_eq!(tracker.shared_count(), 0);
-        assert_eq!(tracker.upgradeable_count(), 1);
-        assert_eq!(tracker.upgrade_count(), 0);
+        assert_eq!(metrics.exclusive_count.fetch(), 1);
+        assert_eq!(metrics.shared_count.fetch(), 0);
+        assert_eq!(metrics.upgradeable_count.fetch(), 1);
+        assert_eq!(metrics.upgrade_count.fetch(), 0);
 
-        assert_eq!(tracker.upgrade_wait_nanos(), 0);
-        assert_eq!(tracker.shared_wait_nanos(), 0);
-        assert!(tracker.upgradeable_wait_nanos() < 100_000);
-        assert!(tracker.exclusive_wait_nanos() > Duration::from_millis(80).as_nanos() as u64);
-        assert!(tracker.exclusive_wait_nanos() < Duration::from_millis(200).as_nanos() as u64);
+        assert_eq!(metrics.upgrade_wait.fetch(), Duration::from_nanos(0));
+        assert_eq!(metrics.shared_wait.fetch(), Duration::from_nanos(0));
+        assert!(metrics.upgradeable_wait.fetch() < Duration::from_micros(100));
+        assert!(metrics.exclusive_wait.fetch() > Duration::from_millis(80));
+        assert!(metrics.exclusive_wait.fetch() < Duration::from_millis(200));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_upgrade() {
-        let tracker = LockTracker::default();
-        let l1 = Arc::new(tracker.new_lock(32));
+        let metrics = Arc::new(LockMetrics::new_unregistered());
+        let l1 = Arc::new(metrics.new_lock(32));
         let l1_captured = Arc::clone(&l1);
 
         let r1 = l1.read();
@@ -475,15 +430,15 @@ mod tests {
 
         join.await.unwrap();
 
-        assert_eq!(tracker.exclusive_count(), 0);
-        assert_eq!(tracker.shared_count(), 1);
-        assert_eq!(tracker.upgradeable_count(), 1);
-        assert_eq!(tracker.upgrade_count(), 1);
+        assert_eq!(metrics.exclusive_count.fetch(), 0);
+        assert_eq!(metrics.shared_count.fetch(), 1);
+        assert_eq!(metrics.upgradeable_count.fetch(), 1);
+        assert_eq!(metrics.upgrade_count.fetch(), 1);
 
-        assert_eq!(tracker.exclusive_wait_nanos(), 0);
-        assert!(tracker.shared_wait_nanos() < 100_000);
-        assert!(tracker.upgradeable_wait_nanos() < 100_000);
-        assert!(tracker.upgrade_wait_nanos() > Duration::from_millis(80).as_nanos() as u64);
-        assert!(tracker.upgrade_wait_nanos() < Duration::from_millis(200).as_nanos() as u64);
+        assert_eq!(metrics.exclusive_wait.fetch(), Duration::from_nanos(0));
+        assert!(metrics.shared_wait.fetch() < Duration::from_micros(100));
+        assert!(metrics.upgradeable_wait.fetch() < Duration::from_micros(100));
+        assert!(metrics.upgrade_wait.fetch() > Duration::from_millis(80));
+        assert!(metrics.upgrade_wait.fetch() < Duration::from_millis(200));
     }
 }

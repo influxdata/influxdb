@@ -1583,6 +1583,7 @@ mod tests {
     use futures::{stream, StreamExt, TryStreamExt};
     use internal_types::{schema::Schema, selection::Selection};
     use iox_object_store::ParquetFilePath;
+    use metric::Observation;
     use object_store::ObjectStore;
     use parquet_file::{
         catalog::test_helpers::TestCatalogState,
@@ -3804,33 +3805,32 @@ mod tests {
 
         write_lp(db.as_ref(), "cpu bar=1 10").await;
 
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_lock_total")
-            .with_attributes(&[
+        let mut reporter = metric::RawReporter::default();
+        test_db.metrics_registry_v2.report(&mut reporter);
+
+        let exclusive = reporter
+            .metric("catalog_lock")
+            .unwrap()
+            .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
                 ("table", "cpu"),
-                ("svr_id", "10"),
                 ("access", "exclusive"),
             ])
-            .counter()
-            .eq(1.)
             .unwrap();
+        assert_eq!(exclusive, &Observation::U64Counter(1));
 
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_lock_total")
-            .with_attributes(&[
+        let shared = reporter
+            .metric("catalog_lock")
+            .unwrap()
+            .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
                 ("table", "cpu"),
-                ("svr_id", "10"),
                 ("access", "shared"),
             ])
-            .counter()
-            .eq(0.)
             .unwrap();
+        assert_eq!(shared, &Observation::U64Counter(0));
 
         let chunks = db.catalog.chunks();
         assert_eq!(chunks.len(), 1);
@@ -3856,75 +3856,70 @@ mod tests {
         std::mem::drop(chunk_b);
         task.await.unwrap();
 
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_lock_total")
-            .with_attributes(&[
+        let mut reporter = metric::RawReporter::default();
+        test_db.metrics_registry_v2.report(&mut reporter);
+
+        let exclusive = reporter
+            .metric("catalog_lock")
+            .unwrap()
+            .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
                 ("table", "cpu"),
-                ("svr_id", "10"),
                 ("access", "exclusive"),
             ])
-            .counter()
-            .eq(1.)
             .unwrap();
+        assert_eq!(exclusive, &Observation::U64Counter(1));
 
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_lock_total")
-            .with_attributes(&[
+        let shared = reporter
+            .metric("catalog_lock")
+            .unwrap()
+            .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "partition"),
                 ("table", "cpu"),
-                ("svr_id", "10"),
                 ("access", "shared"),
             ])
-            .counter()
-            .eq(1.)
             .unwrap();
+        assert_eq!(shared, &Observation::U64Counter(1));
 
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_lock_total")
-            .with_attributes(&[
+        let exclusive_chunk = reporter
+            .metric("catalog_lock")
+            .unwrap()
+            .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "chunk"),
                 ("table", "cpu"),
-                ("svr_id", "10"),
                 ("access", "exclusive"),
             ])
-            .counter()
-            .eq(2.)
             .unwrap();
+        assert_eq!(exclusive_chunk, &Observation::U64Counter(2));
 
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_lock_total")
-            .with_attributes(&[
+        let shared_chunk = reporter
+            .metric("catalog_lock")
+            .unwrap()
+            .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "chunk"),
                 ("table", "cpu"),
-                ("svr_id", "10"),
                 ("access", "shared"),
             ])
-            .counter()
-            .eq(1.)
             .unwrap();
+        assert_eq!(shared_chunk, &Observation::U64Counter(1));
 
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_lock_wait_seconds_total")
-            .with_attributes(&[
+        let shared_chunk_wait = reporter
+            .metric("catalog_lock_wait")
+            .unwrap()
+            .observation(&[
                 ("db_name", "lock_tracker"),
                 ("lock", "chunk"),
-                ("svr_id", "10"),
                 ("table", "cpu"),
                 ("access", "shared"),
             ])
-            .counter()
-            .gt(0.07)
             .unwrap();
+        assert!(
+            matches!(shared_chunk_wait, Observation::DurationCounter(d) if d > &Duration::from_millis(70))
+        )
     }
 
     #[tokio::test]

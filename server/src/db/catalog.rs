@@ -103,6 +103,7 @@ impl Catalog {
             Arc::from("test"),
             registry.register_domain("catalog"),
             registry,
+            Default::default(),
             vec![],
         )
     }
@@ -111,9 +112,11 @@ impl Catalog {
         db_name: Arc<str>,
         metrics_domain: ::metrics::Domain,
         metrics_registry: Arc<::metrics::MetricRegistry>,
+        metrics_registry_v2: Arc<::metric::Registry>,
         metric_attributes: Vec<::metrics::KeyValue>,
     ) -> Self {
-        let metrics = CatalogMetrics::new(metrics_domain);
+        let metrics =
+            CatalogMetrics::new(Arc::clone(&db_name), metrics_domain, metrics_registry_v2);
 
         Self {
             db_name,

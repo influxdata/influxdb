@@ -350,7 +350,7 @@ mod tests {
         };
         let domain = MetricRegistry::default().register_domain("test");
 
-        let metrics = CatalogMetrics::new(domain)
+        let metrics = CatalogMetrics::new(Arc::clone(&addr.db_name), domain, Default::default())
             .new_table_metrics("t")
             .new_partition_metrics();
 
