@@ -128,21 +128,7 @@ pub struct TagSetsSpec {
     /// An array of the values to loop through. To reference parent belongs_to or has_one
     /// values, the parent should come first and then the has_one or child next. See the
     /// doc for `ForEachValueTag` and its `value` for more detail.
-    pub for_each: Vec<ForEachValueTag>,
-}
-
-/// The value collection to iterate through and the key for the tags that are generated.
-#[derive(Deserialize, Debug)]
-#[cfg_attr(test, derive(Default))]
-#[serde(deny_unknown_fields)]
-pub struct ForEachValueTag {
-    /// The accessor for the values. If we have a collection of values named `foo` and
-    /// it `has_one` of `bar` and there is `asdf` that belongs to `foo`, they can be
-    /// referenced via `foo`, `foo.bar` and `foo.asdf`. Note that the `for_each` must
-    /// specify `foo` first and then either `foo.bar` or `foo.sadf` (either can come next).
-    pub value: String,
-    /// The identifier that will be used for the tag key
-    pub tag_key: String,
+    pub for_each: Vec<String>,
 }
 
 /// The specification of the behavior of an agent, the entity responsible for

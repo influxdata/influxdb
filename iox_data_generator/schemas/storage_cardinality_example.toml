@@ -12,10 +12,10 @@ value = "http://127.0.0.1:6060/metrics/usage"
 cardinality = 1
 
 [[values]]
-name = "org"
+name = "org_id"
 # Fill in the value with the cardinality counter and 15 random alphanumeric characters
 value = "{{id}}_{{random 15}}"
-cardinality = 10000
+cardinality = 1000
 has_one = ["env"]
 
 [[values]]
@@ -24,8 +24,8 @@ value = "whatever-environment-{{id}}"
 cardinality = 10
 
 [[values]]
-name = "bucket"
-belongs_to = "org"
+name = "bucket_id"
+belongs_to = "org_id"
 # each bucket will have a unique value so it can be used here to guarantee uniqueness even across orgs
 value = "{{id}}_{{random 15}}"
 # For each org, 3 buckets will be generated
@@ -43,6 +43,12 @@ belongs_to = "node_id"
 cardinality = 1
 
 [[values]]
+name = "hostname"
+value = "{{node_id.value}}"
+belongs_to = "node_id"
+cardinality = 1
+
+[[values]]
 name = "partition_id"
 value = "{{id}}"
 cardinality = 10
@@ -52,15 +58,15 @@ cardinality = 10
 [[tag_sets]]
 name = "bucket_set"
 for_each = [
-    {value = "role", tag_key = "role"},
-    {value = "url", tag_key = "url"},
-    {value = "org", tag_key = "org_id"},
-    {value = "org.env", tag_key = "env"},
-    {value = "org.bucket", tag_key = "bucket_id"},
-    {value = "node_id", tag_key = "node_id"},
-    {value = "node_id", tag_key = "hostname"},
-    {value = "node_id.host", tag_key = "host"},
-    {value = "partition_id", tag_key = "partition_id"},
+    "role",
+    "url",
+    "org_id",
+    "org_id.env",
+    "org_id.bucket_id",
+    "node_id",
+    "node_id.hostname",
+    "node_id.host",
+    "partition_id",
 ]
 
 [[agents]]

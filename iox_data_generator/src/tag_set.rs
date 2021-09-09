@@ -1,4 +1,4 @@
-use crate::specification::{DataSpec, ForEachValueTag, ValuesSpec};
+use crate::specification::{DataSpec, ValuesSpec};
 use crate::substitution::{FormatNowHelper, RandomHelper};
 use crate::RandomNumberGenerator;
 use handlebars::Handlebars;
@@ -6,7 +6,6 @@ use itertools::Itertools;
 use serde_json::json;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::fmt::Formatter;
-use std::iter::Peekable;
 use std::sync::Arc;
 /// Module for pre-generated values and tag sets that can be used when generating samples from
 /// agents.
@@ -61,6 +60,7 @@ pub struct GeneratedValueCollection {
 pub struct GeneratedValue {
     value: Arc<String>,
     id: usize,
+    tag_pair: Arc<TagPair>,
 }
 
 #[derive(Debug, Default)]
@@ -155,21 +155,36 @@ impl GeneratedTagSets {
         Ok(())
     }
 
-    fn generate_tag_set_spec(
-        &mut self,
-        set_name: &str,
-        for_each: &[ForEachValueTag],
-    ) -> Result<()> {
-        let tag_set_keys: Vec<_> = for_each
+    fn generate_tag_set_spec(&mut self, set_name: &str, for_each: &[String]) -> Result<()> {
+        let mut tag_set_keys: Vec<_> = for_each
             .iter()
-            .map(|v| TagSetKey {
-                value: v.value.to_string(),
-                tag_key: Arc::new(v.tag_key.to_string()),
+            .map(|v| Key {
+                name: v.split('.').last().unwrap(),
+                value: v.to_string(),
+                position: 0,
             })
             .collect();
-        let mut keys = tag_set_keys.iter().peekable();
 
-        let tag_sets = self.for_each_tag_set(None, &mut keys, &[])?;
+        // this weird bit is so that we don't need to sort the tag pairs as we're generating. All
+        // tag sets here will have the exact same tags and sort order, so do it once and inject tags
+        // in the appropriate place
+        let mut sorted_keys: Vec<_> = tag_set_keys.iter_mut().collect();
+        sorted_keys.sort_unstable_by(|a, b| a.name.partial_cmp(b.name).unwrap());
+        for (pos, k) in sorted_keys.iter_mut().enumerate() {
+            k.position = pos;
+        }
+
+        // we pass in a pre-built tag_pairs vec so that we can fill it out as we walk down the for_each
+        // iteration and then just do a single clone at the very end.
+        let mut tag_pairs: Vec<_> = (0..for_each.len())
+            .map(|_| {
+                Arc::new(TagPair {
+                    key: Arc::new("default".to_string()),
+                    value: Arc::new("default".to_string()),
+                })
+            })
+            .collect();
+        let tag_sets = self.for_each_tag_set(None, &tag_set_keys, &mut tag_pairs, 0)?;
         self.tag_sets.insert(set_name.to_string(), tag_sets);
 
         Ok(())
@@ -178,25 +193,20 @@ impl GeneratedTagSets {
     fn for_each_tag_set(
         &self,
         parent_id: Option<usize>,
-        keys: &mut Peekable<core::slice::Iter<'_, TagSetKey>>,
-        tag_pairs: &[Arc<TagPair>],
+        keys: &[Key<'_>],
+        tag_pairs: &mut Vec<Arc<TagPair>>,
+        position: usize,
     ) -> Result<Vec<TagSet>> {
-        let key = keys
-            .next()
-            .expect("for_each_tag_set should never be called without a next key");
+        let key = &keys[position];
 
         match self.get_generated_values(parent_id, &key.value) {
             Some(values) => {
-                if keys.peek().is_none() {
+                if position == keys.len() - 1 {
                     let mut tag_sets = Vec::with_capacity(values.len());
 
                     for v in values {
-                        let mut tag_pairs = tag_pairs.to_vec();
-                        tag_pairs.push(Arc::new(TagPair {
-                            key: Arc::clone(&key.tag_key),
-                            value: Arc::clone(&v.value),
-                        }));
-                        tag_sets.push(TagSet::new(tag_pairs));
+                        tag_pairs[key.position] = Arc::clone(&v.tag_pair);
+                        tag_sets.push(TagSet::new(tag_pairs.clone()));
                     }
 
                     return Ok(tag_sets);
@@ -205,13 +215,9 @@ impl GeneratedTagSets {
                 let mut tag_sets = vec![];
 
                 for v in values {
-                    let pair = TagPair {
-                        key: Arc::clone(&key.tag_key),
-                        value: Arc::clone(&v.value),
-                    };
-                    let mut pairs = tag_pairs.to_vec();
-                    pairs.push(Arc::new(pair));
-                    let mut sets = self.for_each_tag_set(Some(v.id), &mut keys.clone(), &pairs)?;
+                    tag_pairs[key.position] = Arc::clone(&v.tag_pair);
+                    let mut sets =
+                        self.for_each_tag_set(Some(v.id), keys, tag_pairs, position + 1)?;
                     tag_sets.append(&mut sets);
                 }
 
@@ -219,14 +225,6 @@ impl GeneratedTagSets {
             }
             None => {
                 let parent_id = parent_id.expect("for_each_tag_set should never be called without a parent id if in has_one evaluation");
-                let one_key = key
-                    .value
-                    .split('.')
-                    .last()
-                    .context(HasOneWithoutParent {
-                        has_one: &key.value,
-                    })?
-                    .to_string();
                 let one = self
                     .has_one_values
                     .get(&key.value)
@@ -239,18 +237,15 @@ impl GeneratedTagSets {
                         has_one: &key.value,
                         parent_id,
                     })?
-                    .get(&one_key)
+                    .get(&key.value)
                     .expect("bug in generating values for has_one");
-                let tag = Arc::new(TagPair {
-                    key: Arc::clone(&key.tag_key),
-                    value: Arc::clone(&one.value),
-                });
-                let mut tags = tag_pairs.to_vec();
-                tags.push(tag);
+                let tag = Arc::clone(&one.tag_pair);
+                tag_pairs[key.position] = tag;
 
-                match keys.peek() {
-                    Some(_) => self.for_each_tag_set(Some(parent_id), &mut keys.clone(), &tags),
-                    None => Ok(vec![TagSet::new(tags)]),
+                if position == keys.len() - 1 {
+                    Ok(vec![TagSet::new(tag_pairs.clone())])
+                } else {
+                    self.for_each_tag_set(Some(parent_id), keys, tag_pairs, position + 1)
                 }
             }
         }
@@ -310,6 +305,8 @@ impl GeneratedTagSets {
             None => {
                 let mut vals = Vec::with_capacity(spec.cardinality);
                 let mut id_map = BTreeMap::new();
+                let tag_key = Arc::new(spec.name.clone());
+
                 for i in 1..(spec.cardinality + 1) {
                     id_map.insert("id", i);
                     let rendered_value =
@@ -318,10 +315,15 @@ impl GeneratedTagSets {
                             .context(CantRenderTemplate {
                                 template: &spec.name,
                             })?;
+                    let value = Arc::new(rendered_value);
 
                     vals.push(Arc::new(GeneratedValue {
                         id: i,
-                        value: Arc::new(rendered_value),
+                        value: Arc::clone(&value),
+                        tag_pair: Arc::new(TagPair {
+                            key: Arc::clone(&tag_key),
+                            value,
+                        }),
                     }));
                 }
                 self.values.insert(spec.name.to_string(), vals);
@@ -342,15 +344,13 @@ impl GeneratedTagSets {
             .expect("add_has_ones should never be called before the parent values are inserted");
 
         for has_one in has_ones {
-            let parent_has_one_key = has_one_values_key(parent, has_one);
+            let parent_has_one_key = Arc::new(has_one_values_key(parent, has_one));
             let parent_has_ones = self
                 .has_one_values
-                .entry(parent_has_one_key)
+                .entry(parent_has_one_key.as_str().to_owned())
                 .or_insert_with(ParentToHasOnes::default);
 
-            let has_one = Arc::new(has_one.to_string());
-
-            let has_one_values = self.values.get(has_one.as_ref()).expect(
+            let has_one_values = self.values.get(has_one.as_str()).expect(
                 "add_has_ones should never be called before the values collection is created",
             );
 
@@ -365,7 +365,7 @@ impl GeneratedTagSets {
                     .id_to_has_ones
                     .entry(parent.id)
                     .or_insert_with(BTreeMap::new);
-                has_one_map.insert(Arc::clone(&has_one), Arc::clone(one_val));
+                has_one_map.insert(Arc::clone(&parent_has_one_key), Arc::clone(one_val));
             }
         }
 
@@ -381,6 +381,7 @@ impl GeneratedTagSets {
         let parent_values = self.values.get(belongs_to).expect(
             "generate_belongs_to should never be called before the parent values are inserted",
         );
+        let tag_key = Arc::new(spec.name.clone());
 
         let mut all_children = Vec::with_capacity(parent_values.len() * spec.cardinality);
 
@@ -403,9 +404,15 @@ impl GeneratedTagSets {
                         .context(CantRenderTemplate {
                             template: &spec.name,
                         })?;
+                let value = Arc::new(rendered_value);
+
                 let child_value = Arc::new(GeneratedValue {
                     id: child_value_id,
-                    value: Arc::new(rendered_value),
+                    value: Arc::clone(&value),
+                    tag_pair: Arc::new(TagPair {
+                        key: Arc::clone(&tag_key),
+                        value,
+                    }),
                 });
 
                 parent_owned.push(Arc::clone(&child_value));
@@ -424,6 +431,12 @@ impl GeneratedTagSets {
     }
 }
 
+struct Key<'a> {
+    name: &'a str,
+    value: String,
+    position: usize,
+}
+
 fn child_values_key(parent: &str, child: &str) -> String {
     format!("{}.{}", parent, child)
 }
@@ -439,8 +452,6 @@ pub struct TagSet {
 
 impl TagSet {
     fn new(tags: Vec<Arc<TagPair>>) -> Self {
-        let mut tags = tags;
-        tags.sort_unstable_by(|a, b| a.key.partial_cmp(&b.key).unwrap());
         Self { tags }
     }
 }
@@ -482,9 +493,7 @@ cardinality = 3
 
 [[tag_sets]]
 name = "testage"
-for_each = [
-    {value = "foo", tag_key = "keyfoo"},
-]
+for_each = ["foo"]
 
 [[agents]]
 name = "basic"
@@ -502,9 +511,9 @@ i64_range = [0, 23]
         let testage = tag_sets.sets_for("testage").unwrap();
         let sets = testage.iter().map(|t| t.to_string()).join("\n");
         let expected = r#"
-keyfoo=1#foo
-keyfoo=2#foo
-keyfoo=3#foo"#;
+foo=1#foo
+foo=2#foo
+foo=3#foo"#;
         assert_eq!(expected[1..], sets);
     }
 
@@ -528,8 +537,8 @@ belongs_to = "foo"
 [[tag_sets]]
 name = "testage"
 for_each = [
-    {value = "foo", tag_key = "foo"},
-    {value = "foo.bar", tag_key = "bar"},
+    "foo",
+    "foo.bar",
 ]
 
 [[agents]]
@@ -592,11 +601,11 @@ cardinality = 6
 [[tag_sets]]
 name = "testage"
 for_each = [
-    {value = "foo", tag_key = "foo"},
-    {value = "foo.bar", tag_key = "bar"},
-    {value = "foo.asdf", tag_key = "asfd"},
-    {value = "asdf.qwer", tag_key = "qwer"},
-    {value = "jkl", tag_key = "jkl"}
+    "foo",
+    "foo.bar",
+    "foo.asdf",
+    "asdf.qwer",
+    "jkl"
 ]
 
 [[agents]]
@@ -615,18 +624,18 @@ i64_range = [0, 23]
         let testage = tag_sets.sets_for("testage").unwrap();
         let sets = testage.iter().map(|t| t.to_string()).join("\n");
         let expected = r#"
-asfd=1-asdf,bar=1-bar,foo=1-foo,jkl=1-jkl,qwer=1-qwer
-asfd=1-asdf,bar=1-bar,foo=1-foo,jkl=2-jkl,qwer=1-qwer
-asfd=2-asdf,bar=1-bar,foo=1-foo,jkl=1-jkl,qwer=2-qwer
-asfd=2-asdf,bar=1-bar,foo=1-foo,jkl=2-jkl,qwer=2-qwer
-asfd=3-asdf,bar=2-bar,foo=2-foo,jkl=1-jkl,qwer=3-qwer
-asfd=3-asdf,bar=2-bar,foo=2-foo,jkl=2-jkl,qwer=3-qwer
-asfd=4-asdf,bar=2-bar,foo=2-foo,jkl=1-jkl,qwer=4-qwer
-asfd=4-asdf,bar=2-bar,foo=2-foo,jkl=2-jkl,qwer=4-qwer
-asfd=5-asdf,bar=1-bar,foo=3-foo,jkl=1-jkl,qwer=5-qwer
-asfd=5-asdf,bar=1-bar,foo=3-foo,jkl=2-jkl,qwer=5-qwer
-asfd=6-asdf,bar=1-bar,foo=3-foo,jkl=1-jkl,qwer=6-qwer
-asfd=6-asdf,bar=1-bar,foo=3-foo,jkl=2-jkl,qwer=6-qwer"#;
+asdf=1-asdf,bar=1-bar,foo=1-foo,jkl=1-jkl,qwer=1-qwer
+asdf=1-asdf,bar=1-bar,foo=1-foo,jkl=2-jkl,qwer=1-qwer
+asdf=2-asdf,bar=1-bar,foo=1-foo,jkl=1-jkl,qwer=2-qwer
+asdf=2-asdf,bar=1-bar,foo=1-foo,jkl=2-jkl,qwer=2-qwer
+asdf=3-asdf,bar=2-bar,foo=2-foo,jkl=1-jkl,qwer=3-qwer
+asdf=3-asdf,bar=2-bar,foo=2-foo,jkl=2-jkl,qwer=3-qwer
+asdf=4-asdf,bar=2-bar,foo=2-foo,jkl=1-jkl,qwer=4-qwer
+asdf=4-asdf,bar=2-bar,foo=2-foo,jkl=2-jkl,qwer=4-qwer
+asdf=5-asdf,bar=1-bar,foo=3-foo,jkl=1-jkl,qwer=5-qwer
+asdf=5-asdf,bar=1-bar,foo=3-foo,jkl=2-jkl,qwer=5-qwer
+asdf=6-asdf,bar=1-bar,foo=3-foo,jkl=1-jkl,qwer=6-qwer
+asdf=6-asdf,bar=1-bar,foo=3-foo,jkl=2-jkl,qwer=6-qwer"#;
         assert_eq!(expected[1..], sets);
     }
 }
