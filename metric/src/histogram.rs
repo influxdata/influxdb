@@ -50,6 +50,10 @@ impl U64Histogram {
     }
 
     pub fn record(&self, value: u64) {
+        self.record_multiple(value, 1)
+    }
+
+    pub fn record_multiple(&self, value: u64, count: u64) {
         let mut state = self.shared.lock();
         if let Some(bucket) = state
             .buckets
@@ -57,8 +61,8 @@ impl U64Histogram {
             .find(|bucket| value <= bucket.le)
             .as_mut()
         {
-            bucket.count = bucket.count.wrapping_add(1);
-            state.total = state.total.wrapping_add(value);
+            bucket.count = bucket.count.wrapping_add(count);
+            state.total = state.total.wrapping_add(value * count);
         }
     }
 }

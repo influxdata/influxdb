@@ -33,7 +33,7 @@ pub async fn test_row_timestamp() {
     let db_name_attribute = format!("db_name=\"{}\"", db_name);
 
     // Should only be enabled for the system table
-    assert_eq!(lines.len(), 60);
+    assert_eq!(lines.len(), 61);
     assert!(lines
         .iter()
         .all(|x| x.contains("table=\"system\"") && x.contains(&db_name_attribute)));
