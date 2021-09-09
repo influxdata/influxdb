@@ -10,7 +10,6 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
@@ -33,21 +32,12 @@ type TSDBStore interface {
 	Shards(ids []uint64) []*tsdb.Shard
 	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
 	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
+	SeriesCardinality(ctx context.Context, database string) (int64, error)
 }
 
 type MetaClient interface {
 	Database(name string) *meta.DatabaseInfo
 	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
-}
-
-// getReadSource will attempt to unmarshal a ReadSource from the ReadRequest or
-// return an error if no valid resource is present.
-func GetReadSource(any types.Any) (*ReadSource, error) {
-	var source ReadSource
-	if err := types.UnmarshalAny(&any, &source); err != nil {
-		return nil, err
-	}
-	return &source, nil
 }
 
 type Store struct {
@@ -58,15 +48,15 @@ type Store struct {
 
 func (s *Store) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (reads.ResultSet, error) {
 	if req.ReadSource == nil {
-		return nil, errors.New("missing read source")
+		return nil, ErrMissingReadSource
 	}
 
-	source, err := getReadSource(*req.ReadSource)
+	source, err := GetReadSource(*req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.Start, req.Range.End)
 	if err != nil {
 		return nil, err
 	}
@@ -158,15 +148,15 @@ func (s *Store) validateArgs(orgID, bucketID uint64, start, end int64) (string, 
 
 func (s *Store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error) {
 	if req.ReadSource == nil {
-		return nil, errors.New("missing read source")
+		return nil, ErrMissingReadSource
 	}
 
-	source, err := getReadSource(*req.ReadSource)
+	source, err := GetReadSource(*req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.Start, req.Range.End)
 	if err != nil {
 		return nil, err
 	}
@@ -196,15 +186,15 @@ func (s *Store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 
 func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
 	if req.ReadSource == nil {
-		return nil, errors.New("missing read source")
+		return nil, ErrMissingReadSource
 	}
 
-	source, err := getReadSource(*req.ReadSource)
+	source, err := GetReadSource(*req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.Start, req.Range.End)
 	if err != nil {
 		return nil, err
 	}
@@ -287,13 +277,13 @@ func (s *Store) tagKeysWithFieldPredicate(ctx context.Context, mqAttrs *metaquer
 
 func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error) {
 	if req.TagsSource == nil {
-		return nil, errors.New("missing read source")
+		return nil, ErrMissingReadSource
 	}
-	source, err := getReadSource(*req.TagsSource)
+	source, err := GetReadSource(*req.TagsSource)
 	if err != nil {
 		return nil, err
 	}
-	db, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
+	db, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.Start, req.Range.End)
 	if err != nil {
 		return nil, err
 	}
@@ -361,15 +351,15 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 
 func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {
 	if req.TagsSource == nil {
-		return nil, errors.New("missing read source")
+		return nil, ErrMissingReadSource
 	}
 
-	source, err := getReadSource(*req.TagsSource)
+	source, err := GetReadSource(*req.TagsSource)
 	if err != nil {
 		return nil, err
 	}
 
-	db, rp, start, end, err := s.validateArgs(source.OrganizationID, source.BucketID, req.Range.Start, req.Range.End)
+	db, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.Start, req.Range.End)
 	if err != nil {
 		return nil, err
 	}
@@ -510,9 +500,9 @@ func (s *Store) MeasurementNames(ctx context.Context, mqAttrs *metaqueryAttribut
 }
 
 func (s *Store) GetSource(orgID, bucketID uint64) proto.Message {
-	return &readSource{
-		BucketID:       bucketID,
-		OrganizationID: orgID,
+	return &ReadSource{
+		BucketID: bucketID,
+		OrgID:    orgID,
 	}
 }
 
@@ -644,4 +634,43 @@ func (s *Store) tagValuesSlow(ctx context.Context, mqAttrs *metaqueryAttributes,
 	}
 	sort.Strings(names)
 	return cursors.NewStringSliceIterator(names), nil
+}
+
+func (s *Store) ReadSeriesCardinality(ctx context.Context, req *datatypes.ReadSeriesCardinalityRequest) (cursors.Int64Iterator, error) {
+	// TODO: In its current form, this will only return the series cardinality
+	// from a bucket, ignoring any predicate. Additional work will be required to
+	// make the predicate work.
+
+	if req.ReadSource == nil {
+		return nil, ErrMissingReadSource
+	}
+
+	source, err := GetReadSource(*req.ReadSource)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.Range.Start == 0 {
+		req.Range.Start = models.MinNanoTime
+	}
+	if req.Range.End == 0 {
+		req.Range.End = models.MaxNanoTime
+	}
+
+	database, _, _, _, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.Start, req.Range.End)
+	if err != nil {
+		return nil, err
+	}
+
+	card, err := s.TSDBStore.SeriesCardinality(ctx, database)
+	if err != nil {
+		return nil, err
+	}
+
+	return cursors.NewInt64SliceIterator([]int64{card}), nil
+}
+
+func (s *Store) SupportReadSeriesCardinality(ctx context.Context) bool {
+	// Disabled until predicate filtering for cardinality is fully implemented.
+	return false
 }

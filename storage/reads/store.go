@@ -84,5 +84,8 @@ type Store interface {
 	TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error)
 	TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)
 
+	ReadSeriesCardinality(ctx context.Context, req *datatypes.ReadSeriesCardinalityRequest) (cursors.Int64Iterator, error)
+	SupportReadSeriesCardinality(ctx context.Context) bool
+
 	GetSource(orgID, bucketID uint64) proto.Message
 }

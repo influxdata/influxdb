@@ -2,7 +2,6 @@ package influxdb_test
 
 import (
 	"context"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/stdlib/universe"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
@@ -55,6 +55,14 @@ func (mockReader) ReadTagValues(ctx context.Context, spec query.ReadTagValuesSpe
 
 func (mockReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
 	return &mockTableIterator{}, nil
+}
+
+func (mockReader) ReadSeriesCardinality(ctx context.Context, spec query.ReadSeriesCardinalitySpec, alloc *memory.Allocator) (query.TableIterator, error) {
+	return &mockTableIterator{}, nil
+}
+
+func (mockReader) SupportReadSeriesCardinality(ctx context.Context) bool {
+	return false
 }
 
 func (mockReader) Close() {

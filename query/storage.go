@@ -23,6 +23,9 @@ type StorageReader interface {
 	ReadTagKeys(ctx context.Context, spec ReadTagKeysSpec, alloc *memory.Allocator) (TableIterator, error)
 	ReadTagValues(ctx context.Context, spec ReadTagValuesSpec, alloc *memory.Allocator) (TableIterator, error)
 
+	ReadSeriesCardinality(ctx context.Context, spec ReadSeriesCardinalitySpec, alloc *memory.Allocator) (TableIterator, error)
+	SupportReadSeriesCardinality(ctx context.Context) bool
+
 	Close()
 }
 
@@ -54,6 +57,10 @@ type ReadTagKeysSpec struct {
 type ReadTagValuesSpec struct {
 	ReadFilterSpec
 	TagKey string
+}
+
+type ReadSeriesCardinalitySpec struct {
+	ReadFilterSpec
 }
 
 // ReadWindowAggregateSpec defines the options for WindowAggregate.
