@@ -4,7 +4,6 @@ use self::generated_types::{management_service_client::ManagementServiceClient, 
 
 use crate::connection::Connection;
 use ::generated_types::google::longrunning::Operation;
-use influxdb_line_protocol::delete_parser::{self, ProvidedParseDelete};
 
 use std::convert::TryInto;
 use std::num::NonZeroU32;
@@ -361,12 +360,6 @@ pub enum DropPartitionError {
 /// Errors returned by [`Client::delete`]
 #[derive(Debug, Error)]
 pub enum DeleteError {
-    /// Invalid time range or predicate
-    /// The error message is sent back from the original one which
-    /// will include the detail
-    #[error("Invalid input: {}", .0)]
-    ParseErr(delete_parser::Error),
-
     /// Database not found
     #[error("Not found: {}", .0)]
     NotFound(String),
@@ -967,44 +960,30 @@ impl Client {
         &mut self,
         db_name: impl Into<String> + Send,
         table_name: impl Into<String> + Send,
-        predicate: impl Into<String> + Send,
         start_time: impl Into<String> + Send,
         stop_time: impl Into<String> + Send,
+        predicate: impl Into<String> + Send,
     ) -> Result<(), DeleteError> {
         let db_name = db_name.into();
         let table_name = table_name.into();
-        let predicate = predicate.into();
         let start_time = start_time.into();
         let stop_time = stop_time.into();
+        let predicate = predicate.into();
 
-        // parse the time range and predicate
-        let provided_parse_delete_result = ProvidedParseDelete::try_new(
-            start_time.as_str(),
-            stop_time.as_str(),
-            predicate.as_str(),
-        );
-
-        match provided_parse_delete_result {
-            Err(e) => return Err(DeleteError::ParseErr(e)),
-            Ok(provided_parse_delete) => {
-                // Send the delete request to server
-                let parse_delete = Some(provided_parse_delete.into());
-                self.inner
-                    .delete(DeleteRequest {
-                        db_name,
-                        table_name,
-                        parse_delete,
-                    })
-                    .await
-                    .map_err(|status| match status.code() {
-                        tonic::Code::NotFound => {
-                            DeleteError::NotFound(status.message().to_string())
-                        }
-                        tonic::Code::Unavailable => DeleteError::Unavailable(status),
-                        _ => DeleteError::ServerError(status),
-                    })?;
-            }
-        }
+        self.inner
+            .delete(DeleteRequest {
+                db_name,
+                table_name,
+                start_time,
+                stop_time,
+                predicate,
+            })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => DeleteError::NotFound(status.message().to_string()),
+                tonic::Code::Unavailable => DeleteError::Unavailable(status),
+                _ => DeleteError::ServerError(status),
+            })?;
 
         // NGA todo: return a handle to the delete?
         Ok(())

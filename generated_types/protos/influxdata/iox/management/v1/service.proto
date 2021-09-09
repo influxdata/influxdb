@@ -455,8 +455,15 @@ message DeleteRequest {
   // table name
   string table_name = 2;
 
-  // a delete info: time range and predicate of other binary expressions
-  ParseDelete parse_delete = 3;
+  // start time range 
+  string start_time = 3;
+
+  // stop time range
+  string stop_time = 4;
+
+  // predicate
+  // conjunctive expressions of binary 'column_name = literal' or 'column_ame != literal'
+  string predicate  = 5;
 }
 
 message DeleteResponse {
