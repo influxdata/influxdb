@@ -761,21 +761,42 @@ impl Db {
                     partition_key,
                 })?;
 
-            // get chunks for persistence
+            // Also sort chunks by:
+            // 1. order: to ensure we compact closed order ranges during persistence
+            // 2. ID: for a stable lock order
+            let mut chunks: Vec<_> = chunks
+                .into_iter()
+                .map(|(id, chunk)| {
+                    let order = chunk.read().order();
+                    (order, id, chunk)
+                })
+                .collect();
+            chunks.sort_by_key(|(order, id, _chunk)| (*order, *id));
+
+            // get chunks for persistence, break after first chunk that cannot be persisted due to lifecycle reasons
             let chunks: Vec<_> = chunks
                 .iter()
-                .filter_map(|(_id, chunk)| {
+                .filter_map(|(_id, _order, chunk)| {
                     let chunk = chunk.read();
                     if matches!(chunk.stage(), ChunkStage::Persisted { .. })
                         || (chunk.min_timestamp() > flush_handle.timestamp())
-                        || chunk.lifecycle_action().is_some()
                     {
+                        None
+                    } else {
+                        Some(chunk)
+                    }
+                })
+                .map(|chunk| {
+                    if chunk.lifecycle_action().is_some() {
                         None
                     } else {
                         Some(chunk.upgrade())
                     }
                 })
+                .fuse()
+                .flatten()
                 .collect();
+
             ensure!(
                 !chunks.is_empty(),
                 CannotFlushPartition {

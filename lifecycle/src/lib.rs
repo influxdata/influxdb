@@ -185,6 +185,8 @@ pub trait LifecycleChunk {
     fn storage(&self) -> ChunkStorage;
 
     fn row_count(&self) -> usize;
+
+    fn order(&self) -> u32;
 }
 
 /// The trait for a persist handle

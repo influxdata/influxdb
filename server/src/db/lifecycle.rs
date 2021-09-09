@@ -337,6 +337,10 @@ impl LifecycleChunk for CatalogChunk {
     fn row_count(&self) -> usize {
         self.storage().0
     }
+
+    fn order(&self) -> u32 {
+        self.order()
+    }
 }
 
 /// Executes a plan and collects the results into a read buffer chunk

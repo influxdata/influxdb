@@ -231,17 +231,34 @@ where
             return;
         }
 
-        let mut chunks = LockablePartition::chunks(&partition);
-        // Sort by chunk ID to ensure a stable lock order
-        chunks.sort_by_key(|x| x.0);
+        let chunks = LockablePartition::chunks(&partition);
+
+        // Also sort chunks by:
+        // 1. order: to ensure we compact closed order ranges during persistence
+        // 2. ID: for a stable lock order
+        let mut chunks: Vec<_> = chunks
+            .into_iter()
+            .map(|(id, chunk)| {
+                let order = chunk.read().order();
+                (order, id, chunk)
+            })
+            .collect();
+        chunks.sort_by_key(|(order, id, _chunk)| (*order, *id));
 
         let mut has_mub_snapshot = false;
         let mut to_compact = Vec::new();
-        for (_, chunk) in &chunks {
+        for (_, _, chunk) in &chunks {
             let chunk = chunk.read();
-            if chunk.lifecycle_action().is_some() {
-                // This likely means it is being persisted
+            if matches!(
+                chunk.storage(),
+                ChunkStorage::ReadBufferAndObjectStore { .. }
+                    | ChunkStorage::ObjectStoreOnly { .. }
+            ) {
                 continue;
+            }
+            if chunk.lifecycle_action().is_some() {
+                // must stop here because we must not "jump" the chunks sorted by `order`.
+                break;
             }
 
             let to_compact_len_before = to_compact.len();
@@ -265,7 +282,7 @@ where
                     rows_left = rows_left.saturating_sub(row_count);
                     to_compact.push(chunk);
                 }
-                _ => {}
+                _ => unreachable!("this chunk should be have filtered out already"),
             }
             let has_added_to_compact = to_compact.len() > to_compact_len_before;
             debug!(db_name = %self.db.name(),
@@ -374,7 +391,7 @@ where
             return false;
         }
 
-        let mut chunks = LockablePartition::chunks(&partition);
+        let chunks = LockablePartition::chunks(&partition);
 
         // Upgrade partition to be able to rotate persistence windows
         let mut partition = partition.upgrade();
@@ -387,10 +404,20 @@ where
             }
         };
 
-        // Sort by chunk ID to ensure a stable lock order
-        chunks.sort_by_key(|x| x.0);
+        // Also sort chunks by:
+        // 1. order: to ensure we compact closed order ranges during persistence
+        // 2. ID: for a stable lock order
+        let mut chunks: Vec<_> = chunks
+            .into_iter()
+            .map(|(id, chunk)| {
+                let order = chunk.read().order();
+                (order, id, chunk)
+            })
+            .collect();
+        chunks.sort_by_key(|(order, id, _chunk)| (*order, *id));
+
         let mut to_persist = Vec::new();
-        for (_, chunk) in &chunks {
+        for (_, _, chunk) in &chunks {
             let chunk = chunk.read();
             trace!(%db_name, %partition, chunk=%chunk.addr(), "considering chunk for persistence");
 
@@ -422,6 +449,8 @@ where
                 // preventing us from persisting
                 let stall = action.metadata() == &ChunkLifecycleAction::Compacting;
                 info!(%db_name, ?action, chunk=%chunk.addr(), "Chunk to persist has outstanding action");
+
+                // NOTE: This early exit also ensures that we are not "jumping" over chunks sorted by `order`.
                 return stall;
             }
 
@@ -721,6 +750,7 @@ mod tests {
         time_of_last_write: DateTime<Utc>,
         lifecycle_action: Option<TaskTracker<ChunkLifecycleAction>>,
         storage: ChunkStorage,
+        order: u32,
     }
 
     impl TestChunk {
@@ -743,6 +773,7 @@ mod tests {
                 time_of_last_write: from_secs(time_of_last_write),
                 lifecycle_action: None,
                 storage,
+                order: 0,
             }
         }
 
@@ -763,6 +794,11 @@ mod tests {
 
         fn with_access_metrics(mut self, metrics: AccessMetrics) -> Self {
             self.access_metrics = metrics;
+            self
+        }
+
+        fn with_order(mut self, order: u32) -> Self {
+            self.order = order;
             self
         }
     }
@@ -1001,6 +1037,10 @@ mod tests {
 
         fn row_count(&self) -> usize {
             self.row_count
+        }
+
+        fn order(&self) -> u32 {
+            self.order
         }
     }
 
@@ -1445,6 +1485,27 @@ mod tests {
                 // too many total rows => next compaction job
                 TestChunk::new(18, 20, ChunkStorage::ReadBuffer).with_row_count(400),
             ]),
+            TestPartition::new(vec![
+                // chunks in this partition listed in reverse `order` to make sure that the compaction actually sorts
+                // them
+                //
+                // blocked by action below
+                TestChunk::new(19, 20, ChunkStorage::ReadBuffer)
+                    .with_row_count(400)
+                    .with_order(3),
+                // has an action
+                TestChunk::new(20, 20, ChunkStorage::ReadBuffer)
+                    .with_row_count(400)
+                    .with_order(2)
+                    .with_action(ChunkLifecycleAction::Compacting),
+                // closed => can compact
+                TestChunk::new(21, 20, ChunkStorage::ReadBuffer)
+                    .with_row_count(400)
+                    .with_order(1),
+                TestChunk::new(22, 20, ChunkStorage::ReadBuffer)
+                    .with_row_count(400)
+                    .with_order(0),
+            ]),
         ];
 
         let db = TestDb::from_partitions(rules, partitions);
@@ -1459,6 +1520,7 @@ mod tests {
                 MoverEvents::Compact(vec![8, 9]),
                 MoverEvents::Compact(vec![12]),
                 MoverEvents::Compact(vec![14, 16]),
+                MoverEvents::Compact(vec![22, 21]),
             ],
         );
 
@@ -1597,9 +1659,6 @@ mod tests {
                 MoverEvents::Persist(vec![4, 5]),
                 MoverEvents::Persist(vec![11, 12]),
                 MoverEvents::Persist(vec![15, 16]),
-                // 17 is the resulting chunk from the persist split above
-                // This is "quirk" of TestPartition operations being instantaneous
-                MoverEvents::Compact(vec![14, 17])
             ]
         );
     }
