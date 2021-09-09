@@ -1825,16 +1825,11 @@ dependencies = [
 name = "influxdb_line_protocol"
 version = "0.1.0"
 dependencies = [
- "chrono",
- "datafusion 0.1.0",
  "nom",
  "observability_deps",
- "serde",
  "smallvec",
  "snafu",
- "sqlparser",
  "test_helpers",
- "thiserror",
 ]
 
 [[package]]
@@ -3320,6 +3315,7 @@ dependencies = [
  "datafusion_util",
  "futures",
  "hashbrown",
+ "influxdb_line_protocol",
  "internal_types",
  "itertools 0.10.1",
  "libc",
@@ -3328,6 +3324,7 @@ dependencies = [
  "parking_lot",
  "regex",
  "snafu",
+ "sqlparser",
  "test_helpers",
  "tokio",
  "tokio-stream",
