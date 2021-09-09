@@ -67,7 +67,6 @@ mod chunk;
 mod lifecycle;
 pub mod load;
 pub mod pred;
-mod process_clock;
 mod replay;
 mod streams;
 mod system_tables;
@@ -360,11 +359,6 @@ pub struct Db {
     /// Catalog interface for query
     catalog_access: Arc<QueryCatalogAccess>,
 
-    /// Process clock used in establishing a partial ordering of operations via a Lamport Clock.
-    ///
-    /// Value is nanoseconds since the Unix Epoch.
-    process_clock: process_clock::ProcessClock,
-
     /// Number of iterations of the worker lifecycle loop for this Db
     worker_iterations_lifecycle: AtomicUsize,
 
@@ -442,8 +436,6 @@ impl Db {
         );
         let catalog_access = Arc::new(catalog_access);
 
-        let process_clock = process_clock::ProcessClock::new();
-
         let this = Self {
             rules,
             server_id,
@@ -454,7 +446,6 @@ impl Db {
             jobs,
             metrics_registry,
             catalog_access,
-            process_clock,
             worker_iterations_lifecycle: AtomicUsize::new(0),
             worker_iterations_cleanup: AtomicUsize::new(0),
             metric_attributes,
