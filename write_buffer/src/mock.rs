@@ -221,6 +221,12 @@ impl MockBufferForWriting {
 
 #[async_trait]
 impl WriteBufferWriting for MockBufferForWriting {
+    fn sequencer_ids(&self) -> Vec<u32> {
+        let mut guard = self.state.entries.lock();
+        let entries = guard.as_mut().unwrap();
+        entries.keys().copied().collect()
+    }
+
     async fn store_entry(
         &self,
         entry: &Entry,
@@ -257,6 +263,10 @@ pub struct MockBufferForWritingThatAlwaysErrors;
 
 #[async_trait]
 impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
+    fn sequencer_ids(&self) -> Vec<u32> {
+        vec![0]
+    }
+
     async fn store_entry(
         &self,
         _entry: &Entry,

@@ -15,6 +15,11 @@ pub type WriteBufferError = Box<dyn std::error::Error + Sync + Send>;
 /// entries from the Write Buffer at a later time.
 #[async_trait]
 pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
+    /// List all known sequencers.
+    ///
+    /// This list is sorted and not empty.
+    fn sequencer_ids(&self) -> Vec<u32>;
+
     /// Send an `Entry` to the write buffer using the specified sequencer ID.
     ///
     /// Returns information that can be used to restore entries at a later time.
@@ -134,6 +139,7 @@ pub mod test_utils {
         test_watermark(&adapter).await;
         test_timestamp(&adapter).await;
         test_sequencer_auto_creation(&adapter).await;
+        test_sequencer_ids(&adapter).await;
     }
 
     /// Test IO with a single writer and single reader stream.
@@ -314,6 +320,7 @@ pub mod test_utils {
     /// Test multiple multiple writers and multiple readers on multiple sequencers.
     ///
     /// This tests that:
+    /// - writers retrieve consistent sequencer IDs
     /// - writes go to and reads come from the right sequencer, similar to [`test_multi_sequencer_io`] but less
     ///   detailled
     /// - multiple writers can write to a single sequencer
@@ -332,19 +339,40 @@ pub mod test_utils {
         let mut reader_1 = context.reading(true).await.unwrap();
         let mut reader_2 = context.reading(true).await.unwrap();
 
-        // TODO: do not hard-code sequencer IDs here but provide a proper interface
-        writer_1.store_entry(&entry_east_1, 0).await.unwrap();
-        writer_1.store_entry(&entry_west_1, 1).await.unwrap();
-        writer_2.store_entry(&entry_east_2, 0).await.unwrap();
+        let mut sequencer_ids_1 = writer_1.sequencer_ids();
+        let sequencer_ids_2 = writer_2.sequencer_ids();
+        assert_eq!(sequencer_ids_1, sequencer_ids_2);
+        assert_eq!(sequencer_ids_1.len(), 2);
+        let sequencer_id_1 = sequencer_ids_1.pop().unwrap();
+        let sequencer_id_2 = sequencer_ids_1.pop().unwrap();
+
+        writer_1
+            .store_entry(&entry_east_1, sequencer_id_1)
+            .await
+            .unwrap();
+        writer_1
+            .store_entry(&entry_west_1, sequencer_id_2)
+            .await
+            .unwrap();
+        writer_2
+            .store_entry(&entry_east_2, sequencer_id_1)
+            .await
+            .unwrap();
 
         assert_reader_content(
             &mut reader_1,
-            &[(0, &[&entry_east_1, &entry_east_2]), (1, &[&entry_west_1])],
+            &[
+                (sequencer_id_1, &[&entry_east_1, &entry_east_2]),
+                (sequencer_id_2, &[&entry_west_1]),
+            ],
         )
         .await;
         assert_reader_content(
             &mut reader_2,
-            &[(0, &[&entry_east_1, &entry_east_2]), (1, &[&entry_west_1])],
+            &[
+                (sequencer_id_1, &[&entry_east_1, &entry_east_2]),
+                (sequencer_id_2, &[&entry_west_1]),
+            ],
         )
         .await;
     }
@@ -534,6 +562,36 @@ pub mod test_utils {
         context.writing(false).await.unwrap();
     }
 
+    /// Test sequencer IDs reporting of writers.
+    ///
+    /// This tests that:
+    /// - all sequencers are reported
+    /// - the list is sorted
+    async fn test_sequencer_ids<T>(adapter: &T)
+    where
+        T: TestAdapter,
+    {
+        let n_sequencers = 10;
+        let context = adapter
+            .new_context(NonZeroU32::try_from(n_sequencers).unwrap())
+            .await;
+
+        let writer_1 = context.writing(true).await.unwrap();
+        let writer_2 = context.writing(true).await.unwrap();
+
+        let sequencer_ids_1 = writer_1.sequencer_ids();
+        let sequencer_ids_2 = writer_2.sequencer_ids();
+        assert_eq!(sequencer_ids_1, sequencer_ids_2);
+        assert_eq!(sequencer_ids_1.len(), n_sequencers as usize);
+
+        let sorted = {
+            let mut tmp = sequencer_ids_1.clone();
+            tmp.sort_unstable();
+            tmp
+        };
+        assert_eq!(sequencer_ids_1, sorted);
+    }
+
     /// Assert that the content of the reader is as expected.
     ///
     /// This will read `expected.len()` from the reader and then ensures that the stream is pending.
@@ -541,6 +599,13 @@ pub mod test_utils {
     where
         R: WriteBufferReading,
     {
+        // normalize expected values
+        let expected = {
+            let mut expected = expected.to_vec();
+            expected.sort_by_key(|(sequencer_id, _entries)| *sequencer_id);
+            expected
+        };
+
         // Ensure content of the streams
         let mut streams = reader.streams();
         assert_eq!(streams.len(), expected.len());
