@@ -7,7 +7,6 @@ executors:
   linux-machine:
     machine:
       image: ubuntu-2004:202107-02
-      docker_layer_caching: true
       resource_class: large
 
 parameters:
