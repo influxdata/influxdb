@@ -6,9 +6,15 @@ use std::time::Duration;
 async fn test_logging() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
-        .arg("run")
-        .arg("--log-filter")
-        .arg("info")
+        .args(&[
+            "run",
+            "--log-filter",
+            "info",
+            "--api-bind",
+            "127.0.0.1:0",
+            "--grpc-bind",
+            "127.0.0.1:0",
+        ])
         .timeout(Duration::from_secs(1))
         .assert()
         .failure()
@@ -19,9 +25,15 @@ async fn test_logging() {
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
-        .arg("run")
-        .arg("--log-filter")
-        .arg("error")
+        .args(&[
+            "run",
+            "--log-filter",
+            "error",
+            "--api-bind",
+            "127.0.0.1:0",
+            "--grpc-bind",
+            "127.0.0.1:0",
+        ])
         .timeout(Duration::from_secs(1))
         .assert()
         .failure()
