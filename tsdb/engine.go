@@ -57,6 +57,7 @@ type Engine interface {
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
 	DeleteSeriesRange(ctx context.Context, itr SeriesIterator, min, max int64) error
 	DeleteSeriesRangeWithPredicate(ctx context.Context, itr SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error
+	HasValueForSeriesInTimeRange(ctx context.Context, seriesID uint64, start, stop int64) (bool, error)
 
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)

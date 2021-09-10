@@ -95,9 +95,11 @@ type TSDBStore interface {
 	MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
 	ShardGroup(ids []uint64) tsdb.ShardGroup
 	Shards(ids []uint64) []*tsdb.Shard
+	Shard(id uint64) *tsdb.Shard
 	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
 	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 	SeriesCardinality(ctx context.Context, database string) (int64, error)
+	SeriesCardinalityByPredicate(ctx context.Context, shardIDs []uint64, expr influxql.Expr, start, end int64, ss *tsdb.SeriesIDSet, validateTimeRange bool) error
 }
 
 // NewEngine initialises a new storage engine, including a series file, index and

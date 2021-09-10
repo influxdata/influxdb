@@ -739,6 +739,14 @@ func (s *Shard) DeleteSeriesRangeWithPredicate(
 	return engine.DeleteSeriesRangeWithPredicate(ctx, itr, predicate)
 }
 
+func (s *Shard) HasValueForSeriesInTimeRange(ctx context.Context, seriesID uint64, start, stop int64) (bool, error) {
+	engine, err := s.Engine()
+	if err != nil {
+		return false, err
+	}
+	return engine.HasValueForSeriesInTimeRange(ctx, seriesID, start, stop)
+}
+
 // DeleteMeasurement deletes a measurement and all underlying series.
 func (s *Shard) DeleteMeasurement(ctx context.Context, name []byte) error {
 	engine, err := s.Engine()
