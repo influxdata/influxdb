@@ -237,3 +237,61 @@ Instructions for updating the generated code are in [`docs/regenerating_flatbuff
 [`entry/src/entry.fbs`]: entry/src/entry.fbs
 [`entry/src/entry_generated.rs`]: entry/src/entry_generated.rs
 [`docs/regenerating_flatbuffers.md`]: docs/regenerating_flatbuffers.md
+
+
+## Running Jaeger / tracing locally
+
+IOx fits into the distributed tracing ecosystem, as described in
+[tracing](docs/tracing.md). To use, develop, or debug the distributed
+tracing functionality locally you can do the following:
+
+### Step 1: Run Jaeger locally
+
+Follow instructions from https://www.jaegertracing.io/docs/1.26/getting-started/, which as of the time of this writing was:
+
+```shell
+docker run -d --name jaeger \
+  -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 \
+  -p 5775:5775/udp \
+  -p 6831:6831/udp \
+  -p 6832:6832/udp \
+  -p 5778:5778 \
+  -p 16686:16686 \
+  -p 14268:14268 \
+  -p 14250:14250 \
+  -p 9411:9411 \
+  jaegertracing/all-in-one:1.26
+```
+
+### Step 2: Run IOx configured to send traces to the local Jaeger instance
+
+Build IOx with `--features=jaeger` and run with the following environment variables set:
+```
+TRACES_EXPORTER=jaeger
+TRACES_EXPORTER_JAEGER_AGENT_HOST=localhost
+TRACES_EXPORTER_JAEGER_AGENT_PORT=6831
+```
+
+For example, a command such as this should do the trick:
+```shell
+TRACES_EXPORTER=jaeger TRACES_EXPORTER_JAEGER_AGENT_HOST=localhost TRACES_EXPORTER_JAEGER_AGENT_PORT=6831 cargo run --features=jaeger -- run -v --object-store=file --data-dir=$HOME/.influxdb_iox --server-id=42
+```
+
+### Step 3: Send a request with trace context
+
+For IOx to emit traces, the request must have a span context set. You can use the `--header` flag on the IOx CLI to do so. For example
+
+```shell
+# create db
+./target/debug/influxdb_iox database create my_db
+# load data
+./target/debug/influxdb_iox database write my_db tests/fixtures/lineproto/metrics.lp
+# run a query and include a span context
+./target/debug/influxdb_iox database query my_db  'show tables' --header uber-trace-id:4459495:30434:0:1
+```
+
+### Step 4: Explore Spans in the UI
+
+Navigate to the UI in your browser http://localhost:16686/search and then chose the "iox-conductor" service from the drop down.
+
+Enjoy!
