@@ -233,8 +233,8 @@ where
 
         let chunks = LockablePartition::chunks(&partition);
 
-        // Also sort chunks by:
-        // 1. order: to ensure we compact closed order ranges during persistence
+        // Sort chunks by:
+        // 1. order: ensure compacting chunks with any potential updates together
         // 2. ID: for a stable lock order
         let mut chunks: Vec<_> = chunks
             .into_iter()
@@ -404,8 +404,8 @@ where
             }
         };
 
-        // Also sort chunks by:
-        // 1. order: to ensure we compact closed order ranges during persistence
+        // Sort chunks by:
+        // 1. order: ensure compacting chunks with any potential updates together
         // 2. ID: for a stable lock order
         let mut chunks: Vec<_> = chunks
             .into_iter()
