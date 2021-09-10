@@ -386,7 +386,7 @@ commands:
                 name: Build release
                 # `goreleaser release --skip-publish` builds Docker images, but doesn't push them.
                 # As opposed to `goreleaser build`, which stops before building Dockers.
-                command: S3_FOLDER="influxdb/releases/" VERSION="$(git describe)" goreleaser --debug release --skip-publish --skip-sign -p 1 --rm-dist --skip-validate
+                command: S3_FOLDER="influxdb/releases/" VERSION="$(git describe | sed 's/^v//')" goreleaser --debug release --skip-publish --skip-sign -p 1 --rm-dist --skip-validate
       - when:
           condition: << parameters.publish_release >>
           steps:
@@ -406,14 +406,12 @@ commands:
           steps:
             - run:
                 name: Publish nightly
-                #TODO: remove --skip-publish flag
                 command: |
                   S3_FOLDER="platform/nightlies/2.0" \
                   VERSION="2.0-nightly" \
                   goreleaser \
                     --debug \
                     release \
-                      --skip-publish \
                       -p 1 \
                       --rm-dist \
                       --skip-validate
@@ -585,7 +583,7 @@ jobs:
       - install_core_deps
       - install_cross_bin_deps
       # Build the static binary for linux
-      - run: S3_FOLDER="influxdb/releases/" VERSION="$(git describe)" goreleaser build --snapshot --single-target
+      - run: S3_FOLDER="influxdb/releases/" VERSION="$(git describe | sed 's/^v//')" goreleaser build --snapshot --single-target
       - store_artifacts:
           path: dist
       - persist_to_workspace:
