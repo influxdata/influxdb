@@ -164,8 +164,8 @@ jobs:
       - checkout
 
       - run:
-          name: Install Rust
-          command: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
+          name: Install rustup
+          command: scripts/install_rustup.sh
 
       - run:
           name: Install perf.py dependencies
