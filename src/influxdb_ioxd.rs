@@ -365,7 +365,7 @@ mod tests {
     use std::num::NonZeroU64;
     use structopt::StructOpt;
     use tokio::task::JoinHandle;
-    use trace::span::Span;
+    use trace::span::{Span, SpanStatus};
     use trace::RingBufferTraceCollector;
     use trace_exporters::otel::{OtelExporter, TestOtelExporter};
 
@@ -648,6 +648,7 @@ mod tests {
         assert_eq!(spans[0].ctx.trace_id.0.get(), 0xfea24902);
         assert!(spans[0].start.is_some());
         assert!(spans[0].end.is_some());
+        assert_eq!(spans[0].status, SpanStatus::Ok);
 
         assert_eq!(spans[1].name, "IOx");
         assert_eq!(spans[1].ctx.parent_span_id.unwrap().0.get(), 0xab3409);
@@ -677,6 +678,8 @@ mod tests {
             NonZeroU64::new(344).unwrap(),
         );
 
+        // Perform a number of different requests to generate traces
+
         let mut management = influxdb_iox_client::management::Client::new(conn.clone());
         management
             .create_database(
@@ -700,6 +703,16 @@ mod tests {
             .await
             .unwrap();
 
+        flight
+            .perform_query("nonexistent", "select * from cpu;")
+            .await
+            .unwrap_err();
+
+        flight
+            .perform_query(db_info.db_name(), "select * from nonexistent;")
+            .await
+            .unwrap_err();
+
         let mut storage = influxdb_storage_client::Client::new(conn);
         storage
             .tag_values(influxdb_storage_client::generated_types::TagValuesRequest {
@@ -714,11 +727,13 @@ mod tests {
         server.shutdown();
         join.await.unwrap().unwrap();
 
+        // Check generated traces
+
         let spans = collector.spans();
 
         let root_spans: Vec<_> = spans.iter().filter(|span| &span.name == "IOx").collect();
-        // Made 3 requests
-        assert_eq!(root_spans.len(), 4);
+        // Made 6 requests
+        assert_eq!(root_spans.len(), 6);
 
         let child = |parent: &Span, name: &'static str| -> Option<&Span> {
             spans.iter().find(|span| {
@@ -727,9 +742,10 @@ mod tests {
         };
 
         // Test SQL
-        let sql_span = root_spans[2];
+        let sql_query_span = root_spans[2];
+        assert_eq!(sql_query_span.status, SpanStatus::Ok);
 
-        let ctx_span = child(sql_span, "Query Execution").unwrap();
+        let ctx_span = child(sql_query_span, "Query Execution").unwrap();
         let planner_span = child(ctx_span, "Planner").unwrap();
         let sql_span = child(planner_span, "sql").unwrap();
         let prepare_sql_span = child(sql_span, "prepare_sql").unwrap();
@@ -737,8 +753,22 @@ mod tests {
 
         child(ctx_span, "collect").unwrap();
 
+        let database_not_found = root_spans[3];
+        assert_eq!(database_not_found.status, SpanStatus::Err);
+        assert!(database_not_found
+            .events
+            .iter()
+            .any(|event| event.msg.as_ref() == "not found"));
+
+        let table_not_found = root_spans[4];
+        assert_eq!(table_not_found.status, SpanStatus::Err);
+        assert!(table_not_found
+            .events
+            .iter()
+            .any(|event| event.msg.as_ref() == "invalid argument"));
+
         // Test tag_values
-        let storage_span = root_spans[3];
+        let storage_span = root_spans[5];
         let ctx_span = child(storage_span, "Query Execution").unwrap();
         child(ctx_span, "Planner").unwrap();
 

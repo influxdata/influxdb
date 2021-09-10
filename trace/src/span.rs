@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 
 use crate::ctx::SpanContext;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum SpanStatus {
     Unknown,
     Ok,
@@ -45,10 +45,20 @@ impl Span {
         self.events.push(event)
     }
 
-    /// Record an error on this `Span`
+    /// Record success on this `Span` setting the status if it isn't already set
+    pub fn ok(&mut self, meta: impl Into<Cow<'static, str>>) {
+        self.event(meta);
+        if self.status == SpanStatus::Unknown {
+            self.status = SpanStatus::Ok;
+        }
+    }
+
+    /// Record an error on this `Span` setting the status if it isn't already set
     pub fn error(&mut self, meta: impl Into<Cow<'static, str>>) {
         self.event(meta);
-        self.status = SpanStatus::Err;
+        if self.status == SpanStatus::Unknown {
+            self.status = SpanStatus::Err;
+        }
     }
 
     /// Exports this `Span` to its registered collector if any
@@ -123,6 +133,13 @@ impl<'a> SpanRecorder {
     pub fn event(&mut self, meta: impl Into<Cow<'static, str>>) {
         if let Some(span) = self.span.as_mut() {
             span.event(meta)
+        }
+    }
+
+    /// Record success on the contained `Span` if any
+    pub fn ok(&mut self, meta: impl Into<Cow<'static, str>>) {
+        if let Some(span) = self.span.as_mut() {
+            span.ok(meta)
         }
     }
 

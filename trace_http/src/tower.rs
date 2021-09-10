@@ -18,6 +18,7 @@ use http::{Request, Response};
 use http_body::SizeHint;
 use observability_deps::tracing::error;
 use pin_project::pin_project;
+use std::borrow::Cow;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -122,11 +123,15 @@ where
     type Output = Result<Response<TracedBody<ResBody>>, Error>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let result = ready!(self.as_mut().project().inner.poll(cx));
+        let result: Result<Response<ResBody>, Error> =
+            ready!(self.as_mut().project().inner.poll(cx));
 
         let recorder = self.as_mut().project().recorder;
         match &result {
-            Ok(_) => recorder.event("request processed"),
+            Ok(response) => match classify_response(response) {
+                Ok(_) => recorder.event("request processed"),
+                Err(e) => recorder.error(e),
+            },
             Err(_) => recorder.error("error processing request"),
         }
 
@@ -175,13 +180,15 @@ impl<B: http_body::Body> http_body::Body for TracedBody<B> {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Result<Option<http::header::HeaderMap>, Self::Error>> {
-        // TODO: Classify response status and set SpanStatus
-
-        let result = ready!(self.as_mut().project().inner.poll_trailers(cx));
+        let result: Result<Option<http::header::HeaderMap>, Self::Error> =
+            ready!(self.as_mut().project().inner.poll_trailers(cx));
 
         let recorder = self.as_mut().project().recorder;
         match &result {
-            Ok(_) => recorder.event("returned trailers"),
+            Ok(headers) => match classify_headers(headers.as_ref()) {
+                Ok(_) => recorder.ok("returned trailers"),
+                Err(error) => recorder.error(error),
+            },
             Err(_) => recorder.error("eos getting trailers"),
         }
 
@@ -194,5 +201,53 @@ impl<B: http_body::Body> http_body::Body for TracedBody<B> {
 
     fn size_hint(&self) -> SizeHint {
         self.inner.size_hint()
+    }
+}
+
+fn classify_response<B>(response: &http::Response<B>) -> Result<(), Cow<'static, str>> {
+    let status = response.status();
+    match status {
+        http::StatusCode::OK | http::StatusCode::CREATED | http::StatusCode::NO_CONTENT => {
+            classify_headers(Some(response.headers()))
+        }
+        http::StatusCode::BAD_REQUEST => Err("bad request".into()),
+        http::StatusCode::NOT_FOUND => Err("not found".into()),
+        http::StatusCode::INTERNAL_SERVER_ERROR => Err("internal server error".into()),
+        _ => Err(format!("unexpected status code: {}", status).into()),
+    }
+}
+
+/// gRPC indicates failure via a [special][1] header allowing it to signal an error
+/// at the end of an HTTP chunked stream as part of the [response trailer][2]
+///
+/// [1]: https://grpc.github.io/grpc/core/md_doc_statuscodes.html
+/// [2]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Trailer
+fn classify_headers(headers: Option<&http::header::HeaderMap>) -> Result<(), Cow<'static, str>> {
+    match headers.and_then(|headers| headers.get("grpc-status")) {
+        Some(header) => {
+            let value = header.to_str().map_err(|_| "grpc status not string")?;
+            let value: i32 = value.parse().map_err(|_| "grpc status not integer")?;
+            match value {
+                0 => Ok(()),
+                1 => Err("cancelled".into()),
+                2 => Err("unknown".into()),
+                3 => Err("invalid argument".into()),
+                4 => Err("deadline exceeded".into()),
+                5 => Err("not found".into()),
+                6 => Err("already exists".into()),
+                7 => Err("permission denied".into()),
+                8 => Err("resource exhausted".into()),
+                9 => Err("failed precondition".into()),
+                10 => Err("aborted".into()),
+                11 => Err("out of range".into()),
+                12 => Err("unimplemented".into()),
+                13 => Err("internal".into()),
+                14 => Err("unavailable".into()),
+                15 => Err("data loss".into()),
+                16 => Err("unauthenticated".into()),
+                _ => Err(format!("unrecognised status code: {}", value).into()),
+            }
+        }
+        None => Ok(()),
     }
 }
