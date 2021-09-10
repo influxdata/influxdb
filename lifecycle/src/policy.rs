@@ -1,5 +1,5 @@
 use crate::{
-    LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk, LockablePartition,
+    sort_chunks, LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk, LockablePartition,
     PersistHandle,
 };
 use chrono::{DateTime, Utc};
@@ -232,18 +232,7 @@ where
         }
 
         let chunks = LockablePartition::chunks(&partition);
-
-        // Sort chunks by:
-        // 1. order: ensure compacting chunks with any potential updates together
-        // 2. ID: for a stable lock order
-        let mut chunks: Vec<_> = chunks
-            .into_iter()
-            .map(|(id, chunk)| {
-                let order = chunk.read().order();
-                (order, id, chunk)
-            })
-            .collect();
-        chunks.sort_by_key(|(order, id, _chunk)| (*order, *id));
+        let chunks = sort_chunks(chunks);
 
         let mut has_mub_snapshot = false;
         let mut to_compact = Vec::new();
@@ -404,17 +393,7 @@ where
             }
         };
 
-        // Sort chunks by:
-        // 1. order: ensure compacting chunks with any potential updates together
-        // 2. ID: for a stable lock order
-        let mut chunks: Vec<_> = chunks
-            .into_iter()
-            .map(|(id, chunk)| {
-                let order = chunk.read().order();
-                (order, id, chunk)
-            })
-            .collect();
-        chunks.sort_by_key(|(order, id, _chunk)| (*order, *id));
+        let chunks = sort_chunks(chunks);
 
         let mut to_persist = Vec::new();
         for (_, _, chunk) in &chunks {

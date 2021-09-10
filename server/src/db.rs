@@ -1,6 +1,12 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
+use async_trait::async_trait;
+use chrono::{TimeZone, Utc};
+use futures::{stream::BoxStream, StreamExt};
+use parking_lot::{Mutex, RwLock};
+use rand_distr::{Distribution, Poisson};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     any::Any,
     collections::HashMap,
@@ -12,14 +18,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use async_trait::async_trait;
-use chrono::{TimeZone, Utc};
-use futures::{stream::BoxStream, StreamExt};
-use parking_lot::{Mutex, RwLock};
-use rand_distr::{Distribution, Poisson};
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
-
-use ::lifecycle::{LifecycleChunk, LockableChunk, LockablePartition};
+use ::lifecycle::{sort_chunks, LifecycleChunk, LockableChunk, LockablePartition};
 use data_types::{
     chunk_metadata::ChunkSummary,
     database_rules::DatabaseRules,
@@ -761,17 +760,7 @@ impl Db {
                     partition_key,
                 })?;
 
-            // Sort chunks by:
-            // 1. order: ensure compacting chunks with any potential updates together
-            // 2. ID: for a stable lock order
-            let mut chunks: Vec<_> = chunks
-                .into_iter()
-                .map(|(id, chunk)| {
-                    let order = chunk.read().order();
-                    (order, id, chunk)
-                })
-                .collect();
-            chunks.sort_by_key(|(order, id, _chunk)| (*order, *id));
+            let chunks = sort_chunks(chunks);
 
             // get chunks for persistence, break after first chunk that cannot be persisted due to lifecycle reasons
             let chunks: Vec<_> = chunks
