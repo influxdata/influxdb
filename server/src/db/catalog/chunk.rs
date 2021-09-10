@@ -10,7 +10,6 @@ use data_types::{
     write_summary::TimestampSummary,
 };
 use internal_types::{access::AccessRecorder, schema::Schema};
-use metrics::{Counter, Histogram, KeyValue};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
@@ -230,8 +229,6 @@ macro_rules! unexpected_state {
 
 #[derive(Debug)]
 pub struct ChunkMetrics {
-    pub(super) state: Counter,
-    pub(super) immutable_chunk_size: Histogram,
     /// Chunk storage metrics
     pub(super) chunk_storage: StorageGauge,
 
@@ -252,8 +249,6 @@ impl ChunkMetrics {
     /// created on a metrics domain, and vice versa
     pub fn new_unregistered() -> Self {
         Self {
-            state: Counter::new_unregistered(),
-            immutable_chunk_size: Histogram::new_unregistered(),
             chunk_storage: StorageGauge::new_unregistered(),
             row_count: StorageGauge::new_unregistered(),
             memory_metrics: StorageGauge::new_unregistered(),
@@ -275,10 +270,6 @@ impl CatalogChunk {
         assert_eq!(chunk.table_name(), &addr.table_name);
 
         let stage = ChunkStage::Open { mb_chunk: chunk };
-
-        metrics
-            .state
-            .inc_with_attributes(&[KeyValue::new("state", "open")]);
 
         let chunk = Self {
             addr,
@@ -313,10 +304,6 @@ impl CatalogChunk {
             }),
             representation: ChunkStageFrozenRepr::ReadBuffer(Arc::new(chunk)),
         };
-
-        metrics
-            .state
-            .inc_with_attributes(&[KeyValue::new("state", "compacted")]);
 
         let chunk = Self {
             addr,
@@ -664,14 +651,6 @@ impl CatalogChunk {
 
                 self.time_closed = Some(Utc::now());
                 let (s, _) = mb_chunk.snapshot();
-                self.metrics
-                    .state
-                    .inc_with_attributes(&[KeyValue::new("state", "closed")]);
-
-                self.metrics.immutable_chunk_size.observe_with_attributes(
-                    mb_chunk.size() as f64,
-                    &[KeyValue::new("state", "closed")],
-                );
 
                 // Cache table summary + schema
                 let metadata = ChunkMetadata {
@@ -713,15 +692,6 @@ impl CatalogChunk {
                 ChunkStageFrozenRepr::MutableBufferSnapshot(repr) => {
                     let chunk = Arc::clone(repr);
                     self.set_lifecycle_action(ChunkLifecycleAction::Moving, registration)?;
-
-                    self.metrics
-                        .state
-                        .inc_with_attributes(&[KeyValue::new("state", "moving")]);
-
-                    self.metrics.immutable_chunk_size.observe_with_attributes(
-                        chunk.size() as f64,
-                        &[KeyValue::new("state", "moving")],
-                    );
 
                     Ok(chunk)
                 }
@@ -771,14 +741,6 @@ impl CatalogChunk {
 
                 match &representation {
                     ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
-                        self.metrics
-                            .state
-                            .inc_with_attributes(&[KeyValue::new("state", "moved")]);
-
-                        self.metrics.immutable_chunk_size.observe_with_attributes(
-                            chunk.size() as f64,
-                            &[KeyValue::new("state", "moved")],
-                        );
                         *representation = ChunkStageFrozenRepr::ReadBuffer(chunk);
                         self.update_metrics();
                         self.finish_lifecycle_action(ChunkLifecycleAction::Moving)?;
@@ -810,9 +772,6 @@ impl CatalogChunk {
         match &self.stage {
             ChunkStage::Frozen { .. } => {
                 self.set_lifecycle_action(ChunkLifecycleAction::Persisting, registration)?;
-                self.metrics
-                    .state
-                    .inc_with_attributes(&[KeyValue::new("state", "writing_os")]);
                 Ok(())
             }
             _ => {
@@ -845,15 +804,6 @@ impl CatalogChunk {
                         let db = Arc::clone(repr);
                         self.finish_lifecycle_action(ChunkLifecycleAction::Persisting)?;
 
-                        self.metrics
-                            .state
-                            .inc_with_attributes(&[KeyValue::new("state", "rub_and_os")]);
-
-                        self.metrics.immutable_chunk_size.observe_with_attributes(
-                            (chunk.size() + db.size()) as f64,
-                            &[KeyValue::new("state", "rub_and_os")],
-                        );
-
                         self.stage = ChunkStage::Persisted {
                             meta,
                             parquet: chunk,
@@ -877,21 +827,8 @@ impl CatalogChunk {
 
     pub fn set_unload_from_read_buffer(&mut self) -> Result<Arc<RBChunk>> {
         match &mut self.stage {
-            ChunkStage::Persisted {
-                parquet,
-                read_buffer,
-                ..
-            } => {
+            ChunkStage::Persisted { read_buffer, .. } => {
                 if let Some(rub_chunk) = read_buffer.take() {
-                    self.metrics
-                        .state
-                        .inc_with_attributes(&[KeyValue::new("state", "os")]);
-
-                    self.metrics.immutable_chunk_size.observe_with_attributes(
-                        parquet.size() as f64,
-                        &[KeyValue::new("state", "os")],
-                    );
-
                     self.update_metrics();
 
                     Ok(rub_chunk)

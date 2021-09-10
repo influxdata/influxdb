@@ -5,7 +5,7 @@ use parking_lot::Mutex;
 
 use data_types::write_summary::TimestampSummary;
 use metric::{Attributes, DurationHistogram, DurationHistogramOptions};
-use metrics::{Counter, Gauge, GaugeValue, Histogram, KeyValue};
+use metrics::{Gauge, GaugeValue, KeyValue};
 use tracker::{LockMetrics, RwLock};
 
 use crate::db::catalog::chunk::ChunkMetrics;
@@ -155,21 +155,6 @@ impl TableMetrics {
             chunk_storage: self.chunk_storage.clone_empty(),
             row_count: self.row_count.clone_empty(),
             memory_metrics: self.memory_metrics.clone_empty(),
-            chunk_state: self.metrics_domain.register_counter_metric_with_attributes(
-                "chunks",
-                None,
-                "In-memory chunks created in various life-cycle stages",
-                vec![],
-            ),
-            immutable_chunk_size: self
-                .metrics_domain
-                .register_histogram_metric(
-                    "chunk_creation",
-                    "size",
-                    "bytes",
-                    "The new size of an immutable chunk",
-                )
-                .init(),
             chunk_lock_metrics: Arc::clone(&self.chunk_lock_metrics),
             timestamp_histogram: self.timestamp_histogram.clone(),
         }
@@ -187,10 +172,6 @@ pub struct PartitionMetrics {
     /// Catalog memory metrics
     memory_metrics: StorageGauge,
 
-    chunk_state: Counter,
-
-    immutable_chunk_size: Histogram,
-
     /// Lock metrics for chunk-level locks
     chunk_lock_metrics: Arc<LockMetrics>,
 
@@ -206,8 +187,6 @@ impl PartitionMetrics {
     pub(super) fn new_chunk_metrics(&self) -> ChunkMetrics {
         ChunkMetrics {
             timestamp_histogram: self.timestamp_histogram.clone(),
-            state: self.chunk_state.clone(),
-            immutable_chunk_size: self.immutable_chunk_size.clone(),
             chunk_storage: self.chunk_storage.clone_empty(),
             row_count: self.row_count.clone_empty(),
             memory_metrics: self.memory_metrics.clone_empty(),

@@ -264,22 +264,30 @@ impl Database {
         new_provided_rules: Arc<ProvidedDatabaseRules>,
     ) -> Result<(), Error> {
         // get a handle to signal our intention to update the state
-        let (handle, iox_object_store) = {
-            // scope so we drop the read lock
+        let handle = self.shared.state.read().freeze();
+
+        // wait for the freeze handle. Only one thread can ever have
+        // it at any time so we know past this point no other thread
+        // can change the DatabaseState (even though this code
+        // doesn't hold a lock for the entire time)
+        let handle = handle.await;
+
+        // scope so we drop the read lock
+        let iox_object_store = {
             let state = self.shared.state.read();
             let state_code = state.state_code();
 
             // A handle to the object store so we can update the rules
             // in object store prior to obtaining exclusive write
-            // acces to the `DatabaseState`
+            // access to the `DatabaseState` (which we can't hold
+            // across the await to write to the object store)
             let iox_object_store = state.iox_object_store().context(RulesNotUpdateable {
                 db_name: new_provided_rules.db_name(),
                 state: state_code,
             })?;
 
-            // ensure the database is in initialized state (acquiring
-            // the freeze handle ensures this state remains the same
-            // once we get the write lock below
+            // ensure the database is in initialized state (since we
+            // hold the freeze handle, nothing can change this
             ensure!(
                 state_code == DatabaseStateCode::Initialized,
                 RulesNotUpdateable {
@@ -287,21 +295,14 @@ impl Database {
                     state: state_code,
                 }
             );
-
-            let handle = state.try_freeze().context(RulesNotUpdateable {
-                db_name: new_provided_rules.db_name(),
-                state: state_code,
-            })?;
-            (handle, iox_object_store)
-        };
+            iox_object_store
+        }; // drop read lock
 
         // Attempt to persist to object store, if that fails, roll
         // back the whole transaction (leave the rules unchanged).
         //
-        // The fact the freeze handle is held here ensures only one
-        // one task can ever be in this code at any time. Another
-        // concurrent attempt would error in the `try_freeze()`
-        // call above.
+        // Even though we don't hold a lock here, the freeze handle
+        // ensures the state can not be modified.
         new_provided_rules
             .persist(&iox_object_store)
             .await
@@ -309,9 +310,8 @@ impl Database {
 
         let mut state = self.shared.state.write();
 
-        // Exchange FreezeHandle for mutable access via WriteGuard,
-        // nothing else can mess with the database state now as we
-        // change the rules
+        // Exchange FreezeHandle for mutable access to DatabaseState
+        // via WriteGuard
         let mut state = state.unfreeze(handle);
 
         if let DatabaseState::Initialized(DatabaseStateInitialized { db, provided_rules }) =
@@ -321,9 +321,9 @@ impl Database {
             *provided_rules = new_provided_rules;
             Ok(())
         } else {
-            // The fact we have a handle should have prevented any
-            // changes to the database state between when it was
-            // checked above and now
+            // The freeze handle should have prevented any changes to
+            // the database state between when it was checked above
+            // and now
             unreachable!()
         }
     }
