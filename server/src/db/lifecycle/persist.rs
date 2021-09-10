@@ -11,7 +11,10 @@ use data_types::job::Job;
 use lifecycle::{LifecycleWriteGuard, LockableChunk, LockablePartition};
 use observability_deps::tracing::info;
 use persistence_windows::persistence_windows::FlushHandle;
-use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
+use query::{
+    compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, predicate::Predicate,
+    QueryChunkMeta,
+};
 use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
@@ -47,6 +50,7 @@ pub fn persist_chunks(
     let mut time_of_first_write: Option<DateTime<Utc>> = None;
     let mut time_of_last_write: Option<DateTime<Utc>> = None;
     let mut query_chunks = vec![];
+    let mut delete_predicates: Arc<Vec<Predicate>> = Arc::new(vec![]);
     for mut chunk in chunks {
         // Sanity-check
         assert!(Arc::ptr_eq(&db, &chunk.data().db));
@@ -63,6 +67,8 @@ pub fn persist_chunks(
         time_of_last_write = time_of_last_write
             .map(|prev_last| prev_last.max(candidate_last))
             .or(Some(candidate_last));
+
+        delete_predicates = chunk.delete_predicates();
 
         chunk.set_writing_to_object_store(&registration)?;
         query_chunks.push(DbChunk::snapshot(&*chunk));
@@ -124,6 +130,7 @@ pub fn persist_chunks(
                     time_of_first_write,
                     time_of_last_write,
                     Arc::clone(&schema),
+                    Arc::clone(&delete_predicates),
                 );
             }
 
@@ -136,6 +143,7 @@ pub fn persist_chunks(
                     time_of_first_write,
                     time_of_last_write,
                     schema,
+                    Arc::clone(&delete_predicates),
                 ),
             };
             let to_persist = to_persist.write();

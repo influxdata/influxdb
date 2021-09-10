@@ -1489,6 +1489,7 @@ async fn test_delete() {
         .await
         .unwrap();
     // todo: The delete function  above just parses the input, nothing deleted in DB yet
+    // todoL: should add different tests for different stages of chunks, too
 
     // query to verify data deleted
     // todo: when the delete is done and integrated, the below test must fail

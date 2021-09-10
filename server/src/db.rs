@@ -4,6 +4,7 @@
 pub(crate) use crate::db::chunk::DbChunk;
 use crate::{
     db::{
+        self,
         access::QueryCatalogAccess,
         catalog::{
             chunk::{CatalogChunk, ChunkStage},
@@ -40,7 +41,7 @@ use parquet_file::catalog::{
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
 use query::{
     exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
-    predicate::Predicate,
+    predicate::{Predicate, PredicateBuilder},
     QueryDatabase,
 };
 use rand_distr::{Distribution, Poisson};
@@ -124,6 +125,9 @@ pub enum Error {
         table_name: String,
         source: CatalogError,
     },
+
+    #[snafu(display("Internal error while adding predicate predicate to chunk: {}", source))]
+    AddDeletePredicateError { source: db::catalog::chunk::Error },
 
     #[snafu(display(
         "Storing sequenced entry failed with the following error(s), and possibly more: {}",
@@ -551,7 +555,9 @@ impl Db {
         info!(%table_name, %partition_key, found_chunk=chunk.is_some(), "rolling over a partition");
         if let Some(chunk) = chunk {
             let mut chunk = chunk.write();
-            chunk.freeze().context(FreezingChunk)?;
+            chunk
+                .freeze(&PredicateBuilder::default().build())
+                .context(FreezingChunk)?;
 
             Ok(Some(DbChunk::snapshot(&chunk)))
         } else {
@@ -653,9 +659,11 @@ impl Db {
             let partition = partition.write();
             let chunks = partition.chunks();
             for chunk in chunks {
-                // NGA todo: verify where to close MUB before adding the predicate
+                // save the delete predicate in the chunk
                 let mut chunk = chunk.write();
-                chunk.add_delete_predicate(delete_predicate);
+                chunk
+                    .add_delete_predicate(delete_predicate)
+                    .context(AddDeletePredicateError)?;
             }
         }
 
@@ -1304,7 +1312,9 @@ impl Db {
                     let handle_chunk_write = |chunk: &mut CatalogChunk| {
                         chunk.record_write(time_of_write, &timestamp_summary);
                         if chunk.storage().0 >= mub_row_threshold.get() {
-                            chunk.freeze().expect("freeze mub chunk");
+                            chunk
+                                .freeze(&PredicateBuilder::default().build())
+                                .expect("freeze mub chunk");
                         }
                     };
 

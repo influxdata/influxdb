@@ -12,6 +12,7 @@ use observability_deps::tracing::info;
 use persistence_windows::{
     min_max_sequence::OptionalMinMaxSequence, persistence_windows::PersistenceWindows,
 };
+use query::predicate::Predicate;
 use snafu::Snafu;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
@@ -160,6 +161,7 @@ impl Partition {
         time_of_first_write: DateTime<Utc>,
         time_of_last_write: DateTime<Utc>,
         schema: Arc<Schema>,
+        delete_predicates: Arc<Vec<Predicate>>,
     ) -> Arc<RwLock<CatalogChunk>> {
         let chunk_id = self.next_chunk_id;
         assert_ne!(self.next_chunk_id, u32::MAX, "Chunk ID Overflow");
@@ -175,6 +177,7 @@ impl Partition {
             time_of_last_write,
             schema,
             self.metrics.new_chunk_metrics(),
+            delete_predicates,
         )));
 
         if self.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
@@ -195,6 +198,7 @@ impl Partition {
         chunk: Arc<parquet_file::chunk::ParquetChunk>,
         time_of_first_write: DateTime<Utc>,
         time_of_last_write: DateTime<Utc>,
+        delete_predicates: Arc<Vec<Predicate>>,
     ) -> Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name(), self.table_name());
 
@@ -208,6 +212,7 @@ impl Partition {
                     time_of_first_write,
                     time_of_last_write,
                     self.metrics.new_chunk_metrics(),
+                    Arc::clone(&delete_predicates),
                 )),
         );
 
@@ -359,6 +364,7 @@ mod tests {
         let t = Utc::now();
         let schema = SchemaBuilder::new().timestamp().build().unwrap();
         let schema = Arc::new(schema);
+        let delete_predicates: Arc<Vec<Predicate>> = Arc::new(vec![]);
         let rb = RecordBatch::try_new(
             schema.as_arrow(),
             vec![Arc::new(TimestampNanosecondArray::from_iter_values([
@@ -374,18 +380,21 @@ mod tests {
             t,
             t,
             Arc::clone(&schema),
+            Arc::clone(&delete_predicates),
         );
         partition.create_rub_chunk(
             RBChunk::new("t", rb.clone(), ChunkMetrics::new(&domain)),
             t,
             t,
             Arc::clone(&schema),
+            Arc::clone(&delete_predicates),
         );
         partition.create_rub_chunk(
             RBChunk::new("t", rb, ChunkMetrics::new(&domain)),
             t,
             t,
             Arc::clone(&schema),
+            Arc::clone(&delete_predicates),
         );
 
         // should be in ascending order
