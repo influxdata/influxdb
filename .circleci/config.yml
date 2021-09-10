@@ -815,6 +815,10 @@ jobs:
             cargo install git-cliff
             cd ..
 
+            S3_PATH="dl.influxdata.com/platform/nightlies/master"
+            curl -o CHANGELOG.md ${S3_PATH}/CHANGELOG.md
+            curl -o scripts/ci/changelog-commit.txt ${S3_PATH}/changelog-commit.txt
+
             TIMESTAMP="$(date -u '+%Y%m%d')"
             COMMIT_FILE_PATH="scripts/ci/changelog-commit.txt"
             LAST_COMMIT=$(cat $COMMIT_FILE_PATH)
