@@ -109,10 +109,13 @@ pub fn drop_partition(
     //    locks) for the same partition at the same time.
     // 2. `partition.chunks()` returns chunks ordered by their IDs, so the lock acquisition order is fixed.
     let lockable_chunks: Vec<_> = partition
-        .chunks()
-        .map(|chunk| LockableCatalogChunk {
+        .keyed_chunks()
+        .into_iter()
+        .map(|(id, order, chunk)| LockableCatalogChunk {
             db: Arc::clone(&db),
             chunk: Arc::clone(chunk),
+            id,
+            order,
         })
         .collect();
     let mut guards: Vec<_> = lockable_chunks

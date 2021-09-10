@@ -63,8 +63,10 @@ pub trait LockablePartition: Sized + std::fmt::Display {
         chunk_id: u32,
     ) -> Option<Self::Chunk>;
 
-    /// Return a list of lockable chunks in this partition - the returned order must be stable
-    fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<(u32, Self::Chunk)>;
+    /// Return a list of lockable chunks in this partition.
+    ///
+    /// This must be ordered by `(order, id)`.
+    fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<Self::Chunk>;
 
     /// Compact chunks into a single read buffer chunk
     ///
@@ -148,6 +150,10 @@ pub trait LockableChunk: Sized {
     /// [`drop_chunk`](LockablePartition::drop_chunk) must be used.
     fn unload_read_buffer(s: LifecycleWriteGuard<'_, Self::Chunk, Self>)
         -> Result<(), Self::Error>;
+
+    fn id(&self) -> u32;
+
+    fn order(&self) -> u32;
 }
 
 pub trait LifecyclePartition {
@@ -195,20 +201,11 @@ pub trait LifecycleChunk {
 ///
 /// 1. order: ensure compacting chunks with any potential updates together
 /// 2. ID: for a stable lock order
-///
-/// Takes a vector of chunk ID and chunk. Returns a vector of chunk order, chunk ID and chunk.
-pub fn sort_chunks<C>(chunks: Vec<(u32, C)>) -> Vec<(u32, u32, C)>
+pub fn sort_chunks<C>(mut chunks: Vec<C>) -> Vec<C>
 where
     C: LockableChunk,
 {
-    let mut chunks: Vec<_> = chunks
-        .into_iter()
-        .map(|(id, chunk)| {
-            let order = chunk.read().order();
-            (order, id, chunk)
-        })
-        .collect();
-    chunks.sort_by_key(|(order, id, _chunk)| (*order, *id));
+    chunks.sort_by_key(|chunk| (chunk.order(), chunk.id()));
     chunks
 }
 

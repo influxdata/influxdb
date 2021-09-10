@@ -148,16 +148,19 @@ pub fn persist_chunks(
 
             let to_persist = to_persist.expect("should be rows to persist");
 
+            let (new_chunk_id, new_chunk) = partition_write.create_rub_chunk(
+                to_persist,
+                time_of_first_write,
+                time_of_last_write,
+                schema,
+                del_preds,
+                min_order,
+            );
             let to_persist = LockableCatalogChunk {
                 db,
-                chunk: partition_write.create_rub_chunk(
-                    to_persist,
-                    time_of_first_write,
-                    time_of_last_write,
-                    schema,
-                    del_preds,
-                    min_order,
-                ),
+                chunk: new_chunk,
+                id: new_chunk_id,
+                order: min_order,
             };
             let to_persist = to_persist.write();
 
@@ -225,7 +228,7 @@ mod tests {
         let partition = partition.read();
 
         let chunks = LockablePartition::chunks(&partition);
-        let chunks = chunks.iter().map(|x| x.1.read());
+        let chunks = chunks.iter().map(|x| x.read());
 
         let mut partition = partition.upgrade();
 

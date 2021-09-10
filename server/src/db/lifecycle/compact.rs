@@ -111,7 +111,7 @@ pub(crate) fn compact_chunks(
             .expect("chunk has zero rows");
         let rb_row_groups = rb_chunk.row_groups();
 
-        let new_chunk = {
+        let (_id, new_chunk) = {
             let mut partition = partition.write();
             for id in chunk_ids {
                 partition.force_drop_chunk(id)
@@ -180,7 +180,7 @@ mod tests {
 
         let chunks = LockablePartition::chunks(&partition);
         assert_eq!(chunks.len(), 1);
-        let chunk = chunks[0].1.read();
+        let chunk = chunks[0].read();
 
         let (_, fut) = compact_chunks(partition.upgrade(), vec![chunk.upgrade()]).unwrap();
         // NB: perform the write before spawning the background task that performs the compaction

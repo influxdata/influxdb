@@ -49,9 +49,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct Partition {
     addr: PartitionAddr,
 
-    /// The chunks that make up this partition, indexed by id. Stored
-    /// using BTreeMap to ensure consistent iteration order (by id)
-    chunks: BTreeMap<u32, Arc<RwLock<CatalogChunk>>>,
+    /// The chunks that make up this partition, indexed by id.
+    //
+    // Alongside the chunk we also store its order.
+    chunks: BTreeMap<u32, (u32, Arc<RwLock<CatalogChunk>>)>,
 
     /// When this partition was created
     created_at: DateTime<Utc>,
@@ -154,7 +155,11 @@ impl Partition {
         );
         let chunk = Arc::new(self.metrics.new_chunk_lock(chunk));
 
-        if self.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
+        if self
+            .chunks
+            .insert(chunk_id, (chunk_order, Arc::clone(&chunk)))
+            .is_some()
+        {
             // A fundamental invariant has been violated - abort
             panic!("chunk already existed with id {}", chunk_id)
         }
@@ -162,7 +167,9 @@ impl Partition {
         chunk
     }
 
-    /// Create a new read buffer chunk
+    /// Create a new read buffer chunk.
+    ///
+    /// Returns ID and chunk.
     pub fn create_rub_chunk(
         &mut self,
         chunk: read_buffer::RBChunk,
@@ -171,7 +178,7 @@ impl Partition {
         schema: Arc<Schema>,
         delete_predicates: Arc<Vec<Predicate>>,
         chunk_order: u32,
-    ) -> Arc<RwLock<CatalogChunk>> {
+    ) -> (u32, Arc<RwLock<CatalogChunk>>) {
         let chunk_id = Self::pick_next(&mut self.next_chunk_id, "Chunk ID Overflow");
         assert!(
             chunk_order < self.next_chunk_order,
@@ -194,11 +201,15 @@ impl Partition {
             chunk_order,
         )));
 
-        if self.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
+        if self
+            .chunks
+            .insert(chunk_id, (chunk_order, Arc::clone(&chunk)))
+            .is_some()
+        {
             // A fundamental invariant has been violated - abort
             panic!("chunk already existed with id {}", chunk_id)
         }
-        chunk
+        (chunk_id, chunk)
     }
 
     fn pick_next(from: &mut u32, error_msg: &'static str) -> u32 {
@@ -250,7 +261,8 @@ impl Partition {
                     .next_chunk_order
                     .max(chunk_order.checked_add(1).expect("Chunk Order Overflow"));
 
-                Arc::clone(vacant.insert(chunk))
+                vacant.insert((chunk_order, Arc::clone(&chunk)));
+                chunk
             }
             Entry::Occupied(_) => panic!("chunk with id {} already exists", chunk_id),
         }
@@ -264,7 +276,8 @@ impl Partition {
             }),
             Entry::Occupied(occupied) => {
                 {
-                    let chunk = occupied.get().read();
+                    let (_order, chunk) = occupied.get();
+                    let chunk = chunk.read();
                     if let Some(action) = chunk.lifecycle_action() {
                         if action.metadata() != &ChunkLifecycleAction::Dropping {
                             return Err(Error::LifecycleInProgress {
@@ -274,7 +287,8 @@ impl Partition {
                         }
                     }
                 }
-                Ok(occupied.remove())
+                let (_order, chunk) = occupied.remove();
+                Ok(chunk)
             }
         }
     }
@@ -288,31 +302,42 @@ impl Partition {
     pub fn open_chunk(&self) -> Option<Arc<RwLock<CatalogChunk>>> {
         self.chunks
             .values()
-            .find(|chunk| {
+            .find(|(_order, chunk)| {
                 let chunk = chunk.read();
                 matches!(chunk.stage(), ChunkStage::Open { .. })
             })
             .cloned()
+            .map(|(_order, chunk)| chunk)
     }
 
-    /// Return an immutable chunk reference by chunk id.
-    pub fn chunk(&self, chunk_id: u32) -> Option<&Arc<RwLock<CatalogChunk>>> {
-        self.chunks.get(&chunk_id)
+    /// Return an immutable chunk and its order reference by chunk id.
+    pub fn chunk(&self, chunk_id: u32) -> Option<(&Arc<RwLock<CatalogChunk>>, u32)> {
+        self.chunks
+            .get(&chunk_id)
+            .map(|(order, chunk)| (chunk, *order))
     }
 
-    /// Return a iterator over chunks in this partition.
+    /// Return chunks in this partition.
     ///
-    /// Note that chunks are guaranteed ordered by chunk ID.
-    pub fn chunks(&self) -> impl Iterator<Item = &Arc<RwLock<CatalogChunk>>> {
-        self.chunks.values()
+    /// Note that chunks are guaranteed ordered by chunk order and ID.
+    pub fn chunks(&self) -> Vec<&Arc<RwLock<CatalogChunk>>> {
+        self.keyed_chunks()
+            .into_iter()
+            .map(|(_id, _order, chunk)| chunk)
+            .collect()
     }
 
-    /// Return a iterator over chunks in this partition with their
-    ///  ids.
+    /// Return chunks in this partition with their order and ids.
     ///
-    /// Note that chunks are guaranteed ordered by chunk ID.
-    pub fn keyed_chunks(&self) -> impl Iterator<Item = (u32, &Arc<RwLock<CatalogChunk>>)> {
-        self.chunks.iter().map(|(a, b)| (*a, b))
+    /// Note that chunks are guaranteed ordered by chunk order and ID.
+    pub fn keyed_chunks(&self) -> Vec<(u32, u32, &Arc<RwLock<CatalogChunk>>)> {
+        let mut chunks: Vec<_> = self
+            .chunks
+            .iter()
+            .map(|(id, (order, chunk))| (*id, *order, chunk))
+            .collect();
+        chunks.sort_by_key(|(id, order, _chunk)| (*order, *id));
+        chunks
     }
 
     /// Return a PartitionSummary for this partition. If the partition
@@ -325,14 +350,14 @@ impl Partition {
                 self.addr.partition_key.to_string(),
                 self.chunks
                     .values()
-                    .map(|x| x.read().table_summary().as_ref().clone()),
+                    .map(|(_order, chunk)| chunk.read().table_summary().as_ref().clone()),
             ))
         }
     }
 
     /// Return chunk summaries for all chunks in this partition
     pub fn chunk_summaries(&self) -> impl Iterator<Item = ChunkSummary> + '_ {
-        self.chunks().map(|x| x.read().summary())
+        self.chunks().into_iter().map(|x| x.read().summary())
     }
 
     /// Return reference to partition-specific metrics.
@@ -406,13 +431,15 @@ mod tests {
 
         let ids = partition
             .chunks()
+            .into_iter()
             .map(|c| c.read().id())
             .collect::<Vec<_>>();
         assert_eq!(ids, expected_ids);
 
         let ids = partition
             .keyed_chunks()
-            .map(|(id, _)| id)
+            .into_iter()
+            .map(|(id, _order, _chunk)| id)
             .collect::<Vec<_>>();
         assert_eq!(ids, expected_ids);
     }

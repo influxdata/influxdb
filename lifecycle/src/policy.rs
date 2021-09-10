@@ -1,5 +1,5 @@
 use crate::{
-    sort_chunks, LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk, LockablePartition,
+    LifecycleChunk, LifecycleDb, LifecyclePartition, LockableChunk, LockablePartition,
     PersistHandle,
 };
 use chrono::{DateTime, Utc};
@@ -101,7 +101,7 @@ where
         let mut candidates = Vec::new();
         for partition in partitions {
             let guard = partition.read();
-            for (_, chunk) in LockablePartition::chunks(&guard) {
+            for chunk in LockablePartition::chunks(&guard) {
                 let chunk = chunk.read();
                 if chunk.lifecycle_action().is_some() {
                     continue;
@@ -232,11 +232,10 @@ where
         }
 
         let chunks = LockablePartition::chunks(&partition);
-        let chunks = sort_chunks(chunks);
 
         let mut has_mub_snapshot = false;
         let mut to_compact = Vec::new();
-        for (_, _, chunk) in &chunks {
+        for chunk in &chunks {
             let chunk = chunk.read();
             if matches!(
                 chunk.storage(),
@@ -393,10 +392,8 @@ where
             }
         };
 
-        let chunks = sort_chunks(chunks);
-
         let mut to_persist = Vec::new();
-        for (_, _, chunk) in &chunks {
+        for chunk in &chunks {
             let chunk = chunk.read();
             trace!(%db_name, %partition, chunk=%chunk.addr(), "considering chunk for persistence");
 
@@ -471,7 +468,7 @@ where
         now: Instant,
     ) {
         let partition = partition.read();
-        for (_, chunk) in LockablePartition::chunks(&partition) {
+        for chunk in LockablePartition::chunks(&partition) {
             let chunk = chunk.read();
             if let Some(lifecycle_action) = chunk.lifecycle_action() {
                 if lifecycle_action.is_complete()
@@ -672,7 +669,7 @@ fn sort_free_candidates<P>(candidates: &mut Vec<FreeCandidate<'_, P>>) {
 mod tests {
     use super::*;
     use crate::{
-        ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
+        sort_chunks, ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
         LockablePartition, PersistHandle,
     };
     use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
@@ -696,7 +693,7 @@ mod tests {
 
     #[derive(Debug)]
     struct TestPartition {
-        chunks: BTreeMap<u32, Arc<RwLock<TestChunk>>>,
+        chunks: BTreeMap<u32, (u32, Arc<RwLock<TestChunk>>)>,
         persistable_row_count: usize,
         minimum_unpersisted_age: Option<Instant>,
         max_persistable_timestamp: Option<DateTime<Utc>>,
@@ -798,6 +795,8 @@ mod tests {
     struct TestLockableChunk<'a> {
         db: &'a TestDb,
         chunk: Arc<RwLock<TestChunk>>,
+        id: u32,
+        order: u32,
     }
 
     #[derive(Debug)]
@@ -830,26 +829,29 @@ mod tests {
             chunk_id: u32,
         ) -> Option<Self::Chunk> {
             let db = s.data().db;
-            s.chunks.get(&chunk_id).map(|x| TestLockableChunk {
-                db,
-                chunk: Arc::clone(x),
-            })
+            s.chunks
+                .get(&chunk_id)
+                .map(|(order, chunk)| TestLockableChunk {
+                    db,
+                    chunk: Arc::clone(chunk),
+                    id: chunk_id,
+                    order: *order,
+                })
         }
 
-        fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<(u32, Self::Chunk)> {
+        fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<Self::Chunk> {
             let db = s.data().db;
-            s.chunks
+            let chunks: Vec<Self::Chunk> = s
+                .chunks
                 .iter()
-                .map(|(id, chunk)| {
-                    (
-                        *id,
-                        TestLockableChunk {
-                            db,
-                            chunk: Arc::clone(chunk),
-                        },
-                    )
+                .map(|(id, (order, chunk))| TestLockableChunk {
+                    db,
+                    chunk: Arc::clone(chunk),
+                    id: *id,
+                    order: *order,
                 })
-                .collect()
+                .collect();
+            sort_chunks(chunks)
         }
 
         fn compact_chunks(
@@ -862,6 +864,7 @@ mod tests {
             let mut new_chunk = TestChunk::new(id, 0, ChunkStorage::ReadBuffer);
             new_chunk.row_count = 0;
 
+            let mut order = u32::MAX;
             for chunk in &chunks {
                 partition.chunks.remove(&chunk.addr.chunk_id);
                 new_chunk.row_count += chunk.row_count;
@@ -871,11 +874,12 @@ mod tests {
                     (None, Some(ts)) => Some(ts),
                     (None, None) => None,
                 };
+                order = order.min(chunk.order());
             }
 
             partition
                 .chunks
-                .insert(id, Arc::new(RwLock::new(new_chunk)));
+                .insert(id, (order, Arc::new(RwLock::new(new_chunk))));
 
             let event = MoverEvents::Compact(chunks.iter().map(|x| x.addr.chunk_id).collect());
             partition.data().db.events.write().push(event);
@@ -897,8 +901,10 @@ mod tests {
             chunks: Vec<LifecycleWriteGuard<'_, TestChunk, Self::Chunk>>,
             handle: Self::PersistHandle,
         ) -> Result<TaskTracker<()>, Self::Error> {
+            let mut order = u32::MAX;
             for chunk in &chunks {
                 partition.chunks.remove(&chunk.addr.chunk_id);
+                order = order.min(chunk.order());
             }
 
             let id = partition.next_id;
@@ -910,7 +916,7 @@ mod tests {
 
             partition
                 .chunks
-                .insert(id, Arc::new(RwLock::new(new_chunk)));
+                .insert(id, (order, Arc::new(RwLock::new(new_chunk))));
 
             let event = MoverEvents::Persist(chunks.iter().map(|x| x.addr.chunk_id).collect());
             partition.data().db.events.write().push(event);
@@ -964,6 +970,14 @@ mod tests {
                 .write()
                 .push(MoverEvents::Unload(s.addr.chunk_id));
             Ok(())
+        }
+
+        fn id(&self) -> u32 {
+            self.id
+        }
+
+        fn order(&self) -> u32 {
+            self.order
         }
     }
 
@@ -1030,7 +1044,8 @@ mod tests {
                 .into_iter()
                 .map(|x| {
                     max_id = max(max_id, x.addr.chunk_id);
-                    (x.addr.chunk_id, Arc::new(RwLock::new(x)))
+                    let order = x.order();
+                    (x.addr.chunk_id, (order, Arc::new(RwLock::new(x))))
                 })
                 .collect();
 
@@ -1251,7 +1266,7 @@ mod tests {
         );
 
         assert_eq!(partition.read().chunks.len(), 1);
-        assert_eq!(partition.read().chunks[&4].read().row_count, 30);
+        assert_eq!(partition.read().chunks[&4].1.read().row_count, 30);
     }
 
     #[tokio::test]
@@ -1722,7 +1737,7 @@ mod tests {
 
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
-        let chunk = Arc::clone(&db.partitions.read()[0].read().chunks[&0]);
+        let chunk = Arc::clone(&db.partitions.read()[0].read().chunks[&0].1);
 
         let r0 = TaskRegistration::default();
         let tracker = TaskTracker::new(TaskId(0), &r0, ChunkLifecycleAction::Moving);
