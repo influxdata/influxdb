@@ -754,4 +754,91 @@ mod test {
             //assert_eq!(dst.unwrap_vector(), &exp, "example '{} {:?}' failed", op, v);
         }
     }
+
+    #[test]
+    fn row_ids_filter_float_trimmer() {
+        let data = vec![100.0, 200.0, 100.0, 300.0, 400.0];
+
+        let float_trimmer = FloatByteTrimmer {};
+        let data_float_trimmed = data
+            .iter()
+            .cloned()
+            .map::<u16, _>(|x| float_trimmer.encode(x))
+            .collect::<Vec<u16>>();
+
+        let cases: Vec<Box<dyn ScalarEncoding<f64>>> = vec![
+            Box::new(RLE::<_, _, _>::new_from_iter(
+                data.iter().cloned(),
+                NoOpTranscoder {},
+            )),
+            Box::new(Fixed::<u16, f64, _>::new(
+                data_float_trimmed.clone(),
+                float_trimmer,
+            )),
+            Box::new(FixedNull::<UInt16Type, f64, _>::new(
+                PrimitiveArray::from(data_float_trimmed),
+                FloatByteTrimmer {},
+            )),
+        ];
+
+        for enc in cases {
+            _row_ids_filter_float_trimmer(enc)
+        }
+    }
+
+    fn _row_ids_filter_float_trimmer(enc: Box<dyn ScalarEncoding<f64>>) {
+        // These cases replicate the behaviour in PG.
+        //
+        // [100.0, 200.0, 100.0, 300.0, 400.0]
+        let cases = vec![
+            (100.0, Operator::Equal, vec![0, 2]),          // 100.0, 100.0
+            (100.0, Operator::NotEqual, vec![1, 3, 4]),    // 200.0, 300.0, 400.0
+            (100.0, Operator::LT, vec![]),                 //
+            (100.0, Operator::LTE, vec![0, 2]),            // 100.0, 100.0
+            (100.0, Operator::GT, vec![1, 3, 4]),          // 200.0, 300.0, 400.0
+            (100.0, Operator::GTE, vec![0, 1, 2, 3, 4]),   // 100.0, 200.0, 100.0, 300.0, 400.0
+            (200.0, Operator::Equal, vec![1]),             // 200.0
+            (200.0, Operator::NotEqual, vec![0, 2, 3, 4]), // 100.0, 100.0, 300.0, 400.0
+            (200.0, Operator::LT, vec![0, 2]),             // 100.0, 100.0
+            (200.0, Operator::LTE, vec![0, 1, 2]),         // 100.0, 200.0, 100.0
+            (200.0, Operator::GT, vec![3, 4]),             // 300.0, 400.0
+            (200.0, Operator::GTE, vec![1, 3, 4]),         // 200.0, 300.0, 400.0
+            (400.0, Operator::Equal, vec![4]),             // 400.0
+            (400.0, Operator::NotEqual, vec![0, 1, 2, 3]), // 100.0, 200.0, 100.0, 300.0
+            (400.0, Operator::LT, vec![0, 1, 2, 3]),       // 100.0, 200.0, 100.0, 300.0
+            (400.0, Operator::LTE, vec![0, 1, 2, 3, 4]),   // 100.0, 200.0, 100.0, 300.0, 400.0
+            (400.0, Operator::GT, vec![]),                 //
+            (400.0, Operator::GTE, vec![4]),               // 400.0
+            // Values not present in the column
+            (99.0, Operator::Equal, vec![]),                  //
+            (99.0, Operator::NotEqual, vec![0, 1, 2, 3, 4]),  // 100.0, 200.0, 100.0, 300.0, 400.0
+            (99.0, Operator::LT, vec![]),                     //
+            (99.0, Operator::LTE, vec![]),                    //
+            (99.0, Operator::GT, vec![0, 1, 2, 3, 4]),        // 100.0, 200.0, 100.0, 300.0, 400.0
+            (99.0, Operator::GTE, vec![0, 1, 2, 3, 4]),       // 100.0, 200.0, 100.0, 300.0, 400.0
+            (200.4, Operator::Equal, vec![]),                 //
+            (200.4, Operator::NotEqual, vec![0, 1, 2, 3, 4]), // 100.0, 200.0, 100.0, 300.0, 400.0
+            (200.4, Operator::LT, vec![0, 1, 2]),             // 100.0, 200.0, 100.0
+            (200.4, Operator::LTE, vec![0, 1, 2]),            // 100.0, 200.0, 100.0
+            (200.4, Operator::GT, vec![3, 4]),                // 300.0, 400.0
+            (200.4, Operator::GTE, vec![3, 4]),               // 300.0, 400.0
+            (201.0, Operator::Equal, vec![]),                 //
+            (201.0, Operator::NotEqual, vec![0, 1, 2, 3, 4]), // 100.0, 200.0, 100.0, 300.0, 400.0
+            (201.0, Operator::LT, vec![0, 1, 2]),             // 100.0, 200.0, 100.0
+            (201.0, Operator::LTE, vec![0, 1, 2]),            // 100.0, 200.0, 100.0
+            (201.0, Operator::GT, vec![3, 4]),                // 300.0, 400.0
+            (201.0, Operator::GTE, vec![3, 4]),               // 300.0, 400.0
+            (401.0, Operator::Equal, vec![]),                 //
+            (401.0, Operator::NotEqual, vec![0, 1, 2, 3, 4]), // 100.0, 200.0, 100.0, 300.0, 400.0
+            (401.0, Operator::LT, vec![0, 1, 2, 3, 4]),       // 100.0, 200.0, 100.0, 300.0, 400.0
+            (401.0, Operator::LTE, vec![0, 1, 2, 3, 4]),      // 100.0, 200.0, 100.0, 300.0, 400.0
+            (401.0, Operator::GT, vec![]),                    //
+            (401.0, Operator::GTE, vec![]),                   //
+        ];
+
+        for (v, op, exp) in cases {
+            let dst = enc.row_ids_filter(v, &op, RowIDs::new_vector());
+            assert_eq!(dst.unwrap_vector(), &exp, "example '{} {:?}' failed", op, v);
+        }
+    }
 }
