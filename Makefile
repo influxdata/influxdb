@@ -29,6 +29,13 @@ COMMON_TAGS := sqlite_foreign_keys,sqlite_json
 GO_TEST_ARGS := -tags '$(COMMON_TAGS),$(GO_TEST_TAGS)'
 GO_BUILD_ARGS := -tags '$(COMMON_TAGS),$(GO_BUILD_TAGS)'
 
+# Use default flags, but allow adding -gcflags "..." if desired. Eg, for debug
+# builds, may want to use GCFLAGS="all=-N -l" in the build environment.
+GCFLAGS ?=
+ifneq ($(GCFLAGS),)
+GO_BUILD_ARGS += -gcflags "$(GCFLAGS)"
+endif
+
 ifeq ($(OS), Windows_NT)
 	VERSION := $(shell git describe --exact-match --tags 2>nil)
 else
@@ -49,7 +56,6 @@ GO_TEST_PATHS=./...
 # Test vars can be used by all recursive Makefiles
 export PKG_CONFIG:=$(PWD)/scripts/pkg-config.sh
 export GO_BUILD=env GO111MODULE=on go build $(GO_BUILD_ARGS) -ldflags "$(LDFLAGS)"
-export GO_BUILD_SM=env GO111MODULE=on go build $(GO_BUILD_ARGS) -ldflags "-s -w $(LDFLAGS)"
 export GO_INSTALL=env GO111MODULE=on go install $(GO_BUILD_ARGS) -ldflags "$(LDFLAGS)"
 export GO_TEST=env GOTRACEBACK=all GO111MODULE=on $(GO_TEST_CMD) $(GO_TEST_ARGS)
 # Do not add GO111MODULE=on to the call to go generate so it doesn't pollute the environment.
