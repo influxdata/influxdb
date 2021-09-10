@@ -191,8 +191,8 @@ commands:
           name: Upgrade Go
           command: |
             mkdir -p ${HOME}/.tools
-            wget https://golang.org/dl/go1.16.5.linux-amd64.tar.gz
-            tar -C ${HOME}/.tools -xzf go1.16.5.linux-amd64.tar.gz
+            wget https://golang.org/dl/go1.17.1.linux-amd64.tar.gz
+            tar -C ${HOME}/.tools -xzf go1.17.1.linux-amd64.tar.gz
             echo 'export PATH=${HOME}/.tools/go/bin:${PATH}' >> $BASH_ENV
 
   # Install dependencies for cross building binaries with goreleaser. Does not include Docker cross-builder.
@@ -385,7 +385,7 @@ jobs:
 
   godeps:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17.1
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -408,7 +408,7 @@ jobs:
 
   golint:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17.1
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -440,7 +440,7 @@ jobs:
 
   gotest:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17.1
     resource_class: large
     environment:
       TMPDIR: /mnt/ramdisk
@@ -468,7 +468,7 @@ jobs:
 
   fluxtest:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17.1
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -483,7 +483,7 @@ jobs:
 
   tlstest:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17.1
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -502,7 +502,7 @@ jobs:
 
   build:
     docker:
-      - image: cimg/go:1.16.5-node
+      - image: cimg/go:1.17.1-node
     resource_class: large
     environment:
       TMPDIR: /mnt/ramdisk
@@ -728,7 +728,7 @@ jobs:
 
   e2e:
     docker:
-      - image: cimg/go:1.16.5-browsers
+      - image: cimg/go:1.17.1-browsers
     resource_class: large
     environment:
       TMPDIR: /mnt/ramdisk

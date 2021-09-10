@@ -1,4 +1,4 @@
-// +build darwin dragonfly freebsd linux nacl netbsd openbsd
+//go:build darwin dragonfly freebsd linux nacl netbsd openbsd
 
 // Copyright 2015 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style

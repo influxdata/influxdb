@@ -1,4 +1,4 @@
-// +build solaris
+//go:build solaris
 
 package mmap
 

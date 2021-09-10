@@ -1,4 +1,4 @@
-// +build darwin dragonfly freebsd linux nacl netbsd openbsd
+//go:build darwin dragonfly freebsd linux nacl netbsd openbsd
 
 package mincore
 

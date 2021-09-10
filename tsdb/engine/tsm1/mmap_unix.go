@@ -1,4 +1,4 @@
-// +build !windows,!plan9
+//go:build !windows,!plan9
 
 package tsm1
 
