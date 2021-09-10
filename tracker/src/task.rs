@@ -814,14 +814,14 @@ mod tests {
         assert!(matches!(&tracked[0].get_status(), TaskStatus::Creating));
 
         // Should only consider tasks complete once cannot register more Futures
-        let reclaimed: Vec<_> = registry.reclaim().collect();
-        assert_eq!(reclaimed.len(), 0);
+        let reclaimed = registry.reclaim();
+        assert_eq!(reclaimed.count(), 0);
 
         let task2 = tokio::spawn(ready_ok().track(registration));
         task2.await.unwrap().unwrap().unwrap();
 
-        let reclaimed: Vec<_> = registry.reclaim().collect();
-        assert_eq!(reclaimed.len(), 1);
+        let reclaimed = registry.reclaim();
+        assert_eq!(reclaimed.count(), 1);
     }
 
     #[tokio::test]

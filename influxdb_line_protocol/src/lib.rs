@@ -1594,14 +1594,22 @@ mod test {
 
     #[test]
     fn parse_out_of_range_float() {
+        // this works since rust 1.55
         let input = format!("m0 field={val}.{val} 99", val = "9".repeat(200));
-        let parsed = parse(&input);
+        let vals = parse(&input).unwrap();
 
-        assert!(
-            matches!(parsed, Err(super::Error::FloatValueInvalid { .. })),
-            "Wrong error: {:?}",
-            parsed,
-        );
+        assert_eq!(vals.len(), 1);
+        assert!(approximately_equal(
+            vals[0].field_set[0].1.unwrap_f64(),
+            1e200f64
+        ));
+
+        // even very long inputs now work
+        let input = format!("m0 field={val}.{val} 99", val = "9".repeat(1_000));
+        let vals = parse(&input).unwrap();
+
+        assert_eq!(vals.len(), 1);
+        assert!(vals[0].field_set[0].1.unwrap_f64().is_infinite());
     }
 
     #[test]
