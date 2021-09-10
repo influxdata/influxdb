@@ -24,7 +24,7 @@ builds:
       - PKG_CONFIG=$GOPATH/bin/pkg-config
       - MACOSX_DEPLOYMENT_TARGET=10.11
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
+      - -s -w -X main.version={{.Env.VERSION}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
     binary: influx
 
   - id: influxd
@@ -51,7 +51,7 @@ builds:
       - PKG_CONFIG=$GOPATH/bin/pkg-config
       - MACOSX_DEPLOYMENT_TARGET=10.11
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
+      - -s -w -X main.version={{.Env.VERSION}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
     binary: influxd
     hooks:
       pre: make generate-web-assets
@@ -89,9 +89,9 @@ nfpms:
           amd64: x86_64
           arm64: aarch64
           armhf: armv7hl
-        file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}"
+        file_name_template: "influxdb2-{{ .Env.VERSION }}.{{ .Arch }}"
       deb:
-        file_name_template: "influxdb2-{{ .Version }}-{{ .Arch }}"
+        file_name_template: "influxdb2-{{ .Env.VERSION }}-{{ .Arch }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
@@ -106,7 +106,7 @@ archives:
       - goos: windows
         format: zip
     wrap_in_directory: true
-    name_template: "influxdb2-client-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    name_template: "influxdb2-client-{{ .Env.VERSION }}-{{ .Os }}-{{ .Arch }}"
     files:
       - LICENSE
       - README.md
@@ -116,7 +116,7 @@ archives:
       - goos: windows
         format: zip
     wrap_in_directory: true
-    name_template: "influxdb2-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    name_template: "influxdb2-{{ .Env.VERSION }}-{{ .Os }}-{{ .Arch }}"
     files:
       - LICENSE
       - README.md
@@ -125,10 +125,10 @@ blobs:
   - provider: "s3"
     bucket: "dl.influxdata.com"
     region: "us-east-1"
-    folder: "influxdb/releases/"
+    folder: "{{ .Env.S3_FOLDER }}"
 
 checksum:
-  name_template: "influxdb2-{{ .Version }}.sha256"
+  name_template: "influxdb2-{{ .Env.VERSION }}.sha256"
   algorithm: sha256
 
 dockers:
