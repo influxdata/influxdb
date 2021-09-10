@@ -497,7 +497,7 @@ type Stats struct {
 	NTags    int
 }
 
-func (s Stats) Update(o Stats) {
+func (s Stats) Update(o Stats) Stats {
 	s.NRows += o.NRows
 	if s.Latest.IsZero() || o.Latest.Unix() > s.Latest.Unix() {
 		s.Latest = o.Latest
@@ -514,6 +514,7 @@ func (s Stats) Update(o Stats) {
 	if o.NTags > s.NTags {
 		s.NTags = o.NTags
 	}
+	return s
 }
 
 func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err error) {
