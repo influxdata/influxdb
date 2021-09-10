@@ -29,6 +29,14 @@ impl ChunkAddr {
             chunk_id,
         }
     }
+
+    pub fn into_partition(self) -> PartitionAddr {
+        PartitionAddr {
+            db_name: self.db_name,
+            table_name: self.table_name,
+            partition_key: self.partition_key,
+        }
+    }
 }
 
 impl std::fmt::Display for ChunkAddr {

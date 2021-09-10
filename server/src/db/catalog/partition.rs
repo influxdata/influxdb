@@ -348,13 +348,12 @@ mod tests {
             table_name: "t".into(),
             partition_key: "p".into(),
         };
+        let registry = metric::Registry::new();
         let domain = MetricRegistry::default().register_domain("test");
 
         let metrics = CatalogMetrics::new(Arc::clone(&addr.db_name), domain, Default::default())
             .new_table_metrics("t")
             .new_partition_metrics();
-
-        let domain = MetricRegistry::default().register_domain("test2");
 
         let t = Utc::now();
         let schema = SchemaBuilder::new().timestamp().build().unwrap();
@@ -370,19 +369,19 @@ mod tests {
         // Make three chunks
         let mut partition = Partition::new(addr, metrics);
         partition.create_rub_chunk(
-            RBChunk::new("t", rb.clone(), ChunkMetrics::new(&domain)),
+            RBChunk::new("t", rb.clone(), ChunkMetrics::new(&registry, "d")),
             t,
             t,
             Arc::clone(&schema),
         );
         partition.create_rub_chunk(
-            RBChunk::new("t", rb.clone(), ChunkMetrics::new(&domain)),
+            RBChunk::new("t", rb.clone(), ChunkMetrics::new(&registry, "d")),
             t,
             t,
             Arc::clone(&schema),
         );
         partition.create_rub_chunk(
-            RBChunk::new("t", rb, ChunkMetrics::new(&domain)),
+            RBChunk::new("t", rb, ChunkMetrics::new(&registry, "d")),
             t,
             t,
             Arc::clone(&schema),

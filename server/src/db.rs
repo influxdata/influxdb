@@ -2163,7 +2163,7 @@ mod tests {
 
         // verify chunk size updated (chunk moved from closing to moving to moved)
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0);
-        let expected_read_buffer_size = 1922;
+        let expected_read_buffer_size = 1706;
         catalog_chunk_size_bytes_metric_eq(
             &test_db.metric_registry,
             "read_buffer",
@@ -2398,7 +2398,7 @@ mod tests {
             .unwrap();
 
         // verify chunk size updated (chunk moved from moved to writing to written)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1916);
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1700);
 
         // drop, the chunk from the read buffer
         db.drop_chunk("cpu", partition_key, mb_chunk.id())
@@ -2530,7 +2530,7 @@ mod tests {
 
         // MUB chunk size
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0);
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 3834);
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 3618);
 
         let rb = collect_read_filter(&rb_chunk).await;
 
@@ -2624,7 +2624,7 @@ mod tests {
 
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0);
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1916);
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1700);
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "object_store", 1551);
 
         // while MB and RB chunk are identical, the PQ chunk is a new one (split off)
@@ -2731,7 +2731,7 @@ mod tests {
 
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0);
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1916);
+        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1700);
         catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "object_store", 1551);
 
         // Unload RB chunk but keep it in OS
@@ -3363,7 +3363,7 @@ mod tests {
                 id: 2,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                memory_bytes: 4773,       // size of RB and OS chunks
+                memory_bytes: 4557,       // size of RB and OS chunks
                 object_store_bytes: 1577, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
@@ -3414,7 +3414,7 @@ mod tests {
         }
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 1303);
-        assert_eq!(db.catalog.metrics().memory().read_buffer(), 2766);
+        assert_eq!(db.catalog.metrics().memory().read_buffer(), 2550);
         assert_eq!(db.catalog.metrics().memory().object_store(), 2007);
     }
 

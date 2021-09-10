@@ -3558,7 +3558,7 @@ dependencies = [
  "hashbrown",
  "internal_types",
  "itertools 0.10.1",
- "metrics",
+ "metric",
  "observability_deps",
  "packers",
  "parking_lot",

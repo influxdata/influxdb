@@ -52,6 +52,14 @@ pub struct CumulativeRecorder {
 }
 
 impl CumulativeRecorder {
+    /// Gets a new unregistered recorder
+    pub fn new_unregistered() -> Self {
+        Self {
+            local: 0,
+            state: Default::default(),
+        }
+    }
+
     /// Gets the local contribution from this instance
     pub fn get_local(&self) -> u64 {
         self.local

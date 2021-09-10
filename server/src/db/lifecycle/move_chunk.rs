@@ -30,7 +30,6 @@ pub fn move_chunk_to_read_buffer(
     // update the catalog to say we are processing this chunk and
     // then drop the lock while we do the work
     guard.set_moving(&registration)?;
-    let table_summary = guard.table_summary();
 
     // snapshot the data
     // Note: we can just use the chunk-specific schema here since there is only a single chunk and this is somewhat a
@@ -42,6 +41,7 @@ pub fn move_chunk_to_read_buffer(
     // Drop locks
     let chunk = guard.into_data().chunk;
 
+    let metric_registry = Arc::clone(&db.metrics_registry_v2);
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
     let fut = async move {
@@ -55,7 +55,12 @@ pub fn move_chunk_to_read_buffer(
 
         let physical_plan = ctx.prepare_plan(&plan)?;
         let stream = ctx.execute(physical_plan).await?;
-        let rb_chunk = collect_rub(stream, db.as_ref(), &table_summary.name).await?;
+        let rb_chunk = collect_rub(
+            stream,
+            &addr.clone().into_partition(),
+            metric_registry.as_ref(),
+        )
+        .await?;
 
         // Can drop and re-acquire as lifecycle action prevents concurrent modification
         let mut guard = chunk.write();
