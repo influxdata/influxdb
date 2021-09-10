@@ -1,4 +1,5 @@
 //go:build !assets
+// +build !assets
 
 package static
 

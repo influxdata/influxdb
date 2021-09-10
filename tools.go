@@ -1,4 +1,5 @@
 //go:build tools
+// +build tools
 
 package influxdb
 

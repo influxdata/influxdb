@@ -1,4 +1,5 @@
 //go:build integration
+// +build integration
 
 package vault_test
 
