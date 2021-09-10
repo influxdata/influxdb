@@ -109,13 +109,13 @@ workflows:
       - aws_destroy_by_name
 
   nightly:
-    #triggers:
-    #  - schedule:
-    #      cron: "0 5 * * *"
-    #      filters:
-    #        branches:
-    #          only:
-    #            - "2.0"
+    triggers:
+      - schedule:
+          cron: "0 5 * * *"
+          filters:
+            branches:
+              only:
+                - "2.0"
     jobs:
       - godeps
       - jsdeps
