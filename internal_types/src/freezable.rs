@@ -2,7 +2,12 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 /// A wrapper around a type `T` that can be frozen with `Freezable::try_freeze`, preventing
-/// modification of the contained `T` until the returned `FreezeHandle` is dropped
+/// modification of the contained `T` until the returned `FreezeHandle` is dropped.
+///
+/// A common usecase for Freezable is preventing other threads from
+/// modifying some object for an extended period of time prior to
+/// actually modifying it, while allowing other threads to read the
+/// object during that time period.
 ///
 /// ```
 /// use internal_types::freezable::Freezable;
