@@ -82,6 +82,7 @@ where
     // KeyStats
 
     // drop all references to chunks, and only keep indicides
+    #[allow(clippy::needless_collect)] // required for the borrow checker
     let groups: Vec<Vec<usize>> = groups
         .into_iter()
         .map(|group| group.into_iter().map(|key_stats| key_stats.index).collect())

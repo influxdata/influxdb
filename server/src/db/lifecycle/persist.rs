@@ -204,7 +204,7 @@ mod tests {
         let partition = partition.read();
 
         let chunks = LockablePartition::chunks(&partition);
-        let chunks: Vec<_> = chunks.iter().map(|x| x.1.read()).collect();
+        let chunks = chunks.iter().map(|x| x.1.read());
 
         let mut partition = partition.upgrade();
 
@@ -213,7 +213,7 @@ mod tests {
             .0;
 
         assert_eq!(handle.timestamp(), Utc.timestamp_nanos(10));
-        let chunks: Vec<_> = chunks.into_iter().map(|x| x.upgrade()).collect();
+        let chunks: Vec<_> = chunks.map(|x| x.upgrade()).collect();
 
         persist_chunks(partition, chunks, handle)
             .unwrap()
