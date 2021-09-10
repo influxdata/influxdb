@@ -1170,6 +1170,21 @@ impl DbSetup for ChunkOrder {
             .clear_lifecycle_action()
             .unwrap();
 
+        // Now we have the the following chunks (same partition and table):
+        //
+        // | ID | order | tag: region | field: user | time |
+        // | -- | ----- | ----------- | ----------- | ---- |
+        // |  1 |     1 | "west"      |           2 | 100  |
+        // |  2 |     0 | "west"      |           1 | 100  |
+        //
+        // The result after deduplication should be:
+        //
+        // | tag: region | field: user | time |
+        // | ----------- | ----------- | ---- |
+        // | "west"      |           2 | 100  |
+        //
+        // So the query engine must use `order` as a primary key to sort chunks, NOT `id`.
+
         let scenario = DbScenario {
             scenario_name: "chunks where chunk ID alone cannot be used for ordering".into(),
             db,
