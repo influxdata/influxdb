@@ -242,7 +242,7 @@ async fn serve(
         grpc_listener,
         Arc::clone(&application),
         Arc::clone(&app_server),
-        trace_collector,
+        trace_collector.clone(),
         frontend_shutdown.clone(),
         config.initial_serving_state.into(),
     )
@@ -258,6 +258,7 @@ async fn serve(
         Arc::clone(&app_server),
         frontend_shutdown.clone(),
         max_http_request_size,
+        trace_collector,
     )
     .fuse();
     info!("HTTP server listening");

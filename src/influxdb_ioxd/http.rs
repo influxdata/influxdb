@@ -16,6 +16,8 @@ mod heappy;
 #[cfg(feature = "pprof")]
 mod pprof;
 
+mod tower;
+
 // Influx crates
 use super::planner::Planner;
 use data_types::{
@@ -35,7 +37,7 @@ use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use hyper::{http::HeaderValue, Body, Method, Request, Response, StatusCode};
 use metrics::KeyValue;
 use observability_deps::tracing::{self, debug, error};
-use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError, RouterService};
+use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -47,6 +49,7 @@ use std::{
     sync::Arc,
 };
 use tokio_util::sync::CancellationToken;
+use trace::TraceCollector;
 
 /// Constants used in API error codes.
 ///
@@ -950,15 +953,16 @@ pub async fn serve<M>(
     server: Arc<AppServer<M>>,
     shutdown: CancellationToken,
     max_request_size: usize,
+    trace_collector: Option<Arc<dyn TraceCollector>>,
 ) -> Result<(), hyper::Error>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
     let router = router(application, server, max_request_size);
-    let service = RouterService::new(router).unwrap();
+    let new_service = tower::MakeService::new(router, trace_collector);
 
     hyper::Server::builder(addr)
-        .serve(service)
+        .serve(new_service)
         .with_graceful_shutdown(shutdown.cancelled())
         .await
 }
@@ -981,6 +985,7 @@ mod tests {
     use serde::de::DeserializeOwned;
     use server::{db::Db, rules::ProvidedDatabaseRules, ApplicationState, ConnectionManagerImpl};
     use tokio_stream::wrappers::ReceiverStream;
+    use trace::RingBufferTraceCollector;
 
     fn make_application() -> Arc<ApplicationState> {
         Arc::new(ApplicationState::new(
@@ -1001,7 +1006,7 @@ mod tests {
     async fn test_health() {
         let application = make_application();
         let app_server = make_server(Arc::clone(&application));
-        let server_url = test_server(application, Arc::clone(&app_server));
+        let server_url = test_server(application, Arc::clone(&app_server), None);
 
         let client = Client::new();
         let response = client.get(&format!("{}/health", server_url)).send().await;
@@ -1020,7 +1025,7 @@ mod tests {
             .register_metric("my_metric", "description");
 
         let app_server = make_server(Arc::clone(&application));
-        let server_url = test_server(application, Arc::clone(&app_server));
+        let server_url = test_server(application, Arc::clone(&app_server), None);
 
         metric.recorder(&[("tag", "value")]).inc(20);
 
@@ -1038,6 +1043,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_tracing() {
+        let application = make_application();
+        let app_server = make_server(Arc::clone(&application));
+        let trace_collector = Arc::new(RingBufferTraceCollector::new(5));
+
+        let server_url = test_server(
+            application,
+            Arc::clone(&app_server),
+            Some(Arc::<RingBufferTraceCollector>::clone(&trace_collector)),
+        );
+
+        let client = Client::new();
+        let response = client
+            .get(&format!("{}/health", server_url))
+            .header("uber-trace-id", "34f3495:36e34:0:1")
+            .send()
+            .await;
+
+        // Print the response so if the test fails, we have a log of what went wrong
+        check_response("health", response, StatusCode::OK, Some("OK")).await;
+
+        let mut spans = trace_collector.spans();
+        assert_eq!(spans.len(), 1);
+
+        let span = spans.pop().unwrap();
+        assert_eq!(span.ctx.trace_id.get(), 0x34f3495);
+        assert_eq!(span.ctx.parent_span_id.unwrap().get(), 0x36e34);
+    }
+
+    #[tokio::test]
     async fn test_write() {
         let application = make_application();
         let app_server = make_server(Arc::clone(&application));
@@ -1047,7 +1082,7 @@ mod tests {
             .create_database(make_rules("MyOrg_MyBucket"))
             .await
             .unwrap();
-        let server_url = test_server(application, Arc::clone(&app_server));
+        let server_url = test_server(application, Arc::clone(&app_server), None);
 
         let client = Client::new();
 
@@ -1096,7 +1131,7 @@ mod tests {
             .await
             .unwrap();
 
-        let server_url = test_server(application, Arc::clone(&app_server));
+        let server_url = test_server(application, Arc::clone(&app_server), None);
 
         let client = Client::new();
 
@@ -1184,7 +1219,7 @@ mod tests {
             .create_database(make_rules("MyOrg_MyBucket"))
             .await
             .unwrap();
-        let server_url = test_server(application, Arc::clone(&app_server));
+        let server_url = test_server(application, Arc::clone(&app_server), None);
 
         let client = Client::new();
 
@@ -1474,6 +1509,7 @@ mod tests {
     fn test_server(
         application: Arc<ApplicationState>,
         server: Arc<AppServer<ConnectionManagerImpl>>,
+        trace_collector: Option<Arc<dyn TraceCollector>>,
     ) -> String {
         // NB: specify port 0 to let the OS pick the port.
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
@@ -1486,6 +1522,7 @@ mod tests {
             server,
             CancellationToken::new(),
             TEST_MAX_REQUEST_SIZE,
+            trace_collector,
         ));
         println!("Started server at {}", server_url);
         server_url
@@ -1509,7 +1546,7 @@ mod tests {
             .create_database(make_rules("MyOrg_MyBucket"))
             .await
             .unwrap();
-        let server_url = test_server(application, Arc::clone(&app_server));
+        let server_url = test_server(application, Arc::clone(&app_server), None);
 
         (app_server, server_url)
     }
