@@ -324,6 +324,17 @@ func TestLauncher_FluxCardinality(t *testing.T) {
 				`,_result,0,3` + "\r\n\r\n",
 		},
 		{
+			name: "nil predicate with large time range",
+			query: `import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: 1990-01-01T00:00:00Z,
+				stop: 2010-01-01T00:00:00Z,
+			)`,
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,4` + "\r\n\r\n",
+		},
+		{
 			name: "single measurement match",
 			query: `import "influxdata/influxdb"
 			influxdb.cardinality(

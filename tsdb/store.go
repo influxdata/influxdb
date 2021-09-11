@@ -511,6 +511,10 @@ func (s *Store) openSeriesFile(database string) (*SeriesFile, error) {
 	return sfile, nil
 }
 
+func (s *Store) SeriesFile(database string) *SeriesFile {
+	return s.seriesFile(database)
+}
+
 func (s *Store) seriesFile(database string) *SeriesFile {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1062,6 +1066,15 @@ func (s *Store) SeriesCardinality(ctx context.Context, database string) (int64, 
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
 
+	ss, err := s.SeriesCardinalityFromShards(ctx, shards)
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(ss.Cardinality()), nil
+}
+
+func (s *Store) SeriesCardinalityFromShards(ctx context.Context, shards []*Shard) (*SeriesIDSet, error) {
 	var setMu sync.Mutex
 	others := make([]*SeriesIDSet, 0, len(shards))
 
@@ -1084,121 +1097,17 @@ func (s *Store) SeriesCardinality(ctx context.Context, database string) (int64, 
 		return nil
 	})
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	ss := NewSeriesIDSet()
 	ss.Merge(others...)
 	select {
 	case <-ctx.Done():
-		return 0, ctx.Err()
+		return nil, ctx.Err()
 	default:
 	}
-	return int64(ss.Cardinality()), nil
-}
-
-func (s *Store) SeriesCardinalityByPredicate(ctx context.Context, shardIDs []uint64, expr influxql.Expr, start, end int64, ss *SeriesIDSet, validateTimeRange bool) error {
-	var setMu sync.Mutex
-	others := make([]*SeriesIDSet, 0, len(shardIDs))
-
-	var walkShardsFn func(sh *Shard) error
-
-	if !validateTimeRange && expr == nil {
-		// Fast path for determining shard cardinality - no predicate or time range
-		// to verify.
-		walkShardsFn = func(sh *Shard) error {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
-			index, err := sh.Index()
-			if err != nil {
-				return err
-			}
-
-			seriesIDs := index.SeriesIDSet()
-			setMu.Lock()
-			others = append(others, seriesIDs)
-			setMu.Unlock()
-
-			return nil
-		}
-	} else {
-		walkShardsFn = func(sh *Shard) error {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
-
-			sfile, err := sh.SeriesFile()
-			if err != nil {
-				return err
-			}
-
-			index, err := sh.Index()
-			if err != nil {
-				return err
-			}
-
-			indexSet := IndexSet{Indexes: []Index{index}, SeriesFile: sfile}
-			itr, err := indexSet.AllMeasurementSeriesByExprIterator(expr)
-			if err != nil {
-				return err
-			} else if itr == nil {
-				return nil
-			}
-			defer itr.Close()
-
-			seriesIDs := NewSeriesIDSet()
-
-			for {
-				elem, err := itr.Next()
-				if err != nil {
-					return err
-				} else if elem.SeriesID == 0 {
-					break
-				}
-
-				// If verifying the data in this time range is not needed, just add the
-				// series and continue.
-				if !validateTimeRange {
-					seriesIDs.Add(elem.SeriesID)
-					continue
-				}
-
-				// Avoid the need for verifying that the data exists in the time range
-				// if this series has already been verified.
-				if seriesIDs.Contains(elem.SeriesID) {
-					continue
-				}
-
-				exists, err := sh.HasValueForSeriesInTimeRange(ctx, elem.SeriesID, start, end)
-				if err != nil {
-					return err
-				}
-
-				if exists {
-					seriesIDs.Add(elem.SeriesID)
-				}
-			}
-
-			setMu.Lock()
-			others = append(others, seriesIDs)
-			setMu.Unlock()
-
-			return nil
-		}
-	}
-
-	err := s.walkShards(s.Shards(shardIDs), walkShardsFn)
-	if err != nil {
-		return err
-	}
-
-	ss.Merge(others...)
-	return nil
+	return ss, nil
 }
 
 // SeriesSketches returns the sketches associated with the series data in all

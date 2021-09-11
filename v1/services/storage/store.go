@@ -34,7 +34,8 @@ type TSDBStore interface {
 	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
 	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 	SeriesCardinality(ctx context.Context, database string) (int64, error)
-	SeriesCardinalityByPredicate(ctx context.Context, shardIDs []uint64, expr influxql.Expr, start, end int64, ss *tsdb.SeriesIDSet, validateTimeRange bool) error
+	SeriesCardinalityFromShards(ctx context.Context, shards []*tsdb.Shard) (*tsdb.SeriesIDSet, error)
+	SeriesFile(database string) *tsdb.SeriesFile
 }
 
 type MetaClient interface {
@@ -679,44 +680,94 @@ func (s *Store) ReadSeriesCardinality(ctx context.Context, req *datatypes.ReadSe
 	}
 
 	shardsEntirelyInTimeRange, shardsPartiallyInTimeRange := groupShardsByTime(sgs, start, end)
-
-	ss := tsdb.NewSeriesIDSet()
-
-	cur1, err := newIndexSeriesCursorInfluxQLPred(ctx, expr, s.TSDBStore.Shards(shardsEntirelyInTimeRange))
-	if err != nil {
-		return nil, err
-	} else if cur1 == nil {
-		return nil, nil
-	}
-
-	for {
-		r := cur1.Next()
-		fmt.Println(string(r.Name))
-	}
+	sfile := s.TSDBStore.SeriesFile(db)
 
 	// Get the cardinality for the set of shards that are completely within the
 	// provided time range. This can be done much faster than verifying that the
 	// series have data in the time range, so it is done separately.
-	err = s.TSDBStore.SeriesCardinalityByPredicate(ctx, shardsEntirelyInTimeRange, expr, start, end, ss, false)
+	c1, err := s.seriesCardinalityWithPredicate(ctx, s.TSDBStore.Shards(shardsEntirelyInTimeRange), expr, sfile)
 	if err != nil {
 		return nil, err
 	}
 
-	// Shards only partially within the provided time range require additional
-	// verification to see if the series have data within the time range.
-	err = s.TSDBStore.SeriesCardinalityByPredicate(ctx, shardsPartiallyInTimeRange, expr, start, end, ss, true)
+	// Others use a slower way
+	c2, err := s.seriesCardinalityWithPredicateAndTime(ctx, s.TSDBStore.Shards(shardsPartiallyInTimeRange), expr, sfile, start, end)
 	if err != nil {
 		return nil, err
 	}
+
+	ss := tsdb.NewSeriesIDSet()
+	ss.Merge(c1, c2)
 
 	return cursors.NewInt64SliceIterator([]int64{int64(ss.Cardinality())}), nil
+}
+
+func (s *Store) seriesCardinalityWithPredicate(ctx context.Context, shards []*tsdb.Shard, expr influxql.Expr, sfile *tsdb.SeriesFile) (*tsdb.SeriesIDSet, error) {
+	if expr == nil {
+		return s.TSDBStore.SeriesCardinalityFromShards(ctx, shards)
+	}
+
+	ss := tsdb.NewSeriesIDSet()
+	if len(shards) == 0 {
+		return ss, nil
+	}
+
+	cur, err := newIndexSeriesCursorInfluxQLPred(ctx, expr, shards)
+	if err != nil {
+		return nil, err
+	}
+
+	buf := make([]byte, 1024)
+	for {
+		r := cur.Next()
+		if r == nil {
+			break
+		}
+		skey := sfile.SeriesID(r.Name, r.SeriesTags, buf)
+		ss.Add(skey)
+	}
+
+	return ss, nil
+}
+
+func (s *Store) seriesCardinalityWithPredicateAndTime(ctx context.Context, shards []*tsdb.Shard, expr influxql.Expr, sfile *tsdb.SeriesFile, start, end int64) (*tsdb.SeriesIDSet, error) {
+	ss := tsdb.NewSeriesIDSet()
+	if len(shards) == 0 {
+		return ss, nil
+	}
+
+	cur, err := newIndexSeriesCursorInfluxQLPred(ctx, expr, shards)
+	if err != nil {
+		return nil, err
+	}
+
+	buf := make([]byte, 1024)
+	rs := reads.NewFilteredResultSet(ctx, start, end, cur)
+	for rs.Next() {
+		func() {
+			c := rs.Cursor()
+			if c == nil {
+				// no data for series key + field combination
+				return
+			}
+			defer c.Close()
+
+			if cursorHasData(c) {
+				r := cur.row
+				skey := sfile.SeriesID(r.Name, r.SeriesTags, buf)
+				ss.Add(skey)
+			}
+		}()
+	}
+
+	return ss, nil
 }
 
 func (s *Store) SupportReadSeriesCardinality(ctx context.Context) bool {
 	return true
 }
 
-// Returns two slices of shard refs - the first is shards that are entirely in
+// Returns two slices of shard IDs - the first is shards that are entirely in
 // the provided time range; the second is shards that are not entirely within
 // the provided time range.
 func groupShardsByTime(sgs []meta.ShardGroupInfo, start, end int64) ([]uint64, []uint64) {
