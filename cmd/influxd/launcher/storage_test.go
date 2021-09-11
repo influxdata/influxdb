@@ -260,6 +260,25 @@ func TestLauncher_FluxCardinality(t *testing.T) {
 	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
+	// Run a query without any data on the server - should return 0 and not crash.
+	query := `import "influxdata/influxdb"
+	influxdb.cardinality(
+		bucket: "BUCKET",
+		start: 2000-01-01T00:00:00Z,
+		stop: 2000-01-02T00:00:00Z,
+		predicate: (r) => true
+	)`
+
+	exp := `,result,table,_value` + "\r\n" +
+		`,_result,0,0` + "\r\n\r\n"
+
+	buf, err := http.SimpleQuery(l.URL(), query, l.Org.Name, l.Auth.Token)
+	if err != nil {
+		t.Fatalf("unexpected error querying server: %v", err)
+	} else if diff := cmp.Diff(string(buf), exp); diff != "" {
+		t.Fatal(diff)
+	}
+
 	// Write data to server.
 	if resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, l.Bucket.ID),
 		"cpu,region=us-east-1 v=1 946684800000000000\n"+

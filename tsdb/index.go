@@ -2301,37 +2301,6 @@ func (is IndexSet) measurementSeriesByExprIterator(name []byte, expr influxql.Ex
 	return FilterUndeletedSeriesIDIterator(is.SeriesFile, itr), nil
 }
 
-// AllMeasurementSeriesByExprIterator returns an iterator for all series in the
-// IndexSet that match the provided expression.
-func (is IndexSet) AllMeasurementSeriesByExprIterator(expr influxql.Expr) (SeriesIDIterator, error) {
-	release := is.SeriesFile.Retain()
-	defer release()
-	itrs := []SeriesIDIterator{}
-
-	mitr, err := is.MeasurementIterator()
-	if err != nil {
-		return nil, err
-	}
-	defer mitr.Close()
-
-	for {
-		mm, err := mitr.Next()
-		if err != nil {
-			return nil, err
-		} else if mm == nil {
-			break
-		}
-
-		itr, err := is.measurementSeriesByExprIterator(mm, expr)
-		if err != nil {
-			return nil, err
-		}
-		itrs = append(itrs, itr)
-	}
-
-	return MergeSeriesIDIterators(itrs...), nil
-}
-
 type measurementSeriesKeyByExprIterator struct {
 	ids      SeriesIDIterator
 	is       IndexSet
