@@ -27,12 +27,7 @@ func (h ErrorHandler) HandleHTTPError(ctx context.Context, err error, w http.Res
 	}
 
 	code := errors2.ErrorCode(err)
-	var msg string
-	if err, ok := err.(*errors2.Error); ok {
-		msg = err.Error()
-	} else {
-		msg = "An internal error has occurred"
-	}
+	msg := err.Error()
 
 	WriteErrorResponse(ctx, w, code, msg)
 }
