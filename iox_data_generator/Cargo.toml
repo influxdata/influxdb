@@ -27,7 +27,7 @@ tokio = { version = "1.11", features = ["macros", "rt-multi-thread"] }
 toml = "0.5.6"
 tracing = "0.1"
 tracing-futures = "0.2.4"
-tracing-subscriber = "0.2.11"
+tracing-subscriber = "0.2.21"
 uuid = { version = "0.8.1", default_features = false }
 
 [dev-dependencies]
