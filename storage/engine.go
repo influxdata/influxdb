@@ -97,6 +97,8 @@ type TSDBStore interface {
 	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
 	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 	SeriesCardinality(ctx context.Context, database string) (int64, error)
+	SeriesCardinalityFromShards(ctx context.Context, shards []*tsdb.Shard) (*tsdb.SeriesIDSet, error)
+	SeriesFile(database string) *tsdb.SeriesFile
 }
 
 // NewEngine initialises a new storage engine, including a series file, index and

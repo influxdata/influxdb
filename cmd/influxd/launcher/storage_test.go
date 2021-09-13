@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/stretchr/testify/require"
 )
 
@@ -252,6 +253,230 @@ func TestLauncher_DeleteWithPredicate(t *testing.T) {
 		t.Fatalf("unexpected error querying server: %v", err)
 	} else if diff := cmp.Diff(string(buf), exp); diff != "" {
 		t.Fatal(diff)
+	}
+}
+
+func TestLauncher_FluxCardinality(t *testing.T) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	// Run a query without any data on the server - should return 0 and not crash.
+	query := `import "influxdata/influxdb"
+	influxdb.cardinality(
+		bucket: "BUCKET",
+		start: 2000-01-01T00:00:00Z,
+		stop: 2000-01-02T00:00:00Z,
+		predicate: (r) => true
+	)`
+
+	exp := `,result,table,_value` + "\r\n" +
+		`,_result,0,0` + "\r\n\r\n"
+
+	body, err := http.SimpleQuery(l.URL(), query, l.Org.Name, l.Auth.Token)
+	require.NoError(t, err)
+	require.Equal(t, exp, string(body))
+
+	// Write data to server.
+	resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, l.Bucket.ID),
+		"cpu,region=us-east-1 v=1 946684800000000000\n"+
+			"cpu,region=us-west-1 v=1 946684800000000000\n"+
+			"mem,region=us-west-1 v=1 946684800000000000\n"+
+			"mem,region=us-south-1 v=2 996684800000000000\n",
+	))
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	// Specific time values for tests bracketing shards with time ranges
+	mc := l.Engine().MetaClient()
+	sgs, err := mc.ShardGroupsByTimeRange(l.Bucket.ID.String(), meta.DefaultRetentionPolicyName, time.Unix(0, 946684800000000000), time.Unix(0, 996684800000000000))
+	require.NoError(t, err)
+	require.Equal(t, 2, len(sgs))
+
+	sg1Start := sgs[0].StartTime
+	sg2End := sgs[1].EndTime
+	sg2Start := sgs[1].StartTime
+	preSg1Start := sg1Start.Add(-1 * time.Minute)
+
+	lastPoint := time.Unix(0, 996684800000000000)
+	// a point in the middle of the later shard group, after the data but before
+	// the end of the group
+	afterLastPoint := lastPoint.Add(1 * time.Minute)
+	require.True(t, afterLastPoint.Before(sg2End))
+	require.True(t, afterLastPoint.After(sg2Start))
+
+	// similar, but before the data
+	beforeLastPoint := lastPoint.Add(-1 * time.Minute)
+	require.True(t, beforeLastPoint.Before(sg2End))
+	require.True(t, beforeLastPoint.After(sg2Start))
+
+	tests := []struct {
+		name  string
+		query string
+		exp   string
+	}{
+		{
+			name: "boolean literal predicate - true",
+			query: `import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: 2000-01-01T00:00:00Z,
+				stop: 2000-01-02T00:00:00Z,
+				predicate: (r) => true
+			)`,
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,3` + "\r\n\r\n",
+		},
+		{
+			name: "boolean literal predicate - false",
+			query: `import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: 2000-01-01T00:00:00Z,
+				stop: 2000-01-02T00:00:00Z,
+				predicate: (r) => false
+			)`,
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,0` + "\r\n\r\n",
+		},
+		{
+			name: "nil predicate",
+			query: `import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: 2000-01-01T00:00:00Z,
+				stop: 2000-01-02T00:00:00Z,
+			)`,
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,3` + "\r\n\r\n",
+		},
+		{
+			name: "nil predicate with large time range",
+			query: `import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: 1990-01-01T00:00:00Z,
+				stop: 2010-01-01T00:00:00Z,
+			)`,
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,4` + "\r\n\r\n",
+		},
+		{
+			name: "single measurement match",
+			query: `import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: 2000-01-01T00:00:00Z,
+				stop: 2000-01-02T00:00:00Z,
+				predicate: (r) => r._measurement == "cpu"
+			)`,
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,2` + "\r\n\r\n",
+		},
+		{
+			name: "multiple measurement match",
+			query: `import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: 2000-01-01T00:00:00Z,
+				stop: 2000-01-02T00:00:00Z,
+				predicate: (r) => r._measurement == "cpu" or r._measurement == "mem"
+			)`,
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,3` + "\r\n\r\n",
+		},
+		{
+			name: "predicate matches nothing",
+			query: `import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: 2000-01-01T00:00:00Z,
+				stop: 2000-01-02T00:00:00Z,
+				predicate: (r) => r._measurement == "cpu" and r._measurement == "mem"
+			)`,
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,0` + "\r\n\r\n",
+		},
+		{
+			name: "time range matches nothing",
+			query: `import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: 2000-04-01T00:00:00Z,
+				stop: 2000-05-02T00:00:00Z,
+			)`,
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,0` + "\r\n\r\n",
+		},
+		{
+			name: "large time range - all shards are within the window",
+			query: `import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: 1990-01-01T00:00:00Z,
+				stop: 2010-01-01T00:00:00Z,
+				predicate: (r) => r._measurement == "cpu"
+			)`,
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,2` + "\r\n\r\n",
+		},
+		{
+			name: "start range is inclusive",
+			query: fmt.Sprintf(`import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: %s,
+				stop: 2010-01-01T00:00:00Z,
+				predicate: (r) => r._measurement == "mem"
+			)`, time.Unix(0, 946684800000000000).Format(time.RFC3339Nano),
+			),
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,2` + "\r\n\r\n",
+		},
+		{
+			name: "stop range is exclusive",
+			query: fmt.Sprintf(`import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: 1990-01-01T00:00:00Z,
+				stop: %s,
+				predicate: (r) => r._measurement == "mem"
+			)`, lastPoint.Format(time.RFC3339Nano),
+			),
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,1` + "\r\n\r\n",
+		},
+		{
+			name: "one shard is entirely in the time range, other is partially, range includes data in partial shard",
+			query: fmt.Sprintf(`import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: %s,
+				stop: %s,
+				predicate: (r) => r._measurement == "mem"
+			)`, preSg1Start.Format(time.RFC3339Nano), afterLastPoint.Format(time.RFC3339Nano),
+			),
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,2` + "\r\n\r\n",
+		},
+		{
+			name: "one shard is entirely in the time range, other is partially, range does not include data in partial shard",
+			query: fmt.Sprintf(`import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: %s,
+				stop: %s,
+				predicate: (r) => r._measurement == "mem"
+			)`, preSg1Start.Format(time.RFC3339Nano), beforeLastPoint.Format(time.RFC3339Nano),
+			),
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,1` + "\r\n\r\n",
+		},
+	}
+
+	for _, tt := range tests {
+		body, err := http.SimpleQuery(l.URL(), tt.query, l.Org.Name, l.Auth.Token)
+		require.NoError(t, err)
+		require.Equal(t, tt.exp, string(body))
 	}
 }
 
