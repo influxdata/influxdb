@@ -652,10 +652,14 @@ where
     }
 
     /// Returns an initialized `Db` by name
-    pub fn db(&self, name: &DatabaseName<'_>) -> Result<Arc<Db>> {
-        self.database(name)?
+    pub fn db(&self, db_name: &DatabaseName<'_>) -> Result<Arc<Db>> {
+        let database = self.database(db_name)?;
+
+        ensure!(database.is_active(), DatabaseNotFound { db_name });
+
+        database
             .initialized_db()
-            .context(DatabaseNotInitialized { db_name: name })
+            .context(DatabaseNotInitialized { db_name })
     }
 
     /// Tells the server the set of rules for a database.
