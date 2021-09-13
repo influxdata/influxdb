@@ -50,7 +50,7 @@ pub fn persist_chunks(
     let mut time_of_first_write: Option<DateTime<Utc>> = None;
     let mut time_of_last_write: Option<DateTime<Utc>> = None;
     let mut query_chunks = vec![];
-    let mut delete_predicates: Arc<Vec<Predicate>> = Arc::new(vec![]);
+    let mut delete_predicates: Vec<Predicate> = vec![];
     for mut chunk in chunks {
         // Sanity-check
         assert!(Arc::ptr_eq(&db, &chunk.data().db));
@@ -68,7 +68,9 @@ pub fn persist_chunks(
             .map(|prev_last| prev_last.max(candidate_last))
             .or(Some(candidate_last));
 
-        delete_predicates = chunk.delete_predicates();
+        let mut preds = (*chunk.delete_predicates()).clone();
+
+        delete_predicates.append(&mut preds);
 
         chunk.set_writing_to_object_store(&registration)?;
         query_chunks.push(DbChunk::snapshot(&*chunk));
@@ -123,6 +125,7 @@ pub fn persist_chunks(
                 partition_write.force_drop_chunk(id)
             }
 
+            let del_preds = Arc::new(delete_predicates);
             // Upsert remainder to catalog
             if let Some(remainder) = remainder {
                 partition_write.create_rub_chunk(
@@ -130,7 +133,7 @@ pub fn persist_chunks(
                     time_of_first_write,
                     time_of_last_write,
                     Arc::clone(&schema),
-                    Arc::clone(&delete_predicates),
+                    Arc::clone(&del_preds),
                 );
             }
 
@@ -143,7 +146,7 @@ pub fn persist_chunks(
                     time_of_first_write,
                     time_of_last_write,
                     schema,
-                    Arc::clone(&delete_predicates),
+                    del_preds,
                 ),
             };
             let to_persist = to_persist.write();

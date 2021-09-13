@@ -42,7 +42,7 @@ pub(crate) fn compact_chunks(
     let mut input_rows = 0;
     let mut time_of_first_write: Option<DateTime<Utc>> = None;
     let mut time_of_last_write: Option<DateTime<Utc>> = None;
-    let mut delete_predicates: Arc<Vec<Predicate>> = Arc::new(vec![]);
+    let mut delete_predicates: Vec<Predicate> = vec![];
     let query_chunks = chunks
         .into_iter()
         .map(|mut chunk| {
@@ -62,7 +62,8 @@ pub(crate) fn compact_chunks(
                 .map(|prev_last| prev_last.max(candidate_last))
                 .or(Some(candidate_last));
 
-            delete_predicates = chunk.delete_predicates();
+            let mut preds = (*chunk.delete_predicates()).clone();
+            delete_predicates.append(&mut preds);
 
             chunk.set_compacting(&registration)?;
             Ok(DbChunk::snapshot(&*chunk))
@@ -111,7 +112,7 @@ pub(crate) fn compact_chunks(
                 time_of_first_write,
                 time_of_last_write,
                 schema,
-                delete_predicates,
+                Arc::new(delete_predicates),
             )
         };
 

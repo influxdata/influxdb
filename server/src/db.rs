@@ -41,7 +41,7 @@ use parquet_file::catalog::{
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
 use query::{
     exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
-    predicate::{Predicate, PredicateBuilder},
+    predicate::Predicate,
     QueryDatabase,
 };
 use rand_distr::{Distribution, Poisson};
@@ -555,9 +555,7 @@ impl Db {
         info!(%table_name, %partition_key, found_chunk=chunk.is_some(), "rolling over a partition");
         if let Some(chunk) = chunk {
             let mut chunk = chunk.write();
-            chunk
-                .freeze(&PredicateBuilder::default().build())
-                .context(FreezingChunk)?;
+            chunk.freeze().context(FreezingChunk)?;
 
             Ok(Some(DbChunk::snapshot(&chunk)))
         } else {
@@ -1312,9 +1310,7 @@ impl Db {
                     let handle_chunk_write = |chunk: &mut CatalogChunk| {
                         chunk.record_write(time_of_write, &timestamp_summary);
                         if chunk.storage().0 >= mub_row_threshold.get() {
-                            chunk
-                                .freeze(&PredicateBuilder::default().build())
-                                .expect("freeze mub chunk");
+                            chunk.freeze().expect("freeze mub chunk");
                         }
                     };
 

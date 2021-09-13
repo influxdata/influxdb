@@ -336,7 +336,7 @@ impl CatalogChunk {
         let meta = Arc::new(ChunkMetadata {
             table_summary: Arc::clone(chunk.table_summary()),
             schema: chunk.schema(),
-            delete_predicates: Arc::clone(&delete_predicates),
+            delete_predicates,
         });
 
         let stage = ChunkStage::Persisted {
@@ -457,7 +457,7 @@ impl CatalogChunk {
         match &mut self.stage {
             ChunkStage::Open { mb_chunk: _ } => {
                 // Freeze/close this chunk and add delete_predicate to its frozen one
-                self.freeze(delete_predicate)?;
+                self.freeze_with_predicate(delete_predicate)?;
             }
             ChunkStage::Frozen { meta, .. } => {
                 // Add the delete_predicate into the chunk's metadata
@@ -659,7 +659,7 @@ impl CatalogChunk {
     ///
     /// This only works for chunks in the _open_ stage (chunk is converted) and the _frozen_ stage
     /// (no-op) and will fail for other stages.
-    pub fn freeze(&mut self, delete_predicate: &Predicate) -> Result<()> {
+    pub fn freeze_with_predicate(&mut self, delete_predicate: &Predicate) -> Result<()> {
         match &self.stage {
             ChunkStage::Open { mb_chunk, .. } => {
                 debug!(%self.addr, row_count=mb_chunk.rows(), "freezing chunk");
@@ -693,6 +693,10 @@ impl CatalogChunk {
         }
     }
 
+    pub fn freeze(&mut self) -> Result<()> {
+        self.freeze_with_predicate(&PredicateBuilder::default().build())
+    }
+
     /// Set the chunk to the Moving state, returning a handle to the underlying storage
     ///
     /// If called on an open chunk will first [`freeze`](Self::freeze) the chunk
@@ -700,7 +704,7 @@ impl CatalogChunk {
         // This ensures the closing logic is consistent but doesn't break code that
         // assumes a chunk can be moved from open
         if matches!(self.stage, ChunkStage::Open { .. }) {
-            self.freeze(&PredicateBuilder::default().build())?;
+            self.freeze()?;
         }
 
         match &self.stage {
@@ -730,7 +734,7 @@ impl CatalogChunk {
         match &self.stage {
             ChunkStage::Open { .. } | ChunkStage::Frozen { .. } => {
                 self.set_lifecycle_action(ChunkLifecycleAction::Compacting, registration)?;
-                self.freeze(&PredicateBuilder::default().build())?;
+                self.freeze()?;
                 Ok(())
             }
             ChunkStage::Persisted { .. } => {
@@ -782,7 +786,7 @@ impl CatalogChunk {
         // This ensures the closing logic is consistent but doesn't break code that
         // assumes a chunk can be moved from open
         if matches!(self.stage, ChunkStage::Open { .. }) {
-            self.freeze(&PredicateBuilder::default().build())?;
+            self.freeze()?;
         }
 
         match &self.stage {
@@ -960,18 +964,17 @@ mod tests {
         let mut chunk = make_open_chunk();
 
         // close it
-        let delete_pred = PredicateBuilder::default().build();
-        chunk.freeze(&delete_pred).unwrap();
+        chunk.freeze().unwrap();
         assert!(matches!(chunk.stage(), &ChunkStage::Frozen { .. }));
 
         // closing a second time is a no-op
-        chunk.freeze(&delete_pred).unwrap();
+        chunk.freeze().unwrap();
         assert!(matches!(chunk.stage(), &ChunkStage::Frozen { .. }));
 
         // closing a chunk in persisted state will fail
         let mut chunk = make_persisted_chunk().await;
         assert_eq!(
-            chunk.freeze(&delete_pred).unwrap_err().to_string(),
+            chunk.freeze().unwrap_err().to_string(),
             "Internal Error: unexpected chunk state for Chunk('db':'table1':'part1':0) \
             during setting closed. Expected Open or Frozen, got Persisted"
         );
@@ -1136,7 +1139,7 @@ mod tests {
         let pred = &del_preds[0];
         if let Some(range) = pred.range {
             assert_eq!(range.start, 1); // start time
-            assert_eq!(range.end, 100); // start time
+            assert_eq!(range.end, 100); // stop time
         } else {
             panic!("No time range set for delete predicate");
         }
@@ -1167,7 +1170,7 @@ mod tests {
         let pred = &del_preds[1];
         if let Some(range) = pred.range {
             assert_eq!(range.start, 20); // start time
-            assert_eq!(range.end, 50); // start time
+            assert_eq!(range.end, 50); // stop time
         } else {
             panic!("No time range set for delete predicate");
         }
