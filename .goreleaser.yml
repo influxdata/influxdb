@@ -135,7 +135,7 @@ dockers:
   - goos: linux
     goarch: amd64
     image_templates:
-      - "quay.io/influxdb/influxdb-amd64:{{ .Tag }}"
+      - "quay.io/influxdb/influxdb-amd64:{{ .Env.VERSION }}"
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
@@ -145,7 +145,7 @@ dockers:
   - goos: linux
     goarch: arm64
     image_templates:
-      - "quay.io/influxdb/influxdb-arm64v8:{{ .Tag }}"
+      - "quay.io/influxdb/influxdb-arm64v8:{{ .Env.VERSION }}"
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
@@ -154,10 +154,10 @@ dockers:
     use_buildx: true
 
 docker_manifests:
-  - name_template: "quay.io/influxdb/influxdb:{{ .Tag }}"
+  - name_template: "quay.io/influxdb/influxdb:{{ .Env.VERSION }}"
     image_templates:
-      - "quay.io/influxdb/influxdb-amd64:{{ .Tag }}"
-      - "quay.io/influxdb/influxdb-arm64v8:{{ .Tag }}"
+      - "quay.io/influxdb/influxdb-amd64:{{ .Env.VERSION }}"
+      - "quay.io/influxdb/influxdb-arm64v8:{{ .Env.VERSION }}"
 
 signs:
   - signature: "${artifact}.asc"
