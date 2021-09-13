@@ -2833,6 +2833,7 @@ dependencies = [
  "tokio-stream",
  "tracker",
  "uuid",
+ "zstd",
 ]
 
 [[package]]

@@ -30,11 +30,12 @@ message AddParquet {
 
     // [Apache Parquet] metadata encoded using [Apache Thrift].
     //
-    // The metadata is encoded using the [Thrift Compact Protocol].
+    // The metadata is encoded using the [Thrift Compact Protocol] and compressed using [Zstandard].
     //
     // [Apache Parquet]: https://parquet.apache.org/
     // [Apache Thrift]: https://thrift.apache.org/
     // [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
+    // [Zstandard]: http://facebook.github.io/zstd/
     bytes metadata = 2;
 }
 

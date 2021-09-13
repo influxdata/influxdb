@@ -32,6 +32,7 @@ tokio = { version = "1.0", features = ["macros", "rt", "rt-multi-thread", "sync"
 tokio-stream = "0.1"
 tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["serde", "v4"] }
+zstd = "0.9"
 
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }

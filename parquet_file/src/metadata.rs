@@ -121,7 +121,7 @@ use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputPro
 ///
 /// **Important: When changing this structure, consider bumping the
 ///   [catalog transaction version](crate::catalog::core::TRANSACTION_VERSION)!**
-pub const METADATA_VERSION: u32 = 6;
+pub const METADATA_VERSION: u32 = 7;
 
 /// File-level metadata key to store the IOx-specific data.
 ///
@@ -231,6 +231,12 @@ pub enum Error {
         expected
     ))]
     IoxMetadataVersionMismatch { actual: u32, expected: Vec<u32> },
+
+    #[snafu(display("Cannot encode ZSTD message: {}", source))]
+    ZstdEncodeFailure { source: std::io::Error },
+
+    #[snafu(display("Cannot decode ZSTD message: {}", source))]
+    ZstdDecodeFailure { source: std::io::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -462,7 +468,7 @@ fn decode_timestamp_from_field(
 /// Parquet metadata with IOx-specific wrapper.
 #[derive(Debug, Clone)]
 pub struct IoxParquetMetaData {
-    /// [Apache Parquet] metadata as freestanding [Apache Thrift]-encoded bytes.
+    /// [Apache Parquet] metadata as freestanding [Apache Thrift]-encoded, and [Zstandard]-compressed bytes.
     ///
     /// This can be used to store metadata separate from the related payload data. The usage of [Apache Thrift] allows the
     /// same stability guarantees as the usage of an ordinary [Apache Parquet] file. To encode a thrift message into bytes
@@ -471,6 +477,7 @@ pub struct IoxParquetMetaData {
     /// [Apache Parquet]: https://parquet.apache.org/
     /// [Apache Thrift]: https://thrift.apache.org/
     /// [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
+    /// [Zstandard]: http://facebook.github.io/zstd/
     data: Vec<u8>,
 }
 
@@ -490,7 +497,7 @@ impl IoxParquetMetaData {
         Self { data }
     }
 
-    /// [Apache Parquet] metadata as freestanding [Apache Thrift]-encoded bytes.
+    /// [Apache Parquet] metadata as freestanding [Apache Thrift]-encoded, and [Zstandard]-compressed bytes.
     ///
     /// This can be used to store metadata separate from the related payload data. The usage of [Apache Thrift] allows the
     /// same stability guarantees as the usage of an ordinary [Apache Parquet] file. To encode a thrift message into bytes
@@ -499,11 +506,12 @@ impl IoxParquetMetaData {
     /// [Apache Parquet]: https://parquet.apache.org/
     /// [Apache Thrift]: https://thrift.apache.org/
     /// [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
+    /// [Zstandard]: http://facebook.github.io/zstd/
     pub fn thrift_bytes(&self) -> &[u8] {
         self.data.as_ref()
     }
 
-    /// Encode [Apache Parquet] metadata as freestanding [Apache Thrift]-encoded bytes.
+    /// Encode [Apache Parquet] metadata as freestanding [Apache Thrift]-encoded, and [Zstandard]-compressed bytes.
     ///
     /// This can be used to store metadata separate from the related payload data. The usage of [Apache Thrift] allows the
     /// same stability guarantees as the usage of an ordinary [Apache Parquet] file. To encode a thrift message into bytes
@@ -512,6 +520,7 @@ impl IoxParquetMetaData {
     /// [Apache Parquet]: https://parquet.apache.org/
     /// [Apache Thrift]: https://thrift.apache.org/
     /// [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
+    /// [Zstandard]: http://facebook.github.io/zstd/
     fn parquet_md_to_thrift(parquet_md: ParquetMetaData) -> Result<Vec<u8>> {
         // step 1: assemble a thrift-compatible struct
         use parquet::schema::types::to_thrift as schema_to_thrift;
@@ -548,22 +557,30 @@ impl IoxParquetMetaData {
             protocol.flush().context(ThriftWriteFailure {})?;
         }
 
+        // step 3: compress data
+        // Note: level 0 is the zstd-provided default
+        let buffer = zstd::encode_all(&buffer[..], 0).context(ZstdEncodeFailure)?;
+
         Ok(buffer)
     }
 
-    /// Decode [Apache Parquet] metadata from [Apache Thrift]-encoded bytes.
+    /// Decode [Apache Parquet] metadata from [Apache Thrift]-encoded, and [Zstandard]-compressed bytes.
     ///
     /// [Apache Parquet]: https://parquet.apache.org/
     /// [Apache Thrift]: https://thrift.apache.org/
+    /// [Zstandard]: http://facebook.github.io/zstd/
     pub fn decode(&self) -> Result<DecodedIoxParquetMetaData> {
-        // step 1: load thrift data from byte stream
+        // step 1: decompress
+        let data = zstd::decode_all(&self.data[..]).context(ZstdDecodeFailure)?;
+
+        // step 2: load thrift data from byte stream
         let thrift_file_metadata = {
-            let mut protocol = TCompactInputProtocol::new(&self.data[..]);
+            let mut protocol = TCompactInputProtocol::new(&data[..]);
             parquet_format::FileMetaData::read_from_in_protocol(&mut protocol)
                 .context(ThriftReadFailure {})?
         };
 
-        // step 2: convert thrift to in-mem structs
+        // step 3: convert thrift to in-mem structs
         use parquet::schema::types::from_thrift as schema_from_thrift;
 
         let schema =
@@ -1146,6 +1163,6 @@ mod tests {
             .await
             .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
-        assert_eq!(parquet_metadata.size(), 11939);
+        assert_eq!(parquet_metadata.size(), 3733);
     }
 }
