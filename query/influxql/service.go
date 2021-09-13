@@ -9,7 +9,6 @@ import (
 	"net/url"
 
 	"github.com/influxdata/flux"
-
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/query"
 )

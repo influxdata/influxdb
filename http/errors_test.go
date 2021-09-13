@@ -4,15 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"go.uber.org/zap/zaptest"
 	"io"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestCheckError(t *testing.T) {

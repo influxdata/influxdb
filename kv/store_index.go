@@ -6,9 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
 

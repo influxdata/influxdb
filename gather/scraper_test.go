@@ -9,10 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 var (

@@ -3,11 +3,10 @@ package query
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // FromBucketService wraps an influxdb.BucketService in the BucketLookup interface.

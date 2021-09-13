@@ -7,13 +7,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/golang/gddo/httputil"
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pctx "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"github.com/influxdata/influxdb/v2/telegraf/plugins"
 	"go.uber.org/zap"

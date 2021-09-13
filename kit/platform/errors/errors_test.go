@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
+
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 const EFailedToGetStorageHost = "failed to get the storage host"

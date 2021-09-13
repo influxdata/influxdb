@@ -7,12 +7,11 @@ import (
 	"strings"
 	"time"
 
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	iql "github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/influxql/query"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/tracing/fields"

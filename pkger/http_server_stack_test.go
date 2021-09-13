@@ -5,8 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
 	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/stretchr/testify/assert"

@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 type AuthedAuthorizationService struct {

@@ -2,11 +2,11 @@ package influxql_test
 
 import (
 	"context"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"strings"
 	"testing"
 
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query/influxql"
 	"github.com/influxdata/influxdb/v2/query/influxql/spectests"

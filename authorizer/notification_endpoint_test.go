@@ -3,8 +3,6 @@ package authorizer_test
 import (
 	"bytes"
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 
@@ -12,6 +10,8 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"

@@ -8,13 +8,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/influxql"
 	imock "github.com/influxdata/influxdb/v2/influxql/mock"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"go.uber.org/zap/zaptest"

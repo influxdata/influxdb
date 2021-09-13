@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 
+	ihttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
-	ihttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
 

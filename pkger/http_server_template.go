@@ -9,13 +9,12 @@ import (
 	"path"
 	"strings"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	pctx "github.com/influxdata/influxdb/v2/context"
 	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"go.uber.org/zap"

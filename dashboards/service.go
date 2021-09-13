@@ -6,12 +6,11 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	influxdb "github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/snowflake"
 )

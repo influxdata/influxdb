@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/buger/jsonparser"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	jsonp "github.com/influxdata/influxdb/v2/pkg/jsonparser"
 )

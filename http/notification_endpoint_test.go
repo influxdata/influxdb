@@ -11,12 +11,11 @@ import (
 	"path"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"

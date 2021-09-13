@@ -9,11 +9,10 @@ import (
 	"time"
 
 	"github.com/NYTimes/gziphandler"
-	"github.com/influxdata/influxdb/v2/authorizer"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"go.uber.org/zap"
 )

@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"reflect"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	platformtesting "github.com/influxdata/influxdb/v2/testing"
 )
 

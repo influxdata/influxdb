@@ -2,7 +2,6 @@ package storage_test
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/storage/mocks"

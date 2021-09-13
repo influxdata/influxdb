@@ -8,9 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/go-chi/chi"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	ihttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 )
 

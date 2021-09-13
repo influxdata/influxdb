@@ -4,10 +4,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2"
 	influxhttp "github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/notification"
 	checks "github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"

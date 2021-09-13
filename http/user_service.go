@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"go.uber.org/zap"
 )

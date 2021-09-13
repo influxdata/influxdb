@@ -6,13 +6,12 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"github.com/stretchr/testify/require"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_BackupSqlStore(t *testing.T) {

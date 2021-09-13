@@ -9,9 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 var (

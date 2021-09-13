@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	"go.uber.org/zap"
 )

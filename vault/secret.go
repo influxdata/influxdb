@@ -7,10 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/hashicorp/vault/api"
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 var _ platform.SecretService = (*SecretService)(nil)

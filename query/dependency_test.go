@@ -2,9 +2,9 @@ package query_test
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
 )

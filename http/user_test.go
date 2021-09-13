@@ -8,9 +8,8 @@ import (
 	"path"
 	"testing"
 
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkg/testttp"

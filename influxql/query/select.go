@@ -8,10 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	iql "github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/influxql/query/internal/gota"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxql"
 	"golang.org/x/sync/errgroup"
 )

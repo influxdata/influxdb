@@ -5,12 +5,11 @@ import (
 	"context"
 	"io"
 
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/check"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
 

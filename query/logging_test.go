@@ -3,7 +3,6 @@ package query_test
 import (
 	"bytes"
 	"context"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"io/ioutil"
 	"testing"
@@ -13,6 +12,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/metadata"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/mock"
 	"github.com/opentracing/opentracing-go"

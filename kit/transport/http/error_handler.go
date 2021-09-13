@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
 	"io"
 	"mime"
 	"net/http"
 	"strings"
 
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"go.uber.org/zap"
 )
 
 // ErrorHandler is the error handler in http package.
@@ -20,7 +20,7 @@ type ErrorHandler struct {
 	logger *zap.Logger
 }
 
-func NewErrorHandler(logger *zap.Logger) ErrorHandler{
+func NewErrorHandler(logger *zap.Logger) ErrorHandler {
 	return ErrorHandler{logger: logger}
 }
 

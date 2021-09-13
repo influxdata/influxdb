@@ -9,10 +9,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	iql "github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/influxql/control"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxql"

@@ -4,9 +4,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2/kit/cli"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 )

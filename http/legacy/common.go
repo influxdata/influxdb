@@ -3,10 +3,9 @@ package legacy
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // getAuthorization extracts authorization information from a context.Context.

@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"sync/atomic"
 
-	"go.uber.org/zap/zapcore"
-
 	"github.com/influxdata/influx-cli/v2/clients"
 	"github.com/influxdata/influx-cli/v2/pkg/stdio"
 	"github.com/influxdata/influxdb/v2/logger"
@@ -22,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
 )
 

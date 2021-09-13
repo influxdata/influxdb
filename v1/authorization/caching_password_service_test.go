@@ -5,9 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/golang/mock/gomock"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/stretchr/testify/assert"

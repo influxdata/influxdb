@@ -10,12 +10,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/go-chi/chi"
 	"github.com/google/go-cmp/cmp"
 	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/yudai/gojsondiff"

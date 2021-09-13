@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"go.uber.org/zap/zaptest"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -16,6 +15,7 @@ import (
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestBackupMetaService(t *testing.T) {

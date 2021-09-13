@@ -11,12 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http/metric"
 	httpmock "github.com/influxdata/influxdb/v2/http/mock"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxtesting "github.com/influxdata/influxdb/v2/testing"

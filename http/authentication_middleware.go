@@ -7,12 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb/v2"
 	platcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/jsonweb"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 )

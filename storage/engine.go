@@ -8,11 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"

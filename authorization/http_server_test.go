@@ -11,18 +11,17 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"github.com/stretchr/testify/require"
-
 	"github.com/go-chi/chi"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
 	itesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 

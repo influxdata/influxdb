@@ -4,10 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	influxtesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/influxdata/influxql"
 )

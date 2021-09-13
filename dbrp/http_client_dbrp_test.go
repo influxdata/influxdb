@@ -2,13 +2,13 @@ package dbrp_test
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/dbrp"
 	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"go.uber.org/zap/zaptest"

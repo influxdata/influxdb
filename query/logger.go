@@ -3,10 +3,9 @@ package query
 import (
 	"time"
 
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // Logger persists metadata about executed queries.

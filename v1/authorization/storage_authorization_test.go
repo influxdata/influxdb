@@ -6,10 +6,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/pkg/pointer"

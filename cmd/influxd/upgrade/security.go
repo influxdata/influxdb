@@ -9,9 +9,8 @@ import (
 	"fmt"
 	"sort"
 
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"

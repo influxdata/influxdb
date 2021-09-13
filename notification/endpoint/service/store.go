@@ -3,10 +3,9 @@ package service
 import (
 	"context"
 
+	influxdb "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
-	influxdb "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/snowflake"

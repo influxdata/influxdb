@@ -5,9 +5,10 @@
 package mock
 
 import (
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	kv "github.com/influxdata/influxdb/v2/kv"
-	reflect "reflect"
 )
 
 // MockBucket is a mock of Bucket interface

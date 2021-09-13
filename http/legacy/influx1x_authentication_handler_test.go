@@ -3,18 +3,17 @@ package legacy
 import (
 	"context"
 	"fmt"
-	"go.uber.org/zap/zaptest"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	itesting "github.com/influxdata/influxdb/v2/testing"
+	"go.uber.org/zap/zaptest"
 )
 
 const tokenScheme = "Token " // TODO(goller): I'd like this to be Bearer

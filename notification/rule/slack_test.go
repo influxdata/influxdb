@@ -3,11 +3,10 @@ package rule_test
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/notification/rule"

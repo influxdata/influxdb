@@ -7,9 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/rand"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	bolt "go.etcd.io/bbolt"

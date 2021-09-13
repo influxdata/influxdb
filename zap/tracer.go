@@ -9,7 +9,6 @@ import (
 	"time"
 
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 	"go.uber.org/zap"

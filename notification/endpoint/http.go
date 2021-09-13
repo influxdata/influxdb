@@ -7,9 +7,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 var _ influxdb.NotificationEndpoint = &HTTP{}

@@ -4,9 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 func Test_newSourceResponse(t *testing.T) {

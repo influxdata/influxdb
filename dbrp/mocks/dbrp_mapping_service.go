@@ -6,10 +6,11 @@ package mocks
 
 import (
 	context "context"
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	influxdb "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
-	reflect "reflect"
 )
 
 // MockDBRPMappingService is a mock of DBRPMappingService interface

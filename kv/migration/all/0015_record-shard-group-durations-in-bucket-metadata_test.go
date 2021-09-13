@@ -6,10 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/dustin/go-humanize"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/stretchr/testify/require"
 )

@@ -8,10 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage"

@@ -6,10 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	iql "github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/kit/check"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxql"

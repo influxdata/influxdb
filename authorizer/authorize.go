@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 func isAllowedAll(a influxdb.Authorizer, permissions []influxdb.Permission) error {

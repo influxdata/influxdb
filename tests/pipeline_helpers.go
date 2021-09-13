@@ -4,10 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"go.uber.org/zap"
 )
 

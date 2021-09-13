@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
@@ -14,6 +12,7 @@ import (
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/values"
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/query"
 )
 

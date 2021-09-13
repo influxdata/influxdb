@@ -8,11 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"

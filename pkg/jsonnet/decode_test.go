@@ -4,9 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 

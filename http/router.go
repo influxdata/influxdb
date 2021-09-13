@@ -7,12 +7,11 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-stack/stack"
 	"github.com/influxdata/httprouter"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"go.uber.org/zap"

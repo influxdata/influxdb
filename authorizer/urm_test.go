@@ -2,14 +2,14 @@ package authorizer_test
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )

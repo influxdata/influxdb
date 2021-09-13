@@ -6,9 +6,8 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )

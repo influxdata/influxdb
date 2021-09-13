@@ -15,8 +15,6 @@ import (
 	"testing"
 	"time"
 
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/execute"
@@ -29,6 +27,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	phttp "github.com/influxdata/influxdb/v2/http"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/query"
 	"go.uber.org/zap"

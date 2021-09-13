@@ -76,8 +76,12 @@ import (
 	telegrafservice "github.com/influxdata/influxdb/v2/telegraf/service"
 	"github.com/influxdata/influxdb/v2/telemetry"
 	"github.com/influxdata/influxdb/v2/tenant"
-	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1" // needed for tsm1
-	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"  // needed for tsi1
+
+	// needed for tsm1
+	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+
+	// needed for tsi1
+	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	authv1 "github.com/influxdata/influxdb/v2/v1/authorization"
 	iqlcoordinator "github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"

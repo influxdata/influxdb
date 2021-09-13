@@ -3,9 +3,8 @@ package endpoint
 import (
 	"encoding/json"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 var _ influxdb.NotificationEndpoint = &Telegram{}

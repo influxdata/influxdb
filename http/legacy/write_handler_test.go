@@ -11,13 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/dbrp"
 	"github.com/influxdata/influxdb/v2/http/mocks"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/snowflake"
