@@ -1,4 +1,5 @@
 mod debug_cli;
+mod deletes;
 mod flight_api;
 mod freeze;
 mod http;
