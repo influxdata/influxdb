@@ -164,9 +164,12 @@ func createTSMFile(t *testing.T, params tsmParams) (string, string) {
 		file, err = os.CreateTemp(dir, "*.txt")
 	}
 	require.NoError(t, err)
+	defer file.Close()
 
 	w, err := tsm1.NewTSMWriter(file)
 	require.NoError(t, err)
+	defer w.Close()
+
 	for _, key := range params.keys {
 		values := []tsm1.Value{tsm1.NewValue(0, 1.0)}
 		require.NoError(t, w.Write([]byte(key), values))
@@ -179,7 +182,6 @@ func createTSMFile(t *testing.T, params tsmParams) (string, string) {
 	if params.invalid {
 		require.NoError(t, binary.Write(file, binary.BigEndian, []byte("foobar\n")))
 	}
-	require.NoError(t, w.Close())
 
 	return dir, file.Name()
 }
