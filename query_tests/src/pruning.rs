@@ -10,6 +10,7 @@ use query::{
     QueryChunk,
 };
 
+use metric::{Attributes, Metric, U64Counter};
 use server::db::test_helpers::write_lp;
 use server::utils::{make_db, TestDb};
 
@@ -56,7 +57,7 @@ async fn chunk_pruning_sql() {
     // Test that partition pruning is connected up
     let TestDb {
         db,
-        metric_registry,
+        metrics_registry_v2,
         ..
     } = setup().await;
 
@@ -76,29 +77,24 @@ async fn chunk_pruning_sql() {
 
     assert_batches_sorted_eq!(&expected, &batches);
 
+    let attributes = Attributes::from(&[("db_name", "placeholder"), ("table_name", "cpu")]);
     // Validate that the chunk was pruned using the metrics
-    metric_registry
-        .has_metric_family("query_access_pruned_chunks_total")
-        .with_attributes(&[
-            ("db_name", "placeholder"),
-            ("table_name", "cpu"),
-            ("svr_id", "1"),
-        ])
-        .counter()
-        .eq(1.0)
-        .unwrap();
+    let pruned_chunks = metrics_registry_v2
+        .get_instrument::<Metric<U64Counter>>("query_access_pruned_chunks")
+        .unwrap()
+        .get_observer(&attributes)
+        .unwrap()
+        .fetch();
+    assert_eq!(pruned_chunks, 1);
 
     // Validate that the chunk was pruned using the metrics
-    metric_registry
-        .has_metric_family("query_access_pruned_rows_total")
-        .with_attributes(&[
-            ("db_name", "placeholder"),
-            ("table_name", "cpu"),
-            ("svr_id", "1"),
-        ])
-        .counter()
-        .eq(3.0)
-        .unwrap();
+    let pruned_rows = metrics_registry_v2
+        .get_instrument::<Metric<U64Counter>>("query_access_pruned_rows")
+        .unwrap()
+        .get_observer(&attributes)
+        .unwrap()
+        .fetch();
+    assert_eq!(pruned_rows, 3);
 }
 
 #[tokio::test]
@@ -107,7 +103,7 @@ async fn chunk_pruning_influxrpc() {
     // Test that partition pruning is connected up
     let TestDb {
         db,
-        metric_registry,
+        metrics_registry_v2,
         ..
     } = setup().await;
 
@@ -129,27 +125,22 @@ async fn chunk_pruning_influxrpc() {
 
     assert_eq!(&expected, result.as_ref());
 
+    let attributes = Attributes::from(&[("db_name", "placeholder"), ("table_name", "cpu")]);
     // Validate that the chunk was pruned using the metrics
-    metric_registry
-        .has_metric_family("query_access_pruned_chunks_total")
-        .with_attributes(&[
-            ("db_name", "placeholder"),
-            ("table_name", "cpu"),
-            ("svr_id", "1"),
-        ])
-        .counter()
-        .eq(1.0)
-        .unwrap();
+    let pruned_chunks = metrics_registry_v2
+        .get_instrument::<Metric<U64Counter>>("query_access_pruned_chunks")
+        .unwrap()
+        .get_observer(&attributes)
+        .unwrap()
+        .fetch();
+    assert_eq!(pruned_chunks, 1);
 
     // Validate that the chunk was pruned using the metrics
-    metric_registry
-        .has_metric_family("query_access_pruned_rows_total")
-        .with_attributes(&[
-            ("db_name", "placeholder"),
-            ("table_name", "cpu"),
-            ("svr_id", "1"),
-        ])
-        .counter()
-        .eq(3.0)
-        .unwrap();
+    let pruned_rows = metrics_registry_v2
+        .get_instrument::<Metric<U64Counter>>("query_access_pruned_rows")
+        .unwrap()
+        .get_observer(&attributes)
+        .unwrap()
+        .fetch();
+    assert_eq!(pruned_rows, 3);
 }

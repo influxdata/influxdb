@@ -17,7 +17,7 @@ use datafusion::{
     datasource::TableProvider,
 };
 use internal_types::schema::Schema;
-use metrics::{Counter, KeyValue, MetricRegistry};
+use metric::{Attributes, Metric, U64Counter};
 use observability_deps::tracing::debug;
 use query::{
     predicate::{Predicate, PredicateBuilder},
@@ -26,6 +26,8 @@ use query::{
 };
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
 
+use hashbrown::HashMap;
+use parking_lot::{MappedMutexGuard, Mutex, MutexGuard};
 use query::{
     pruning::{prune_chunks, PruningObserver},
     QueryDatabase,
@@ -34,37 +36,63 @@ use query::{
 /// Metrics related to chunk access (pruning specifically)
 #[derive(Debug)]
 struct AccessMetrics {
+    /// The database name
+    db_name: Arc<str>,
     /// Total number of chunks pruned via statistics
-    pruned_chunks: Counter,
+    pruned_chunks: Metric<U64Counter>,
     /// Total number of rows pruned using statistics
-    pruned_rows: Counter,
+    pruned_rows: Metric<U64Counter>,
+    /// Keyed by table name
+    tables: Mutex<HashMap<Arc<str>, TableAccessMetrics>>,
 }
 
 impl AccessMetrics {
-    fn new(
-        metrics_registry: Arc<metrics::MetricRegistry>,
-        metric_attributes: Vec<KeyValue>,
-    ) -> Self {
-        let pruning_domain =
-            metrics_registry.register_domain_with_attributes("query_access", metric_attributes);
-
-        let pruned_chunks = pruning_domain.register_counter_metric(
-            "pruned_chunks",
-            None,
+    fn new(registry: &metric::Registry, db_name: Arc<str>) -> Self {
+        let pruned_chunks = registry.register_metric(
+            "query_access_pruned_chunks",
             "Number of chunks pruned using metadata",
         );
 
-        let pruned_rows = pruning_domain.register_counter_metric(
-            "pruned_rows",
-            None,
+        let pruned_rows = registry.register_metric(
+            "query_access_pruned_rows",
             "Number of rows pruned using metadata",
         );
 
         Self {
+            db_name,
             pruned_chunks,
             pruned_rows,
+            tables: Default::default(),
         }
     }
+
+    fn table_metrics(&self, table: &Arc<str>) -> MappedMutexGuard<'_, TableAccessMetrics> {
+        MutexGuard::map(self.tables.lock(), |tables| {
+            let (_, metrics) = tables.raw_entry_mut().from_key(table).or_insert_with(|| {
+                let attributes = Attributes::from([
+                    ("db_name", self.db_name.to_string().into()),
+                    ("table_name", table.to_string().into()),
+                ]);
+
+                let metrics = TableAccessMetrics {
+                    pruned_chunks: self.pruned_chunks.recorder(attributes.clone()),
+                    pruned_rows: self.pruned_rows.recorder(attributes),
+                };
+
+                (Arc::clone(table), metrics)
+            });
+            metrics
+        })
+    }
+}
+
+/// Metrics related to chunk access for a specific table
+#[derive(Debug)]
+struct TableAccessMetrics {
+    /// Total number of chunks pruned via statistics
+    pruned_chunks: U64Counter,
+    /// Total number of rows pruned using statistics
+    pruned_rows: U64Counter,
 }
 
 /// `QueryCatalogAccess` implements traits that allow the query engine
@@ -89,14 +117,14 @@ impl QueryCatalogAccess {
         db_name: impl Into<String>,
         catalog: Arc<Catalog>,
         jobs: Arc<JobRegistry>,
-        metrics_registry: Arc<MetricRegistry>,
-        metric_attributes: Vec<KeyValue>,
+        metric_registry: &metric::Registry,
     ) -> Self {
-        let access_metrics = AccessMetrics::new(metrics_registry, metric_attributes);
+        let db_name = Arc::from(db_name.into());
+        let access_metrics = AccessMetrics::new(metric_registry, Arc::clone(&db_name));
         let chunk_access = Arc::new(ChunkAccess::new(Arc::clone(&catalog), access_metrics));
 
         let system_tables = Arc::new(SystemSchemaProvider::new(
-            db_name,
+            db_name.as_ref(),
             Arc::clone(&catalog),
             jobs,
         ));
@@ -163,15 +191,9 @@ impl PruningObserver for ChunkAccess {
     type Observed = DbChunk;
 
     fn was_pruned(&self, chunk: &Self::Observed) {
-        let attributes = vec![KeyValue::new("table_name", chunk.table_name().to_string())];
-        let num_rows = chunk.summary().total_count();
-        self.access_metrics
-            .pruned_chunks
-            .add_with_attributes(1, &attributes);
-        self.access_metrics
-            .pruned_rows
-            .add_with_attributes(num_rows, &attributes);
-        debug!(chunk_id = chunk.id(), num_rows, "pruned chunk from query")
+        let metrics = self.access_metrics.table_metrics(chunk.table_name());
+        metrics.pruned_chunks.inc(1);
+        metrics.pruned_rows.inc(chunk.summary().total_count())
     }
 
     fn could_not_prune_chunk(&self, chunk: &Self::Observed, reason: &str) {

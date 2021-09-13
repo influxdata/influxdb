@@ -435,8 +435,7 @@ impl Db {
             &db_name,
             Arc::clone(&catalog),
             Arc::clone(&jobs),
-            Arc::clone(&metrics_registry),
-            metric_attributes.clone(),
+            database_to_commit.metrics_registry_v2.as_ref(),
         );
         let catalog_access = Arc::new(catalog_access);
 

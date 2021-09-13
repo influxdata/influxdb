@@ -213,8 +213,8 @@ impl DbChunk {
     }
 
     /// Return the name of the table in this chunk
-    pub fn table_name(&self) -> Arc<str> {
-        Arc::clone(&self.table_name)
+    pub fn table_name(&self) -> &Arc<str> {
+        &self.table_name
     }
 
     pub fn time_of_first_write(&self) -> DateTime<Utc> {
