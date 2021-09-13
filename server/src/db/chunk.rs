@@ -314,6 +314,7 @@ impl QueryChunk for DbChunk {
         Ok(pred_result)
     }
 
+    // NGA todo: add delete predicate here to eliminate data at query time
     fn read_filter(
         &self,
         predicate: &Predicate,

@@ -11,6 +11,7 @@ use parquet_file::{
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
 };
 use persistence_windows::checkpoint::{ReplayPlan, ReplayPlanner};
+use query::predicate::Predicate;
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
 
@@ -267,11 +268,14 @@ impl CatalogState for Loader {
         let schema_handle = TableSchemaUpsertHandle::new(&table_schema, &parquet_chunk.schema())
             .map_err(|e| Box::new(e) as _)
             .context(SchemaError { path: info.path })?;
+
+        let delete_predicates: Arc<Vec<Predicate>> = Arc::new(vec![]); // NGA todo: After Marco save delete predicate into the catalog, it will need to extract into this variable
         partition.insert_object_store_only_chunk(
             iox_md.chunk_id,
             parquet_chunk,
             iox_md.time_of_first_write,
             iox_md.time_of_last_write,
+            delete_predicates,
         );
         schema_handle.commit();
 
