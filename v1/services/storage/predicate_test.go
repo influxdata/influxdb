@@ -10,65 +10,6 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-func TestHasSingleMeasurementNoOR(t *testing.T) {
-	cases := []struct {
-		expr influxql.Expr
-		name string
-		ok   bool
-	}{
-		{
-			expr: influxql.MustParseExpr(`_name = 'm0'`),
-			name: "m0",
-			ok:   true,
-		},
-		{
-			expr: influxql.MustParseExpr(`_something = 'f' AND _name = 'm0'`),
-			name: "m0",
-			ok:   true,
-		},
-		{
-			expr: influxql.MustParseExpr(`_something = 'f' AND (a =~ /x0/ AND _name = 'm0')`),
-			name: "m0",
-			ok:   true,
-		},
-		{
-			expr: influxql.MustParseExpr(`tag1 != 'foo'`),
-			ok:   false,
-		},
-		{
-			expr: influxql.MustParseExpr(`_name = 'm0' OR tag1 != 'foo'`),
-			ok:   false,
-		},
-		{
-			expr: influxql.MustParseExpr(`_name = 'm0' AND tag1 != 'foo' AND _name = 'other'`),
-			ok:   false,
-		},
-		{
-			expr: influxql.MustParseExpr(`_name = 'm0' AND tag1 != 'foo' OR _name = 'other'`),
-			ok:   false,
-		},
-		{
-			expr: influxql.MustParseExpr(`_name = 'm0' AND (tag1 != 'foo' OR tag2 = 'other')`),
-			ok:   false,
-		},
-		{
-			expr: influxql.MustParseExpr(`(tag1 != 'foo' OR tag2 = 'other') OR _name = 'm0'`),
-			ok:   false,
-		},
-	}
-
-	for _, tc := range cases {
-		name, ok := storage.HasSingleMeasurementNoOR(tc.expr)
-		if ok != tc.ok {
-			t.Fatalf("got %q, %v for expression %q, expected %q, %v", name, ok, tc.expr, tc.name, tc.ok)
-		}
-
-		if ok && name != tc.name {
-			t.Fatalf("got %q, %v for expression %q, expected %q, %v", name, ok, tc.expr, tc.name, tc.ok)
-		}
-	}
-}
-
 func TestRewriteExprRemoveFieldKeyAndValue(t *testing.T) {
 	node := &datatypes.Node{
 		NodeType: datatypes.NodeTypeLogicalExpression,
