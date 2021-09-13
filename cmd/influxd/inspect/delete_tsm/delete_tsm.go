@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/file"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/spf13/cobra"
 )
@@ -143,7 +144,7 @@ func (a *args) process(cmd *cobra.Command, path string) error {
 	}
 
 	// Replace original file with new file.
-	if err := os.Rename(outputPath, path); err != nil {
+	if err := file.RenameFile(outputPath, path); err != nil {
 		return fmt.Errorf("failed to update TSM file %q: %w", path, err)
 	}
 	if !hasData {
