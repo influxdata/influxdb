@@ -315,7 +315,7 @@ func TestLauncher_FluxCardinality(t *testing.T) {
 		exp   string
 	}{
 		{
-			name: "boolean literal predicate",
+			name: "boolean literal predicate - true",
 			query: `import "influxdata/influxdb"
 			influxdb.cardinality(
 				bucket: "BUCKET",
@@ -325,6 +325,18 @@ func TestLauncher_FluxCardinality(t *testing.T) {
 			)`,
 			exp: `,result,table,_value` + "\r\n" +
 				`,_result,0,3` + "\r\n\r\n",
+		},
+		{
+			name: "boolean literal predicate - false",
+			query: `import "influxdata/influxdb"
+			influxdb.cardinality(
+				bucket: "BUCKET",
+				start: 2000-01-01T00:00:00Z,
+				stop: 2000-01-02T00:00:00Z,
+				predicate: (r) => false
+			)`,
+			exp: `,result,table,_value` + "\r\n" +
+				`,_result,0,0` + "\r\n\r\n",
 		},
 		{
 			name: "nil predicate",

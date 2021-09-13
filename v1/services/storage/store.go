@@ -670,11 +670,19 @@ func (s *Store) ReadSeriesCardinality(ctx context.Context, req *datatypes.ReadSe
 		}
 
 		if found := reads.HasFieldValueKey(expr); found {
-			return nil, errors.New("filtering on field keys is not supported")
+			return nil, errors.New("filtering on field values is not supported in cardinality predicates")
 		}
 		expr = influxql.Reduce(influxql.CloneExpr(expr), nil)
+
+		// Single boolean literals are not handled well by the cursor that will be
+		// generated to solve the query, so specifically check and handle those
+		// cases here. A true boolean is equivalent to not having any predicate, and
+		// a false boolean will return no results.
 		if reads.IsTrueBooleanLiteral(expr) {
 			expr = nil
+		}
+		if reads.IsFalseBooleanLiteral(expr) {
+			return cursors.NewInt64SliceIterator([]int64{0}), nil
 		}
 
 	}
