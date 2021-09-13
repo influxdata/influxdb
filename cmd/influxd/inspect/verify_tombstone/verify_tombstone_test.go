@@ -141,6 +141,7 @@ func NewTempTombstone(t *testing.T) (string, *os.File) {
 
 	file, err := os.CreateTemp(dir, "verifytombstonetest*"+"."+tsm1.TombstoneFileExtension)
 	require.NoError(t, err)
+	defer file.Close()
 
 	return dir, file
 }
