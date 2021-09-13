@@ -28,7 +28,7 @@ func Test_DumpWal_Bad_Path(t *testing.T) {
 		findDuplicates: false,
 		walPaths:       []string{"badpath.wal"},
 		expectErr:      true,
-		expectedOut:    "open badpath.wal: no such file or directory",
+		expectedOut:    "open badpath.wal",
 	}
 
 	runCommand(t, params)
@@ -198,7 +198,7 @@ func runCommand(t *testing.T, params cmdParams) {
 	cmd := initCommand(t, params)
 
 	if params.expectErr {
-		require.EqualError(t, cmd.Execute(), params.expectedOut)
+		require.Contains(t, cmd.Execute().Error(), params.expectedOut)
 		return
 	}
 
