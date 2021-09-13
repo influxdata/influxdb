@@ -258,9 +258,6 @@ pub trait DatabaseStore: std::fmt::Debug + Send + Sync {
 /// A collection of metrics used to instrument the Server.
 #[derive(Debug)]
 pub struct ServerMetrics {
-    /// This metric tracks all requests to the Server
-    pub http_requests: metrics::RedMetric,
-
     /// The number of LP lines ingested
     pub ingest_lines_total: metrics::Counter,
 
@@ -277,11 +274,9 @@ pub struct ServerMetrics {
 impl ServerMetrics {
     pub fn new(registry: Arc<metrics::MetricRegistry>) -> Self {
         // Server manages multiple domains.
-        let http_domain = registry.register_domain("http");
         let ingest_domain = registry.register_domain("ingest");
 
         Self {
-            http_requests: http_domain.register_red_metric(None),
             ingest_lines_total: ingest_domain.register_counter_metric(
                 "points",
                 None,

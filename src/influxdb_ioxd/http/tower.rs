@@ -28,10 +28,11 @@ impl MakeService {
     pub fn new(
         router: Router<Body, ApplicationError>,
         collector: Option<Arc<dyn TraceCollector>>,
+        metric_registry: Arc<metric::Registry>,
     ) -> Self {
         Self {
             inner: RouterService::new(router).unwrap(),
-            trace_layer: TraceLayer::new(collector),
+            trace_layer: TraceLayer::new(metric_registry, collector, false),
         }
     }
 }

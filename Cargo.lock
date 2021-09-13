@@ -4901,9 +4901,11 @@ name = "trace_http"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "hashbrown",
  "http",
  "http-body",
  "itertools 0.10.1",
+ "metric",
  "observability_deps",
  "parking_lot",
  "pin-project 1.0.8",

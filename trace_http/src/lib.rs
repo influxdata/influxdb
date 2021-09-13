@@ -7,5 +7,7 @@
     clippy::future_not_send
 )]
 
+mod classify;
 pub mod ctx;
+mod metrics;
 pub mod tower;

@@ -97,6 +97,22 @@ pub struct DurationHistogram {
 }
 
 impl DurationHistogram {
+    pub fn fetch(&self) -> HistogramObservation<Duration> {
+        let inner = self.inner.fetch();
+
+        HistogramObservation {
+            total: Duration::from_nanos(inner.total),
+            buckets: inner
+                .buckets
+                .into_iter()
+                .map(|bucket| ObservationBucket {
+                    le: Duration::from_nanos(bucket.le),
+                    count: bucket.count,
+                })
+                .collect(),
+        }
+    }
+
     pub fn record(&self, value: Duration) {
         self.record_multiple(value, 1)
     }
@@ -175,19 +191,7 @@ impl MetricObserver for DurationHistogram {
     }
 
     fn observe(&self) -> Observation {
-        let inner = self.inner.fetch();
-
-        Observation::DurationHistogram(HistogramObservation {
-            total: Duration::from_nanos(inner.total),
-            buckets: inner
-                .buckets
-                .into_iter()
-                .map(|bucket| ObservationBucket {
-                    le: Duration::from_nanos(bucket.le),
-                    count: bucket.count,
-                })
-                .collect(),
-        })
+        Observation::DurationHistogram(self.fetch())
     }
 }
 

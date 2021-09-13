@@ -414,6 +414,12 @@ pub struct HistogramObservation<T> {
     pub buckets: Vec<ObservationBucket<T>>,
 }
 
+impl<T> HistogramObservation<T> {
+    pub fn sample_count(&self) -> u64 {
+        self.buckets.iter().map(|bucket| bucket.count).sum()
+    }
+}
+
 /// A bucketed observation
 ///
 /// Stores the number of values that were less than or equal to `le` and

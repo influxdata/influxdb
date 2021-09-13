@@ -35,7 +35,6 @@ use chrono::Utc;
 use futures::{self, StreamExt};
 use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use hyper::{http::HeaderValue, Body, Method, Request, Response, StatusCode};
-use metrics::KeyValue;
 use observability_deps::tracing::{self, debug, error};
 use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError};
 use serde::Deserialize;
@@ -485,19 +484,12 @@ async fn write<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    let path = req.uri().path().to_string();
     let Server {
         app_server: server,
         max_request_size,
     } = req.data::<Server<M>>().expect("server state");
     let max_request_size = *max_request_size;
     let server = Arc::clone(server);
-
-    // TODO(edd): figure out best way of catching all errors in this observation.
-    let obs = server.metrics().http_requests.observation(); // instrument request
-
-    // TODO - metrics. Implement a macro/something that will catch all the
-    // early returns.
 
     let query = req.uri().query().context(ExpectedQueryString)?;
 
@@ -530,12 +522,6 @@ where
     let num_lines = lines.len();
     debug!(num_lines, num_fields, body_size=body.len(), %db_name, org=%write_info.org, bucket=%write_info.bucket, "inserting lines into database");
 
-    let metric_kv = vec![
-        KeyValue::new("org", write_info.org.to_string()),
-        KeyValue::new("bucket", write_info.bucket.to_string()),
-        KeyValue::new("path", path),
-    ];
-
     server
         .write_lines(&db_name, &lines, default_time)
         .await
@@ -567,7 +553,6 @@ where
                 );
             debug!(?e, ?db_name, ?num_lines, "error writing lines");
 
-            obs.client_error_with_attributes(&metric_kv); // user error
             match e {
                 server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
                     db_name: db_name.to_string(),
@@ -601,7 +586,6 @@ where
         .ingest_points_bytes_total
         .add_with_attributes(body.len() as u64, attributes);
 
-    obs.ok_with_attributes(&metric_kv); // request completed successfully
     Ok(Response::builder()
         .status(StatusCode::NO_CONTENT)
         .body(Body::empty())
@@ -624,11 +608,7 @@ fn default_format() -> String {
 async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let path = req.uri().path().to_string();
     let server = Arc::clone(&req.data::<Server<M>>().expect("server state").app_server);
-
-    // TODO(edd): figure out best way of catching all errors in this observation.
-    let obs = server.metrics().http_requests.observation(); // instrument request
 
     let uri_query = req.uri().query().context(ExpectedQueryString {})?;
 
@@ -643,11 +623,6 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .param("name")
         .expect("db name must have been set by routerify")
         .clone();
-
-    let metric_kv = vec![
-        KeyValue::new("db_name", db_name_str.clone()),
-        KeyValue::new("path", path),
-    ];
 
     let db_name = DatabaseName::new(&db_name_str).context(DatabaseNameError)?;
     debug!(uri = ?req.uri(), %q, ?format, %db_name, "running SQL query");
@@ -676,9 +651,6 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .body(body)
         .context(CreatingResponse)?;
 
-    // successful query
-    obs.ok_with_attributes(&metric_kv);
-
     Ok(response)
 }
 
@@ -686,14 +658,6 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
 async fn health<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let server = Arc::clone(&req.data::<Server<M>>().expect("server state").app_server);
-    let path = req.uri().path().to_string();
-    server
-        .metrics()
-        .http_requests
-        .observation()
-        .ok_with_attributes(&[metrics::KeyValue::new("path", path)]);
-
     let response_body = "OK";
     Ok(Response::new(Body::from(response_body.to_string())))
 }
@@ -702,14 +666,6 @@ async fn health<M: ConnectionManager + Send + Sync + Debug + 'static>(
 async fn handle_metrics<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let server = Arc::clone(&req.data::<Server<M>>().expect("server state").app_server);
-    let path = req.uri().path().to_string();
-    server
-        .metrics()
-        .http_requests
-        .observation()
-        .ok_with_attributes(&[metrics::KeyValue::new("path", path)]);
-
     let application = req
         .data::<Arc<ApplicationState>>()
         .expect("application state");
@@ -736,12 +692,8 @@ struct DatabaseInfo {
 async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let path = req.uri().path().to_string();
-
     let server = Arc::clone(&req.data::<Server<M>>().expect("server state").app_server);
 
-    // TODO - catch error conditions
-    let obs = server.metrics().http_requests.observation();
     let query = req.uri().query().context(ExpectedQueryString {})?;
 
     let info: DatabaseInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
@@ -750,11 +702,6 @@ async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
 
     let db_name =
         org_and_bucket_to_database(&info.org, &info.bucket).context(BucketMappingError)?;
-
-    let metric_kv = vec![
-        KeyValue::new("db_name", db_name.to_string()),
-        KeyValue::new("path", path),
-    ];
 
     let db = server.db(&db_name)?;
 
@@ -768,7 +715,6 @@ async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
 
     let result = serde_json::to_string(&partition_keys).context(JsonGenerationError)?;
 
-    obs.ok_with_attributes(&metric_kv);
     Ok(Response::new(Body::from(result)))
 }
 
@@ -958,8 +904,9 @@ pub async fn serve<M>(
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
+    let metric_registry = Arc::clone(application.metric_registry_v2());
     let router = router(application, server, max_request_size);
-    let new_service = tower::MakeService::new(router, trace_collector);
+    let new_service = tower::MakeService::new(router, trace_collector, metric_registry);
 
     hyper::Server::builder(addr)
         .serve(new_service)
@@ -980,6 +927,7 @@ mod tests {
     use reqwest::{Client, Response};
 
     use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
+    use metric::{Attributes, DurationHistogram, Metric};
     use metrics::TestMetricRegistry;
     use object_store::ObjectStore;
     use serde::de::DeserializeOwned;
@@ -1038,8 +986,29 @@ mod tests {
 
         let data = response.text().await.unwrap();
 
-        assert!(data.contains(&"\nhttp_requests_total{path=\"/metrics\",status=\"ok\"} 1\n"));
         assert!(data.contains(&"\nmy_metric_total{tag=\"value\"} 20\n"));
+
+        let response = client
+            .get(&format!("{}/nonexistent", server_url))
+            .send()
+            .await
+            .unwrap();
+
+        assert_eq!(response.status().as_u16(), 404);
+
+        let response = client
+            .get(&format!("{}/metrics", server_url))
+            .send()
+            .await
+            .unwrap();
+
+        let data = response.text().await.unwrap();
+
+        // Should include previous metrics scrape but not the current one
+        assert!(data.contains(&"\nhttp_requests_total{path=\"/metrics\",status=\"ok\"} 1\n"));
+        // Should include 404 but not encode the path
+        assert!(!data.contains(&"nonexistent"));
+        assert!(data.contains(&"\nhttp_requests_total{status=\"client_error\"} 1\n"));
     }
 
     #[tokio::test]
@@ -1123,6 +1092,7 @@ mod tests {
         let application = make_application();
         let app_server = make_server(Arc::clone(&application));
         let metric_registry = TestMetricRegistry::new(Arc::clone(application.metric_registry()));
+        let metric_registry_v2 = Arc::clone(application.metric_registry_v2());
 
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.wait_for_init().await.unwrap();
@@ -1151,17 +1121,18 @@ mod tests {
             .expect("sent data");
 
         // The request completed successfully
-        metric_registry
-            .has_metric_family("http_request_duration_seconds")
-            .with_attributes(&[
-                ("bucket", "MetricsBucket"),
-                ("org", "MetricsOrg"),
+        let request_count = metric_registry_v2
+            .get_instrument::<Metric<DurationHistogram>>("http_request_duration")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
                 ("path", "/api/v2/write"),
                 ("status", "ok"),
-            ])
-            .histogram()
-            .sample_count_eq(1)
-            .unwrap();
+            ]))
+            .unwrap()
+            .fetch()
+            .sample_count();
+
+        assert_eq!(request_count, 1);
 
         // A single successful point landed
         metric_registry
