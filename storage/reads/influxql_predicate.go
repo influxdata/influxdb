@@ -221,6 +221,14 @@ func IsTrueBooleanLiteral(expr influxql.Expr) bool {
 	return false
 }
 
+func IsFalseBooleanLiteral(expr influxql.Expr) bool {
+	b, ok := expr.(*influxql.BooleanLiteral)
+	if ok {
+		return !b.Val
+	}
+	return false
+}
+
 func RewriteExprRemoveFieldValue(expr influxql.Expr) influxql.Expr {
 	return influxql.RewriteExpr(expr, func(expr influxql.Expr) influxql.Expr {
 		if be, ok := expr.(*influxql.BinaryExpr); ok {

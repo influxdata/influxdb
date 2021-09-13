@@ -57,6 +57,14 @@ func (mockReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindow
 	return &mockTableIterator{}, nil
 }
 
+func (mockReader) ReadSeriesCardinality(ctx context.Context, spec query.ReadSeriesCardinalitySpec, alloc *memory.Allocator) (query.TableIterator, error) {
+	return &mockTableIterator{}, nil
+}
+
+func (mockReader) SupportReadSeriesCardinality(ctx context.Context) bool {
+	return false
+}
+
 func (mockReader) Close() {
 }
 
