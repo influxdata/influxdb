@@ -11,8 +11,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/execute/table/static"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
@@ -127,8 +126,8 @@ func TestProvider_SeriesCardinalityReader_Unsupported(t *testing.T) {
 
 	store := &mock.ReadsStore{
 		ReadSeriesCardinalityFn: func(ctx context.Context, req *datatypes.ReadSeriesCardinalityRequest) (cursors.Int64Iterator, error) {
-			return nil, &errors.Error{
-				Code: errors.EInvalid,
+			return nil, &platform.Error{
+				Code: platform.EInvalid,
 				Msg:  "unexpected read",
 			}
 		},
@@ -149,8 +148,8 @@ func TestProvider_SeriesCardinalityReader_Unsupported(t *testing.T) {
 		},
 	)
 
-	wantErr := &errors.Error{
-		Code: errors.EInvalid,
+	wantErr := &platform.Error{
+		Code: platform.EInvalid,
 		Msg:  "series cardinality option is not supported",
 	}
 
@@ -180,8 +179,8 @@ func TestProvider_SeriesCardinalityReader_MissingRequestContext(t *testing.T) {
 
 	store := &mock.ReadsStore{
 		ReadSeriesCardinalityFn: func(ctx context.Context, req *datatypes.ReadSeriesCardinalityRequest) (cursors.Int64Iterator, error) {
-			return nil, &errors.Error{
-				Code: errors.EInvalid,
+			return nil, &platform.Error{
+				Code: platform.EInvalid,
 				Msg:  "unexpected read",
 			}
 		},
@@ -195,8 +194,8 @@ func TestProvider_SeriesCardinalityReader_MissingRequestContext(t *testing.T) {
 		BucketLookup: mock.BucketLookup{},
 	}
 
-	wantErr := &errors.Error{
-		Code: errors.EInvalid,
+	wantErr := &platform.Error{
+		Code: platform.EInvalid,
 		Msg:  "missing request on context",
 	}
 

@@ -32,6 +32,8 @@ type TSDBStore interface {
 	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
 	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 	SeriesCardinality(ctx context.Context, database string) (int64, error)
+	SeriesCardinalityFromShards(ctx context.Context, shards []*tsdb.Shard) (*tsdb.SeriesIDSet, error)
+	SeriesFile(database string) *tsdb.SeriesFile
 }
 
 type MetaClient interface {
@@ -636,10 +638,6 @@ func (s *Store) tagValuesSlow(ctx context.Context, mqAttrs *metaqueryAttributes,
 }
 
 func (s *Store) ReadSeriesCardinality(ctx context.Context, req *datatypes.ReadSeriesCardinalityRequest) (cursors.Int64Iterator, error) {
-	// TODO: In its current form, this will only return the series cardinality
-	// from a bucket, ignoring any predicate. Additional work will be required to
-	// make the predicate work.
-
 	if req.ReadSource == nil {
 		return nil, ErrMissingReadSource
 	}
@@ -649,27 +647,161 @@ func (s *Store) ReadSeriesCardinality(ctx context.Context, req *datatypes.ReadSe
 		return nil, err
 	}
 
-	if req.Range.Start == 0 {
-		req.Range.Start = models.MinNanoTime
-	}
-	if req.Range.End == 0 {
-		req.Range.End = models.MaxNanoTime
-	}
-
-	database, _, _, _, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.Start, req.Range.End)
+	db, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.Start, req.Range.End)
 	if err != nil {
 		return nil, err
 	}
 
-	card, err := s.TSDBStore.SeriesCardinality(ctx, database)
+	sgs, err := s.MetaClient.ShardGroupsByTimeRange(db, rp, time.Unix(0, start), time.Unix(0, end))
 	if err != nil {
 		return nil, err
 	}
 
-	return cursors.NewInt64SliceIterator([]int64{card}), nil
+	if len(sgs) == 0 {
+		return cursors.NewInt64SliceIterator([]int64{0}), nil
+	}
+
+	var expr influxql.Expr
+	if root := req.Predicate.GetRoot(); root != nil {
+		expr, err = reads.NodeToExpr(root, measurementRemap)
+		if err != nil {
+			return nil, err
+		}
+
+		if found := reads.HasFieldValueKey(expr); found {
+			return nil, errors.New("filtering on field values is not supported in cardinality predicates")
+		}
+		expr = influxql.Reduce(influxql.CloneExpr(expr), nil)
+
+		// Single boolean literals are not handled well by the cursor that will be
+		// generated to solve the query, so specifically check and handle those
+		// cases here. A true boolean is equivalent to not having any predicate, and
+		// a false boolean will return no results.
+		if reads.IsTrueBooleanLiteral(expr) {
+			expr = nil
+		}
+		if reads.IsFalseBooleanLiteral(expr) {
+			return cursors.NewInt64SliceIterator([]int64{0}), nil
+		}
+
+	}
+
+	shardsEntirelyInTimeRange, shardsPartiallyInTimeRange := groupShardsByTime(sgs, start, end)
+	sfile := s.TSDBStore.SeriesFile(db)
+
+	// Get the cardinality for the set of shards that are completely within the
+	// provided time range. This can be done much faster than verifying that the
+	// series have data in the time range, so it is done separately.
+	c1, err := s.seriesCardinalityWithPredicate(ctx, s.TSDBStore.Shards(shardsEntirelyInTimeRange), expr, sfile)
+	if err != nil {
+		return nil, err
+	}
+
+	// Others use a slower way
+	c2, err := s.seriesCardinalityWithPredicateAndTime(ctx, s.TSDBStore.Shards(shardsPartiallyInTimeRange), expr, sfile, start, end)
+	if err != nil {
+		return nil, err
+	}
+
+	ss := tsdb.NewSeriesIDSet()
+	ss.Merge(c1, c2)
+
+	return cursors.NewInt64SliceIterator([]int64{int64(ss.Cardinality())}), nil
+}
+
+func (s *Store) seriesCardinalityWithPredicate(ctx context.Context, shards []*tsdb.Shard, expr influxql.Expr, sfile *tsdb.SeriesFile) (*tsdb.SeriesIDSet, error) {
+	if expr == nil {
+		return s.TSDBStore.SeriesCardinalityFromShards(ctx, shards)
+	}
+
+	ss := tsdb.NewSeriesIDSet()
+	if len(shards) == 0 {
+		return ss, nil
+	}
+
+	cur, err := newIndexSeriesCursorInfluxQLPred(ctx, expr, shards)
+	if err != nil {
+		return nil, err
+	}
+
+	buf := make([]byte, 1024)
+	for {
+		r := cur.Next()
+		if r == nil {
+			break
+		}
+		skey := sfile.SeriesID(r.Name, r.SeriesTags, buf)
+		ss.Add(skey)
+	}
+
+	return ss, nil
+}
+
+func (s *Store) seriesCardinalityWithPredicateAndTime(ctx context.Context, shards []*tsdb.Shard, expr influxql.Expr, sfile *tsdb.SeriesFile, start, end int64) (*tsdb.SeriesIDSet, error) {
+	ss := tsdb.NewSeriesIDSet()
+	if len(shards) == 0 {
+		return ss, nil
+	}
+
+	cur, err := newIndexSeriesCursorInfluxQLPred(ctx, expr, shards)
+	if err != nil {
+		return nil, err
+	}
+
+	buf := make([]byte, 1024)
+	rs := reads.NewFilteredResultSet(ctx, start, end, cur)
+	for rs.Next() {
+		func() {
+			c := rs.Cursor()
+			if c == nil {
+				// no data for series key + field combination
+				return
+			}
+			defer c.Close()
+
+			if cursorHasData(c) {
+				r := cur.row
+				skey := sfile.SeriesID(r.Name, r.SeriesTags, buf)
+				ss.Add(skey)
+			}
+		}()
+	}
+
+	return ss, nil
 }
 
 func (s *Store) SupportReadSeriesCardinality(ctx context.Context) bool {
-	// Disabled until predicate filtering for cardinality is fully implemented.
-	return false
+	return true
+}
+
+// Returns two slices of shard IDs - the first is shards that are entirely in
+// the provided time range; the second is shards that are not entirely within
+// the provided time range.
+func groupShardsByTime(sgs []meta.ShardGroupInfo, start, end int64) ([]uint64, []uint64) {
+	entirelyInRange := []uint64{}
+	partiallyInRange := []uint64{}
+
+	for _, sg := range sgs {
+		shards := make([]uint64, 0, len(sg.Shards))
+		for _, si := range sg.Shards {
+			shards = append(shards, si.ID)
+		}
+
+		if timesWithinRangeInclusive(sg.StartTime, sg.EndTime, time.Unix(0, start), time.Unix(0, end)) {
+			entirelyInRange = append(entirelyInRange, shards...)
+			continue
+		}
+
+		partiallyInRange = append(partiallyInRange, shards...)
+	}
+
+	return entirelyInRange, partiallyInRange
+}
+
+// timesWithinRangeInclusive checks to see if the provided start and end time
+// are within the start end and times of the range, with the check being
+// inclusive.
+func timesWithinRangeInclusive(start, end, rangeStart, rangeEnd time.Time) bool {
+	return (start.After(rangeStart) || start.Equal(rangeStart)) &&
+		(end.Before(rangeEnd) || end.Equal(rangeEnd))
 }

@@ -12,8 +12,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 )
@@ -41,8 +40,8 @@ func (p Provider) SeriesCardinalityReaderFor(ctx context.Context, conf influxdb.
 	}
 
 	if !p.Reader.SupportReadSeriesCardinality(ctx) {
-		return nil, &errors.Error{
-			Code: errors.EInvalid,
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
 			Msg:  "series cardinality option is not supported",
 		}
 	}
@@ -66,8 +65,8 @@ func (p Provider) readFilterSpec(ctx context.Context, conf influxdb.Config, boun
 	// configuration.
 	req := query.RequestFromContext(ctx)
 	if req == nil {
-		return query.ReadFilterSpec{}, &errors.Error{
-			Code: errors.EInvalid,
+		return query.ReadFilterSpec{}, &platform.Error{
+			Code: platform.EInvalid,
 			Msg:  "missing request on context",
 		}
 	}
