@@ -25,56 +25,6 @@ func RewriteExprRemoveFieldKeyAndValue(expr influxql.Expr) influxql.Expr {
 	})
 }
 
-// HasSingleMeasurementNoOR determines if an index optimisation is available.
-//
-// Typically the read service will use the query engine to retrieve all field
-// keys for all measurements that match the expression, which can be very
-// inefficient if it can be proved that only one measurement matches the expression.
-//
-// This condition is determined when the following is true:
-//
-//		* there is only one occurrence of the tag key `_measurement`.
-//		* there are no OR operators in the expression tree.
-//		* the operator for the `_measurement` binary expression is ==.
-//
-func HasSingleMeasurementNoOR(expr influxql.Expr) (string, bool) {
-	var lastMeasurement string
-	foundOnce := true
-	var invalidOP bool
-
-	influxql.WalkFunc(expr, func(node influxql.Node) {
-		if !foundOnce || invalidOP {
-			return
-		}
-
-		if be, ok := node.(*influxql.BinaryExpr); ok {
-			if be.Op == influxql.OR {
-				invalidOP = true
-				return
-			}
-
-			if ref, ok := be.LHS.(*influxql.VarRef); ok {
-				if ref.Val == measurementRemap[measurementKey] {
-					if be.Op != influxql.EQ {
-						invalidOP = true
-						return
-					}
-
-					if lastMeasurement != "" {
-						foundOnce = false
-					}
-
-					// Check that RHS is a literal string
-					if ref, ok := be.RHS.(*influxql.StringLiteral); ok {
-						lastMeasurement = ref.Val
-					}
-				}
-			}
-		}
-	})
-	return lastMeasurement, len(lastMeasurement) > 0 && foundOnce && !invalidOP
-}
-
 type hasRefs struct {
 	refs  []string
 	found []bool
