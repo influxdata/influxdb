@@ -15,7 +15,7 @@ builds:
         goarch: arm64
     main: ./cmd/influx/
     flags:
-      - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
+      - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}{{if eq .Os "windows"}},timetzdata{{end}}
       - -buildmode={{if eq .Os "windows"}}exe{{else}}pie{{end}}
     env:
       - GO111MODULE=on
@@ -42,7 +42,7 @@ builds:
         goarch: arm64
     main: ./cmd/influxd/
     flags:
-      - -tags=assets{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
+      - -tags=assets{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}{{if eq .Os "windows"}},timetzdata{{end}}
       - -buildmode={{if eq .Os "windows"}}exe{{else}}pie{{end}}
     env:
       - GO111MODULE=on
