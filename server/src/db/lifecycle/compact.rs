@@ -30,7 +30,7 @@ pub(crate) fn compact_chunks(
 )> {
     let now = std::time::Instant::now(); // time compaction duration.
     let db = Arc::clone(&partition.data().db);
-    let table_name = partition.table_name().to_string();
+    let addr = partition.addr().clone();
     let chunk_ids: Vec<_> = chunks.iter().map(|x| x.id()).collect();
 
     let (tracker, registration) = db.jobs.register(Job::CompactChunks {
@@ -48,7 +48,7 @@ pub(crate) fn compact_chunks(
         .map(|mut chunk| {
             // Sanity-check
             assert!(Arc::ptr_eq(&db, &chunk.data().db));
-            assert_eq!(chunk.table_name().as_ref(), table_name.as_str());
+            assert_eq!(chunk.table_name().as_ref(), addr.table_name.as_ref());
 
             input_rows += chunk.table_summary().total_count();
 
@@ -76,6 +76,7 @@ pub(crate) fn compact_chunks(
     let time_of_first_write = time_of_first_write.expect("Should have had a first write somewhere");
     let time_of_last_write = time_of_last_write.expect("Should have had a last write somewhere");
 
+    let metric_registry = Arc::clone(&db.metrics_registry_v2);
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
     let fut = async move {
@@ -97,7 +98,7 @@ pub(crate) fn compact_chunks(
 
         let physical_plan = ctx.prepare_plan(&plan)?;
         let stream = ctx.execute(physical_plan).await?;
-        let rb_chunk = collect_rub(stream, &db, &table_name)
+        let rb_chunk = collect_rub(stream, &addr, metric_registry.as_ref())
             .await?
             .expect("chunk has zero rows");
         let rb_row_groups = rb_chunk.row_groups();

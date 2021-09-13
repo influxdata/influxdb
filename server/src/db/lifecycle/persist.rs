@@ -31,11 +31,10 @@ pub fn persist_chunks(
 )> {
     let now = std::time::Instant::now(); // time persist duration.
     let db = Arc::clone(&partition.data().db);
-    let table_name = partition.table_name().to_string();
-    let partition_key = partition.key().to_string();
+    let addr = partition.addr().clone();
     let chunk_ids: Vec<_> = chunks.iter().map(|x| x.id()).collect();
 
-    info!(%table_name, %partition_key, ?chunk_ids, "splitting and persisting chunks");
+    info!(%addr, ?chunk_ids, "splitting and persisting chunks");
 
     let max_persistable_timestamp = flush_handle.timestamp();
     let flush_timestamp = max_persistable_timestamp.timestamp_nanos();
@@ -54,7 +53,8 @@ pub fn persist_chunks(
     for mut chunk in chunks {
         // Sanity-check
         assert!(Arc::ptr_eq(&db, &chunk.data().db));
-        assert_eq!(chunk.table_name().as_ref(), table_name.as_str());
+        assert_eq!(chunk.table_name().as_ref(), addr.table_name.as_ref());
+        assert_eq!(chunk.key(), addr.partition_key.as_ref());
 
         input_rows += chunk.table_summary().total_count();
 
@@ -82,6 +82,7 @@ pub fn persist_chunks(
     let time_of_first_write = time_of_first_write.expect("Should have had a first write somewhere");
     let time_of_last_write = time_of_last_write.expect("Should have had a last write somewhere");
 
+    let metric_registry = Arc::clone(&db.metrics_registry_v2);
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
     let fut = async move {
@@ -110,8 +111,8 @@ pub fn persist_chunks(
         let remainder_stream = ctx.execute_partition(physical_plan, 1).await?;
 
         let (to_persist, remainder) = futures::future::try_join(
-            collect_rub(to_persist_stream, db.as_ref(), &table_name),
-            collect_rub(remainder_stream, db.as_ref(), &table_name),
+            collect_rub(to_persist_stream, &addr, metric_registry.as_ref()),
+            collect_rub(remainder_stream, &addr, metric_registry.as_ref()),
         )
         .await?;
 

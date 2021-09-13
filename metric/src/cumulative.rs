@@ -15,7 +15,7 @@ use crate::{MetricKind, MetricObserver, Observation};
 /// granularity than the instrumented objects. For example, we might want
 /// to instrument individual Chunks but report the total across all Chunks
 /// in a partition or table.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct CumulativeGauge {
     state: Arc<AtomicU64>,
 }
@@ -52,6 +52,21 @@ pub struct CumulativeRecorder {
 }
 
 impl CumulativeRecorder {
+    /// Gets a new unregistered recorder
+    pub fn new_unregistered() -> Self {
+        Self {
+            local: 0,
+            state: Default::default(),
+        }
+    }
+
+    /// Gets the CumulativeGauge this CumulativeRecorder is associated with
+    pub fn reporter(&self) -> CumulativeGauge {
+        CumulativeGauge {
+            state: Arc::clone(&self.state),
+        }
+    }
+
     /// Gets the local contribution from this instance
     pub fn get_local(&self) -> u64 {
         self.local

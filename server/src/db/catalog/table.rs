@@ -23,7 +23,7 @@ pub struct Table {
     partitions: HashMap<Arc<str>, Arc<RwLock<Partition>>>,
 
     /// Table metrics
-    metrics: TableMetrics,
+    metrics: Arc<TableMetrics>,
 
     /// Table-wide schema.
     ///
@@ -50,7 +50,7 @@ impl Table {
             db_name,
             table_name,
             partitions: Default::default(),
-            metrics,
+            metrics: Arc::new(metrics),
             schema,
         }
     }

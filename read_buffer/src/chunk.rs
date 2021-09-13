@@ -7,7 +7,7 @@ use crate::{
 use arrow::record_batch::RecordBatch;
 use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
 use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
-use metrics::{Gauge, KeyValue};
+use metric::{Attributes, CumulativeGauge, CumulativeRecorder, RecorderCollection};
 use observability_deps::tracing::debug;
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -334,143 +334,130 @@ impl std::fmt::Debug for Chunk {
 /// yet figured out.
 #[derive(Debug)]
 pub struct ChunkMetrics {
+    /// The base attributes to use for all metrics
+    base_attributes: Attributes,
+
     /// The total number of row groups in the chunk.
-    row_groups_total: Gauge,
+    row_groups_total: CumulativeRecorder,
 
     /// This metric tracks the total number of columns in read buffer.
-    columns_total: Gauge,
+    columns_total: RecorderCollection<CumulativeGauge>,
 
     /// This metric tracks the total number of values stored in read buffer
     /// column encodings further segmented by nullness.
-    column_values_total: Gauge,
+    column_values_total: RecorderCollection<CumulativeGauge>,
 
     /// This metric tracks the total number of bytes used by read buffer columns
     /// including any allocated but unused buffers.
-    column_allocated_bytes_total: Gauge,
+    column_allocated_bytes_total: RecorderCollection<CumulativeGauge>,
 
     /// This metric tracks the minimal number of bytes required by read buffer
     /// columns but not including allocated but unused buffers. It's primarily
     /// of interest to the development of the Read Buffer.
-    column_required_bytes_total: Gauge,
+    column_required_bytes_total: RecorderCollection<CumulativeGauge>,
 
     /// This metric tracks an estimated uncompressed data size for read buffer
     /// columns, further segmented by nullness. It is a building block for
     /// tracking a measure of overall compression.
-    column_raw_bytes_total: metrics::Gauge,
+    column_raw_bytes_total: RecorderCollection<CumulativeGauge>,
 }
 
 impl ChunkMetrics {
-    pub fn new(domain: &metrics::Domain) -> Self {
+    pub fn new(registry: &metric::Registry, db_name: impl Into<String>) -> Self {
+        let db_name = db_name.into();
+        let base_attributes = Attributes::from([("db_name", db_name.into())]);
+
         Self {
-            row_groups_total: domain.register_gauge_metric(
-                "row_group",
-                Some("total"),
+            base_attributes: base_attributes.clone(),
+            row_groups_total: registry.register_metric::<CumulativeGauge>(
+                "read_buffer_row_group_total",
                 "The number of row groups within the Read Buffer",
-            ),
-            columns_total: domain.register_gauge_metric(
-                "column",
-                Some("total"),
+            ).recorder(base_attributes),
+            columns_total: RecorderCollection::new(registry.register_metric(
+                "read_buffer_column_total",
                 "The number of columns within the Read Buffer",
-            ),
-            column_values_total: domain.register_gauge_metric(
-                "column",
-                Some("values"),
+            )),
+            column_values_total: RecorderCollection::new(registry.register_metric(
+                "read_buffer_column_values",
                 "The number of values within columns in the Read Buffer",
-            ),
-            column_allocated_bytes_total: domain.register_gauge_metric(
-                "column_allocated",
-                Some("bytes"),
+            )),
+            column_allocated_bytes_total: RecorderCollection::new(registry.register_metric(
+                "read_buffer_column_allocated_bytes",
                 "The number of bytes used by all data in the Read Buffer including allocated by unused buffers",
-            ),
-            column_required_bytes_total: domain.register_gauge_metric(
-                "column_required",
-                Some("bytes"),
+            )),
+            column_required_bytes_total: RecorderCollection::new(registry.register_metric(
+                "read_buffer_column_required_bytes",
                 "The number of bytes currently required to store data in the Read Buffer excluding allocated by unused buffers",
-            ),
-            column_raw_bytes_total: domain.register_gauge_metric(
-                "column_raw",
-                Some("bytes"),
+            )),
+            column_raw_bytes_total: RecorderCollection::new(registry.register_metric(
+                "read_buffer_column_raw_bytes",
                 "The number of bytes used by all columns if they were uncompressed in the Read Buffer",
-            ),
+            )),
         }
     }
 
     /// Creates an instance of ChunkMetrics that isn't registered with a central
     /// metrics registry. Observations made to instruments on this ChunkMetrics instance
     /// will therefore not be visible to other ChunkMetrics instances or metric instruments
-    /// created on a metrics domain, and vice versa
+    /// created on a metrics registry
     pub fn new_unregistered() -> Self {
         Self {
-            row_groups_total: Gauge::new_unregistered(),
-            columns_total: Gauge::new_unregistered(),
-            column_values_total: Gauge::new_unregistered(),
-            column_allocated_bytes_total: Gauge::new_unregistered(),
-            column_required_bytes_total: Gauge::new_unregistered(),
-            column_raw_bytes_total: Gauge::new_unregistered(),
+            base_attributes: Attributes::from([]),
+            row_groups_total: CumulativeRecorder::new_unregistered(),
+            columns_total: RecorderCollection::new_unregistered(),
+            column_values_total: RecorderCollection::new_unregistered(),
+            column_allocated_bytes_total: RecorderCollection::new_unregistered(),
+            column_required_bytes_total: RecorderCollection::new_unregistered(),
+            column_raw_bytes_total: RecorderCollection::new_unregistered(),
         }
     }
 
     // Updates column storage statistics for the Read Buffer.
     fn update_column_storage_statistics(&mut self, statistics: &[Statistics]) {
         // increase number of row groups in chunk.
-        self.row_groups_total.inc(1, &[]);
+        self.row_groups_total.inc(1);
 
         for stat in statistics {
-            let attributes = &[
-                KeyValue::new("encoding", stat.enc_type.clone()),
-                KeyValue::new("log_data_type", stat.log_data_type),
-            ];
+            let mut attributes = self.base_attributes.clone();
+            attributes.insert("encoding", stat.enc_type.clone());
+            attributes.insert("log_data_type", stat.log_data_type);
 
             // update number of columns
-            self.columns_total.inc(1, attributes);
+            self.columns_total.recorder(attributes.clone()).inc(1);
 
             // update bytes allocated associated with columns
             self.column_allocated_bytes_total
-                .inc(stat.allocated_bytes, attributes);
+                .recorder(attributes.clone())
+                .inc(stat.allocated_bytes as u64);
 
             // update bytes in use but excluded unused
             self.column_required_bytes_total
-                .inc(stat.required_bytes, attributes);
+                .recorder(attributes.clone())
+                .inc(stat.required_bytes as u64);
+
+            attributes.insert("null", "true");
 
             // update raw estimated bytes of NULL values
-            self.column_raw_bytes_total.inc(
-                stat.raw_bytes - stat.raw_bytes_no_null,
-                &[
-                    KeyValue::new("encoding", stat.enc_type.clone()),
-                    KeyValue::new("log_data_type", stat.log_data_type),
-                    KeyValue::new("null", "true"),
-                ],
-            );
-
-            // update raw estimated bytes of non-NULL values
-            self.column_raw_bytes_total.inc(
-                stat.raw_bytes_no_null,
-                &[
-                    KeyValue::new("encoding", stat.enc_type.clone()),
-                    KeyValue::new("log_data_type", stat.log_data_type),
-                    KeyValue::new("null", "false"),
-                ],
-            );
+            self.column_raw_bytes_total
+                .recorder(attributes.clone())
+                .inc((stat.raw_bytes - stat.raw_bytes_no_null) as u64);
 
             // update number of NULL values
-            self.column_values_total.inc(
-                stat.nulls as usize,
-                &[
-                    KeyValue::new("encoding", stat.enc_type.clone()),
-                    KeyValue::new("log_data_type", stat.log_data_type),
-                    KeyValue::new("null", "true"),
-                ],
-            );
+            self.column_values_total
+                .recorder(attributes.clone())
+                .inc(stat.nulls as u64);
+
+            attributes.insert("null", "false");
+
+            // update raw estimated bytes of non-NULL values
+            self.column_raw_bytes_total
+                .recorder(attributes.clone())
+                .inc(stat.raw_bytes_no_null as u64);
 
             // update number of non-NULL values
-            self.column_values_total.inc(
-                (stat.values - stat.nulls) as usize,
-                &[
-                    KeyValue::new("encoding", stat.enc_type.clone()),
-                    KeyValue::new("log_data_type", stat.log_data_type),
-                    KeyValue::new("null", "false"),
-                ],
-            );
+            self.column_values_total
+                .recorder(attributes)
+                .inc((stat.values - stat.nulls) as u64);
         }
     }
 }
@@ -495,6 +482,7 @@ mod test {
     };
     use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
     use internal_types::schema::builder::SchemaBuilder;
+    use metric::{MetricKind, Observation, ObservationSet, RawReporter};
     use std::{num::NonZeroU64, sync::Arc};
 
     // helper to make the `add_remove_tables` test simpler to read.
@@ -691,13 +679,10 @@ mod test {
 
     #[test]
     fn add_remove_tables() {
-        let reg = metrics::TestMetricRegistry::new(Arc::new(metrics::MetricRegistry::new()));
-        let registry = reg.registry();
-        let domain = registry
-            .register_domain_with_attributes("read_buffer", vec![KeyValue::new("db", "mydb")]);
+        let registry = metric::Registry::new();
 
         let mut chunk = ChunkBuilder::default()
-            .metrics(ChunkMetrics::new(&domain))
+            .metrics(ChunkMetrics::new(&registry, "mydb"))
             .build();
 
         assert_eq!(chunk.rows(), 3);
@@ -712,124 +697,111 @@ mod test {
         assert_eq!(chunk.row_groups(), 2);
         assert!(chunk.size() > last_chunk_size);
 
-        let actual = String::from_utf8(reg.registry().metrics_as_text()).unwrap();
-        let actual_lines = actual.lines();
-
-        let expected_lines = vec![
-        "# HELP read_buffer_column_allocated_bytes The number of bytes used by all data in the Read Buffer including allocated by unused buffers",
-        "# TYPE read_buffer_column_allocated_bytes gauge",
-        r#"read_buffer_column_allocated_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 192"#,
-        r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 906"#,
-        r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 186"#,
-        r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 672"#,
-        r#"read_buffer_column_allocated_bytes{db="mydb",encoding="RLE",log_data_type="string"} 784"#,
-        "# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer",
-        "# TYPE read_buffer_column_raw_bytes gauge",
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 96"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="true"} 0"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="false"} 80"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="true"} 16"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 96"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="true"} 0"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 54"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="false"} 216"#,
-        r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
-        "# HELP read_buffer_column_required_bytes The number of bytes currently required to store data in the Read Buffer excluding allocated by unused buffers",
-        "# TYPE read_buffer_column_required_bytes gauge",
-        r#"read_buffer_column_required_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 192"#,
-        r#"read_buffer_column_required_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 906"#,
-        r#"read_buffer_column_required_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 186"#,
-        r#"read_buffer_column_required_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 672"#,
-        r#"read_buffer_column_required_bytes{db="mydb",encoding="RLE",log_data_type="string"} 352"#,
-        "# HELP read_buffer_column_total The number of columns within the Read Buffer",
-        "# TYPE read_buffer_column_total gauge",
-        r#"read_buffer_column_total{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 2"#,
-        r#"read_buffer_column_total{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 2"#,
-        r#"read_buffer_column_total{db="mydb",encoding="FIXED",log_data_type="f64"} 2"#,
-        r#"read_buffer_column_total{db="mydb",encoding="FIXEDN",log_data_type="bool"} 2"#,
-        r#"read_buffer_column_total{db="mydb",encoding="RLE",log_data_type="string"} 2"#,
-        "# HELP read_buffer_column_values The number of values within columns in the Read Buffer",
-        "# TYPE read_buffer_column_values gauge",
-        r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 6"#,
-        r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="true"} 0"#,
-        r#"read_buffer_column_values{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="false"} 4"#,
-        r#"read_buffer_column_values{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="true"} 2"#,
-        r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 6"#,
-        r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="true"} 0"#,
-        r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 6"#,
-        r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
-        r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 6"#,
-        r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
-        "# HELP read_buffer_row_group_total The number of row groups within the Read Buffer",
-        "# TYPE read_buffer_row_group_total gauge",
-        r#"read_buffer_row_group_total{db="mydb"} 2"#,
-        "",
+        let expected_observations = vec![
+            ObservationSet {
+                metric_name: "read_buffer_column_allocated_bytes",
+                description: "The number of bytes used by all data in the Read Buffer including allocated by unused buffers",
+                kind: MetricKind::U64Gauge,
+                observations: vec![
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "BT_U32-FIXED"), ("log_data_type", "i64")]), Observation::U64Gauge(192)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FBT_U8-FIXEDN"), ("log_data_type", "f64")]), Observation::U64Gauge(906)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXED"), ("log_data_type", "f64")]), Observation::U64Gauge(186)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXEDN"), ("log_data_type", "bool")]), Observation::U64Gauge(672)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "RLE"), ("log_data_type", "string")]), Observation::U64Gauge(784)),
+                ]
+            },
+            ObservationSet {
+                metric_name: "read_buffer_column_raw_bytes",
+                description: "The number of bytes used by all columns if they were uncompressed in the Read Buffer",
+                kind: MetricKind::U64Gauge,
+                observations: vec![
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "BT_U32-FIXED"), ("log_data_type", "i64"), ("null", "false")]), Observation::U64Gauge(96)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "BT_U32-FIXED"), ("log_data_type", "i64"), ("null", "true")]), Observation::U64Gauge(0)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FBT_U8-FIXEDN"), ("log_data_type", "f64"), ("null", "false")]), Observation::U64Gauge(80)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FBT_U8-FIXEDN"), ("log_data_type", "f64"), ("null", "true")]), Observation::U64Gauge(16)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXED"), ("log_data_type", "f64"), ("null", "false")]), Observation::U64Gauge(96)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXED"), ("log_data_type", "f64"), ("null", "true")]), Observation::U64Gauge(0)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXEDN"), ("log_data_type", "bool"), ("null", "false")]), Observation::U64Gauge(54)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXEDN"), ("log_data_type", "bool"), ("null", "true")]), Observation::U64Gauge(0)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "RLE"), ("log_data_type", "string"), ("null", "false")]), Observation::U64Gauge(216)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "RLE"), ("log_data_type", "string"), ("null", "true")]), Observation::U64Gauge(0)),
+                ]
+            },
+            ObservationSet {
+                metric_name: "read_buffer_column_required_bytes",
+                description: "The number of bytes currently required to store data in the Read Buffer excluding allocated by unused buffers",
+                kind: MetricKind::U64Gauge,
+                observations: vec![
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "BT_U32-FIXED"), ("log_data_type", "i64")]), Observation::U64Gauge(192)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FBT_U8-FIXEDN"), ("log_data_type", "f64")]), Observation::U64Gauge(906)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXED"), ("log_data_type", "f64")]), Observation::U64Gauge(186)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXEDN"), ("log_data_type", "bool")]), Observation::U64Gauge(672)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "RLE"), ("log_data_type", "string")]), Observation::U64Gauge(352)),
+                ]
+            },
+            ObservationSet {
+                metric_name: "read_buffer_column_total",
+                description: "The number of columns within the Read Buffer",
+                kind: MetricKind::U64Gauge,
+                observations: vec![
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "BT_U32-FIXED"), ("log_data_type", "i64")]), Observation::U64Gauge(2)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FBT_U8-FIXEDN"), ("log_data_type", "f64")]), Observation::U64Gauge(2)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXED"), ("log_data_type", "f64")]), Observation::U64Gauge(2)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXEDN"), ("log_data_type", "bool")]), Observation::U64Gauge(2)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "RLE"), ("log_data_type", "string")]), Observation::U64Gauge(2)),
+                ]
+            },
+            ObservationSet {
+                metric_name: "read_buffer_column_values",
+                description: "The number of values within columns in the Read Buffer",
+                kind: MetricKind::U64Gauge,
+                observations: vec![
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "BT_U32-FIXED"), ("log_data_type", "i64"), ("null", "false")]), Observation::U64Gauge(6)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "BT_U32-FIXED"), ("log_data_type", "i64"), ("null", "true")]), Observation::U64Gauge(0)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FBT_U8-FIXEDN"), ("log_data_type", "f64"), ("null", "false")]), Observation::U64Gauge(4)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FBT_U8-FIXEDN"), ("log_data_type", "f64"), ("null", "true")]), Observation::U64Gauge(2)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXED"), ("log_data_type", "f64"), ("null", "false")]), Observation::U64Gauge(6)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXED"), ("log_data_type", "f64"), ("null", "true")]), Observation::U64Gauge(0)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXEDN"), ("log_data_type", "bool"), ("null", "false")]), Observation::U64Gauge(6)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "FIXEDN"), ("log_data_type", "bool"), ("null", "true")]), Observation::U64Gauge(0)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "RLE"), ("log_data_type", "string"), ("null", "false")]), Observation::U64Gauge(6)),
+                    (Attributes::from(&[("db_name", "mydb"), ("encoding", "RLE"), ("log_data_type", "string"), ("null", "true")]), Observation::U64Gauge(0)),
+                ]
+            },
+            ObservationSet {
+                metric_name: "read_buffer_row_group_total",
+                description: "The number of row groups within the Read Buffer",
+                kind: MetricKind::U64Gauge,
+                observations: vec![
+                    (Attributes::from(&[("db_name", "mydb")]), Observation::U64Gauge(2)),
+                ]
+            },
         ];
 
-        for (actual_line, &expected_line) in actual_lines.clone().zip(expected_lines.iter()) {
-            assert_eq!(actual_line, expected_line, "{:?}", actual_lines);
-        }
+        let mut reporter = RawReporter::default();
+        registry.report(&mut reporter);
+        assert_eq!(&expected_observations, reporter.observations());
 
         // when the chunk is dropped the metrics are all correctly decreased
         std::mem::drop(chunk);
-        let actual = String::from_utf8(reg.registry().metrics_as_text()).unwrap();
-        let actual_lines = actual.lines();
-        let expected_lines = vec![
-            "# HELP read_buffer_column_allocated_bytes The number of bytes used by all data in the Read Buffer including allocated by unused buffers",
-            "# TYPE read_buffer_column_allocated_bytes gauge",
-            r#"read_buffer_column_allocated_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 0"#,
-            r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 0"#,
-            r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 0"#,
-            r#"read_buffer_column_allocated_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 0"#,
-            r#"read_buffer_column_allocated_bytes{db="mydb",encoding="RLE",log_data_type="string"} 0"#,
-            "# HELP read_buffer_column_raw_bytes The number of bytes used by all columns if they were uncompressed in the Read Buffer",
-            "# TYPE read_buffer_column_raw_bytes gauge",
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="true"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="false"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="true"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXED",log_data_type="f64",null="true"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="false"} 0"#,
-            r#"read_buffer_column_raw_bytes{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
-            "# HELP read_buffer_column_required_bytes The number of bytes currently required to store data in the Read Buffer excluding allocated by unused buffers",
-            "# TYPE read_buffer_column_required_bytes gauge",
-            r#"read_buffer_column_required_bytes{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 0"#,
-            r#"read_buffer_column_required_bytes{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 0"#,
-            r#"read_buffer_column_required_bytes{db="mydb",encoding="FIXED",log_data_type="f64"} 0"#,
-            r#"read_buffer_column_required_bytes{db="mydb",encoding="FIXEDN",log_data_type="bool"} 0"#,
-            r#"read_buffer_column_required_bytes{db="mydb",encoding="RLE",log_data_type="string"} 0"#,
-            "# HELP read_buffer_column_total The number of columns within the Read Buffer",
-            "# TYPE read_buffer_column_total gauge",
-            r#"read_buffer_column_total{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64"} 0"#,
-            r#"read_buffer_column_total{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64"} 0"#,
-            r#"read_buffer_column_total{db="mydb",encoding="FIXED",log_data_type="f64"} 0"#,
-            r#"read_buffer_column_total{db="mydb",encoding="FIXEDN",log_data_type="bool"} 0"#,
-            r#"read_buffer_column_total{db="mydb",encoding="RLE",log_data_type="string"} 0"#,
-            "# HELP read_buffer_column_values The number of values within columns in the Read Buffer",
-            "# TYPE read_buffer_column_values gauge",
-            r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="false"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="BT_U32-FIXED",log_data_type="i64",null="true"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="false"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="FBT_U8-FIXEDN",log_data_type="f64",null="true"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="false"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="FIXED",log_data_type="f64",null="true"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="false"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="FIXEDN",log_data_type="bool",null="true"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="false"} 0"#,
-            r#"read_buffer_column_values{db="mydb",encoding="RLE",log_data_type="string",null="true"} 0"#,
-            "# HELP read_buffer_row_group_total The number of row groups within the Read Buffer",
-            "# TYPE read_buffer_row_group_total gauge",
-            r#"read_buffer_row_group_total{db="mydb"} 0"#,
-        "",
-        ];
 
-        for (actual_line, &expected_line) in actual_lines.zip(expected_lines.iter()) {
-            assert_eq!(actual_line, expected_line);
-        }
+        let expected_observations: Vec<_> = expected_observations
+            .iter()
+            .map(|set| ObservationSet {
+                metric_name: set.metric_name,
+                description: set.description,
+                kind: set.kind,
+                observations: set
+                    .observations
+                    .iter()
+                    .map(|(attributes, _)| (attributes.clone(), Observation::U64Gauge(0)))
+                    .collect(),
+            })
+            .collect();
+
+        let mut reporter = RawReporter::default();
+        registry.report(&mut reporter);
+        assert_eq!(&expected_observations, reporter.observations());
     }
 
     #[test]

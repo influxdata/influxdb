@@ -64,12 +64,19 @@ impl<T: MetricObserver> Metric<T> {
     ///
     /// ```
     pub fn recorder(&self, attributes: impl Into<Attributes>) -> T::Recorder {
-        self.shared
-            .values
-            .lock()
-            .entry(attributes.into())
-            .or_insert_with(|| T::create(&self.shared.options))
-            .recorder()
+        self.observer(attributes).recorder()
+    }
+
+    /// Retrieves the observer for a given set of attributes
+    ///
+    /// If this is the first time this method has been called with this set of attributes,
+    /// it will initialize the corresponding `MetricObserver` with the default observation
+    pub fn observer(&self, attributes: impl Into<Attributes>) -> MappedMutexGuard<'_, T> {
+        MutexGuard::map(self.shared.values.lock(), |values| {
+            values
+                .entry(attributes.into())
+                .or_insert_with(|| T::create(&self.shared.options))
+        })
     }
 
     /// Gets the observer for a given set of attributes if one has
@@ -223,6 +230,14 @@ impl<T: MetricObserver> RecorderCollection<T> {
         }
     }
 
+    /// Create a new unregistered `RecorderCollection` from the provided options
+    pub fn new_unregistered_options(options: T::Options) -> Self {
+        Self {
+            metric: Metric::new("unregistered", "unregistered", options),
+            recorders: Default::default(),
+        }
+    }
+
     /// Retrieves a type that can be used to report observations for a given set of attributes
     ///
     /// The value returned is cached on this `RecorderCollection` and lives as long as it does
@@ -231,6 +246,16 @@ impl<T: MetricObserver> RecorderCollection<T> {
         self.recorders
             .entry(attributes.into())
             .or_insert_with_key(|key| metric.recorder(key.clone()))
+    }
+}
+
+impl<T: MetricObserver> RecorderCollection<T>
+where
+    T::Options: Default,
+{
+    /// Create a new unregistered `RecorderCollection` with the default options
+    pub fn new_unregistered() -> Self {
+        Self::new_unregistered_options(Default::default())
     }
 }
 

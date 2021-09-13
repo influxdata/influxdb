@@ -34,6 +34,7 @@ use std::{
 use tracker::{RwLock, TaskTracker};
 
 pub(crate) use compact::compact_chunks;
+use data_types::partition_metadata::PartitionAddr;
 pub(crate) use drop::{drop_chunk, drop_partition};
 pub(crate) use error::{Error, Result};
 pub(crate) use move_chunk::move_chunk_to_read_buffer;
@@ -343,16 +344,14 @@ impl LifecycleChunk for CatalogChunk {
 // https://github.com/rust-lang/rust/issues/63033
 fn collect_rub(
     stream: SendableRecordBatchStream,
-    db: &Db,
-    table_name: &str,
+    partition_addr: &PartitionAddr,
+    metric_registry: &metric::Registry,
 ) -> impl futures::Future<Output = Result<Option<read_buffer::RBChunk>>> {
     use futures::{future, StreamExt, TryStreamExt};
 
-    let table_name = table_name.to_string();
-    let metrics = db
-        .metrics_registry
-        .register_domain_with_attributes("read_buffer", db.metric_attributes.clone());
-    let chunk_metrics = read_buffer::ChunkMetrics::new(&metrics);
+    let db_name = partition_addr.db_name.to_string();
+    let table_name = partition_addr.table_name.to_string();
+    let chunk_metrics = read_buffer::ChunkMetrics::new(metric_registry, db_name);
 
     async move {
         let mut adapted_stream = stream.try_filter(|batch| future::ready(batch.num_rows() > 0));

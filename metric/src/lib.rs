@@ -310,7 +310,7 @@ pub trait Reporter {
 ///
 /// This is solely used by `RawReporter` to buffer up observations, the `Reporter`
 /// trait streams `Observation` and does not perform intermediate aggregation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ObservationSet {
     pub metric_name: &'static str,
     pub description: &'static str,

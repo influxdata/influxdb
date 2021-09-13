@@ -437,11 +437,11 @@ async fn sql_distinct_aggregates() {
     // validate distinct aggregates work against dictionary columns
     // which have nulls in them
     let expected = vec![
-        "+----------------------+",
-        "| COUNT(DISTINCT city) |",
-        "+----------------------+",
-        "| 2                    |",
-        "+----------------------+",
+        "+-------------------------+",
+        "| COUNT(DISTINCT o2.city) |",
+        "+-------------------------+",
+        "| 2                       |",
+        "+-------------------------+",
     ];
     run_sql_test_case!(
         TwoMeasurementsManyNulls {},

@@ -20,7 +20,7 @@ arrow_util = { path = "../arrow_util" }
 datafusion = { path = "../datafusion" }
 data_types = { path = "../data_types" }
 internal_types = { path = "../internal_types" }
-metrics = { path = "../metrics" }
+metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 snafu = "0.6.3"
 tempfile = "3.1.0"

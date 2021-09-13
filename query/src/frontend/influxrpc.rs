@@ -1224,12 +1224,16 @@ impl ExpressionVisitor for SupportVisitor {
                     | Operator::And
                     | Operator::Or => Ok(Recursion::Continue(self)),
                     // Unsupported (need to think about ramifications)
-                    Operator::Modulo | Operator::Like | Operator::NotLike => {
-                        Err(DataFusionError::NotImplemented(format!(
-                            "Unsupported operator in gRPC: {:?} in expression {:?}",
-                            op, expr
-                        )))
-                    }
+                    Operator::Modulo
+                    | Operator::Like
+                    | Operator::NotLike
+                    | Operator::RegexMatch
+                    | Operator::RegexIMatch
+                    | Operator::RegexNotMatch
+                    | Operator::RegexNotIMatch => Err(DataFusionError::NotImplemented(format!(
+                        "Unsupported operator in gRPC: {:?} in expression {:?}",
+                        op, expr
+                    ))),
                 }
             }
             Expr::ScalarUDF { fun, .. } => {

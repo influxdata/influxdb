@@ -64,7 +64,7 @@ pub struct Partition {
     next_chunk_id: u32,
 
     /// Partition metrics
-    metrics: PartitionMetrics,
+    metrics: Arc<PartitionMetrics>,
 
     /// Ingest tracking for persisting data from memory to Parquet
     persistence_windows: Option<PersistenceWindows>,
@@ -83,7 +83,7 @@ impl Partition {
             created_at: now,
             last_write_at: now,
             next_chunk_id: 0,
-            metrics,
+            metrics: Arc::new(metrics),
             persistence_windows: None,
         }
     }
@@ -340,7 +340,6 @@ impl Display for Partition {
 mod tests {
     use arrow::{array::TimestampNanosecondArray, record_batch::RecordBatch};
     use internal_types::schema::builder::SchemaBuilder;
-    use metrics::MetricRegistry;
     use read_buffer::{ChunkMetrics, RBChunk};
 
     use crate::db::catalog::metrics::CatalogMetrics;
@@ -353,13 +352,13 @@ mod tests {
             table_name: "t".into(),
             partition_key: "p".into(),
         };
-        let domain = MetricRegistry::default().register_domain("test");
-
-        let metrics = CatalogMetrics::new(Arc::clone(&addr.db_name), domain, Default::default())
-            .new_table_metrics("t")
-            .new_partition_metrics();
-
-        let domain = MetricRegistry::default().register_domain("test2");
+        let registry = Arc::new(metric::Registry::new());
+        let catalog_metrics = Arc::new(CatalogMetrics::new(
+            Arc::clone(&addr.db_name),
+            Arc::clone(&registry),
+        ));
+        let table_metrics = Arc::new(catalog_metrics.new_table_metrics("t"));
+        let partition_metrics = table_metrics.new_partition_metrics();
 
         let t = Utc::now();
         let schema = SchemaBuilder::new().timestamp().build().unwrap();
@@ -374,23 +373,23 @@ mod tests {
         .unwrap();
 
         // Make three chunks
-        let mut partition = Partition::new(addr, metrics);
+        let mut partition = Partition::new(addr, partition_metrics);
         partition.create_rub_chunk(
-            RBChunk::new("t", rb.clone(), ChunkMetrics::new(&domain)),
+            RBChunk::new("t", rb.clone(), ChunkMetrics::new(&registry, "d")),
             t,
             t,
             Arc::clone(&schema),
             Arc::clone(&delete_predicates),
         );
         partition.create_rub_chunk(
-            RBChunk::new("t", rb.clone(), ChunkMetrics::new(&domain)),
+            RBChunk::new("t", rb.clone(), ChunkMetrics::new(&registry, "d")),
             t,
             t,
             Arc::clone(&schema),
             Arc::clone(&delete_predicates),
         );
         partition.create_rub_chunk(
-            RBChunk::new("t", rb, ChunkMetrics::new(&domain)),
+            RBChunk::new("t", rb, ChunkMetrics::new(&registry, "d")),
             t,
             t,
             Arc::clone(&schema),

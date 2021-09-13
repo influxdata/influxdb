@@ -110,11 +110,16 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[cfg(feature = "jaeger")]
 fn jaeger_exporter(config: &TracingConfig) -> Result<Arc<dyn TraceCollector>> {
+    use observability_deps::tracing::info;
+
     let agent_endpoint = format!(
         "{}:{}",
         config.traces_exporter_jaeger_agent_host.trim(),
         config.traces_exporter_jaeger_agent_port
     );
+
+    let service_name = &config.traces_exporter_jaeger_service_name;
+    info!(%agent_endpoint, %service_name, "Creating jaeger tracing exporter");
 
     let exporter = opentelemetry_jaeger::new_pipeline()
         .with_agent_endpoint(agent_endpoint)
