@@ -39,12 +39,6 @@ func RenameFile(oldpath, newpath string) error {
 	return os.Rename(oldpath, newpath)
 }
 
-// CreateFileWithReplacement will create a new file at any path, removing the
-// contents of the old file
-func CreateFileWithReplacement(newpath string) (*os.File, error) {
-	return os.Create(newpath)
-}
-
 // CreateFile creates a new file at newpath, returning an error if newpath already
 // exists
 func CreateFile(newpath string) (*os.File, error) {
