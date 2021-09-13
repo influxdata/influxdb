@@ -16,7 +16,7 @@ use arrow::{
 };
 use datafusion::{
     catalog::schema::SchemaProvider,
-    datasource::{datasource::Statistics, TableProvider},
+    datasource::TableProvider,
     error::{DataFusionError, Result as DataFusionResult},
     physical_plan::{memory::MemoryExec, ExecutionPlan},
 };
@@ -145,10 +145,6 @@ where
         _limit: Option<usize>,
     ) -> DataFusionResult<Arc<dyn ExecutionPlan>> {
         scan_batch(self.inner.batch()?, self.schema(), projection.as_ref())
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 

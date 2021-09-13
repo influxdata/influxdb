@@ -21,7 +21,7 @@ use datafusion::{
     physical_plan::{
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet, RecordOutput},
         ColumnarValue, DisplayFormatType, Distribution, ExecutionPlan, Partitioning, PhysicalExpr,
-        SendableRecordBatchStream,
+        SendableRecordBatchStream, Statistics,
     },
     scalar::ScalarValue,
 };
@@ -219,6 +219,12 @@ impl ExecutionPlan for StreamSplitExec {
 
     fn metrics(&self) -> Option<MetricsSet> {
         Some(self.metrics.clone_inner())
+    }
+
+    fn statistics(&self) -> Statistics {
+        // For now, don't return any statistics (in the future we
+        // could potentially estimate the output cardinalities)
+        Statistics::default()
     }
 }
 
