@@ -272,24 +272,19 @@ func TestLauncher_FluxCardinality(t *testing.T) {
 	exp := `,result,table,_value` + "\r\n" +
 		`,_result,0,0` + "\r\n\r\n"
 
-	buf, err := http.SimpleQuery(l.URL(), query, l.Org.Name, l.Auth.Token)
-	if err != nil {
-		t.Fatalf("unexpected error querying server: %v", err)
-	} else if diff := cmp.Diff(string(buf), exp); diff != "" {
-		t.Fatal(diff)
-	}
+	body, err := http.SimpleQuery(l.URL(), query, l.Org.Name, l.Auth.Token)
+	require.NoError(t, err)
+	require.Equal(t, exp, string(body))
 
 	// Write data to server.
-	if resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, l.Bucket.ID),
+	resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, l.Bucket.ID),
 		"cpu,region=us-east-1 v=1 946684800000000000\n"+
 			"cpu,region=us-west-1 v=1 946684800000000000\n"+
 			"mem,region=us-west-1 v=1 946684800000000000\n"+
 			"mem,region=us-south-1 v=2 996684800000000000\n",
-	)); err != nil {
-		t.Fatal(err)
-	} else if err := resp.Body.Close(); err != nil {
-		t.Fatal(err)
-	}
+	))
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
 
 	// Specific time values for tests bracketing shards with time ranges
 	mc := l.Engine().MetaClient()
@@ -467,12 +462,9 @@ func TestLauncher_FluxCardinality(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		buf, err := http.SimpleQuery(l.URL(), tt.query, l.Org.Name, l.Auth.Token)
-		if err != nil {
-			t.Fatalf("unexpected error querying server: %v", err)
-		} else if diff := cmp.Diff(string(buf), tt.exp); diff != "" {
-			t.Fatal(diff)
-		}
+		body, err := http.SimpleQuery(l.URL(), tt.query, l.Org.Name, l.Auth.Token)
+		require.NoError(t, err)
+		require.Equal(t, tt.exp, string(body))
 	}
 }
 
