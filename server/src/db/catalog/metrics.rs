@@ -1,14 +1,13 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use parking_lot::Mutex;
-
-use data_types::write_summary::TimestampSummary;
-use metric::{Attributes, DurationHistogram, DurationHistogramOptions};
-use metrics::{Gauge, GaugeValue, KeyValue};
-use tracker::{LockMetrics, RwLock};
-
 use crate::db::catalog::chunk::ChunkMetrics;
+use data_types::write_summary::TimestampSummary;
+use metric::{
+    Attributes, CumulativeGauge, CumulativeRecorder, DurationHistogram, DurationHistogramOptions,
+    Metric, MetricObserver,
+};
+use tracker::{LockMetrics, RwLock};
 
 const TIMESTAMP_METRICS_ENABLE_ENV: &str = "INFLUXDB_IOX_ROW_TIMESTAMP_METRICS";
 fn report_timestamp_metrics(table_name: &str) -> bool {
@@ -25,31 +24,24 @@ pub struct CatalogMetrics {
 
     /// Metrics registry
     metrics_registry: Arc<metric::Registry>,
-
-    /// Metrics domain
-    metrics_domain: Arc<metrics::Domain>,
-
     /// Catalog memory metrics
     memory_metrics: StorageGauge,
 }
 
 impl CatalogMetrics {
-    pub fn new(
-        db_name: Arc<str>,
-        metrics_domain: metrics::Domain,
-        metrics_registry: Arc<metric::Registry>,
-    ) -> Self {
-        let chunks_mem_usage = metrics_domain.register_gauge_metric(
-            "chunks_mem_usage",
-            Some("bytes"),
+    pub fn new(db_name: Arc<str>, metrics_registry: Arc<metric::Registry>) -> Self {
+        let chunks_mem_usage = metrics_registry.register_metric(
+            "catalog_chunks_mem_usage_bytes",
             "Memory usage by catalog chunks",
         );
+
+        let memory_metrics =
+            StorageGauge::new(&chunks_mem_usage, [("db_name", db_name.to_string().into())]);
 
         Self {
             db_name,
             metrics_registry,
-            memory_metrics: StorageGauge::new(&chunks_mem_usage),
-            metrics_domain: Arc::new(metrics_domain),
+            memory_metrics,
         }
     }
 
@@ -58,7 +50,7 @@ impl CatalogMetrics {
         &self.memory_metrics
     }
 
-    pub(super) fn new_table_metrics(&self, table_name: &str) -> TableMetrics {
+    pub(super) fn new_table_metrics(self: &Arc<Self>, table_name: &str) -> TableMetrics {
         let base_attributes = metric::Attributes::from([
             ("db_name", self.db_name.to_string().into()),
             ("table", table_name.to_string().into()),
@@ -83,28 +75,27 @@ impl CatalogMetrics {
             lock_attributes,
         ));
 
-        let storage_gauge = self.metrics_domain.register_gauge_metric_with_attributes(
-            "loaded",
-            Some("chunks"),
+        let storage_gauge = self.metrics_registry.register_metric(
+            "catalog_loaded_chunks",
             "The number of chunks loaded in a each chunk storage location",
-            &[KeyValue::new("table", table_name.to_string())],
         );
 
-        let row_gauge = self.metrics_domain.register_gauge_metric_with_attributes(
-            "loaded",
-            Some("rows"),
+        let row_gauge = self.metrics_registry.register_metric(
+            "catalog_loaded_rows",
             "The number of rows loaded in each chunk storage location",
-            &[KeyValue::new("table", table_name.to_string())],
         );
 
-        let timestamp_histogram = report_timestamp_metrics(table_name)
-            .then(|| TimestampHistogram::new(self.metrics_registry.as_ref(), base_attributes));
+        let timestamp_histogram = report_timestamp_metrics(table_name).then(|| {
+            TimestampHistogram::new(self.metrics_registry.as_ref(), base_attributes.clone())
+        });
+
+        let chunk_storage = StorageGauge::new(&storage_gauge, base_attributes.clone());
+        let row_count = StorageGauge::new(&row_gauge, base_attributes);
 
         TableMetrics {
-            metrics_domain: Arc::clone(&self.metrics_domain),
-            chunk_storage: StorageGauge::new(&storage_gauge),
-            row_count: StorageGauge::new(&row_gauge),
-            memory_metrics: self.memory_metrics.clone_empty(),
+            catalog_metrics: Arc::clone(self),
+            chunk_storage,
+            row_count,
             table_lock_metrics,
             partition_lock_metrics,
             chunk_lock_metrics,
@@ -113,19 +104,16 @@ impl CatalogMetrics {
     }
 }
 
+/// Metrics that are collected and aggregated per-table within a database
 #[derive(Debug)]
 pub struct TableMetrics {
-    /// Metrics domain
-    metrics_domain: Arc<metrics::Domain>,
+    catalog_metrics: Arc<CatalogMetrics>,
 
     /// Chunk storage metrics
     chunk_storage: StorageGauge,
 
     /// Chunk row count metrics
     row_count: StorageGauge,
-
-    /// Catalog memory metrics
-    memory_metrics: StorageGauge,
 
     /// Lock metrics for table-level locks
     table_lock_metrics: Arc<LockMetrics>,
@@ -149,171 +137,147 @@ impl TableMetrics {
         self.partition_lock_metrics.new_lock(t)
     }
 
-    pub(super) fn new_partition_metrics(&self) -> PartitionMetrics {
+    pub(super) fn new_partition_metrics(self: &Arc<Self>) -> PartitionMetrics {
         // Lock metrics for chunk-level locks
         PartitionMetrics {
-            chunk_storage: self.chunk_storage.clone_empty(),
-            row_count: self.row_count.clone_empty(),
-            memory_metrics: self.memory_metrics.clone_empty(),
-            chunk_lock_metrics: Arc::clone(&self.chunk_lock_metrics),
-            timestamp_histogram: self.timestamp_histogram.clone(),
+            table_metrics: Arc::clone(self),
         }
     }
 }
 
 #[derive(Debug)]
 pub struct PartitionMetrics {
-    /// Chunk storage metrics
-    chunk_storage: StorageGauge,
-
-    /// Chunk row count metrics
-    row_count: StorageGauge,
-
-    /// Catalog memory metrics
-    memory_metrics: StorageGauge,
-
-    /// Lock metrics for chunk-level locks
-    chunk_lock_metrics: Arc<LockMetrics>,
-
-    /// Track ingested timestamps
-    timestamp_histogram: Option<TimestampHistogram>,
+    table_metrics: Arc<TableMetrics>,
 }
 
 impl PartitionMetrics {
     pub(super) fn new_chunk_lock<T>(&self, t: T) -> RwLock<T> {
-        self.chunk_lock_metrics.new_lock(t)
+        self.table_metrics.chunk_lock_metrics.new_lock(t)
     }
 
     pub(super) fn new_chunk_metrics(&self) -> ChunkMetrics {
         ChunkMetrics {
-            timestamp_histogram: self.timestamp_histogram.clone(),
-            chunk_storage: self.chunk_storage.clone_empty(),
-            row_count: self.row_count.clone_empty(),
-            memory_metrics: self.memory_metrics.clone_empty(),
+            timestamp_histogram: self.table_metrics.timestamp_histogram.clone(),
+            chunk_storage: self.table_metrics.chunk_storage.recorder(),
+            row_count: self.table_metrics.row_count.recorder(),
+            memory_metrics: self.table_metrics.catalog_metrics.memory_metrics.recorder(),
         }
     }
 }
 
-/// Created from a `metrics::Gauge` and extracts a `GaugeValue` for each chunk storage
+/// Created from a `Metric<CumulativeGauge>` and extracts a `CumulativeRecorder` for each chunk storage
 ///
 /// This can then be used within each `CatalogChunk` to record its observations for
 /// the different storages
+#[derive(Debug, Clone, Default)]
 pub struct StorageGauge {
-    inner: Mutex<StorageGaugeInner>,
-}
-
-impl std::fmt::Debug for StorageGauge {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StorageGauge").finish_non_exhaustive()
-    }
-}
-
-struct StorageGaugeInner {
-    mutable_buffer: GaugeValue,
-    read_buffer: GaugeValue,
-    object_store: GaugeValue,
+    mutable_buffer: CumulativeGauge,
+    read_buffer: CumulativeGauge,
+    object_store: CumulativeGauge,
 }
 
 impl StorageGauge {
-    pub(super) fn new_unregistered() -> Self {
-        let inner = StorageGaugeInner {
-            mutable_buffer: GaugeValue::new_unregistered(),
-            read_buffer: GaugeValue::new_unregistered(),
-            object_store: GaugeValue::new_unregistered(),
-        };
+    pub(super) fn new(metric: &Metric<CumulativeGauge>, attributes: impl Into<Attributes>) -> Self {
+        let mut attributes = attributes.into();
+
+        attributes.insert("location", "mutable_buffer");
+        let mutable_buffer = metric.observer(attributes.clone()).clone();
+
+        attributes.insert("location", "read_buffer");
+        let read_buffer = metric.observer(attributes.clone()).clone();
+
+        attributes.insert("location", "object_store");
+        let object_store = metric.observer(attributes).clone();
+
         Self {
-            inner: Mutex::new(inner),
+            mutable_buffer,
+            read_buffer,
+            object_store,
         }
     }
 
-    pub(super) fn new(gauge: &Gauge) -> Self {
-        let inner = StorageGaugeInner {
-            mutable_buffer: gauge.gauge_value(&[KeyValue::new("location", "mutable_buffer")]),
-            read_buffer: gauge.gauge_value(&[KeyValue::new("location", "read_buffer")]),
-            object_store: gauge.gauge_value(&[KeyValue::new("location", "object_store")]),
-        };
-        Self {
-            inner: Mutex::new(inner),
-        }
-    }
-
-    pub(super) fn set_mub_only(&self, value: usize) {
-        let mut guard = self.inner.lock();
-
-        guard.mutable_buffer.set(value);
-        guard.read_buffer.set(0);
-        guard.object_store.set(0);
-    }
-
-    pub(super) fn set_rub_only(&self, value: usize) {
-        let mut guard = self.inner.lock();
-
-        guard.mutable_buffer.set(0);
-        guard.read_buffer.set(value);
-        guard.object_store.set(0);
-    }
-
-    pub(super) fn set_rub_and_object_store_only(&self, rub: usize, parquet: usize) {
-        let mut guard = self.inner.lock();
-
-        guard.mutable_buffer.set(0);
-        guard.read_buffer.set(rub);
-        guard.object_store.set(parquet);
-    }
-
-    pub(super) fn set_object_store_only(&self, value: usize) {
-        let mut guard = self.inner.lock();
-
-        guard.mutable_buffer.set(0);
-        guard.read_buffer.set(0);
-        guard.object_store.set(value);
-    }
-
-    pub(super) fn set_to_zero(&self) {
-        let mut guard = self.inner.lock();
-
-        guard.mutable_buffer.set(0);
-        guard.read_buffer.set(0);
-        guard.object_store.set(0);
-    }
-
-    fn clone_empty(&self) -> Self {
-        let guard = self.inner.lock();
-
-        let inner = StorageGaugeInner {
-            mutable_buffer: guard.mutable_buffer.clone_empty(),
-            read_buffer: guard.read_buffer.clone_empty(),
-            object_store: guard.object_store.clone_empty(),
-        };
-        Self {
-            inner: Mutex::new(inner),
+    pub fn recorder(&self) -> StorageRecorder {
+        StorageRecorder {
+            mutable_buffer: self.mutable_buffer.recorder(),
+            read_buffer: self.read_buffer.recorder(),
+            object_store: self.object_store.recorder(),
         }
     }
 
     /// Returns the total for the mutable buffer
     pub fn mutable_buffer(&self) -> usize {
-        let guard = self.inner.lock();
-        guard.mutable_buffer.get_total()
+        self.mutable_buffer.fetch() as usize
     }
 
     /// Returns the total for the read buffer
     pub fn read_buffer(&self) -> usize {
-        let guard = self.inner.lock();
-        guard.read_buffer.get_total()
+        self.read_buffer.fetch() as usize
     }
 
     /// Returns the total for object storage
     pub fn object_store(&self) -> usize {
-        let guard = self.inner.lock();
-        guard.object_store.get_total()
+        self.object_store.fetch() as usize
     }
 
     /// Returns the total over all storages
     pub fn total(&self) -> usize {
-        let guard = self.inner.lock();
-        guard.mutable_buffer.get_total()
-            + guard.read_buffer.get_total()
-            + guard.object_store.get_total()
+        (self.mutable_buffer() + self.read_buffer() + self.object_store()) as usize
+    }
+}
+
+#[derive(Debug)]
+pub struct StorageRecorder {
+    mutable_buffer: CumulativeRecorder,
+    read_buffer: CumulativeRecorder,
+    object_store: CumulativeRecorder,
+}
+
+impl StorageRecorder {
+    pub(super) fn new_unregistered() -> Self {
+        Self {
+            mutable_buffer: CumulativeRecorder::new_unregistered(),
+            read_buffer: CumulativeRecorder::new_unregistered(),
+            object_store: CumulativeRecorder::new_unregistered(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub(super) fn reporter(&self) -> StorageGauge {
+        StorageGauge {
+            mutable_buffer: self.mutable_buffer.reporter(),
+            read_buffer: self.read_buffer.reporter(),
+            object_store: self.object_store.reporter(),
+        }
+    }
+
+    pub(super) fn set_mub_only(&mut self, value: usize) {
+        self.mutable_buffer.set(value as u64);
+        self.read_buffer.set(0);
+        self.object_store.set(0);
+    }
+
+    pub(super) fn set_rub_only(&mut self, value: usize) {
+        self.mutable_buffer.set(0);
+        self.read_buffer.set(value as u64);
+        self.object_store.set(0);
+    }
+
+    pub(super) fn set_rub_and_object_store_only(&mut self, rub: usize, parquet: usize) {
+        self.mutable_buffer.set(0);
+        self.read_buffer.set(rub as u64);
+        self.object_store.set(parquet as u64);
+    }
+
+    pub(super) fn set_object_store_only(&mut self, value: usize) {
+        self.mutable_buffer.set(0);
+        self.read_buffer.set(0);
+        self.object_store.set(value as u64);
+    }
+
+    pub(super) fn set_to_zero(&mut self) {
+        self.mutable_buffer.set(0);
+        self.read_buffer.set(0);
+        self.object_store.set(0);
     }
 }
 

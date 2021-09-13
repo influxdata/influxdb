@@ -1,5 +1,8 @@
-use crate::db::catalog::metrics::{StorageGauge, TimestampHistogram};
+use std::sync::Arc;
+
 use chrono::{DateTime, Utc};
+use snafu::Snafu;
+
 use data_types::{
     chunk_metadata::{
         ChunkAddr, ChunkColumnSummary, ChunkLifecycleAction, ChunkStorage, ChunkSummary,
@@ -15,9 +18,10 @@ use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use query::predicate::Predicate;
 use read_buffer::RBChunk;
-use snafu::Snafu;
-use std::sync::Arc;
 use tracker::{TaskRegistration, TaskTracker};
+
+use crate::db::catalog::metrics::{StorageRecorder, TimestampHistogram};
+use parking_lot::Mutex;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -195,7 +199,9 @@ pub struct CatalogChunk {
     lifecycle_action: Option<TaskTracker<ChunkLifecycleAction>>,
 
     /// The metrics for this chunk
-    metrics: ChunkMetrics,
+    ///
+    /// Wrapped in a mutex to allow updating metrics without exclusive access to CatalogChunk
+    metrics: Mutex<ChunkMetrics>,
 
     /// Record access to this chunk's data by queries and writes
     access_recorder: AccessRecorder,
@@ -230,13 +236,13 @@ macro_rules! unexpected_state {
 #[derive(Debug)]
 pub struct ChunkMetrics {
     /// Chunk storage metrics
-    pub(super) chunk_storage: StorageGauge,
+    pub(super) chunk_storage: StorageRecorder,
 
     /// Chunk row count metrics
-    pub(super) row_count: StorageGauge,
+    pub(super) row_count: StorageRecorder,
 
     /// Catalog memory metrics
-    pub(super) memory_metrics: StorageGauge,
+    pub(super) memory_metrics: StorageRecorder,
 
     /// Track ingested timestamps
     pub(super) timestamp_histogram: Option<TimestampHistogram>,
@@ -249,9 +255,9 @@ impl ChunkMetrics {
     /// created on a metrics domain, and vice versa
     pub fn new_unregistered() -> Self {
         Self {
-            chunk_storage: StorageGauge::new_unregistered(),
-            row_count: StorageGauge::new_unregistered(),
-            memory_metrics: StorageGauge::new_unregistered(),
+            chunk_storage: StorageRecorder::new_unregistered(),
+            row_count: StorageRecorder::new_unregistered(),
+            memory_metrics: StorageRecorder::new_unregistered(),
             timestamp_histogram: Default::default(),
         }
     }
@@ -275,7 +281,7 @@ impl CatalogChunk {
             addr,
             stage,
             lifecycle_action: None,
-            metrics,
+            metrics: Mutex::new(metrics),
             access_recorder: Default::default(),
             time_of_first_write: time_of_write,
             time_of_last_write: time_of_write,
@@ -309,7 +315,7 @@ impl CatalogChunk {
             addr,
             stage,
             lifecycle_action: None,
-            metrics,
+            metrics: Mutex::new(metrics),
             access_recorder: Default::default(),
             time_of_first_write,
             time_of_last_write,
@@ -347,7 +353,7 @@ impl CatalogChunk {
             addr,
             stage,
             lifecycle_action: None,
-            metrics,
+            metrics: Mutex::new(metrics),
             access_recorder: Default::default(),
             time_of_first_write,
             time_of_last_write,
@@ -406,24 +412,24 @@ impl CatalogChunk {
 
     /// Updates `self.metrics` to match the contents of `self.stage`
     pub fn update_metrics(&self) {
+        let mut metrics = self.metrics.lock();
+
         match &self.stage {
             ChunkStage::Open { mb_chunk } => {
-                self.metrics.memory_metrics.set_mub_only(mb_chunk.size());
-                self.metrics.row_count.set_mub_only(mb_chunk.rows());
-                self.metrics.chunk_storage.set_mub_only(1);
+                metrics.memory_metrics.set_mub_only(mb_chunk.size());
+                metrics.row_count.set_mub_only(mb_chunk.rows());
+                metrics.chunk_storage.set_mub_only(1);
             }
             ChunkStage::Frozen { representation, .. } => match representation {
                 ChunkStageFrozenRepr::MutableBufferSnapshot(snapshot) => {
-                    self.metrics.memory_metrics.set_mub_only(snapshot.size());
-                    self.metrics.row_count.set_mub_only(snapshot.rows());
-                    self.metrics.chunk_storage.set_mub_only(1);
+                    metrics.memory_metrics.set_mub_only(snapshot.size());
+                    metrics.row_count.set_mub_only(snapshot.rows());
+                    metrics.chunk_storage.set_mub_only(1);
                 }
                 ChunkStageFrozenRepr::ReadBuffer(rb_chunk) => {
-                    self.metrics.memory_metrics.set_rub_only(rb_chunk.size());
-                    self.metrics
-                        .row_count
-                        .set_rub_only(rb_chunk.rows() as usize);
-                    self.metrics.chunk_storage.set_rub_only(1);
+                    metrics.memory_metrics.set_rub_only(rb_chunk.size());
+                    metrics.row_count.set_rub_only(rb_chunk.rows() as usize);
+                    metrics.chunk_storage.set_rub_only(1);
                 }
             },
             ChunkStage::Persisted {
@@ -431,22 +437,18 @@ impl CatalogChunk {
                 read_buffer: Some(read_buffer),
                 ..
             } => {
-                self.metrics
+                metrics
                     .memory_metrics
                     .set_rub_and_object_store_only(read_buffer.size(), parquet.size());
-                self.metrics
+                metrics
                     .row_count
                     .set_rub_and_object_store_only(read_buffer.rows() as usize, parquet.rows());
-                self.metrics
-                    .chunk_storage
-                    .set_rub_and_object_store_only(1, 1);
+                metrics.chunk_storage.set_rub_and_object_store_only(1, 1);
             }
             ChunkStage::Persisted { parquet, .. } => {
-                self.metrics
-                    .memory_metrics
-                    .set_object_store_only(parquet.size());
-                self.metrics.row_count.set_object_store_only(parquet.rows());
-                self.metrics.chunk_storage.set_object_store_only(1);
+                metrics.memory_metrics.set_object_store_only(parquet.size());
+                metrics.row_count.set_object_store_only(parquet.rows());
+                metrics.chunk_storage.set_object_store_only(1);
             }
         }
     }
@@ -484,8 +486,11 @@ impl CatalogChunk {
     /// `time_of_write` is the wall clock time of the write
     /// `timestamps` is a summary of the row timestamps contained in the write
     pub fn record_write(&mut self, time_of_write: DateTime<Utc>, timestamps: &TimestampSummary) {
-        if let Some(timestamp_histogram) = self.metrics.timestamp_histogram.as_ref() {
-            timestamp_histogram.add(timestamps)
+        {
+            let metrics = self.metrics.lock();
+            if let Some(timestamp_histogram) = metrics.timestamp_histogram.as_ref() {
+                timestamp_histogram.add(timestamps)
+            }
         }
         self.access_recorder.record_access_now();
 
@@ -855,7 +860,7 @@ impl CatalogChunk {
         self.set_lifecycle_action(ChunkLifecycleAction::Dropping, registration)?;
 
         // set memory metrics to 0 to stop accounting for this chunk within the catalog
-        self.metrics.memory_metrics.set_to_zero();
+        self.metrics.lock().memory_metrics.set_to_zero();
 
         Ok(())
     }
@@ -921,7 +926,6 @@ impl CatalogChunk {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use entry::test_helpers::lp_to_entry;
     use mutable_buffer::chunk::ChunkMetrics as MBChunkMetrics;
     use parquet_file::{
@@ -930,6 +934,8 @@ mod tests {
             make_chunk as make_parquet_chunk_with_store, make_iox_object_store, TestSize,
         },
     };
+
+    use super::*;
 
     #[test]
     fn test_new_open() {
@@ -973,9 +979,10 @@ mod tests {
     #[tokio::test]
     async fn test_drop() {
         let mut chunk = make_open_chunk();
+        let memory_metrics = chunk.metrics.lock().memory_metrics.reporter();
 
         // size should not be zero
-        let size_before = chunk.metrics.memory_metrics.total();
+        let size_before = memory_metrics.total();
         assert_ne!(size_before, 0);
 
         // start dropping it
@@ -983,19 +990,19 @@ mod tests {
         chunk.set_dropping(&registration).unwrap();
 
         // size should now be reported as zero
-        assert_eq!(chunk.metrics.memory_metrics.total(), 0);
+        assert_eq!(memory_metrics.total(), 0);
 
         // if the lifecycle action is cleared, it should reset the size
         registration.into_tracker(1).cancel();
         chunk.clear_lifecycle_action().unwrap();
-        assert_eq!(chunk.metrics.memory_metrics.total(), size_before);
+        assert_eq!(memory_metrics.total(), size_before);
 
         // when the lifecycle action cannot be set (e.g. due to an action already in progress), do NOT zero out the size
         let registration = TaskRegistration::new();
         chunk.set_compacting(&registration).unwrap();
-        let size_before = chunk.metrics.memory_metrics.total();
+        let size_before = memory_metrics.total();
         chunk.set_dropping(&registration).unwrap_err();
-        assert_eq!(chunk.metrics.memory_metrics.total(), size_before);
+        assert_eq!(memory_metrics.total(), size_before);
     }
 
     #[test]

@@ -1,6 +1,54 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
+use std::{
+    any::Any,
+    collections::HashMap,
+    num::NonZeroUsize,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
+    },
+    time::{Duration, Instant},
+};
+
+use async_trait::async_trait;
+use chrono::{TimeZone, Utc};
+use futures::{stream::BoxStream, StreamExt};
+use parking_lot::{Mutex, RwLock};
+use rand_distr::{Distribution, Poisson};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
+
+use ::lifecycle::{LifecycleChunk, LockableChunk, LockablePartition};
+use data_types::{
+    chunk_metadata::ChunkSummary,
+    database_rules::DatabaseRules,
+    partition_metadata::{PartitionSummary, TableSummary},
+    server_id::ServerId,
+};
+use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
+use entry::{Entry, Sequence, SequencedEntry, TableBatch};
+use internal_types::schema::Schema;
+use iox_object_store::IoxObjectStore;
+use metrics::KeyValue;
+use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
+use observability_deps::tracing::{debug, error, info};
+use parquet_file::catalog::{
+    api::{CatalogParquetInfo, CheckpointData, PreservedCatalog},
+    cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
+};
+use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
+use query::{
+    exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
+    predicate::Predicate,
+    QueryDatabase,
+};
+use trace::ctx::SpanContext;
+use write_buffer::{
+    config::WriteBufferConfig,
+    core::{FetchHighWatermark, WriteBufferError},
+};
+
 pub(crate) use crate::db::chunk::DbChunk;
 use crate::{
     db::{
@@ -14,51 +62,6 @@ use crate::{
         lifecycle::{LockableCatalogChunk, LockableCatalogPartition, WeakDb},
     },
     JobRegistry,
-};
-use ::lifecycle::{LifecycleChunk, LockableChunk, LockablePartition};
-use async_trait::async_trait;
-use chrono::{TimeZone, Utc};
-use data_types::{
-    chunk_metadata::ChunkSummary,
-    database_rules::DatabaseRules,
-    partition_metadata::{PartitionSummary, TableSummary},
-    server_id::ServerId,
-};
-use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
-use entry::{Entry, Sequence, SequencedEntry, TableBatch};
-use futures::{stream::BoxStream, StreamExt};
-use internal_types::schema::Schema;
-use iox_object_store::IoxObjectStore;
-use metrics::KeyValue;
-use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
-use observability_deps::tracing::{debug, error, info};
-use parking_lot::{Mutex, RwLock};
-use parquet_file::catalog::{
-    api::{CatalogParquetInfo, CheckpointData, PreservedCatalog},
-    cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
-};
-use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
-use query::{
-    exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
-    predicate::Predicate,
-    QueryDatabase,
-};
-use rand_distr::{Distribution, Poisson};
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use std::{
-    any::Any,
-    collections::HashMap,
-    num::NonZeroUsize,
-    sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-        Arc,
-    },
-    time::{Duration, Instant},
-};
-use trace::ctx::SpanContext;
-use write_buffer::{
-    config::WriteBufferConfig,
-    core::{FetchHighWatermark, WriteBufferError},
 };
 
 pub mod access;
@@ -1485,6 +1488,7 @@ pub mod test_helpers {
     use std::collections::HashSet;
 
     use arrow::record_batch::RecordBatch;
+
     use entry::test_helpers::lp_to_entries;
     use query::frontend::sql::SqlQueryPlanner;
 
@@ -1549,39 +1553,6 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        assert_store_sequenced_entry_failures,
-        db::{
-            catalog::chunk::ChunkStage,
-            test_helpers::{run_query, try_write_lp, write_lp},
-        },
-        utils::{make_db, TestDb},
-    };
-    use ::test_helpers::{assert_contains, tracing::TracingCapture};
-    use arrow::record_batch::RecordBatch;
-    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
-    use bytes::Bytes;
-    use chrono::{DateTime, TimeZone};
-    use data_types::{
-        chunk_metadata::{ChunkAddr, ChunkStorage},
-        database_rules::{LifecycleRules, PartitionTemplate, TemplatePart},
-        partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
-        write_summary::TimestampSummary,
-    };
-    use entry::{test_helpers::lp_to_entry, Sequence};
-    use futures::{stream, StreamExt, TryStreamExt};
-    use internal_types::{schema::Schema, selection::Selection};
-    use iox_object_store::ParquetFilePath;
-    use metric::Observation;
-    use object_store::ObjectStore;
-    use parquet_file::{
-        catalog::test_helpers::TestCatalogState,
-        metadata::IoxParquetMetaData,
-        test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
-    };
-    use persistence_windows::min_max_sequence::MinMaxSequence;
-    use query::{frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
     use std::{
         collections::BTreeMap,
         convert::TryFrom,
@@ -1591,11 +1562,48 @@ mod tests {
         str,
         time::{Duration, Instant},
     };
+
+    use arrow::record_batch::RecordBatch;
+    use bytes::Bytes;
+    use chrono::{DateTime, TimeZone};
+    use futures::{stream, StreamExt, TryStreamExt};
     use tokio_util::sync::CancellationToken;
+
+    use ::test_helpers::{assert_contains, tracing::TracingCapture};
+    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
+    use data_types::{
+        chunk_metadata::{ChunkAddr, ChunkStorage},
+        database_rules::{LifecycleRules, PartitionTemplate, TemplatePart},
+        partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
+        write_summary::TimestampSummary,
+    };
+    use entry::{test_helpers::lp_to_entry, Sequence};
+    use internal_types::{schema::Schema, selection::Selection};
+    use iox_object_store::ParquetFilePath;
+    use metric::{Attributes, CumulativeGauge, Metric, Observation};
+    use object_store::ObjectStore;
+    use parquet_file::{
+        catalog::test_helpers::TestCatalogState,
+        metadata::IoxParquetMetaData,
+        test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
+    };
+    use persistence_windows::min_max_sequence::MinMaxSequence;
+    use query::{frontend::sql::SqlQueryPlanner, QueryChunk, QueryDatabase};
     use write_buffer::mock::{
         MockBufferForReading, MockBufferForWriting, MockBufferForWritingThatAlwaysErrors,
         MockBufferSharedState,
     };
+
+    use crate::{
+        assert_store_sequenced_entry_failures,
+        db::{
+            catalog::chunk::ChunkStage,
+            test_helpers::{run_query, try_write_lp, write_lp},
+        },
+        utils::{make_db, TestDb},
+    };
+
+    use super::*;
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = TestError> = std::result::Result<T, E>;
@@ -2071,53 +2079,63 @@ mod tests {
     }
 
     fn catalog_chunk_size_bytes_metric_eq(
-        reg: &metrics::TestMetricRegistry,
+        registry: &metric::Registry,
         location: &'static str,
-        v: u64,
+        expected: u64,
     ) {
-        reg.has_metric_family("catalog_chunks_mem_usage_bytes")
-            .with_attributes(&[
+        let actual = registry
+            .get_instrument::<Metric<CumulativeGauge>>("catalog_chunks_mem_usage_bytes")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
                 ("db_name", "placeholder"),
                 ("location", location),
-                ("svr_id", "1"),
-            ])
-            .gauge()
-            .eq(v as f64)
+            ]))
             .unwrap()
+            .fetch();
+
+        assert_eq!(actual, expected)
+    }
+
+    fn assert_storage_gauge(
+        registry: &metric::Registry,
+        name: &'static str,
+        location: &'static str,
+        expected: u64,
+    ) {
+        let actual = registry
+            .get_instrument::<Metric<CumulativeGauge>>(name)
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "placeholder"),
+                ("location", location),
+                ("table", "cpu"),
+            ]))
+            .unwrap()
+            .fetch();
+
+        assert_eq!(actual, expected)
     }
 
     #[tokio::test]
     async fn metrics_during_rollover() {
         let test_db = make_db().await;
-        let db = Arc::clone(&test_db.db);
 
-        let assert_metric = |name: &'static str, location: &'static str, value: f64| {
-            test_db
-                .metric_registry
-                .has_metric_family(name)
-                .with_attributes(&[
-                    ("db_name", "placeholder"),
-                    ("location", location),
-                    ("svr_id", "1"),
-                    ("table", "cpu"),
-                ])
-                .gauge()
-                .eq(value)
-                .unwrap();
-        };
+        let db = Arc::clone(&test_db.db);
 
         write_lp(db.as_ref(), "cpu bar=1 10").await;
 
+        let registry = test_db.metrics_registry_v2.as_ref();
+
         // A chunk has been opened
-        assert_metric("catalog_loaded_chunks", "mutable_buffer", 1.0);
-        assert_metric("catalog_loaded_chunks", "read_buffer", 0.0);
-        assert_metric("catalog_loaded_chunks", "object_store", 0.0);
-        assert_metric("catalog_loaded_rows", "mutable_buffer", 1.0);
-        assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
-        assert_metric("catalog_loaded_rows", "object_store", 0.0);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "mutable_buffer", 1);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "read_buffer", 0);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "object_store", 0);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "mutable_buffer", 1);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "read_buffer", 0);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "object_store", 0);
 
         // verify chunk size updated
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 700);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 700);
 
         // write into same chunk again.
         write_lp(db.as_ref(), "cpu bar=2 20").await;
@@ -2126,48 +2144,44 @@ mod tests {
         write_lp(db.as_ref(), "cpu bar=5 50").await;
 
         // verify chunk size updated
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 764);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 764);
 
         // Still only one chunk open
-        assert_metric("catalog_loaded_chunks", "mutable_buffer", 1.0);
-        assert_metric("catalog_loaded_chunks", "read_buffer", 0.0);
-        assert_metric("catalog_loaded_chunks", "object_store", 0.0);
-        assert_metric("catalog_loaded_rows", "mutable_buffer", 5.0);
-        assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
-        assert_metric("catalog_loaded_rows", "object_store", 0.0);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "mutable_buffer", 1);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "read_buffer", 0);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "object_store", 0);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "mutable_buffer", 5);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "read_buffer", 0);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "object_store", 0);
 
         db.rollover_partition("cpu", "1970-01-01T00").await.unwrap();
 
         // A chunk is now closed
-        assert_metric("catalog_loaded_chunks", "mutable_buffer", 1.0);
-        assert_metric("catalog_loaded_chunks", "read_buffer", 0.0);
-        assert_metric("catalog_loaded_chunks", "object_store", 0.0);
-        assert_metric("catalog_loaded_rows", "mutable_buffer", 5.0);
-        assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
-        assert_metric("catalog_loaded_rows", "object_store", 0.0);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "mutable_buffer", 1);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "read_buffer", 0);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "object_store", 0);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "mutable_buffer", 5);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "read_buffer", 0);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "object_store", 0);
 
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 1295);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 1295);
 
         db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
             .await
             .unwrap();
 
         // A chunk is now in the read buffer
-        assert_metric("catalog_loaded_chunks", "mutable_buffer", 0.0);
-        assert_metric("catalog_loaded_chunks", "read_buffer", 1.0);
-        assert_metric("catalog_loaded_chunks", "object_store", 0.0);
-        assert_metric("catalog_loaded_rows", "mutable_buffer", 0.0);
-        assert_metric("catalog_loaded_rows", "read_buffer", 5.0);
-        assert_metric("catalog_loaded_rows", "object_store", 0.0);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "mutable_buffer", 0);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "read_buffer", 1);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "object_store", 0);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "mutable_buffer", 0);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "read_buffer", 5);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "object_store", 0);
 
         // verify chunk size updated (chunk moved from closing to moving to moved)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         let expected_read_buffer_size = 1706;
-        catalog_chunk_size_bytes_metric_eq(
-            &test_db.metric_registry,
-            "read_buffer",
-            expected_read_buffer_size,
-        );
+        catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
 
         db.persist_partition(
             "cpu",
@@ -2179,43 +2193,31 @@ mod tests {
 
         // A chunk is now in the object store and still in read buffer
         let expected_parquet_size = 1551;
-        catalog_chunk_size_bytes_metric_eq(
-            &test_db.metric_registry,
-            "read_buffer",
-            expected_read_buffer_size,
-        );
+        catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
         // now also in OS
-        catalog_chunk_size_bytes_metric_eq(
-            &test_db.metric_registry,
-            "object_store",
-            expected_parquet_size,
-        );
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", expected_parquet_size);
 
-        assert_metric("catalog_loaded_chunks", "mutable_buffer", 0.0);
-        assert_metric("catalog_loaded_chunks", "read_buffer", 1.0);
-        assert_metric("catalog_loaded_chunks", "object_store", 1.0);
-        assert_metric("catalog_loaded_rows", "mutable_buffer", 0.0);
-        assert_metric("catalog_loaded_rows", "read_buffer", 5.0);
-        assert_metric("catalog_loaded_rows", "object_store", 5.0);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "mutable_buffer", 0);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "read_buffer", 1);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "object_store", 1);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "mutable_buffer", 0);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "read_buffer", 5);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "object_store", 5);
 
         db.unload_read_buffer("cpu", "1970-01-01T00", 1).unwrap();
 
         // A chunk is now now in the "os-only" state.
-        assert_metric("catalog_loaded_chunks", "mutable_buffer", 0.0);
-        assert_metric("catalog_loaded_chunks", "read_buffer", 0.0);
-        assert_metric("catalog_loaded_chunks", "object_store", 1.0);
-        assert_metric("catalog_loaded_rows", "mutable_buffer", 0.0);
-        assert_metric("catalog_loaded_rows", "read_buffer", 0.0);
-        assert_metric("catalog_loaded_rows", "object_store", 5.0);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "mutable_buffer", 0);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "read_buffer", 0);
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "object_store", 1);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "mutable_buffer", 0);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "read_buffer", 0);
+        assert_storage_gauge(registry, "catalog_loaded_rows", "object_store", 5);
 
         // verify chunk size not increased for OS (it was in OS before unload)
-        catalog_chunk_size_bytes_metric_eq(
-            &test_db.metric_registry,
-            "object_store",
-            expected_parquet_size,
-        );
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", expected_parquet_size);
         // verify chunk size for RB has decreased
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 0);
+        catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 0);
     }
 
     #[tokio::test]
@@ -2382,22 +2384,13 @@ mod tests {
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_batches_eq!(&expected, &batches);
 
+        let registry = test_db.metrics_registry_v2.as_ref();
+
         // A chunk is now in the read buffer
-        test_db
-            .metric_registry
-            .has_metric_family("catalog_loaded_chunks")
-            .with_attributes(&[
-                ("db_name", "placeholder"),
-                ("location", "read_buffer"),
-                ("svr_id", "1"),
-                ("table", "cpu"),
-            ])
-            .gauge()
-            .eq(1.0)
-            .unwrap();
+        assert_storage_gauge(registry, "catalog_loaded_chunks", "read_buffer", 1);
 
         // verify chunk size updated (chunk moved from moved to writing to written)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1700);
+        catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
 
         // drop, the chunk from the read buffer
         db.drop_chunk("cpu", partition_key, mb_chunk.id())
@@ -2409,11 +2402,11 @@ mod tests {
         );
 
         // verify size is not accounted even though a reference to the RubChunk still exists
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 0);
+        catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 0);
         std::mem::drop(rb_chunk);
 
         // verify chunk size updated (chunk dropped from moved state)
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 0);
+        catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 0);
 
         // Currently this doesn't work (as we need to teach the stores how to
         // purge tables after data bas been dropped println!("running
@@ -2518,8 +2511,9 @@ mod tests {
 
         let mb = collect_read_filter(&mb_chunk).await;
 
+        let registry = test_db.metrics_registry_v2.as_ref();
         // MUB chunk size
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 3607);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 3607);
 
         // With the above data, cardinality of tag2 is 2 and tag1 is 5. Hence, RUB is sorted on (tag2, tag1)
         let rb_chunk = db
@@ -2528,8 +2522,8 @@ mod tests {
             .unwrap();
 
         // MUB chunk size
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0);
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 3618);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
+        catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 3618);
 
         let rb = collect_read_filter(&rb_chunk).await;
 
@@ -2621,10 +2615,12 @@ mod tests {
             .await
             .unwrap();
 
+        let registry = test_db.metrics_registry_v2.as_ref();
+
         // Read buffer + Parquet chunk size
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0);
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "object_store", 1551);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
+        catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1551);
 
         // while MB and RB chunk are identical, the PQ chunk is a new one (split off)
         assert_eq!(mb_chunk.id(), rb_chunk.id());
@@ -2728,10 +2724,12 @@ mod tests {
             vec![pq_chunk_id]
         );
 
+        let registry = test_db.metrics_registry_v2.as_ref();
+
         // Read buffer + Parquet chunk size
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0);
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "object_store", 1551);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
+        catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1551);
 
         // Unload RB chunk but keep it in OS
         let pq_chunk = db
@@ -2751,9 +2749,9 @@ mod tests {
         );
 
         // Parquet chunk size only
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "mutable_buffer", 0);
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "read_buffer", 0);
-        catalog_chunk_size_bytes_metric_eq(&test_db.metric_registry, "object_store", 1551);
+        catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
+        catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 0);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1551);
 
         // Verify data written to the parquet file in object store
         //

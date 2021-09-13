@@ -158,7 +158,6 @@ pub async fn create_preserved_catalog(
 /// All input required to create an empty [`Loader`]
 #[derive(Debug)]
 struct LoaderEmptyInput {
-    domain: ::metrics::Domain,
     metrics_registry: Arc<::metrics::MetricRegistry>,
     metrics_registry_v2: Arc<::metric::Registry>,
     metric_attributes: Vec<KeyValue>,
@@ -177,11 +176,8 @@ impl LoaderEmptyInput {
             KeyValue::new("db_name", db_name.to_string()),
             KeyValue::new("svr_id", format!("{}", server_id)),
         ];
-        let domain =
-            metrics_registry.register_domain_with_attributes("catalog", metric_attributes.clone());
 
         Self {
-            domain,
             metrics_registry,
             metrics_registry_v2,
             metric_attributes,
@@ -205,7 +201,6 @@ impl CatalogState for Loader {
         Self {
             catalog: Catalog::new(
                 Arc::from(db_name),
-                data.domain,
                 data.metrics_registry,
                 Arc::clone(&data.metrics_registry_v2),
                 data.metric_attributes,
@@ -366,7 +361,6 @@ mod tests {
     async fn test_catalog_state() {
         let metrics_registry = Arc::new(::metrics::MetricRegistry::new());
         let empty_input = LoaderEmptyInput {
-            domain: metrics_registry.register_domain("catalog"),
             metrics_registry,
             metrics_registry_v2: Default::default(),
             metric_attributes: vec![],

@@ -89,7 +89,7 @@ pub struct Catalog {
     /// TODO: Remove this unnecessary additional layer of locking
     tables: RwLock<HashMap<Arc<str>, Table>>,
 
-    metrics: CatalogMetrics,
+    metrics: Arc<CatalogMetrics>,
 
     pub(crate) metrics_registry: Arc<::metrics::MetricRegistry>,
     pub(crate) metric_attributes: Vec<::metrics::KeyValue>,
@@ -99,24 +99,19 @@ impl Catalog {
     #[cfg(test)]
     fn test() -> Self {
         let registry = Arc::new(::metrics::MetricRegistry::new());
-        Self::new(
-            Arc::from("test"),
-            registry.register_domain("catalog"),
-            registry,
-            Default::default(),
-            vec![],
-        )
+        Self::new(Arc::from("test"), registry, Default::default(), vec![])
     }
 
     pub fn new(
         db_name: Arc<str>,
-        metrics_domain: ::metrics::Domain,
         metrics_registry: Arc<::metrics::MetricRegistry>,
         metrics_registry_v2: Arc<::metric::Registry>,
         metric_attributes: Vec<::metrics::KeyValue>,
     ) -> Self {
-        let metrics =
-            CatalogMetrics::new(Arc::clone(&db_name), metrics_domain, metrics_registry_v2);
+        let metrics = Arc::new(CatalogMetrics::new(
+            Arc::clone(&db_name),
+            metrics_registry_v2,
+        ));
 
         Self {
             db_name,
