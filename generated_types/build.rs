@@ -65,7 +65,11 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         .compile_well_known_types()
         .disable_comments(&[".google"])
         .extern_path(".google.protobuf", "::google_types::protobuf")
-        .bytes(&[".influxdata.iox.catalog.v1.AddParquet.metadata"]);
+        .bytes(&[".influxdata.iox.catalog.v1.AddParquet.metadata"])
+        .btree_map(&[
+            ".influxdata.iox.catalog.v1.DatabaseCheckpoint.sequencer_numbers",
+            ".influxdata.iox.catalog.v1.PartitionCheckpoint.sequencer_numbers",
+        ]);
 
     let descriptor_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("proto_descriptor.bin");
     tonic_build::configure()
