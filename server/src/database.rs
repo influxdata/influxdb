@@ -205,6 +205,7 @@ impl Database {
     /// Mark this database as deleted.
     pub async fn delete(&self) -> Result<(), Error> {
         let db_name = &self.shared.config.name;
+        info!(%db_name, "marking database deleted");
 
         let handle = {
             let state = self.shared.state.read();
@@ -244,12 +245,19 @@ impl Database {
             shared.state_notify.notify_waiters();
         }
 
+        self.shutdown();
+
         Ok(())
     }
 
     /// Mark this database as restored.
     pub async fn restore(&self, iox_object_store: IoxObjectStore) -> Result<(), Error> {
         let db_name = &self.shared.config.name;
+        info!(
+            %db_name,
+            object_store_path=%iox_object_store.debug_database_path(),
+            "restoring database"
+        );
 
         let handle = {
             let state = self.shared.state.read();
@@ -272,6 +280,7 @@ impl Database {
                 DatabaseState::DatabaseObjectStoreFound(DatabaseStateDatabaseObjectStoreFound {
                     iox_object_store: Arc::new(iox_object_store),
                 });
+            info!(%db_name, "set database state to object store found");
         }
 
         Ok(())
