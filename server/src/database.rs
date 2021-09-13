@@ -111,6 +111,8 @@ pub enum WriteError {
     HardLimitReached {},
 }
 
+type BackgroundWorkerFuture = Mutex<Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>>;
+
 /// A `Database` represents a single configured IOx database - i.e. an
 /// entity with a corresponding set of `DatabaseRules`.
 ///
@@ -122,7 +124,7 @@ pub enum WriteError {
 #[derive(Debug)]
 pub struct Database {
     /// Future that resolves when the background worker exits
-    join: Mutex<Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>>,
+    join: BackgroundWorkerFuture,
 
     /// The state shared with the background worker
     shared: Arc<DatabaseShared>,
@@ -806,6 +808,10 @@ async fn initialize_database(shared: &DatabaseShared) {
             None => {
                 info!(%db_name, "backing off initialization");
                 tokio::time::sleep(INIT_BACKOFF).await;
+                shutdown_cancelled = {
+                    let s = shared.shutdown.lock();
+                    s.is_cancelled()
+                };
                 continue;
             }
         };
