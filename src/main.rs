@@ -60,7 +60,7 @@ compile_error!("heappy and jemalloc_replacing_malloc features are mutually exclu
 
 Examples:
     # Run the InfluxDB IOx server:
-    influxdb_iox
+    influxdb_iox run
 
     # Run the interactive SQL prompt
     influxdb_iox sql
