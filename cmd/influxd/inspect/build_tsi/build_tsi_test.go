@@ -37,7 +37,7 @@ type cmdOuts struct {
 	expectErr           bool
 	expectBuiltIndex    bool
 	expectCompactSeries bool
-	sfile               *tsdb.SeriesFile
+	sfilePath           string
 }
 
 func Test_BuildTSI_ShardID_Without_BucketID(t *testing.T) {
@@ -234,8 +234,7 @@ func Test_BuildTSI_Valid_Compact_Series(t *testing.T) {
 
 	// Create new series file
 	sfile := tsdb.NewSeriesFile(filepath.Join(tempDir, "data", "12345", "_series"))
-	err := sfile.Open()
-	require.NoError(t, err)
+	require.NoError(t, sfile.Open())
 	defer sfile.Close()
 
 	// Generate a bunch of keys.
@@ -247,7 +246,7 @@ func Test_BuildTSI_Valid_Compact_Series(t *testing.T) {
 	}
 
 	// Add all to the series file.
-	_, err = sfile.CreateSeriesListIfNotExists(mms, tagSets)
+	_, err := sfile.CreateSeriesListIfNotExists(mms, tagSets)
 	require.NoError(t, err)
 
 	params := cmdParams{
@@ -262,9 +261,10 @@ func Test_BuildTSI_Valid_Compact_Series(t *testing.T) {
 
 	outs := cmdOuts{
 		expectCompactSeries: true,
-		sfile:               sfile,
+		sfilePath:           sfile.Path(),
 	}
 
+	require.NoError(t, sfile.Close())
 	runCommand(t, params, outs)
 }
 
@@ -277,10 +277,10 @@ func initCommand(t *testing.T, params cmdParams) *cobra.Command {
 	// Set args
 	allArgs := make([]string, 0)
 
-	if params.dataPath != os.Getenv("HOME")+"/.influxdbv2/engine/data" {
+	if params.dataPath != filepath.Join(os.Getenv("HOME"), ".influxdbv2", "engine", "data") {
 		allArgs = append(allArgs, "--data-path", params.dataPath)
 	}
-	if params.walPath != os.Getenv("HOME")+"/.influxdbv2/engine/wal" {
+	if params.walPath != filepath.Join(os.Getenv("HOME"), ".influxdbv2", "engine", "wal") {
 		allArgs = append(allArgs, "--wal-path", params.walPath)
 	}
 	if params.bucketID != "" {
@@ -356,9 +356,14 @@ func runCommand(t *testing.T, params cmdParams, outs cmdOuts) {
 	}
 
 	if outs.expectCompactSeries {
+		sfile := tsdb.NewSeriesFile(outs.sfilePath)
+		require.NoError(t, sfile.Open())
+		defer sfile.Close()
+
 		// Get size of all partitions before series compaction
-		beforeSize, err := outs.sfile.FileSize()
+		beforeSize, err := sfile.FileSize()
 		require.NoError(t, err)
+		require.NoError(t, sfile.Close())
 
 		// Run command with series compaction option chosen
 		require.NoError(t, cmd.Execute())
@@ -367,7 +372,7 @@ func runCommand(t *testing.T, params cmdParams, outs cmdOuts) {
 		require.DirExists(t, filepath.Join(params.dataPath, "12345", "_series"))
 
 		// Get size of all partitions after series compaction
-		afterSize, err := outs.sfile.FileSize()
+		afterSize, err := sfile.FileSize()
 		require.NoError(t, err)
 
 		// Check that collective size of all series partitions has decreased after compaction

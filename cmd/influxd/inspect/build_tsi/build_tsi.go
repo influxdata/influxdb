@@ -259,7 +259,7 @@ func (buildTSICmd *buildTSI) compactSeriesFilePartition(path string) error {
 		src := dst + tmpExt
 
 		buildTSICmd.Logger.Debug("Renaming new segment", zap.String("prev", src), zap.String("new", dst))
-		if err = file.RenameFile(src, dst); err != nil && !os.IsNotExist(err) {
+		if err := file.RenameFile(src, dst); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("serious failure. Please rebuild index and series file: %w", err)
 		}
 	}
@@ -267,7 +267,7 @@ func (buildTSICmd *buildTSI) compactSeriesFilePartition(path string) error {
 	// Remove index file so it will be rebuilt when reopened.
 	buildTSICmd.Logger.Debug("Removing index file", zap.String("path", indexPath))
 
-	if err = os.Remove(indexPath); err != nil && !os.IsNotExist(err) { // index won't exist for low cardinality
+	if err := os.Remove(indexPath); err != nil && !os.IsNotExist(err) { // index won't exist for low cardinality
 		return err
 	}
 
