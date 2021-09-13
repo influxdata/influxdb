@@ -32,7 +32,7 @@ type fixture struct {
 func setup(t *testing.T) (func(auth influxdb.Authorizer) *httptest.Server, func(serverUrl string) DocumentService, fixture) {
 	ctx := context.Background()
 
-	store := NewTestInmemStore(t)
+	store := itesting.NewTestInmemStore(t)
 	tenantStore := tenant.NewStore(store)
 	tenantService := tenant.NewService(tenantStore)
 	svc := kv.NewService(zaptest.NewLogger(t), store, tenantService)

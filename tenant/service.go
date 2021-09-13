@@ -35,6 +35,14 @@ type Service struct {
 	influxdb.BucketService
 }
 
+func (s *Service) RLock() {
+	s.store.RLock()
+}
+
+func (s *Service) RUnlock() {
+	s.store.RUnlock()
+}
+
 // NewService creates a new base tenant service.
 func NewService(st *Store) *Service {
 	svc := &Service{store: st}

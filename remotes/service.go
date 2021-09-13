@@ -39,8 +39,6 @@ type service struct {
 	validator   RemoteConnectionValidator
 }
 
-var _ influxdb.RemoteConnectionService = (*service)(nil)
-
 func (s service) ListRemoteConnections(ctx context.Context, filter influxdb.RemoteConnectionListFilter) (*influxdb.RemoteConnections, error) {
 	q := sq.Select("id", "org_id", "name", "description", "remote_url", "remote_org_id", "allow_insecure_tls").
 		From("remotes").
@@ -92,9 +90,6 @@ func (s service) CreateRemoteConnection(ctx context.Context, request influxdb.Cr
 
 	var rc influxdb.RemoteConnection
 	if err := s.store.DB.GetContext(ctx, &rc, query, args...); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errRemoteNotFound
-		}
 		return nil, err
 	}
 	return &rc, nil

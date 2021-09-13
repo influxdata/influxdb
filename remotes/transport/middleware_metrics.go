@@ -1,4 +1,4 @@
-package remotes
+package transport
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func NewMetricCollectingService(reg prometheus.Registerer, underlying influxdb.RemoteConnectionService, opts ...metric.ClientOptFn) *metricsService {
+func newMetricCollectingService(reg prometheus.Registerer, underlying RemoteConnectionService, opts ...metric.ClientOptFn) *metricsService {
 	o := metric.ApplyMetricOpts(opts...)
 	return &metricsService{
 		rec:        metric.New(reg, o.ApplySuffix("remote")),
@@ -20,10 +20,10 @@ func NewMetricCollectingService(reg prometheus.Registerer, underlying influxdb.R
 type metricsService struct {
 	// RED metrics
 	rec        *metric.REDClient
-	underlying influxdb.RemoteConnectionService
+	underlying RemoteConnectionService
 }
 
-var _ influxdb.RemoteConnectionService = (*metricsService)(nil)
+var _ RemoteConnectionService = (*metricsService)(nil)
 
 func (m metricsService) ListRemoteConnections(ctx context.Context, filter influxdb.RemoteConnectionListFilter) (*influxdb.RemoteConnections, error) {
 	rec := m.rec.Record("find_remotes")

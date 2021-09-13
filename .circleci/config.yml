@@ -3,6 +3,12 @@ version: "2.1"
 orbs:
   terraform: circleci/terraform@2.1.0
 
+executors:
+  linux-machine:
+    machine:
+      image: ubuntu-2004:202107-02
+      resource_class: large
+
 parameters:
   aws_teardown:
     default: false
@@ -122,6 +128,7 @@ workflows:
               only:
                 - master
     jobs:
+      - changelog
       - godeps
       - gotest:
           requires:
@@ -137,6 +144,7 @@ workflows:
             - godeps
       - deploy_nightly:
           requires:
+            - changelog
             - gotest
             - golint
             - tlstest
@@ -178,8 +186,8 @@ commands:
           # GO_VERSION_HASH is from https://golang.org/dl/
           command: |
             mkdir -p ${HOME}/.tools
-            GO_VERSION=1.16.5
-            GO_VERSION_HASH=b12c23023b68de22f74c0524f10b753e7b08b1504cb7e417eccebdd3fae49061
+            GO_VERSION=1.17.1
+            GO_VERSION_HASH=dab7d9c34361dc21ec237d584590d72500652e7c909bf082758fb63064fca0ef
             wget https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz
             echo "${GO_VERSION_HASH}  go${GO_VERSION}.linux-amd64.tar.gz" | sha256sum --check --
             tar -C ${HOME}/.tools -xzf go${GO_VERSION}.linux-amd64.tar.gz
@@ -247,7 +255,7 @@ commands:
       - run:
           name: Install goreleaser
           environment:
-            GORELEASER_VERSION: 0.164.0
+            GORELEASER_VERSION: 0.177.0
           command: |
             curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh && \
               sh goreleaser-install -b ${GOPATH}/bin v${GORELEASER_VERSION} && \
@@ -278,27 +286,6 @@ commands:
           command: |
             echo 'export GOPATH=/home/circleci/go' >> $BASH_ENV
             echo 'export PATH=${GOPATH}/bin:${PATH}' >> $BASH_ENV
-      - run:
-          name: Install updated Docker
-          command: |
-            export BUILDKIT_PROGRESS=plain
-            export DOCKER_BUILDKIT=1
-            export DOCKER_CLI_EXPERIMENTAL=enabled
-            echo 'export BUILDKIT_PROGRESS=plain' >> $BASH_ENV
-            echo 'export DOCKER_BUILDKIT=1' >> $BASH_ENV
-            echo 'export DOCKER_CLI_EXPERIMENTAL=enabled' >> $BASH_ENV
-
-            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-            sudo add-apt-repository \
-              "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-              $(lsb_release -cs) \
-              stable"
-            sudo apt-get update
-            sudo apt-get install -y \
-              containerd.io \
-              docker-ce \
-              docker-ce-cli
-            sudo service docker restart
       - run:
           name: Set up Docker cross-builder
           command: |
@@ -360,7 +347,7 @@ jobs:
 
   godeps:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17.1
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -370,10 +357,6 @@ jobs:
           name: Restore GOPATH/pkg/mod
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      # NOTE: On go1.16 `go mod download` and `go mod tidy` no longer agree
-      # with each other. The Go team recommends using `go mod tidy` to download
-      # all the modules needed for build/test, so we check tidiness while we're
-      # at it. See https://github.com/golang/go/issues/43994#issuecomment-770053099
       - run: make checktidy
       - save_cache:
           name: Save GOPATH/pkg/mod
@@ -383,7 +366,7 @@ jobs:
 
   golint:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17.1
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -420,7 +403,7 @@ jobs:
 
   gotest:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17.1
     resource_class: large
     environment:
       TMPDIR: /mnt/ramdisk
@@ -448,7 +431,7 @@ jobs:
 
   fluxtest:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17.1
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -463,7 +446,7 @@ jobs:
 
   tlstest:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17.1
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -482,7 +465,7 @@ jobs:
 
   build:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17.1
     resource_class: large
     environment:
       TMPDIR: /mnt/ramdisk
@@ -531,9 +514,7 @@ jobs:
           command: docker push quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
 
   cross_build:
-    machine:
-      image: ubuntu-2004:202010-01
-    resource_class: large
+    executor: linux-machine
     environment:
       TMPDIR: /mnt/ramdisk
     steps:
@@ -617,8 +598,7 @@ jobs:
 
 
   perf_test:
-    machine:
-      image: ubuntu-2004:202010-01
+    executor: linux-machine
     parameters:
       format:
         type: string
@@ -640,10 +620,9 @@ jobs:
             TEST_FORMAT=<< parameters.format >>
             TEST_RECORD_INGEST_RESULTS=<< parameters.record_ingest_results >>
             scripts/ci/perf_test.sh
+
   aws_destroy_by_date:
-    machine:
-      enabled: true
-      docker_layer_caching: true
+    executor: linux-machine
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -673,9 +652,7 @@ jobs:
               fi
             done
   aws_destroy_by_name:
-    machine:
-      enabled: true
-      docker_layer_caching: true
+    executor: linux-machine
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -693,9 +670,7 @@ jobs:
             AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
 
   deploy_nightly:
-    machine:
-      image: ubuntu-2004:202010-01
-    resource_class: large
+    executor: linux-machine
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -727,7 +702,7 @@ jobs:
 
   e2e-monitor-ci:
     docker:
-      - image: cimg/go:1.16.5
+      - image: cimg/go:1.17.1
     steps:
       - checkout
       - run:
@@ -744,7 +719,7 @@ jobs:
           destination: test_artifacts/results/shared
 
   litmus_daily:
-    machine: true
+    executor: linux-machine
     steps:
       - attach_workspace:
           at: ~/project
@@ -765,7 +740,7 @@ jobs:
           path: ~/project
 
   litmus_integration:
-    machine: true
+    executor: linux-machine
     steps:
       - attach_workspace:
           at: ~/project
@@ -785,7 +760,7 @@ jobs:
           path: ~/project
 
   grace_daily:
-    machine: true
+    executor: linux-machine
     steps:
       - attach_workspace:
           at: ~/project
@@ -793,6 +768,19 @@ jobs:
           command: ./dist/influxd_linux_amd64/influxd --store=memory --log-level=debug
           background: true
       - run: mkdir -p ~/project/results
+      - run:
+          name: Wait for influxd to bind HTTP port
+          command: |
+            attempts=0
+            max_attempts=30
+            while ! curl localhost:8086/health; do
+              attempts=$((attempts+1))
+              if [[ $attempts = $max_attempts ]]; then
+                >&2 echo influxd "didn't" start in time
+                exit 1
+              fi
+              sleep 1
+            done
       - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project/results:/grace/test-results/grace-results quay.io/influxdb/grace:daily
       - store_artifacts:
           path: ~/project/results
@@ -800,8 +788,7 @@ jobs:
           path: ~/project/results
 
   share-testing-image:
-    machine:
-      image: ubuntu-2004:202010-01
+    executor: linux-machine
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - attach_workspace:
@@ -813,3 +800,34 @@ jobs:
             docker load < docker-image.tar
             docker tag quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} quay.io/influxdb/oss-acceptance:latest
             docker push quay.io/influxdb/oss-acceptance:latest
+  changelog:
+    machine:
+      image: ubuntu-2004:202010-01
+    steps:
+      - checkout
+      - install_core_deps
+      - run:
+          name: Run script
+          command: |
+            set -x
+            git clone --depth=1 --branch v0.2.5 https://github.com/orhun/git-cliff
+            cd git-cliff
+            cargo install git-cliff
+            cd ..
+
+            S3_PATH="dl.influxdata.com/platform/nightlies/master"
+            curl -o CHANGELOG.md ${S3_PATH}/CHANGELOG.md
+            curl -o scripts/ci/changelog-commit.txt ${S3_PATH}/changelog-commit.txt
+
+            TIMESTAMP="$(date -u '+%Y%m%d')"
+            COMMIT_FILE_PATH="scripts/ci/changelog-commit.txt"
+            LAST_COMMIT=$(cat $COMMIT_FILE_PATH)
+            NEWEST_COMMIT=${CIRCLE_SHA1}
+            ./scripts/ci/update-changelog.sh \
+              --commit-range "$LAST_COMMIT..$NEWEST_COMMIT" \
+              --prepend CHANGELOG.md \
+              -- \
+              --tag $TIMESTAMP
+            echo ${CIRCLE_SHA1} > $COMMIT_FILE_PATH
+      - store_artifacts:
+          path: CHANGELOG.md

@@ -28,10 +28,10 @@ func (s *Store) Update(ctx context.Context, fn func(kv.Tx) error) error {
 	return s.UpdateFn(fn)
 }
 
-// Lock and unlock methods are to satisfy the kv.Store interface
-func (s *Store) Lock() {}
+// RLock and RUnlock methods are to satisfy the kv.Store interface
+func (s *Store) RLock() {}
 
-func (s *Store) Unlock() {}
+func (s *Store) RUnlock() {}
 
 func (s *Store) Backup(ctx context.Context, w io.Writer) error {
 	return s.BackupFn(ctx, w)

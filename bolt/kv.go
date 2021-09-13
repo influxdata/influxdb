@@ -107,13 +107,11 @@ func (s *KVStore) Close() error {
 	return nil
 }
 
-// LockKVStore locks the database for reading during a backup.
-func (s *KVStore) Lock() {
+func (s *KVStore) RLock() {
 	s.mu.RLock()
 }
 
-// UnlockKVStore removes the read lock used during a backup.
-func (s *KVStore) Unlock() {
+func (s *KVStore) RUnlock() {
 	s.mu.RUnlock()
 }
 

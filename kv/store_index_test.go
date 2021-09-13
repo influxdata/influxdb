@@ -2,11 +2,12 @@ package kv_test
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,8 +20,7 @@ func TestIndexStore(t *testing.T) {
 	newFooIndexStore := func(t *testing.T, bktSuffix string) (*kv.IndexStore, func(), kv.Store) {
 		t.Helper()
 
-		kvStoreStore, done, err := NewTestBoltStore(t)
-		require.NoError(t, err)
+		kvStoreStore, done := itesting.NewTestBoltStore(t)
 
 		const resource = "foo"
 

@@ -1,5 +1,5 @@
-// +build sqlite_json
-// +build sqlite_foreign_keys
+//go:build sqlite_json && sqlite_foreign_keys
+// +build sqlite_json,sqlite_foreign_keys
 
 package annotations
 

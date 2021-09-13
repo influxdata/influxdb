@@ -123,13 +123,18 @@ func (buildTSICmd *buildTSI) run() error {
 	// Verify the user actually wants to run as root.
 	if isRoot() {
 		cli := clients.CLI{StdIO: stdio.TerminalStdio}
-		if confirmed := cli.StdIO.GetConfirm(`
+		if cli.StdIO.IsInteractive() {
+			if confirmed := cli.StdIO.GetConfirm(`
 You are currently running as root. This will build your
 index files with root ownership and will be inaccessible
 if you run influxd as a non-root user. You should run
 build-tsi as the same user you are running influxd.
 Are you sure you want to continue?`); !confirmed {
-			return errors.New("operation aborted")
+				return errors.New("operation aborted")
+			}
+		} else {
+			buildTSICmd.Logger.Warn(
+				"You are current running as root. This will build your index files with root ownership and will be inaccessible if you run influxd as a non-root user.")
 		}
 	}
 

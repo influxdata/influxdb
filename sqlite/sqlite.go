@@ -28,7 +28,7 @@ const (
 // SqlStore is a wrapper around the db and provides basic functionality for maintaining the db
 // including flushing the data from the db during end-to-end testing.
 type SqlStore struct {
-	Mu   sync.Mutex
+	Mu   sync.RWMutex
 	DB   *sqlx.DB
 	log  *zap.Logger
 	path string
@@ -80,13 +80,13 @@ func (s *SqlStore) Close() error {
 
 // LockSqlStore locks the database using the mutex. This is intended to lock the database for writes.
 // It is the responsibilty of implementing service code to manage locks for write operations.
-func (s *SqlStore) LockSqlStore() {
-	s.Mu.Lock()
+func (s *SqlStore) RLockSqlStore() {
+	s.Mu.RLock()
 }
 
 // UnlockSqlStore unlocks the database.
-func (s *SqlStore) UnlockSqlStore() {
-	s.Mu.Unlock()
+func (s *SqlStore) RUnlockSqlStore() {
+	s.Mu.RUnlock()
 }
 
 // Flush deletes all records for all tables in the database.

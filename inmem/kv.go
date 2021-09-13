@@ -84,13 +84,12 @@ func (s *KVStore) DeleteBucket(ctx context.Context, name []byte) error {
 	return nil
 }
 
-// Lock and unlock are only used when doing a backup, so panic if they are called here.
-func (s *KVStore) Lock() {
-	panic("not implemented")
+func (s *KVStore) RLock() {
+	s.mu.RLock()
 }
 
-func (s *KVStore) Unlock() {
-	panic("not implemented")
+func (s *KVStore) RUnlock() {
+	s.mu.RUnlock()
 }
 
 func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -84,15 +84,15 @@ type Resource struct {
 // String stringifies a resource
 func (r Resource) String() string {
 	if r.OrgID != nil && r.ID != nil {
-		return filepath.Join(string(OrgsResourceType), r.OrgID.String(), string(r.Type), r.ID.String())
+		return path.Join(string(OrgsResourceType), r.OrgID.String(), string(r.Type), r.ID.String())
 	}
 
 	if r.OrgID != nil {
-		return filepath.Join(string(OrgsResourceType), r.OrgID.String(), string(r.Type))
+		return path.Join(string(OrgsResourceType), r.OrgID.String(), string(r.Type))
 	}
 
 	if r.ID != nil {
-		return filepath.Join(string(r.Type), r.ID.String())
+		return path.Join(string(r.Type), r.ID.String())
 	}
 
 	return string(r.Type)

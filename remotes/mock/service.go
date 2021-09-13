@@ -5,12 +5,12 @@
 package mock
 
 import (
-	context "context"
-	reflect "reflect"
+	"context"
+	"reflect"
 
-	gomock "github.com/golang/mock/gomock"
-	influxdb "github.com/influxdata/influxdb/v2"
-	platform "github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/golang/mock/gomock"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // MockRemoteConnectionService is a mock of RemoteConnectionService interface.

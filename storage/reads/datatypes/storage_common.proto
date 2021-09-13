@@ -188,6 +188,12 @@ message TagValuesRequest {
   string tag_key = 4;
 }
 
+message ReadSeriesCardinalityRequest {
+  google.protobuf.Any read_series_cardinality_source = 1 [(gogoproto.customname) = "ReadSource"];
+  TimestampRange range = 2 [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+}
+
 // Response message for Storage.TagKeys, Storage.TagValues Storage.MeasurementNames,
 // Storage.MeasurementTagKeys and Storage.MeasurementTagValues.
 message StringValuesResponse {

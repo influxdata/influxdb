@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -10,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -29,16 +31,54 @@ var (
 	}
 )
 
+type RemoteConnectionService interface {
+	// ListRemoteConnections returns all info about registered remote InfluxDB connections matching a filter.
+	ListRemoteConnections(context.Context, influxdb.RemoteConnectionListFilter) (*influxdb.RemoteConnections, error)
+
+	// CreateRemoteConnection registers a new remote InfluxDB connection.
+	CreateRemoteConnection(context.Context, influxdb.CreateRemoteConnectionRequest) (*influxdb.RemoteConnection, error)
+
+	// ValidateNewRemoteConnection validates that the given settings for a remote InfluxDB connection are usable,
+	// without persisting the connection info.
+	ValidateNewRemoteConnection(context.Context, influxdb.CreateRemoteConnectionRequest) error
+
+	// GetRemoteConnection returns metadata about the remote InfluxDB connection with the given ID.
+	GetRemoteConnection(context.Context, platform.ID) (*influxdb.RemoteConnection, error)
+
+	// UpdateRemoteConnection updates the settings for the remote InfluxDB connection with the given ID.
+	UpdateRemoteConnection(context.Context, platform.ID, influxdb.UpdateRemoteConnectionRequest) (*influxdb.RemoteConnection, error)
+
+	// ValidateUpdatedRemoteConnection validates that a remote InfluxDB connection is still usable after applying the
+	// given update, without persisting the new info.
+	ValidateUpdatedRemoteConnection(context.Context, platform.ID, influxdb.UpdateRemoteConnectionRequest) error
+
+	// DeleteRemoteConnection deletes all info for the remote InfluxDB connection with the given ID.
+	DeleteRemoteConnection(context.Context, platform.ID) error
+
+	// ValidateRemoteConnection checks that the remote InfluxDB connection with the given ID is still usable
+	// with its persisted settings.
+	ValidateRemoteConnection(context.Context, platform.ID) error
+}
+
 type RemoteConnectionHandler struct {
 	chi.Router
 
 	log *zap.Logger
 	api *kithttp.API
 
-	remotesService influxdb.RemoteConnectionService
+	remotesService RemoteConnectionService
 }
 
-func NewRemoteConnectionHandler(log *zap.Logger, svc influxdb.RemoteConnectionService) *RemoteConnectionHandler {
+func NewInstrumentedRemotesHandler(log *zap.Logger, reg prometheus.Registerer, svc RemoteConnectionService) *RemoteConnectionHandler {
+	// Collect metrics.
+	svc = newMetricCollectingService(reg, svc)
+	// Wrap logging.
+	svc = newLoggingService(log, svc)
+
+	return newRemoteConnectionHandler(log, svc)
+}
+
+func newRemoteConnectionHandler(log *zap.Logger, svc RemoteConnectionService) *RemoteConnectionHandler {
 	h := &RemoteConnectionHandler{
 		log:            log,
 		api:            kithttp.NewAPI(kithttp.WithLog(log)),

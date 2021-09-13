@@ -647,6 +647,17 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		NotificationRuleFinder:     notificationRuleSvc,
 	}
 
+	remotesSvc := remotes.NewService(m.sqlStore)
+	remotesServer := remotesTransport.NewInstrumentedRemotesHandler(
+		m.log.With(zap.String("handler", "remotes")), m.reg, remotesSvc)
+
+	replicationSvc := replications.NewService(m.sqlStore, ts, m.log.With(zap.String("service", "replications")))
+	replicationServer := replicationTransport.NewInstrumentedReplicationHandler(
+		m.log.With(zap.String("handler", "replications")), m.reg, replicationSvc)
+
+	ts.BucketService = replications.NewBucketService(
+		m.log.With(zap.String("service", "replication_buckets")), ts.BucketService, replicationSvc)
+
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           opts.AssetsPath,
 		UIDisabled:           opts.UIDisabled,
@@ -849,24 +860,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 				m.log.With(zap.String("service", "annotations")),
 				annotations.NewMetricCollectingService(m.reg, annotationSvc),
 			),
-		),
-	)
-
-	remotesSvc := remotes.NewService(m.sqlStore)
-	remotesServer := remotesTransport.NewRemoteConnectionHandler(
-		m.log.With(zap.String("handler", "remotes")),
-		remotes.NewLoggingService(
-			m.log.With(zap.String("service", "remotes")),
-			remotes.NewMetricCollectingService(m.reg, remotesSvc),
-		),
-	)
-
-	replicationSvc := replications.NewService()
-	replicationServer := replicationTransport.NewReplicationHandler(
-		m.log.With(zap.String("handler", "replications")),
-		replications.NewLoggingService(
-			m.log.With(zap.String("service", "replications")),
-			replications.NewMetricCollectingService(m.reg, replicationSvc),
 		),
 	)
 

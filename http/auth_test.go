@@ -873,7 +873,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 		t.Skip("HTTP authorization service does not required a user id on the authentication struct.  We get the user from the session token.")
 	}
 
-	store := NewTestInmemStore(t)
+	store := platformtesting.NewTestInmemStore(t)
 	tenantStore := tenant.NewStore(store)
 	tenantStore.OrgIDGen = f.OrgIDGenerator
 	tenantService := tenant.NewService(tenantStore)

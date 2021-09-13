@@ -16,10 +16,7 @@ import (
 func initHttpUserService(f platformtesting.UserFields, t *testing.T) (platform.UserService, string, func()) {
 	t.Helper()
 
-	s, stCloser, err := NewTestInmemStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	s := platformtesting.NewTestInmemStore(t)
 
 	storage := tenant.NewStore(s)
 	svc := tenant.NewService(storage)
@@ -46,10 +43,7 @@ func initHttpUserService(f platformtesting.UserFields, t *testing.T) (platform.U
 		Client: httpClient,
 	}
 
-	return &client, "http_tenant", func() {
-		server.Close()
-		stCloser()
-	}
+	return &client, "http_tenant", server.Close
 }
 
 func TestUserService(t *testing.T) {

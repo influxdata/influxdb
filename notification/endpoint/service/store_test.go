@@ -2,20 +2,17 @@ package service_test
 
 import (
 	"context"
-	"io/ioutil"
-	"os"
 	"testing"
 
-	influxdb "github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/bolt"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/inmem"
-	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	endpointsTesting "github.com/influxdata/influxdb/v2/notification/endpoint/service/testing"
 	"github.com/influxdata/influxdb/v2/secret"
 	"github.com/influxdata/influxdb/v2/tenant"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
@@ -28,41 +25,8 @@ func TestNotificationEndpointService_WithBolt(t *testing.T) {
 	endpointsTesting.NotificationEndpointService(initBoltNotificationEndpointService, t)
 }
 
-func NewTestBoltStore(t *testing.T) (kv.SchemaStore, func(), error) {
-	f, err := ioutil.TempFile("", "influxdata-bolt-")
-	if err != nil {
-		return nil, nil, errors.New("unable to open temporary boltdb file")
-	}
-	f.Close()
-
-	ctx := context.Background()
-	logger := zaptest.NewLogger(t)
-	path := f.Name()
-
-	// skip fsync to improve test performance
-	s := bolt.NewKVStore(logger, path, bolt.WithNoSync)
-	if err := s.Open(context.Background()); err != nil {
-		return nil, nil, err
-	}
-
-	if err := all.Up(ctx, logger, s); err != nil {
-		return nil, nil, err
-	}
-
-	close := func() {
-		s.Close()
-		os.Remove(path)
-	}
-
-	return s, close, nil
-}
-
 func initBoltNotificationEndpointService(f endpointsTesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, influxdb.SecretService, func()) {
-	store, closeStore, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	store, closeStore := itesting.NewTestBoltStore(t)
 	svc, secretSVC, closeSvc := initNotificationEndpointService(store, f, t)
 	return svc, secretSVC, func() {
 		closeSvc()

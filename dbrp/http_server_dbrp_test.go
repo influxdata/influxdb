@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -16,6 +14,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/dbrp"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/stretchr/testify/assert"
@@ -38,11 +38,7 @@ func initHttpService(t *testing.T) (influxdb.DBRPMappingService, *httptest.Serve
 		},
 	}
 
-	s, closeS, err := NewTestBoltStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	s, closeS := influxdbtesting.NewTestBoltStore(t)
 	svc := dbrp.NewService(ctx, bucketSvc, s)
 
 	server := httptest.NewServer(dbrp.NewHTTPHandler(zaptest.NewLogger(t), svc, orgSvc))

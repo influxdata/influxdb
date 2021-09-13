@@ -12,21 +12,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/go-chi/chi"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/dashboards"
 	dashboardstesting "github.com/influxdata/influxdb/v2/dashboards/testing"
 	ihttp "github.com/influxdata/influxdb/v2/http"
-	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
-	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/label"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/yudai/gojsondiff"
 	"github.com/yudai/gojsondiff/formatter"
 	"go.uber.org/zap"
@@ -1788,7 +1786,7 @@ func Test_dashboardCellIDPath(t *testing.T) {
 func initDashboardService(f dashboardstesting.DashboardFields, t *testing.T) (influxdb.DashboardService, string, func()) {
 	t.Helper()
 	log := zaptest.NewLogger(t)
-	store := newTestInmemStore(t)
+	store := itesting.NewTestInmemStore(t)
 
 	kvsvc := kv.NewService(log, store, &mock.OrganizationService{})
 	kvsvc.IDGenerator = f.IDGenerator
@@ -1999,16 +1997,4 @@ func withLabelService(svc influxdb.LabelService) option {
 	return func(d *dashboardDependencies) {
 		d.labelService = svc
 	}
-}
-
-func newTestInmemStore(t *testing.T) kv.Store {
-	t.Helper()
-
-	store := inmem.NewKVStore()
-
-	if err := all.Up(context.Background(), zaptest.NewLogger(t), store); err != nil {
-		t.Fatal(err)
-	}
-
-	return store
 }

@@ -140,11 +140,11 @@ func (h *BackupHandler) handleBackupMetadata(w http.ResponseWriter, r *http.Requ
 
 	// Lock the sqlite and bolt databases prior to writing the response to prevent
 	// data inconsistencies.
-	h.BackupService.LockKVStore()
-	defer h.BackupService.UnlockKVStore()
+	h.BackupService.RLockKVStore()
+	defer h.BackupService.RUnlockKVStore()
 
-	h.SqlBackupRestoreService.LockSqlStore()
-	defer h.SqlBackupRestoreService.UnlockSqlStore()
+	h.SqlBackupRestoreService.RLockSqlStore()
+	defer h.SqlBackupRestoreService.RUnlockSqlStore()
 
 	dataWriter := multipart.NewWriter(w)
 	w.Header().Set("Content-Type", "multipart/mixed; boundary="+dataWriter.Boundary())

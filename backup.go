@@ -20,11 +20,11 @@ type BackupService interface {
 	// BackupShard downloads a backup file for a single shard.
 	BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error
 
-	// LockKVStore locks the database.
-	LockKVStore()
+	// RLockKVStore locks the database.
+	RLockKVStore()
 
-	// UnlockKVStore unlocks the database.
-	UnlockKVStore()
+	// RUnlockKVStore unlocks the database.
+	RUnlockKVStore()
 }
 
 // SqlBackupRestoreService represents the backup and restore functions for the sqlite database.
@@ -35,11 +35,11 @@ type SqlBackupRestoreService interface {
 	// RestoreSqlStore restores & replaces the sqlite database.
 	RestoreSqlStore(ctx context.Context, r io.Reader) error
 
-	// LockSqlStore locks the database.
-	LockSqlStore()
+	// RLockSqlStore takes a read lock on the database
+	RLockSqlStore()
 
-	// UnlockSqlStore unlocks the database.
-	UnlockSqlStore()
+	// RUnlockSqlStore releases a previously-taken read lock on the database.
+	RUnlockSqlStore()
 }
 
 type BucketManifestWriter interface {

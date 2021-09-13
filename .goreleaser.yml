@@ -15,7 +15,7 @@ builds:
         goarch: arm64
     main: ./cmd/influxd/
     flags:
-      - -tags=assets,sqlite_foreign_keys,sqlite_json{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
+      - -tags=assets,sqlite_foreign_keys,sqlite_json{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}{{if eq .Os "windows"}},timetzdata{{end}}
       - -buildmode={{if eq .Os "windows"}}exe{{else}}pie{{end}}
     env:
       - GO111MODULE=on
@@ -89,6 +89,19 @@ blobs:
     bucket: "dl.influxdata.com"
     region: "us-east-1"
     folder: "platform/nightlies/"
+    extra_files:
+      - glob: ./CHANGELOG.md
+      - glob: ./scripts/ci/changelog-commit.txt
+  # Duplicating the contents to another folder in the bucket ensures
+  # scheme parity with release branches; eventually the artifacts should
+  # __only__ appear in the branch-specific folder
+  - provider: "s3"
+    bucket: "dl.influxdata.com"
+    region: "us-east-1"
+    folder: "platform/nightlies/master/"
+    extra_files:
+      - glob: ./CHANGELOG.md
+      - glob: ./scripts/ci/changelog-commit.txt
 
 checksum:
   name_template: "influxdb2-nightly.sha256"

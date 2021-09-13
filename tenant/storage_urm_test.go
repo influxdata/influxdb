@@ -3,16 +3,17 @@ package tenant_test
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"reflect"
 	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/tenant"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 func TestURM(t *testing.T) {
@@ -333,12 +334,7 @@ func TestURM(t *testing.T) {
 	}
 	for _, testScenario := range st {
 		t.Run(testScenario.name, func(t *testing.T) {
-			s, closeS, err := NewTestInmemStore(t)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer closeS()
-
+			s := itesting.NewTestInmemStore(t)
 			ts := tenant.NewStore(s)
 
 			// setup
