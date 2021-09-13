@@ -94,7 +94,7 @@ pub struct ValuesSpec {
     /// The name of the collection of values
     pub name: String,
     /// The handlebars template to create each value in the collection
-    pub value: String,
+    pub template: String,
     /// How many of these values should be generated. If belongs_to is
     /// specified, each parent will have this many of this value. So
     /// the total number of these values generated would be parent.len() * self.cardinality
@@ -125,9 +125,10 @@ impl ValuesSpec {
 pub struct TagSetsSpec {
     /// The name of the tag set spec
     pub name: String,
-    /// An array of the values to loop through. To reference parent belongs_to or has_one
-    /// values, the parent should come first and then the has_one or child next. See the
-    /// doc for `ForEachValueTag` and its `value` for more detail.
+    /// An array of the `ValuesSpec` to loop through. To reference parent belongs_to or has_one
+    /// values, the parent should come first and then the has_one or child next. Each successive
+    /// entry in this array is a nested loop. Multiple has_one and a belongs_to on a parent can
+    /// be traversed.
     pub for_each: Vec<String>,
 }
 

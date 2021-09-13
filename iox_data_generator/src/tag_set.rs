@@ -58,19 +58,23 @@ pub struct GeneratedValueCollection {
 
 #[derive(Debug)]
 pub struct GeneratedValue {
-    value: Arc<String>,
     id: usize,
     tag_pair: Arc<TagPair>,
 }
 
 #[derive(Debug, Default)]
 pub struct GeneratedTagSets {
+    // These map the name of a collection of values to its values. All values will have
+    // an entry in this map. For has_one and child_values, they will have duplicates there
+    // as well to make generating the tag sets possible.
     values: BTreeMap<String, Vec<Arc<GeneratedValue>>>,
     // each parent-child will have its children stored in this map. The children map
     // the id of the parent to the collection of its children values
     child_values: BTreeMap<String, BTreeMap<usize, Vec<Arc<GeneratedValue>>>>,
     // each parent-has_one will have its has_ones stored in this map
     has_one_values: BTreeMap<String, ParentToHasOnes>,
+    // this maps the name of the tag set specified in the spec to the collection of tag
+    // sets that were pre-generated.
     tag_sets: BTreeMap<String, Vec<TagSet>>,
 }
 
@@ -79,12 +83,6 @@ pub struct ParentToHasOnes {
     // each parent id will have its has_ones stored in this map. The map within
     // maps the has_one name to its generated value
     id_to_has_ones: BTreeMap<usize, BTreeMap<Arc<String>, Arc<GeneratedValue>>>,
-}
-
-#[derive(Debug)]
-pub struct TagSetKey {
-    value: String,
-    tag_key: Arc<String>,
 }
 
 impl GeneratedTagSets {
@@ -295,7 +293,7 @@ impl GeneratedTagSets {
         spec: &ValuesSpec,
     ) -> Result<()> {
         template
-            .register_template_string(&spec.name, &spec.value)
+            .register_template_string(&spec.name, &spec.template)
             .context(CantCompileTemplate {
                 template: &spec.name,
             })?;
@@ -319,7 +317,6 @@ impl GeneratedTagSets {
 
                     vals.push(Arc::new(GeneratedValue {
                         id: i,
-                        value: Arc::clone(&value),
                         tag_pair: Arc::new(TagPair {
                             key: Arc::clone(&tag_key),
                             value,
@@ -393,7 +390,7 @@ impl GeneratedTagSets {
                 let data = json!({
                     belongs_to: {
                         "id": parent.id,
-                        "value": &parent.value,
+                        "value": &parent.tag_pair.value,
                     },
                     "id": child_value_id,
                 });
@@ -408,7 +405,6 @@ impl GeneratedTagSets {
 
                 let child_value = Arc::new(GeneratedValue {
                     id: child_value_id,
-                    value: Arc::clone(&value),
                     tag_pair: Arc::new(TagPair {
                         key: Arc::clone(&tag_key),
                         value,
@@ -488,7 +484,7 @@ base_seed = "foo"
 
 [[values]]
 name = "foo"
-value = "{{id}}#foo"
+template = "{{id}}#foo"
 cardinality = 3
 
 [[tag_sets]]
@@ -525,12 +521,12 @@ base_seed = "foo"
 
 [[values]]
 name = "foo"
-value = "{{id}}#foo"
+template = "{{id}}#foo"
 cardinality = 2
 
 [[values]]
 name = "bar"
-value = "{{id}}-{{foo.id}}-{{foo.value}}"
+template = "{{id}}-{{foo.id}}-{{foo.value}}"
 cardinality = 2
 belongs_to = "foo"
 
@@ -572,30 +568,30 @@ base_seed = "foo"
 
 [[values]]
 name = "foo"
-value = "{{id}}-foo"
+template = "{{id}}-foo"
 cardinality = 3
 has_one = ["bar"]
 
 [[values]]
 name = "bar"
-value = "{{id}}-bar"
+template = "{{id}}-bar"
 cardinality = 2
 
 [[values]]
 name = "asdf"
-value = "{{id}}-asdf"
+template = "{{id}}-asdf"
 cardinality = 2
 belongs_to = "foo"
 has_one = ["qwer"]
 
 [[values]]
 name = "jkl"
-value = "{{id}}-jkl"
+template = "{{id}}-jkl"
 cardinality = 2
 
 [[values]]
 name = "qwer"
-value = "{{id}}-qwer"
+template = "{{id}}-qwer"
 cardinality = 6
 
 [[tag_sets]]

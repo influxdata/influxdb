@@ -3,54 +3,54 @@ base_seed = "this is a demo"
 
 [[values]]
 name = "role"
-value = "storage"
+template = "storage"
 cardinality = 1
 
 [[values]]
 name = "url"
-value = "http://127.0.0.1:6060/metrics/usage"
+template = "http://127.0.0.1:6060/metrics/usage"
 cardinality = 1
 
 [[values]]
 name = "org_id"
 # Fill in the value with the cardinality counter and 15 random alphanumeric characters
-value = "{{id}}_{{random 15}}"
-cardinality = 1000
+template = "{{id}}_{{random 15}}"
+cardinality = 1
 has_one = ["env"]
 
 [[values]]
 name = "env"
-value = "whatever-environment-{{id}}"
+template = "whatever-environment-{{id}}"
 cardinality = 10
 
 [[values]]
 name = "bucket_id"
 belongs_to = "org_id"
 # each bucket will have a unique value so it can be used here to guarantee uniqueness even across orgs
-value = "{{id}}_{{random 15}}"
+template = "{{id}}_{{random 15}}"
 # For each org, 3 buckets will be generated
 cardinality = 3
 
 [[values]]
 name = "node_id"
-value = "{{id}}"
+template = "{{id}}"
 cardinality = 100
 
 [[values]]
 name = "host"
-value = "storage-{{node_id.value}}"
+template = "storage-{{node_id.value}}"
 belongs_to = "node_id"
 cardinality = 1
 
 [[values]]
 name = "hostname"
-value = "{{node_id.value}}"
+template = "{{node_id.value}}"
 belongs_to = "node_id"
 cardinality = 1
 
 [[values]]
 name = "partition_id"
-value = "{{id}}"
+template = "{{id}}"
 cardinality = 10
 
 # makes a tagset so every bucket exists on every node with every partition.
@@ -75,16 +75,7 @@ name = "metric-scraper"
 
 [[agents.measurements]]
 name = "storage_usage_bucket_cardinality"
-# each unique tag set will get an entry in this measurement
-# tag_set = "bucket_set"
-#
-#[[agents.measurements.tags]]
-#name = "role"
-#value = "storage"
-#
-#[[agents.measurements.tags]]
-#name = "url"
-#value = "http://127.0.0.1:6060/metrics/usage"
+# TODO: new syntax to make use of tag sets here
 
 [[agents.measurements.fields]]
 name = "gauge"
