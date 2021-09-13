@@ -24,7 +24,7 @@ func WithSignals(ctx context.Context, sigs ...os.Signal) context.Context {
 	return ctx
 }
 
-// WithStandardSignals cancels the context on os.Interrupt, syscall.SIGTERM.
+// WithStandardSignals cancels the context on os.Interrupt, os.Kill.
 func WithStandardSignals(ctx context.Context) context.Context {
 	return WithSignals(ctx, os.Interrupt, os.Kill)
 }
