@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCopyDirAndDirSize(t *testing.T) {
@@ -34,13 +35,14 @@ func TestCopyDirAndDirSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustCreateFile(t, filepath.Join(tmpdir, "1", "1.bin"), 300, 0600)
-	mustCreateFile(t, filepath.Join(tmpdir, "1", "1", "1", "1.bin"), 250, 0600)
-	mustCreateFile(t, filepath.Join(tmpdir, "1", "1", "1", "2.bin"), 350, 0400)
-	mustCreateFile(t, filepath.Join(tmpdir, "1", "2", "1", "1.bin"), 200, 0640)
-	mustCreateFile(t, filepath.Join(tmpdir, "1", "2", "skip", "1.bin"), 200, 0640)
-	mustCreateFile(t, filepath.Join(tmpdir, "2", "1", "1", "1.bin"), 200, 0644)
-	mustCreateFile(t, filepath.Join(tmpdir, "2", "1", "1", "2.bin"), 100, 0640)
+
+	bin11Mode := mustCreateFile(t, filepath.Join(tmpdir, "1", "1.bin"), 300, 0600)
+	bin1111Mode := mustCreateFile(t, filepath.Join(tmpdir, "1", "1", "1", "1.bin"), 250, 0600)
+	bin1112Mode := mustCreateFile(t, filepath.Join(tmpdir, "1", "1", "1", "2.bin"), 350, 0400)
+	bin1211Mode := mustCreateFile(t, filepath.Join(tmpdir, "1", "2", "1", "1.bin"), 200, 0640)
+	_ = mustCreateFile(t, filepath.Join(tmpdir, "1", "2", "skip", "1.bin"), 200, 0640)
+	bin2111Mode := mustCreateFile(t, filepath.Join(tmpdir, "2", "1", "1", "1.bin"), 200, 0644)
+	bin2112Mode := mustCreateFile(t, filepath.Join(tmpdir, "2", "1", "1", "2.bin"), 100, 0640)
 
 	size, err := DirSize(tmpdir)
 	if err != nil {
@@ -62,13 +64,13 @@ func TestCopyDirAndDirSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assetFileExistHasSizeAndPerm(t, filepath.Join(targetDir, "1", "1.bin"), 300, 0600)
-	assetFileExistHasSizeAndPerm(t, filepath.Join(targetDir, "1", "1", "1", "1.bin"), 250, 0600)
-	assetFileExistHasSizeAndPerm(t, filepath.Join(targetDir, "1", "1", "1", "2.bin"), 350, 0400)
-	assetFileExistHasSizeAndPerm(t, filepath.Join(targetDir, "1", "2", "1", "1.bin"), 200, 0640)
+	assetFileExistHasSizeAndPerm(t, filepath.Join(targetDir, "1", "1.bin"), 300, bin11Mode)
+	assetFileExistHasSizeAndPerm(t, filepath.Join(targetDir, "1", "1", "1", "1.bin"), 250, bin1111Mode)
+	assetFileExistHasSizeAndPerm(t, filepath.Join(targetDir, "1", "1", "1", "2.bin"), 350, bin1112Mode)
+	assetFileExistHasSizeAndPerm(t, filepath.Join(targetDir, "1", "2", "1", "1.bin"), 200, bin1211Mode)
 	assert.NoFileExists(t, filepath.Join(targetDir, "1", "2", "skip", "1.bin"))
-	assetFileExistHasSizeAndPerm(t, filepath.Join(targetDir, "2", "1", "1", "1.bin"), 200, 0644)
-	assetFileExistHasSizeAndPerm(t, filepath.Join(targetDir, "2", "1", "1", "2.bin"), 100, 0640)
+	assetFileExistHasSizeAndPerm(t, filepath.Join(targetDir, "2", "1", "1", "1.bin"), 200, bin2111Mode)
+	assetFileExistHasSizeAndPerm(t, filepath.Join(targetDir, "2", "1", "1", "2.bin"), 100, bin2112Mode)
 }
 
 func assetFileExistHasSizeAndPerm(t *testing.T, path string, size int, mode os.FileMode) {
@@ -82,7 +84,7 @@ func assetFileExistHasSizeAndPerm(t *testing.T, path string, size int, mode os.F
 	}
 }
 
-func mustCreateFile(t *testing.T, path string, size int, mode os.FileMode) {
+func mustCreateFile(t *testing.T, path string, size int, mode os.FileMode) os.FileMode {
 	t.Helper()
 	var buff bytes.Buffer
 
@@ -90,8 +92,11 @@ func mustCreateFile(t *testing.T, path string, size int, mode os.FileMode) {
 		b := byte(rand.Int31n(256))
 		buff.Write([]byte{b})
 	}
-	err := ioutil.WriteFile(path, buff.Bytes(), mode)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(path, buff.Bytes(), mode))
+	// Windows doesn't preserve the full FileMode, so we check the value that was
+	// actually persisted by the OS and return it here so we can assert that it
+	// remains unchanged later.
+	fi, err := os.Stat(path)
+	require.NoError(t, err)
+	return fi.Mode()
 }

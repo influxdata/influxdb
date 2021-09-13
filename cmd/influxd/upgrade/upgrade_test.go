@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -178,7 +180,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	require.NoError(t, err)
 
 	defer os.RemoveAll(tmpdir)
-	err = testutil.Unzip("testdata/v1db.zip", tmpdir)
+	err = testutil.Unzip(filepath.Join("testdata", "v1db.zip"), tmpdir)
 	require.NoError(t, err)
 
 	v1ConfigPath := filepath.Join(tmpdir, "v1.conf")
@@ -186,18 +188,24 @@ func TestUpgradeRealDB(t *testing.T) {
 	require.NoError(t, err)
 	defer v1Config.Close()
 
+	var pathsep = "/"
+	if runtime.GOOS == "windows" {
+		// Turn '\' into '\\' so it's escaped properly.
+		pathsep = "\\\\"
+		tmpdir = strings.ReplaceAll(tmpdir, "\\", "\\\\")
+	}
 	_, err = v1Config.WriteString(fmt.Sprintf(`reporting-disabled = true
 [meta]
-  dir = "%[1]s/v1db/meta"
+  dir = "%[1]s%[2]sv1db%[2]smeta"
 
 [data]
-  dir = "%[1]s/v1db/data"
-  wal-dir = "%[1]s/v1db/wal"
+  dir = "%[1]s%[2]sv1db%[2]sdata"
+  wal-dir = "%[1]s%[2]sv1db%[2]swal"
 
 [coordinator]
   max-concurrent-queries = 0
 `,
-		tmpdir))
+		tmpdir, pathsep))
 	require.NoError(t, err)
 	v1Config.Close()
 
