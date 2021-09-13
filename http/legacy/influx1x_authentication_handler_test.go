@@ -3,6 +3,7 @@ package legacy
 import (
 	"context"
 	"fmt"
+	"go.uber.org/zap/zaptest"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -175,7 +176,7 @@ func TestInflux1xAuthenticationHandler(t *testing.T) {
 					w.WriteHeader(http.StatusOK)
 				})
 
-				h = NewInflux1xAuthenticationHandler(next, auth, kithttp.ErrorHandler(0))
+				h = NewInflux1xAuthenticationHandler(next, auth, kithttp.NewErrorHandler(zaptest.NewLogger(t)))
 			}
 
 			w := httptest.NewRecorder()

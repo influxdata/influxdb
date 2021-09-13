@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"go.uber.org/zap/zaptest"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -117,7 +118,7 @@ func TestRequireOperPermissions(t *testing.T) {
 			r = r.WithContext(ctx)
 
 			h := BackupHandler{
-				HTTPErrorHandler: kithttp.ErrorHandler(0),
+				HTTPErrorHandler: kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 			}
 			h.requireOperPermissions(next).ServeHTTP(rr, r)
 			rs := rr.Result()

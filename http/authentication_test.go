@@ -210,7 +210,7 @@ func TestAuthenticationHandler(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			h := platformhttp.NewAuthenticationHandler(zaptest.NewLogger(t), kithttp.ErrorHandler(0))
+			h := platformhttp.NewAuthenticationHandler(zaptest.NewLogger(t), kithttp.NewErrorHandler(zaptest.NewLogger(t)))
 			h.AuthorizationService = tt.fields.AuthorizationService
 			h.SessionService = tt.fields.SessionService
 			h.UserService = &mock.UserService{
@@ -377,7 +377,7 @@ func TestAuthenticationHandler_NoAuthRoutes(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			h := platformhttp.NewAuthenticationHandler(zaptest.NewLogger(t), kithttp.ErrorHandler(0))
+			h := platformhttp.NewAuthenticationHandler(zaptest.NewLogger(t), kithttp.NewErrorHandler(zaptest.NewLogger(t)))
 			h.AuthorizationService = mock.NewAuthorizationService()
 			h.SessionService = mock.NewSessionService()
 			h.Handler = handler

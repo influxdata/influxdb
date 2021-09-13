@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go.uber.org/zap"
 	"io"
 	"mime"
 	"net/http"
@@ -15,7 +16,13 @@ import (
 )
 
 // ErrorHandler is the error handler in http package.
-type ErrorHandler int
+type ErrorHandler struct {
+	logger *zap.Logger
+}
+
+func NewErrorHandler(logger *zap.Logger) ErrorHandler{
+	return ErrorHandler{logger: logger}
+}
 
 // HandleHTTPError encodes err with the appropriate status code and format,
 // sets the X-Platform-Error-Code headers on the response.
@@ -27,7 +34,13 @@ func (h ErrorHandler) HandleHTTPError(ctx context.Context, err error, w http.Res
 	}
 
 	code := errors2.ErrorCode(err)
-	msg := err.Error()
+	var msg string
+	if _, ok := err.(*errors2.Error); ok {
+		msg = err.Error()
+	} else {
+		msg = "An internal error has occurred - check server logs"
+		h.logger.Warn("internal error not returned to client", zap.Error(err))
+	}
 
 	WriteErrorResponse(ctx, w, code, msg)
 }

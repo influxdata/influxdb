@@ -96,7 +96,7 @@ func TestWriteHandler_BucketAndMappingExistsDefaultRP(t *testing.T) {
 	r.URL.RawQuery = params.Encode()
 
 	handler := NewWriterHandler(&PointsWriterBackend{
-		HTTPErrorHandler:   DefaultErrorHandler,
+		HTTPErrorHandler:   kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 		Logger:             zaptest.NewLogger(t),
 		BucketService:      bucketService,
 		DBRPMappingService: dbrp.NewAuthorizedService(dbrpMappingSvc),
@@ -177,7 +177,7 @@ func TestWriteHandler_BucketAndMappingExistsSpecificRP(t *testing.T) {
 	r.URL.RawQuery = params.Encode()
 
 	handler := NewWriterHandler(&PointsWriterBackend{
-		HTTPErrorHandler:   DefaultErrorHandler,
+		HTTPErrorHandler:   kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 		Logger:             zaptest.NewLogger(t),
 		BucketService:      bucketService,
 		DBRPMappingService: dbrp.NewAuthorizedService(dbrpMappingSvc),
@@ -259,7 +259,7 @@ func TestWriteHandler_PartialWrite(t *testing.T) {
 	r.URL.RawQuery = params.Encode()
 
 	handler := NewWriterHandler(&PointsWriterBackend{
-		HTTPErrorHandler:   DefaultErrorHandler,
+		HTTPErrorHandler:   kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 		Logger:             zaptest.NewLogger(t),
 		BucketService:      bucketService,
 		DBRPMappingService: dbrp.NewAuthorizedService(dbrpMappingSvc),
@@ -334,7 +334,7 @@ func TestWriteHandler_BucketAndMappingExistsNoPermissions(t *testing.T) {
 	r.URL.RawQuery = params.Encode()
 
 	handler := NewWriterHandler(&PointsWriterBackend{
-		HTTPErrorHandler:   DefaultErrorHandler,
+		HTTPErrorHandler:   kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 		Logger:             zaptest.NewLogger(t),
 		BucketService:      bucketService,
 		DBRPMappingService: dbrp.NewAuthorizedService(dbrpMappingSvc),
@@ -404,7 +404,7 @@ func TestWriteHandler_MappingNotExists(t *testing.T) {
 	r.URL.RawQuery = params.Encode()
 
 	handler := NewWriterHandler(&PointsWriterBackend{
-		HTTPErrorHandler:   DefaultErrorHandler,
+		HTTPErrorHandler:   kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 		Logger:             zaptest.NewLogger(t),
 		BucketService:      bucketService,
 		DBRPMappingService: dbrp.NewAuthorizedService(dbrpMappingSvc),
@@ -416,8 +416,6 @@ func TestWriteHandler_MappingNotExists(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Equal(t, `{"code":"not found","message":"unable to find DBRP"}`, w.Body.String())
 }
-
-var DefaultErrorHandler = kithttp.ErrorHandler(0)
 
 func parseLineProtocol(t *testing.T, line string) []models.Point {
 	t.Helper()

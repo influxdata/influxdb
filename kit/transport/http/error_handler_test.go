@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"go.uber.org/zap/zaptest"
 	"net/http/httptest"
 	"testing"
 
@@ -16,7 +17,7 @@ func TestEncodeError(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	kithttp.ErrorHandler(0).HandleHTTPError(ctx, nil, w)
+	kithttp.NewErrorHandler(zaptest.NewLogger(t)).HandleHTTPError(ctx, nil, w)
 
 	if w.Code != 200 {
 		t.Errorf("expected status code 200, got: %d", w.Code)
@@ -33,7 +34,7 @@ func TestEncodeErrorWithError(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	kithttp.ErrorHandler(0).HandleHTTPError(ctx, err, w)
+	kithttp.NewErrorHandler(zaptest.NewLogger(t)).HandleHTTPError(ctx, err, w)
 
 	if w.Code != 500 {
 		t.Errorf("expected status code 500, got: %d", w.Code)

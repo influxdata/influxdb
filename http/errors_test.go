@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"go.uber.org/zap/zaptest"
 	"io"
 	"net/http/httptest"
 	"testing"
@@ -23,7 +24,7 @@ func TestCheckError(t *testing.T) {
 		{
 			name: "platform error",
 			write: func(w *httptest.ResponseRecorder) {
-				h := kithttp.ErrorHandler(0)
+				h := kithttp.NewErrorHandler(zaptest.NewLogger(t))
 				err := &errors.Error{
 					Msg:  "expected",
 					Code: errors.EInvalid,

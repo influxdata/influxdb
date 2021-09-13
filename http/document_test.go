@@ -131,7 +131,7 @@ func TestService_handleGetDocuments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			documentBackend := NewMockDocumentBackend(t)
-			documentBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
+			documentBackend.HTTPErrorHandler = kithttp.NewErrorHandler(zaptest.NewLogger(t))
 			documentBackend.DocumentService = tt.fields.DocumentService
 			h := NewDocumentHandler(documentBackend)
 

@@ -381,7 +381,7 @@ func TestDelete(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deleteBackend := NewMockDeleteBackend(t)
-			deleteBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
+			deleteBackend.HTTPErrorHandler = kithttp.NewErrorHandler(zaptest.NewLogger(t))
 			deleteBackend.DeleteService = tt.fields.DeleteService
 			deleteBackend.OrganizationService = tt.fields.OrganizationService
 			deleteBackend.BucketService = tt.fields.BucketService

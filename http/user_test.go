@@ -26,7 +26,7 @@ func NewMockUserBackend(t *testing.T) *UserBackend {
 		UserService:             mock.NewUserService(),
 		UserOperationLogService: mock.NewUserOperationLogService(),
 		PasswordsService:        mock.NewPasswordsService(),
-		HTTPErrorHandler:        kithttp.ErrorHandler(0),
+		HTTPErrorHandler:        kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 	}
 }
 
@@ -46,7 +46,7 @@ func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserS
 	}
 
 	userBackend := NewMockUserBackend(t)
-	userBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
+	userBackend.HTTPErrorHandler = kithttp.NewErrorHandler(zaptest.NewLogger(t))
 	userBackend.UserService = tenantService
 	handler := NewUserHandler(zaptest.NewLogger(t), userBackend)
 	server := httptest.NewServer(handler)

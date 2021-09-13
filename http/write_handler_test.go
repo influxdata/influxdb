@@ -389,7 +389,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 			}
 
 			b := &APIBackend{
-				HTTPErrorHandler:    DefaultErrorHandler,
+				HTTPErrorHandler:    kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 				Logger:              zaptest.NewLogger(t),
 				OrganizationService: orgs,
 				BucketService:       buckets,
@@ -422,8 +422,6 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 		})
 	}
 }
-
-var DefaultErrorHandler = kithttp.ErrorHandler(0)
 
 func bucketWritePermission(org, bucket string) *influxdb.Authorization {
 	oid := influxtesting.MustIDBase16(org)
