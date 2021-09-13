@@ -670,12 +670,13 @@ func (s *Store) ReadSeriesCardinality(ctx context.Context, req *datatypes.ReadSe
 		}
 
 		if found := reads.HasFieldValueKey(expr); found {
-			return nil, errors.New("field values unsupported")
+			return nil, errors.New("filtering on field keys is not supported")
 		}
 		expr = influxql.Reduce(influxql.CloneExpr(expr), nil)
 		if reads.IsTrueBooleanLiteral(expr) {
 			expr = nil
 		}
+
 	}
 
 	shardsEntirelyInTimeRange, shardsPartiallyInTimeRange := groupShardsByTime(sgs, start, end)
