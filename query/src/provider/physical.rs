@@ -114,7 +114,9 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
         let selection_cols = restrict_selection(selection_cols, &chunk_table_schema);
         let selection = Selection::Some(&selection_cols);
 
-        let stream = chunk.read_filter(&self.predicate, selection).map_err(|e| {
+        let del_preds= chunk.delete_predicates();
+
+        let stream = chunk.read_filter(&self.predicate, selection, del_preds).map_err(|e| {
             DataFusionError::Execution(format!(
                 "Error creating scan for table {} chunk {}: {}",
                 self.table_name,

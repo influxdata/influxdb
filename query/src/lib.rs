@@ -49,7 +49,7 @@ pub trait QueryChunkMeta: Sized {
     fn schema(&self) -> Arc<Schema>;
 
     // return a reference to delete predicates of the chunk
-    fn delete_predicates(&self) -> Arc<Vec<Predicate>>;
+    fn delete_predicates(&self) -> &Vec<Predicate>;
 }
 
 /// A `Database` is the main trait implemented by the IOx subsystems
@@ -140,6 +140,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
         &self,
         predicate: &Predicate,
         selection: Selection<'_>,
+        delete_predicates: &Vec<Predicate>,
     ) -> Result<SendableRecordBatchStream, Self::Error>;
 
     /// Returns true if data of this chunk is sorted
@@ -165,7 +166,7 @@ where
         self.as_ref().schema()
     }
 
-    fn delete_predicates(&self) -> Arc<Vec<Predicate>> {
+    fn delete_predicates(&self) -> &Vec<Predicate> {
         self.as_ref().delete_predicates()
     }
 }

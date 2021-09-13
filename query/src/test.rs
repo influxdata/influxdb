@@ -171,6 +171,9 @@ pub struct TestChunk {
 
     /// Return value for apply_predicate, if desired
     predicate_match: Option<PredicateMatch>,
+
+    /// Copy of delete predicates passed
+    delete_predicates: Vec<Predicate>,
 }
 
 /// Implements a method for adding a column with default stats
@@ -244,6 +247,7 @@ impl TestChunk {
             table_data: Default::default(),
             saved_error: Default::default(),
             predicate_match: Default::default(),
+            delete_predicates: Default::default(),
         }
     }
 
@@ -814,6 +818,7 @@ impl QueryChunk for TestChunk {
         &self,
         predicate: &Predicate,
         _selection: Selection<'_>,
+        _delete_predicates: &Vec<Predicate>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         self.check_error()?;
 
@@ -899,12 +904,8 @@ impl QueryChunkMeta for TestChunk {
     }
 
     // return a reference to delete predicates of the chunk
-    fn delete_predicates(&self) -> Arc<Vec<Predicate>> {
-        // Since this is the test chunk and its focus is not (yet) on
-        // deletion, return an empty delete predicate now which means nothing is deleted
-        // from this test chunk
-        let pred: Vec<Predicate> = vec![];
-        Arc::new(pred)
+    fn delete_predicates(&self) -> &Vec<Predicate> {
+        &self.delete_predicates
     }
 }
 
@@ -914,8 +915,9 @@ pub async fn raw_data(chunks: &[Arc<TestChunk>]) -> Vec<RecordBatch> {
     for c in chunks {
         let pred = Predicate::default();
         let selection = Selection::All;
+        let delete_predicates: Vec<Predicate> = vec!{};
         let mut stream = c
-            .read_filter(&pred, selection)
+            .read_filter(&pred, selection, &delete_predicates)
             .expect("Error in read_filter");
         while let Some(b) = stream.next().await {
             let b = b.expect("Error in stream");
