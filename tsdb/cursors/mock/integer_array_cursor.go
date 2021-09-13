@@ -5,9 +5,10 @@
 package mock
 
 import (
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	cursors "github.com/influxdata/influxdb/v2/tsdb/cursors"
-	reflect "reflect"
 )
 
 // MockIntegerArrayCursor is a mock of IntegerArrayCursor interface

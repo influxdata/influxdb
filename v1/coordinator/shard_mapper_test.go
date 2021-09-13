@@ -2,7 +2,6 @@ package coordinator_test
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"reflect"
 	"testing"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/v2/dbrp/mocks"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/internal"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"

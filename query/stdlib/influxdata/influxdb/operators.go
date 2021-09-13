@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/values"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 )
 

@@ -9,10 +9,9 @@ import (
 	"io/ioutil"
 	"time"
 
+	io2 "github.com/influxdata/influxdb/v2/kit/io"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
-	io2 "github.com/influxdata/influxdb/v2/kit/io"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/opentracing/opentracing-go"

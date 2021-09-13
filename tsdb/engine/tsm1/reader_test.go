@@ -1931,11 +1931,11 @@ func createTestTSM(t *testing.T) (dir string, name string) {
 	}()
 
 	var data = map[string][]Value{
-		"float":  []Value{NewValue(1, 1.0)},
-		"int":    []Value{NewValue(1, int64(1))},
-		"uint":   []Value{NewValue(1, ^uint64(0))},
-		"bool":   []Value{NewValue(1, true)},
-		"string": []Value{NewValue(1, "foo")},
+		"float":  {NewValue(1, 1.0)},
+		"int":    {NewValue(1, int64(1))},
+		"uint":   {NewValue(1, ^uint64(0))},
+		"bool":   {NewValue(1, true)},
+		"string": {NewValue(1, "foo")},
 	}
 
 	keys := make([]string, 0, len(data))

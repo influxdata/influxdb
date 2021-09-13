@@ -9,13 +9,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
-	"github.com/influxdata/influxdb/v2/v1/services/meta"
-
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"go.uber.org/zap"
 )
 

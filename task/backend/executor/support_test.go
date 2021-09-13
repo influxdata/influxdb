@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/lang"
@@ -18,6 +16,7 @@ import (
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/query"
 )
 

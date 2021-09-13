@@ -3,10 +3,10 @@ package prometheus_test
 import (
 	"context"
 	"errors"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
 	"github.com/influxdata/influxdb/v2/prometheus"

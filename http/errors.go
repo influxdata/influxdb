@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	khttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 )
 

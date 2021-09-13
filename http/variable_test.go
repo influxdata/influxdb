@@ -12,11 +12,10 @@ import (
 	"testing"
 	"time"
 
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -30,7 +29,7 @@ var faketime = time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)
 // NewMockVariableBackend returns a VariableBackend with mock services.
 func NewMockVariableBackend(t *testing.T) *VariableBackend {
 	return &VariableBackend{
-		HTTPErrorHandler: kithttp.ErrorHandler(0),
+		HTTPErrorHandler: kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 		log:              zaptest.NewLogger(t),
 		VariableService:  mock.NewVariableService(),
 		LabelService:     mock.NewLabelService(),
@@ -302,7 +301,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variableBackend := NewMockVariableBackend(t)
-			variableBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
+			variableBackend.HTTPErrorHandler = kithttp.NewErrorHandler(zaptest.NewLogger(t))
 			variableBackend.LabelService = tt.fields.LabelService
 			variableBackend.VariableService = tt.fields.VariableService
 			h := NewVariableHandler(zaptest.NewLogger(t), variableBackend)
@@ -434,7 +433,7 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variableBackend := NewMockVariableBackend(t)
-			variableBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
+			variableBackend.HTTPErrorHandler = kithttp.NewErrorHandler(zaptest.NewLogger(t))
 			variableBackend.VariableService = tt.fields.VariableService
 			h := NewVariableHandler(zaptest.NewLogger(t), variableBackend)
 			r := httptest.NewRequest("GET", "http://howdy.tld", nil)
@@ -573,7 +572,7 @@ func TestVariableService_handlePostVariable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variableBackend := NewMockVariableBackend(t)
-			variableBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
+			variableBackend.HTTPErrorHandler = kithttp.NewErrorHandler(zaptest.NewLogger(t))
 			variableBackend.VariableService = tt.fields.VariableService
 			h := NewVariableHandler(zaptest.NewLogger(t), variableBackend)
 			r := httptest.NewRequest("GET", "http://howdy.tld", bytes.NewReader([]byte(tt.args.variable)))
@@ -667,7 +666,7 @@ func TestVariableService_handlePutVariable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variableBackend := NewMockVariableBackend(t)
-			variableBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
+			variableBackend.HTTPErrorHandler = kithttp.NewErrorHandler(zaptest.NewLogger(t))
 			variableBackend.VariableService = tt.fields.VariableService
 			h := NewVariableHandler(zaptest.NewLogger(t), variableBackend)
 			r := httptest.NewRequest("GET", "http://howdy.tld", bytes.NewReader([]byte(tt.args.variable)))
@@ -776,7 +775,7 @@ func TestVariableService_handlePatchVariable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variableBackend := NewMockVariableBackend(t)
-			variableBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
+			variableBackend.HTTPErrorHandler = kithttp.NewErrorHandler(zaptest.NewLogger(t))
 			variableBackend.VariableService = tt.fields.VariableService
 			h := NewVariableHandler(zaptest.NewLogger(t), variableBackend)
 			r := httptest.NewRequest("GET", "http://howdy.tld", bytes.NewReader([]byte(tt.args.update)))
@@ -870,7 +869,7 @@ func TestVariableService_handleDeleteVariable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variableBackend := NewMockVariableBackend(t)
-			variableBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
+			variableBackend.HTTPErrorHandler = kithttp.NewErrorHandler(zaptest.NewLogger(t))
 			variableBackend.VariableService = tt.fields.VariableService
 			h := NewVariableHandler(zaptest.NewLogger(t), variableBackend)
 			r := httptest.NewRequest("GET", "http://howdy.tld", nil)
@@ -963,7 +962,7 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variableBackend := NewMockVariableBackend(t)
-			variableBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
+			variableBackend.HTTPErrorHandler = kithttp.NewErrorHandler(zaptest.NewLogger(t))
 			variableBackend.LabelService = tt.fields.LabelService
 			h := NewVariableHandler(zaptest.NewLogger(t), variableBackend)
 

@@ -9,10 +9,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/gogo/protobuf/proto"
 	internal "github.com/influxdata/influxdb/v2/influxql/query/internal"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxql"
 )
 

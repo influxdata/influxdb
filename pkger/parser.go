@@ -16,11 +16,10 @@ import (
 	"strings"
 	"time"
 
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/parser"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"github.com/influxdata/influxdb/v2/task/options"
 	"gopkg.in/yaml.v3"

@@ -2,18 +2,17 @@ package pkger_test
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
-	"go.uber.org/zap/zaptest"
-
 	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestStoreKV(t *testing.T) {

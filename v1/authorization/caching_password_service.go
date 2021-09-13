@@ -8,9 +8,8 @@ import (
 	"io"
 	"sync"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // An implementation of influxdb.PasswordsService that will perform

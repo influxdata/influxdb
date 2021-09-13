@@ -6,7 +6,6 @@ import (
 	"time"
 
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 

@@ -3,10 +3,9 @@ package jsonweb
 import (
 	"errors"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/golang-jwt/jwt"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 const kind = "jwt"

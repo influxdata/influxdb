@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux"
@@ -21,6 +19,7 @@ import (
 	"github.com/influxdata/flux/lang"
 	platform "github.com/influxdata/influxdb/v2"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
 )

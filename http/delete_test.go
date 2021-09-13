@@ -10,14 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"github.com/influxdata/influxdb/v2/models"
-
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/models"
 	influxtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -381,7 +380,7 @@ func TestDelete(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deleteBackend := NewMockDeleteBackend(t)
-			deleteBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
+			deleteBackend.HTTPErrorHandler = kithttp.NewErrorHandler(zaptest.NewLogger(t))
 			deleteBackend.DeleteService = tt.fields.DeleteService
 			deleteBackend.OrganizationService = tt.fields.OrganizationService
 			deleteBackend.BucketService = tt.fields.BucketService

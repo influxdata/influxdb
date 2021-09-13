@@ -4,10 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
-	"github.com/influxdata/influxdb/v2"
 )
 
 // types of endpoints.

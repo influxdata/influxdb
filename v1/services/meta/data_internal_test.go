@@ -2,9 +2,8 @@ package meta
 
 import (
 	"sort"
-	"time"
-
 	"testing"
+	"time"
 )
 
 func TestShardGroupSort(t *testing.T) {

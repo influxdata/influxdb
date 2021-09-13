@@ -7,10 +7,9 @@ import (
 	"reflect"
 	"testing"
 
+	platform "github.com/influxdata/influxdb/v2"
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
-	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 )
 

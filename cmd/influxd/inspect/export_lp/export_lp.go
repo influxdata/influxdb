@@ -13,9 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2/kit/cli"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/escape"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"

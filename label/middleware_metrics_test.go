@@ -6,9 +6,8 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/label"
-	"go.uber.org/zap"
-
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
+	"go.uber.org/zap"
 )
 
 func TestLabelMetricsService(t *testing.T) {

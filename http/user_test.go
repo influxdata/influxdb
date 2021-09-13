@@ -8,9 +8,8 @@ import (
 	"path"
 	"testing"
 
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
@@ -26,7 +25,7 @@ func NewMockUserBackend(t *testing.T) *UserBackend {
 		UserService:             mock.NewUserService(),
 		UserOperationLogService: mock.NewUserOperationLogService(),
 		PasswordsService:        mock.NewPasswordsService(),
-		HTTPErrorHandler:        kithttp.ErrorHandler(0),
+		HTTPErrorHandler:        kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 	}
 }
 
@@ -46,7 +45,7 @@ func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserS
 	}
 
 	userBackend := NewMockUserBackend(t)
-	userBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
+	userBackend.HTTPErrorHandler = kithttp.NewErrorHandler(zaptest.NewLogger(t))
 	userBackend.UserService = tenantService
 	handler := NewUserHandler(zaptest.NewLogger(t), userBackend)
 	server := httptest.NewServer(handler)

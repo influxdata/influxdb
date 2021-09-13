@@ -24,8 +24,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute/table"
@@ -34,6 +32,7 @@ import (
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"

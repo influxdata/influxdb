@@ -11,13 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/dbrp"
 	"github.com/influxdata/influxdb/v2/http/mocks"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/snowflake"
@@ -96,7 +95,7 @@ func TestWriteHandler_BucketAndMappingExistsDefaultRP(t *testing.T) {
 	r.URL.RawQuery = params.Encode()
 
 	handler := NewWriterHandler(&PointsWriterBackend{
-		HTTPErrorHandler:   DefaultErrorHandler,
+		HTTPErrorHandler:   kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 		Logger:             zaptest.NewLogger(t),
 		BucketService:      bucketService,
 		DBRPMappingService: dbrp.NewAuthorizedService(dbrpMappingSvc),
@@ -177,7 +176,7 @@ func TestWriteHandler_BucketAndMappingExistsSpecificRP(t *testing.T) {
 	r.URL.RawQuery = params.Encode()
 
 	handler := NewWriterHandler(&PointsWriterBackend{
-		HTTPErrorHandler:   DefaultErrorHandler,
+		HTTPErrorHandler:   kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 		Logger:             zaptest.NewLogger(t),
 		BucketService:      bucketService,
 		DBRPMappingService: dbrp.NewAuthorizedService(dbrpMappingSvc),
@@ -259,7 +258,7 @@ func TestWriteHandler_PartialWrite(t *testing.T) {
 	r.URL.RawQuery = params.Encode()
 
 	handler := NewWriterHandler(&PointsWriterBackend{
-		HTTPErrorHandler:   DefaultErrorHandler,
+		HTTPErrorHandler:   kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 		Logger:             zaptest.NewLogger(t),
 		BucketService:      bucketService,
 		DBRPMappingService: dbrp.NewAuthorizedService(dbrpMappingSvc),
@@ -334,7 +333,7 @@ func TestWriteHandler_BucketAndMappingExistsNoPermissions(t *testing.T) {
 	r.URL.RawQuery = params.Encode()
 
 	handler := NewWriterHandler(&PointsWriterBackend{
-		HTTPErrorHandler:   DefaultErrorHandler,
+		HTTPErrorHandler:   kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 		Logger:             zaptest.NewLogger(t),
 		BucketService:      bucketService,
 		DBRPMappingService: dbrp.NewAuthorizedService(dbrpMappingSvc),
@@ -404,7 +403,7 @@ func TestWriteHandler_MappingNotExists(t *testing.T) {
 	r.URL.RawQuery = params.Encode()
 
 	handler := NewWriterHandler(&PointsWriterBackend{
-		HTTPErrorHandler:   DefaultErrorHandler,
+		HTTPErrorHandler:   kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 		Logger:             zaptest.NewLogger(t),
 		BucketService:      bucketService,
 		DBRPMappingService: dbrp.NewAuthorizedService(dbrpMappingSvc),
@@ -416,8 +415,6 @@ func TestWriteHandler_MappingNotExists(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Equal(t, `{"code":"not found","message":"unable to find DBRP"}`, w.Body.String())
 }
-
-var DefaultErrorHandler = kithttp.ErrorHandler(0)
 
 func parseLineProtocol(t *testing.T, line string) []models.Point {
 	t.Helper()

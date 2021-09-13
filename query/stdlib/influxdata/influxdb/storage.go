@@ -4,7 +4,6 @@ import (
 	"context"
 
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/pkg/errors"

@@ -16,7 +16,6 @@ import (
 	sqliteMigrations "github.com/influxdata/influxdb/v2/sqlite/migrations"
 	"github.com/jmoiron/sqlx"
 	"github.com/mattn/go-sqlite3"
-
 	"go.uber.org/zap"
 )
 

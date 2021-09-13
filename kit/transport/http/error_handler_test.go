@@ -3,12 +3,13 @@ package http_test
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestEncodeError(t *testing.T) {
@@ -16,7 +17,7 @@ func TestEncodeError(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	kithttp.ErrorHandler(0).HandleHTTPError(ctx, nil, w)
+	kithttp.NewErrorHandler(zaptest.NewLogger(t)).HandleHTTPError(ctx, nil, w)
 
 	if w.Code != 200 {
 		t.Errorf("expected status code 200, got: %d", w.Code)
@@ -33,7 +34,7 @@ func TestEncodeErrorWithError(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	kithttp.ErrorHandler(0).HandleHTTPError(ctx, err, w)
+	kithttp.NewErrorHandler(zaptest.NewLogger(t)).HandleHTTPError(ctx, err, w)
 
 	if w.Code != 500 {
 		t.Errorf("expected status code 500, got: %d", w.Code)

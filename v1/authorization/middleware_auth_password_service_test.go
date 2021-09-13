@@ -2,12 +2,12 @@ package authorization_test
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	itest "github.com/influxdata/influxdb/v2/testing"
 	"github.com/influxdata/influxdb/v2/v1/authorization"
 	"github.com/influxdata/influxdb/v2/v1/authorization/mocks"

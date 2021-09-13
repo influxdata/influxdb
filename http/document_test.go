@@ -7,11 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxtesting "github.com/influxdata/influxdb/v2/testing"
@@ -131,7 +130,7 @@ func TestService_handleGetDocuments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			documentBackend := NewMockDocumentBackend(t)
-			documentBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
+			documentBackend.HTTPErrorHandler = kithttp.NewErrorHandler(zaptest.NewLogger(t))
 			documentBackend.DocumentService = tt.fields.DocumentService
 			h := NewDocumentHandler(documentBackend)
 

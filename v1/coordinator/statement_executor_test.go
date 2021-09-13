@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"
@@ -21,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/v2/influxql/control"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/internal"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/models"
 	itesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/influxdata/influxdb/v2/tsdb"

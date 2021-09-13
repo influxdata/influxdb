@@ -8,13 +8,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/influxql"
 	imock "github.com/influxdata/influxdb/v2/influxql/mock"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"go.uber.org/zap/zaptest"
@@ -228,7 +227,7 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &InfluxQLBackend{
-				HTTPErrorHandler:      kithttp.ErrorHandler(0),
+				HTTPErrorHandler:      kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 				OrganizationService:   tt.fields.OrganizationService,
 				InfluxqldQueryService: tt.fields.ProxyQueryService,
 			}

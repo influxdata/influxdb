@@ -2,11 +2,11 @@ package context_test
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 func TestGetAuthorizer(t *testing.T) {

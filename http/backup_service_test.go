@@ -15,6 +15,7 @@ import (
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestBackupMetaService(t *testing.T) {
@@ -117,7 +118,7 @@ func TestRequireOperPermissions(t *testing.T) {
 			r = r.WithContext(ctx)
 
 			h := BackupHandler{
-				HTTPErrorHandler: kithttp.ErrorHandler(0),
+				HTTPErrorHandler: kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 			}
 			h.requireOperPermissions(next).ServeHTTP(rr, r)
 			rs := rr.Result()

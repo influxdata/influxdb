@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
-	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/v2/telegraf/plugins"
 	"github.com/influxdata/influxdb/v2/telegraf/plugins/inputs"
 	"github.com/influxdata/influxdb/v2/telegraf/plugins/outputs"

@@ -5,17 +5,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
-
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBoltOnboardingService(t *testing.T) {

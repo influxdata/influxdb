@@ -1,10 +1,10 @@
 package influxdb_test
 
 import (
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	influxtest "github.com/influxdata/influxdb/v2/testing"
 )
 

@@ -76,8 +76,12 @@ import (
 	telegrafservice "github.com/influxdata/influxdb/v2/telegraf/service"
 	"github.com/influxdata/influxdb/v2/telemetry"
 	"github.com/influxdata/influxdb/v2/tenant"
-	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1" // needed for tsm1
-	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"  // needed for tsi1
+
+	// needed for tsm1
+	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+
+	// needed for tsi1
+	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	authv1 "github.com/influxdata/influxdb/v2/v1/authorization"
 	iqlcoordinator "github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
@@ -658,10 +662,11 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	ts.BucketService = replications.NewBucketService(
 		m.log.With(zap.String("service", "replication_buckets")), ts.BucketService, replicationSvc)
 
+	errorHandler := kithttp.NewErrorHandler(m.log.With(zap.String("handler", "error_logger")))
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           opts.AssetsPath,
 		UIDisabled:           opts.UIDisabled,
-		HTTPErrorHandler:     kithttp.ErrorHandler(0),
+		HTTPErrorHandler:     errorHandler,
 		Logger:               m.log,
 		FluxLogEnabled:       opts.FluxLogEnabled,
 		SessionRenewDisabled: opts.SessionRenewDisabled,
@@ -720,7 +725,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		WriteEventRecorder:              infprom.NewEventRecorder("write"),
 		QueryEventRecorder:              infprom.NewEventRecorder("query"),
 		Flagger:                         m.flagger,
-		FlagsHandler:                    feature.NewFlagsHandler(kithttp.ErrorHandler(0), feature.ByKey),
+		FlagsHandler:                    feature.NewFlagsHandler(errorHandler, feature.ByKey),
 	}
 
 	m.reg.MustRegister(m.apibackend.PrometheusCollectors()...)

@@ -7,17 +7,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/flux/ast/astutil"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/stretchr/testify/require"
-
 	"github.com/andreyvit/diff"
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/astutil"
 	"github.com/influxdata/flux/parser"
 	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query/influxql"
 	platformtesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/stretchr/testify/require"
 )
 
 var dbrpMappingSvc = &mock.DBRPMappingService{}

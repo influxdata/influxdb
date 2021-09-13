@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	influxdb "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
-	influxdb "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/telegraf"

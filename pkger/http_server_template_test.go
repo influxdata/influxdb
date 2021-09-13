@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -16,10 +15,10 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi"
-	pcontext "github.com/influxdata/influxdb/v2/context"
-	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
-
 	"github.com/influxdata/influxdb/v2"
+	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
 	"github.com/influxdata/influxdb/v2/pkger"

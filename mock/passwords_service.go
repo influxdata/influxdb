@@ -6,9 +6,10 @@ package mock
 
 import (
 	context "context"
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2/kit/platform"
-	reflect "reflect"
 )
 
 // MockPasswordsService is a mock of PasswordsService interface

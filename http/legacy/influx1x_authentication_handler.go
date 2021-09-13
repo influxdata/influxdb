@@ -7,10 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/influxdb/v2"
 	platcontext "github.com/influxdata/influxdb/v2/context"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/opentracing/opentracing-go"
 )
 
