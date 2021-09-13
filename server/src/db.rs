@@ -52,6 +52,7 @@ use write_buffer::{
 pub(crate) use crate::db::chunk::DbChunk;
 use crate::{
     db::{
+        self,
         access::QueryCatalogAccess,
         catalog::{
             chunk::{CatalogChunk, ChunkStage},
@@ -127,6 +128,9 @@ pub enum Error {
         table_name: String,
         source: CatalogError,
     },
+
+    #[snafu(display("Internal error while adding predicate predicate to chunk: {}", source))]
+    AddDeletePredicateError { source: db::catalog::chunk::Error },
 
     #[snafu(display(
         "Storing sequenced entry failed with the following error(s), and possibly more: {}",
@@ -655,9 +659,11 @@ impl Db {
             let partition = partition.write();
             let chunks = partition.chunks();
             for chunk in chunks {
-                // NGA todo: verify where to close MUB before adding the predicate
+                // save the delete predicate in the chunk
                 let mut chunk = chunk.write();
-                chunk.add_delete_predicate(delete_predicate);
+                chunk
+                    .add_delete_predicate(delete_predicate)
+                    .context(AddDeletePredicateError)?;
             }
         }
 

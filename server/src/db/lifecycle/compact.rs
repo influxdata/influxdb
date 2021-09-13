@@ -10,7 +10,10 @@ use chrono::{DateTime, Utc};
 use data_types::job::Job;
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
-use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
+use query::{
+    compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, predicate::Predicate,
+    QueryChunkMeta,
+};
 use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
@@ -39,6 +42,7 @@ pub(crate) fn compact_chunks(
     let mut input_rows = 0;
     let mut time_of_first_write: Option<DateTime<Utc>> = None;
     let mut time_of_last_write: Option<DateTime<Utc>> = None;
+    let mut delete_predicates: Vec<Predicate> = vec![];
     let query_chunks = chunks
         .into_iter()
         .map(|mut chunk| {
@@ -57,6 +61,9 @@ pub(crate) fn compact_chunks(
             time_of_last_write = time_of_last_write
                 .map(|prev_last| prev_last.max(candidate_last))
                 .or(Some(candidate_last));
+
+            let mut preds = (*chunk.delete_predicates()).clone();
+            delete_predicates.append(&mut preds);
 
             chunk.set_compacting(&registration)?;
             Ok(DbChunk::snapshot(&*chunk))
@@ -101,7 +108,13 @@ pub(crate) fn compact_chunks(
             for id in chunk_ids {
                 partition.force_drop_chunk(id)
             }
-            partition.create_rub_chunk(rb_chunk, time_of_first_write, time_of_last_write, schema)
+            partition.create_rub_chunk(
+                rb_chunk,
+                time_of_first_write,
+                time_of_last_write,
+                schema,
+                Arc::new(delete_predicates),
+            )
         };
 
         let guard = new_chunk.read();
