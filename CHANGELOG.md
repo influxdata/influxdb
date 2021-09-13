@@ -5,6 +5,7 @@ v1.9.4 [unreleased]
 -	[#22011](https://github.com/influxdata/influxdb/pull/22011): feat: SHOW TAG VALUES should produce results from one specific RP
 -	[#22049](https://github.com/influxdata/influxdb/pull/22049): feat: add subscription buffer size usage metric
 -	[#22102](https://github.com/influxdata/influxdb/pull/22102): chore: update flux dependency to 0.124.0
+-	[#22376](https://github.com/influxdata/influxdb/pull/22376): build: upgrade flux to 0.127.3
 
 ### Bugfixes
 
@@ -23,7 +24,10 @@ v1.9.4 [unreleased]
 -	[#22289](https://github.com/influxdata/influxdb/pull/22289): fix: require database authorization to see continuous queries
 -	[#22294](https://github.com/influxdata/influxdb/pull/22294): fix: return correct count of ErrNotExecuted
 -	[#22341](https://github.com/influxdata/influxdb/pull/22341): fix: TSI logfile race
+-	[#22354](https://github.com/influxdata/influxdb/pull/22341): fix: correct error return shadowing
 -	[#22359](https://github.com/influxdata/influxdb/pull/22359): fix: flux error properly read by cloud
+-	[#22389](https://github.com/influxdata/influxdb/pull/22389): fix: discard excessive errors
+-	[#22250](https://github.com/influxdata/influxdb/pull/22250): fix: influxdb packages should depend on curl bc of use in systemd script
 
 v1.9.3 [unreleased]
 
