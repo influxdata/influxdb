@@ -2,9 +2,11 @@ package storage
 
 import (
 	"context"
+	"sort"
 
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/slices"
 	"github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb"
@@ -93,51 +95,27 @@ func newIndexSeriesCursorInfluxQLPred(ctx context.Context, predicate influxql.Ex
 		}
 	}
 
-	var mitr tsdb.MeasurementIterator
-	name, singleMeasurement := HasSingleMeasurementNoOR(p.measurementCond)
-	if singleMeasurement {
-		mitr = tsdb.NewMeasurementSliceIterator([][]byte{[]byte(name)})
-	}
-
 	sg := tsdb.Shards(shards)
-	p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{Measurements: mitr}, opt.Condition)
-	if p.sqry != nil && err == nil {
-		// Optimisation to check if request is only interested in results for a
-		// single measurement. In this case we can efficiently produce all known
-		// field keys from the collection of shards without having to go via
-		// the query engine.
-		if singleMeasurement {
-			fkeys := sg.FieldKeysByMeasurement([]byte(name))
-			if len(fkeys) == 0 {
-				goto CLEANUP
-			}
-
-			fields := make([]field, 0, len(fkeys))
-			for _, key := range fkeys {
-				fields = append(fields, field{n: key, nb: []byte(key)})
-			}
-			p.fields = map[string][]field{name: fields}
-			return p, nil
-		}
-
-		var mfkeys map[string][]string
-		mfkeys, err = sg.FieldKeysByPredicate(opt.Condition)
-		if err != nil {
-			goto CLEANUP
-		}
-
+	if mfkeys, err := sg.FieldKeysByPredicate(opt.Condition); err == nil {
 		p.fields = make(map[string][]field, len(mfkeys))
+		measurementNamesForFields := []string{}
 		for name, fkeys := range mfkeys {
 			fields := make([]field, 0, len(fkeys))
 			for _, key := range fkeys {
 				fields = append(fields, field{n: key, nb: []byte(key)})
 			}
 			p.fields[name] = fields
+			measurementNamesForFields = append(measurementNamesForFields, name)
 		}
-		return p, nil
+
+		sort.Strings(measurementNamesForFields)
+		mitr := tsdb.NewMeasurementSliceIterator(slices.StringsToBytes(measurementNamesForFields...))
+		p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{Measurements: mitr}, opt.Condition)
+		if p.sqry != nil && err == nil {
+			return p, nil
+		}
 	}
 
-CLEANUP:
 	p.Close()
 	return nil, err
 }

@@ -42,6 +42,7 @@ const (
 	statWritePointsOK      = "writePointsOk"
 	statWriteBytes         = "writeBytes"
 	statDiskBytes          = "diskBytes"
+	measurementKey         = "_name"
 )
 
 var (
@@ -1290,9 +1291,12 @@ func (a Shards) MeasurementNamesByPredicate(expr influxql.Expr) ([][]byte, error
 // FieldKeysByPredicate returns the field keys for series that match
 // the given predicate.
 func (a Shards) FieldKeysByPredicate(expr influxql.Expr) (map[string][]string, error) {
-	names, err := a.MeasurementNamesByPredicate(expr)
-	if err != nil {
-		return nil, err
+	names, ok := measurementOptimization(expr, measurementKey)
+	if !ok {
+		var err error
+		if names, err = a.MeasurementNamesByPredicate(expr); err != nil {
+			return nil, err
+		}
 	}
 
 	all := make(map[string][]string, len(names))
@@ -1300,6 +1304,134 @@ func (a Shards) FieldKeysByPredicate(expr influxql.Expr) (map[string][]string, e
 		all[string(name)] = a.FieldKeysByMeasurement(name)
 	}
 	return all, nil
+}
+
+// consecutiveAndChildren finds all child nodes of consecutive
+// influxql.BinaryExpr with AND operator nodes ("AND nodes") which are not
+// themselves AND nodes. This may be the root of the tree if the root of the
+// tree is not an AND node.
+type consecutiveAndChildren struct {
+	children []influxql.Node
+}
+
+func (v *consecutiveAndChildren) Visit(node influxql.Node) influxql.Visitor {
+	switch n := node.(type) {
+	case *influxql.BinaryExpr:
+		if n.Op == influxql.AND {
+			return v
+		}
+	case *influxql.ParenExpr:
+		// Parens are essentially a no-op and can be traversed through.
+		return v
+	}
+
+	// If this wasn't a BinaryExpr with an AND operator or a Paren, record this
+	// child node and stop the search for this branch.
+	v.children = append(v.children, node)
+	return nil
+}
+
+// orMeasurementTree determines if a tree (or subtree) represents a grouping of
+// exclusively measurement names OR'd together with EQ operators for the
+// measurements themselves. It collects the list of measurement names
+// encountered and records the validity of the tree.
+type orMeasurementTree struct {
+	measurementKey   string
+	measurementNames []string
+	valid            bool
+}
+
+func (v *orMeasurementTree) Visit(node influxql.Node) influxql.Visitor {
+	// Return early if this tree has already been invalidated - no reason to
+	// continue evaluating at that point.
+	if !v.valid {
+		return nil
+	}
+
+	switch n := node.(type) {
+	case *influxql.BinaryExpr:
+		// A BinaryExpr must have an operation of OR or EQ in a valid tree
+		if n.Op == influxql.OR {
+			return v
+		} else if n.Op == influxql.EQ {
+			// An EQ must be in the form of "v.measurementKey == measurementName" in a
+			// valid tree
+			if name, ok := measurementNameFromEqBinary(n, v.measurementKey); ok {
+				v.measurementNames = append(v.measurementNames, name)
+				// If a valid measurement key/value was found, there is no need to
+				// continue evaluating the VarRef/StringLiteral child nodes of this
+				// node.
+				return nil
+			}
+		}
+	case *influxql.ParenExpr:
+		// Parens are essentially a no-op and can be traversed through.
+		return v
+	}
+
+	// The the type switch didn't already return, this tree is invalid.
+	v.valid = false
+	return nil
+}
+
+func measurementOptimization(expr influxql.Expr, key string) ([][]byte, bool) {
+	// A measurement optimization is possible if the query contains a single group
+	// of one or more measurements (in the form of _measurement = measName,
+	// equality operator only) grouped together by OR operators, with the subtree
+	// containing the OR'd measurements accessible from root of the tree either
+	// directly (tree contains nothing but OR'd measurements) or by traversing AND
+	// binary expression nodes.
+
+	// Get a list of "candidate" measurement subtrees.
+	v := consecutiveAndChildren{}
+	influxql.Walk(&v, expr)
+	possibleSubtrees := v.children
+
+	// Evaluate the candidate subtrees to determine which measurement names they
+	// contain, and to see if they are valid for the optimization.
+	validSubtrees := []orMeasurementTree{}
+	for _, h := range possibleSubtrees {
+		t := orMeasurementTree{
+			measurementKey: key,
+			valid:          true,
+		}
+		influxql.Walk(&t, h)
+		if t.valid {
+			validSubtrees = append(validSubtrees, t)
+		}
+	}
+
+	// There must be exactly one valid measurement subtree for this optimization
+	// to be applied. Note: It may also be possible to have measurements in
+	// multiple subtrees, as long as there are no measurements in invalid
+	// subtrees, by determining an intersection of the measurement names across
+	// all valid subtrees - this is not currently implemented.
+	if len(validSubtrees) != 1 {
+		return nil, false
+	}
+
+	return slices.StringsToBytes(validSubtrees[0].measurementNames...), true
+}
+
+// measurementNameFromEqBinary returns the name of a measurement from a binary
+// expression if possible, and a boolean status indicating if the binary
+// expression contained a measurement name. A meausurement name will only be
+// returned if the operator for the binary is EQ, and the measurement key is on
+// the LHS with the measurement name on the RHS.
+func measurementNameFromEqBinary(be *influxql.BinaryExpr, key string) (string, bool) {
+	lhs, ok := be.LHS.(*influxql.VarRef)
+	if !ok {
+		return "", false
+	} else if lhs.Val != key {
+		return "", false
+	}
+
+	rhs, ok := be.RHS.(*influxql.StringLiteral)
+	if !ok {
+		return "", false
+	}
+
+	return rhs.Val, true
 }
 
 func (a Shards) FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
