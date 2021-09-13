@@ -36,7 +36,7 @@ func Test_ReportTSI_Bucket_Does_Not_Exist(t *testing.T) {
 	params := cmdParams{
 		bucketId:    "12345",
 		expectErr:   true,
-		expectedOut: "open 12345/autogen: no such file or directory",
+		expectedOut: fmt.Sprintf("open %s: no such file or directory", filepath.Join("12345", "autogen")),
 	}
 	runCommand(t, params)
 }
@@ -67,11 +67,11 @@ func Test_ReportTSI_Invalid_Index_Dir(t *testing.T) {
 func Test_ReportTSI_Valid_No_Roaring_Bitmap(t *testing.T) {
 	params := cmdParams{
 		bucketId:    "test-db-low-cardinality",
-		dataPath:    "../tsi-test-data",
+		dataPath:    filepath.Join("..", "tsi-test-data"),
 		concurrency: 1,
 		expectedOuts: []string{
-			"Summary\nDatabase Path: ../tsi-test-data/test-db-low-cardinality\nCardinality (exact): 5",
-			"Shard ID: 1\nPath: ../tsi-test-data/test-db-low-cardinality/autogen/1\nCardinality (exact): 5",
+			fmt.Sprintf("Summary\nDatabase Path: %s\nCardinality (exact): 5", filepath.Join("..", "tsi-test-data", "test-db-low-cardinality")),
+			fmt.Sprintf("Shard ID: 1\nPath: %s\nCardinality (exact): 5", filepath.Join("..", "tsi-test-data", "test-db-low-cardinality", "autogen", "1")),
 			"\"m0\"\t1\t\n\"m1\"\t1\t\n\"m2\"\t1\t\n\"m3\"\t1\t\n\"m4\"\t1\t",
 		},
 	}
@@ -81,11 +81,11 @@ func Test_ReportTSI_Valid_No_Roaring_Bitmap(t *testing.T) {
 func Test_ReportTSI_Valid_Roaring_Bitmap(t *testing.T) {
 	params := cmdParams{
 		bucketId:    "test-db-high-cardinality",
-		dataPath:    "../tsi-test-data",
+		dataPath:    filepath.Join("..", "tsi-test-data"),
 		concurrency: 1,
 		expectedOuts: []string{
-			"Summary\nDatabase Path: ../tsi-test-data/test-db-high-cardinality\nCardinality (exact): 31",
-			"Shard ID: 1\nPath: ../tsi-test-data/test-db-high-cardinality/autogen/1\nCardinality (exact): 31",
+			fmt.Sprintf("Summary\nDatabase Path: %s\nCardinality (exact): 31", filepath.Join("..", "tsi-test-data", "test-db-high-cardinality")),
+			fmt.Sprintf("Shard ID: 1\nPath: %s\nCardinality (exact): 31", filepath.Join("..", "tsi-test-data", "test-db-high-cardinality", "autogen", "1")),
 			"\"m0\"\t27\t\n\"m1\"\t1\t\n\"m2\"\t1\t\n\"m3\"\t1\t\n\"m4\"\t1\t",
 		},
 	}
@@ -95,12 +95,12 @@ func Test_ReportTSI_Valid_Roaring_Bitmap(t *testing.T) {
 func Test_ReportTSI_Valid_TopN(t *testing.T) {
 	params := cmdParams{
 		bucketId:    "test-db-low-cardinality",
-		dataPath:    "../tsi-test-data",
+		dataPath:    filepath.Join("..", "tsi-test-data"),
 		concurrency: 1,
 		topN:        2,
 		expectedOuts: []string{
-			"Summary\nDatabase Path: ../tsi-test-data/test-db-low-cardinality\nCardinality (exact): 5",
-			"Shard ID: 1\nPath: ../tsi-test-data/test-db-low-cardinality/autogen/1\nCardinality (exact): 5",
+			fmt.Sprintf("Summary\nDatabase Path: %s\nCardinality (exact): 5", filepath.Join("..", "tsi-test-data", "test-db-low-cardinality")),
+			fmt.Sprintf("Shard ID: 1\nPath: %s\nCardinality (exact): 5", filepath.Join("..", "tsi-test-data", "test-db-low-cardinality", "autogen", "1")),
 			"\"m0\"\t1\t\n\"m1\"\t1\t\n\n\n",
 		},
 	}
