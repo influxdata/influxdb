@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"syscall"
 )
 
 // WithSignals returns a context that is canceled with any signal in sigs.
@@ -25,7 +24,7 @@ func WithSignals(ctx context.Context, sigs ...os.Signal) context.Context {
 	return ctx
 }
 
-// WithStandardSignals cancels the context on os.Interrupt, syscall.SIGTERM.
+// WithStandardSignals cancels the context on os.Interrupt, os.Kill.
 func WithStandardSignals(ctx context.Context) context.Context {
-	return WithSignals(ctx, os.Interrupt, syscall.SIGTERM)
+	return WithSignals(ctx, os.Interrupt, os.Kill)
 }
