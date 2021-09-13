@@ -1,0 +1,82 @@
+name = "storage_cardinality_example"
+base_seed = "this is a demo"
+
+[[values]]
+name = "role"
+template = "storage"
+cardinality = 1
+
+[[values]]
+name = "url"
+template = "http://127.0.0.1:6060/metrics/usage"
+cardinality = 1
+
+[[values]]
+name = "org_id"
+# Fill in the value with the cardinality counter and 15 random alphanumeric characters
+template = "{{id}}_{{random 15}}"
+cardinality = 1
+has_one = ["env"]
+
+[[values]]
+name = "env"
+template = "whatever-environment-{{id}}"
+cardinality = 10
+
+[[values]]
+name = "bucket_id"
+belongs_to = "org_id"
+# each bucket will have a unique value so it can be used here to guarantee uniqueness even across orgs
+template = "{{id}}_{{random 15}}"
+# For each org, 3 buckets will be generated
+cardinality = 3
+
+[[values]]
+name = "node_id"
+template = "{{id}}"
+cardinality = 100
+
+[[values]]
+name = "host"
+template = "storage-{{node_id.value}}"
+belongs_to = "node_id"
+cardinality = 1
+
+[[values]]
+name = "hostname"
+template = "{{node_id.value}}"
+belongs_to = "node_id"
+cardinality = 1
+
+[[values]]
+name = "partition_id"
+template = "{{id}}"
+cardinality = 10
+
+# makes a tagset so every bucket exists on every node with every partition.
+# So count(bucket) * count(node) * count(partition) cardinality.
+[[tag_sets]]
+name = "bucket_set"
+for_each = [
+    "role",
+    "url",
+    "org_id",
+    "org_id.env",
+    "org_id.bucket_id",
+    "node_id",
+    "node_id.hostname",
+    "node_id.host",
+    "partition_id",
+]
+
+[[agents]]
+name = "metric-scraper"
+# sampling_interval = "1s"
+
+[[agents.measurements]]
+name = "storage_usage_bucket_cardinality"
+# TODO: new syntax to make use of tag sets here
+
+[[agents.measurements.fields]]
+name = "gauge"
+i64_range = [1, 8147240]

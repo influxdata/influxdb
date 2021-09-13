@@ -22,6 +22,7 @@ rand = { version = "0.8.3", features = ["small_rng"] }
 rand_core = "0.6.2"
 rand_seeder = "0.2.1"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.67"
 snafu = "0.6.8"
 tokio = { version = "1.11", features = ["macros", "rt-multi-thread"] }
 toml = "0.5.6"

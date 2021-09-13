@@ -95,6 +95,7 @@ enum PointsWriterConfig {
     },
     #[cfg(test)]
     Vector(BTreeMap<String, Arc<Mutex<Vec<u8>>>>),
+    Stdout,
 }
 
 impl PointsWriterBuilder {
@@ -157,6 +158,13 @@ impl PointsWriterBuilder {
         })
     }
 
+    /// Write points to stdout
+    pub fn new_std_out() -> Self {
+        Self {
+            config: PointsWriterConfig::Stdout,
+        }
+    }
+
     /// Generate points but do not write them anywhere
     pub fn new_no_op(perform_write: bool) -> Self {
         Self {
@@ -193,6 +201,7 @@ impl PointsWriterBuilder {
                     .or_insert_with(|| Arc::new(Mutex::new(Vec::new())));
                 InnerPointsWriter::Vec(Arc::clone(v))
             }
+            PointsWriterConfig::Stdout => InnerPointsWriter::Stdout,
         };
 
         PointsWriter { inner_writer }
@@ -225,6 +234,7 @@ enum InnerPointsWriter {
     },
     #[cfg(test)]
     Vec(Arc<Mutex<Vec<u8>>>),
+    Stdout,
 }
 
 impl InnerPointsWriter {
@@ -276,6 +286,13 @@ impl InnerPointsWriter {
                     point
                         .write_data_point_to(&mut *vec)
                         .expect("Should be able to write to vec");
+                }
+            }
+            Self::Stdout => {
+                for point in points {
+                    point
+                        .write_data_point_to(std::io::stdout())
+                        .expect("should be able to write to stdout");
                 }
             }
         }

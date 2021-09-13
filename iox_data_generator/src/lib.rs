@@ -42,6 +42,7 @@ pub mod measurement;
 pub mod specification;
 pub mod substitution;
 pub mod tag;
+mod tag_set;
 pub mod write;
 
 /// Errors that may happen while generating points.
