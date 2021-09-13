@@ -129,7 +129,10 @@ impl File {
                                             metadata: if options.show_unparsed_metadata {
                                                 add_parquet.metadata
                                             } else {
-                                                Bytes::from("stripped")
+                                                Bytes::from(format!(
+                                                    "stripped ({} bytes)",
+                                                    add_parquet.metadata.len()
+                                                ))
                                             },
                                             ..add_parquet
                                         },
@@ -311,7 +314,7 @@ File {
                                     },
                                 ),
                                 file_size_bytes: 33,
-                                metadata: b"stripped",
+                                metadata: b"stripped (1738 bytes)",
                             },
                         ),
                     ),
@@ -435,7 +438,7 @@ File {
                                     },
                                 ),
                                 file_size_bytes: 33,
-                                metadata: b"stripped",
+                                metadata: b"stripped (1738 bytes)",
                             },
                         ),
                     ),
