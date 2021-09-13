@@ -788,8 +788,7 @@ func groupShardsByTime(sgs []meta.ShardGroupInfo, start, end int64) ([]uint64, [
 			shards = append(shards, si.ID)
 		}
 
-		// shard is entirely within the specified time range
-		if sg.StartTime.After(time.Unix(0, start)) && sg.EndTime.Before(time.Unix(0, end)) {
+		if timesWithinRangeInclusive(sg.StartTime, sg.EndTime, time.Unix(0, start), time.Unix(0, end)) {
 			entirelyInRange = append(entirelyInRange, shards...)
 			continue
 		}
@@ -798,4 +797,12 @@ func groupShardsByTime(sgs []meta.ShardGroupInfo, start, end int64) ([]uint64, [
 	}
 
 	return entirelyInRange, partiallyInRange
+}
+
+// timesWithinRangeInclusive checks to see if the provided start and end time
+// are within the start end and times of the range, with the check being
+// inclusive.
+func timesWithinRangeInclusive(start, end, rangeStart, rangeEnd time.Time) bool {
+	return (start.After(rangeStart) || start.Equal(rangeStart)) &&
+		(end.Before(rangeEnd) || end.Equal(rangeEnd))
 }
