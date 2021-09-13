@@ -142,6 +142,9 @@ func (a *args) process(cmd *cobra.Command, path string) error {
 	if err := w.Close(); err != nil {
 		return fmt.Errorf("failed to close TSM Writer: %w", err)
 	}
+	if err := r.Close(); err != nil {
+		return fmt.Errorf("failed to close TSM Reader: %w", err)
+	}
 
 	// Replace original file with new file.
 	if err := file.RenameFile(outputPath, path); err != nil {
