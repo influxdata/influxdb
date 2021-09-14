@@ -34,7 +34,7 @@ var telegrafCmpOptions = cmp.Options{
 	}),
 }
 
-// tests backwards compatibility with the current plugin aware system.
+// tests backwards compatibillity with the current plugin aware system.
 func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
 	s := `{
 		"name": "config 2",
@@ -65,7 +65,7 @@ func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
 				"comment": "3",
 				"config": {
 					"urls": [
-						"http://127.0.0.1:8086"
+						"http://127.0.0.1:9999"
 					],
 					"token": "token1",
 					"organization": "org",
@@ -89,10 +89,9 @@ func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
   ## This controls the size of writes that Telegraf sends to output plugins.
   metric_batch_size = 1000
 
-  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each
-  ## output, and will flush this buffer on a successful write. Oldest metrics
-  ## are dropped first when this buffer fills.
-  ## This buffer only fills when writes fail to output plugin(s).
+  ## Maximum number of unwritten metrics per output.  Increasing this value
+  ## allows for longer periods of output downtime without dropping metrics at the
+  ## cost of higher maximum memory usage.
   metric_buffer_limit = 10000
 
   ## Collection jitter is used to jitter the collection by a random amount.
@@ -118,13 +117,36 @@ func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
   ## Valid time units are "ns", "us" (or "µs"), "ms", "s".
   precision = ""
 
-  ## Logging configuration:
-  ## Run telegraf with debug log messages.
-  debug = false
-  ## Run telegraf in quiet mode (error log messages only).
-  quiet = false
-  ## Specify the log file name. The empty string means to log to stderr.
-  logfile = ""
+  ## Log at debug level.
+  # debug = false
+  ## Log only error level messages.
+  # quiet = false
+
+  ## Log target controls the destination for logs and can be one of "file",
+  ## "stderr" or, on Windows, "eventlog".  When set to "file", the output file
+  ## is determined by the "logfile" setting.
+  # logtarget = "file"
+
+  ## Name of the file to be logged to when using the "file" logtarget.  If set to
+  ## the empty string then logs are written to stderr.
+  # logfile = ""
+
+  ## The logfile will be rotated after the time interval specified.  When set
+  ## to 0 no time based rotation is performed.  Logs are rotated only when
+  ## written to, if there is no log activity rotation may be delayed.
+  # logfile_rotation_interval = "0d"
+
+  ## The logfile will be rotated when it becomes larger than the specified
+  ## size.  When set to 0 no size based rotation is performed.
+  # logfile_rotation_max_size = "0MB"
+
+  ## Maximum number of rotated archives to keep, any older logs are deleted.
+  ## If set to -1, no archives are removed.
+  # logfile_rotation_max_archives = 5
+
+  ## Pick a timezone to use when logging or type 'local' for local time.
+  ## Example: America/Chicago
+  # log_with_timezone = ""
 
   ## Override default hostname, if empty use os.Hostname()
   hostname = ""
@@ -135,22 +157,44 @@ func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
   percpu = true
   ## Whether to report total system cpu stats or not
   totalcpu = true
-  ## If true, collect raw CPU time metrics.
+  ## If true, collect raw CPU time metrics
   collect_cpu_time = false
-  ## If true, compute and report the sum of all non-idle CPU states.
+  ## If true, compute and report the sum of all non-idle CPU states
   report_active = false
 [[inputs.kernel]]
+  # no configuration
 [[inputs.kubernetes]]
   ## URL for the kubelet
-  ## exp: http://1.1.1.1:10255
-  url = "http://1.1.1.1:12"	
-[[outputs.influxdb_v2]]	
+  url = "http://1.1.1.1:12"
+
+  ## Use bearer token for authorization. ('bearer_token' takes priority)
+  ## If both of these are empty, we'll use the default serviceaccount:
+  ## at: /run/secrets/kubernetes.io/serviceaccount/token
+  # bearer_token = "/path/to/bearer/token"
+  ## OR
+  # bearer_token_string = "abc_123"
+
+  ## Pod labels to be added as tags.  An empty array for both include and
+  ## exclude will include all labels.
+  # label_include = []
+  # label_exclude = ["*"]
+
+  ## Set response_timeout (default 5 seconds)
+  # response_timeout = "5s"
+
+  ## Optional TLS Config
+  # tls_ca = /path/to/cafile
+  # tls_cert = /path/to/certfile
+  # tls_key = /path/to/keyfile
+  ## Use TLS but skip chain & host verification
+  # insecure_skip_verify = false
+[[outputs.influxdb_v2]]
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:8086
-  urls = ["http://127.0.0.1:8086"]
+  ##   ex: urls = ["https://us-west-2-1.aws.cloud2.influxdata.com"]
+  urls = ["http://127.0.0.1:9999"]
 
   ## Token for authentication.
   token = "token1"
@@ -160,6 +204,40 @@ func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
 
   ## Destination bucket to write into.
   bucket = "bucket"
+
+  ## The value of this tag will be used to determine the bucket.  If this
+  ## tag is not set the 'bucket' option is used as the default.
+  # bucket_tag = ""
+
+  ## If true, the bucket tag will not be added to the metric.
+  # exclude_bucket_tag = false
+
+  ## Timeout for HTTP messages.
+  # timeout = "5s"
+
+  ## Additional HTTP headers
+  # http_headers = {"X-Special-Header" = "Special-Value"}
+
+  ## HTTP Proxy override, if unset values the standard proxy environment
+  ## variables are consulted to determine which proxy, if any, should be used.
+  # http_proxy = "http://corporate.proxy:3128"
+
+  ## HTTP User-Agent
+  # user_agent = "telegraf"
+
+  ## Content-Encoding for write request body, can be set to "gzip" to
+  ## compress body or "identity" to apply no encoding.
+  # content_encoding = "gzip"
+
+  ## Enable or disable uint support for writing uints influxdb 2.0.
+  # influx_uint_support = false
+
+  ## Optional TLS Config for use on HTTP connections.
+  # tls_ca = "/etc/telegraf/ca.pem"
+  # tls_cert = "/etc/telegraf/cert.pem"
+  # tls_key = "/etc/telegraf/key.pem"
+  ## Use TLS but skip chain & host verification
+  # insecure_skip_verify = false
 `,
 		Metadata: map[string]interface{}{"buckets": []string{"bucket"}},
 	}
@@ -173,11 +251,11 @@ func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
 	}
 }
 
-// tests forwards compatibility with the new plugin unaware system.
+// tests forwards compatibillity with the new plugin unaware system.
 func TestTelegrafConfigJSONDecodeTOML(t *testing.T) {
 	s := `{
 		"name": "config 2",
-		"config": "# Configuration for telegraf agent\n[agent]\n  ## Default data collection interval for all inputs\n  interval = \"10s\"\n  ## Rounds collection interval to 'interval'\n  ## ie, if interval=\"10s\" then always collect on :00, :10, :20, etc.\n  round_interval = true\n\n  ## Telegraf will send metrics to outputs in batches of at most\n  ## metric_batch_size metrics.\n  ## This controls the size of writes that Telegraf sends to output plugins.\n  metric_batch_size = 1000\n\n  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each\n  ## output, and will flush this buffer on a successful write. Oldest metrics\n  ## are dropped first when this buffer fills.\n  ## This buffer only fills when writes fail to output plugin(s).\n  metric_buffer_limit = 10000\n\n  ## Collection jitter is used to jitter the collection by a random amount.\n  ## Each plugin will sleep for a random time within jitter before collecting.\n  ## This can be used to avoid many plugins querying things like sysfs at the\n  ## same time, which can have a measurable effect on the system.\n  collection_jitter = \"0s\"\n\n  ## Default flushing interval for all outputs. Maximum flush_interval will be\n  ## flush_interval + flush_jitter\n  flush_interval = \"10s\"\n  ## Jitter the flush interval by a random amount. This is primarily to avoid\n  ## large write spikes for users running a large number of telegraf instances.\n  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s\n  flush_jitter = \"0s\"\n\n  ## By default or when set to \"0s\", precision will be set to the same\n  ## timestamp order as the collection interval, with the maximum being 1s.\n  ##   ie, when interval = \"10s\", precision will be \"1s\"\n  ##       when interval = \"250ms\", precision will be \"1ms\"\n  ## Precision will NOT be used for service inputs. It is up to each individual\n  ## service input to set the timestamp at the appropriate precision.\n  ## Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\".\n  precision = \"\"\n\n  ## Logging configuration:\n  ## Run telegraf with debug log messages.\n  debug = false\n  ## Run telegraf in quiet mode (error log messages only).\n  quiet = false\n  ## Specify the log file name. The empty string means to log to stderr.\n  logfile = \"\"\n\n  ## Override default hostname, if empty use os.Hostname()\n  hostname = \"\"\n  ## If set to true, do no set the \"host\" tag in the telegraf agent.\n  omit_hostname = false\n[[inputs.cpu]]\n  ## Whether to report per-cpu stats or not\n  percpu = true\n  ## Whether to report total system cpu stats or not\n  totalcpu = true\n  ## If true, collect raw CPU time metrics.\n  collect_cpu_time = false\n  ## If true, compute and report the sum of all non-idle CPU states.\n  report_active = false\n[[inputs.kernel]]\n[[inputs.kubernetes]]\n  ## URL for the kubelet\n  ## exp: http://1.1.1.1:10255\n  url = \"http://1.1.1.1:12\"\n[[outputs.influxdb_v2]]\n  ## The URLs of the InfluxDB cluster nodes.\n  ##\n  ## Multiple URLs can be specified for a single cluster, only ONE of the\n  ## urls will be written to each interval.\n  ## urls exp: http://127.0.0.1:8086\n  urls = [\"http://127.0.0.1:8086\"]\n\n  ## Token for authentication.\n  token = \"token1\"\n\n  ## Organization is the name of the organization you wish to write to; must exist.\n  organization = \"org\"\n\n  ## Destination bucket to write into.\n  bucket = \"bucket\"\n"
+		"config": "# Configuration for telegraf agent\n[agent]\n  ## Default data collection interval for all inputs\n  interval = \"10s\"\n  ## Rounds collection interval to 'interval'\n  ## ie, if interval=\"10s\" then always collect on :00, :10, :20, etc.\n  round_interval = true\n\n  ## Telegraf will send metrics to outputs in batches of at most\n  ## metric_batch_size metrics.\n  ## This controls the size of writes that Telegraf sends to output plugins.\n  metric_batch_size = 1000\n\n  ## Maximum number of unwritten metrics per output.  Increasing this value\n  ## allows for longer periods of output downtime without dropping metrics at the\n  ## cost of higher maximum memory usage.\n  metric_buffer_limit = 10000\n\n  ## Collection jitter is used to jitter the collection by a random amount.\n  ## Each plugin will sleep for a random time within jitter before collecting.\n  ## This can be used to avoid many plugins querying things like sysfs at the\n  ## same time, which can have a measurable effect on the system.\n  collection_jitter = \"0s\"\n\n  ## Default flushing interval for all outputs. Maximum flush_interval will be\n  ## flush_interval + flush_jitter\n  flush_interval = \"10s\"\n  ## Jitter the flush interval by a random amount. This is primarily to avoid\n  ## large write spikes for users running a large number of telegraf instances.\n  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s\n  flush_jitter = \"0s\"\n\n  ## By default or when set to \"0s\", precision will be set to the same\n  ## timestamp order as the collection interval, with the maximum being 1s.\n  ##   ie, when interval = \"10s\", precision will be \"1s\"\n  ##       when interval = \"250ms\", precision will be \"1ms\"\n  ## Precision will NOT be used for service inputs. It is up to each individual\n  ## service input to set the timestamp at the appropriate precision.\n  ## Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\".\n  precision = \"\"\n\n  ## Log at debug level.\n  # debug = false\n  ## Log only error level messages.\n  # quiet = false\n\n  ## Log target controls the destination for logs and can be one of \"file\",\n  ## \"stderr\" or, on Windows, \"eventlog\".  When set to \"file\", the output file\n  ## is determined by the \"logfile\" setting.\n  # logtarget = \"file\"\n\n  ## Name of the file to be logged to when using the \"file\" logtarget.  If set to\n  ## the empty string then logs are written to stderr.\n  # logfile = \"\"\n\n  ## The logfile will be rotated after the time interval specified.  When set\n  ## to 0 no time based rotation is performed.  Logs are rotated only when\n  ## written to, if there is no log activity rotation may be delayed.\n  # logfile_rotation_interval = \"0d\"\n\n  ## The logfile will be rotated when it becomes larger than the specified\n  ## size.  When set to 0 no size based rotation is performed.\n  # logfile_rotation_max_size = \"0MB\"\n\n  ## Maximum number of rotated archives to keep, any older logs are deleted.\n  ## If set to -1, no archives are removed.\n  # logfile_rotation_max_archives = 5\n\n  ## Pick a timezone to use when logging or type 'local' for local time.\n  ## Example: America/Chicago\n  # log_with_timezone = \"\"\n\n  ## Override default hostname, if empty use os.Hostname()\n  hostname = \"\"\n  ## If set to true, do no set the \"host\" tag in the telegraf agent.\n  omit_hostname = false\n[[inputs.cpu]]\n  ## Whether to report per-cpu stats or not\n  percpu = true\n  ## Whether to report total system cpu stats or not\n  totalcpu = true\n  ## If true, collect raw CPU time metrics\n  collect_cpu_time = false\n  ## If true, compute and report the sum of all non-idle CPU states\n  report_active = false\n[[inputs.kernel]]\n  # no configuration\n[[inputs.kubernetes]]\n  ## URL for the kubelet\n  url = \"http://1.1.1.1:12\"\n\n  ## Use bearer token for authorization. ('bearer_token' takes priority)\n  ## If both of these are empty, we'll use the default serviceaccount:\n  ## at: /run/secrets/kubernetes.io/serviceaccount/token\n  # bearer_token = \"/path/to/bearer/token\"\n  ## OR\n  # bearer_token_string = \"abc_123\"\n\n  ## Pod labels to be added as tags.  An empty array for both include and\n  ## exclude will include all labels.\n  # label_include = []\n  # label_exclude = [\"*\"]\n\n  ## Set response_timeout (default 5 seconds)\n  # response_timeout = \"5s\"\n\n  ## Optional TLS Config\n  # tls_ca = /path/to/cafile\n  # tls_cert = /path/to/certfile\n  # tls_key = /path/to/keyfile\n  ## Use TLS but skip chain & host verification\n  # insecure_skip_verify = false\n[[outputs.influxdb_v2]]\n  ## The URLs of the InfluxDB cluster nodes.\n  ##\n  ## Multiple URLs can be specified for a single cluster, only ONE of the\n  ## urls will be written to each interval.\n  ##   ex: urls = [\"https://us-west-2-1.aws.cloud2.influxdata.com\"]\n  urls = [\"url1\", \"url2\"]\n\n  ## Token for authentication.\n  token = \"token1\"\n\n  ## Organization is the name of the organization you wish to write to; must exist.\n  organization = \"org1\"\n\n  ## Destination bucket to write into.\n  bucket = \"bucket1\"\n\n  ## The value of this tag will be used to determine the bucket.  If this\n  ## tag is not set the 'bucket' option is used as the default.\n  # bucket_tag = \"\"\n\n  ## If true, the bucket tag will not be added to the metric.\n  # exclude_bucket_tag = false\n\n  ## Timeout for HTTP messages.\n  # timeout = \"5s\"\n\n  ## Additional HTTP headers\n  # http_headers = {\"X-Special-Header\" = \"Special-Value\"}\n\n  ## HTTP Proxy override, if unset values the standard proxy environment\n  ## variables are consulted to determine which proxy, if any, should be used.\n  # http_proxy = \"http://corporate.proxy:3128\"\n\n  ## HTTP User-Agent\n  # user_agent = \"telegraf\"\n\n  ## Content-Encoding for write request body, can be set to \"gzip\" to\n  ## compress body or \"identity\" to apply no encoding.\n  # content_encoding = \"gzip\"\n\n  ## Enable or disable uint support for writing uints influxdb 2.0.\n  # influx_uint_support = false\n\n  ## Optional TLS Config for use on HTTP connections.\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain & host verification\n  # insecure_skip_verify = false\n"
 	}`
 
 	want := &TelegrafConfig{
@@ -195,10 +273,9 @@ func TestTelegrafConfigJSONDecodeTOML(t *testing.T) {
   ## This controls the size of writes that Telegraf sends to output plugins.
   metric_batch_size = 1000
 
-  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each
-  ## output, and will flush this buffer on a successful write. Oldest metrics
-  ## are dropped first when this buffer fills.
-  ## This buffer only fills when writes fail to output plugin(s).
+  ## Maximum number of unwritten metrics per output.  Increasing this value
+  ## allows for longer periods of output downtime without dropping metrics at the
+  ## cost of higher maximum memory usage.
   metric_buffer_limit = 10000
 
   ## Collection jitter is used to jitter the collection by a random amount.
@@ -224,13 +301,36 @@ func TestTelegrafConfigJSONDecodeTOML(t *testing.T) {
   ## Valid time units are "ns", "us" (or "µs"), "ms", "s".
   precision = ""
 
-  ## Logging configuration:
-  ## Run telegraf with debug log messages.
-  debug = false
-  ## Run telegraf in quiet mode (error log messages only).
-  quiet = false
-  ## Specify the log file name. The empty string means to log to stderr.
-  logfile = ""
+  ## Log at debug level.
+  # debug = false
+  ## Log only error level messages.
+  # quiet = false
+
+  ## Log target controls the destination for logs and can be one of "file",
+  ## "stderr" or, on Windows, "eventlog".  When set to "file", the output file
+  ## is determined by the "logfile" setting.
+  # logtarget = "file"
+
+  ## Name of the file to be logged to when using the "file" logtarget.  If set to
+  ## the empty string then logs are written to stderr.
+  # logfile = ""
+
+  ## The logfile will be rotated after the time interval specified.  When set
+  ## to 0 no time based rotation is performed.  Logs are rotated only when
+  ## written to, if there is no log activity rotation may be delayed.
+  # logfile_rotation_interval = "0d"
+
+  ## The logfile will be rotated when it becomes larger than the specified
+  ## size.  When set to 0 no size based rotation is performed.
+  # logfile_rotation_max_size = "0MB"
+
+  ## Maximum number of rotated archives to keep, any older logs are deleted.
+  ## If set to -1, no archives are removed.
+  # logfile_rotation_max_archives = 5
+
+  ## Pick a timezone to use when logging or type 'local' for local time.
+  ## Example: America/Chicago
+  # log_with_timezone = ""
 
   ## Override default hostname, if empty use os.Hostname()
   hostname = ""
@@ -241,33 +341,89 @@ func TestTelegrafConfigJSONDecodeTOML(t *testing.T) {
   percpu = true
   ## Whether to report total system cpu stats or not
   totalcpu = true
-  ## If true, collect raw CPU time metrics.
+  ## If true, collect raw CPU time metrics
   collect_cpu_time = false
-  ## If true, compute and report the sum of all non-idle CPU states.
+  ## If true, compute and report the sum of all non-idle CPU states
   report_active = false
 [[inputs.kernel]]
+  # no configuration
 [[inputs.kubernetes]]
   ## URL for the kubelet
-  ## exp: http://1.1.1.1:10255
   url = "http://1.1.1.1:12"
+
+  ## Use bearer token for authorization. ('bearer_token' takes priority)
+  ## If both of these are empty, we'll use the default serviceaccount:
+  ## at: /run/secrets/kubernetes.io/serviceaccount/token
+  # bearer_token = "/path/to/bearer/token"
+  ## OR
+  # bearer_token_string = "abc_123"
+
+  ## Pod labels to be added as tags.  An empty array for both include and
+  ## exclude will include all labels.
+  # label_include = []
+  # label_exclude = ["*"]
+
+  ## Set response_timeout (default 5 seconds)
+  # response_timeout = "5s"
+
+  ## Optional TLS Config
+  # tls_ca = /path/to/cafile
+  # tls_cert = /path/to/certfile
+  # tls_key = /path/to/keyfile
+  ## Use TLS but skip chain & host verification
+  # insecure_skip_verify = false
 [[outputs.influxdb_v2]]
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:8086
-  urls = ["http://127.0.0.1:8086"]
+  ##   ex: urls = ["https://us-west-2-1.aws.cloud2.influxdata.com"]
+  urls = ["url1", "url2"]
 
   ## Token for authentication.
   token = "token1"
 
   ## Organization is the name of the organization you wish to write to; must exist.
-  organization = "org"
+  organization = "org1"
 
   ## Destination bucket to write into.
-  bucket = "bucket"
+  bucket = "bucket1"
+
+  ## The value of this tag will be used to determine the bucket.  If this
+  ## tag is not set the 'bucket' option is used as the default.
+  # bucket_tag = ""
+
+  ## If true, the bucket tag will not be added to the metric.
+  # exclude_bucket_tag = false
+
+  ## Timeout for HTTP messages.
+  # timeout = "5s"
+
+  ## Additional HTTP headers
+  # http_headers = {"X-Special-Header" = "Special-Value"}
+
+  ## HTTP Proxy override, if unset values the standard proxy environment
+  ## variables are consulted to determine which proxy, if any, should be used.
+  # http_proxy = "http://corporate.proxy:3128"
+
+  ## HTTP User-Agent
+  # user_agent = "telegraf"
+
+  ## Content-Encoding for write request body, can be set to "gzip" to
+  ## compress body or "identity" to apply no encoding.
+  # content_encoding = "gzip"
+
+  ## Enable or disable uint support for writing uints influxdb 2.0.
+  # influx_uint_support = false
+
+  ## Optional TLS Config for use on HTTP connections.
+  # tls_ca = "/etc/telegraf/ca.pem"
+  # tls_cert = "/etc/telegraf/cert.pem"
+  # tls_key = "/etc/telegraf/key.pem"
+  ## Use TLS but skip chain & host verification
+  # insecure_skip_verify = false
 `,
-		Metadata: map[string]interface{}{"buckets": []string{"bucket"}},
+		Metadata: map[string]interface{}{"buckets": []string{"bucket1"}},
 	}
 	got := new(TelegrafConfig)
 	err := json.Unmarshal([]byte(s), got)
@@ -296,7 +452,7 @@ func TestTelegrafConfigJSONCompatibleMode(t *testing.T) {
 			cfg: &TelegrafConfig{
 				ID:     *id1,
 				OrgID:  *id2,
-				Config: "# Configuration for telegraf agent\n[agent]\n  ## Default data collection interval for all inputs\n  interval = \"10s\"\n  ## Rounds collection interval to 'interval'\n  ## ie, if interval=\"10s\" then always collect on :00, :10, :20, etc.\n  round_interval = true\n\n  ## Telegraf will send metrics to outputs in batches of at most\n  ## metric_batch_size metrics.\n  ## This controls the size of writes that Telegraf sends to output plugins.\n  metric_batch_size = 1000\n\n  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each\n  ## output, and will flush this buffer on a successful write. Oldest metrics\n  ## are dropped first when this buffer fills.\n  ## This buffer only fills when writes fail to output plugin(s).\n  metric_buffer_limit = 10000\n\n  ## Collection jitter is used to jitter the collection by a random amount.\n  ## Each plugin will sleep for a random time within jitter before collecting.\n  ## This can be used to avoid many plugins querying things like sysfs at the\n  ## same time, which can have a measurable effect on the system.\n  collection_jitter = \"0s\"\n\n  ## Default flushing interval for all outputs. Maximum flush_interval will be\n  ## flush_interval + flush_jitter\n  flush_interval = \"10s\"\n  ## Jitter the flush interval by a random amount. This is primarily to avoid\n  ## large write spikes for users running a large number of telegraf instances.\n  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s\n  flush_jitter = \"0s\"\n\n  ## By default or when set to \"0s\", precision will be set to the same\n  ## timestamp order as the collection interval, with the maximum being 1s.\n  ##   ie, when interval = \"10s\", precision will be \"1s\"\n  ##       when interval = \"250ms\", precision will be \"1ms\"\n  ## Precision will NOT be used for service inputs. It is up to each individual\n  ## service input to set the timestamp at the appropriate precision.\n  ## Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\".\n  precision = \"\"\n\n  ## Logging configuration:\n  ## Run telegraf with debug log messages.\n  debug = false\n  ## Run telegraf in quiet mode (error log messages only).\n  quiet = false\n  ## Specify the log file name. The empty string means to log to stderr.\n  logfile = \"\"\n\n  ## Override default hostname, if empty use os.Hostname()\n  hostname = \"\"\n  ## If set to true, do no set the \"host\" tag in the telegraf agent.\n  omit_hostname = false\n# Configuration for sending metrics to InfluxDB\n[[outputs.influxdb_v2]]\n  # alias=\"influxdb_v2\"\n  ## The URLs of the InfluxDB cluster nodes.\n  ##\n  ## Multiple URLs can be specified for a single cluster, only ONE of the\n  ## urls will be written to each interval.\n  ##   ex: urls = [\"https://us-west-2-1.aws.cloud2.influxdata.com\"]\n  urls = [\"http://127.0.0.1:8086\"]\n\n  ## Token for authentication.\n  token = \"\"\n\n  ## Organization is the name of the organization you wish to write to; must exist.\n  organization = \"\"\n\n  ## Destination bucket to write into.\n  bucket = \"\"\n\n  ## The value of this tag will be used to determine the bucket.  If this\n  ## tag is not set the 'bucket' option is used as the default.\n  # bucket_tag = \"\"\n\n  ## If true, the bucket tag will not be added to the metric.\n  # exclude_bucket_tag = false\n\n  ## Timeout for HTTP messages.\n  # timeout = \"5s\"\n\n  ## Additional HTTP headers\n  # http_headers = {\"X-Special-Header\" = \"Special-Value\"}\n\n  ## HTTP Proxy override, if unset values the standard proxy environment\n  ## variables are consulted to determine which proxy, if any, should be used.\n  # http_proxy = \"http://corporate.proxy:3128\"\n\n  ## HTTP User-Agent\n  # user_agent = \"telegraf\"\n\n  ## Content-Encoding for write request body, can be set to \"gzip\" to\n  ## compress body or \"identity\" to apply no encoding.\n  # content_encoding = \"gzip\"\n\n  ## Enable or disable uint support for writing uints influxdb 2.0.\n  # influx_uint_support = false\n\n  ## Optional TLS Config for use on HTTP connections.\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain & host verification\n  # insecure_skip_verify = false\n\n",
+				Config: "# Configuration for telegraf agent\n[agent]\n  ## Default data collection interval for all inputs\n  interval = \"10s\"\n  ## Rounds collection interval to 'interval'\n  ## ie, if interval=\"10s\" then always collect on :00, :10, :20, etc.\n  round_interval = true\n\n  ## Telegraf will send metrics to outputs in batches of at most\n  ## metric_batch_size metrics.\n  ## This controls the size of writes that Telegraf sends to output plugins.\n  metric_batch_size = 1000\n\n  ## Maximum number of unwritten metrics per output.  Increasing this value\n  ## allows for longer periods of output downtime without dropping metrics at the\n  ## cost of higher maximum memory usage.\n  metric_buffer_limit = 10000\n\n  ## Collection jitter is used to jitter the collection by a random amount.\n  ## Each plugin will sleep for a random time within jitter before collecting.\n  ## This can be used to avoid many plugins querying things like sysfs at the\n  ## same time, which can have a measurable effect on the system.\n  collection_jitter = \"0s\"\n\n  ## Default flushing interval for all outputs. Maximum flush_interval will be\n  ## flush_interval + flush_jitter\n  flush_interval = \"10s\"\n  ## Jitter the flush interval by a random amount. This is primarily to avoid\n  ## large write spikes for users running a large number of telegraf instances.\n  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s\n  flush_jitter = \"0s\"\n\n  ## By default or when set to \"0s\", precision will be set to the same\n  ## timestamp order as the collection interval, with the maximum being 1s.\n  ##   ie, when interval = \"10s\", precision will be \"1s\"\n  ##       when interval = \"250ms\", precision will be \"1ms\"\n  ## Precision will NOT be used for service inputs. It is up to each individual\n  ## service input to set the timestamp at the appropriate precision.\n  ## Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\".\n  precision = \"\"\n\n  ## Log at debug level.\n  # debug = false\n  ## Log only error level messages.\n  # quiet = false\n\n  ## Log target controls the destination for logs and can be one of \"file\",\n  ## \"stderr\" or, on Windows, \"eventlog\".  When set to \"file\", the output file\n  ## is determined by the \"logfile\" setting.\n  # logtarget = \"file\"\n\n  ## Name of the file to be logged to when using the \"file\" logtarget.  If set to\n  ## the empty string then logs are written to stderr.\n  # logfile = \"\"\n\n  ## The logfile will be rotated after the time interval specified.  When set\n  ## to 0 no time based rotation is performed.  Logs are rotated only when\n  ## written to, if there is no log activity rotation may be delayed.\n  # logfile_rotation_interval = \"0d\"\n\n  ## The logfile will be rotated when it becomes larger than the specified\n  ## size.  When set to 0 no size based rotation is performed.\n  # logfile_rotation_max_size = \"0MB\"\n\n  ## Maximum number of rotated archives to keep, any older logs are deleted.\n  ## If set to -1, no archives are removed.\n  # logfile_rotation_max_archives = 5\n\n  ## Pick a timezone to use when logging or type 'local' for local time.\n  ## Example: America/Chicago\n  # log_with_timezone = \"\"\n\n  ## Override default hostname, if empty use os.Hostname()\n  hostname = \"\"\n  ## If set to true, do no set the \"host\" tag in the telegraf agent.\n  omit_hostname = false\n# Configuration for sending metrics to InfluxDB\n[[outputs.influxdb_v2]]\n  # alias=\"influxdb_v2\"\n  ## The URLs of the InfluxDB cluster nodes.\n  ##\n  ## Multiple URLs can be specified for a single cluster, only ONE of the\n  ## urls will be written to each interval.\n  ##   ex: urls = [\"https://us-west-2-1.aws.cloud2.influxdata.com\"]\n  urls = [\"http://127.0.0.1:9999\"]\n\n  ## Token for authentication.\n  token = \"\"\n\n  ## Organization is the name of the organization you wish to write to; must exist.\n  organization = \"\"\n\n  ## Destination bucket to write into.\n  bucket = \"\"\n\n  ## The value of this tag will be used to determine the bucket.  If this\n  ## tag is not set the 'bucket' option is used as the default.\n  # bucket_tag = \"\"\n\n  ## If true, the bucket tag will not be added to the metric.\n  # exclude_bucket_tag = false\n\n  ## Timeout for HTTP messages.\n  # timeout = \"5s\"\n\n  ## Additional HTTP headers\n  # http_headers = {\"X-Special-Header\" = \"Special-Value\"}\n\n  ## HTTP Proxy override, if unset values the standard proxy environment\n  ## variables are consulted to determine which proxy, if any, should be used.\n  # http_proxy = \"http://corporate.proxy:3128\"\n\n  ## HTTP User-Agent\n  # user_agent = \"telegraf\"\n\n  ## Content-Encoding for write request body, can be set to \"gzip\" to\n  ## compress body or \"identity\" to apply no encoding.\n  # content_encoding = \"gzip\"\n\n  ## Enable or disable uint support for writing uints influxdb 2.0.\n  # influx_uint_support = false\n\n  ## Optional TLS Config for use on HTTP connections.\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain & host verification\n  # insecure_skip_verify = false\n\n",
 			},
 			expMeta: map[string]interface{}{"buckets": []string{}},
 		},
@@ -306,7 +462,7 @@ func TestTelegrafConfigJSONCompatibleMode(t *testing.T) {
 			cfg: &TelegrafConfig{
 				ID:     *id1,
 				OrgID:  *id2,
-				Config: "# Configuration for telegraf agent\n[agent]\n  ## Default data collection interval for all inputs\n  interval = \"10s\"\n  ## Rounds collection interval to 'interval'\n  ## ie, if interval=\"10s\" then always collect on :00, :10, :20, etc.\n  round_interval = true\n\n  ## Telegraf will send metrics to outputs in batches of at most\n  ## metric_batch_size metrics.\n  ## This controls the size of writes that Telegraf sends to output plugins.\n  metric_batch_size = 1000\n\n  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each\n  ## output, and will flush this buffer on a successful write. Oldest metrics\n  ## are dropped first when this buffer fills.\n  ## This buffer only fills when writes fail to output plugin(s).\n  metric_buffer_limit = 10000\n\n  ## Collection jitter is used to jitter the collection by a random amount.\n  ## Each plugin will sleep for a random time within jitter before collecting.\n  ## This can be used to avoid many plugins querying things like sysfs at the\n  ## same time, which can have a measurable effect on the system.\n  collection_jitter = \"0s\"\n\n  ## Default flushing interval for all outputs. Maximum flush_interval will be\n  ## flush_interval + flush_jitter\n  flush_interval = \"10s\"\n  ## Jitter the flush interval by a random amount. This is primarily to avoid\n  ## large write spikes for users running a large number of telegraf instances.\n  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s\n  flush_jitter = \"0s\"\n\n  ## By default or when set to \"0s\", precision will be set to the same\n  ## timestamp order as the collection interval, with the maximum being 1s.\n  ##   ie, when interval = \"10s\", precision will be \"1s\"\n  ##       when interval = \"250ms\", precision will be \"1ms\"\n  ## Precision will NOT be used for service inputs. It is up to each individual\n  ## service input to set the timestamp at the appropriate precision.\n  ## Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\".\n  precision = \"\"\n\n  ## Logging configuration:\n  ## Run telegraf with debug log messages.\n  debug = false\n  ## Run telegraf in quiet mode (error log messages only).\n  quiet = false\n  ## Specify the log file name. The empty string means to log to stderr.\n  logfile = \"\"\n\n  ## Override default hostname, if empty use os.Hostname()\n  hostname = \"\"\n  ## If set to true, do no set the \"host\" tag in the telegraf agent.\n  omit_hostname = false\n# Configuration for sending metrics to InfluxDB\n[[outputs.influxdb_v2]]\n  # alias=\"influxdb_v2\"\n  ## The URLs of the InfluxDB cluster nodes.\n  ##\n  ## Multiple URLs can be specified for a single cluster, only ONE of the\n  ## urls will be written to each interval.\n  ##   ex: urls = [\"https://us-west-2-1.aws.cloud2.influxdata.com\"]\n  urls = [\"http://127.0.0.1:8086\"]\n\n  ## Token for authentication.\n  token = \"\"\n\n  ## Organization is the name of the organization you wish to write to; must exist.\n  organization = \"\"\n\n  ## Destination bucket to write into.\n  bucket = \"\"\n\n  ## The value of this tag will be used to determine the bucket.  If this\n  ## tag is not set the 'bucket' option is used as the default.\n  # bucket_tag = \"\"\n\n  ## If true, the bucket tag will not be added to the metric.\n  # exclude_bucket_tag = false\n\n  ## Timeout for HTTP messages.\n  # timeout = \"5s\"\n\n  ## Additional HTTP headers\n  # http_headers = {\"X-Special-Header\" = \"Special-Value\"}\n\n  ## HTTP Proxy override, if unset values the standard proxy environment\n  ## variables are consulted to determine which proxy, if any, should be used.\n  # http_proxy = \"http://corporate.proxy:3128\"\n\n  ## HTTP User-Agent\n  # user_agent = \"telegraf\"\n\n  ## Content-Encoding for write request body, can be set to \"gzip\" to\n  ## compress body or \"identity\" to apply no encoding.\n  # content_encoding = \"gzip\"\n\n  ## Enable or disable uint support for writing uints influxdb 2.0.\n  # influx_uint_support = false\n\n  ## Optional TLS Config for use on HTTP connections.\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain & host verification\n  # insecure_skip_verify = false\n\n",
+				Config: "# Configuration for telegraf agent\n[agent]\n  ## Default data collection interval for all inputs\n  interval = \"10s\"\n  ## Rounds collection interval to 'interval'\n  ## ie, if interval=\"10s\" then always collect on :00, :10, :20, etc.\n  round_interval = true\n\n  ## Telegraf will send metrics to outputs in batches of at most\n  ## metric_batch_size metrics.\n  ## This controls the size of writes that Telegraf sends to output plugins.\n  metric_batch_size = 1000\n\n  ## Maximum number of unwritten metrics per output.  Increasing this value\n  ## allows for longer periods of output downtime without dropping metrics at the\n  ## cost of higher maximum memory usage.\n  metric_buffer_limit = 10000\n\n  ## Collection jitter is used to jitter the collection by a random amount.\n  ## Each plugin will sleep for a random time within jitter before collecting.\n  ## This can be used to avoid many plugins querying things like sysfs at the\n  ## same time, which can have a measurable effect on the system.\n  collection_jitter = \"0s\"\n\n  ## Default flushing interval for all outputs. Maximum flush_interval will be\n  ## flush_interval + flush_jitter\n  flush_interval = \"10s\"\n  ## Jitter the flush interval by a random amount. This is primarily to avoid\n  ## large write spikes for users running a large number of telegraf instances.\n  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s\n  flush_jitter = \"0s\"\n\n  ## By default or when set to \"0s\", precision will be set to the same\n  ## timestamp order as the collection interval, with the maximum being 1s.\n  ##   ie, when interval = \"10s\", precision will be \"1s\"\n  ##       when interval = \"250ms\", precision will be \"1ms\"\n  ## Precision will NOT be used for service inputs. It is up to each individual\n  ## service input to set the timestamp at the appropriate precision.\n  ## Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\".\n  precision = \"\"\n\n  ## Log at debug level.\n  # debug = false\n  ## Log only error level messages.\n  # quiet = false\n\n  ## Log target controls the destination for logs and can be one of \"file\",\n  ## \"stderr\" or, on Windows, \"eventlog\".  When set to \"file\", the output file\n  ## is determined by the \"logfile\" setting.\n  # logtarget = \"file\"\n\n  ## Name of the file to be logged to when using the \"file\" logtarget.  If set to\n  ## the empty string then logs are written to stderr.\n  # logfile = \"\"\n\n  ## The logfile will be rotated after the time interval specified.  When set\n  ## to 0 no time based rotation is performed.  Logs are rotated only when\n  ## written to, if there is no log activity rotation may be delayed.\n  # logfile_rotation_interval = \"0d\"\n\n  ## The logfile will be rotated when it becomes larger than the specified\n  ## size.  When set to 0 no size based rotation is performed.\n  # logfile_rotation_max_size = \"0MB\"\n\n  ## Maximum number of rotated archives to keep, any older logs are deleted.\n  ## If set to -1, no archives are removed.\n  # logfile_rotation_max_archives = 5\n\n  ## Pick a timezone to use when logging or type 'local' for local time.\n  ## Example: America/Chicago\n  # log_with_timezone = \"\"\n\n  ## Override default hostname, if empty use os.Hostname()\n  hostname = \"\"\n  ## If set to true, do no set the \"host\" tag in the telegraf agent.\n  omit_hostname = false\n# Configuration for sending metrics to InfluxDB\n[[outputs.influxdb_v2]]\n  # alias=\"influxdb_v2\"\n  ## The URLs of the InfluxDB cluster nodes.\n  ##\n  ## Multiple URLs can be specified for a single cluster, only ONE of the\n  ## urls will be written to each interval.\n  ##   ex: urls = [\"https://us-west-2-1.aws.cloud2.influxdata.com\"]\n  urls = [\"http://127.0.0.1:9999\"]\n\n  ## Token for authentication.\n  token = \"\"\n\n  ## Organization is the name of the organization you wish to write to; must exist.\n  organization = \"\"\n\n  ## Destination bucket to write into.\n  bucket = \"\"\n\n  ## The value of this tag will be used to determine the bucket.  If this\n  ## tag is not set the 'bucket' option is used as the default.\n  # bucket_tag = \"\"\n\n  ## If true, the bucket tag will not be added to the metric.\n  # exclude_bucket_tag = false\n\n  ## Timeout for HTTP messages.\n  # timeout = \"5s\"\n\n  ## Additional HTTP headers\n  # http_headers = {\"X-Special-Header\" = \"Special-Value\"}\n\n  ## HTTP Proxy override, if unset values the standard proxy environment\n  ## variables are consulted to determine which proxy, if any, should be used.\n  # http_proxy = \"http://corporate.proxy:3128\"\n\n  ## HTTP User-Agent\n  # user_agent = \"telegraf\"\n\n  ## Content-Encoding for write request body, can be set to \"gzip\" to\n  ## compress body or \"identity\" to apply no encoding.\n  # content_encoding = \"gzip\"\n\n  ## Enable or disable uint support for writing uints influxdb 2.0.\n  # influx_uint_support = false\n\n  ## Optional TLS Config for use on HTTP connections.\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain & host verification\n  # insecure_skip_verify = false\n\n",
 			},
 			expMeta: map[string]interface{}{"buckets": []string{}},
 		},
@@ -316,7 +472,7 @@ func TestTelegrafConfigJSONCompatibleMode(t *testing.T) {
 			cfg: &TelegrafConfig{
 				ID:     *id1,
 				OrgID:  *id3,
-				Config: "# Configuration for telegraf agent\n[agent]\n  ## Default data collection interval for all inputs\n  interval = \"10s\"\n  ## Rounds collection interval to 'interval'\n  ## ie, if interval=\"10s\" then always collect on :00, :10, :20, etc.\n  round_interval = true\n\n  ## Telegraf will send metrics to outputs in batches of at most\n  ## metric_batch_size metrics.\n  ## This controls the size of writes that Telegraf sends to output plugins.\n  metric_batch_size = 1000\n\n  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each\n  ## output, and will flush this buffer on a successful write. Oldest metrics\n  ## are dropped first when this buffer fills.\n  ## This buffer only fills when writes fail to output plugin(s).\n  metric_buffer_limit = 10000\n\n  ## Collection jitter is used to jitter the collection by a random amount.\n  ## Each plugin will sleep for a random time within jitter before collecting.\n  ## This can be used to avoid many plugins querying things like sysfs at the\n  ## same time, which can have a measurable effect on the system.\n  collection_jitter = \"0s\"\n\n  ## Default flushing interval for all outputs. Maximum flush_interval will be\n  ## flush_interval + flush_jitter\n  flush_interval = \"10s\"\n  ## Jitter the flush interval by a random amount. This is primarily to avoid\n  ## large write spikes for users running a large number of telegraf instances.\n  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s\n  flush_jitter = \"0s\"\n\n  ## By default or when set to \"0s\", precision will be set to the same\n  ## timestamp order as the collection interval, with the maximum being 1s.\n  ##   ie, when interval = \"10s\", precision will be \"1s\"\n  ##       when interval = \"250ms\", precision will be \"1ms\"\n  ## Precision will NOT be used for service inputs. It is up to each individual\n  ## service input to set the timestamp at the appropriate precision.\n  ## Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\".\n  precision = \"\"\n\n  ## Logging configuration:\n  ## Run telegraf with debug log messages.\n  debug = false\n  ## Run telegraf in quiet mode (error log messages only).\n  quiet = false\n  ## Specify the log file name. The empty string means to log to stderr.\n  logfile = \"\"\n\n  ## Override default hostname, if empty use os.Hostname()\n  hostname = \"\"\n  ## If set to true, do no set the \"host\" tag in the telegraf agent.\n  omit_hostname = false\n# Configuration for sending metrics to InfluxDB\n[[outputs.influxdb_v2]]\n  # alias=\"influxdb_v2\"\n  ## The URLs of the InfluxDB cluster nodes.\n  ##\n  ## Multiple URLs can be specified for a single cluster, only ONE of the\n  ## urls will be written to each interval.\n  ##   ex: urls = [\"https://us-west-2-1.aws.cloud2.influxdata.com\"]\n  urls = [\"http://127.0.0.1:8086\"]\n\n  ## Token for authentication.\n  token = \"\"\n\n  ## Organization is the name of the organization you wish to write to; must exist.\n  organization = \"\"\n\n  ## Destination bucket to write into.\n  bucket = \"\"\n\n  ## The value of this tag will be used to determine the bucket.  If this\n  ## tag is not set the 'bucket' option is used as the default.\n  # bucket_tag = \"\"\n\n  ## If true, the bucket tag will not be added to the metric.\n  # exclude_bucket_tag = false\n\n  ## Timeout for HTTP messages.\n  # timeout = \"5s\"\n\n  ## Additional HTTP headers\n  # http_headers = {\"X-Special-Header\" = \"Special-Value\"}\n\n  ## HTTP Proxy override, if unset values the standard proxy environment\n  ## variables are consulted to determine which proxy, if any, should be used.\n  # http_proxy = \"http://corporate.proxy:3128\"\n\n  ## HTTP User-Agent\n  # user_agent = \"telegraf\"\n\n  ## Content-Encoding for write request body, can be set to \"gzip\" to\n  ## compress body or \"identity\" to apply no encoding.\n  # content_encoding = \"gzip\"\n\n  ## Enable or disable uint support for writing uints influxdb 2.0.\n  # influx_uint_support = false\n\n  ## Optional TLS Config for use on HTTP connections.\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain & host verification\n  # insecure_skip_verify = false\n\n",
+				Config: "# Configuration for telegraf agent\n[agent]\n  ## Default data collection interval for all inputs\n  interval = \"10s\"\n  ## Rounds collection interval to 'interval'\n  ## ie, if interval=\"10s\" then always collect on :00, :10, :20, etc.\n  round_interval = true\n\n  ## Telegraf will send metrics to outputs in batches of at most\n  ## metric_batch_size metrics.\n  ## This controls the size of writes that Telegraf sends to output plugins.\n  metric_batch_size = 1000\n\n  ## Maximum number of unwritten metrics per output.  Increasing this value\n  ## allows for longer periods of output downtime without dropping metrics at the\n  ## cost of higher maximum memory usage.\n  metric_buffer_limit = 10000\n\n  ## Collection jitter is used to jitter the collection by a random amount.\n  ## Each plugin will sleep for a random time within jitter before collecting.\n  ## This can be used to avoid many plugins querying things like sysfs at the\n  ## same time, which can have a measurable effect on the system.\n  collection_jitter = \"0s\"\n\n  ## Default flushing interval for all outputs. Maximum flush_interval will be\n  ## flush_interval + flush_jitter\n  flush_interval = \"10s\"\n  ## Jitter the flush interval by a random amount. This is primarily to avoid\n  ## large write spikes for users running a large number of telegraf instances.\n  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s\n  flush_jitter = \"0s\"\n\n  ## By default or when set to \"0s\", precision will be set to the same\n  ## timestamp order as the collection interval, with the maximum being 1s.\n  ##   ie, when interval = \"10s\", precision will be \"1s\"\n  ##       when interval = \"250ms\", precision will be \"1ms\"\n  ## Precision will NOT be used for service inputs. It is up to each individual\n  ## service input to set the timestamp at the appropriate precision.\n  ## Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\".\n  precision = \"\"\n\n  ## Log at debug level.\n  # debug = false\n  ## Log only error level messages.\n  # quiet = false\n\n  ## Log target controls the destination for logs and can be one of \"file\",\n  ## \"stderr\" or, on Windows, \"eventlog\".  When set to \"file\", the output file\n  ## is determined by the \"logfile\" setting.\n  # logtarget = \"file\"\n\n  ## Name of the file to be logged to when using the \"file\" logtarget.  If set to\n  ## the empty string then logs are written to stderr.\n  # logfile = \"\"\n\n  ## The logfile will be rotated after the time interval specified.  When set\n  ## to 0 no time based rotation is performed.  Logs are rotated only when\n  ## written to, if there is no log activity rotation may be delayed.\n  # logfile_rotation_interval = \"0d\"\n\n  ## The logfile will be rotated when it becomes larger than the specified\n  ## size.  When set to 0 no size based rotation is performed.\n  # logfile_rotation_max_size = \"0MB\"\n\n  ## Maximum number of rotated archives to keep, any older logs are deleted.\n  ## If set to -1, no archives are removed.\n  # logfile_rotation_max_archives = 5\n\n  ## Pick a timezone to use when logging or type 'local' for local time.\n  ## Example: America/Chicago\n  # log_with_timezone = \"\"\n\n  ## Override default hostname, if empty use os.Hostname()\n  hostname = \"\"\n  ## If set to true, do no set the \"host\" tag in the telegraf agent.\n  omit_hostname = false\n# Configuration for sending metrics to InfluxDB\n[[outputs.influxdb_v2]]\n  # alias=\"influxdb_v2\"\n  ## The URLs of the InfluxDB cluster nodes.\n  ##\n  ## Multiple URLs can be specified for a single cluster, only ONE of the\n  ## urls will be written to each interval.\n  ##   ex: urls = [\"https://us-west-2-1.aws.cloud2.influxdata.com\"]\n  urls = [\"http://127.0.0.1:9999\"]\n\n  ## Token for authentication.\n  token = \"\"\n\n  ## Organization is the name of the organization you wish to write to; must exist.\n  organization = \"\"\n\n  ## Destination bucket to write into.\n  bucket = \"\"\n\n  ## The value of this tag will be used to determine the bucket.  If this\n  ## tag is not set the 'bucket' option is used as the default.\n  # bucket_tag = \"\"\n\n  ## If true, the bucket tag will not be added to the metric.\n  # exclude_bucket_tag = false\n\n  ## Timeout for HTTP messages.\n  # timeout = \"5s\"\n\n  ## Additional HTTP headers\n  # http_headers = {\"X-Special-Header\" = \"Special-Value\"}\n\n  ## HTTP Proxy override, if unset values the standard proxy environment\n  ## variables are consulted to determine which proxy, if any, should be used.\n  # http_proxy = \"http://corporate.proxy:3128\"\n\n  ## HTTP User-Agent\n  # user_agent = \"telegraf\"\n\n  ## Content-Encoding for write request body, can be set to \"gzip\" to\n  ## compress body or \"identity\" to apply no encoding.\n  # content_encoding = \"gzip\"\n\n  ## Enable or disable uint support for writing uints influxdb 2.0.\n  # influx_uint_support = false\n\n  ## Optional TLS Config for use on HTTP connections.\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain & host verification\n  # insecure_skip_verify = false\n\n",
 			},
 			expMeta: map[string]interface{}{"buckets": []string{}},
 		},
@@ -393,12 +549,12 @@ func TestTelegrafConfigJSON(t *testing.T) {
 						}
 					}
 				]
-			}`, *id1, *id2),
+			}`, id1, id2),
 			expect: &TelegrafConfig{
 				ID:       *id1,
 				OrgID:    *id2,
 				Name:     "n1",
-				Config:   "# Configuration for telegraf agent\n[agent]\n  ## Default data collection interval for all inputs\n  interval = \"10s\"\n  ## Rounds collection interval to 'interval'\n  ## ie, if interval=\"10s\" then always collect on :00, :10, :20, etc.\n  round_interval = true\n\n  ## Telegraf will send metrics to outputs in batches of at most\n  ## metric_batch_size metrics.\n  ## This controls the size of writes that Telegraf sends to output plugins.\n  metric_batch_size = 1000\n\n  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each\n  ## output, and will flush this buffer on a successful write. Oldest metrics\n  ## are dropped first when this buffer fills.\n  ## This buffer only fills when writes fail to output plugin(s).\n  metric_buffer_limit = 10000\n\n  ## Collection jitter is used to jitter the collection by a random amount.\n  ## Each plugin will sleep for a random time within jitter before collecting.\n  ## This can be used to avoid many plugins querying things like sysfs at the\n  ## same time, which can have a measurable effect on the system.\n  collection_jitter = \"0s\"\n\n  ## Default flushing interval for all outputs. Maximum flush_interval will be\n  ## flush_interval + flush_jitter\n  flush_interval = \"10s\"\n  ## Jitter the flush interval by a random amount. This is primarily to avoid\n  ## large write spikes for users running a large number of telegraf instances.\n  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s\n  flush_jitter = \"0s\"\n\n  ## By default or when set to \"0s\", precision will be set to the same\n  ## timestamp order as the collection interval, with the maximum being 1s.\n  ##   ie, when interval = \"10s\", precision will be \"1s\"\n  ##       when interval = \"250ms\", precision will be \"1ms\"\n  ## Precision will NOT be used for service inputs. It is up to each individual\n  ## service input to set the timestamp at the appropriate precision.\n  ## Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\".\n  precision = \"\"\n\n  ## Logging configuration:\n  ## Run telegraf with debug log messages.\n  debug = false\n  ## Run telegraf in quiet mode (error log messages only).\n  quiet = false\n  ## Specify the log file name. The empty string means to log to stderr.\n  logfile = \"\"\n\n  ## Override default hostname, if empty use os.Hostname()\n  hostname = \"\"\n  ## If set to true, do no set the \"host\" tag in the telegraf agent.\n  omit_hostname = false\n[[inputs.file]]\t\n  ## Files to parse each interval.\n  ## These accept standard unix glob matching rules, but with the addition of\n  ## ** as a \"super asterisk\". ie:\n  ##   /var/log/**.log     -> recursively find all .log files in /var/log\n  ##   /var/log/*/*.log    -> find all .log files with a parent dir in /var/log\n  ##   /var/log/apache.log -> only read the apache log file\n  files = [\"f1\", \"f2\"]\n\n  ## The dataformat to be read from files\n  ## Each data format has its own unique set of configuration options, read\n  ## more about them here:\n  ## https://github.com/influxdata/telegraf/blob/master/docs/DATA_FORMATS_INPUT.md\n  data_format = \"influx\"\n[[inputs.cpu]]\n  ## Whether to report per-cpu stats or not\n  percpu = true\n  ## Whether to report total system cpu stats or not\n  totalcpu = true\n  ## If true, collect raw CPU time metrics.\n  collect_cpu_time = false\n  ## If true, compute and report the sum of all non-idle CPU states.\n  report_active = false\n[[outputs.file]]\n  ## Files to write to, \"stdout\" is a specially handled file.\n  files = [\"stdout\"]\n[[outputs.influxdb_v2]]\t\n  ## The URLs of the InfluxDB cluster nodes.\n  ##\n  ## Multiple URLs can be specified for a single cluster, only ONE of the\n  ## urls will be written to each interval.\n  ## urls exp: http://127.0.0.1:8086\n  urls = [\"url1\", \"url2\"]\n\n  ## Token for authentication.\n  token = \"tok1\"\n\n  ## Organization is the name of the organization you wish to write to; must exist.\n  organization = \"\"\n\n  ## Destination bucket to write into.\n  bucket = \"\"\n",
+				Config:   "# Configuration for telegraf agent\n[agent]\n  ## Default data collection interval for all inputs\n  interval = \"10s\"\n  ## Rounds collection interval to 'interval'\n  ## ie, if interval=\"10s\" then always collect on :00, :10, :20, etc.\n  round_interval = true\n\n  ## Telegraf will send metrics to outputs in batches of at most\n  ## metric_batch_size metrics.\n  ## This controls the size of writes that Telegraf sends to output plugins.\n  metric_batch_size = 1000\n\n  ## Maximum number of unwritten metrics per output.  Increasing this value\n  ## allows for longer periods of output downtime without dropping metrics at the\n  ## cost of higher maximum memory usage.\n  metric_buffer_limit = 10000\n\n  ## Collection jitter is used to jitter the collection by a random amount.\n  ## Each plugin will sleep for a random time within jitter before collecting.\n  ## This can be used to avoid many plugins querying things like sysfs at the\n  ## same time, which can have a measurable effect on the system.\n  collection_jitter = \"0s\"\n\n  ## Default flushing interval for all outputs. Maximum flush_interval will be\n  ## flush_interval + flush_jitter\n  flush_interval = \"10s\"\n  ## Jitter the flush interval by a random amount. This is primarily to avoid\n  ## large write spikes for users running a large number of telegraf instances.\n  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s\n  flush_jitter = \"0s\"\n\n  ## By default or when set to \"0s\", precision will be set to the same\n  ## timestamp order as the collection interval, with the maximum being 1s.\n  ##   ie, when interval = \"10s\", precision will be \"1s\"\n  ##       when interval = \"250ms\", precision will be \"1ms\"\n  ## Precision will NOT be used for service inputs. It is up to each individual\n  ## service input to set the timestamp at the appropriate precision.\n  ## Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\".\n  precision = \"\"\n\n  ## Log at debug level.\n  # debug = false\n  ## Log only error level messages.\n  # quiet = false\n\n  ## Log target controls the destination for logs and can be one of \"file\",\n  ## \"stderr\" or, on Windows, \"eventlog\".  When set to \"file\", the output file\n  ## is determined by the \"logfile\" setting.\n  # logtarget = \"file\"\n\n  ## Name of the file to be logged to when using the \"file\" logtarget.  If set to\n  ## the empty string then logs are written to stderr.\n  # logfile = \"\"\n\n  ## The logfile will be rotated after the time interval specified.  When set\n  ## to 0 no time based rotation is performed.  Logs are rotated only when\n  ## written to, if there is no log activity rotation may be delayed.\n  # logfile_rotation_interval = \"0d\"\n\n  ## The logfile will be rotated when it becomes larger than the specified\n  ## size.  When set to 0 no size based rotation is performed.\n  # logfile_rotation_max_size = \"0MB\"\n\n  ## Maximum number of rotated archives to keep, any older logs are deleted.\n  ## If set to -1, no archives are removed.\n  # logfile_rotation_max_archives = 5\n\n  ## Pick a timezone to use when logging or type 'local' for local time.\n  ## Example: America/Chicago\n  # log_with_timezone = \"\"\n\n  ## Override default hostname, if empty use os.Hostname()\n  hostname = \"\"\n  ## If set to true, do no set the \"host\" tag in the telegraf agent.\n  omit_hostname = false\n[[inputs.file]]\n  ## Files to parse each interval.  Accept standard unix glob matching rules,\n  ## as well as ** to match recursive files and directories.\n  files = [\"f1\", \"f2\"]\n\n  ## Name a tag containing the name of the file the data was parsed from.  Leave empty\n  ## to disable.\n  # file_tag = \"\"\n\n  ## Character encoding to use when interpreting the file contents.  Invalid\n  ## characters are replaced using the unicode replacement character.  When set\n  ## to the empty string the data is not decoded to text.\n  ##   ex: character_encoding = \"utf-8\"\n  ##       character_encoding = \"utf-16le\"\n  ##       character_encoding = \"utf-16be\"\n  ##       character_encoding = \"\"\n  # character_encoding = \"\"\n\n  ## The dataformat to be read from files\n  ## Each data format has its own unique set of configuration options, read\n  ## more about them here:\n  ## https://github.com/influxdata/telegraf/blob/master/docs/DATA_FORMATS_INPUT.md\n  data_format = \"influx\"\n[[inputs.cpu]]\n  ## Whether to report per-cpu stats or not\n  percpu = true\n  ## Whether to report total system cpu stats or not\n  totalcpu = true\n  ## If true, collect raw CPU time metrics\n  collect_cpu_time = false\n  ## If true, compute and report the sum of all non-idle CPU states\n  report_active = false\n[[outputs.file]]\n  ## Files to write to, \"stdout\" is a specially handled file.\n  files = [\"stdout\"]\n\n  ## Use batch serialization format instead of line based delimiting.  The\n  ## batch format allows for the production of non line based output formats and\n  ## may more efficiently encode metric groups.\n  # use_batch_format = false\n\n  ## The file will be rotated after the time interval specified.  When set\n  ## to 0 no time based rotation is performed.\n  # rotation_interval = \"0d\"\n\n  ## The logfile will be rotated when it becomes larger than the specified\n  ## size.  When set to 0 no size based rotation is performed.\n  # rotation_max_size = \"0MB\"\n\n  ## Maximum number of rotated archives to keep, any older logs are deleted.\n  ## If set to -1, no archives are removed.\n  # rotation_max_archives = 5\n\n  ## Data format to output.\n  ## Each data format has its own unique set of configuration options, read\n  ## more about them here:\n  ## https://github.com/influxdata/telegraf/blob/master/docs/DATA_FORMATS_OUTPUT.md\n  data_format = \"influx\"\n[[outputs.influxdb_v2]]\n  ## The URLs of the InfluxDB cluster nodes.\n  ##\n  ## Multiple URLs can be specified for a single cluster, only ONE of the\n  ## urls will be written to each interval.\n  ##   ex: urls = [\"https://us-west-2-1.aws.cloud2.influxdata.com\"]\n  urls = [\"url1\", \"url2\"]\n\n  ## Token for authentication.\n  token = \"tok1\"\n\n  ## Organization is the name of the organization you wish to write to; must exist.\n  organization = \"\"\n\n  ## Destination bucket to write into.\n  bucket = \"\"\n\n  ## The value of this tag will be used to determine the bucket.  If this\n  ## tag is not set the 'bucket' option is used as the default.\n  # bucket_tag = \"\"\n\n  ## If true, the bucket tag will not be added to the metric.\n  # exclude_bucket_tag = false\n\n  ## Timeout for HTTP messages.\n  # timeout = \"5s\"\n\n  ## Additional HTTP headers\n  # http_headers = {\"X-Special-Header\" = \"Special-Value\"}\n\n  ## HTTP Proxy override, if unset values the standard proxy environment\n  ## variables are consulted to determine which proxy, if any, should be used.\n  # http_proxy = \"http://corporate.proxy:3128\"\n\n  ## HTTP User-Agent\n  # user_agent = \"telegraf\"\n\n  ## Content-Encoding for write request body, can be set to \"gzip\" to\n  ## compress body or \"identity\" to apply no encoding.\n  # content_encoding = \"gzip\"\n\n  ## Enable or disable uint support for writing uints influxdb 2.0.\n  # influx_uint_support = false\n\n  ## Optional TLS Config for use on HTTP connections.\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain & host verification\n  # insecure_skip_verify = false\n",
 				Metadata: map[string]interface{}{"buckets": []string{}},
 			},
 		},
@@ -418,7 +574,7 @@ func TestTelegrafConfigJSON(t *testing.T) {
 						}
 					}
 				]
-			}`, *id1, *id2),
+			}`, id1, id2),
 			err: &errors.Error{
 				Code: errors.EInvalid,
 				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginType, "aggregator"),
@@ -440,7 +596,7 @@ func TestTelegrafConfigJSON(t *testing.T) {
 						}
 					}
 				]
-			}`, *id1, *id2),
+			}`, id1, id2),
 			err: &errors.Error{
 				Code: errors.EInvalid,
 				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginName, "kafka", plugins.Output),
@@ -507,7 +663,7 @@ func TestLegacyStruct(t *testing.T) {
 				}
 			}
 		]
-	}`, *id1)
+	}`, id1)
 	want := `# Configuration for telegraf agent
 [agent]
   ## Default data collection interval for all inputs
@@ -521,10 +677,9 @@ func TestLegacyStruct(t *testing.T) {
   ## This controls the size of writes that Telegraf sends to output plugins.
   metric_batch_size = 1000
 
-  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each
-  ## output, and will flush this buffer on a successful write. Oldest metrics
-  ## are dropped first when this buffer fills.
-  ## This buffer only fills when writes fail to output plugin(s).
+  ## Maximum number of unwritten metrics per output.  Increasing this value
+  ## allows for longer periods of output downtime without dropping metrics at the
+  ## cost of higher maximum memory usage.
   metric_buffer_limit = 10000
 
   ## Collection jitter is used to jitter the collection by a random amount.
@@ -550,26 +705,58 @@ func TestLegacyStruct(t *testing.T) {
   ## Valid time units are "ns", "us" (or "µs"), "ms", "s".
   precision = ""
 
-  ## Logging configuration:
-  ## Run telegraf with debug log messages.
-  debug = false
-  ## Run telegraf in quiet mode (error log messages only).
-  quiet = false
-  ## Specify the log file name. The empty string means to log to stderr.
-  logfile = ""
+  ## Log at debug level.
+  # debug = false
+  ## Log only error level messages.
+  # quiet = false
+
+  ## Log target controls the destination for logs and can be one of "file",
+  ## "stderr" or, on Windows, "eventlog".  When set to "file", the output file
+  ## is determined by the "logfile" setting.
+  # logtarget = "file"
+
+  ## Name of the file to be logged to when using the "file" logtarget.  If set to
+  ## the empty string then logs are written to stderr.
+  # logfile = ""
+
+  ## The logfile will be rotated after the time interval specified.  When set
+  ## to 0 no time based rotation is performed.  Logs are rotated only when
+  ## written to, if there is no log activity rotation may be delayed.
+  # logfile_rotation_interval = "0d"
+
+  ## The logfile will be rotated when it becomes larger than the specified
+  ## size.  When set to 0 no size based rotation is performed.
+  # logfile_rotation_max_size = "0MB"
+
+  ## Maximum number of rotated archives to keep, any older logs are deleted.
+  ## If set to -1, no archives are removed.
+  # logfile_rotation_max_archives = 5
+
+  ## Pick a timezone to use when logging or type 'local' for local time.
+  ## Example: America/Chicago
+  # log_with_timezone = ""
 
   ## Override default hostname, if empty use os.Hostname()
   hostname = ""
   ## If set to true, do no set the "host" tag in the telegraf agent.
   omit_hostname = false
-[[inputs.file]]	
-  ## Files to parse each interval.
-  ## These accept standard unix glob matching rules, but with the addition of
-  ## ** as a "super asterisk". ie:
-  ##   /var/log/**.log     -> recursively find all .log files in /var/log
-  ##   /var/log/*/*.log    -> find all .log files with a parent dir in /var/log
-  ##   /var/log/apache.log -> only read the apache log file
+[[inputs.file]]
+  ## Files to parse each interval.  Accept standard unix glob matching rules,
+  ## as well as ** to match recursive files and directories.
   files = ["f1", "f2"]
+
+  ## Name a tag containing the name of the file the data was parsed from.  Leave empty
+  ## to disable.
+  # file_tag = ""
+
+  ## Character encoding to use when interpreting the file contents.  Invalid
+  ## characters are replaced using the unicode replacement character.  When set
+  ## to the empty string the data is not decoded to text.
+  ##   ex: character_encoding = "utf-8"
+  ##       character_encoding = "utf-16le"
+  ##       character_encoding = "utf-16be"
+  ##       character_encoding = ""
+  # character_encoding = ""
 
   ## The dataformat to be read from files
   ## Each data format has its own unique set of configuration options, read
@@ -581,19 +768,42 @@ func TestLegacyStruct(t *testing.T) {
   percpu = true
   ## Whether to report total system cpu stats or not
   totalcpu = true
-  ## If true, collect raw CPU time metrics.
+  ## If true, collect raw CPU time metrics
   collect_cpu_time = false
-  ## If true, compute and report the sum of all non-idle CPU states.
+  ## If true, compute and report the sum of all non-idle CPU states
   report_active = false
 [[outputs.file]]
   ## Files to write to, "stdout" is a specially handled file.
   files = ["stdout"]
-[[outputs.influxdb_v2]]	
+
+  ## Use batch serialization format instead of line based delimiting.  The
+  ## batch format allows for the production of non line based output formats and
+  ## may more efficiently encode metric groups.
+  # use_batch_format = false
+
+  ## The file will be rotated after the time interval specified.  When set
+  ## to 0 no time based rotation is performed.
+  # rotation_interval = "0d"
+
+  ## The logfile will be rotated when it becomes larger than the specified
+  ## size.  When set to 0 no size based rotation is performed.
+  # rotation_max_size = "0MB"
+
+  ## Maximum number of rotated archives to keep, any older logs are deleted.
+  ## If set to -1, no archives are removed.
+  # rotation_max_archives = 5
+
+  ## Data format to output.
+  ## Each data format has its own unique set of configuration options, read
+  ## more about them here:
+  ## https://github.com/influxdata/telegraf/blob/master/docs/DATA_FORMATS_OUTPUT.md
+  data_format = "influx"
+[[outputs.influxdb_v2]]
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:8086
+  ##   ex: urls = ["https://us-west-2-1.aws.cloud2.influxdata.com"]
   urls = ["url1", "url2"]
 
   ## Token for authentication.
@@ -604,6 +814,40 @@ func TestLegacyStruct(t *testing.T) {
 
   ## Destination bucket to write into.
   bucket = "bucket1"
+
+  ## The value of this tag will be used to determine the bucket.  If this
+  ## tag is not set the 'bucket' option is used as the default.
+  # bucket_tag = ""
+
+  ## If true, the bucket tag will not be added to the metric.
+  # exclude_bucket_tag = false
+
+  ## Timeout for HTTP messages.
+  # timeout = "5s"
+
+  ## Additional HTTP headers
+  # http_headers = {"X-Special-Header" = "Special-Value"}
+
+  ## HTTP Proxy override, if unset values the standard proxy environment
+  ## variables are consulted to determine which proxy, if any, should be used.
+  # http_proxy = "http://corporate.proxy:3128"
+
+  ## HTTP User-Agent
+  # user_agent = "telegraf"
+
+  ## Content-Encoding for write request body, can be set to "gzip" to
+  ## compress body or "identity" to apply no encoding.
+  # content_encoding = "gzip"
+
+  ## Enable or disable uint support for writing uints influxdb 2.0.
+  # influx_uint_support = false
+
+  ## Optional TLS Config for use on HTTP connections.
+  # tls_ca = "/etc/telegraf/ca.pem"
+  # tls_cert = "/etc/telegraf/cert.pem"
+  # tls_key = "/etc/telegraf/key.pem"
+  ## Use TLS but skip chain & host verification
+  # insecure_skip_verify = false
 `
 	tc := &TelegrafConfig{}
 	require.NoError(t, json.Unmarshal([]byte(telConfOld), tc))

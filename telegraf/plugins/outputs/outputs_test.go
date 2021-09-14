@@ -34,13 +34,36 @@ func TestTOML(t *testing.T) {
 				&File{}: `[[outputs.file]]
   ## Files to write to, "stdout" is a specially handled file.
   files = []
+
+  ## Use batch serialization format instead of line based delimiting.  The
+  ## batch format allows for the production of non line based output formats and
+  ## may more efficiently encode metric groups.
+  # use_batch_format = false
+
+  ## The file will be rotated after the time interval specified.  When set
+  ## to 0 no time based rotation is performed.
+  # rotation_interval = "0d"
+
+  ## The logfile will be rotated when it becomes larger than the specified
+  ## size.  When set to 0 no size based rotation is performed.
+  # rotation_max_size = "0MB"
+
+  ## Maximum number of rotated archives to keep, any older logs are deleted.
+  ## If set to -1, no archives are removed.
+  # rotation_max_archives = 5
+
+  ## Data format to output.
+  ## Each data format has its own unique set of configuration options, read
+  ## more about them here:
+  ## https://github.com/influxdata/telegraf/blob/master/docs/DATA_FORMATS_OUTPUT.md
+  data_format = "influx"
 `,
-				&InfluxDBV2{}: `[[outputs.influxdb_v2]]	
+				&InfluxDBV2{}: `[[outputs.influxdb_v2]]
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:8086
+  ##   ex: urls = ["https://us-west-2-1.aws.cloud2.influxdata.com"]
   urls = []
 
   ## Token for authentication.
@@ -51,6 +74,40 @@ func TestTOML(t *testing.T) {
 
   ## Destination bucket to write into.
   bucket = ""
+
+  ## The value of this tag will be used to determine the bucket.  If this
+  ## tag is not set the 'bucket' option is used as the default.
+  # bucket_tag = ""
+
+  ## If true, the bucket tag will not be added to the metric.
+  # exclude_bucket_tag = false
+
+  ## Timeout for HTTP messages.
+  # timeout = "5s"
+
+  ## Additional HTTP headers
+  # http_headers = {"X-Special-Header" = "Special-Value"}
+
+  ## HTTP Proxy override, if unset values the standard proxy environment
+  ## variables are consulted to determine which proxy, if any, should be used.
+  # http_proxy = "http://corporate.proxy:3128"
+
+  ## HTTP User-Agent
+  # user_agent = "telegraf"
+
+  ## Content-Encoding for write request body, can be set to "gzip" to
+  ## compress body or "identity" to apply no encoding.
+  # content_encoding = "gzip"
+
+  ## Enable or disable uint support for writing uints influxdb 2.0.
+  # influx_uint_support = false
+
+  ## Optional TLS Config for use on HTTP connections.
+  # tls_ca = "/etc/telegraf/ca.pem"
+  # tls_cert = "/etc/telegraf/cert.pem"
+  # tls_key = "/etc/telegraf/key.pem"
+  ## Use TLS but skip chain & host verification
+  # insecure_skip_verify = false
 `,
 			},
 		},
@@ -65,22 +122,45 @@ func TestTOML(t *testing.T) {
 				}: `[[outputs.file]]
   ## Files to write to, "stdout" is a specially handled file.
   files = ["stdout", "/tmp/out.txt"]
+
+  ## Use batch serialization format instead of line based delimiting.  The
+  ## batch format allows for the production of non line based output formats and
+  ## may more efficiently encode metric groups.
+  # use_batch_format = false
+
+  ## The file will be rotated after the time interval specified.  When set
+  ## to 0 no time based rotation is performed.
+  # rotation_interval = "0d"
+
+  ## The logfile will be rotated when it becomes larger than the specified
+  ## size.  When set to 0 no size based rotation is performed.
+  # rotation_max_size = "0MB"
+
+  ## Maximum number of rotated archives to keep, any older logs are deleted.
+  ## If set to -1, no archives are removed.
+  # rotation_max_archives = 5
+
+  ## Data format to output.
+  ## Each data format has its own unique set of configuration options, read
+  ## more about them here:
+  ## https://github.com/influxdata/telegraf/blob/master/docs/DATA_FORMATS_OUTPUT.md
+  data_format = "influx"
 `,
 				&InfluxDBV2{
 					URLs: []string{
-						"http://192.168.1.10:8086",
-						"http://192.168.1.11:8086",
+						"http://192.168.1.10:9999",
+						"http://192.168.1.11:9999",
 					},
 					Token:        "tok1",
 					Organization: "org1",
 					Bucket:       "bucket1",
-				}: `[[outputs.influxdb_v2]]	
+				}: `[[outputs.influxdb_v2]]
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:8086
-  urls = ["http://192.168.1.10:8086", "http://192.168.1.11:8086"]
+  ##   ex: urls = ["https://us-west-2-1.aws.cloud2.influxdata.com"]
+  urls = ["http://192.168.1.10:9999", "http://192.168.1.11:9999"]
 
   ## Token for authentication.
   token = "tok1"
@@ -90,6 +170,40 @@ func TestTOML(t *testing.T) {
 
   ## Destination bucket to write into.
   bucket = "bucket1"
+
+  ## The value of this tag will be used to determine the bucket.  If this
+  ## tag is not set the 'bucket' option is used as the default.
+  # bucket_tag = ""
+
+  ## If true, the bucket tag will not be added to the metric.
+  # exclude_bucket_tag = false
+
+  ## Timeout for HTTP messages.
+  # timeout = "5s"
+
+  ## Additional HTTP headers
+  # http_headers = {"X-Special-Header" = "Special-Value"}
+
+  ## HTTP Proxy override, if unset values the standard proxy environment
+  ## variables are consulted to determine which proxy, if any, should be used.
+  # http_proxy = "http://corporate.proxy:3128"
+
+  ## HTTP User-Agent
+  # user_agent = "telegraf"
+
+  ## Content-Encoding for write request body, can be set to "gzip" to
+  ## compress body or "identity" to apply no encoding.
+  # content_encoding = "gzip"
+
+  ## Enable or disable uint support for writing uints influxdb 2.0.
+  # influx_uint_support = false
+
+  ## Optional TLS Config for use on HTTP connections.
+  # tls_ca = "/etc/telegraf/ca.pem"
+  # tls_cert = "/etc/telegraf/cert.pem"
+  # tls_key = "/etc/telegraf/key.pem"
+  ## Use TLS but skip chain & host verification
+  # insecure_skip_verify = false
 `,
 			},
 		},
@@ -161,16 +275,16 @@ func TestDecodeTOML(t *testing.T) {
 			name: "influxdb_v2 missing token",
 			want: &InfluxDBV2{
 				URLs: []string{
-					"http://localhost:8086",
-					"http://192.168.0.1:8086",
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
 				},
 			},
 			wantErr: errors.New("token is missing for influxdb_v2 output plugin"),
 			output:  &InfluxDBV2{},
 			data: map[string]interface{}{
 				"urls": []interface{}{
-					"http://localhost:8086",
-					"http://192.168.0.1:8086",
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
 				},
 			},
 		},
@@ -178,8 +292,8 @@ func TestDecodeTOML(t *testing.T) {
 			name: "influxdb_v2 missing org",
 			want: &InfluxDBV2{
 				URLs: []string{
-					"http://localhost:8086",
-					"http://192.168.0.1:8086",
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
 				},
 				Token: "token1",
 			},
@@ -187,8 +301,8 @@ func TestDecodeTOML(t *testing.T) {
 			output:  &InfluxDBV2{},
 			data: map[string]interface{}{
 				"urls": []interface{}{
-					"http://localhost:8086",
-					"http://192.168.0.1:8086",
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
 				},
 				"token": "token1",
 			},
@@ -197,8 +311,8 @@ func TestDecodeTOML(t *testing.T) {
 			name: "influxdb_v2 missing bucket",
 			want: &InfluxDBV2{
 				URLs: []string{
-					"http://localhost:8086",
-					"http://192.168.0.1:8086",
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
 				},
 				Token:        "token1",
 				Organization: "org1",
@@ -207,8 +321,8 @@ func TestDecodeTOML(t *testing.T) {
 			output:  &InfluxDBV2{},
 			data: map[string]interface{}{
 				"urls": []interface{}{
-					"http://localhost:8086",
-					"http://192.168.0.1:8086",
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
 				},
 				"token":        "token1",
 				"organization": "org1",
@@ -218,8 +332,8 @@ func TestDecodeTOML(t *testing.T) {
 			name: "influxdb_v2",
 			want: &InfluxDBV2{
 				URLs: []string{
-					"http://localhost:8086",
-					"http://192.168.0.1:8086",
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
 				},
 				Token:        "token1",
 				Organization: "org1",
@@ -228,8 +342,8 @@ func TestDecodeTOML(t *testing.T) {
 			output: &InfluxDBV2{},
 			data: map[string]interface{}{
 				"urls": []interface{}{
-					"http://localhost:8086",
-					"http://192.168.0.1:8086",
+					"http://localhost:9999",
+					"http://192.168.0.1:9999",
 				},
 				"token":        "token1",
 				"organization": "org1",

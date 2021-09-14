@@ -17,6 +17,7 @@ func (k *Kernel) PluginName() string {
 // TOML encodes to toml string
 func (k *Kernel) TOML() string {
 	return fmt.Sprintf(`[[inputs.%s]]
+  # no configuration
 `, k.PluginName())
 }
 

@@ -197,10 +197,9 @@ var AgentConfig = `# Configuration for telegraf agent
   ## This controls the size of writes that Telegraf sends to output plugins.
   metric_batch_size = 1000
 
-  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each
-  ## output, and will flush this buffer on a successful write. Oldest metrics
-  ## are dropped first when this buffer fills.
-  ## This buffer only fills when writes fail to output plugin(s).
+  ## Maximum number of unwritten metrics per output.  Increasing this value
+  ## allows for longer periods of output downtime without dropping metrics at the
+  ## cost of higher maximum memory usage.
   metric_buffer_limit = 10000
 
   ## Collection jitter is used to jitter the collection by a random amount.
@@ -226,13 +225,36 @@ var AgentConfig = `# Configuration for telegraf agent
   ## Valid time units are "ns", "us" (or "µs"), "ms", "s".
   precision = ""
 
-  ## Logging configuration:
-  ## Run telegraf with debug log messages.
-  debug = false
-  ## Run telegraf in quiet mode (error log messages only).
-  quiet = false
-  ## Specify the log file name. The empty string means to log to stderr.
-  logfile = ""
+  ## Log at debug level.
+  # debug = false
+  ## Log only error level messages.
+  # quiet = false
+
+  ## Log target controls the destination for logs and can be one of "file",
+  ## "stderr" or, on Windows, "eventlog".  When set to "file", the output file
+  ## is determined by the "logfile" setting.
+  # logtarget = "file"
+
+  ## Name of the file to be logged to when using the "file" logtarget.  If set to
+  ## the empty string then logs are written to stderr.
+  # logfile = ""
+
+  ## The logfile will be rotated after the time interval specified.  When set
+  ## to 0 no time based rotation is performed.  Logs are rotated only when
+  ## written to, if there is no log activity rotation may be delayed.
+  # logfile_rotation_interval = "0d"
+
+  ## The logfile will be rotated when it becomes larger than the specified
+  ## size.  When set to 0 no size based rotation is performed.
+  # logfile_rotation_max_size = "0MB"
+
+  ## Maximum number of rotated archives to keep, any older logs are deleted.
+  ## If set to -1, no archives are removed.
+  # logfile_rotation_max_archives = 5
+
+  ## Pick a timezone to use when logging or type 'local' for local time.
+  ## Example: America/Chicago
+  # log_with_timezone = ""
 
   ## Override default hostname, if empty use os.Hostname()
   hostname = ""
@@ -908,7 +930,7 @@ var availableInputs = `{
       "type": "input",
       "name": "httpjson",
       "description": "Read flattened metrics from one or more JSON HTTP endpoints",
-      "config": "# Read flattened metrics from one or more JSON HTTP endpoints\n[[inputs.httpjson]]\n  # alias=\"httpjson\"\n  ## NOTE This plugin only reads numerical measurements, strings and booleans\n  ## will be ignored.\n\n  ## Name for the service being polled.  Will be appended to the name of the\n  ## measurement e.g. httpjson_webserver_stats\n  ##\n  ## Deprecated (1.3.0): Use name_override, name_suffix, name_prefix instead.\n  name = \"webserver_stats\"\n\n  ## URL of each server in the service's cluster\n  servers = [\n    \"http://localhost:8086/stats/\",\n    \"http://localhost:9998/stats/\",\n  ]\n  ## Set response_timeout (default 5 seconds)\n  response_timeout = \"5s\"\n\n  ## HTTP method to use: GET or POST (case-sensitive)\n  method = \"GET\"\n\n  ## List of tag names to extract from top-level of JSON server response\n  # tag_keys = [\n  #   \"my_tag_1\",\n  #   \"my_tag_2\"\n  # ]\n\n  ## Optional TLS Config\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain \u0026 host verification\n  # insecure_skip_verify = false\n\n  ## HTTP parameters (all values must be strings).  For \"GET\" requests, data\n  ## will be included in the query.  For \"POST\" requests, data will be included\n  ## in the request body as \"x-www-form-urlencoded\".\n  # [inputs.httpjson.parameters]\n  #   event_type = \"cpu_spike\"\n  #   threshold = \"0.75\"\n\n  ## HTTP Headers (all values must be strings)\n  # [inputs.httpjson.headers]\n  #   X-Auth-Token = \"my-xauth-token\"\n  #   apiVersion = \"v1\"\n\n"
+      "config": "# Read flattened metrics from one or more JSON HTTP endpoints\n[[inputs.httpjson]]\n  # alias=\"httpjson\"\n  ## NOTE This plugin only reads numerical measurements, strings and booleans\n  ## will be ignored.\n\n  ## Name for the service being polled.  Will be appended to the name of the\n  ## measurement e.g. httpjson_webserver_stats\n  ##\n  ## Deprecated (1.3.0): Use name_override, name_suffix, name_prefix instead.\n  name = \"webserver_stats\"\n\n  ## URL of each server in the service's cluster\n  servers = [\n    \"http://localhost:9999/stats/\",\n    \"http://localhost:9998/stats/\",\n  ]\n  ## Set response_timeout (default 5 seconds)\n  response_timeout = \"5s\"\n\n  ## HTTP method to use: GET or POST (case-sensitive)\n  method = \"GET\"\n\n  ## List of tag names to extract from top-level of JSON server response\n  # tag_keys = [\n  #   \"my_tag_1\",\n  #   \"my_tag_2\"\n  # ]\n\n  ## Optional TLS Config\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain \u0026 host verification\n  # insecure_skip_verify = false\n\n  ## HTTP parameters (all values must be strings).  For \"GET\" requests, data\n  ## will be included in the query.  For \"POST\" requests, data will be included\n  ## in the request body as \"x-www-form-urlencoded\".\n  # [inputs.httpjson.parameters]\n  #   event_type = \"cpu_spike\"\n  #   threshold = \"0.75\"\n\n  ## HTTP Headers (all values must be strings)\n  # [inputs.httpjson.headers]\n  #   X-Auth-Token = \"my-xauth-token\"\n  #   apiVersion = \"v1\"\n\n"
     },
     {
       "type": "input",
@@ -1040,7 +1062,7 @@ var availableInputs = `{
       "type": "input",
       "name": "jolokia2_proxy",
       "description": "Read JMX metrics from a Jolokia REST proxy endpoint",
-      "config": "# Read JMX metrics from a Jolokia REST proxy endpoint\n[[inputs.jolokia2_proxy]]\n  # alias=\"jolokia2_proxy\"\n  # default_tag_prefix      = \"\"\n  # default_field_prefix    = \"\"\n  # default_field_separator = \".\"\n\n  ## Proxy agent\n  url = \"http://localhost:8080/jolokia\"\n  # username = \"\"\n  # password = \"\"\n  # response_timeout = \"5s\"\n\n  ## Optional TLS config\n  # tls_ca   = \"/var/private/ca.pem\"\n  # tls_cert = \"/var/private/client.pem\"\n  # tls_key  = \"/var/private/client-key.pem\"\n  # insecure_skip_verify = false\n\n  ## Add proxy targets to query\n  # default_target_username = \"\"\n  # default_target_password = \"\"\n  [[inputs.jolokia2_proxy.target]]\n    url = \"service:jmx:rmi:///jndi/rmi://targethost:8086/jmxrmi\"\n    # username = \"\"\n    # password = \"\"\n\n  ## Add metrics to read\n  [[inputs.jolokia2_proxy.metric]]\n    name  = \"java_runtime\"\n    mbean = \"java.lang:type=Runtime\"\n    paths = [\"Uptime\"]\n\n"
+      "config": "# Read JMX metrics from a Jolokia REST proxy endpoint\n[[inputs.jolokia2_proxy]]\n  # alias=\"jolokia2_proxy\"\n  # default_tag_prefix      = \"\"\n  # default_field_prefix    = \"\"\n  # default_field_separator = \".\"\n\n  ## Proxy agent\n  url = \"http://localhost:8080/jolokia\"\n  # username = \"\"\n  # password = \"\"\n  # response_timeout = \"5s\"\n\n  ## Optional TLS config\n  # tls_ca   = \"/var/private/ca.pem\"\n  # tls_cert = \"/var/private/client.pem\"\n  # tls_key  = \"/var/private/client-key.pem\"\n  # insecure_skip_verify = false\n\n  ## Add proxy targets to query\n  # default_target_username = \"\"\n  # default_target_password = \"\"\n  [[inputs.jolokia2_proxy.target]]\n    url = \"service:jmx:rmi:///jndi/rmi://targethost:9999/jmxrmi\"\n    # username = \"\"\n    # password = \"\"\n\n  ## Add metrics to read\n  [[inputs.jolokia2_proxy.metric]]\n    name  = \"java_runtime\"\n    mbean = \"java.lang:type=Runtime\"\n    paths = [\"Uptime\"]\n\n"
     },
     {
       "type": "input",
@@ -1437,7 +1459,7 @@ var availableOutputs = `{
       "type": "output",
       "name": "influxdb_v2",
       "description": "Configuration for sending metrics to InfluxDB",
-      "config": "# Configuration for sending metrics to InfluxDB\n[[outputs.influxdb_v2]]\n  # alias=\"influxdb_v2\"\n  ## The URLs of the InfluxDB cluster nodes.\n  ##\n  ## Multiple URLs can be specified for a single cluster, only ONE of the\n  ## urls will be written to each interval.\n  ##   ex: urls = [\"https://us-west-2-1.aws.cloud2.influxdata.com\"]\n  urls = [\"http://127.0.0.1:8086\"]\n\n  ## Token for authentication.\n  token = \"\"\n\n  ## Organization is the name of the organization you wish to write to; must exist.\n  organization = \"\"\n\n  ## Destination bucket to write into.\n  bucket = \"\"\n\n  ## The value of this tag will be used to determine the bucket.  If this\n  ## tag is not set the 'bucket' option is used as the default.\n  # bucket_tag = \"\"\n\n  ## If true, the bucket tag will not be added to the metric.\n  # exclude_bucket_tag = false\n\n  ## Timeout for HTTP messages.\n  # timeout = \"5s\"\n\n  ## Additional HTTP headers\n  # http_headers = {\"X-Special-Header\" = \"Special-Value\"}\n\n  ## HTTP Proxy override, if unset values the standard proxy environment\n  ## variables are consulted to determine which proxy, if any, should be used.\n  # http_proxy = \"http://corporate.proxy:3128\"\n\n  ## HTTP User-Agent\n  # user_agent = \"telegraf\"\n\n  ## Content-Encoding for write request body, can be set to \"gzip\" to\n  ## compress body or \"identity\" to apply no encoding.\n  # content_encoding = \"gzip\"\n\n  ## Enable or disable uint support for writing uints influxdb 2.0.\n  # influx_uint_support = false\n\n  ## Optional TLS Config for use on HTTP connections.\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain \u0026 host verification\n  # insecure_skip_verify = false\n\n"
+      "config": "# Configuration for sending metrics to InfluxDB\n[[outputs.influxdb_v2]]\n  # alias=\"influxdb_v2\"\n  ## The URLs of the InfluxDB cluster nodes.\n  ##\n  ## Multiple URLs can be specified for a single cluster, only ONE of the\n  ## urls will be written to each interval.\n  ##   ex: urls = [\"https://us-west-2-1.aws.cloud2.influxdata.com\"]\n  urls = [\"http://127.0.0.1:9999\"]\n\n  ## Token for authentication.\n  token = \"\"\n\n  ## Organization is the name of the organization you wish to write to; must exist.\n  organization = \"\"\n\n  ## Destination bucket to write into.\n  bucket = \"\"\n\n  ## The value of this tag will be used to determine the bucket.  If this\n  ## tag is not set the 'bucket' option is used as the default.\n  # bucket_tag = \"\"\n\n  ## If true, the bucket tag will not be added to the metric.\n  # exclude_bucket_tag = false\n\n  ## Timeout for HTTP messages.\n  # timeout = \"5s\"\n\n  ## Additional HTTP headers\n  # http_headers = {\"X-Special-Header\" = \"Special-Value\"}\n\n  ## HTTP Proxy override, if unset values the standard proxy environment\n  ## variables are consulted to determine which proxy, if any, should be used.\n  # http_proxy = \"http://corporate.proxy:3128\"\n\n  ## HTTP User-Agent\n  # user_agent = \"telegraf\"\n\n  ## Content-Encoding for write request body, can be set to \"gzip\" to\n  ## compress body or \"identity\" to apply no encoding.\n  # content_encoding = \"gzip\"\n\n  ## Enable or disable uint support for writing uints influxdb 2.0.\n  # influx_uint_support = false\n\n  ## Optional TLS Config for use on HTTP connections.\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain \u0026 host verification\n  # insecure_skip_verify = false\n\n"
     },
     {
       "type": "output",

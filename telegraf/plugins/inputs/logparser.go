@@ -24,7 +24,7 @@ func (l *LogParserPlugin) TOML() string {
 	for k, v := range l.Files {
 		s[k] = strconv.Quote(v)
 	}
-	return fmt.Sprintf(`[[inputs.%s]]	
+	return fmt.Sprintf(`[[inputs.%s]]
   ## Log files to parse.
   ## These accept standard unix glob matching rules, but with the addition of
   ## ** as a "super asterisk". ie:
@@ -37,8 +37,10 @@ func (l *LogParserPlugin) TOML() string {
   ## while telegraf is running (and that match the "files" globs) will always
   ## be read from the beginning.
   from_beginning = false
+
   ## Method used to watch for file updates.  Can be either "inotify" or "poll".
   # watch_method = "inotify"
+
   ## Parse logstash-style "grok" patterns:
   [inputs.logparser.grok]
     ## This is a list of patterns to check the given log file(s) for.
@@ -48,8 +50,31 @@ func (l *LogParserPlugin) TOML() string {
     ##   %%{COMMON_LOG_FORMAT}   (plain apache & nginx access logs)
     ##   %%{COMBINED_LOG_FORMAT} (access logs + referrer & agent)
     patterns = ["%%{COMBINED_LOG_FORMAT}"]
+
     ## Name of the outputted measurement name.
     measurement = "apache_access_log"
+
+    ## Full path(s) to custom pattern files.
+    custom_pattern_files = []
+
+    ## Custom patterns can also be defined here. Put one pattern per line.
+    custom_patterns = '''
+    '''
+
+    ## Timezone allows you to provide an override for timestamps that
+    ## don't already include an offset
+    ## e.g. 04/06/2016 12:41:45 data one two 5.43µs
+    ##
+    ## Default: "" which renders UTC
+    ## Options are as follows:
+    ##   1. Local             -- interpret based on machine localtime
+    ##   2. "Canada/Eastern"  -- Unix TZ values like those found in https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+    ##   3. UTC               -- or blank/unspecified, will return timestamp in UTC
+    # timezone = "Canada/Eastern"
+
+      ## When set to "disable", timestamp will not incremented if there is a
+      ## duplicate.
+    # unique_timestamp = "auto"
 `, l.PluginName(), strings.Join(s, ", "))
 }
 

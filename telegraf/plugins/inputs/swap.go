@@ -17,6 +17,7 @@ func (s *SwapStats) PluginName() string {
 // TOML encodes to toml string.
 func (s *SwapStats) TOML() string {
 	return fmt.Sprintf(`[[inputs.%s]]
+  # no configuration
 `, s.PluginName())
 }
 

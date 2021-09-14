@@ -27,7 +27,7 @@ func (r *Redis) TOML() string {
 	}
 	password := `  # password = ""`
 	if r.Password != "" {
-		password = fmt.Sprintf(`  password = "%s"`, r.Password)
+		password = fmt.Sprintf(`  # password = "%s"`, r.Password)
 	}
 	return fmt.Sprintf(`[[inputs.%s]]
   ## specify servers via a url matching:
@@ -41,8 +41,25 @@ func (r *Redis) TOML() string {
   ## If no port is specified, 6379 is used
   servers = [%s]
 
+  ## Optional. Specify redis commands to retrieve values
+  # [[inputs.redis.commands]]
+  #   # The command to run where each argument is a separate element
+  #   command = ["get", "sample-key"]
+  #   # The field to store the result in
+  #   field = "sample-key-value"
+  #   # The type of the result
+  #   # Can be "string", "integer", or "float"
+  #   type = "string"
+
   ## specify server password
 %s
+
+  ## Optional TLS Config
+  # tls_ca = "/etc/telegraf/ca.pem"
+  # tls_cert = "/etc/telegraf/cert.pem"
+  # tls_key = "/etc/telegraf/key.pem"
+  ## Use TLS but skip chain & host verification
+  # insecure_skip_verify = true
 `, r.PluginName(), strings.Join(s, ", "), password)
 }
 
