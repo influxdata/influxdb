@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	nethttp "net/http"
 	"net/http/httptest"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -635,6 +636,10 @@ func TestLauncher_Pkger(t *testing.T) {
 		})
 
 		t.Run("apply with only a stackID succeeds when stack has URLs", func(t *testing.T) {
+			if runtime.GOOS == "windows" {
+				t.Skip("https://github.com/influxdata/influxdb/issues/22474")
+			}
+
 			svr := httptest.NewServer(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
 				pkg := newTemplate(newBucketObject("bucket-0", "", ""))
 				b, err := pkg.Encode(pkger.EncodingJSON)
