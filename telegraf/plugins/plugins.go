@@ -863,8 +863,8 @@ var availableInputs = `{
     {
       "type": "input",
       "name": "puppetagent",
-      "description": "Reads last_run_summary.yaml file and converts to measurments",
-      "config": "# Reads last_run_summary.yaml file and converts to measurments\n[[inputs.puppetagent]]\n  # alias=\"puppetagent\"\n  ## Location of puppet last run summary file\n  location = \"/var/lib/puppet/state/last_run_summary.yaml\"\n\n"
+      "description": "Reads last_run_summary.yaml file and converts to measurements",
+      "config": "# Reads last_run_summary.yaml file and converts to measurements\n[[inputs.puppetagent]]\n  # alias=\"puppetagent\"\n  ## Location of puppet last run summary file\n  location = \"/var/lib/puppet/state/last_run_summary.yaml\"\n\n"
     },
     {
       "type": "input",
@@ -1199,8 +1199,8 @@ var availableInputs = `{
     {
       "type": "input",
       "name": "marklogic",
-      "description": "Retrives information on a specific host in a MarkLogic Cluster",
-      "config": "# Retrives information on a specific host in a MarkLogic Cluster\n[[inputs.marklogic]]\n  # alias=\"marklogic\"\n  ## Base URL of the MarkLogic HTTP Server.\n  url = \"http://localhost:8002\"\n\n  ## List of specific hostnames to retrieve information. At least (1) required.\n  # hosts = [\"hostname1\", \"hostname2\"]\n\n  ## Using HTTP Basic Authentication. Management API requires 'manage-user' role privileges\n  # username = \"myuser\"\n  # password = \"mypassword\"\n\n  ## Optional TLS Config\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain \u0026 host verification\n  # insecure_skip_verify = false\n\n"
+      "description": "Retrieves information on a specific host in a MarkLogic Cluster",
+      "config": "# Retrieves information on a specific host in a MarkLogic Cluster\n[[inputs.marklogic]]\n  # alias=\"marklogic\"\n  ## Base URL of the MarkLogic HTTP Server.\n  url = \"http://localhost:8002\"\n\n  ## List of specific hostnames to retrieve information. At least (1) required.\n  # hosts = [\"hostname1\", \"hostname2\"]\n\n  ## Using HTTP Basic Authentication. Management API requires 'manage-user' role privileges\n  # username = \"myuser\"\n  # password = \"mypassword\"\n\n  ## Optional TLS Config\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain \u0026 host verification\n  # insecure_skip_verify = false\n\n"
     },
     {
       "type": "input",
