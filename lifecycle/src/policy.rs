@@ -677,7 +677,7 @@ mod tests {
         ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
         LockablePartition, PersistHandle,
     };
-    use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
+    use data_types::chunk_metadata::{ChunkAddr, ChunkOrder, ChunkStorage};
     use data_types::database_rules::MaxActiveCompactions::MaxActiveCompactions;
     use std::{
         cmp::max,
@@ -698,7 +698,7 @@ mod tests {
 
     #[derive(Debug)]
     struct TestPartition {
-        chunks: BTreeMap<u32, (u32, Arc<RwLock<TestChunk>>)>,
+        chunks: BTreeMap<u32, (ChunkOrder, Arc<RwLock<TestChunk>>)>,
         persistable_row_count: usize,
         minimum_unpersisted_age: Option<Instant>,
         max_persistable_timestamp: Option<DateTime<Utc>>,
@@ -731,7 +731,7 @@ mod tests {
         time_of_last_write: DateTime<Utc>,
         lifecycle_action: Option<TaskTracker<ChunkLifecycleAction>>,
         storage: ChunkStorage,
-        order: u32,
+        order: ChunkOrder,
     }
 
     impl TestChunk {
@@ -754,7 +754,7 @@ mod tests {
                 time_of_last_write: from_secs(time_of_last_write),
                 lifecycle_action: None,
                 storage,
-                order: 0,
+                order: ChunkOrder::new(0),
             }
         }
 
@@ -778,7 +778,7 @@ mod tests {
             self
         }
 
-        fn with_order(mut self, order: u32) -> Self {
+        fn with_order(mut self, order: ChunkOrder) -> Self {
             self.order = order;
             self
         }
@@ -801,7 +801,7 @@ mod tests {
         db: &'a TestDb,
         chunk: Arc<RwLock<TestChunk>>,
         id: u32,
-        order: u32,
+        order: ChunkOrder,
     }
 
     #[derive(Debug)]
@@ -870,7 +870,7 @@ mod tests {
             let mut new_chunk = TestChunk::new(id, 0, ChunkStorage::ReadBuffer);
             new_chunk.row_count = 0;
 
-            let mut order = u32::MAX;
+            let mut order = ChunkOrder::MAX;
             for chunk in &chunks {
                 partition.chunks.remove(&chunk.addr.chunk_id);
                 new_chunk.row_count += chunk.row_count;
@@ -880,7 +880,7 @@ mod tests {
                     (None, Some(ts)) => Some(ts),
                     (None, None) => None,
                 };
-                order = order.min(chunk.order());
+                order = order.min(chunk.order);
             }
 
             partition
@@ -907,10 +907,10 @@ mod tests {
             chunks: Vec<LifecycleWriteGuard<'_, TestChunk, Self::Chunk>>,
             handle: Self::PersistHandle,
         ) -> Result<TaskTracker<()>, Self::Error> {
-            let mut order = u32::MAX;
+            let mut order = ChunkOrder::MAX;
             for chunk in &chunks {
                 partition.chunks.remove(&chunk.addr.chunk_id);
-                order = order.min(chunk.order());
+                order = order.min(chunk.order);
             }
 
             let id = partition.next_id;
@@ -982,7 +982,7 @@ mod tests {
             self.id
         }
 
-        fn order(&self) -> u32 {
+        fn order(&self) -> ChunkOrder {
             self.order
         }
     }
@@ -1037,10 +1037,6 @@ mod tests {
         fn row_count(&self) -> usize {
             self.row_count
         }
-
-        fn order(&self) -> u32 {
-            self.order
-        }
     }
 
     impl TestPartition {
@@ -1050,8 +1046,7 @@ mod tests {
                 .into_iter()
                 .map(|x| {
                     max_id = max(max_id, x.addr.chunk_id);
-                    let order = x.order();
-                    (x.addr.chunk_id, (order, Arc::new(RwLock::new(x))))
+                    (x.addr.chunk_id, (x.order, Arc::new(RwLock::new(x))))
                 })
                 .collect();
 
@@ -1492,23 +1487,23 @@ mod tests {
                 // blocked by action below
                 TestChunk::new(19, 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
-                    .with_order(4),
+                    .with_order(ChunkOrder::new(4)),
                 // has an action
                 TestChunk::new(20, 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
-                    .with_order(3)
+                    .with_order(ChunkOrder::new(3))
                     .with_action(ChunkLifecycleAction::Compacting),
                 // closed => can compact
                 TestChunk::new(21, 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
-                    .with_order(2),
+                    .with_order(ChunkOrder::new(2)),
                 TestChunk::new(22, 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
-                    .with_order(1),
+                    .with_order(ChunkOrder::new(1)),
                 // has an action, but doesn't block because it's first
                 TestChunk::new(23, 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
-                    .with_order(0)
+                    .with_order(ChunkOrder::new(0))
                     .with_action(ChunkLifecycleAction::Compacting),
             ]),
         ];

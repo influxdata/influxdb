@@ -10,7 +10,7 @@
 
 use chrono::{DateTime, Utc};
 use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkStorage},
+    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkOrder, ChunkStorage},
     database_rules::LifecycleRules,
     DatabaseName,
 };
@@ -153,7 +153,7 @@ pub trait LockableChunk: Sized {
 
     fn id(&self) -> u32;
 
-    fn order(&self) -> u32;
+    fn order(&self) -> ChunkOrder;
 }
 
 pub trait LifecyclePartition {
@@ -191,8 +191,6 @@ pub trait LifecycleChunk {
     fn storage(&self) -> ChunkStorage;
 
     fn row_count(&self) -> usize;
-
-    fn order(&self) -> u32;
 }
 
 /// The trait for a persist handle

@@ -7,7 +7,7 @@ use crate::db::{
     DbChunk,
 };
 use chrono::{DateTime, Utc};
-use data_types::job::Job;
+use data_types::{chunk_metadata::ChunkOrder, job::Job};
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
 use query::{
@@ -48,7 +48,7 @@ pub(crate) fn compact_chunks(
     let mut time_of_first_write: Option<DateTime<Utc>> = None;
     let mut time_of_last_write: Option<DateTime<Utc>> = None;
     let mut delete_predicates: Vec<Predicate> = vec![];
-    let mut min_order = u32::MAX;
+    let mut min_order = ChunkOrder::MAX;
     let query_chunks = chunks
         .into_iter()
         .map(|mut chunk| {

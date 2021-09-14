@@ -7,7 +7,7 @@ use crate::db::{
     DbChunk,
 };
 use chrono::{DateTime, Utc};
-use data_types::job::Job;
+use data_types::{chunk_metadata::ChunkOrder, job::Job};
 use lifecycle::{LifecycleWriteGuard, LockableChunk, LockablePartition};
 use observability_deps::tracing::info;
 use persistence_windows::persistence_windows::FlushHandle;
@@ -55,7 +55,7 @@ pub fn persist_chunks(
     let mut time_of_last_write: Option<DateTime<Utc>> = None;
     let mut query_chunks = vec![];
     let mut delete_predicates: Vec<Predicate> = vec![];
-    let mut min_order = u32::MAX;
+    let mut min_order = ChunkOrder::MAX;
     for mut chunk in chunks {
         // Sanity-check
         assert!(Arc::ptr_eq(&db, &chunk.data().db));

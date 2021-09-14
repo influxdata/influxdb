@@ -2,6 +2,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use data_types::chunk_metadata::ChunkOrder;
 use hashbrown::{HashMap, HashSet};
 
 use data_types::chunk_metadata::ChunkSummary;
@@ -162,7 +163,7 @@ impl Catalog {
         table_name: impl AsRef<str>,
         partition_key: impl AsRef<str>,
         chunk_id: u32,
-    ) -> Result<(Arc<RwLock<CatalogChunk>>, u32)> {
+    ) -> Result<(Arc<RwLock<CatalogChunk>>, ChunkOrder)> {
         let table_name = table_name.as_ref();
         let partition_key = partition_key.as_ref();
 

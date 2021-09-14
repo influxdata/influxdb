@@ -40,7 +40,7 @@ impl From<ChunkSummary> for management::Chunk {
             time_of_first_write: Some(time_of_first_write.into()),
             time_of_last_write: Some(time_of_last_write.into()),
             time_closed: time_closed.map(Into::into),
-            order,
+            order: order.get(),
         }
     }
 }
@@ -124,7 +124,7 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             time_of_first_write: required_timestamp(time_of_first_write, "time_of_first_write")?,
             time_of_last_write: required_timestamp(time_of_last_write, "time_of_last_write")?,
             time_closed: timestamp(time_closed, "time_closed")?,
-            order,
+            order: order.into(),
         })
     }
 }
@@ -168,6 +168,7 @@ impl TryFrom<management::ChunkLifecycleAction> for Option<ChunkLifecycleAction> 
 mod test {
     use super::*;
     use chrono::{TimeZone, Utc};
+    use data_types::chunk_metadata::ChunkOrder;
 
     #[test]
     fn valid_proto_to_summary() {
@@ -206,7 +207,7 @@ mod test {
             time_of_last_write: now,
             time_closed: None,
             time_of_last_access: Some(Utc.timestamp_nanos(50_000_000_007)),
-            order: 5,
+            order: ChunkOrder::new(5),
         };
 
         assert_eq!(
@@ -232,7 +233,7 @@ mod test {
             time_of_last_write: now,
             time_closed: None,
             time_of_last_access: Some(Utc.timestamp_nanos(12_000_100_007)),
-            order: 5,
+            order: ChunkOrder::new(5),
         };
 
         let proto = management::Chunk::try_from(summary).expect("conversion successful");

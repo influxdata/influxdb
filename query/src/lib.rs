@@ -9,7 +9,7 @@
 )]
 
 use data_types::{
-    chunk_metadata::ChunkSummary,
+    chunk_metadata::{ChunkOrder, ChunkSummary},
     partition_metadata::{InfluxDbType, TableSummary},
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -152,7 +152,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
     fn chunk_type(&self) -> &str;
 
     /// Order of this chunk relative to other overlapping chunks.
-    fn order(&self) -> u32;
+    fn order(&self) -> ChunkOrder;
 }
 
 /// Implement ChunkMeta for something wrapped in an Arc (like Chunks often are)

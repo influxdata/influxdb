@@ -13,6 +13,7 @@ use arrow::{
     datatypes::{DataType, Int32Type, TimeUnit},
     record_batch::RecordBatch,
 };
+use data_types::chunk_metadata::ChunkOrder;
 use data_types::{
     chunk_metadata::ChunkSummary,
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
@@ -173,7 +174,7 @@ pub struct TestChunk {
     predicate_match: Option<PredicateMatch>,
 
     /// Order of this chunk relative to other overlapping chunks.
-    order: u32,
+    order: ChunkOrder,
 }
 
 /// Implements a method for adding a column with default stats
@@ -247,7 +248,7 @@ impl TestChunk {
             table_data: Default::default(),
             saved_error: Default::default(),
             predicate_match: Default::default(),
-            order: Default::default(),
+            order: ChunkOrder::new(0),
         }
     }
 
@@ -892,7 +893,7 @@ impl QueryChunk for TestChunk {
         Ok(Some(column_names))
     }
 
-    fn order(&self) -> u32 {
+    fn order(&self) -> ChunkOrder {
         self.order
     }
 }

@@ -2,7 +2,7 @@ use super::{
     catalog::chunk::ChunkMetadata, pred::to_read_buffer_predicate, streams::ReadFilterResultsStream,
 };
 use chrono::{DateTime, Utc};
-use data_types::partition_metadata;
+use data_types::{chunk_metadata::ChunkOrder, partition_metadata};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
 use internal_types::{
@@ -85,7 +85,7 @@ pub struct DbChunk {
     meta: Arc<ChunkMetadata>,
     time_of_first_write: DateTime<Utc>,
     time_of_last_write: DateTime<Utc>,
-    order: u32,
+    order: ChunkOrder,
 }
 
 #[derive(Debug)]
@@ -491,7 +491,7 @@ impl QueryChunk for DbChunk {
         }
     }
 
-    fn order(&self) -> u32 {
+    fn order(&self) -> ChunkOrder {
         self.order
     }
 }

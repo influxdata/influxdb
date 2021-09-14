@@ -116,7 +116,7 @@ fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<
         .collect::<TimestampNanosecondArray>();
     let order = chunks
         .iter()
-        .map(|c| Some(c.order))
+        .map(|c| Some(c.order.get()))
         .collect::<UInt32Array>();
 
     RecordBatch::try_new(
@@ -144,7 +144,7 @@ mod tests {
     use super::*;
     use arrow_util::assert_batches_eq;
     use chrono::{TimeZone, Utc};
-    use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage};
+    use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkOrder, ChunkStorage};
 
     #[test]
     fn test_from_chunk_summaries() {
@@ -162,7 +162,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(10_000_000_000),
                 time_of_last_write: Utc.timestamp_nanos(10_000_000_000),
                 time_closed: None,
-                order: 5,
+                order: ChunkOrder::new(5),
             },
             ChunkSummary {
                 partition_key: Arc::from("p1"),
@@ -177,7 +177,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(80_000_000_000),
                 time_of_last_write: Utc.timestamp_nanos(80_000_000_000),
                 time_closed: None,
-                order: 6,
+                order: ChunkOrder::new(6),
             },
             ChunkSummary {
                 partition_key: Arc::from("p1"),
@@ -192,7 +192,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(100_000_000_000),
                 time_of_last_write: Utc.timestamp_nanos(200_000_000_000),
                 time_closed: None,
-                order: 7,
+                order: ChunkOrder::new(7),
             },
         ];
 
