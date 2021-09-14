@@ -3,6 +3,7 @@
 //! This encoding stores a column of fixed-width numerical values backed by an
 //! an Arrow array, allowing for storage of NULL values.
 use either::Either;
+use observability_deps::tracing::debug;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::mem::size_of;
@@ -211,6 +212,38 @@ where
                 count = 0;
                 continue;
             } else if self.arr.is_null(i) || left_result_no || right_result_no {
+                continue;
+            }
+
+            if !found {
+                found = true;
+            }
+            count += 1;
+        }
+
+        // add any remaining range.
+        if found {
+            let (min, max) = (self.num_rows() - count, self.num_rows());
+            dst.add_range(min, max);
+        }
+        dst
+    }
+
+    // Identify all row IDs that contain a non-null value.
+    fn all_non_null_row_ids(&self, mut dst: RowIDs) -> RowIDs {
+        dst.clear();
+
+        let mut found = false;
+        let mut count = 0;
+        for i in 0..self.num_rows() as usize {
+            if self.arr.is_null(i) && found {
+                // add the non-null range
+                let (min, max) = (i as u32 - count, i as u32);
+                dst.add_range(min, max);
+                found = false;
+                count = 0;
+                continue;
+            } else if self.arr.is_null(i) {
                 continue;
             }
 
@@ -787,6 +820,38 @@ mod test {
             RowIDs::new_vector(),
         );
         assert_eq!(row_ids.to_vec(), vec![1, 2, 4]);
+    }
+
+    #[test]
+    fn row_ids_filter_range_all_non_null() {
+        let cases = vec![
+            (vec![None], vec![]),
+            (vec![None, None, None], vec![]),
+            (vec![Some(22)], vec![0_u32]),
+            (vec![Some(22), Some(3), Some(3)], vec![0, 1, 2]),
+            (vec![Some(22), None], vec![0]),
+            (
+                vec![Some(22), None, Some(1), None, Some(3), None],
+                vec![0, 3, 4],
+            ),
+            (vec![Some(22), None, None, Some(33)], vec![0, 3]),
+            (vec![None, None, Some(33)], vec![2]),
+            (
+                vec![None, None, Some(33), None, None, Some(3), Some(3), Some(1)],
+                vec![2, 5, 6, 7],
+            ),
+        ];
+
+        for (i, (data, exp)) in cases.into_iter().enumerate() {
+            let (v, _) = new_encoding(data);
+            let dst = RowIDs::new_vector();
+            assert_eq!(
+                v.all_non_null_row_ids(dst).unwrap_vector(),
+                &exp,
+                "example {:?} failed",
+                i
+            );
+        }
     }
 
     #[test]
