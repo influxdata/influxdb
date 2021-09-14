@@ -305,6 +305,25 @@ where
         dst
     }
 
+    fn all_non_null_row_ids(&self, mut dst: RowIDs) -> RowIDs {
+        dst.clear();
+
+        if self.null_count() == 0 {
+            dst.add_range(0, self.num_rows());
+            return dst;
+        }
+
+        let mut curr_logical_row_id = 0;
+        for (rl, next) in &self.run_lengths {
+            if next.is_some() {
+                dst.add_range(curr_logical_row_id, curr_logical_row_id + rl);
+            }
+            curr_logical_row_id += rl;
+        }
+
+        dst
+    }
+
     // Helper function to convert comparison operators to cmp orderings.
     fn ord_from_op(op: &cmp::Operator) -> (Ordering, Ordering) {
         match op {
@@ -618,6 +637,16 @@ mod test {
         let mock = Arc::new(MockTranscoder::default());
         (
             RLE::new_from_iter(values.into_iter(), Arc::clone(&mock)),
+            mock,
+        )
+    }
+
+    fn new_encoding_opt(
+        values: Vec<Option<i64>>,
+    ) -> (RLE<i64, i64, Arc<MockTranscoder>>, Arc<MockTranscoder>) {
+        let mock = Arc::new(MockTranscoder::default());
+        (
+            RLE::new_from_iter_opt(values.into_iter(), Arc::clone(&mock)),
             mock,
         )
     }
@@ -977,6 +1006,38 @@ mod test {
                 "example '{} {:?}' failed",
                 op,
                 v,
+            );
+        }
+    }
+
+    #[test]
+    fn row_ids_filter_range_all_non_null() {
+        let cases = vec![
+            (vec![None], vec![]),
+            (vec![None, None, None], vec![]),
+            (vec![Some(22)], vec![0_u32]),
+            (vec![Some(22), Some(3), Some(3)], vec![0, 1, 2]),
+            (vec![Some(22), None], vec![0]),
+            (
+                vec![Some(22), None, Some(1), None, Some(3), None],
+                vec![0, 2, 4],
+            ),
+            (vec![Some(22), None, None, Some(33)], vec![0, 3]),
+            (vec![None, None, Some(33)], vec![2]),
+            (
+                vec![None, None, Some(33), None, None, Some(3), Some(3), Some(1)],
+                vec![2, 5, 6, 7],
+            ),
+        ];
+
+        for (i, (data, exp)) in cases.into_iter().enumerate() {
+            let (v, _) = new_encoding_opt(data);
+            let dst = RowIDs::new_vector();
+            assert_eq!(
+                v.all_non_null_row_ids(dst).unwrap_vector(),
+                &exp,
+                "example {:?} failed",
+                i
             );
         }
     }
