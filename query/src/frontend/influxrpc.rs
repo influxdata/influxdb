@@ -524,7 +524,7 @@ impl InfluxRpcPlanner {
     /// The data is sorted on (tag_col1, tag_col2, ...) so that all
     /// rows for a particular series (groups where all tags are the
     /// same) occur together in the plan
-    // NGA todo: may need to add delete predicate here to emilimate deleted data at read time 
+    // NGA todo: may need to add delete predicate here to emilimate deleted data at read time
     pub fn read_filter<D>(&self, database: &D, predicate: Predicate) -> Result<SeriesSetPlans>
     where
         D: QueryDatabase + 'static,

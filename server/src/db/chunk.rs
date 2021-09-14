@@ -5,7 +5,11 @@ use chrono::{DateTime, Utc};
 use data_types::{chunk_metadata::ChunkOrder, partition_metadata};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
-use internal_types::{access::AccessRecorder, schema::{Schema, sort::SortKey}, selection::Selection};
+use internal_types::{
+    access::AccessRecorder,
+    schema::{sort::SortKey, Schema},
+    selection::Selection,
+};
 use iox_object_store::ParquetFilePath;
 use mutable_buffer::chunk::snapshot::ChunkSnapshot;
 use observability_deps::tracing::debug;
@@ -221,13 +225,16 @@ impl DbChunk {
         self.time_of_last_write
     }
 
-    pub fn to_rub_negated_predicates(delete_predicates: &Vec<Predicate>) -> Result<Vec<read_buffer::Predicate>> {
+    pub fn to_rub_negated_predicates(
+        delete_predicates: &[Predicate],
+    ) -> Result<Vec<read_buffer::Predicate>> {
         let mut rub_preds: Vec<read_buffer::Predicate> = vec![];
         for pred in delete_predicates {
             let rub_pred = to_read_buffer_predicate(pred).context(PredicateConversion)?;
             rub_preds.push(rub_pred);
         }
 
+        debug!(?rub_preds, "RUB delete predicates");
         Ok(rub_preds)
     }
 }
@@ -324,7 +331,7 @@ impl QueryChunk for DbChunk {
         &self,
         predicate: &Predicate,
         selection: Selection<'_>,
-        delete_predicates: &Vec<Predicate>,
+        delete_predicates: &[Predicate],
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         // Predicate is not required to be applied for correctness. We only pushed it down
         // when possible for performance gain
@@ -332,15 +339,23 @@ impl QueryChunk for DbChunk {
         debug!(?predicate, "Input Predicate to read_filter");
         self.access_recorder.record_access_now();
 
+        debug!(?delete_predicates, "Input Delete Predicates to read_filter");
+
         // add negated deleted ranges to the predicate
         let mut pred_with_deleted_ranges = predicate.clone();
         pred_with_deleted_ranges.add_delete_ranges(delete_predicates);
-        debug!(?pred_with_deleted_ranges, "Input Predicate plus deleted ranges");
+        debug!(
+            ?pred_with_deleted_ranges,
+            "Input Predicate plus deleted ranges"
+        );
 
         // add negated deleted predicates
-        let mut pred_wth_deleted_exprs =  pred_with_deleted_ranges.clone();
+        let mut pred_wth_deleted_exprs = pred_with_deleted_ranges.clone();
         pred_wth_deleted_exprs.add_delete_exprs(delete_predicates);
-        debug!(?pred_wth_deleted_exprs, "Input Predicate plus deleted ranges and deleted predicates");
+        debug!(
+            ?pred_wth_deleted_exprs,
+            "Input Predicate plus deleted ranges and deleted predicates"
+        );
 
         match &self.state {
             State::MutableBuffer { chunk, .. } => {
@@ -350,11 +365,12 @@ impl QueryChunk for DbChunk {
             }
             State::ReadBuffer { chunk, .. } => {
                 // Only apply pushdownable predicates
-                let rb_predicate =
-                    match to_read_buffer_predicate(&pred_with_deleted_ranges).context(PredicateConversion) {
-                        Ok(predicate) => predicate,
-                        Err(_) => read_buffer::Predicate::default(),
-                    };
+                let rb_predicate = match to_read_buffer_predicate(&pred_with_deleted_ranges)
+                    .context(PredicateConversion)
+                {
+                    Ok(predicate) => predicate,
+                    Err(_) => read_buffer::Predicate::default(),
+                };
 
                 // combine all delete expressions to RUB's negated ones
                 let negated_delete_exprs = Self::to_rub_negated_predicates(delete_predicates)?;
@@ -374,13 +390,11 @@ impl QueryChunk for DbChunk {
                     schema.into(),
                 )))
             }
-            State::ParquetFile { chunk, .. } => {
-                chunk
-                    .read_filter(&pred_wth_deleted_exprs, selection)
-                    .context(ParquetFileChunkError {
-                        chunk_id: self.id(),
-                    })
-            }
+            State::ParquetFile { chunk, .. } => chunk
+                .read_filter(&pred_wth_deleted_exprs, selection)
+                .context(ParquetFileChunkError {
+                    chunk_id: self.id(),
+                }),
         }
     }
 
@@ -544,7 +558,7 @@ mod tests {
         let t2 = chunk.access_recorder().get_metrics();
 
         snapshot
-            .read_filter(&Default::default(), Selection::All, &vec![])
+            .read_filter(&Default::default(), Selection::All, &[])
             .unwrap();
         let t3 = chunk.access_recorder().get_metrics();
 

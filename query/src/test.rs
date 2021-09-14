@@ -822,7 +822,7 @@ impl QueryChunk for TestChunk {
         &self,
         predicate: &Predicate,
         _selection: Selection<'_>,
-        _delete_predicates: &Vec<Predicate>,
+        _delete_predicates: &[Predicate],
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         self.check_error()?;
 
@@ -923,7 +923,7 @@ pub async fn raw_data(chunks: &[Arc<TestChunk>]) -> Vec<RecordBatch> {
     for c in chunks {
         let pred = Predicate::default();
         let selection = Selection::All;
-        let delete_predicates: Vec<Predicate> = vec!{};
+        let delete_predicates: Vec<Predicate> = vec![];
         let mut stream = c
             .read_filter(&pred, selection, &delete_predicates)
             .expect("Error in read_filter");

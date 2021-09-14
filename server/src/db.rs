@@ -1285,7 +1285,9 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use bytes::Bytes;
     use chrono::{DateTime, TimeZone};
+    use datafusion::logical_plan::{col, lit};
     use futures::{stream, StreamExt, TryStreamExt};
+    use predicate::predicate::PredicateBuilder;
     use tokio_util::sync::CancellationToken;
 
     use ::test_helpers::assert_contains;
@@ -1920,7 +1922,7 @@ mod tests {
 
     async fn collect_read_filter(chunk: &DbChunk) -> Vec<RecordBatch> {
         chunk
-            .read_filter(&Default::default(), Selection::All, &vec![])
+            .read_filter(&Default::default(), Selection::All, &[])
             .unwrap()
             .collect::<Vec<_>>()
             .await
@@ -3781,5 +3783,112 @@ mod tests {
             )
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_delete_open_mub() {
+        ::test_helpers::maybe_start_logging();
+
+        let db = make_db().await.db;
+        // load a line at time 10 nanosecond which belong to partition starting with 0 nanosecond or  "1970-01-01T00"
+        write_lp(db.as_ref(), "cpu bar=1 10").await;
+        write_lp(db.as_ref(), "cpu bar=2 20").await;
+        let partition_key = "1970-01-01T00";
+        assert_eq!(vec![partition_key], db.partition_keys().unwrap());
+
+        // ----
+        // There is one open mub chunk
+        // Let query it
+        let expected = vec![
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 1   | 1970-01-01T00:00:00.000000010Z |",
+            "| 2   | 1970-01-01T00:00:00.000000020Z |",
+            "+-----+--------------------------------+",
+        ];
+        let batches = run_query(Arc::clone(&db), "select * from cpu").await;
+        assert_batches_sorted_eq!(expected, &batches);
+
+        // ---
+        // Delete that row
+        let i: f64 = 1.0;
+        let expr = col("bar").eq(lit(i));
+        let pred = PredicateBuilder::new()
+            .table("cpu")
+            .timestamp_range(0, 15)
+            .add_expr(expr)
+            .build();
+        db.delete("cpu", &pred).await.unwrap();
+        // When the above delete is issued, the open mub chunk is frozen with the delete predicate added
+
+        // Let query again
+        // NGA todo: since MUB does not filtering data, the filtering needs to be done at scan step
+        let batches = run_query(Arc::clone(&db), "select * from cpu").await;
+        assert_batches_sorted_eq!(expected, &batches); // this fails when the todo is done
+
+        // --
+        // Since chunk was frozen when the delete is issue, nothing will be frozen futher
+        let mb_open_chunk = db.rollover_partition("cpu", partition_key).await.unwrap();
+        assert!(mb_open_chunk.is_none());
+
+        // ---
+        // let move MUB to RUB. The delete predicate will be included in RUB
+        let mb_chunk_id = 0;
+        let _mb_chunk = db.chunk("cpu", partition_key, mb_chunk_id).unwrap();
+        let _rb_chunk = db
+            .move_chunk_to_read_buffer("cpu", partition_key, mb_chunk_id)
+            .await
+            .unwrap();
+        // Let query again and since RUB supports delete predicate, we should see only 1 row
+        let batches = run_query(Arc::clone(&db), "select * from cpu").await;
+        let expected = vec![
+            "+-----+--------------------------------+",
+            "| bar | time                           |",
+            "+-----+--------------------------------+",
+            "| 2   | 1970-01-01T00:00:00.000000020Z |",
+            "+-----+--------------------------------+",
+        ];
+        assert_batches_sorted_eq!(expected, &batches);
+
+        // ---
+        // Write the RB chunk to Object Store but keep it in RB
+        let pq_chunk = db
+            .persist_partition(
+                "cpu",
+                partition_key,
+                Instant::now() + Duration::from_secs(1),
+            )
+            .await
+            .unwrap();
+
+        let pq_chunk_id = pq_chunk.id();
+        // we should have chunks in both the read buffer and pq
+        assert!(mutable_chunk_ids(&db, partition_key).is_empty());
+        assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![pq_chunk_id]);
+        assert_eq!(
+            read_parquet_file_chunk_ids(&db, partition_key),
+            vec![pq_chunk_id]
+        );
+        // Let query again from RUB and should see only 1 row
+        let batches = run_query(Arc::clone(&db), "select * from cpu").await;
+        assert_batches_sorted_eq!(expected, &batches);
+
+        // ---
+        // Unload RB chunk but keep it in OS
+        let _pq_chunk = db
+            .unload_read_buffer("cpu", partition_key, pq_chunk_id)
+            .unwrap();
+
+        // we should only have chunk in os
+        assert!(mutable_chunk_ids(&db, partition_key).is_empty());
+        assert!(read_buffer_chunk_ids(&db, partition_key).is_empty());
+        assert_eq!(
+            read_parquet_file_chunk_ids(&db, partition_key),
+            vec![pq_chunk_id]
+        );
+        // Let query again but this time from OS
+        let batches = run_query(Arc::clone(&db), "select * from cpu").await;
+        assert_batches_sorted_eq!(expected, &batches);
     }
 }

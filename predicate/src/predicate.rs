@@ -161,13 +161,15 @@ impl Predicate {
     pub fn is_empty(&self) -> bool {
         self == &EMPTY_PREDICATE
     }
-    
-    /// Add each range [start, stop] of the delete_predicates into the predicate in 
+
+    /// Add each range [start, stop] of the delete_predicates into the predicate in
     /// the form "time < start OR time > stop" to eliminate that range from the query
-    pub fn add_delete_ranges(&mut self, delete_predicates: &[Self])  {
+    pub fn add_delete_ranges(&mut self, delete_predicates: &[Self]) {
         for pred in delete_predicates {
             if let Some(range) = pred.range {
-                let expr  = col(TIME_COLUMN_NAME).lt(lit(range.start)).or(col(TIME_COLUMN_NAME).gt(lit(range.end)));
+                let expr = col(TIME_COLUMN_NAME)
+                    .lt(lit(range.start))
+                    .or(col(TIME_COLUMN_NAME).gt(lit(range.end)));
                 self.exprs.push(expr);
             }
         }
@@ -175,14 +177,12 @@ impl Predicate {
 
     /// Add a list of not(a delete expr)
     pub fn add_delete_exprs(&mut self, delete_predicates: &[Self]) {
-
         for pred in delete_predicates {
             for exp in &pred.exprs {
                 self.exprs.push(exp.clone().not());
             }
         }
     }
-
 }
 
 impl fmt::Display for Predicate {

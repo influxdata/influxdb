@@ -87,11 +87,13 @@ pub(super) fn write_chunk_to_object_store(
         let (partition_checkpoint, database_checkpoint) =
             collect_checkpoints(flush_handle.checkpoint(), &db.catalog);
 
-        
-
         // Get RecordBatchStream of data from the read buffer chunk
         let stream = db_chunk
-            .read_filter(&Default::default(), Selection::All, db_chunk.delete_predicates())
+            .read_filter(
+                &Default::default(),
+                Selection::All,
+                db_chunk.delete_predicates(),
+            )
             .expect("read filter should be infallible");
 
         // check that the upcoming state change will very likely succeed
