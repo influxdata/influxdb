@@ -245,8 +245,13 @@ where
                 continue;
             }
             if chunk.lifecycle_action().is_some() {
-                // must stop here because we must not "jump" the chunks sorted by `order`.
-                break;
+                if to_compact.is_empty() {
+                    // just skip this chunk
+                    continue;
+                } else {
+                    // must stop here because we must not "jump" the chunks sorted by `order`.
+                    break;
+                }
             }
 
             let to_compact_len_before = to_compact.len();
@@ -1487,19 +1492,24 @@ mod tests {
                 // blocked by action below
                 TestChunk::new(19, 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
-                    .with_order(3),
+                    .with_order(4),
                 // has an action
                 TestChunk::new(20, 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
-                    .with_order(2)
+                    .with_order(3)
                     .with_action(ChunkLifecycleAction::Compacting),
                 // closed => can compact
                 TestChunk::new(21, 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
-                    .with_order(1),
+                    .with_order(2),
                 TestChunk::new(22, 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
-                    .with_order(0),
+                    .with_order(1),
+                // has an action, but doesn't block because it's first
+                TestChunk::new(23, 20, ChunkStorage::ReadBuffer)
+                    .with_row_count(400)
+                    .with_order(0)
+                    .with_action(ChunkLifecycleAction::Compacting),
             ]),
         ];
 
@@ -1654,6 +1664,9 @@ mod tests {
                 MoverEvents::Persist(vec![4, 5]),
                 MoverEvents::Persist(vec![11, 12]),
                 MoverEvents::Persist(vec![15, 16]),
+                // 17 is the resulting chunk from the persist split above
+                // This is "quirk" of TestPartition operations being instantaneous
+                MoverEvents::Compact(vec![14, 17])
             ]
         );
     }
