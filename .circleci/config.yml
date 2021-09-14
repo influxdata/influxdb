@@ -530,6 +530,14 @@ jobs:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - install_core_deps
       - upgrade_go
+      - run:
+          # These files do not get uploaded by goreleaser when publish_release
+          # is false, but must be present to prevent a stat error
+          name: Touch dummy changelog files
+          command: |
+            mkdir changelog_artifacts
+            touch changelog_artifacts/CHANGELOG.md
+            touch changelog_artifacts/changelog-commit.txt
       - run_goreleaser:
           publish_release: false
       - run:
@@ -676,6 +684,8 @@ jobs:
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace
       - run:
           name: Create RAM disk
           command: |
@@ -687,6 +697,11 @@ jobs:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - install_core_deps
       - upgrade_go
+      - run:
+          # Goreleaser's blob stanza requires relative paths
+          name: Copy changelog artifacts into checkout dir
+          command: |
+            cp -a /tmp/workspace/changelog_artifacts ./changelog_artifacts
       - run_goreleaser:
           publish_release: true
       - persist_to_workspace:
@@ -829,5 +844,14 @@ jobs:
               -- \
               --tag $TIMESTAMP
             echo ${CIRCLE_SHA1} > $COMMIT_FILE_PATH
+
+            mkdir changelog_artifacts
+            cp CHANGELOG.md changelog_artifacts
+            cp $COMMIT_FILE_PATH changelog_artifacts
       - store_artifacts:
-          path: CHANGELOG.md
+          path: changelog_artifacts/
+      - persist_to_workspace:
+          root: .
+          paths:
+            - changelog_artifacts
+

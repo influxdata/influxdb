@@ -90,8 +90,8 @@ blobs:
     region: "us-east-1"
     folder: "platform/nightlies/"
     extra_files:
-      - glob: ./CHANGELOG.md
-      - glob: ./scripts/ci/changelog-commit.txt
+      - glob: ./changelog_artifacts/CHANGELOG.md
+      - glob: ./changelog_artifacts/changelog-commit.txt
   # Duplicating the contents to another folder in the bucket ensures
   # scheme parity with release branches; eventually the artifacts should
   # __only__ appear in the branch-specific folder
@@ -100,8 +100,8 @@ blobs:
     region: "us-east-1"
     folder: "platform/nightlies/master/"
     extra_files:
-      - glob: ./CHANGELOG.md
-      - glob: ./scripts/ci/changelog-commit.txt
+      - glob: ./changelog_artifacts/CHANGELOG.md
+      - glob: ./changelog_artifacts/changelog-commit.txt
 
 checksum:
   name_template: "influxdb2-nightly.sha256"
