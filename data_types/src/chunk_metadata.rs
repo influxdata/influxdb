@@ -199,8 +199,8 @@ impl ChunkSummary {
 /// Order of a chunk.
 ///
 /// This is used for:
-/// 1. **upsert locker:** chunks with higher order overwrite data in chunks with lower order
-/// 2. **locking order:** chunks must be locked in ascending order
+/// 1. **upsert order:** chunks with higher order overwrite data in chunks with lower order
+/// 2. **locking order:** chunks must be locked in consistent (ascending) order
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ChunkOrder(u32);
 
