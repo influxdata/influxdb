@@ -7,7 +7,7 @@ use datafusion::{
     error::DataFusionError,
     physical_plan::{
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
-        DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+        DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
     },
 };
 use internal_types::{schema::Schema, selection::Selection};
@@ -22,9 +22,9 @@ use super::adapter::SchemaAdapterStream;
 #[derive(Debug)]
 pub(crate) struct IOxReadFilterNode<C: QueryChunk + 'static> {
     table_name: Arc<str>,
-    /// The desired output schema (includes selection_
+    /// The desired output schema (includes selection)
     /// note that the chunk may not have all these columns.
-    schema: SchemaRef,
+    iox_schema: Arc<Schema>,
     chunks: Vec<Arc<C>>,
     predicate: Predicate,
     /// Execution metrics
@@ -37,13 +37,13 @@ impl<C: QueryChunk + 'static> IOxReadFilterNode<C> {
     /// returns
     pub fn new(
         table_name: Arc<str>,
-        schema: SchemaRef,
+        iox_schema: Arc<Schema>,
         chunks: Vec<Arc<C>>,
         predicate: Predicate,
     ) -> Self {
         Self {
             table_name,
-            schema,
+            iox_schema,
             chunks,
             predicate,
             metrics: ExecutionPlanMetricsSet::new(),
@@ -58,7 +58,7 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
     }
 
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&self.schema)
+        self.iox_schema.as_arrow()
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -82,7 +82,7 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
         // the compiler didn't recognize the trait implementation
         let new_self = Self {
             table_name: Arc::clone(&self.table_name),
-            schema: Arc::clone(&self.schema),
+            iox_schema: Arc::clone(&self.iox_schema),
             chunks,
             predicate: self.predicate.clone(),
             metrics: ExecutionPlanMetricsSet::new(),
@@ -98,7 +98,8 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
         let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
         let timer = baseline_metrics.elapsed_compute().timer();
 
-        let fields = self.schema.fields();
+        let schema = self.schema();
+        let fields = schema.fields();
         let selection_cols = fields.iter().map(|f| f.name() as &str).collect::<Vec<_>>();
 
         let chunk = Arc::clone(&self.chunks[partition]);
@@ -126,9 +127,8 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
         // all CPU time is now done, pass in baseline metrics to adapter
         timer.done();
 
-        let adapter =
-            SchemaAdapterStream::try_new(stream, Arc::clone(&self.schema), baseline_metrics)
-                .map_err(|e| DataFusionError::Internal(e.to_string()))?;
+        let adapter = SchemaAdapterStream::try_new(stream, schema, baseline_metrics)
+            .map_err(|e| DataFusionError::Internal(e.to_string()))?;
 
         Ok(Box::pin(adapter))
     }
@@ -149,6 +149,22 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
 
     fn metrics(&self) -> Option<MetricsSet> {
         Some(self.metrics.clone_inner())
+    }
+
+    fn statistics(&self) -> Statistics {
+        self.chunks
+            .iter()
+            .fold(None, |combined_summary, chunk| match combined_summary {
+                None => Some(chunk.summary().clone()),
+                Some(mut combined_summary) => {
+                    combined_summary.update_from(chunk.summary());
+                    Some(combined_summary)
+                }
+            })
+            .map(|combined_summary| {
+                crate::statistics::df_from_iox(self.iox_schema.as_ref(), &combined_summary)
+            })
+            .unwrap_or_default()
     }
 }
 

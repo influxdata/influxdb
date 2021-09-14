@@ -276,6 +276,7 @@ impl CatalogState for Loader {
             iox_md.time_of_first_write,
             iox_md.time_of_last_write,
             delete_predicates,
+            iox_md.chunk_order,
         );
         schema_handle.commit();
 

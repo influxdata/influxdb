@@ -171,6 +171,9 @@ pub struct TestChunk {
 
     /// Return value for apply_predicate, if desired
     predicate_match: Option<PredicateMatch>,
+
+    /// Order of this chunk relative to other overlapping chunks.
+    order: u32,
 }
 
 /// Implements a method for adding a column with default stats
@@ -244,6 +247,7 @@ impl TestChunk {
             table_data: Default::default(),
             saved_error: Default::default(),
             predicate_match: Default::default(),
+            order: Default::default(),
         }
     }
 
@@ -886,6 +890,10 @@ impl QueryChunk for TestChunk {
         };
 
         Ok(Some(column_names))
+    }
+
+    fn order(&self) -> u32 {
+        self.order
     }
 }
 

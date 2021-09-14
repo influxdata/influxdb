@@ -29,6 +29,11 @@ pub fn persist_chunks(
     TaskTracker<Job>,
     TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
 )> {
+    assert!(
+        !chunks.is_empty(),
+        "must provide at least 1 chunk to persist"
+    );
+
     let now = std::time::Instant::now(); // time persist duration.
     let db = Arc::clone(&partition.data().db);
     let addr = partition.addr().clone();
@@ -50,6 +55,7 @@ pub fn persist_chunks(
     let mut time_of_last_write: Option<DateTime<Utc>> = None;
     let mut query_chunks = vec![];
     let mut delete_predicates: Vec<Predicate> = vec![];
+    let mut min_order = u32::MAX;
     for mut chunk in chunks {
         // Sanity-check
         assert!(Arc::ptr_eq(&db, &chunk.data().db));
@@ -69,8 +75,9 @@ pub fn persist_chunks(
             .or(Some(candidate_last));
 
         let mut preds = (*chunk.delete_predicates()).clone();
-
         delete_predicates.append(&mut preds);
+
+        min_order = min_order.min(chunk.order());
 
         chunk.set_writing_to_object_store(&registration)?;
         query_chunks.push(DbChunk::snapshot(&*chunk));
@@ -135,20 +142,25 @@ pub fn persist_chunks(
                     time_of_last_write,
                     Arc::clone(&schema),
                     Arc::clone(&del_preds),
+                    min_order,
                 );
             }
 
             let to_persist = to_persist.expect("should be rows to persist");
 
+            let (new_chunk_id, new_chunk) = partition_write.create_rub_chunk(
+                to_persist,
+                time_of_first_write,
+                time_of_last_write,
+                schema,
+                del_preds,
+                min_order,
+            );
             let to_persist = LockableCatalogChunk {
                 db,
-                chunk: partition_write.create_rub_chunk(
-                    to_persist,
-                    time_of_first_write,
-                    time_of_last_write,
-                    schema,
-                    del_preds,
-                ),
+                chunk: new_chunk,
+                id: new_chunk_id,
+                order: min_order,
             };
             let to_persist = to_persist.write();
 
@@ -216,7 +228,7 @@ mod tests {
         let partition = partition.read();
 
         let chunks = LockablePartition::chunks(&partition);
-        let chunks = chunks.iter().map(|x| x.1.read());
+        let chunks = chunks.iter().map(|x| x.read());
 
         let mut partition = partition.upgrade();
 

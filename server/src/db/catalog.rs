@@ -156,20 +156,20 @@ impl Catalog {
             })
     }
 
-    /// Get a specific chunk returning an error if it can't be found
+    /// Get a specific chunk and its order returning an error if it can't be found
     pub fn chunk(
         &self,
         table_name: impl AsRef<str>,
         partition_key: impl AsRef<str>,
         chunk_id: u32,
-    ) -> Result<Arc<RwLock<CatalogChunk>>> {
+    ) -> Result<(Arc<RwLock<CatalogChunk>>, u32)> {
         let table_name = table_name.as_ref();
         let partition_key = partition_key.as_ref();
 
         self.partition(table_name, partition_key)?
             .read()
             .chunk(chunk_id)
-            .cloned()
+            .map(|(chunk, order)| (Arc::clone(chunk), order))
             .context(ChunkNotFound {
                 partition: partition_key,
                 table: table_name,
@@ -264,7 +264,7 @@ impl Catalog {
         for table in tables.values() {
             for partition in table.partitions() {
                 let partition = partition.read();
-                chunks.extend(partition.chunks().cloned())
+                chunks.extend(partition.chunks().into_iter().cloned())
             }
         }
         chunks
@@ -305,7 +305,7 @@ impl Catalog {
         let mut chunks = Vec::with_capacity(partitions.size_hint().1.unwrap_or_default());
         for partition in partitions {
             let partition = partition.read();
-            chunks.extend(partition.chunks().map(|chunk| {
+            chunks.extend(partition.chunks().into_iter().map(|chunk| {
                 let chunk = chunk.read();
                 map(&chunk)
             }))
@@ -397,17 +397,17 @@ mod tests {
         let p1 = p1.write();
         let p2 = p2.write();
 
-        let c1_0 = p1.chunk(0).unwrap();
+        let (c1_0, _order) = p1.chunk(0).unwrap();
         assert_eq!(c1_0.read().table_name().as_ref(), "t1");
         assert_eq!(c1_0.read().key(), "p1");
         assert_eq!(c1_0.read().id(), 0);
 
-        let c1_1 = p1.chunk(1).unwrap();
+        let (c1_1, _order) = p1.chunk(1).unwrap();
         assert_eq!(c1_1.read().table_name().as_ref(), "t1");
         assert_eq!(c1_1.read().key(), "p1");
         assert_eq!(c1_1.read().id(), 1);
 
-        let c2_0 = p2.chunk(0).unwrap();
+        let (c2_0, _order) = p2.chunk(0).unwrap();
         assert_eq!(c2_0.read().table_name().as_ref(), "t2");
         assert_eq!(c2_0.read().key(), "p2");
         assert_eq!(c2_0.read().id(), 0);
@@ -446,6 +446,7 @@ mod tests {
             .flat_map(|p| {
                 let p = p.read();
                 p.chunks()
+                    .into_iter()
                     .map(|c| {
                         let c = c.read();
                         format!("Chunk {}:{}:{}", c.key(), c.table_name(), c.id())

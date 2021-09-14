@@ -89,4 +89,6 @@ message Chunk {
   // the same as the timestamps on the data itself
   google.protobuf.Timestamp time_closed = 7;
 
+  // Order of this chunk relative to other overlapping chunks.
+  uint32 order = 13;
 }

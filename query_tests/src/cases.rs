@@ -19,6 +19,20 @@ async fn test_cases_all_chunks_dropped_sql() {
 }
 
 #[tokio::test]
+// Tests from "chunk_order.sql",
+async fn test_cases_chunk_order_sql() {
+    let input_path = Path::new("cases").join("in").join("chunk_order.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
 // Tests from "duplicates.sql",
 async fn test_cases_duplicates_sql() {
     let input_path = Path::new("cases").join("in").join("duplicates.sql");

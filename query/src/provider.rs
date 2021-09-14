@@ -4,10 +4,7 @@ use std::sync::Arc;
 
 use arrow::{datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
 use datafusion::{
-    datasource::{
-        datasource::{Statistics, TableProviderFilterPushDown},
-        TableProvider,
-    },
+    datasource::{datasource::TableProviderFilterPushDown, TableProvider},
     error::{DataFusionError, Result as DataFusionResult},
     logical_plan::Expr,
     physical_plan::{
@@ -265,30 +262,6 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
         )?;
 
         Ok(plan)
-    }
-
-    fn statistics(&self) -> Statistics {
-        self.chunks
-            .iter()
-            .fold(None, |combined_summary, chunk| match combined_summary {
-                None => Some(chunk.summary().clone()),
-                Some(mut combined_summary) => {
-                    combined_summary.update_from(chunk.summary());
-                    Some(combined_summary)
-                }
-            })
-            .map(|combined_summary| {
-                crate::statistics::df_from_iox(self.iox_schema.as_ref(), &combined_summary)
-            })
-            .unwrap_or_default()
-    }
-
-    /// Returns whether statistics provided are exact values or estimates
-    fn has_exact_statistics(&self) -> bool {
-        // TODO: we should acount for overlaps at this point -- if
-        // there is overlap across the chunks, we probably can't
-        // provide exact statistics without more work
-        true
     }
 
     /// Filter pushdown specificiation
@@ -562,6 +535,14 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         // Note that we may need to sort/deduplicate based on tag
         // columns which do not appear in the output
 
+        // We need to sort chunks before creating the execution plan. For that, the chunk order is used. Since the order
+        // only sorts overlapping chunks, we also use the chunk ID for deterministic outputs.
+        let chunks = {
+            let mut chunks = chunks;
+            chunks.sort_unstable_by_key(|c| (c.order(), c.id()));
+            chunks
+        };
+
         let pk_schema = Self::compute_pk_schema(&chunks);
         let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
 
@@ -758,7 +739,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         // Create the bottom node IOxReadFilterNode for this chunk
         let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
             Arc::clone(&table_name),
-            output_schema.as_arrow(),
+            output_schema,
             vec![Arc::clone(&chunk)],
             predicate,
         ));
@@ -905,7 +886,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         if output_sort_key.is_empty() || chunks.is_empty() {
             plans.push(Arc::new(IOxReadFilterNode::new(
                 Arc::clone(&table_name),
-                output_schema.as_arrow(),
+                output_schema,
                 chunks,
                 predicate,
             )));
@@ -1050,13 +1031,10 @@ mod test {
         sort_key.with_col("tag1");
         sort_key.with_col(TIME_COLUMN_NAME);
 
-        // Datafusion schema of the chunk
-        let schema = chunk.schema().as_arrow();
-
         // IOx scan operator
         let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
             Arc::from("t"),
-            schema,
+            chunk.schema(),
             vec![Arc::clone(&chunk)],
             Predicate::default(),
         ));
@@ -1130,13 +1108,10 @@ mod test {
         sort_key.with_col("tag3");
         sort_key.with_col(TIME_COLUMN_NAME);
 
-        // Datafusion schema of the chunk
-        let schema = chunk.schema().as_arrow();
-
         // IOx scan operator
         let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
             Arc::from("t"),
-            schema,
+            chunk.schema(),
             vec![Arc::clone(&chunk)],
             Predicate::default(),
         ));

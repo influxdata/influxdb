@@ -48,8 +48,8 @@ pub struct DumpOptions {
     /// Show unparsed [`IoxParquetMetaData`] -- which are Apache Thrift bytes -- as part of the transaction actions.
     ///
     /// Since this binary data is usually quite hard to read, it is recommended to set this to `false` which will
-    /// replace the actual bytes with `b"stripped"`. Use the other toggles to instead show the content of the Apache
-    /// Thrift message.
+    /// replace the actual bytes with `b"metadata omitted"`. Use the other toggles to instead show the content of the
+    /// Apache Thrift message.
     pub show_unparsed_metadata: bool,
 }
 
@@ -129,7 +129,10 @@ impl File {
                                             metadata: if options.show_unparsed_metadata {
                                                 add_parquet.metadata
                                             } else {
-                                                Bytes::from("stripped")
+                                                Bytes::from(format!(
+                                                    "metadata omitted ({} bytes)",
+                                                    add_parquet.metadata.len()
+                                                ))
                                             },
                                             ..add_parquet
                                         },
@@ -270,7 +273,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 12,
+            version: 13,
             actions: [],
             revision_counter: 0,
             uuid: "00000000-0000-0000-0000-000000000000",
@@ -295,7 +298,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 12,
+            version: 13,
             actions: [
                 Action {
                     action: Some(
@@ -311,7 +314,7 @@ File {
                                     },
                                 ),
                                 file_size_bytes: 33,
-                                metadata: b"stripped",
+                                metadata: b"metadata omitted (1742 bytes)",
                             },
                         ),
                     ),
@@ -394,7 +397,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 12,
+            version: 13,
             actions: [],
             revision_counter: 0,
             uuid: "00000000-0000-0000-0000-000000000000",
@@ -419,7 +422,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 12,
+            version: 13,
             actions: [
                 Action {
                     action: Some(
@@ -435,7 +438,7 @@ File {
                                     },
                                 ),
                                 file_size_bytes: 33,
-                                metadata: b"stripped",
+                                metadata: b"metadata omitted (1742 bytes)",
                             },
                         ),
                     ),
@@ -502,6 +505,7 @@ File {
                                     },
                                 },
                             },
+                            chunk_order: 5,
                         },
                     ),
                     schema: Ok(

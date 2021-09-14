@@ -158,6 +158,9 @@ pub struct ChunkSummary {
     /// Time at which this chunk was marked as closed. Note this is
     /// not the same as the timestamps on the data itself
     pub time_closed: Option<DateTime<Utc>>,
+
+    /// Order of this chunk relative to other overlapping chunks.
+    pub order: u32,
 }
 
 /// Represents metadata about the physical storage of a column in a chunk
