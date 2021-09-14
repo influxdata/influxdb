@@ -177,29 +177,9 @@ force_compaction() {
 # must be provided to both the data generation and query generation commands
 # and must be the same to ensure that the queries cover the data range.
 start_time() {
-  case $1 in
-    iot|window-agg|group-agg|bare-agg)
-      echo 2018-01-01T00:00:00Z
-      ;;
-    group-window-transpose)
-      cardinality=$(echo $2 | cut -d '-' -f2)
-      if [ "$cardinality" = "low" ]; then
-        echo 2018-01-01T00:00:00Z
-      else
-        echo 2019-01-01T00:00:00Z
-      fi
-      ;;
-    metaquery)
-      echo 2019-01-01T00:00:00Z
-      ;;
-    multi-measurement)
-      echo 2017-01-01T00:00:00Z
-      ;;
-    *)
-      echo "unknown use-case: $1"
-      exit 1
-      ;;
-  esac
+  # All queries and datasets can start at the same time. Certain queries and
+  # datasets will use case-dependent end-times.
+  echo 2018-01-01T00:00:00Z
 }
 
 end_time() {
@@ -207,19 +187,20 @@ end_time() {
     iot|window-agg|group-agg|bare-agg)
       echo 2018-01-01T12:00:00Z
       ;;
+    multi-measurement|metaquery)
+      echo 2019-01-01T00:00:00Z
+      ;;
     group-window-transpose)
+    # The group-window transpose tests currently require special handling due to
+    # the difference in performance between having the existing pushdown enabled
+    # or disabled for data with varying degrees of cardinality. Ideally this
+    # pushdown will be optimized and this test can be simplified in the future.
       cardinality=$(echo $2 | cut -d '-' -f2)
       if [ "$cardinality" = "low" ]; then
         echo 2018-01-01T12:00:00Z
       else
-        echo 2020-01-01T00:00:00Z
+        echo 2019-01-01T00:00:00Z
       fi
-      ;;
-    metaquery)
-      echo 2020-01-01T00:00:00Z
-      ;;
-    multi-measurement)
-      echo 2018-01-01T00:00:00Z
       ;;
     *)
       echo "unknown use-case: $1"
