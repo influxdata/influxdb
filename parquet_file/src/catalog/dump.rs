@@ -48,8 +48,8 @@ pub struct DumpOptions {
     /// Show unparsed [`IoxParquetMetaData`] -- which are Apache Thrift bytes -- as part of the transaction actions.
     ///
     /// Since this binary data is usually quite hard to read, it is recommended to set this to `false` which will
-    /// replace the actual bytes with `b"stripped"`. Use the other toggles to instead show the content of the Apache
-    /// Thrift message.
+    /// replace the actual bytes with `b"metadata omitted"`. Use the other toggles to instead show the content of the
+    /// Apache Thrift message.
     pub show_unparsed_metadata: bool,
 }
 
@@ -130,7 +130,7 @@ impl File {
                                                 add_parquet.metadata
                                             } else {
                                                 Bytes::from(format!(
-                                                    "stripped ({} bytes)",
+                                                    "metadata omitted ({} bytes)",
                                                     add_parquet.metadata.len()
                                                 ))
                                             },
@@ -314,7 +314,7 @@ File {
                                     },
                                 ),
                                 file_size_bytes: 33,
-                                metadata: b"stripped (1738 bytes)",
+                                metadata: b"metadata omitted (1738 bytes)",
                             },
                         ),
                     ),
@@ -438,7 +438,7 @@ File {
                                     },
                                 ),
                                 file_size_bytes: 33,
-                                metadata: b"stripped (1738 bytes)",
+                                metadata: b"metadata omitted (1738 bytes)",
                             },
                         ),
                     ),
