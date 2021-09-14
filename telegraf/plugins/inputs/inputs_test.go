@@ -249,7 +249,7 @@ func TestEncodeTOML(t *testing.T) {
       ## duplicate.
     # unique_timestamp = "auto"
 `,
-				&MemStats{}:   `[[inputs.mem]]
+				&MemStats{}: `[[inputs.mem]]
   # no configuration
 `,
 				&NetIOStats{}: `[[inputs.net]]
