@@ -1,8 +1,8 @@
 //! Tests for the Influx gRPC queries
+use predicate::predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE};
 use query::{
     exec::stringset::{IntoStringSet, StringSetRef},
     frontend::influxrpc::InfluxRpcPlanner,
-    predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
 };
 
 use crate::scenarios::*;

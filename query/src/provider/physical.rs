@@ -12,7 +12,8 @@ use datafusion::{
 };
 use internal_types::{schema::Schema, selection::Selection};
 
-use crate::{predicate::Predicate, QueryChunk};
+use crate::QueryChunk;
+use predicate::predicate::Predicate;
 
 use async_trait::async_trait;
 

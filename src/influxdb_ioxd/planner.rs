@@ -2,12 +2,12 @@
 use std::sync::Arc;
 
 use datafusion::physical_plan::ExecutionPlan;
+use predicate::predicate::Predicate;
 use query::{
     exec::IOxExecutionContext,
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
     group_by::{Aggregate, WindowDuration},
     plan::{fieldlist::FieldListPlan, seriesset::SeriesSetPlans, stringset::StringSetPlan},
-    predicate::Predicate,
     QueryDatabase,
 };
 

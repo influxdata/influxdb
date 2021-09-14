@@ -11,10 +11,8 @@ use data_types::job::Job;
 use lifecycle::{LifecycleWriteGuard, LockableChunk, LockablePartition};
 use observability_deps::tracing::info;
 use persistence_windows::persistence_windows::FlushHandle;
-use query::{
-    compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, predicate::Predicate,
-    QueryChunkMeta,
-};
+use predicate::predicate::Predicate;
+use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 

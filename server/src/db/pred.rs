@@ -3,7 +3,7 @@
 
 use std::convert::TryFrom;
 
-use query::predicate::Predicate;
+use predicate::predicate::Predicate;
 use snafu::Snafu;
 
 #[derive(Debug, Snafu)]
@@ -14,7 +14,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Converts a [`query::predicate::Predicate`] into [`read_buffer::Predicate`],
+/// Converts a [`predicate::predicate::Predicate`] into [`read_buffer::Predicate`],
 /// suitable for evaluating on the ReadBuffer.
 pub fn to_read_buffer_predicate(predicate: &Predicate) -> Result<read_buffer::Predicate> {
     // Try to convert non-time column expressions into binary expressions
@@ -48,7 +48,7 @@ pub mod test {
     use datafusion::logical_plan::{col, lit, Expr};
 
     use datafusion::scalar::ScalarValue;
-    use query::predicate::PredicateBuilder;
+    use predicate::predicate::PredicateBuilder;
     use read_buffer::BinaryExpr as RBBinaryExpr;
     use read_buffer::Predicate as RBPredicate;
 

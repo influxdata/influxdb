@@ -4,11 +4,8 @@ use crate::scenarios::*;
 use arrow_util::display::pretty_format_batches;
 use async_trait::async_trait;
 use datafusion::prelude::*;
-use query::{
-    frontend::influxrpc::InfluxRpcPlanner,
-    group_by::Aggregate,
-    predicate::{Predicate, PredicateBuilder},
-};
+use predicate::predicate::{Predicate, PredicateBuilder};
+use query::{frontend::influxrpc::InfluxRpcPlanner, group_by::Aggregate};
 
 /// runs read_group(predicate) and compares it to the expected
 /// output

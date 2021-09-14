@@ -5,10 +5,8 @@ use super::util::run_series_set_plan;
 use crate::scenarios::*;
 use async_trait::async_trait;
 use datafusion::logical_plan::{col, lit};
-use query::{
-    frontend::influxrpc::InfluxRpcPlanner,
-    predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
-};
+use predicate::predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE};
+use query::frontend::influxrpc::InfluxRpcPlanner;
 
 #[derive(Debug)]
 pub struct TwoMeasurementsMultiSeries {}

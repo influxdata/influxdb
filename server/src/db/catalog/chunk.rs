@@ -16,7 +16,7 @@ use internal_types::{access::AccessRecorder, schema::Schema};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
-use query::predicate::{Predicate, PredicateBuilder};
+use predicate::predicate::{Predicate, PredicateBuilder};
 use read_buffer::RBChunk;
 use tracker::{TaskRegistration, TaskTracker};
 
@@ -972,7 +972,7 @@ mod tests {
             make_chunk as make_parquet_chunk_with_store, make_iox_object_store, TestSize,
         },
     };
-    use query::predicate::PredicateBuilder;
+    use predicate::predicate::PredicateBuilder;
 
     #[test]
     fn test_new_open() {

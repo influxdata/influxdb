@@ -18,13 +18,9 @@ use datafusion::{
 };
 use internal_types::schema::{merge::SchemaMerger, sort::SortKey, Schema};
 use observability_deps::tracing::{debug, info, trace};
+use predicate::predicate::{Predicate, PredicateBuilder};
 
-use crate::{
-    compute_sort_key,
-    predicate::{Predicate, PredicateBuilder},
-    util::arrow_sort_key_exprs,
-    QueryChunk,
-};
+use crate::{compute_sort_key, util::arrow_sort_key_exprs, QueryChunk};
 
 use snafu::{ResultExt, Snafu};
 
