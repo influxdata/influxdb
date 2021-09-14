@@ -218,7 +218,7 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 	return err
 }
 
-func (cmd *Command) backupShard(db, rp, sid string) error {
+func (cmd *Command) backupShard(db, rp, sid string) (e error) {
 	reqType := snapshotter.RequestShardBackup
 	if !cmd.isBackup {
 		reqType = snapshotter.RequestShardExport
@@ -254,7 +254,7 @@ func (cmd *Command) backupShard(db, rp, sid string) error {
 	// TODO: verify shard backup data
 	err = cmd.downloadAndVerify(req, shardArchivePath, nil)
 	if err != nil {
-		os.Remove(shardArchivePath)
+		_ = os.Remove(shardArchivePath)
 		return err
 	}
 	if !cmd.portable {
@@ -266,8 +266,14 @@ func (cmd *Command) backupShard(db, rp, sid string) error {
 		if err != nil {
 			return err
 		}
-		defer f.Close()
-		defer os.Remove(shardArchivePath)
+		defer func() {
+			if closeErr := f.Close(); e == nil {
+				e = closeErr
+			}
+			if remErr := os.Remove(shardArchivePath); e == nil {
+				e = remErr
+			}
+		}()
 
 		filePrefix := cmd.portableFileBase + ".s" + sid
 		filename := filePrefix + ".tar.gz"
