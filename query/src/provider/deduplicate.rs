@@ -9,8 +9,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
-
-use crate::exec::stream::AdapterStream;
+use datafusion_util::AdapterStream;
 
 use self::algo::RecordBatchDeduplicator;
 use datafusion::{

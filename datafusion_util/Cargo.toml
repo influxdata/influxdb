@@ -6,6 +6,7 @@ edition = "2018"
 description = "Datafusion utilities"
 
 [dependencies]
-
 datafusion = { path = "../datafusion" }
 futures = "0.3"
+tokio = { version = "1.11", features = ["macros"] }
+tokio-stream = "0.1.2"

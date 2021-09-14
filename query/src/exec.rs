@@ -7,7 +7,6 @@ pub mod fieldlist;
 mod schema_pivot;
 pub mod seriesset;
 pub(crate) mod split;
-pub mod stream;
 pub mod stringset;
 mod task;
 pub use context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
