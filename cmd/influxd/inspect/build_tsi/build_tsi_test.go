@@ -372,6 +372,7 @@ func runCommand(t *testing.T, params cmdParams, outs cmdOuts) {
 		require.DirExists(t, filepath.Join(params.dataPath, "12345", "_series"))
 
 		// Get size of all partitions after series compaction
+		require.NoError(t, sfile.Open())
 		afterSize, err := sfile.FileSize()
 		require.NoError(t, err)
 
