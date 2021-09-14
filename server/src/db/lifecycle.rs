@@ -6,7 +6,7 @@ use crate::{
 use ::lifecycle::LifecycleDb;
 use chrono::{DateTime, TimeZone, Utc};
 use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkStorage},
+    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkOrder, ChunkStorage},
     database_rules::LifecycleRules,
     error::ErrorLogger,
     job::Job,
@@ -65,7 +65,7 @@ pub struct LockableCatalogChunk {
     pub db: Arc<Db>,
     pub chunk: Arc<RwLock<CatalogChunk>>,
     pub id: u32,
-    pub order: u32,
+    pub order: ChunkOrder,
 }
 
 impl LockableChunk for LockableCatalogChunk {
@@ -105,7 +105,7 @@ impl LockableChunk for LockableCatalogChunk {
         self.id
     }
 
-    fn order(&self) -> u32 {
+    fn order(&self) -> ChunkOrder {
         self.order
     }
 }
@@ -347,10 +347,6 @@ impl LifecycleChunk for CatalogChunk {
 
     fn row_count(&self) -> usize {
         self.storage().0
-    }
-
-    fn order(&self) -> u32 {
-        self.order()
     }
 }
 

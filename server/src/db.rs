@@ -20,7 +20,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use ::lifecycle::{LifecycleChunk, LockableChunk, LockablePartition};
 use data_types::{
-    chunk_metadata::ChunkSummary,
+    chunk_metadata::{ChunkOrder, ChunkSummary},
     database_rules::DatabaseRules,
     partition_metadata::{PartitionSummary, TableSummary},
     server_id::ServerId,
@@ -459,7 +459,7 @@ impl Db {
         table_name: &str,
         partition_key: &str,
         chunk_id: u32,
-    ) -> catalog::Result<(Arc<tracker::RwLock<CatalogChunk>>, u32)> {
+    ) -> catalog::Result<(Arc<tracker::RwLock<CatalogChunk>>, ChunkOrder)> {
         self.catalog.chunk(table_name, partition_key, chunk_id)
     }
 
@@ -2443,7 +2443,7 @@ mod tests {
             time_of_first_write: Utc.timestamp_nanos(1),
             time_of_last_write: Utc.timestamp_nanos(1),
             time_closed: None,
-            order: 5,
+            order: ChunkOrder::new(5),
         }];
 
         let size: usize = db
@@ -2734,7 +2734,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
                 time_closed: None,
-                order: 5,
+                order: ChunkOrder::new(5),
             },
             ChunkSummary {
                 partition_key: Arc::from("1970-01-05T15"),
@@ -2749,7 +2749,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
                 time_closed: None,
-                order: 6,
+                order: ChunkOrder::new(6),
             },
             ChunkSummary {
                 partition_key: Arc::from("1970-01-05T15"),
@@ -2764,7 +2764,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
                 time_closed: None,
-                order: 5,
+                order: ChunkOrder::new(5),
             },
         ];
 

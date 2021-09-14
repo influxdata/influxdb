@@ -87,7 +87,10 @@
 //! [Apache Thrift]: https://thrift.apache.org/
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
 use chrono::{DateTime, NaiveDateTime, Utc};
-use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
+use data_types::{
+    chunk_metadata::ChunkOrder,
+    partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
+};
 use generated_types::influxdata::iox::catalog::v1 as proto;
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
 use parquet::{
@@ -271,7 +274,7 @@ pub struct IoxMetadata {
     pub database_checkpoint: DatabaseCheckpoint,
 
     /// Order of this chunk relative to other overlapping chunks.
-    pub chunk_order: u32,
+    pub chunk_order: ChunkOrder,
 }
 
 impl IoxMetadata {
@@ -366,7 +369,7 @@ impl IoxMetadata {
             chunk_id: proto_msg.chunk_id,
             partition_checkpoint,
             database_checkpoint,
-            chunk_order: proto_msg.chunk_order,
+            chunk_order: proto_msg.chunk_order.into(),
         })
     }
 
@@ -421,7 +424,7 @@ impl IoxMetadata {
             chunk_id: self.chunk_id,
             partition_checkpoint: Some(proto_partition_checkpoint),
             database_checkpoint: Some(proto_database_checkpoint),
-            chunk_order: self.chunk_order,
+            chunk_order: self.chunk_order.get(),
         };
 
         let mut buf = Vec::new();
@@ -1069,7 +1072,7 @@ mod tests {
             database_checkpoint,
             time_of_first_write: Utc::now(),
             time_of_last_write: Utc::now(),
-            chunk_order: 5,
+            chunk_order: ChunkOrder::new(5),
         };
 
         let proto_bytes = metadata.to_protobuf().unwrap();
@@ -1120,7 +1123,7 @@ mod tests {
                 database_checkpoint,
                 time_of_first_write: Utc::now(),
                 time_of_last_write: Utc::now(),
-                chunk_order: 5,
+                chunk_order: ChunkOrder::new(5),
             };
 
             let proto_bytes = metadata.to_protobuf().unwrap();

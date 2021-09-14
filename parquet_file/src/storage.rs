@@ -431,7 +431,7 @@ mod tests {
     use arrow::array::{ArrayRef, StringArray};
     use arrow_util::assert_batches_eq;
     use chrono::Utc;
-    use data_types::partition_metadata::TableSummary;
+    use data_types::{chunk_metadata::ChunkOrder, partition_metadata::TableSummary};
     use datafusion::physical_plan::common::SizedRecordBatchStream;
     use datafusion_util::MemoryStream;
     use parquet::schema::types::ColumnPath;
@@ -453,7 +453,7 @@ mod tests {
             database_checkpoint,
             time_of_first_write: Utc::now(),
             time_of_last_write: Utc::now(),
-            chunk_order: 5,
+            chunk_order: ChunkOrder::new(5),
         };
 
         // create parquet file
@@ -528,7 +528,7 @@ mod tests {
             database_checkpoint,
             time_of_first_write: Utc::now(),
             time_of_last_write: Utc::now(),
-            chunk_order: 5,
+            chunk_order: ChunkOrder::new(5),
         };
 
         let (path, _file_size_bytes, _metadata) = storage
