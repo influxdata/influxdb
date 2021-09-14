@@ -361,8 +361,8 @@ for usecase in iot metaquery multi-measurement; do
       systemctl start influxdb
   done
 
-   # Delete DB to start anew.
-  influx bucket delete -o $TEST_ORG -t $TEST_TOKEN -n $db_name
+  # Delete DB to start anew.
+  curl -X DELETE -H "Authorization: Token ${TEST_TOKEN}" http://${NGINX_HOST}:8086/api/v2/buckets/$(bucket_id)
 done
 
 echo "Using Telegraph to report results from the following files:"
