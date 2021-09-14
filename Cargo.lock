@@ -3323,7 +3323,6 @@ dependencies = [
  "datafusion_util",
  "futures",
  "hashbrown",
- "influxdb_line_protocol",
  "internal_types",
  "itertools 0.10.1",
  "libc",
