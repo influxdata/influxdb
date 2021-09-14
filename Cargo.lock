@@ -1753,6 +1753,7 @@ dependencies = [
  "parking_lot",
  "parquet",
  "parquet_file",
+ "parse_duration",
  "pprof",
  "predicates",
  "prettytable-rs",

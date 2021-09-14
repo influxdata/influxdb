@@ -11,7 +11,10 @@ use influxdb_iox_client::{
     },
     write::{self, WriteError},
 };
-use std::{convert::TryInto, fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr};
+use std::{
+    convert::TryInto, fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr,
+    time::Duration,
+};
 use structopt::StructOpt;
 use thiserror::Error;
 
@@ -97,6 +100,12 @@ struct Create {
     /// After how many transactions should IOx write a new checkpoint?
     #[structopt(long, default_value = "100", parse(try_from_str))]
     catalog_transactions_until_checkpoint: NonZeroU64,
+
+    /// Prune catalog transactions older than the given age.
+    ///
+    /// Keeping old transaction can be useful for debugging.
+    #[structopt(long, default_value = "1d", parse(try_from_str = parse_duration::parse))]
+    catalog_transaction_prune_age: Duration,
 
     /// Once a partition hasn't received a write for this period of time,
     /// it will be compacted and, if set, persisted. Writers will generally
@@ -206,6 +215,9 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                     catalog_transactions_until_checkpoint: command
                         .catalog_transactions_until_checkpoint
                         .get(),
+                    catalog_transaction_prune_age: Some(
+                        command.catalog_transaction_prune_age.into(),
+                    ),
                     late_arrive_window_seconds: command.late_arrive_window_seconds,
                     persist_row_threshold: command.persist_row_threshold,
                     persist_age_threshold_seconds: command.persist_age_threshold_seconds,

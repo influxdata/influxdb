@@ -183,6 +183,7 @@ impl Partitioner for DatabaseRules {
 
 pub const DEFAULT_WORKER_BACKOFF_MILLIS: u64 = 1_000;
 pub const DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT: u64 = 100;
+pub const DEFAULT_CATALOG_TRANSACTION_PRUNE_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 pub const DEFAULT_MUB_ROW_THRESHOLD: usize = 100_000;
 pub const DEFAULT_PERSIST_ROW_THRESHOLD: usize = 1_000_000;
 pub const DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS: u32 = 30 * 60;
@@ -214,6 +215,11 @@ pub struct LifecycleRules {
 
     /// After how many transactions should IOx write a new checkpoint?
     pub catalog_transactions_until_checkpoint: NonZeroU64,
+
+    /// Prune catalog transactions older than the given age.
+    ///
+    /// Keeping old transaction can be useful for debugging.
+    pub catalog_transaction_prune_age: Duration,
 
     /// Once a partition hasn't received a write for this period of time,
     /// it will be compacted and, if set, persisted. Writers will generally
@@ -301,6 +307,7 @@ impl Default for LifecycleRules {
                 DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
             )
             .unwrap(),
+            catalog_transaction_prune_age: DEFAULT_CATALOG_TRANSACTION_PRUNE_AGE,
             late_arrive_window_seconds: NonZeroU32::new(DEFAULT_LATE_ARRIVE_WINDOW_SECONDS)
                 .unwrap(),
             persist_row_threshold: NonZeroUsize::new(DEFAULT_PERSIST_ROW_THRESHOLD).unwrap(),
