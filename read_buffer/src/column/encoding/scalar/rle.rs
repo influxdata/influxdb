@@ -1,4 +1,5 @@
 use either::Either;
+use observability_deps::tracing::debug;
 
 use crate::column::cmp;
 use crate::column::RowIDs;
@@ -394,15 +395,34 @@ where
         self.num_rows
     }
 
-    fn row_ids_filter(&self, value: L, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
-        let value = self.transcoder.encode(value);
+    fn row_ids_filter(&self, value: L, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
+        debug!(value=?value, operator=?op, encoding=?ENCODING_NAME, "row_ids_filter");
+        let (value, op) = match self.transcoder.encode_comparable(value, *op) {
+            Some((value, op)) => (value, op),
+            None => {
+                // The value is not encodable. This can happen with the == or !=
+                // operator. In the case of ==, no values in the encoding could
+                // possible satisfy the expression. In the case of !=, all
+                // non-null values would satisfy the expression.
+                dst.clear();
+                return match op {
+                    cmp::Operator::Equal => dst,
+                    cmp::Operator::NotEqual => {
+                        dst = self.all_non_null_row_ids(dst);
+                        dst
+                    }
+                    op => panic!("operator {:?} not expected", op),
+                };
+            }
+        };
+        debug!(value=?value, operator=?op, encoding=?ENCODING_NAME, "row_ids_filter encoded expr");
+
         match op {
-            cmp::Operator::Equal | cmp::Operator::NotEqual => {
-                self.row_ids_cmp_equal(value, op, dst)
-            }
-            cmp::Operator::LT | cmp::Operator::LTE | cmp::Operator::GT | cmp::Operator::GTE => {
-                self.row_ids_cmp(value, op, dst)
-            }
+            cmp::Operator::GT => self.row_ids_cmp(value, &op, dst),
+            cmp::Operator::GTE => self.row_ids_cmp(value, &op, dst),
+            cmp::Operator::LT => self.row_ids_cmp(value, &op, dst),
+            cmp::Operator::LTE => self.row_ids_cmp(value, &op, dst),
+            _ => self.row_ids_cmp_equal(value, &op, dst),
         }
     }
 

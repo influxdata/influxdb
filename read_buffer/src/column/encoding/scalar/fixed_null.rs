@@ -233,6 +233,11 @@ where
     fn all_non_null_row_ids(&self, mut dst: RowIDs) -> RowIDs {
         dst.clear();
 
+        if self.null_count() == 0 {
+            dst.add_range(0, self.num_rows());
+            return dst;
+        }
+
         let mut found = false;
         let mut count = 0;
         for i in 0..self.num_rows() as usize {
@@ -444,14 +449,34 @@ where
         max.map(|v| self.transcoder.decode(v))
     }
 
-    fn row_ids_filter(&self, value: L, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
-        let value = self.transcoder.encode(value);
+    fn row_ids_filter(&self, value: L, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
+        debug!(value=?value, operator=?op, encoding=?ENCODING_NAME, "row_ids_filter");
+        let (value, op) = match self.transcoder.encode_comparable(value, *op) {
+            Some((value, op)) => (value, op),
+            None => {
+                // The value is not encodable. This can happen with the == or !=
+                // operator. In the case of ==, no values in the encoding could
+                // possible satisfy the expression. In the case of !=, all
+                // non-null values would satisfy the expression.
+                dst.clear();
+                return match op {
+                    cmp::Operator::Equal => dst,
+                    cmp::Operator::NotEqual => {
+                        dst = self.all_non_null_row_ids(dst);
+                        dst
+                    }
+                    op => panic!("operator {:?} not expected", op),
+                };
+            }
+        };
+        debug!(value=?value, operator=?op, encoding=?ENCODING_NAME, "row_ids_filter encoded expr");
+
         match op {
-            cmp::Operator::GT => self.row_ids_cmp_order(value, Self::ord_from_op(op), dst),
-            cmp::Operator::GTE => self.row_ids_cmp_order(value, Self::ord_from_op(op), dst),
-            cmp::Operator::LT => self.row_ids_cmp_order(value, Self::ord_from_op(op), dst),
-            cmp::Operator::LTE => self.row_ids_cmp_order(value, Self::ord_from_op(op), dst),
-            _ => self.row_ids_equal(value, op, dst),
+            cmp::Operator::GT => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
+            cmp::Operator::GTE => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
+            cmp::Operator::LT => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
+            cmp::Operator::LTE => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
+            _ => self.row_ids_equal(value, &op, dst),
         }
     }
 
@@ -832,7 +857,7 @@ mod test {
             (vec![Some(22), None], vec![0]),
             (
                 vec![Some(22), None, Some(1), None, Some(3), None],
-                vec![0, 3, 4],
+                vec![0, 2, 4],
             ),
             (vec![Some(22), None, None, Some(33)], vec![0, 3]),
             (vec![None, None, Some(33)], vec![2]),
