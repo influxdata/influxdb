@@ -126,6 +126,9 @@ blobs:
     bucket: "dl.influxdata.com"
     region: "us-east-1"
     folder: "{{ .Env.S3_FOLDER }}"
+    extra_files:
+      - glob: ./changelog_artifacts/CHANGELOG*.md
+      - glob: ./changelog_artifacts/changelog-commit.txt
 
 checksum:
   name_template: "influxdb2-{{ .Env.VERSION }}.sha256"

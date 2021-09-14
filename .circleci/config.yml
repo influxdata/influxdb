@@ -117,6 +117,8 @@ workflows:
               only:
                 - "2.0"
     jobs:
+      - changelog:
+          nightly: true
       - godeps
       - jsdeps
       - gotest:
@@ -133,6 +135,7 @@ workflows:
             - godeps
       - deploy_nightly:
           requires:
+            - changelog
             - gotest
             - golint
             - fluxtest
@@ -184,12 +187,16 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - release:
+      - changelog:
+          nightly: false
           requires:
             - gotest
             - golint
             - fluxtest
             - tlstest
+      - release:
+          requires:
+            - changelog
           filters:
             branches:
               ignore: /.*/
@@ -311,6 +318,8 @@ commands:
         type: boolean
         default: false
     steps:
+      - attach_workspace:
+          at: /tmp/workspace
       - when:
           condition:
             or:
@@ -325,6 +334,12 @@ commands:
             - run:
                 name: Log in to Quay
                 command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+            - run:
+                name: Copy changelog artifacts into checkout dir
+                # This step is required to enable goreleaser to find the
+                # correct changelog files to upload to S3
+                command: |
+                  cp -a /tmp/workspace/changelog_artifacts ./changelog_artifacts
       - run:
           name: Set GOPATH
           # Machine executors use a different GOPATH from the cimg/go Docker executors.
@@ -613,6 +628,14 @@ jobs:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - install_core_deps
       - upgrade_go
+      - run:
+          # These files do not get uploaded by goreleaser when publish_release
+          # is false, but must be present to prevent a stat error
+          name: Touch dummy changelog files
+          command: |
+            mkdir changelog_artifacts
+            touch changelog_artifacts/CHANGELOG.md
+            touch changelog_artifacts/changelog-commit.txt
       - run_goreleaser:
           publish_release: false
       - run:
@@ -902,3 +925,80 @@ jobs:
       - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/grace/test-results/grace-results quay.io/influxdb/grace:daily
       - store_artifacts:
           path: ~/project
+  changelog:
+    parameters:
+      nightly:
+        type: boolean
+    machine:
+      image: ubuntu-2004:202010-01
+    steps:
+      - checkout
+      - install_core_deps
+      - run:
+          name: Install git-cliff
+          command: |
+            set -x
+            git clone --depth=1 --branch v0.2.5 https://github.com/orhun/git-cliff
+            cd git-cliff
+            cargo install git-cliff
+      - when:
+          condition: << parameters.nightly >>
+          steps:
+            - run:
+                name: Nightly Changelog
+                command: |
+                  set -x
+                  CHANGELOG_FILENAME="CHANGELOG.md"
+                  cat \<< EOF >> env_vars.sh
+                  S3_PATH="https://dl.influxdata.com/platform/nightlies/2.0"
+                  CHANGELOG_FILENAME=${CHANGELOG_FILENAME}
+                  SCRIPT_OPTIONS="--prepend ${CHANGELOG_FILENAME}"
+                  EOF
+      - unless:
+          condition: << parameters.nightly >>
+          steps:
+            - run:
+                name: Release Changelog
+                command: |
+                  set -x
+                  LAST_RELEASE_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags=v2* --skip=1 --max-count=1))
+
+                  cat \<< EOF >> env_vars.sh
+                  S3_PATH="https://dl.influxdata.com/influxdb/releases"
+                  CHANGELOG_FILENAME="CHANGELOG-${LAST_RELEASE_TAG}.md"
+                  SCRIPT_OPTIONS=""
+                  EOF
+      - run:
+          name: Changelog
+          command: |
+            set -x
+            source env_vars.sh
+            COMMIT_FILE_PATH="changelog-commit.txt"
+
+            curl -o ${CHANGELOG_FILENAME} ${S3_PATH}/${CHANGELOG_FILENAME}
+            curl -o ${COMMIT_FILE_PATH} ${S3_PATH}/${COMMIT_FILE_PATH}
+
+            LAST_COMMIT=$(cat $COMMIT_FILE_PATH)
+            NEWEST_COMMIT=${CIRCLE_SHA1}
+            TIMESTAMP="$(date -u '+%Y%m%d')"
+            TAG=${TIMESTAMP}
+            if [ -n "${CIRCLE_TAG}" ]; then
+              TAG=${CIRCLE_TAG}
+            fi
+
+            ./scripts/ci/update-changelog.sh \
+              --commit-range "$LAST_COMMIT..$NEWEST_COMMIT" \
+              ${SCRIPT_OPTIONS} \
+              -- \
+              --tag ${TAG}
+
+            echo "${CIRCLE_SHA1}" > "${COMMIT_FILE_PATH}"
+
+            mkdir changelog_artifacts
+            cp $CHANGELOG_FILENAME changelog_artifacts
+            cp $COMMIT_FILE_PATH changelog_artifacts
+      - store_artifacts:
+          path: changelog_artifacts/
+      - persist_to_workspace:
+          root: .
+          paths: changelog_artifacts/
