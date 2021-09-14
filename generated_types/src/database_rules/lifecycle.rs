@@ -1,12 +1,12 @@
-use crate::google::FromFieldOpt;
+use crate::google::{FieldViolationExt, FromFieldOpt};
 use std::convert::{TryFrom, TryInto};
 use std::num::{NonZeroU32, NonZeroU64, NonZeroUsize};
 
 use data_types::database_rules::{
     LifecycleRules, MaxActiveCompactions, DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT,
-    DEFAULT_LATE_ARRIVE_WINDOW_SECONDS, DEFAULT_MUB_ROW_THRESHOLD,
-    DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS, DEFAULT_PERSIST_ROW_THRESHOLD,
-    DEFAULT_WORKER_BACKOFF_MILLIS,
+    DEFAULT_CATALOG_TRANSACTION_PRUNE_AGE, DEFAULT_LATE_ARRIVE_WINDOW_SECONDS,
+    DEFAULT_MUB_ROW_THRESHOLD, DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS,
+    DEFAULT_PERSIST_ROW_THRESHOLD, DEFAULT_WORKER_BACKOFF_MILLIS,
 };
 
 use crate::google::FieldViolation;
@@ -30,6 +30,7 @@ impl From<LifecycleRules> for management::LifecycleRules {
             catalog_transactions_until_checkpoint: config
                 .catalog_transactions_until_checkpoint
                 .get(),
+            catalog_transaction_prune_age: Some(config.catalog_transaction_prune_age.into()),
             late_arrive_window_seconds: config.late_arrive_window_seconds.get(),
             persist_row_threshold: config.persist_row_threshold.get() as u64,
             persist_age_threshold_seconds: config.persist_age_threshold_seconds.get(),
@@ -74,6 +75,10 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
             .unwrap_or_else(|| {
                 NonZeroU64::new(DEFAULT_CATALOG_TRANSACTIONS_UNTIL_CHECKPOINT).unwrap()
             }),
+            catalog_transaction_prune_age: match proto.catalog_transaction_prune_age {
+                Some(d) => d.try_into().field("catalog_transaction_prune_age")?,
+                None => DEFAULT_CATALOG_TRANSACTION_PRUNE_AGE,
+            },
             late_arrive_window_seconds: NonZeroU32::new(proto.late_arrive_window_seconds)
                 .unwrap_or_else(|| NonZeroU32::new(DEFAULT_LATE_ARRIVE_WINDOW_SECONDS).unwrap()),
             persist_row_threshold: NonZeroUsize::new(proto.persist_row_threshold as usize)
@@ -124,6 +129,10 @@ mod tests {
                 management::lifecycle_rules::MaxActiveCompactionsCfg::MaxActiveCompactions(8),
             ),
             catalog_transactions_until_checkpoint: 10,
+            catalog_transaction_prune_age: Some(google_types::protobuf::Duration {
+                seconds: 11,
+                nanos: 22,
+            }),
             late_arrive_window_seconds: 23,
             persist_row_threshold: 57,
             persist_age_threshold_seconds: 23,
@@ -151,6 +160,14 @@ mod tests {
         assert_eq!(
             back.max_active_compactions_cfg,
             protobuf.max_active_compactions_cfg
+        );
+        assert_eq!(
+            back.catalog_transactions_until_checkpoint,
+            protobuf.catalog_transactions_until_checkpoint
+        );
+        assert_eq!(
+            back.catalog_transaction_prune_age,
+            protobuf.catalog_transaction_prune_age
         );
         assert_eq!(
             back.late_arrive_window_seconds,

@@ -36,6 +36,7 @@ use observability_deps::tracing::{debug, error, info};
 use parquet_file::catalog::{
     api::{CatalogParquetInfo, CheckpointData, PreservedCatalog},
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
+    prune::prune_history as prune_catalog_transaction_history,
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
 use query::{
@@ -894,23 +895,42 @@ impl Db {
                 self.worker_iterations_cleanup
                     .fetch_add(1, Ordering::Relaxed);
 
+                // read relevant parts of the db rules
+                let (avg_sleep_secs, catalog_transaction_prune_age) = {
+                    let guard = self.rules.read();
+                    let avg_sleep_secs = guard.worker_cleanup_avg_sleep.as_secs_f32().max(1.0);
+                    let catalog_transaction_prune_age =
+                        guard.lifecycle_rules.catalog_transaction_prune_age;
+                    (avg_sleep_secs, catalog_transaction_prune_age)
+                };
+
                 // Sleep for a duration drawn from a poisson distribution to de-correlate workers.
                 // Perform this sleep BEFORE the actual clean-up so that we don't immediately run a clean-up
                 // on startup.
-                let avg_sleep_secs = self
-                    .rules
-                    .read()
-                    .worker_cleanup_avg_sleep
-                    .as_secs_f32()
-                    .max(1.0);
                 let dist =
                     Poisson::new(avg_sleep_secs).expect("parameter should be positive and finite");
                 let duration = Duration::from_secs_f32(dist.sample(&mut rand::thread_rng()));
                 debug!(?duration, "cleanup worker sleeps");
                 tokio::time::sleep(duration).await;
 
+                match chrono::Duration::from_std(catalog_transaction_prune_age) {
+                    Ok(catalog_transaction_prune_age) => {
+                        if let Err(e) = prune_catalog_transaction_history(
+                            self.iox_object_store(),
+                            Utc::now() - catalog_transaction_prune_age,
+                        )
+                        .await
+                        {
+                            error!(%e, "error while pruning catalog transactions");
+                        }
+                    }
+                    Err(e) => {
+                        error!(%e, "cannot convert `catalog_transaction_prune_age`, skipping transaction pruning");
+                    }
+                }
+
                 if let Err(e) = self.cleanup_unreferenced_parquet_files().await {
-                    error!(%e, "error in background cleanup task");
+                    error!(%e, "error while cleaning unreferenced parquet files");
                 }
             }
         };
@@ -4084,6 +4104,70 @@ mod tests {
 
         // ==================== check: DB still writable ====================
         write_lp(db.as_ref(), "cpu bar=1 10").await;
+    }
+
+    #[tokio::test]
+    async fn transaction_pruning() {
+        // Test that the background worker prunes transactions
+
+        // ==================== setup ====================
+        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let server_id = ServerId::try_from(1).unwrap();
+        let db_name = "transaction_pruning_test";
+
+        // ==================== do: create DB ====================
+        // Create a DB given a server id, an object store and a db name
+        let test_db = TestDb::builder()
+            .object_store(Arc::clone(&object_store))
+            .server_id(server_id)
+            .db_name(db_name)
+            .lifecycle_rules(LifecycleRules {
+                catalog_transactions_until_checkpoint: NonZeroU64::try_from(1).unwrap(),
+                catalog_transaction_prune_age: Duration::from_millis(1),
+                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+                ..Default::default()
+            })
+            .build()
+            .await;
+        let db = Arc::new(test_db.db);
+
+        // ==================== do: write data to parquet ====================
+        create_parquet_chunk(&db).await;
+
+        // ==================== do: start background task loop ====================
+        let shutdown: CancellationToken = Default::default();
+        let shutdown_captured = shutdown.clone();
+        let db_captured = Arc::clone(&db);
+        let join_handle =
+            tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+
+        // ==================== check: after a while the dropped file should be gone ====================
+        let t_0 = Instant::now();
+        loop {
+            let all_revisions = db
+                .iox_object_store()
+                .catalog_transaction_files()
+                .await
+                .unwrap()
+                .map_ok(|files| {
+                    files
+                        .into_iter()
+                        .map(|f| f.revision_counter)
+                        .collect::<Vec<u64>>()
+                })
+                .try_concat()
+                .await
+                .unwrap();
+            if !all_revisions.contains(&0) {
+                break;
+            }
+            assert!(t_0.elapsed() < Duration::from_secs(10));
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        // ==================== do: stop background task loop ====================
+        shutdown.cancel();
+        join_handle.await.unwrap();
     }
 
     #[tokio::test]

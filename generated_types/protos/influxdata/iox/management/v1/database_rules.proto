@@ -62,6 +62,13 @@ message LifecycleRules {
   // If 0 / absent, this default to 100.
   uint64 catalog_transactions_until_checkpoint = 11;
 
+  // Prune catalog transactions older than the given age.
+  //
+  // Keeping old transaction can be useful for debugging.
+  //
+  // Defaults to 1 day.
+  google.protobuf.Duration catalog_transaction_prune_age = 19;
+
   /// Once a partition hasn't received a write for this period of time,
   /// it will be compacted and, if set, persisted. Writers will generally
   /// have this amount of time to send late arriving writes or this could
