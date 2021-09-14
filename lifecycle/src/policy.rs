@@ -669,7 +669,7 @@ fn sort_free_candidates<P>(candidates: &mut Vec<FreeCandidate<'_, P>>) {
 mod tests {
     use super::*;
     use crate::{
-        sort_chunks, ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
+        ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
         LockablePartition, PersistHandle,
     };
     use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
@@ -841,7 +841,7 @@ mod tests {
 
         fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<Self::Chunk> {
             let db = s.data().db;
-            let chunks: Vec<Self::Chunk> = s
+            let mut chunks: Vec<Self::Chunk> = s
                 .chunks
                 .iter()
                 .map(|(id, (order, chunk))| TestLockableChunk {
@@ -851,7 +851,8 @@ mod tests {
                     order: *order,
                 })
                 .collect();
-            sort_chunks(chunks)
+            chunks.sort_by_key(|chunk| (chunk.order(), chunk.id()));
+            chunks
         }
 
         fn compact_chunks(

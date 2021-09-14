@@ -195,20 +195,6 @@ pub trait LifecycleChunk {
     fn order(&self) -> u32;
 }
 
-/// Sort chunks for linear processing.
-///
-/// Sort chunks by:
-///
-/// 1. order: ensure compacting chunks with any potential updates together
-/// 2. ID: for a stable lock order
-pub fn sort_chunks<C>(mut chunks: Vec<C>) -> Vec<C>
-where
-    C: LockableChunk,
-{
-    chunks.sort_by_key(|chunk| (chunk.order(), chunk.id()));
-    chunks
-}
-
 /// The trait for a persist handle
 pub trait PersistHandle {
     /// Any unpersisted chunks containing rows with timestamps less than or equal to this
