@@ -1709,7 +1709,7 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 			switch e.Op {
 			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || tag.Val != "_name" {
+				if !ok || tag.Val != measurementKey {
 					return nil
 				}
 			}
@@ -1717,6 +1717,64 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 		return e
 	}), nil)
 
+	is, err := s.indexSetFromShards(ctx, shardIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	names, err := is.MeasurementNamesByExpr(nil, measurementExpr)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.tagValues(ctx, names, is, auth, cond)
+}
+
+// TagValuesByPredicate gets a slice of tag values, provided a flux predicate
+// that has been parsed into an influxql.Expr. It differs from TagValues in that
+// it works with flux predicates.
+func (s *Store) TagValuesByPredicate(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]TagValues, error) {
+	is, err := s.indexSetFromShards(ctx, shardIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	measurementExpr := influxql.CloneExpr(cond)
+	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				// Drop all system names except "_name" so that regex and negation
+				// operators work. The primary effect of this is dropping the "_tagKey"
+				// part of the expression for retrieving measurement names.
+				if !ok || (tag.Val != measurementKey && influxql.IsSystemName(tag.Val)) {
+					return nil
+				}
+			}
+		}
+		return e
+	}), nil)
+
+	names, err := is.MeasurementNamesByPredicate(nil, measurementExpr)
+	if err != nil {
+		return nil, err
+	}
+
+	// The list of names must be sorted, since MeasurementNamesByPredicate does
+	// not sort.
+	sort.Slice(names, func(i, j int) bool {
+		return bytes.Compare(names[i], names[j]) < 0
+	})
+
+	return s.tagValues(ctx, names, is, auth, cond)
+}
+
+// tagValues takes an influxql condition and a list of measurement names and
+// returns a slice of TagValues for those measurement names matching the
+// condition.
+func (s *Store) tagValues(ctx context.Context, names [][]byte, is IndexSet, auth query.Authorizer, cond influxql.Expr) ([]TagValues, error) {
 	filterExpr := influxql.CloneExpr(cond)
 	filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
 		switch e := e.(type) {
@@ -1732,44 +1790,9 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 		return e
 	}), nil)
 
-	// Build index set to work on.
-	is := IndexSet{Indexes: make([]Index, 0, len(shardIDs))}
-	s.mu.RLock()
-	for _, sid := range shardIDs {
-		shard, ok := s.shards[sid]
-		if !ok {
-			continue
-		}
-
-		if is.SeriesFile == nil {
-			sfile, err := shard.SeriesFile()
-			if err != nil {
-				s.mu.RUnlock()
-				return nil, err
-			}
-			is.SeriesFile = sfile
-		}
-
-		index, err := shard.Index()
-		if err != nil {
-			s.mu.RUnlock()
-			return nil, err
-		}
-
-		is.Indexes = append(is.Indexes, index)
-	}
-	s.mu.RUnlock()
-
 	// Stores each list of TagValues for each measurement.
 	var allResults []tagValues
 	var maxMeasurements int // Hint as to lower bound on number of measurements.
-	// names will be sorted by MeasurementNamesByExpr.
-	// Authorisation can be done later on, when series may have been filtered
-	// out by other conditions.
-	names, err := is.MeasurementNamesByExpr(nil, measurementExpr)
-	if err != nil {
-		return nil, err
-	}
 
 	if len(names) > maxMeasurements {
 		maxMeasurements = len(names)
@@ -1880,6 +1903,37 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 		}
 	}
 	return result, nil
+}
+
+func (s *Store) indexSetFromShards(ctx context.Context, shardIDs []uint64) (IndexSet, error) {
+	is := IndexSet{Indexes: make([]Index, 0, len(shardIDs))}
+	s.mu.RLock()
+	for _, sid := range shardIDs {
+		shard, ok := s.shards[sid]
+		if !ok {
+			continue
+		}
+
+		if is.SeriesFile == nil {
+			sfile, err := shard.SeriesFile()
+			if err != nil {
+				s.mu.RUnlock()
+				return IndexSet{}, err
+			}
+			is.SeriesFile = sfile
+		}
+
+		index, err := shard.Index()
+		if err != nil {
+			s.mu.RUnlock()
+			return IndexSet{}, err
+		}
+
+		is.Indexes = append(is.Indexes, index)
+	}
+	s.mu.RUnlock()
+
+	return is, nil
 }
 
 // mergeTagValues merges multiple sorted sets of temporary tagValues using a

@@ -30,8 +30,7 @@ type TSDBStore interface {
 	ShardGroup(ids []uint64) tsdb.ShardGroup
 	Shards(ids []uint64) []*tsdb.Shard
 	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
-	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
-	SeriesCardinality(ctx context.Context, database string) (int64, error)
+	TagValuesByPredicate(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 	SeriesCardinalityFromShards(ctx context.Context, shards []*tsdb.Shard) (*tsdb.SeriesIDSet, error)
 	SeriesFile(database string) *tsdb.SeriesFile
 }
@@ -450,7 +449,7 @@ func (s *Store) tagValues(ctx context.Context, mqAttrs *metaqueryAttributes, tag
 
 	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
-	values, err := s.TSDBStore.TagValues(ctx, auth, shardIDs, mqAttrs.pred)
+	values, err := s.TSDBStore.TagValuesByPredicate(ctx, auth, shardIDs, mqAttrs.pred)
 	if err != nil {
 		return nil, err
 	}
