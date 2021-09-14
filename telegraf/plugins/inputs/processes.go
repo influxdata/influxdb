@@ -17,6 +17,7 @@ func (p *Processes) PluginName() string {
 // TOML encodes to toml string
 func (p *Processes) TOML() string {
 	return fmt.Sprintf(`[[inputs.%s]]
+  # no configuration
 `, p.PluginName())
 }
 

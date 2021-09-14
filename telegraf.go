@@ -232,17 +232,22 @@ func decodePluginRaw(tcd *telegrafConfigDecode) ([]string, string, error) {
 		}
 
 		if !ok {
-			return nil, "", &errors.Error{
-				Code: errors.EInvalid,
-				Op:   op,
-				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginName, pr.Name, pr.Type),
+			// This removes the validation (and does not create toml) for new "input" plugins
+			// but keeps in place the existing behavior for certain "input" plugins
+			if pr.Type == "output" {
+				return nil, "", &errors.Error{
+					Code: errors.EInvalid,
+					Op:   op,
+					Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginName, pr.Name, pr.Type),
+				}
 			}
+			continue
 		}
 
 		config := tpFn()
 		// if pr.Config if empty, make it a blank obj,
 		// so it will still go to the unmarshalling process to validate.
-		if len(string(pr.Config)) == 0 {
+		if pr.Config == nil || len(string(pr.Config)) == 0 {
 			pr.Config = []byte("{}")
 		}
 
@@ -261,6 +266,7 @@ func decodePluginRaw(tcd *telegrafConfigDecode) ([]string, string, error) {
 		}
 
 		ps += config.TOML()
+
 	}
 
 	return bucket, ps, nil

@@ -23,6 +23,23 @@ func (n *NetResponse) TOML() string {
   protocol = "tcp"
   ## Server address (default localhost)
   address = "localhost:80"
+
+  ## Set timeout
+  # timeout = "1s"
+
+  ## Set read timeout (only used if expecting a response)
+  # read_timeout = "1s"
+
+  ## The following options are required for UDP checks. For TCP, they are
+  ## optional. The plugin will send the given string to the server and then
+  ## expect to receive the given 'expect' string back.
+  ## string sent to the server
+  # send = "ssh"
+  ## expected string in answer
+  # expect = "ssh"
+
+  ## Uncomment to remove deprecated fields
+  # fielddrop = ["result_type", "string_found"]
 `, n.PluginName())
 }
 

@@ -20,8 +20,29 @@ func (k *Kubernetes) PluginName() string {
 func (k *Kubernetes) TOML() string {
 	return fmt.Sprintf(`[[inputs.%s]]
   ## URL for the kubelet
-  ## exp: http://1.1.1.1:10255
-  url = "%s"	
+  url = "%s"
+
+  ## Use bearer token for authorization. ('bearer_token' takes priority)
+  ## If both of these are empty, we'll use the default serviceaccount:
+  ## at: /run/secrets/kubernetes.io/serviceaccount/token
+  # bearer_token = "/path/to/bearer/token"
+  ## OR
+  # bearer_token_string = "abc_123"
+
+  ## Pod labels to be added as tags.  An empty array for both include and
+  ## exclude will include all labels.
+  # label_include = []
+  # label_exclude = ["*"]
+
+  ## Set response_timeout (default 5 seconds)
+  # response_timeout = "5s"
+
+  ## Optional TLS Config
+  # tls_ca = /path/to/cafile
+  # tls_cert = /path/to/certfile
+  # tls_key = /path/to/keyfile
+  ## Use TLS but skip chain & host verification
+  # insecure_skip_verify = false
 `, k.PluginName(), k.URL)
 }
 

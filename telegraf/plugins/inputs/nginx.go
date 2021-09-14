@@ -26,8 +26,17 @@ func (n *Nginx) TOML() string {
 	}
 	return fmt.Sprintf(`[[inputs.%s]]
   # An array of Nginx stub_status URI to gather stats.
-  # exp http://localhost/server_status
   urls = [%s]
+
+  ## Optional TLS Config
+  tls_ca = "/etc/telegraf/ca.pem"
+  tls_cert = "/etc/telegraf/cert.cer"
+  tls_key = "/etc/telegraf/key.key"
+  ## Use TLS but skip chain & host verification
+  insecure_skip_verify = false
+
+  # HTTP response timeout (default: 5s)
+  response_timeout = "5s"
 `, n.PluginName(), strings.Join(s, ", "))
 }
 

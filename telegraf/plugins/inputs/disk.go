@@ -26,6 +26,6 @@ func (d *DiskStats) TOML() string {
   ## Set mount_points will restrict the stats to only the specified mount points.
   # mount_points = ["/"]
   ## Ignore mount points by filesystem type.
-  ignore_fs = ["tmpfs", "devtmpfs", "devfs", "overlay", "aufs", "squashfs"]
+  ignore_fs = ["tmpfs", "devtmpfs", "devfs", "iso9660", "overlay", "aufs", "squashfs"]
 `, d.PluginName())
 }

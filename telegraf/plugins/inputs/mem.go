@@ -17,6 +17,7 @@ func (m *MemStats) PluginName() string {
 // TOML encodes to toml string
 func (m *MemStats) TOML() string {
 	return fmt.Sprintf(`[[inputs.%s]]
+  # no configuration
 `, m.PluginName())
 }
 

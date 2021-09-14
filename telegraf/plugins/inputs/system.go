@@ -17,6 +17,8 @@ func (s *SystemStats) PluginName() string {
 // TOML encodes to toml string
 func (s *SystemStats) TOML() string {
 	return fmt.Sprintf(`[[inputs.%s]]
+  ## Uncomment to remove deprecated metrics.
+  # fielddrop = ["uptime_format"]
 `, s.PluginName())
 }
 
