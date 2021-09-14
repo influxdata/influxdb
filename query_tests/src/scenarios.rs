@@ -1128,9 +1128,11 @@ impl DbSetup for ChunkOrder {
         assert_eq!(count_mutable_buffer_chunks(&db), 1);
         assert_eq!(count_read_buffer_chunks(&db), 0);
         assert_eq!(count_object_store_chunks(&db), 0);
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        let chunk = db
+            .move_chunk_to_read_buffer(table_name, partition_key, 0)
             .await
             .unwrap();
+        assert_eq!(chunk.id(), 0);
         assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 0);
@@ -1145,6 +1147,7 @@ impl DbSetup for ChunkOrder {
         // NOTE: In "real life" that could happen when writes happen while a persistence is in progress, but it's easier
         //       to trigger w/ this tiny locking trick.
         let lockable_chunk = db.lockable_chunk(table_name, partition_key, 1).unwrap();
+        assert_eq!(lockable_chunk.id, 1);
         lockable_chunk
             .chunk
             .write()
@@ -1152,13 +1155,15 @@ impl DbSetup for ChunkOrder {
             .unwrap();
 
         // transform chunk 0 into chunk 2 by persisting
-        db.persist_partition(
-            "cpu",
-            partition_key,
-            Instant::now() + Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
+        let chunk = db
+            .persist_partition(
+                "cpu",
+                partition_key,
+                Instant::now() + Duration::from_secs(1),
+            )
+            .await
+            .unwrap();
+        assert_eq!(chunk.id(), 2);
         assert_eq!(count_mutable_buffer_chunks(&db), 1);
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 1);
