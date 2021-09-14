@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use arrow_util::assert_batches_sorted_eq;
 use datafusion::logical_plan::{col, lit};
+use predicate::predicate::PredicateBuilder;
 use query::{
     exec::{stringset::StringSet, ExecutionContextProvider, ExecutorType},
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
-    predicate::PredicateBuilder,
     QueryChunk,
 };
 

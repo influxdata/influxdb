@@ -1755,6 +1755,7 @@ dependencies = [
  "parquet_file",
  "parse_duration",
  "pprof",
+ "predicate",
  "predicates",
  "prettytable-rs",
  "prost",
@@ -2901,6 +2902,7 @@ dependencies = [
  "parquet",
  "parquet-format",
  "persistence_windows",
+ "predicate",
  "prost",
  "query",
  "snafu",
@@ -3139,6 +3141,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac74c624d6b2d21f425f752262f42188365d7b8ff1aff74c82e45136510a4857"
 
 [[package]]
+name = "predicate"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "chrono",
+ "data_types",
+ "datafusion 0.1.0",
+ "datafusion_util",
+ "internal_types",
+ "observability_deps",
+ "regex",
+ "snafu",
+ "sqlparser",
+ "tokio",
+]
+
+[[package]]
 name = "predicates"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3328,6 +3347,7 @@ dependencies = [
  "libc",
  "observability_deps",
  "parking_lot",
+ "predicate",
  "regex",
  "snafu",
  "sqlparser",
@@ -3351,6 +3371,7 @@ dependencies = [
  "metric",
  "object_store",
  "once_cell",
+ "predicate",
  "query",
  "server",
  "snafu",
@@ -4108,6 +4129,7 @@ dependencies = [
  "parking_lot",
  "parquet_file",
  "persistence_windows",
+ "predicate",
  "query",
  "rand 0.8.4",
  "rand_distr",
@@ -4141,6 +4163,7 @@ dependencies = [
  "mutable_buffer",
  "object_store",
  "packers",
+ "predicate",
  "query",
  "query_tests",
  "rand 0.8.4",

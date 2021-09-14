@@ -15,11 +15,8 @@ use mutable_buffer::chunk::snapshot::ChunkSnapshot;
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use partition_metadata::TableSummary;
-use query::{
-    exec::stringset::StringSet,
-    predicate::{Predicate, PredicateMatch},
-    QueryChunk, QueryChunkMeta,
-};
+use predicate::predicate::{Predicate, PredicateMatch};
+use query::{exec::stringset::StringSet, QueryChunk, QueryChunkMeta};
 use read_buffer::RBChunk;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{

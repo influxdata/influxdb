@@ -27,6 +27,9 @@ struct EntryResVec {
     entries: Vec<Result<SequencedEntry, WriteBufferError>>,
 
     /// A list of Waker waiting for a new entry to be pushed
+    ///
+    /// Note: this is a list because it is possible to create
+    /// two streams consuming from the same shared state
     wait_list: Vec<Waker>,
 }
 
@@ -49,8 +52,8 @@ impl EntryResVec {
 
     /// Register a waker to be notified when a new entry is pushed
     pub fn register_waker(&mut self, waker: &Waker) {
-        for waker in &self.wait_list {
-            if waker.will_wake(waker) {
+        for wait_waker in &self.wait_list {
+            if wait_waker.will_wake(waker) {
                 return;
             }
         }

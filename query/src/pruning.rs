@@ -7,9 +7,9 @@ use datafusion::{
     physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
 };
 use observability_deps::tracing::{debug, trace};
+use predicate::predicate::Predicate;
 
 use crate::{
-    predicate::Predicate,
     statistics::{max_to_scalar, min_to_scalar},
     QueryChunkMeta,
 };
@@ -146,8 +146,9 @@ impl<'a> PruningStatistics for ChunkMetaStats<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{predicate::PredicateBuilder, test::TestChunk, QueryChunk};
+    use crate::{test::TestChunk, QueryChunk};
     use datafusion::logical_plan::{col, lit};
+    use predicate::predicate::PredicateBuilder;
     use std::{cell::RefCell, sync::Arc};
 
     #[test]

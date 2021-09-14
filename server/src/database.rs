@@ -1,3 +1,4 @@
+use crate::write_buffer::WriteBufferConsumer;
 use crate::{
     db::{
         load::{create_preserved_catalog, load_or_create_preserved_catalog},
@@ -6,6 +7,7 @@ use crate::{
     rules::ProvidedDatabaseRules,
     ApplicationState, Db,
 };
+use data_types::database_rules::WriteBufferDirection;
 use data_types::{database_state::DatabaseStateCode, server_id::ServerId, DatabaseName};
 use futures::{
     future::{BoxFuture, Shared},
@@ -14,11 +16,11 @@ use futures::{
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
-use parking_lot::RwLock;
+use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 use parquet_file::catalog::api::PreservedCatalog;
 use persistence_windows::checkpoint::ReplayPlan;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use std::{future::Future, ops::DerefMut, sync::Arc, time::Duration};
+use std::{future::Future, sync::Arc, time::Duration};
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
 
@@ -101,7 +103,7 @@ pub struct Database {
 }
 
 #[derive(Debug, Clone)]
-/// Informatation about where a database is located on object store,
+/// Information about where a database is located on object store,
 /// and how to perform startup activities.
 pub struct DatabaseConfig {
     pub name: DatabaseName<'static>,
@@ -314,8 +316,9 @@ impl Database {
         // via WriteGuard
         let mut state = state.unfreeze(handle);
 
-        if let DatabaseState::Initialized(DatabaseStateInitialized { db, provided_rules }) =
-            state.deref_mut()
+        if let DatabaseState::Initialized(DatabaseStateInitialized {
+            db, provided_rules, ..
+        }) = &mut *state
         {
             db.update_rules(Arc::clone(new_provided_rules.rules()));
             *provided_rules = new_provided_rules;
@@ -333,13 +336,14 @@ impl Database {
         self.shared.state.read().iox_object_store()
     }
 
+    pub fn initialized(&self) -> Option<MappedRwLockReadGuard<'_, DatabaseStateInitialized>> {
+        RwLockReadGuard::try_map(self.shared.state.read(), |state| state.get_initialized()).ok()
+    }
+
     /// Gets access to an initialized `Db`
     pub fn initialized_db(&self) -> Option<Arc<Db>> {
-        self.shared
-            .state
-            .read()
-            .get_initialized()
-            .map(|state| Arc::clone(&state.db))
+        let initialized = self.initialized()?;
+        Some(Arc::clone(initialized.db()))
     }
 
     /// Returns Ok(()) when the Database is initialized, or the error
@@ -444,7 +448,7 @@ impl Database {
             let db_name = &shared.config.name;
             current_state.replay_plan = Arc::new(None);
             let current_state = current_state
-                .advance()
+                .advance(shared.as_ref())
                 .await
                 .map_err(Box::new)
                 .context(SkipReplay { db_name })?;
@@ -521,6 +525,20 @@ async fn background_worker(shared: Arc<DatabaseShared>) {
 
         // TODO: Pull background_worker out of `Db`
         db.background_worker(shared.shutdown.clone()).await
+    }
+
+    let write_buffer_consumer = shared
+        .state
+        .read()
+        .get_initialized()
+        .and_then(|initialized| initialized.write_buffer_consumer.clone());
+
+    if let Some(consumer) = write_buffer_consumer {
+        info!(db_name=%shared.config.name, "shutting down write buffer consumer");
+        consumer.shutdown();
+        if let Err(e) = consumer.join().await {
+            error!(db_name=%shared.config.name, %e, "error shutting down write buffer consumer")
+        }
     }
 
     info!(db_name=%shared.config.name, "draining tasks");
@@ -632,7 +650,7 @@ async fn initialize_database(shared: &DatabaseShared) {
                 Ok(state) => DatabaseState::CatalogLoaded(state),
                 Err(e) => DatabaseState::CatalogLoadError(state, Arc::new(e)),
             },
-            DatabaseState::CatalogLoaded(state) => match state.advance().await {
+            DatabaseState::CatalogLoaded(state) => match state.advance(shared).await {
                 Ok(state) => DatabaseState::Initialized(state),
                 Err(e) => DatabaseState::ReplayError(state, Arc::new(e)),
             },
@@ -888,24 +906,27 @@ impl DatabaseStateRulesLoaded {
         .await
         .context(CatalogLoad)?;
 
-        let write_buffer = shared
-            .application
-            .write_buffer_factory()
-            .new_config(
-                shared.config.server_id,
-                self.provided_rules.rules().as_ref(),
-            )
-            .await
-            .context(CreateWriteBuffer)?;
+        let rules = self.provided_rules.rules();
+        let write_buffer_factory = shared.application.write_buffer_factory();
+        let producer = match rules.write_buffer_connection.as_ref() {
+            Some(connection) if matches!(connection.direction, WriteBufferDirection::Write) => {
+                let producer = write_buffer_factory
+                    .new_config_write(shared.config.name.as_str(), connection)
+                    .await
+                    .context(CreateWriteBuffer)?;
+                Some(producer)
+            }
+            _ => None,
+        };
 
         let database_to_commit = DatabaseToCommit {
             server_id: shared.config.server_id,
             iox_object_store: Arc::clone(&self.iox_object_store),
             exec: Arc::clone(shared.application.executor()),
-            rules: Arc::clone(self.provided_rules.rules()),
+            rules: Arc::clone(rules),
             preserved_catalog,
             catalog,
-            write_buffer,
+            write_buffer_producer: producer,
             metrics_registry_v2: Arc::clone(shared.application.metric_registry_v2()),
         };
 
@@ -931,28 +952,64 @@ struct DatabaseStateCatalogLoaded {
 
 impl DatabaseStateCatalogLoaded {
     /// Perform replay
-    async fn advance(&self) -> Result<DatabaseStateInitialized, InitError> {
+    async fn advance(
+        &self,
+        shared: &DatabaseShared,
+    ) -> Result<DatabaseStateInitialized, InitError> {
         let db = Arc::clone(&self.db);
-
-        db.perform_replay(self.replay_plan.as_ref().as_ref())
-            .await
-            .context(Replay)?;
 
         // TODO: Pull write buffer and lifecycle out of Db
         db.unsuppress_persistence().await;
-        db.allow_write_buffer_read();
+
+        let rules = self.provided_rules.rules();
+        let write_buffer_factory = shared.application.write_buffer_factory();
+        let write_buffer_consumer = match rules.write_buffer_connection.as_ref() {
+            Some(connection) if matches!(connection.direction, WriteBufferDirection::Read) => {
+                let mut consumer = write_buffer_factory
+                    .new_config_read(
+                        shared.config.server_id,
+                        shared.config.name.as_str(),
+                        connection,
+                    )
+                    .await
+                    .context(CreateWriteBuffer)?;
+
+                db.perform_replay(self.replay_plan.as_ref().as_ref(), consumer.as_mut())
+                    .await
+                    .context(Replay)?;
+
+                Some(Arc::new(WriteBufferConsumer::new(
+                    consumer,
+                    Arc::clone(&db),
+                    shared.application.metric_registry().as_ref(),
+                )))
+            }
+            _ => None,
+        };
 
         Ok(DatabaseStateInitialized {
             db,
+            write_buffer_consumer,
             provided_rules: Arc::clone(&self.provided_rules),
         })
     }
 }
 
 #[derive(Debug, Clone)]
-struct DatabaseStateInitialized {
+pub struct DatabaseStateInitialized {
     db: Arc<Db>,
+    write_buffer_consumer: Option<Arc<WriteBufferConsumer>>,
     provided_rules: Arc<ProvidedDatabaseRules>,
+}
+
+impl DatabaseStateInitialized {
+    pub fn db(&self) -> &Arc<Db> {
+        &self.db
+    }
+
+    pub fn write_buffer_consumer(&self) -> Option<&Arc<WriteBufferConsumer>> {
+        self.write_buffer_consumer.as_ref()
+    }
 }
 
 #[cfg(test)]

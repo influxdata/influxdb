@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import random
 import glob
 import logging
 import math
@@ -38,8 +39,11 @@ def main():
     parser.add_argument('--cleanup', help='remove Docker assets and exit (TODO terminate IOx processes)',
                         action='store_true')
     parser.add_argument('--no-volumes', help='do not mount Docker volumes', action='store_true')
+    parser.add_argument('--no-jaeger', help='do not collect traces in Jaeger', action='store_true')
     parser.add_argument('batteries', help='name of directories containing test batteries, or "all"', nargs='*')
     args = parser.parse_args()
+
+    do_trace = args.hold and not args.no_jaeger
 
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -74,7 +78,9 @@ def main():
 
     try:
         if not args.skip_build:
-            cargo_build_iox(args.debug)
+            build_with_aws = args.object_store == 's3'
+            build_with_jaeger = do_trace
+            cargo_build_iox(args.debug, build_with_aws, build_with_jaeger)
 
         docker_create_network(dc)
         if args.kafka_zookeeper:
@@ -84,14 +90,17 @@ def main():
             docker_run_redpanda(dc, args.no_volumes)
         if args.object_store == 's3':
             docker_run_minio(dc, args.no_volumes)
-        docker_run_jaeger(dc)
-        processes['iox_router'] = exec_iox(1, 'iox_router', debug=args.debug, object_store=args.object_store)
-        processes['iox_writer'] = exec_iox(2, 'iox_writer', debug=args.debug, object_store=args.object_store)
+        if do_trace:
+            docker_run_jaeger(dc)
+        processes['iox_router'] = exec_iox(1, 'iox_router',
+                                           debug=args.debug, object_store=args.object_store, do_trace=do_trace)
+        processes['iox_writer'] = exec_iox(2, 'iox_writer',
+                                           debug=args.debug, object_store=args.object_store, do_trace=do_trace)
         grpc_create_database(1, 2)
 
         print('-' * 40)
         for battery in batteries:
-            if not run_test_battery(battery, 1, 2, debug=args.debug):
+            if not run_test_battery(battery, 1, 2, debug=args.debug, do_trace=do_trace):
                 tests_pass = False
         print('-' * 40)
 
@@ -350,9 +359,9 @@ def docker_run_minio(dc, no_volumes):
 
 
 def docker_run_jaeger(dc):
-    image = 'jaegertracing/all-in-one:1.25.0'
+    image = 'jaegertracing/all-in-one:1.26'
     name = '%s-%s' % (ioxperf_name, 'jaeger')
-    ports = {'16686/tcp': 16686}
+    ports = {'16686/tcp': 16686, '6831/udp': 6831}
     docker_pull_image_if_needed(dc, image)
     container = dc.containers.run(image=image, detach=True, name=name, hostname='jaeger', labels=ioxperf_labels,
                                   network=ioxperf_name, ports=ports)
@@ -373,21 +382,34 @@ def docker_run_jaeger(dc):
     return container
 
 
-def cargo_build_iox(debug=False):
+def cargo_build_iox(debug=False, build_with_aws=True, build_with_jaeger=True):
     t = time.time()
     print('building IOx')
 
+    features = []
+    if build_with_aws:
+        features.append('aws')
+    if build_with_jaeger:
+        features.append('jaeger')
+    features = ','.join(features)
+
+    env = os.environ.copy()
     args = ['cargo', 'build']
-    if not debug:
+    if debug:
+        env['RUSTFLAGS'] = '-C debuginfo=1'
+        env['RUST_BACKTRACE'] = '1'
+    else:
         args += ['--release']
-    args += ['--package', 'influxdb_iox', '--features', 'aws,jaeger', '--bin', 'influxdb_iox']
+    args += ['--package', 'influxdb_iox', '--features', features, '--bin', 'influxdb_iox']
     args += ['--package', 'iox_data_generator', '--bin', 'iox_data_generator']
-    subprocess.run(args=args)
+    process = subprocess.run(args=args, env=env)
+    if process.returncode != 0:
+        raise ChildProcessError('cargo build returned %d' % process.returncode)
 
     print('building IOx finished in %.2fs' % (time.time() - t))
 
 
-def exec_iox(id, service_name, debug=False, object_store='memory', print_only=False):
+def exec_iox(id, service_name, debug=False, object_store='memory', print_only=False, do_trace=False):
     http_addr = 'localhost:%d' % (id * 10000 + 8080)
     grpc_addr = 'localhost:%d' % (id * 10000 + 8082)
 
@@ -403,14 +425,15 @@ def exec_iox(id, service_name, debug=False, object_store='memory', print_only=Fa
         'INFLUXDB_IOX_BUCKET': 'iox%d' % id,
         'LOG_DESTINATION': 'stdout',
         'LOG_FORMAT': 'full',
-        'TRACES_EXPORTER': 'jaeger',
-        'TRACES_EXPORTER_JAEGER_AGENT_HOST': 'localhost',
-        'TRACES_EXPORTER_JAEGER_AGENT_PORT': '6831',
-        'TRACES_EXPORTER_JAEGER_SERVICE_NAME': service_name,
-        'TRACES_SAMPLER': 'always_on',
         'RUST_BACKTRACE': '1',
         'LOG_FILTER': 'debug,lifecycle=info,rusoto_core=warn,hyper=warn,h2=warn',
     }
+    if do_trace:
+        env['TRACES_EXPORTER'] = 'jaeger'
+        env['TRACES_EXPORTER_JAEGER_AGENT_HOST'] = 'localhost'
+        env['TRACES_EXPORTER_JAEGER_AGENT_PORT'] = '6831'
+        env['TRACES_EXPORTER_JAEGER_SERVICE_NAME'] = service_name
+        env['TRACES_SAMPLER'] = 'always_on'
 
     if object_store == 'memory':
         env['INFLUXDB_IOX_OBJECT_STORE'] = 'memory'
@@ -588,7 +611,8 @@ def grpc_create_database(router_id, writer_id):
     print('created database "%s" on both IOx servers' % db_name)
 
 
-def run_test_battery(battery_name, router_id, writer_id, debug=False):
+def run_test_battery(battery_name, router_id, writer_id, debug=False, do_trace=False):
+    # TODO drop do_trace when IOx can be configured to always trace
     print('starting test battery "%s"' % battery_name)
     failed = False
 
@@ -636,7 +660,11 @@ def run_test_battery(battery_name, router_id, writer_id, debug=False):
         print('running test "%s"' % name)
         time_start = time.time()
         params = {'q': sql, 'format': 'csv'}
-        response = requests.get(url=query_url, params=params)
+        headers = {}
+        if do_trace:
+            # TODO remove this after IOx can be configured to sample 100% of traces
+            headers['uber-trace-id'] = '%x:%x:0:1' % (random.randrange(0, 2 ** 64), random.randrange(0, 2 ** 64))
+        response = requests.get(url=query_url, params=params, headers=headers)
         time_delta = '%dms' % math.floor((time.time() - time_start) * 1000)
 
         if not response.ok:

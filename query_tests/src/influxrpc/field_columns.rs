@@ -1,13 +1,13 @@
 use arrow::datatypes::DataType;
 use arrow_util::assert_batches_eq;
 use datafusion::logical_plan::{col, lit};
+use predicate::predicate::PredicateBuilder;
 use query::{
     exec::{
         fieldlist::{Field, FieldList},
         ExecutorType,
     },
     frontend::influxrpc::InfluxRpcPlanner,
-    predicate::PredicateBuilder,
 };
 
 use crate::scenarios::*;

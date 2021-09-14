@@ -23,6 +23,7 @@ parquet = "5.0"
 parquet-format = "2.6"
 parking_lot = "0.11.1"
 persistence_windows = { path = "../persistence_windows" }
+predicate = { path = "../predicate" }
 prost = "0.8"
 query = { path = "../query" }
 snafu = "0.6"

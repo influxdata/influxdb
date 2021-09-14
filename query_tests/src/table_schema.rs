@@ -5,10 +5,10 @@ use internal_types::{
     schema::{builder::SchemaBuilder, sort::SortKey, TIME_COLUMN_NAME},
     selection::Selection,
 };
+use predicate::predicate::PredicateBuilder;
 use query::{QueryChunk, QueryChunkMeta, QueryDatabase};
 
 use super::scenarios::*;
-use query::predicate::PredicateBuilder;
 
 /// Creates and loads several database scenarios using the db_setup
 /// function.

@@ -34,6 +34,7 @@ tokio = { version = "1.11", features = ["macros"] }
 tokio-stream = "0.1.2"
 trace = { path = "../trace" }
 tracker = { path = "../tracker" }
+predicate = { path = "../predicate" }
 
 
 # use libc on unix like platforms to set worker priority in DedicatedExecutor

@@ -58,6 +58,7 @@ members = [
     "packers",
     "panic_logging",
     "persistence_windows",
+    "predicate",
     "query",
     "query_tests",
     "read_buffer",
@@ -101,6 +102,7 @@ object_store = { path = "object_store" }
 observability_deps = { path = "observability_deps" }
 panic_logging = { path = "panic_logging" }
 parquet_file = { path = "parquet_file" }
+predicate = { path = "predicate" }
 query = { path = "query" }
 read_buffer = { path = "read_buffer" }
 server = { path = "server" }

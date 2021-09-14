@@ -14,7 +14,7 @@ use persistence_windows::checkpoint::ReplayPlan;
 use query::exec::ExecutorConfig;
 use query::{exec::Executor, QueryDatabase};
 use std::{borrow::Cow, convert::TryFrom, num::NonZeroU32, sync::Arc, time::Duration};
-use write_buffer::config::WriteBufferConfig;
+use write_buffer::core::WriteBufferWriting;
 
 // A wrapper around a Db and a metrics registry allowing for isolated testing
 // of a Db and its metrics.
@@ -38,7 +38,7 @@ pub struct TestDbBuilder {
     object_store: Option<Arc<ObjectStore>>,
     db_name: Option<DatabaseName<'static>>,
     worker_cleanup_avg_sleep: Option<Duration>,
-    write_buffer: Option<WriteBufferConfig>,
+    write_buffer_producer: Option<Arc<dyn WriteBufferWriting>>,
     lifecycle_rules: Option<LifecycleRules>,
     partition_template: Option<PartitionTemplate>,
 }
@@ -124,7 +124,7 @@ impl TestDbBuilder {
             iox_object_store,
             preserved_catalog,
             catalog,
-            write_buffer: self.write_buffer,
+            write_buffer_producer: self.write_buffer_producer,
             exec,
             metrics_registry_v2: Arc::clone(&metrics_registry_v2),
         };
@@ -160,8 +160,11 @@ impl TestDbBuilder {
         self
     }
 
-    pub fn write_buffer(mut self, write_buffer: WriteBufferConfig) -> Self {
-        self.write_buffer = Some(write_buffer);
+    pub fn write_buffer_producer(
+        mut self,
+        write_buffer_producer: Arc<dyn WriteBufferWriting>,
+    ) -> Self {
+        self.write_buffer_producer = Some(write_buffer_producer);
         self
     }
 

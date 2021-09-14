@@ -22,7 +22,8 @@ use parquet::{
     basic::Compression,
     file::{metadata::KeyValue, properties::WriterProperties, writer::TryClone},
 };
-use query::{exec::stream::AdapterStream, predicate::Predicate};
+use predicate::predicate::Predicate;
+use query::exec::stream::AdapterStream;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     io::{Cursor, Seek, SeekFrom, Write},

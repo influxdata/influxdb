@@ -4,7 +4,7 @@ use std::{
 };
 
 use data_types::{
-    database_rules::{DatabaseRules, WriteBufferConnection, WriteBufferDirection},
+    database_rules::{WriteBufferConnection, WriteBufferDirection},
     server_id::ServerId,
 };
 
@@ -29,7 +29,8 @@ enum Mock {
     AlwaysFailing,
 }
 
-/// Factory that creates [`WriteBufferConfig`] from [`DatabaseRules`].
+/// Factory that creates [`WriteBufferReading`] and [`WriteBufferWriting`]
+/// from [`WriteBufferConnection`].
 #[derive(Debug)]
 pub struct WriteBufferConfigFactory {
     mocks: BTreeMap<String, Mock>,
@@ -77,30 +78,12 @@ impl WriteBufferConfigFactory {
             .ok_or_else::<WriteBufferError, _>(|| format!("Unknown mock ID: {}", name).into())
     }
 
-    /// Create new config.
-    pub async fn new_config(
-        &self,
-        server_id: ServerId,
-        rules: &DatabaseRules,
-    ) -> Result<Option<WriteBufferConfig>, WriteBufferError> {
-        let db_name = rules.db_name();
-
-        let cfg = match rules.write_buffer_connection.as_ref() {
-            Some(cfg) => match cfg.direction {
-                WriteBufferDirection::Write => Some(WriteBufferConfig::Writing(
-                    self.new_config_write(db_name, cfg).await?,
-                )),
-                WriteBufferDirection::Read => Some(WriteBufferConfig::Reading(Arc::new(
-                    tokio::sync::Mutex::new(self.new_config_read(server_id, db_name, cfg).await?),
-                ))),
-            },
-            None => None,
-        };
-
-        Ok(cfg)
-    }
-
-    async fn new_config_write(
+    /// Returns a new [`WriteBufferWriting`] for the provided [`WriteBufferConnection`]
+    ///
+    /// # Panics
+    /// When the provided connection is not [`WriteBufferDirection::Write`]
+    ///
+    pub async fn new_config_write(
         &self,
         db_name: &str,
         cfg: &WriteBufferConnection,
@@ -137,7 +120,11 @@ impl WriteBufferConfigFactory {
         Ok(writer)
     }
 
-    async fn new_config_read(
+    /// Returns a new [`WriteBufferReading`] for the provided [`WriteBufferConnection`]
+    ///
+    /// # Panics
+    /// When the provided connection is not [`WriteBufferDirection::Read`]
+    pub async fn new_config_read(
         &self,
         server_id: ServerId,
         db_name: &str,
@@ -197,46 +184,23 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_none() {
-        let factory = WriteBufferConfigFactory::new();
-
-        let server_id = ServerId::try_from(1).unwrap();
-
-        let mut rules = DatabaseRules::new(DatabaseName::new("foo").unwrap());
-        rules.write_buffer_connection = None;
-
-        assert!(factory
-            .new_config(server_id, &rules)
-            .await
-            .unwrap()
-            .is_none());
-    }
-
-    #[tokio::test]
     async fn test_writing_kafka() {
         let conn = maybe_skip_kafka_integration!();
         let factory = WriteBufferConfigFactory::new();
-        let server_id = ServerId::try_from(1).unwrap();
-
-        let mut rules = DatabaseRules::new(DatabaseName::try_from(random_kafka_topic()).unwrap());
-        rules.write_buffer_connection = Some(WriteBufferConnection {
+        let db_name = DatabaseName::try_from(random_kafka_topic()).unwrap();
+        let cfg = WriteBufferConnection {
             direction: WriteBufferDirection::Write,
             type_: "kafka".to_string(),
             connection: conn,
             creation_config: Some(WriteBufferCreationConfig::default()),
             ..Default::default()
-        });
+        };
 
-        if let WriteBufferConfig::Writing(conn) = factory
-            .new_config(server_id, &rules)
+        let conn = factory
+            .new_config_write(db_name.as_str(), &cfg)
             .await
-            .unwrap()
-            .unwrap()
-        {
-            assert_eq!(conn.type_name(), "kafka");
-        } else {
-            panic!("not a writing connection");
-        }
+            .unwrap();
+        assert_eq!(conn.type_name(), "kafka");
     }
 
     #[tokio::test]
@@ -245,26 +209,20 @@ mod tests {
         let factory = WriteBufferConfigFactory::new();
         let server_id = ServerId::try_from(1).unwrap();
 
-        let mut rules = DatabaseRules::new(DatabaseName::try_from(random_kafka_topic()).unwrap());
-        rules.write_buffer_connection = Some(WriteBufferConnection {
+        let db_name = DatabaseName::try_from(random_kafka_topic()).unwrap();
+        let cfg = WriteBufferConnection {
             direction: WriteBufferDirection::Read,
             type_: "kafka".to_string(),
             connection: conn,
             creation_config: Some(WriteBufferCreationConfig::default()),
             ..Default::default()
-        });
+        };
 
-        if let WriteBufferConfig::Reading(conn) = factory
-            .new_config(server_id, &rules)
+        let conn = factory
+            .new_config_read(server_id, db_name.as_str(), &cfg)
             .await
-            .unwrap()
-            .unwrap()
-        {
-            let conn = conn.lock().await;
-            assert_eq!(conn.type_name(), "kafka");
-        } else {
-            panic!("not a reading connection");
-        }
+            .unwrap();
+        assert_eq!(conn.type_name(), "kafka");
     }
 
     #[tokio::test]
@@ -276,35 +234,31 @@ mod tests {
         let mock_name = "some_mock";
         factory.register_mock(mock_name.to_string(), state);
 
-        let server_id = ServerId::try_from(1).unwrap();
-
-        let mut rules = DatabaseRules::new(DatabaseName::new("foo").unwrap());
-        rules.write_buffer_connection = Some(WriteBufferConnection {
+        let db_name = DatabaseName::try_from(random_kafka_topic()).unwrap();
+        let cfg = WriteBufferConnection {
             direction: WriteBufferDirection::Write,
             type_: "mock".to_string(),
             connection: mock_name.to_string(),
             ..Default::default()
-        });
+        };
 
-        if let WriteBufferConfig::Writing(conn) = factory
-            .new_config(server_id, &rules)
+        let conn = factory
+            .new_config_write(db_name.as_str(), &cfg)
             .await
-            .unwrap()
-            .unwrap()
-        {
-            assert_eq!(conn.type_name(), "mock");
-        } else {
-            panic!("not a writing connection");
-        }
+            .unwrap();
+        assert_eq!(conn.type_name(), "mock");
 
         // will error when state is unknown
-        rules.write_buffer_connection = Some(WriteBufferConnection {
+        let cfg = WriteBufferConnection {
             direction: WriteBufferDirection::Write,
             type_: "mock".to_string(),
             connection: "bar".to_string(),
             ..Default::default()
-        });
-        let err = factory.new_config(server_id, &rules).await.unwrap_err();
+        };
+        let err = factory
+            .new_config_write(db_name.as_str(), &cfg)
+            .await
+            .unwrap_err();
         assert!(err.to_string().starts_with("Unknown mock ID:"));
     }
 
@@ -318,35 +272,31 @@ mod tests {
         factory.register_mock(mock_name.to_string(), state);
 
         let server_id = ServerId::try_from(1).unwrap();
-
-        let mut rules = DatabaseRules::new(DatabaseName::new("foo").unwrap());
-        rules.write_buffer_connection = Some(WriteBufferConnection {
+        let db_name = DatabaseName::try_from(random_kafka_topic()).unwrap();
+        let cfg = WriteBufferConnection {
             direction: WriteBufferDirection::Read,
             type_: "mock".to_string(),
             connection: mock_name.to_string(),
             ..Default::default()
-        });
+        };
 
-        if let WriteBufferConfig::Reading(conn) = factory
-            .new_config(server_id, &rules)
+        let conn = factory
+            .new_config_read(server_id, db_name.as_str(), &cfg)
             .await
-            .unwrap()
-            .unwrap()
-        {
-            let conn = conn.lock().await;
-            assert_eq!(conn.type_name(), "mock");
-        } else {
-            panic!("not a reading connection");
-        }
+            .unwrap();
+        assert_eq!(conn.type_name(), "mock");
 
         // will error when state is unknown
-        rules.write_buffer_connection = Some(WriteBufferConnection {
+        let cfg = WriteBufferConnection {
             direction: WriteBufferDirection::Read,
             type_: "mock".to_string(),
             connection: "bar".to_string(),
             ..Default::default()
-        });
-        let err = factory.new_config(server_id, &rules).await.unwrap_err();
+        };
+        let err = factory
+            .new_config_read(server_id, db_name.as_str(), &cfg)
+            .await
+            .unwrap_err();
         assert!(err.to_string().starts_with("Unknown mock ID:"));
     }
 
@@ -357,35 +307,31 @@ mod tests {
         let mock_name = "some_mock";
         factory.register_always_fail_mock(mock_name.to_string());
 
-        let server_id = ServerId::try_from(1).unwrap();
-
-        let mut rules = DatabaseRules::new(DatabaseName::new("foo").unwrap());
-        rules.write_buffer_connection = Some(WriteBufferConnection {
+        let db_name = DatabaseName::try_from(random_kafka_topic()).unwrap();
+        let cfg = WriteBufferConnection {
             direction: WriteBufferDirection::Write,
             type_: "mock".to_string(),
             connection: mock_name.to_string(),
             ..Default::default()
-        });
+        };
 
-        if let WriteBufferConfig::Writing(conn) = factory
-            .new_config(server_id, &rules)
+        let conn = factory
+            .new_config_write(db_name.as_str(), &cfg)
             .await
-            .unwrap()
-            .unwrap()
-        {
-            assert_eq!(conn.type_name(), "mock_failing");
-        } else {
-            panic!("not a writing connection");
-        }
+            .unwrap();
+        assert_eq!(conn.type_name(), "mock_failing");
 
         // will error when state is unknown
-        rules.write_buffer_connection = Some(WriteBufferConnection {
+        let cfg = WriteBufferConnection {
             direction: WriteBufferDirection::Write,
             type_: "mock".to_string(),
             connection: "bar".to_string(),
             ..Default::default()
-        });
-        let err = factory.new_config(server_id, &rules).await.unwrap_err();
+        };
+        let err = factory
+            .new_config_write(db_name.as_str(), &cfg)
+            .await
+            .unwrap_err();
         assert!(err.to_string().starts_with("Unknown mock ID:"));
     }
 
@@ -398,34 +344,31 @@ mod tests {
 
         let server_id = ServerId::try_from(1).unwrap();
 
-        let mut rules = DatabaseRules::new(DatabaseName::new("foo").unwrap());
-        rules.write_buffer_connection = Some(WriteBufferConnection {
+        let db_name = DatabaseName::new("foo").unwrap();
+        let cfg = WriteBufferConnection {
             direction: WriteBufferDirection::Read,
             type_: "mock".to_string(),
             connection: mock_name.to_string(),
             ..Default::default()
-        });
+        };
 
-        if let WriteBufferConfig::Reading(conn) = factory
-            .new_config(server_id, &rules)
+        let conn = factory
+            .new_config_read(server_id, db_name.as_str(), &cfg)
             .await
-            .unwrap()
-            .unwrap()
-        {
-            let conn = conn.lock().await;
-            assert_eq!(conn.type_name(), "mock_failing");
-        } else {
-            panic!("not a reading connection");
-        }
+            .unwrap();
+        assert_eq!(conn.type_name(), "mock_failing");
 
         // will error when state is unknown
-        rules.write_buffer_connection = Some(WriteBufferConnection {
+        let cfg = WriteBufferConnection {
             direction: WriteBufferDirection::Read,
             type_: "mock".to_string(),
             connection: "bar".to_string(),
             ..Default::default()
-        });
-        let err = factory.new_config(server_id, &rules).await.unwrap_err();
+        };
+        let err = factory
+            .new_config_read(server_id, db_name.as_str(), &cfg)
+            .await
+            .unwrap_err();
         assert!(err.to_string().starts_with("Unknown mock ID:"));
     }
 
