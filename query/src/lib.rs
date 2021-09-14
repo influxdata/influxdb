@@ -150,6 +150,9 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
 
     /// Returns chunk type which is either MUB, RUB, OS
     fn chunk_type(&self) -> &str;
+
+    /// Order of this chunk relative to other overlapping chunks.
+    fn order(&self) -> u32;
 }
 
 /// Implement ChunkMeta for something wrapped in an Arc (like Chunks often are)

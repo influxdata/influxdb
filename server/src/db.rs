@@ -1,6 +1,12 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
+use async_trait::async_trait;
+use chrono::{TimeZone, Utc};
+use futures::{stream::BoxStream, StreamExt};
+use parking_lot::{Mutex, RwLock};
+use rand_distr::{Distribution, Poisson};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     any::Any,
     collections::HashMap,
@@ -11,13 +17,6 @@ use std::{
     },
     time::{Duration, Instant},
 };
-
-use async_trait::async_trait;
-use chrono::{TimeZone, Utc};
-use futures::{stream::BoxStream, StreamExt};
-use parking_lot::{Mutex, RwLock};
-use rand_distr::{Distribution, Poisson};
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use ::lifecycle::{LifecycleChunk, LockableChunk, LockablePartition};
 use data_types::{
@@ -580,7 +579,7 @@ impl Db {
         table_name: &str,
         partition_key: &str,
         chunk_id: u32,
-    ) -> catalog::Result<Arc<tracker::RwLock<CatalogChunk>>> {
+    ) -> catalog::Result<(Arc<tracker::RwLock<CatalogChunk>>, u32)> {
         self.catalog.chunk(table_name, partition_key, chunk_id)
     }
 
@@ -590,10 +589,12 @@ impl Db {
         partition_key: &str,
         chunk_id: u32,
     ) -> catalog::Result<LockableCatalogChunk> {
-        let chunk = self.chunk(table_name, partition_key, chunk_id)?;
+        let (chunk, order) = self.chunk(table_name, partition_key, chunk_id)?;
         Ok(LockableCatalogChunk {
             db: Arc::clone(self),
             chunk,
+            id: chunk_id,
+            order,
         })
     }
 
@@ -720,7 +721,7 @@ impl Db {
             // Get a list of all the chunks to compact
             let chunks = LockablePartition::chunks(&partition);
             let partition = partition.upgrade();
-            let chunks = chunks.iter().map(|(_id, chunk)| chunk.write()).collect();
+            let chunks = chunks.iter().map(|chunk| chunk.write()).collect();
 
             let (_, fut) = lifecycle::compact_chunks(partition, chunks).context(LifecycleError)?;
             fut
@@ -761,21 +762,30 @@ impl Db {
                     partition_key,
                 })?;
 
-            // get chunks for persistence
+            // get chunks for persistence, break after first chunk that cannot be persisted due to lifecycle reasons
             let chunks: Vec<_> = chunks
                 .iter()
-                .filter_map(|(_id, chunk)| {
+                .filter_map(|chunk| {
                     let chunk = chunk.read();
                     if matches!(chunk.stage(), ChunkStage::Persisted { .. })
                         || (chunk.min_timestamp() > flush_handle.timestamp())
-                        || chunk.lifecycle_action().is_some()
                     {
+                        None
+                    } else {
+                        Some(chunk)
+                    }
+                })
+                .map(|chunk| {
+                    if chunk.lifecycle_action().is_some() {
                         None
                     } else {
                         Some(chunk.upgrade())
                     }
                 })
+                .fuse()
+                .flatten()
                 .collect();
+
             ensure!(
                 !chunks.is_empty(),
                 CannotFlushPartition {
@@ -834,12 +844,9 @@ impl Db {
         partition_key: &str,
         chunk_id: u32,
     ) -> Option<Arc<TableSummary>> {
-        Some(
-            self.chunk(table_name, partition_key, chunk_id)
-                .ok()?
-                .read()
-                .table_summary(),
-        )
+        let (chunk, _order) = self.chunk(table_name, partition_key, chunk_id).ok()?;
+        let chunk = chunk.read();
+        Some(chunk.table_summary())
     }
 
     /// Returns the number of iterations of the background worker lifecycle loop
@@ -3017,7 +3024,7 @@ mod tests {
 
         let partition = db.catalog.partition("cpu", partition_key).unwrap();
         let partition = partition.read();
-        let chunk = partition.chunk(chunk_id).unwrap();
+        let (chunk, _order) = partition.chunk(chunk_id).unwrap();
         let chunk = chunk.read();
 
         println!(
@@ -3103,6 +3110,7 @@ mod tests {
             time_of_first_write: Utc.timestamp_nanos(1),
             time_of_last_write: Utc.timestamp_nanos(1),
             time_closed: None,
+            order: 5,
         }];
 
         let size: usize = db
@@ -3393,6 +3401,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
                 time_closed: None,
+                order: 5,
             },
             ChunkSummary {
                 partition_key: Arc::from("1970-01-05T15"),
@@ -3407,6 +3416,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
                 time_closed: None,
+                order: 6,
             },
             ChunkSummary {
                 partition_key: Arc::from("1970-01-05T15"),
@@ -3421,6 +3431,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
                 time_closed: None,
+                order: 5,
             },
         ];
 
@@ -3868,7 +3879,7 @@ mod tests {
         // the preserved catalog should now register a single file
         let mut paths_expected = vec![];
         for (table_name, partition_key, chunk_id) in &chunks {
-            let chunk = db.chunk(table_name, partition_key, *chunk_id).unwrap();
+            let (chunk, _order) = db.chunk(table_name, partition_key, *chunk_id).unwrap();
             let chunk = chunk.read();
             if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
                 paths_expected.push(parquet.path().clone());
@@ -3911,7 +3922,7 @@ mod tests {
         // Re-created DB should have an "object store only"-chunk
         assert_eq!(chunks.len(), db.chunks(&Default::default()).len());
         for (table_name, partition_key, chunk_id) in &chunks {
-            let chunk = db.chunk(table_name, partition_key, *chunk_id).unwrap();
+            let (chunk, _order) = db.chunk(table_name, partition_key, *chunk_id).unwrap();
             let chunk = chunk.read();
             assert!(matches!(
                 chunk.stage(),
@@ -3957,7 +3968,7 @@ mod tests {
         let mut paths_keep = vec![];
         for i in 0..3i8 {
             let (table_name, partition_key, chunk_id) = create_parquet_chunk(&db).await;
-            let chunk = db.chunk(&table_name, &partition_key, chunk_id).unwrap();
+            let (chunk, _order) = db.chunk(&table_name, &partition_key, chunk_id).unwrap();
             let chunk = chunk.read();
             if let ChunkStage::Persisted { parquet, .. } = chunk.stage() {
                 paths_keep.push(parquet.path().clone());
@@ -4091,7 +4102,7 @@ mod tests {
         // ==================== check: DB state ====================
         // Re-created DB should have an "object store only"-chunk
         for (table_name, partition_key, chunk_id) in &chunks {
-            let chunk = db.chunk(table_name, partition_key, *chunk_id).unwrap();
+            let (chunk, _order) = db.chunk(table_name, partition_key, *chunk_id).unwrap();
             let chunk = chunk.read();
             assert!(matches!(
                 chunk.stage(),
@@ -4235,6 +4246,7 @@ mod tests {
                 let partition = partition.read();
                 partition
                     .chunks()
+                    .into_iter()
                     .map(|chunk| {
                         let chunk = chunk.read();
                         chunk.id()

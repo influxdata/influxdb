@@ -37,6 +37,9 @@ message IoxMetadata {
 
   // Wallclock timestamp of when the last data in this file was received by IOx.
   FixedSizeTimestamp time_of_last_write = 9;
+
+  // Order of this chunk relative to other overlapping chunks.
+  uint32 chunk_order = 10;
 }
 
 // Partition checkpoint.

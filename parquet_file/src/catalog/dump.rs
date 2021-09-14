@@ -273,7 +273,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 12,
+            version: 13,
             actions: [],
             revision_counter: 0,
             uuid: "00000000-0000-0000-0000-000000000000",
@@ -298,7 +298,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 12,
+            version: 13,
             actions: [
                 Action {
                     action: Some(
@@ -314,7 +314,7 @@ File {
                                     },
                                 ),
                                 file_size_bytes: 33,
-                                metadata: b"metadata omitted (1738 bytes)",
+                                metadata: b"metadata omitted (1742 bytes)",
                             },
                         ),
                     ),
@@ -397,7 +397,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 12,
+            version: 13,
             actions: [],
             revision_counter: 0,
             uuid: "00000000-0000-0000-0000-000000000000",
@@ -422,7 +422,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 12,
+            version: 13,
             actions: [
                 Action {
                     action: Some(
@@ -438,7 +438,7 @@ File {
                                     },
                                 ),
                                 file_size_bytes: 33,
-                                metadata: b"metadata omitted (1738 bytes)",
+                                metadata: b"metadata omitted (1742 bytes)",
                             },
                         ),
                     ),
@@ -505,6 +505,7 @@ File {
                                     },
                                 },
                             },
+                            chunk_order: 5,
                         },
                     ),
                     schema: Ok(

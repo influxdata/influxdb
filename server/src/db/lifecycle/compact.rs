@@ -28,6 +28,11 @@ pub(crate) fn compact_chunks(
     TaskTracker<Job>,
     TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
 )> {
+    assert!(
+        !chunks.is_empty(),
+        "must provide at least 1 chunk for compaction"
+    );
+
     let now = std::time::Instant::now(); // time compaction duration.
     let db = Arc::clone(&partition.data().db);
     let addr = partition.addr().clone();
@@ -43,6 +48,7 @@ pub(crate) fn compact_chunks(
     let mut time_of_first_write: Option<DateTime<Utc>> = None;
     let mut time_of_last_write: Option<DateTime<Utc>> = None;
     let mut delete_predicates: Vec<Predicate> = vec![];
+    let mut min_order = u32::MAX;
     let query_chunks = chunks
         .into_iter()
         .map(|mut chunk| {
@@ -64,6 +70,8 @@ pub(crate) fn compact_chunks(
 
             let mut preds = (*chunk.delete_predicates()).clone();
             delete_predicates.append(&mut preds);
+
+            min_order = min_order.min(chunk.order());
 
             chunk.set_compacting(&registration)?;
             Ok(DbChunk::snapshot(&*chunk))
@@ -103,7 +111,7 @@ pub(crate) fn compact_chunks(
             .expect("chunk has zero rows");
         let rb_row_groups = rb_chunk.row_groups();
 
-        let new_chunk = {
+        let (_id, new_chunk) = {
             let mut partition = partition.write();
             for id in chunk_ids {
                 partition.force_drop_chunk(id)
@@ -114,6 +122,7 @@ pub(crate) fn compact_chunks(
                 time_of_last_write,
                 schema,
                 Arc::new(delete_predicates),
+                min_order,
             )
         };
 
@@ -171,7 +180,7 @@ mod tests {
 
         let chunks = LockablePartition::chunks(&partition);
         assert_eq!(chunks.len(), 1);
-        let chunk = chunks[0].1.read();
+        let chunk = chunks[0].read();
 
         let (_, fut) = compact_chunks(partition.upgrade(), vec![chunk.upgrade()]).unwrap();
         // NB: perform the write before spawning the background task that performs the compaction

@@ -52,6 +52,7 @@ pub fn get_all_setups() -> &'static HashMap<String, Arc<dyn DbSetup>> {
             register_setup!(TwoMeasurementsManyFieldsOneChunk),
             register_setup!(OneMeasurementThreeChunksWithDuplicates),
             register_setup!(OneMeasurementAllChunksDropped),
+            register_setup!(ChunkOrder),
         ]
         .into_iter()
         .map(|(name, setup)| (name.to_string(), setup as Arc<dyn DbSetup>))
@@ -1108,5 +1109,92 @@ where
             .into_iter()
             .filter(|s| (self.filter)(s))
             .collect()
+    }
+}
+
+/// No data
+#[derive(Debug)]
+pub struct ChunkOrder {}
+#[async_trait]
+impl DbSetup for ChunkOrder {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+        let table_name = "cpu";
+
+        let db = make_db().await.db;
+
+        // create chunk 0: data->MUB->RUB
+        write_lp(&db, "cpu,region=west user=1 100").await;
+        assert_eq!(count_mutable_buffer_chunks(&db), 1);
+        assert_eq!(count_read_buffer_chunks(&db), 0);
+        assert_eq!(count_object_store_chunks(&db), 0);
+        let chunk = db
+            .move_chunk_to_read_buffer(table_name, partition_key, 0)
+            .await
+            .unwrap();
+        assert_eq!(chunk.id(), 0);
+        assert_eq!(count_mutable_buffer_chunks(&db), 0);
+        assert_eq!(count_read_buffer_chunks(&db), 1);
+        assert_eq!(count_object_store_chunks(&db), 0);
+
+        // create chunk 1: data->MUB
+        write_lp(&db, "cpu,region=west user=2 100").await;
+        assert_eq!(count_mutable_buffer_chunks(&db), 1);
+        assert_eq!(count_read_buffer_chunks(&db), 1);
+        assert_eq!(count_object_store_chunks(&db), 0);
+
+        // prevent chunk 1 from being part of the persistence
+        // NOTE: In "real life" that could happen when writes happen while a persistence is in progress, but it's easier
+        //       to trigger w/ this tiny locking trick.
+        let lockable_chunk = db.lockable_chunk(table_name, partition_key, 1).unwrap();
+        assert_eq!(lockable_chunk.id, 1);
+        lockable_chunk
+            .chunk
+            .write()
+            .set_dropping(&Default::default())
+            .unwrap();
+
+        // transform chunk 0 into chunk 2 by persisting
+        let chunk = db
+            .persist_partition(
+                "cpu",
+                partition_key,
+                Instant::now() + Duration::from_secs(1),
+            )
+            .await
+            .unwrap();
+        assert_eq!(chunk.id(), 2);
+        assert_eq!(count_mutable_buffer_chunks(&db), 1);
+        assert_eq!(count_read_buffer_chunks(&db), 1);
+        assert_eq!(count_object_store_chunks(&db), 1);
+
+        // unlock chunk again
+        lockable_chunk
+            .chunk
+            .write()
+            .clear_lifecycle_action()
+            .unwrap();
+
+        // Now we have the the following chunks (same partition and table):
+        //
+        // | ID | order | tag: region | field: user | time |
+        // | -- | ----- | ----------- | ----------- | ---- |
+        // |  1 |     1 | "west"      |           2 | 100  |
+        // |  2 |     0 | "west"      |           1 | 100  |
+        //
+        // The result after deduplication should be:
+        //
+        // | tag: region | field: user | time |
+        // | ----------- | ----------- | ---- |
+        // | "west"      |           2 | 100  |
+        //
+        // So the query engine must use `order` as a primary key to sort chunks, NOT `id`.
+
+        let scenario = DbScenario {
+            scenario_name: "chunks where chunk ID alone cannot be used for ordering".into(),
+            db,
+        };
+
+        vec![scenario]
     }
 }

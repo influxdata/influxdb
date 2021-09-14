@@ -52,6 +52,7 @@ pub(super) fn write_chunk_to_object_store(
     let addr = chunk.addr().clone();
     let table_name = Arc::clone(&addr.table_name);
     let partition_key = Arc::clone(&addr.partition_key);
+    let chunk_order = chunk.order();
 
     let (tracker, registration) = db.jobs.register(Job::WriteChunk {
         chunk: addr.clone(),
@@ -122,6 +123,7 @@ pub(super) fn write_chunk_to_object_store(
                 database_checkpoint,
                 time_of_first_write,
                 time_of_last_write,
+                chunk_order,
             };
             let (path, file_size_bytes, parquet_metadata) = storage
                 .write_to_object_store(addr, stream, metadata)

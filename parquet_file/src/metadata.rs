@@ -118,7 +118,7 @@ use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputPro
 ///
 /// **Important: When changing this structure, consider bumping the
 ///   [catalog transaction version](crate::catalog::api::TRANSACTION_VERSION)!**
-pub const METADATA_VERSION: u32 = 5;
+pub const METADATA_VERSION: u32 = 6;
 
 /// File-level metadata key to store the IOx-specific data.
 ///
@@ -269,6 +269,9 @@ pub struct IoxMetadata {
 
     /// Database checkpoint created at the time of the write.
     pub database_checkpoint: DatabaseCheckpoint,
+
+    /// Order of this chunk relative to other overlapping chunks.
+    pub chunk_order: u32,
 }
 
 impl IoxMetadata {
@@ -363,6 +366,7 @@ impl IoxMetadata {
             chunk_id: proto_msg.chunk_id,
             partition_checkpoint,
             database_checkpoint,
+            chunk_order: proto_msg.chunk_order,
         })
     }
 
@@ -417,6 +421,7 @@ impl IoxMetadata {
             chunk_id: self.chunk_id,
             partition_checkpoint: Some(proto_partition_checkpoint),
             database_checkpoint: Some(proto_database_checkpoint),
+            chunk_order: self.chunk_order,
         };
 
         let mut buf = Vec::new();
@@ -1064,6 +1069,7 @@ mod tests {
             database_checkpoint,
             time_of_first_write: Utc::now(),
             time_of_last_write: Utc::now(),
+            chunk_order: 5,
         };
 
         let proto_bytes = metadata.to_protobuf().unwrap();
@@ -1114,10 +1120,11 @@ mod tests {
                 database_checkpoint,
                 time_of_first_write: Utc::now(),
                 time_of_last_write: Utc::now(),
+                chunk_order: 5,
             };
 
             let proto_bytes = metadata.to_protobuf().unwrap();
-            assert_eq!(proto_bytes.len(), 88);
+            assert_eq!(proto_bytes.len(), 90);
         }
     }
 
