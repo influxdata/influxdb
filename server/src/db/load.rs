@@ -11,7 +11,7 @@ use parquet_file::{
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
 };
 use persistence_windows::checkpoint::{ReplayPlan, ReplayPlanner};
-use query::predicate::Predicate;
+use predicate::predicate::Predicate;
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
 
@@ -276,6 +276,7 @@ impl CatalogState for Loader {
             iox_md.time_of_first_write,
             iox_md.time_of_last_write,
             delete_predicates,
+            iox_md.chunk_order,
         );
         schema_handle.commit();
 

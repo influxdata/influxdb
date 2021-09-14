@@ -39,6 +39,7 @@ use datafusion::{
         common::SizedRecordBatchStream,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet, RecordOutput},
         DisplayFormatType, Distribution, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+        Statistics,
     },
 };
 
@@ -307,6 +308,11 @@ impl ExecutionPlan for SchemaPivotExec {
 
     fn metrics(&self) -> Option<MetricsSet> {
         Some(self.metrics.clone_inner())
+    }
+
+    fn statistics(&self) -> Statistics {
+        // don't know anything about the statistics
+        Statistics::default()
     }
 }
 

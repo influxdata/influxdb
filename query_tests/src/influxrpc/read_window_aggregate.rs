@@ -6,10 +6,10 @@ use server::{db::test_helpers::write_lp, utils::make_db};
 use arrow_util::display::pretty_format_batches;
 use async_trait::async_trait;
 use datafusion::prelude::*;
+use predicate::predicate::{Predicate, PredicateBuilder};
 use query::{
     frontend::influxrpc::InfluxRpcPlanner,
     group_by::{Aggregate, WindowDuration},
-    predicate::{Predicate, PredicateBuilder},
 };
 
 /// runs read_window_aggregate(predicate) and compares it to the expected

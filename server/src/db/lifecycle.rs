@@ -6,7 +6,7 @@ use crate::{
 use ::lifecycle::LifecycleDb;
 use chrono::{DateTime, TimeZone, Utc};
 use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkStorage},
+    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkOrder, ChunkStorage},
     database_rules::LifecycleRules,
     error::ErrorLogger,
     job::Job,
@@ -64,6 +64,8 @@ pub struct WeakDb(pub(super) Weak<Db>);
 pub struct LockableCatalogChunk {
     pub db: Arc<Db>,
     pub chunk: Arc<RwLock<CatalogChunk>>,
+    pub id: u32,
+    pub order: ChunkOrder,
 }
 
 impl LockableChunk for LockableCatalogChunk {
@@ -97,6 +99,14 @@ impl LockableChunk for LockableCatalogChunk {
 
         let _ = self::unload::unload_read_buffer_chunk(s)?;
         Ok(())
+    }
+
+    fn id(&self) -> u32 {
+        self.id
+    }
+
+    fn order(&self) -> ChunkOrder {
+        self.order
     }
 }
 
@@ -168,22 +178,23 @@ impl LockablePartition for LockableCatalogPartition {
     }
 
     fn chunk(s: &LifecycleReadGuard<'_, Partition, Self>, chunk_id: u32) -> Option<Self::Chunk> {
-        s.chunk(chunk_id).map(|chunk| LockableCatalogChunk {
-            db: Arc::clone(&s.data().db),
-            chunk: Arc::clone(chunk),
-        })
+        s.chunk(chunk_id)
+            .map(|(chunk, order)| LockableCatalogChunk {
+                db: Arc::clone(&s.data().db),
+                chunk: Arc::clone(chunk),
+                id: chunk_id,
+                order,
+            })
     }
 
-    fn chunks(s: &LifecycleReadGuard<'_, Partition, Self>) -> Vec<(u32, Self::Chunk)> {
+    fn chunks(s: &LifecycleReadGuard<'_, Partition, Self>) -> Vec<Self::Chunk> {
         s.keyed_chunks()
-            .map(|(id, chunk)| {
-                (
-                    id,
-                    LockableCatalogChunk {
-                        db: Arc::clone(&s.data().db),
-                        chunk: Arc::clone(chunk),
-                    },
-                )
+            .into_iter()
+            .map(|(id, order, chunk)| LockableCatalogChunk {
+                db: Arc::clone(&s.data().db),
+                chunk: Arc::clone(chunk),
+                id,
+                order,
             })
             .collect()
     }

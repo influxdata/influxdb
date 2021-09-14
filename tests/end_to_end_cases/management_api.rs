@@ -334,6 +334,10 @@ async fn test_create_get_update_delete_database() {
         lifecycle_rules: Some(LifecycleRules {
             buffer_size_hard: 553,
             catalog_transactions_until_checkpoint: 13,
+            catalog_transaction_prune_age: Some(generated_types::google::protobuf::Duration {
+                seconds: 11,
+                nanos: 22,
+            }),
             late_arrive_window_seconds: 423,
             worker_backoff_millis: 15,
             max_active_compactions_cfg: Some(
@@ -532,6 +536,7 @@ async fn test_chunk_get() {
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
+            order: 0,
         },
         Chunk {
             partition_key: "disk".into(),
@@ -546,6 +551,7 @@ async fn test_chunk_get() {
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
+            order: 0,
         },
     ];
     assert_eq!(
@@ -717,6 +723,7 @@ async fn test_list_partition_chunks() {
         time_of_first_write: None,
         time_of_last_write: None,
         time_closed: None,
+        order: 0,
     }];
 
     assert_eq!(
@@ -1057,6 +1064,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
                 memory_bytes,
                 object_store_bytes,
                 row_count,
+                order,
                 ..
             } = summary;
             Chunk {
@@ -1072,6 +1080,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
                 time_closed: None,
                 memory_bytes,
                 object_store_bytes,
+                order,
             }
         })
         .collect::<Vec<_>>()

@@ -21,6 +21,7 @@ use datafusion::{
             self, BaselineMetrics, ExecutionPlanMetricsSet, MetricBuilder, MetricsSet, RecordOutput,
         },
         DisplayFormatType, Distribution, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+        Statistics,
     },
 };
 use futures::StreamExt;
@@ -235,6 +236,20 @@ impl ExecutionPlan for DeduplicateExec {
 
     fn metrics(&self) -> Option<MetricsSet> {
         Some(self.metrics.clone_inner())
+    }
+
+    fn statistics(&self) -> Statistics {
+        // TODO: we should acount for overlaps at this point -- if
+        // there is overlap across the chunks, we probably can't
+        // provide exact statistics without more work
+        let is_exact = true;
+
+        // for now, pass on the input statistics but note they can not
+        // be exact
+        Statistics {
+            is_exact,
+            ..self.input.statistics()
+        }
     }
 }
 
@@ -1000,6 +1015,11 @@ mod test {
             }
 
             Ok(AdapterStream::adapt(self.schema(), rx))
+        }
+
+        fn statistics(&self) -> Statistics {
+            // don't know anything about the statistics
+            Statistics::default()
         }
     }
 

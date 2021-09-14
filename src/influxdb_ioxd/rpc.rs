@@ -104,7 +104,11 @@ where
         .context(ReflectionError)?;
 
     let builder = tonic::transport::Server::builder();
-    let mut builder = builder.layer(trace_http::tower::TraceLayer::new(trace_collector));
+    let mut builder = builder.layer(trace_http::tower::TraceLayer::new(
+        Arc::clone(application.metric_registry_v2()),
+        trace_collector,
+        true,
+    ));
 
     // important that this one is NOT gated so that it can answer health requests
     add_service!(builder, health_reporter, health_service);
@@ -114,10 +118,7 @@ where
         builder,
         health_reporter,
         serving_readiness,
-        storage::make_server(
-            Arc::clone(&server),
-            Arc::clone(application.metric_registry()),
-        )
+        storage::make_server(Arc::clone(&server),)
     );
     add_gated_service!(
         builder,

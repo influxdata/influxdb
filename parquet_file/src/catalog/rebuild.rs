@@ -173,7 +173,7 @@ mod tests {
         },
     };
     use chrono::Utc;
-    use data_types::chunk_metadata::ChunkAddr;
+    use data_types::chunk_metadata::{ChunkAddr, ChunkOrder};
     use datafusion::physical_plan::SendableRecordBatchStream;
     use datafusion_util::MemoryStream;
     use parquet::arrow::ArrowWriter;
@@ -373,6 +373,7 @@ mod tests {
             database_checkpoint,
             time_of_first_write: Utc::now(),
             time_of_last_write: Utc::now(),
+            chunk_order: ChunkOrder::new(5),
         };
         let stream: SendableRecordBatchStream = Box::pin(MemoryStream::new(record_batches));
         let (path, file_size_bytes, metadata) = storage

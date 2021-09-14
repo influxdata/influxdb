@@ -16,6 +16,10 @@ use internal_types::{
     selection::Selection,
 };
 use observability_deps::tracing::{debug, trace};
+use predicate::{
+    predicate::{Predicate, PredicateMatch},
+    regex::{REGEX_MATCH_UDF_NAME, REGEX_NOT_MATCH_UDF_NAME},
+};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use crate::{
@@ -30,7 +34,6 @@ use crate::{
         seriesset::{SeriesSetPlan, SeriesSetPlans},
         stringset::{Error as StringSetError, StringSetPlan, StringSetPlanBuilder},
     },
-    predicate::{Predicate, PredicateMatch},
     provider::ProviderBuilder,
     util::schema_has_all_expr_columns,
     QueryChunk, QueryChunkMeta, QueryDatabase,
@@ -1238,8 +1241,8 @@ impl ExpressionVisitor for SupportVisitor {
                 }
             }
             Expr::ScalarUDF { fun, .. } => {
-                if fun.name.as_str() == crate::func::regex::REGEX_MATCH_UDF_NAME
-                    || fun.name.as_str() == crate::func::regex::REGEX_NOT_MATCH_UDF_NAME
+                if fun.name.as_str() == REGEX_MATCH_UDF_NAME
+                    || fun.name.as_str() == REGEX_NOT_MATCH_UDF_NAME
                 {
                     Ok(Recursion::Continue(self))
                 } else {

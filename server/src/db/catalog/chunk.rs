@@ -5,8 +5,8 @@ use snafu::Snafu;
 
 use data_types::{
     chunk_metadata::{
-        ChunkAddr, ChunkColumnSummary, ChunkLifecycleAction, ChunkStorage, ChunkSummary,
-        DetailedChunkSummary,
+        ChunkAddr, ChunkColumnSummary, ChunkLifecycleAction, ChunkOrder, ChunkStorage,
+        ChunkSummary, DetailedChunkSummary,
     },
     instant::to_approximate_datetime,
     partition_metadata::TableSummary,
@@ -16,7 +16,7 @@ use internal_types::{access::AccessRecorder, schema::Schema};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
-use query::predicate::{Predicate, PredicateBuilder};
+use predicate::predicate::{Predicate, PredicateBuilder};
 use read_buffer::RBChunk;
 use tracker::{TaskRegistration, TaskTracker};
 
@@ -219,6 +219,9 @@ pub struct CatalogChunk {
     /// Time at which this chunk was marked as closed. Note this is
     /// not the same as the timestamps on the data itself
     time_closed: Option<DateTime<Utc>>,
+
+    /// Order of this chunk relative to other overlapping chunks.
+    order: ChunkOrder,
 }
 
 macro_rules! unexpected_state {
@@ -272,6 +275,7 @@ impl CatalogChunk {
         chunk: mutable_buffer::chunk::MBChunk,
         time_of_write: DateTime<Utc>,
         metrics: ChunkMetrics,
+        order: ChunkOrder,
     ) -> Self {
         assert_eq!(chunk.table_name(), &addr.table_name);
 
@@ -286,6 +290,7 @@ impl CatalogChunk {
             time_of_first_write: time_of_write,
             time_of_last_write: time_of_write,
             time_closed: None,
+            order,
         };
         chunk.update_metrics();
         chunk
@@ -294,6 +299,7 @@ impl CatalogChunk {
     /// Creates a new RUB chunk from the provided RUB chunk and metadata
     ///
     /// Panics if the provided chunk is empty
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new_rub_chunk(
         addr: ChunkAddr,
         chunk: read_buffer::RBChunk,
@@ -302,6 +308,7 @@ impl CatalogChunk {
         schema: Arc<Schema>,
         metrics: ChunkMetrics,
         delete_predicates: Arc<Vec<Predicate>>,
+        order: ChunkOrder,
     ) -> Self {
         let stage = ChunkStage::Frozen {
             meta: Arc::new(ChunkMetadata {
@@ -321,6 +328,7 @@ impl CatalogChunk {
             time_of_first_write,
             time_of_last_write,
             time_closed: None,
+            order,
         };
         chunk.update_metrics();
         chunk
@@ -335,6 +343,7 @@ impl CatalogChunk {
         time_of_last_write: DateTime<Utc>,
         metrics: ChunkMetrics,
         delete_predicates: Arc<Vec<Predicate>>,
+        order: ChunkOrder,
     ) -> Self {
         assert_eq!(chunk.table_name(), addr.table_name.as_ref());
 
@@ -360,6 +369,7 @@ impl CatalogChunk {
             time_of_first_write,
             time_of_last_write,
             time_closed: None,
+            order,
         };
         chunk.update_metrics();
         chunk
@@ -410,6 +420,10 @@ impl CatalogChunk {
 
     pub fn time_closed(&self) -> Option<DateTime<Utc>> {
         self.time_closed
+    }
+
+    pub fn order(&self) -> ChunkOrder {
+        self.order
     }
 
     /// Updates `self.metrics` to match the contents of `self.stage`
@@ -574,6 +588,7 @@ impl CatalogChunk {
             time_of_first_write: self.time_of_first_write,
             time_of_last_write: self.time_of_last_write,
             time_closed: self.time_closed,
+            order: self.order,
         }
     }
 
@@ -957,7 +972,7 @@ mod tests {
             make_chunk as make_parquet_chunk_with_store, make_iox_object_store, TestSize,
         },
     };
-    use query::predicate::PredicateBuilder;
+    use predicate::predicate::PredicateBuilder;
 
     #[test]
     fn test_new_open() {
@@ -1216,6 +1231,7 @@ mod tests {
             mb_chunk,
             time_of_write,
             ChunkMetrics::new_unregistered(),
+            ChunkOrder::new(5),
         )
     }
 
@@ -1233,6 +1249,7 @@ mod tests {
             now,
             ChunkMetrics::new_unregistered(),
             Arc::new(vec![] as Vec<Predicate>),
+            ChunkOrder::new(6),
         )
     }
 }

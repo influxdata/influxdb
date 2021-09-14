@@ -13,7 +13,7 @@ use arrow::{
 };
 use chrono::{TimeZone, Utc};
 use data_types::{
-    chunk_metadata::ChunkAddr,
+    chunk_metadata::{ChunkAddr, ChunkOrder},
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     server_id::ServerId,
     DatabaseName,
@@ -189,6 +189,7 @@ pub async fn make_chunk_given_record_batch(
         database_checkpoint,
         time_of_first_write: Utc.timestamp(30, 40),
         time_of_last_write: Utc.timestamp(50, 60),
+        chunk_order: ChunkOrder::new(5),
     };
     let (path, file_size_bytes, parquet_metadata) = storage
         .write_to_object_store(addr.clone(), stream, metadata)

@@ -9,7 +9,7 @@
 )]
 
 use data_types::{
-    chunk_metadata::ChunkSummary,
+    chunk_metadata::{ChunkOrder, ChunkSummary},
     partition_metadata::{InfluxDbType, TableSummary},
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -19,7 +19,7 @@ use internal_types::{
     selection::Selection,
 };
 use observability_deps::tracing::trace;
-use predicate::PredicateMatch;
+use predicate::predicate::{Predicate, PredicateMatch};
 
 use hashbrown::HashMap;
 use std::{fmt::Debug, sync::Arc};
@@ -29,15 +29,12 @@ pub mod frontend;
 pub mod func;
 pub mod group_by;
 pub mod plan;
-pub mod predicate;
 pub mod provider;
 pub mod pruning;
 pub mod statistics;
 pub mod util;
 
 pub use exec::context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
-
-use self::predicate::Predicate;
 
 /// Trait for an object (designed to be a Chunk) which can provide
 /// metadata
@@ -151,6 +148,9 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
 
     /// Returns chunk type which is either MUB, RUB, OS
     fn chunk_type(&self) -> &str;
+
+    /// Order of this chunk relative to other overlapping chunks.
+    fn order(&self) -> ChunkOrder;
 }
 
 /// Implement ChunkMeta for something wrapped in an Arc (like Chunks often are)

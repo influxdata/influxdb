@@ -2,7 +2,7 @@
 
 use data_types::partition_metadata::{ColumnSummary, Statistics as IOxStatistics, TableSummary};
 use datafusion::{
-    datasource::datasource::{ColumnStatistics, Statistics as DFStatistics},
+    physical_plan::{ColumnStatistics, Statistics as DFStatistics},
     scalar::ScalarValue,
 };
 use internal_types::schema::Schema;
@@ -39,20 +39,27 @@ pub(crate) fn df_from_iox(schema: &Schema, summary: &TableSummary) -> DFStatisti
         .map(|(i, (_, field))| (field.name(), i))
         .collect::<hashbrown::HashMap<_, _>>();
 
-    let mut columns = summary.columns.iter().collect::<Vec<_>>();
+    let mut columns: Vec<(&ColumnSummary, &usize)> = summary
+        .columns
+        .iter()
+        // as there may be more columns in the summary than are in the
+        // schema, filter them out prior to sorting
+        .filter_map(|s| order_map.get(&s.name).map(|order_index| (s, order_index)))
+        .collect();
 
     // sort columns by schema order
-    columns.sort_by_cached_key(|s| order_map.get(&s.name).unwrap());
+    columns.sort_by_key(|s| s.1);
 
     let column_statistics = columns
         .into_iter()
-        .map(|c| df_from_iox_col(c))
+        .map(|(c, _)| df_from_iox_col(c))
         .collect::<Vec<_>>();
 
     DFStatistics {
         num_rows: Some(summary.total_count() as usize),
         total_byte_size: Some(summary.size()),
         column_statistics: Some(column_statistics),
+        is_exact: true,
     }
 }
 
@@ -142,6 +149,7 @@ mod test {
             num_rows: Some(3),
             total_byte_size: Some(438),
             column_statistics: Some(vec![df_c1_stats.clone(), df_c2_stats.clone()]),
+            is_exact: true,
         };
 
         let actual = df_from_iox(&schema, &table_summary);

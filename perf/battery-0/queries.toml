@@ -6,7 +6,7 @@ sql = "select count(*) from cpu"
 name = "example query, expected result in string"
 sql = "select count(*) from cpu"
 expect = """
-COUNT(Uint8(1))
+COUNT(UInt8(1))
 3
 """
 

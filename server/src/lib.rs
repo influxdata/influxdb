@@ -114,6 +114,8 @@ pub mod rules;
 /// Utility modules used by benchmarks and tests
 pub mod utils;
 
+mod write_buffer;
+
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 #[derive(Debug, Snafu)]
@@ -258,9 +260,6 @@ pub trait DatabaseStore: std::fmt::Debug + Send + Sync {
 /// A collection of metrics used to instrument the Server.
 #[derive(Debug)]
 pub struct ServerMetrics {
-    /// This metric tracks all requests to the Server
-    pub http_requests: metrics::RedMetric,
-
     /// The number of LP lines ingested
     pub ingest_lines_total: metrics::Counter,
 
@@ -277,11 +276,9 @@ pub struct ServerMetrics {
 impl ServerMetrics {
     pub fn new(registry: Arc<metrics::MetricRegistry>) -> Self {
         // Server manages multiple domains.
-        let http_domain = registry.register_domain("http");
         let ingest_domain = registry.register_domain("ingest");
 
         Self {
-            http_requests: http_domain.register_red_metric(None),
             ingest_lines_total: ingest_domain.register_counter_metric(
                 "points",
                 None,
@@ -651,11 +648,16 @@ where
         Ok(Arc::clone(db))
     }
 
+    /// Returns an active `Database` by name
+    pub fn active_database(&self, db_name: &DatabaseName<'_>) -> Result<Arc<Database>> {
+        let database = self.database(db_name)?;
+        ensure!(database.is_active(), DatabaseNotFound { db_name });
+        Ok(database)
+    }
+
     /// Returns an initialized `Db` by name
     pub fn db(&self, db_name: &DatabaseName<'_>) -> Result<Arc<Db>> {
-        let database = self.database(db_name)?;
-
-        ensure!(database.is_active(), DatabaseNotFound { db_name });
+        let database = self.active_database(db_name)?;
 
         database
             .initialized_db()
@@ -935,7 +937,18 @@ where
     ///
     /// TODO: Push this out of `Server` into `Database`
     pub async fn write_entry_local(&self, db_name: &DatabaseName<'_>, entry: Entry) -> Result<()> {
-        let db = self.db(db_name)?;
+        let database = self.active_database(db_name)?;
+        let db = {
+            let initialized = database
+                .initialized()
+                .context(DatabaseNotInitialized { db_name })?;
+
+            if initialized.write_buffer_consumer().is_some() {
+                return WritingOnlyAllowedThroughWriteBuffer { db_name }.fail();
+            }
+            Arc::clone(initialized.db())
+        };
+
         let bytes = entry.data().len() as u64;
         db.store_entry(entry).await.map_err(|e| {
             self.metrics.ingest_entries_bytes_total.add_with_attributes(
@@ -947,11 +960,6 @@ where
             );
             match e {
                 db::Error::HardLimitReached {} => Error::HardLimitReached {},
-                db::Error::WritingOnlyAllowedThroughWriteBuffer {} => {
-                    Error::WritingOnlyAllowedThroughWriteBuffer {
-                        db_name: db_name.into(),
-                    }
-                }
                 db::Error::WriteBufferWritingError { .. } => {
                     Error::WriteBuffer { source: e, bytes }
                 }
@@ -1248,6 +1256,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ::write_buffer::config::WriteBufferConfigFactory;
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
     use bytes::Bytes;
@@ -1279,7 +1288,6 @@ mod tests {
         time::{Duration, Instant},
     };
     use test_helpers::assert_contains;
-    use write_buffer::config::WriteBufferConfigFactory;
 
     const ARBITRARY_DEFAULT_TIME: i64 = 456;
 

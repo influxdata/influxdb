@@ -8,6 +8,8 @@ pub fn single_agent(c: &mut Criterion) {
     let spec = DataSpec {
         base_seed: Some("faster faster faster".into()),
         name: "benchmark".into(),
+        values: vec![],
+        tag_sets: vec![],
         agents: vec![AgentSpec {
             name: "agent-1".into(),
             count: None,

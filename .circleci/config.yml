@@ -156,6 +156,13 @@ jobs:
     machine:
       image: ubuntu-2004:202107-02
     resource_class: xlarge
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      RUSTFLAGS: "-C debuginfo=1"
+      RUST_BACKTRACE: "1"
     steps:
       - run: sudo apt update
       - run:
@@ -176,7 +183,7 @@ jobs:
             - cargo-lock-{{ checksum "Cargo.lock" }}
       - run:
           name: Prime Rust build cache
-          command: cargo build --package influxdb_iox --features jaeger --bin influxdb_iox --package iox_data_generator --bin iox_data_generator
+          command: cargo build --package influxdb_iox --bin influxdb_iox --package iox_data_generator --bin iox_data_generator
       - save_cache:
           key: cargo-lock-{{ checksum "Cargo.lock" }}
           paths:

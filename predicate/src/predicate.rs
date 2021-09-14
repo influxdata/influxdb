@@ -15,7 +15,6 @@ use datafusion::{
     optimizer::utils,
 };
 use datafusion_util::{make_range_expr, AndExprBuilder};
-use influxdb_line_protocol::timestamp;
 use internal_types::schema::TIME_COLUMN_NAME;
 use observability_deps::tracing::debug;
 use sqlparser::{
@@ -233,7 +232,7 @@ impl fmt::Display for Predicate {
 ///
 /// Example:
 /// ```
-/// use query::predicate::PredicateBuilder;
+/// use predicate::predicate::PredicateBuilder;
 /// use datafusion::logical_plan::{col, lit};
 ///
 /// let p = PredicateBuilder::new()
@@ -304,7 +303,7 @@ impl PredicateBuilder {
     }
 
     fn regex_match_expr(mut self, column: &str, pattern: impl Into<String>, matches: bool) -> Self {
-        let expr = crate::func::regex::regex_match_expr(col(column), pattern.into(), matches);
+        let expr = crate::regex::regex_match_expr(col(column), pattern.into(), matches);
         self.inner.exprs.push(expr);
         self
     }
@@ -631,9 +630,9 @@ impl ParseDeletePredicate {
             Ok(datetime) => Ok(datetime.timestamp_nanos()),
             Err(timestamp_err) => {
                 // See if it is in nanosecond form
-                let time_result = timestamp(input);
+                let time_result = input.parse::<i64>();
                 match time_result {
-                    Ok((_, nano)) => Ok(nano),
+                    Ok(nano) => Ok(nano),
                     Err(nano_err) => {
                         // wrong format, return both error
                         let error_str = format!("{}, {}", timestamp_err, nano_err);
@@ -889,24 +888,15 @@ mod tests {
 
     #[test]
     fn test_parse_timestamp_invalid() {
-        // It turn out this is not invalid but return1 123
         let input = r#"123gdb"#;
-        let time = ParseDeletePredicate::parse_time(input).unwrap();
-        assert_eq!(time, 123);
-        //assert!(time.is_err());
+        ParseDeletePredicate::parse_time(input).unwrap_err();
 
-        // must parse time
-        // It turn out this is not invalid but return1 1970
         let input = r#"1970-01-01T00:00:00"#;
-        let time = ParseDeletePredicate::parse_time(input).unwrap();
-        assert_eq!(time, 1970);
-        //assert!(time.is_err());
+        ParseDeletePredicate::parse_time(input).unwrap_err();
 
         // It turn out this is not invalid but return1 1971
         let input = r#"1971-02-01:30:21Z"#;
-        let time = ParseDeletePredicate::parse_time(input).unwrap();
-        assert_eq!(time, 1971);
-        //assert!(time.is_err());
+        ParseDeletePredicate::parse_time(input).unwrap_err();
     }
 
     #[test]

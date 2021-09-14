@@ -1,18 +1,65 @@
-use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc, task::Poll};
+use std::{
+    collections::BTreeMap,
+    num::NonZeroU32,
+    sync::Arc,
+    task::{Poll, Waker},
+};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use data_types::database_rules::WriteBufferCreationConfig;
-use entry::{Entry, Sequence, SequencedEntry};
 use futures::{stream, FutureExt, StreamExt};
 use parking_lot::Mutex;
+
+use data_types::database_rules::WriteBufferCreationConfig;
+use entry::{Entry, Sequence, SequencedEntry};
 
 use crate::core::{
     EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
     WriteBufferWriting,
 };
 
-type EntryResVec = Vec<Result<SequencedEntry, WriteBufferError>>;
+#[derive(Debug, Default)]
+struct EntryResVec {
+    /// The maximum sequence number in the entries
+    max_seqno: Option<u64>,
+
+    /// The entries
+    entries: Vec<Result<SequencedEntry, WriteBufferError>>,
+
+    /// A list of Waker waiting for a new entry to be pushed
+    ///
+    /// Note: this is a list because it is possible to create
+    /// two streams consuming from the same shared state
+    wait_list: Vec<Waker>,
+}
+
+impl EntryResVec {
+    pub fn push(&mut self, val: Result<SequencedEntry, WriteBufferError>) {
+        if let Ok(entry) = &val {
+            if let Some(seqno) = entry.sequence() {
+                self.max_seqno = Some(match self.max_seqno {
+                    Some(current) => current.max(seqno.number),
+                    None => seqno.number,
+                });
+            }
+        }
+
+        self.entries.push(val);
+        for waker in self.wait_list.drain(..) {
+            waker.wake()
+        }
+    }
+
+    /// Register a waker to be notified when a new entry is pushed
+    pub fn register_waker(&mut self, waker: &Waker) {
+        for wait_waker in &self.wait_list {
+            if wait_waker.will_wake(waker) {
+                return;
+            }
+        }
+        self.wait_list.push(waker.clone())
+    }
+}
 
 /// Mocked entries for [`MockBufferForWriting`] and [`MockBufferForReading`].
 #[derive(Debug, Clone)]
@@ -56,7 +103,7 @@ impl MockBufferSharedState {
 
     fn init_inner(n_sequencers: NonZeroU32) -> BTreeMap<u32, EntryResVec> {
         (0..n_sequencers.get())
-            .map(|sequencer_id| (sequencer_id, vec![]))
+            .map(|sequencer_id| (sequencer_id, Default::default()))
             .collect()
     }
 
@@ -74,16 +121,7 @@ impl MockBufferSharedState {
         let entries = guard.as_mut().expect("no sequencers initialized");
         let entry_vec = entries.get_mut(&sequence.id).expect("invalid sequencer ID");
 
-        let max_sequence_number = entry_vec
-            .iter()
-            .filter_map(|entry_res| {
-                entry_res
-                    .as_ref()
-                    .ok()
-                    .map(|entry| entry.sequence().unwrap().number)
-            })
-            .max();
-        if let Some(max_sequence_number) = max_sequence_number {
+        if let Some(max_sequence_number) = entry_vec.max_seqno {
             assert!(
                 max_sequence_number < sequence.number,
                 "sequence number {} is less/equal than current max sequencer number {}",
@@ -123,6 +161,7 @@ impl MockBufferSharedState {
             .expect("invalid sequencer ID");
 
         entry_vec
+            .entries
             .iter()
             .map(|entry_res| match entry_res {
                 Ok(entry) => Ok(entry.clone()),
@@ -143,7 +182,7 @@ impl MockBufferSharedState {
             .get_mut(&sequencer_id)
             .expect("invalid sequencer ID");
 
-        entry_vec.clear();
+        std::mem::take(entry_vec);
     }
 
     fn maybe_auto_init(&self, creation_config: Option<&WriteBufferCreationConfig>) {
@@ -190,17 +229,7 @@ impl WriteBufferWriting for MockBufferForWriting {
         let entries = guard.as_mut().unwrap();
         let sequencer_entries = entries.get_mut(&sequencer_id).unwrap();
 
-        let sequence_number = sequencer_entries
-            .iter()
-            .filter_map(|entry_res| {
-                entry_res
-                    .as_ref()
-                    .ok()
-                    .map(|entry| entry.sequence().unwrap().number)
-            })
-            .max()
-            .map(|n| n + 1)
-            .unwrap_or(0);
+        let sequence_number = sequencer_entries.max_seqno.map(|n| n + 1).unwrap_or(0);
 
         let sequence = Sequence {
             id: sequencer_id,
@@ -312,16 +341,17 @@ impl WriteBufferReading for MockBufferForReading {
             let shared_state = self.shared_state.clone();
             let playback_states = Arc::clone(&self.playback_states);
 
-            let stream = stream::poll_fn(move |_ctx| {
-                let guard = shared_state.entries.lock();
-                let entries = guard.as_ref().unwrap();
-                let entry_vec = entries.get(&sequencer_id).unwrap();
+            let stream = stream::poll_fn(move |cx| {
+                let mut guard = shared_state.entries.lock();
+                let entries = guard.as_mut().unwrap();
+                let entry_vec = entries.get_mut(&sequencer_id).unwrap();
 
                 let mut playback_states = playback_states.lock();
                 let playback_state = playback_states.get_mut(&sequencer_id).unwrap();
 
-                while entry_vec.len() > playback_state.vector_index {
-                    let entry_result = &entry_vec[playback_state.vector_index];
+                let entries = &entry_vec.entries;
+                while entries.len() > playback_state.vector_index {
+                    let entry_result = &entries[playback_state.vector_index];
 
                     // consume entry
                     playback_state.vector_index += 1;
@@ -346,6 +376,7 @@ impl WriteBufferReading for MockBufferForReading {
                 }
 
                 // we are at the end of the recorded entries => report pending
+                entry_vec.register_waker(cx.waker());
                 Poll::Pending
             })
             .boxed();
@@ -359,17 +390,7 @@ impl WriteBufferReading for MockBufferForReading {
                     let guard = shared_state.entries.lock();
                     let entries = guard.as_ref().unwrap();
                     let entry_vec = entries.get(&sequencer_id).unwrap();
-                    let watermark = entry_vec
-                        .iter()
-                        .filter_map(|entry_res| {
-                            entry_res
-                                .as_ref()
-                                .ok()
-                                .map(|entry| entry.sequence().unwrap().number)
-                        })
-                        .max()
-                        .map(|n| n + 1)
-                        .unwrap_or(0);
+                    let watermark = entry_vec.max_seqno.map(|n| n + 1).unwrap_or(0);
 
                     Ok(watermark)
                 };
@@ -456,6 +477,7 @@ impl WriteBufferReading for MockBufferForReadingThatAlwaysErrors {
 #[cfg(test)]
 mod tests {
     use std::convert::TryFrom;
+    use std::time::Duration;
 
     use entry::test_helpers::lp_to_entry;
 
@@ -748,5 +770,43 @@ mod tests {
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         state.init(NonZeroU32::try_from(2).unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_delayed_insert() {
+        let now = Utc::now();
+        let state =
+            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
+
+        state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 0),
+            now,
+            lp_to_entry("mem foo=1 10"),
+        ));
+
+        let mut read = MockBufferForReading::new(state.clone(), None).unwrap();
+        let playback_state = Arc::clone(&read.playback_states);
+
+        let consumer = tokio::spawn(async move {
+            let mut stream = read.streams().pop().unwrap().1.stream;
+            stream.next().await.unwrap().unwrap();
+            stream.next().await.unwrap().unwrap();
+        });
+
+        // Wait for consumer to read first entry
+        while playback_state.lock().get(&0).unwrap().vector_index < 1 {
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+
+        state.push_entry(SequencedEntry::new_from_sequence(
+            Sequence::new(0, 1),
+            now,
+            lp_to_entry("mem foo=2 20"),
+        ));
+
+        tokio::time::timeout(Duration::from_millis(100), consumer)
+            .await
+            .unwrap()
+            .unwrap();
     }
 }

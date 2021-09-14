@@ -101,7 +101,7 @@ where
         let mut candidates = Vec::new();
         for partition in partitions {
             let guard = partition.read();
-            for (_, chunk) in LockablePartition::chunks(&guard) {
+            for chunk in LockablePartition::chunks(&guard) {
                 let chunk = chunk.read();
                 if chunk.lifecycle_action().is_some() {
                     continue;
@@ -231,17 +231,27 @@ where
             return;
         }
 
-        let mut chunks = LockablePartition::chunks(&partition);
-        // Sort by chunk ID to ensure a stable lock order
-        chunks.sort_by_key(|x| x.0);
+        let chunks = LockablePartition::chunks(&partition);
 
         let mut has_mub_snapshot = false;
         let mut to_compact = Vec::new();
-        for (_, chunk) in &chunks {
+        for chunk in &chunks {
             let chunk = chunk.read();
-            if chunk.lifecycle_action().is_some() {
-                // This likely means it is being persisted
+            if matches!(
+                chunk.storage(),
+                ChunkStorage::ReadBufferAndObjectStore { .. }
+                    | ChunkStorage::ObjectStoreOnly { .. }
+            ) {
                 continue;
+            }
+            if chunk.lifecycle_action().is_some() {
+                if to_compact.is_empty() {
+                    // just skip this chunk
+                    continue;
+                } else {
+                    // must stop here because we must not "jump" the chunks sorted by `order`.
+                    break;
+                }
             }
 
             let to_compact_len_before = to_compact.len();
@@ -265,7 +275,7 @@ where
                     rows_left = rows_left.saturating_sub(row_count);
                     to_compact.push(chunk);
                 }
-                _ => {}
+                _ => unreachable!("this chunk should be have filtered out already"),
             }
             let has_added_to_compact = to_compact.len() > to_compact_len_before;
             debug!(db_name = %self.db.name(),
@@ -374,7 +384,7 @@ where
             return false;
         }
 
-        let mut chunks = LockablePartition::chunks(&partition);
+        let chunks = LockablePartition::chunks(&partition);
 
         // Upgrade partition to be able to rotate persistence windows
         let mut partition = partition.upgrade();
@@ -387,10 +397,8 @@ where
             }
         };
 
-        // Sort by chunk ID to ensure a stable lock order
-        chunks.sort_by_key(|x| x.0);
         let mut to_persist = Vec::new();
-        for (_, chunk) in &chunks {
+        for chunk in &chunks {
             let chunk = chunk.read();
             trace!(%db_name, %partition, chunk=%chunk.addr(), "considering chunk for persistence");
 
@@ -422,6 +430,8 @@ where
                 // preventing us from persisting
                 let stall = action.metadata() == &ChunkLifecycleAction::Compacting;
                 info!(%db_name, ?action, chunk=%chunk.addr(), "Chunk to persist has outstanding action");
+
+                // NOTE: This early exit also ensures that we are not "jumping" over chunks sorted by `order`.
                 return stall;
             }
 
@@ -463,7 +473,7 @@ where
         now: Instant,
     ) {
         let partition = partition.read();
-        for (_, chunk) in LockablePartition::chunks(&partition) {
+        for chunk in LockablePartition::chunks(&partition) {
             let chunk = chunk.read();
             if let Some(lifecycle_action) = chunk.lifecycle_action() {
                 if lifecycle_action.is_complete()
@@ -667,7 +677,7 @@ mod tests {
         ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
         LockablePartition, PersistHandle,
     };
-    use data_types::chunk_metadata::{ChunkAddr, ChunkStorage};
+    use data_types::chunk_metadata::{ChunkAddr, ChunkOrder, ChunkStorage};
     use data_types::database_rules::MaxActiveCompactions::MaxActiveCompactions;
     use std::{
         cmp::max,
@@ -688,7 +698,7 @@ mod tests {
 
     #[derive(Debug)]
     struct TestPartition {
-        chunks: BTreeMap<u32, Arc<RwLock<TestChunk>>>,
+        chunks: BTreeMap<u32, (ChunkOrder, Arc<RwLock<TestChunk>>)>,
         persistable_row_count: usize,
         minimum_unpersisted_age: Option<Instant>,
         max_persistable_timestamp: Option<DateTime<Utc>>,
@@ -721,6 +731,7 @@ mod tests {
         time_of_last_write: DateTime<Utc>,
         lifecycle_action: Option<TaskTracker<ChunkLifecycleAction>>,
         storage: ChunkStorage,
+        order: ChunkOrder,
     }
 
     impl TestChunk {
@@ -743,6 +754,7 @@ mod tests {
                 time_of_last_write: from_secs(time_of_last_write),
                 lifecycle_action: None,
                 storage,
+                order: ChunkOrder::new(0),
             }
         }
 
@@ -765,6 +777,11 @@ mod tests {
             self.access_metrics = metrics;
             self
         }
+
+        fn with_order(mut self, order: ChunkOrder) -> Self {
+            self.order = order;
+            self
+        }
     }
 
     #[derive(Clone, Debug)]
@@ -783,6 +800,8 @@ mod tests {
     struct TestLockableChunk<'a> {
         db: &'a TestDb,
         chunk: Arc<RwLock<TestChunk>>,
+        id: u32,
+        order: ChunkOrder,
     }
 
     #[derive(Debug)]
@@ -815,26 +834,30 @@ mod tests {
             chunk_id: u32,
         ) -> Option<Self::Chunk> {
             let db = s.data().db;
-            s.chunks.get(&chunk_id).map(|x| TestLockableChunk {
-                db,
-                chunk: Arc::clone(x),
-            })
+            s.chunks
+                .get(&chunk_id)
+                .map(|(order, chunk)| TestLockableChunk {
+                    db,
+                    chunk: Arc::clone(chunk),
+                    id: chunk_id,
+                    order: *order,
+                })
         }
 
-        fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<(u32, Self::Chunk)> {
+        fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<Self::Chunk> {
             let db = s.data().db;
-            s.chunks
+            let mut chunks: Vec<Self::Chunk> = s
+                .chunks
                 .iter()
-                .map(|(id, chunk)| {
-                    (
-                        *id,
-                        TestLockableChunk {
-                            db,
-                            chunk: Arc::clone(chunk),
-                        },
-                    )
+                .map(|(id, (order, chunk))| TestLockableChunk {
+                    db,
+                    chunk: Arc::clone(chunk),
+                    id: *id,
+                    order: *order,
                 })
-                .collect()
+                .collect();
+            chunks.sort_by_key(|chunk| (chunk.order(), chunk.id()));
+            chunks
         }
 
         fn compact_chunks(
@@ -847,6 +870,7 @@ mod tests {
             let mut new_chunk = TestChunk::new(id, 0, ChunkStorage::ReadBuffer);
             new_chunk.row_count = 0;
 
+            let mut order = ChunkOrder::MAX;
             for chunk in &chunks {
                 partition.chunks.remove(&chunk.addr.chunk_id);
                 new_chunk.row_count += chunk.row_count;
@@ -856,11 +880,12 @@ mod tests {
                     (None, Some(ts)) => Some(ts),
                     (None, None) => None,
                 };
+                order = order.min(chunk.order);
             }
 
             partition
                 .chunks
-                .insert(id, Arc::new(RwLock::new(new_chunk)));
+                .insert(id, (order, Arc::new(RwLock::new(new_chunk))));
 
             let event = MoverEvents::Compact(chunks.iter().map(|x| x.addr.chunk_id).collect());
             partition.data().db.events.write().push(event);
@@ -882,8 +907,10 @@ mod tests {
             chunks: Vec<LifecycleWriteGuard<'_, TestChunk, Self::Chunk>>,
             handle: Self::PersistHandle,
         ) -> Result<TaskTracker<()>, Self::Error> {
+            let mut order = ChunkOrder::MAX;
             for chunk in &chunks {
                 partition.chunks.remove(&chunk.addr.chunk_id);
+                order = order.min(chunk.order);
             }
 
             let id = partition.next_id;
@@ -895,7 +922,7 @@ mod tests {
 
             partition
                 .chunks
-                .insert(id, Arc::new(RwLock::new(new_chunk)));
+                .insert(id, (order, Arc::new(RwLock::new(new_chunk))));
 
             let event = MoverEvents::Persist(chunks.iter().map(|x| x.addr.chunk_id).collect());
             partition.data().db.events.write().push(event);
@@ -949,6 +976,14 @@ mod tests {
                 .write()
                 .push(MoverEvents::Unload(s.addr.chunk_id));
             Ok(())
+        }
+
+        fn id(&self) -> u32 {
+            self.id
+        }
+
+        fn order(&self) -> ChunkOrder {
+            self.order
         }
     }
 
@@ -1011,7 +1046,7 @@ mod tests {
                 .into_iter()
                 .map(|x| {
                     max_id = max(max_id, x.addr.chunk_id);
-                    (x.addr.chunk_id, Arc::new(RwLock::new(x)))
+                    (x.addr.chunk_id, (x.order, Arc::new(RwLock::new(x))))
                 })
                 .collect();
 
@@ -1232,7 +1267,7 @@ mod tests {
         );
 
         assert_eq!(partition.read().chunks.len(), 1);
-        assert_eq!(partition.read().chunks[&4].read().row_count, 30);
+        assert_eq!(partition.read().chunks[&4].1.read().row_count, 30);
     }
 
     #[tokio::test]
@@ -1445,6 +1480,32 @@ mod tests {
                 // too many total rows => next compaction job
                 TestChunk::new(18, 20, ChunkStorage::ReadBuffer).with_row_count(400),
             ]),
+            TestPartition::new(vec![
+                // chunks in this partition listed in reverse `order` to make sure that the compaction actually sorts
+                // them
+                //
+                // blocked by action below
+                TestChunk::new(19, 20, ChunkStorage::ReadBuffer)
+                    .with_row_count(400)
+                    .with_order(ChunkOrder::new(4)),
+                // has an action
+                TestChunk::new(20, 20, ChunkStorage::ReadBuffer)
+                    .with_row_count(400)
+                    .with_order(ChunkOrder::new(3))
+                    .with_action(ChunkLifecycleAction::Compacting),
+                // closed => can compact
+                TestChunk::new(21, 20, ChunkStorage::ReadBuffer)
+                    .with_row_count(400)
+                    .with_order(ChunkOrder::new(2)),
+                TestChunk::new(22, 20, ChunkStorage::ReadBuffer)
+                    .with_row_count(400)
+                    .with_order(ChunkOrder::new(1)),
+                // has an action, but doesn't block because it's first
+                TestChunk::new(23, 20, ChunkStorage::ReadBuffer)
+                    .with_row_count(400)
+                    .with_order(ChunkOrder::new(0))
+                    .with_action(ChunkLifecycleAction::Compacting),
+            ]),
         ];
 
         let db = TestDb::from_partitions(rules, partitions);
@@ -1459,6 +1520,7 @@ mod tests {
                 MoverEvents::Compact(vec![8, 9]),
                 MoverEvents::Compact(vec![12]),
                 MoverEvents::Compact(vec![14, 16]),
+                MoverEvents::Compact(vec![22, 21]),
             ],
         );
 
@@ -1684,7 +1746,7 @@ mod tests {
 
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
-        let chunk = Arc::clone(&db.partitions.read()[0].read().chunks[&0]);
+        let chunk = Arc::clone(&db.partitions.read()[0].read().chunks[&0].1);
 
         let r0 = TaskRegistration::default();
         let tracker = TaskTracker::new(TaskId(0), &r0, ChunkLifecycleAction::Moving);

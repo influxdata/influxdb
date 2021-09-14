@@ -2,7 +2,7 @@ use super::{
     catalog::chunk::ChunkMetadata, pred::to_read_buffer_predicate, streams::ReadFilterResultsStream,
 };
 use chrono::{DateTime, Utc};
-use data_types::partition_metadata;
+use data_types::{chunk_metadata::ChunkOrder, partition_metadata};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
 use internal_types::{access::AccessRecorder, schema::{Schema, sort::SortKey}, selection::Selection};
@@ -11,11 +11,8 @@ use mutable_buffer::chunk::snapshot::ChunkSnapshot;
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use partition_metadata::TableSummary;
-use query::{
-    exec::stringset::StringSet,
-    predicate::{Predicate, PredicateMatch},
-    QueryChunk, QueryChunkMeta,
-};
+use predicate::predicate::{Predicate, PredicateMatch};
+use query::{exec::stringset::StringSet, QueryChunk, QueryChunkMeta};
 use read_buffer::RBChunk;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
@@ -81,6 +78,7 @@ pub struct DbChunk {
     meta: Arc<ChunkMetadata>,
     time_of_first_write: DateTime<Utc>,
     time_of_last_write: DateTime<Utc>,
+    order: ChunkOrder,
 }
 
 #[derive(Debug)]
@@ -167,6 +165,7 @@ impl DbChunk {
             meta,
             time_of_first_write: chunk.time_of_first_write(),
             time_of_last_write: chunk.time_of_last_write(),
+            order: chunk.order(),
         })
     }
 
@@ -196,6 +195,7 @@ impl DbChunk {
             access_recorder: chunk.access_recorder().clone(),
             time_of_first_write: chunk.time_of_first_write(),
             time_of_last_write: chunk.time_of_last_write(),
+            order: chunk.order(),
         })
     }
 
@@ -503,6 +503,10 @@ impl QueryChunk for DbChunk {
             State::ReadBuffer { .. } => "RUB",
             State::ParquetFile { .. } => "OS",
         }
+    }
+
+    fn order(&self) -> ChunkOrder {
+        self.order
     }
 }
 

@@ -19,8 +19,8 @@ use datafusion::{
 use internal_types::schema::Schema;
 use metric::{Attributes, Metric, U64Counter};
 use observability_deps::tracing::debug;
+use predicate::predicate::{Predicate, PredicateBuilder};
 use query::{
-    predicate::{Predicate, PredicateBuilder},
     provider::{ChunkPruner, ProviderBuilder},
     QueryChunk, QueryChunkMeta, DEFAULT_SCHEMA,
 };

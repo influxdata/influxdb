@@ -10,7 +10,7 @@
 
 use chrono::{DateTime, Utc};
 use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkStorage},
+    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkOrder, ChunkStorage},
     database_rules::LifecycleRules,
     DatabaseName,
 };
@@ -63,8 +63,10 @@ pub trait LockablePartition: Sized + std::fmt::Display {
         chunk_id: u32,
     ) -> Option<Self::Chunk>;
 
-    /// Return a list of lockable chunks in this partition - the returned order must be stable
-    fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<(u32, Self::Chunk)>;
+    /// Return a list of lockable chunks in this partition.
+    ///
+    /// This must be ordered by `(order, id)`.
+    fn chunks(s: &LifecycleReadGuard<'_, Self::Partition, Self>) -> Vec<Self::Chunk>;
 
     /// Compact chunks into a single read buffer chunk
     ///
@@ -148,6 +150,10 @@ pub trait LockableChunk: Sized {
     /// [`drop_chunk`](LockablePartition::drop_chunk) must be used.
     fn unload_read_buffer(s: LifecycleWriteGuard<'_, Self::Chunk, Self>)
         -> Result<(), Self::Error>;
+
+    fn id(&self) -> u32;
+
+    fn order(&self) -> ChunkOrder;
 }
 
 pub trait LifecyclePartition {

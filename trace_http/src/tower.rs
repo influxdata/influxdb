@@ -12,30 +12,49 @@
 //! - This Body contains the data payload (potentially streamed)
 //!
 
-use crate::ctx::parse_span_ctx;
-use futures::ready;
-use http::{Request, Response};
-use http_body::SizeHint;
-use observability_deps::tracing::error;
-use pin_project::pin_project;
-use std::borrow::Cow;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+
+use futures::ready;
+use http::{Request, Response};
+use http_body::SizeHint;
+use pin_project::pin_project;
 use tower::{Layer, Service};
+
+use observability_deps::tracing::error;
 use trace::{span::SpanRecorder, TraceCollector};
+
+use crate::classify::{classify_headers, classify_response, Classification};
+use crate::ctx::parse_span_ctx;
+use crate::metrics::{MetricsCollection, MetricsRecorder};
 
 /// `TraceLayer` implements `tower::Layer` and can be used to decorate a
 /// `tower::Service` to collect information about requests flowing through it
+///
+/// Including:
+///
+/// - Extracting distributed trace context and attaching span context
+/// - Collecting count and duration metrics - [RED metrics][1]
+///
+/// [1]: https://www.weave.works/blog/the-red-method-key-metrics-for-microservices-architecture/
 #[derive(Debug, Clone)]
 pub struct TraceLayer {
+    metrics: Arc<MetricsCollection>,
     collector: Option<Arc<dyn TraceCollector>>,
 }
 
 impl TraceLayer {
-    pub fn new(collector: Option<Arc<dyn TraceCollector>>) -> Self {
-        Self { collector }
+    pub fn new(
+        metric_registry: Arc<metric::Registry>,
+        collector: Option<Arc<dyn TraceCollector>>,
+        is_grpc: bool,
+    ) -> Self {
+        Self {
+            metrics: Arc::new(MetricsCollection::new(metric_registry, is_grpc)),
+            collector,
+        }
     }
 }
 
@@ -46,6 +65,7 @@ impl<S> Layer<S> for TraceLayer {
         TraceService {
             service,
             collector: self.collector.clone(),
+            metrics: Arc::clone(&self.metrics),
         }
     }
 }
@@ -55,6 +75,7 @@ impl<S> Layer<S> for TraceLayer {
 pub struct TraceService<S> {
     service: S,
     collector: Option<Arc<dyn TraceCollector>>,
+    metrics: Arc<MetricsCollection>,
 }
 
 impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for TraceService<S>
@@ -71,11 +92,14 @@ where
     }
 
     fn call(&mut self, mut request: Request<ReqBody>) -> Self::Future {
+        let metrics_recorder = Some(self.metrics.recorder(&request));
+
         let collector = match self.collector.as_ref() {
             Some(collector) => collector,
             None => {
                 return TracedFuture {
-                    recorder: SpanRecorder::new(None),
+                    metrics_recorder,
+                    span_recorder: SpanRecorder::new(None),
                     inner: self.service.call(request),
                 }
             }
@@ -99,7 +123,8 @@ where
         };
 
         TracedFuture {
-            recorder: SpanRecorder::new(span),
+            metrics_recorder,
+            span_recorder: SpanRecorder::new(span),
             inner: self.service.call(request),
         }
     }
@@ -110,7 +135,8 @@ where
 #[pin_project]
 #[derive(Debug)]
 pub struct TracedFuture<F> {
-    recorder: SpanRecorder,
+    span_recorder: SpanRecorder,
+    metrics_recorder: Option<MetricsRecorder>,
     #[pin]
     inner: F,
 }
@@ -126,19 +152,34 @@ where
         let result: Result<Response<ResBody>, Error> =
             ready!(self.as_mut().project().inner.poll(cx));
 
-        let recorder = self.as_mut().project().recorder;
+        let projected = self.as_mut().project();
+        let span_recorder = projected.span_recorder;
+        let mut metrics_recorder = projected.metrics_recorder.take().unwrap();
         match &result {
             Ok(response) => match classify_response(response) {
-                Ok(_) => recorder.event("request processed"),
-                Err(e) => recorder.error(e),
+                (_, Classification::Ok) => match response.body().is_end_stream() {
+                    true => {
+                        metrics_recorder.set_classification(Classification::Ok);
+                        span_recorder.ok("request processed with empty response")
+                    }
+                    false => span_recorder.event("request processed"),
+                },
+                (error, c) => {
+                    metrics_recorder.set_classification(c);
+                    span_recorder.error(error);
+                }
             },
-            Err(_) => recorder.error("error processing request"),
+            Err(_) => {
+                metrics_recorder.set_classification(Classification::ServerErr);
+                span_recorder.error("error processing request")
+            }
         }
 
         match result {
             Ok(response) => Poll::Ready(Ok(response.map(|body| TracedBody {
-                recorder: self.as_mut().project().recorder.take(),
+                span_recorder: self.as_mut().project().span_recorder.take(),
                 inner: body,
+                metrics_recorder,
             }))),
             Err(e) => Poll::Ready(Err(e)),
         }
@@ -149,7 +190,8 @@ where
 #[pin_project]
 #[derive(Debug)]
 pub struct TracedBody<B> {
-    recorder: SpanRecorder,
+    span_recorder: SpanRecorder,
+    metrics_recorder: MetricsRecorder,
     #[pin]
     inner: B,
 }
@@ -168,10 +210,21 @@ impl<B: http_body::Body> http_body::Body for TracedBody<B> {
             None => return Poll::Ready(None),
         };
 
-        let recorder = self.as_mut().project().recorder;
+        let projected = self.as_mut().project();
+        let span_recorder = projected.span_recorder;
+        let metrics_recorder = projected.metrics_recorder;
         match &result {
-            Ok(_) => recorder.event("returned body data"),
-            Err(_) => recorder.error("eos getting body"),
+            Ok(_) => match projected.inner.is_end_stream() {
+                true => {
+                    metrics_recorder.set_classification(Classification::Ok);
+                    span_recorder.ok("returned body data and no trailers")
+                }
+                false => span_recorder.event("returned body data"),
+            },
+            Err(_) => {
+                metrics_recorder.set_classification(Classification::ServerErr);
+                span_recorder.error("error getting body");
+            }
         }
         Poll::Ready(Some(result))
     }
@@ -183,13 +236,24 @@ impl<B: http_body::Body> http_body::Body for TracedBody<B> {
         let result: Result<Option<http::header::HeaderMap>, Self::Error> =
             ready!(self.as_mut().project().inner.poll_trailers(cx));
 
-        let recorder = self.as_mut().project().recorder;
+        let projected = self.as_mut().project();
+        let span_recorder = projected.span_recorder;
+        let metrics_recorder = projected.metrics_recorder;
         match &result {
             Ok(headers) => match classify_headers(headers.as_ref()) {
-                Ok(_) => recorder.ok("returned trailers"),
-                Err(error) => recorder.error(error),
+                (_, Classification::Ok) => {
+                    metrics_recorder.set_classification(Classification::Ok);
+                    span_recorder.ok("returned trailers")
+                }
+                (error, c) => {
+                    metrics_recorder.set_classification(c);
+                    span_recorder.error(error)
+                }
             },
-            Err(_) => recorder.error("eos getting trailers"),
+            Err(_) => {
+                metrics_recorder.set_classification(Classification::ServerErr);
+                span_recorder.error("error getting trailers")
+            }
         }
 
         Poll::Ready(result)
@@ -201,53 +265,5 @@ impl<B: http_body::Body> http_body::Body for TracedBody<B> {
 
     fn size_hint(&self) -> SizeHint {
         self.inner.size_hint()
-    }
-}
-
-fn classify_response<B>(response: &http::Response<B>) -> Result<(), Cow<'static, str>> {
-    let status = response.status();
-    match status {
-        http::StatusCode::OK | http::StatusCode::CREATED | http::StatusCode::NO_CONTENT => {
-            classify_headers(Some(response.headers()))
-        }
-        http::StatusCode::BAD_REQUEST => Err("bad request".into()),
-        http::StatusCode::NOT_FOUND => Err("not found".into()),
-        http::StatusCode::INTERNAL_SERVER_ERROR => Err("internal server error".into()),
-        _ => Err(format!("unexpected status code: {}", status).into()),
-    }
-}
-
-/// gRPC indicates failure via a [special][1] header allowing it to signal an error
-/// at the end of an HTTP chunked stream as part of the [response trailer][2]
-///
-/// [1]: https://grpc.github.io/grpc/core/md_doc_statuscodes.html
-/// [2]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Trailer
-fn classify_headers(headers: Option<&http::header::HeaderMap>) -> Result<(), Cow<'static, str>> {
-    match headers.and_then(|headers| headers.get("grpc-status")) {
-        Some(header) => {
-            let value = header.to_str().map_err(|_| "grpc status not string")?;
-            let value: i32 = value.parse().map_err(|_| "grpc status not integer")?;
-            match value {
-                0 => Ok(()),
-                1 => Err("cancelled".into()),
-                2 => Err("unknown".into()),
-                3 => Err("invalid argument".into()),
-                4 => Err("deadline exceeded".into()),
-                5 => Err("not found".into()),
-                6 => Err("already exists".into()),
-                7 => Err("permission denied".into()),
-                8 => Err("resource exhausted".into()),
-                9 => Err("failed precondition".into()),
-                10 => Err("aborted".into()),
-                11 => Err("out of range".into()),
-                12 => Err("unimplemented".into()),
-                13 => Err("internal".into()),
-                14 => Err("unavailable".into()),
-                15 => Err("data loss".into()),
-                16 => Err("unauthenticated".into()),
-                _ => Err(format!("unrecognised status code: {}", value).into()),
-            }
-        }
-        None => Ok(()),
     }
 }

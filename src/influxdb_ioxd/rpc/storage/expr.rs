@@ -21,9 +21,8 @@ use generated_types::{
 
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 use observability_deps::tracing::warn;
-use query::func::regex;
+use predicate::{predicate::PredicateBuilder, regex::regex_match_expr};
 use query::group_by::{Aggregate as QueryAggregate, WindowDuration};
-use query::predicate::PredicateBuilder;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -514,7 +513,7 @@ fn build_regex_match_expr(matches: bool, mut inputs: Vec<Expr>) -> Result<Expr> 
                 return InternalInvalidRegexExprReference.fail();
             };
 
-            Ok(regex::regex_match_expr(inputs.remove(0), pattern, matches))
+            Ok(regex_match_expr(inputs.remove(0), pattern, matches))
         }
         _ => InternalInvalidRegexExprChildren { num_children }.fail(),
     }

@@ -97,8 +97,8 @@ struct DumpOptions {
     /// Show unparsed `IoxParquetMetaData` -- which are Apache Thrift bytes -- as part of the transaction actions.
     ///
     /// Since this binary data is usually quite hard to read, it is recommended to set this to `false` which will
-    /// replace the actual bytes with `b"stripped"`. Use the other toggles to instead show the content of the Apache
-    /// Thrift message.
+    /// replace the actual bytes with `b"metadata omitted"`. Use the other toggles to instead show the content of the
+    /// Apache Thrift message.
     #[structopt(long = "--show-unparsed-metadata")]
     show_unparsed_metadata: bool,
 }

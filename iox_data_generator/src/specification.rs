@@ -52,6 +52,19 @@ pub struct DataSpec {
     /// future configurations if reproducing a particular set of sequences
     /// is desired.
     pub base_seed: Option<String>,
+    /// Specifies values that are generated before agents are created. These values
+    /// can be used in tag set specs, which will pre-create tag sets that can then be
+    /// used by the agent specs.
+    #[serde(default)]
+    pub values: Vec<ValuesSpec>,
+    /// Specifies collections of tag sets that can be referenced by agents. These
+    /// pre-generated tag sets are an efficient way to have many tags without
+    /// re-rendering their values on every agent generation. They can also have
+    /// dependent values, making it easy to create high cardinality data sets
+    /// without running through many handlebar renders while having a well defined
+    /// set of tags that appear.
+    #[serde(default)]
+    pub tag_sets: Vec<TagSetsSpec>,
     /// The specification for the data-generating agents in this data set.
     pub agents: Vec<AgentSpec>,
 }
@@ -71,6 +84,52 @@ impl FromStr for DataSpec {
         let spec: Self = toml::from_str(spec_toml).context(Parse)?;
         Ok(spec)
     }
+}
+
+/// The specification of values that can be used to generate tag sets
+#[derive(Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(Default))]
+#[serde(deny_unknown_fields)]
+pub struct ValuesSpec {
+    /// The name of the collection of values
+    pub name: String,
+    /// The handlebars template to create each value in the collection
+    pub template: String,
+    /// How many of these values should be generated. If belongs_to is
+    /// specified, each parent will have this many of this value. So
+    /// the total number of these values generated would be parent.len() * self.cardinality
+    pub cardinality: usize,
+    /// A collection of strings to other values. Each one of these values will have one
+    /// of the referenced has_one. Further, when generating this, the has_one collection
+    /// will cycle through so that each successive value will use the next has_one value
+    /// for association
+    pub has_one: Option<Vec<String>>,
+    /// A collection of values that each of these values belongs to. These relationships
+    /// can be referenced in the value generation and in the generation of tag sets.
+    pub belongs_to: Option<String>,
+}
+
+impl ValuesSpec {
+    /// returns true if there are other value collections that this values spec must use to
+    /// be generated
+    pub fn has_dependent_values(&self) -> bool {
+        self.has_one.is_some() || self.belongs_to.is_some()
+    }
+}
+
+/// The specification of tag sets that can be referenced in measurements to pull a pre-generated
+/// set of tags in.
+#[derive(Deserialize, Debug)]
+#[cfg_attr(test, derive(Default))]
+#[serde(deny_unknown_fields)]
+pub struct TagSetsSpec {
+    /// The name of the tag set spec
+    pub name: String,
+    /// An array of the `ValuesSpec` to loop through. To reference parent belongs_to or has_one
+    /// values, the parent should come first and then the has_one or child next. Each successive
+    /// entry in this array is a nested loop. Multiple has_one and a belongs_to on a parent can
+    /// be traversed.
+    pub for_each: Vec<String>,
 }
 
 /// The specification of the behavior of an agent, the entity responsible for

@@ -18,8 +18,6 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
-
     let help = r#"IOx data point generator
 
 Examples:
@@ -59,6 +57,10 @@ Logging:
                 .help("Path to the specification TOML file describing the data generation")
                 .takes_value(true)
                 .required(true),
+        )
+        .arg(Arg::with_name("PRINT")
+                .long("print")
+            .help("Print the generated line protocol from a single sample collection to the terminal")
         )
         .arg(
             Arg::with_name("OUTPUT")
@@ -135,6 +137,11 @@ Logging:
         )
         .get_matches();
 
+    let disable_log_output = matches.is_present("PRINT");
+    if !disable_log_output {
+        tracing_subscriber::fmt::init();
+    }
+
     let spec_filename = matches
         .value_of("SPECIFICATION")
         // This should never fail if clap is working properly
@@ -181,8 +188,10 @@ Logging:
         );
 
         PointsWriterBuilder::new_api(host, org, bucket, token, create_bucket, org_id).await?
+    } else if matches.is_present("PRINT") {
+        PointsWriterBuilder::new_std_out()
     } else {
-        panic!("One of --output or --host must be provided.");
+        panic!("One of --print or --output or --host must be provided.");
     };
 
     let result = iox_data_generator::generate::<rand::rngs::SmallRng>(
@@ -197,7 +206,11 @@ Logging:
     .await;
 
     match result {
-        Ok(total_points) => eprintln!("Submitted {} total points", total_points),
+        Ok(total_points) => {
+            if !disable_log_output {
+                eprintln!("Submitted {} total points", total_points);
+            }
+        }
         Err(e) => panic!("Execution failed: \n{}", e),
     }
 

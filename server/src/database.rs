@@ -1,3 +1,4 @@
+use crate::write_buffer::WriteBufferConsumer;
 use crate::{
     db::{
         load::{create_preserved_catalog, load_or_create_preserved_catalog},
@@ -6,19 +7,20 @@ use crate::{
     rules::ProvidedDatabaseRules,
     ApplicationState, Db,
 };
+use data_types::database_rules::WriteBufferDirection;
 use data_types::{database_state::DatabaseStateCode, server_id::ServerId, DatabaseName};
 use futures::{
-    future::{BoxFuture, Shared},
+    future::{BoxFuture, FusedFuture, Shared},
     FutureExt, TryFutureExt,
 };
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
-use parking_lot::RwLock;
+use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 use parquet_file::catalog::api::PreservedCatalog;
 use persistence_windows::checkpoint::ReplayPlan;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use std::{future::Future, ops::DerefMut, sync::Arc, time::Duration};
+use std::{future::Future, sync::Arc, time::Duration};
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
 
@@ -101,7 +103,7 @@ pub struct Database {
 }
 
 #[derive(Debug, Clone)]
-/// Informatation about where a database is located on object store,
+/// Information about where a database is located on object store,
 /// and how to perform startup activities.
 pub struct DatabaseConfig {
     pub name: DatabaseName<'static>,
@@ -212,6 +214,7 @@ impl Database {
                 DatabaseStateKnown {},
                 Arc::new(InitError::NoActiveDatabase),
             );
+            shared.state_notify.notify_waiters();
         }
 
         Ok(())
@@ -314,8 +317,9 @@ impl Database {
         // via WriteGuard
         let mut state = state.unfreeze(handle);
 
-        if let DatabaseState::Initialized(DatabaseStateInitialized { db, provided_rules }) =
-            state.deref_mut()
+        if let DatabaseState::Initialized(DatabaseStateInitialized {
+            db, provided_rules, ..
+        }) = &mut *state
         {
             db.update_rules(Arc::clone(new_provided_rules.rules()));
             *provided_rules = new_provided_rules;
@@ -333,13 +337,14 @@ impl Database {
         self.shared.state.read().iox_object_store()
     }
 
+    pub fn initialized(&self) -> Option<MappedRwLockReadGuard<'_, DatabaseStateInitialized>> {
+        RwLockReadGuard::try_map(self.shared.state.read(), |state| state.get_initialized()).ok()
+    }
+
     /// Gets access to an initialized `Db`
     pub fn initialized_db(&self) -> Option<Arc<Db>> {
-        self.shared
-            .state
-            .read()
-            .get_initialized()
-            .map(|state| Arc::clone(&state.db))
+        let initialized = self.initialized()?;
+        Some(Arc::clone(initialized.db()))
     }
 
     /// Returns Ok(()) when the Database is initialized, or the error
@@ -444,7 +449,7 @@ impl Database {
             let db_name = &shared.config.name;
             current_state.replay_plan = Arc::new(None);
             let current_state = current_state
-                .advance()
+                .advance(shared.as_ref())
                 .await
                 .map_err(Box::new)
                 .context(SkipReplay { db_name })?;
@@ -498,17 +503,25 @@ struct DatabaseShared {
 async fn background_worker(shared: Arc<DatabaseShared>) {
     info!(db_name=%shared.config.name, "started database background worker");
 
-    initialize_database(shared.as_ref()).await;
+    // The background loop runs until `Database::shutdown` is called
+    while !shared.shutdown.is_cancelled() {
+        initialize_database(shared.as_ref()).await;
 
-    if !shared.shutdown.is_cancelled() {
-        let db = Arc::clone(
-            &shared
-                .state
-                .read()
-                .get_initialized()
-                .expect("expected initialized")
-                .db,
-        );
+        if shared.shutdown.is_cancelled() {
+            info!(db_name=%shared.config.name, "database shutdown before finishing initialization");
+            break;
+        }
+
+        let DatabaseStateInitialized {
+            db,
+            write_buffer_consumer,
+            ..
+        } = shared
+            .state
+            .read()
+            .get_initialized()
+            .expect("expected initialized")
+            .clone();
 
         info!(db_name=%shared.config.name, "database finished initialization - starting Db worker");
 
@@ -519,8 +532,67 @@ async fn background_worker(shared: Arc<DatabaseShared>) {
             ))
         });
 
-        // TODO: Pull background_worker out of `Db`
-        db.background_worker(shared.shutdown.clone()).await
+        let db_shutdown = CancellationToken::new();
+        let db_worker = db.background_worker(db_shutdown.clone()).fuse();
+        futures::pin_mut!(db_worker);
+
+        // Future that completes if the WriteBufferConsumer exits
+        let consumer_join = match &write_buffer_consumer {
+            Some(consumer) => futures::future::Either::Left(consumer.join()),
+            None => futures::future::Either::Right(futures::future::pending()),
+        }
+        .fuse();
+        futures::pin_mut!(consumer_join);
+
+        // This inner loop runs until either:
+        //
+        // - Something calls `Database::shutdown`
+        // - The Database transitions away from `DatabaseState::Initialized`
+        //
+        // In the later case it will restart the initialization procedure
+        while !shared.shutdown.is_cancelled() {
+            // Get notify before check to avoid race
+            let notify = shared.state_notify.notified().fuse();
+            futures::pin_mut!(notify);
+
+            if shared.state.read().get_initialized().is_none() {
+                info!(db_name=%shared.config.name, "database no longer initialized");
+                break;
+            }
+
+            let shutdown = shared.shutdown.cancelled().fuse();
+            futures::pin_mut!(shutdown);
+
+            // We must use `futures::select` as opposed to the often more ergonomic `tokio::select`
+            // Because of the need to "re-use" the background worker future
+            // TODO: Make Db own its own background loop (or remove it)
+            futures::select! {
+                _ = shutdown => info!("database shutting down"),
+                _ = notify => info!("notified of state change"),
+                _ = consumer_join => {
+                    error!(db_name=%shared.config.name, "unexpected shutdown of write buffer consumer - bailing out");
+                    shared.shutdown.cancel();
+                }
+                _ = db_worker => {
+                    error!(db_name=%shared.config.name, "unexpected shutdown of db - bailing out");
+                    shared.shutdown.cancel();
+                }
+            }
+        }
+
+        if let Some(consumer) = write_buffer_consumer {
+            info!(db_name=%shared.config.name, "shutting down write buffer consumer");
+            consumer.shutdown();
+            if let Err(e) = consumer.join().await {
+                error!(db_name=%shared.config.name, %e, "error shutting down write buffer consumer")
+            }
+        }
+
+        if !db_worker.is_terminated() {
+            info!(db_name=%shared.config.name, "waiting for db worker shutdown");
+            db_shutdown.cancel();
+            db_worker.await
+        }
     }
 
     info!(db_name=%shared.config.name, "draining tasks");
@@ -632,7 +704,7 @@ async fn initialize_database(shared: &DatabaseShared) {
                 Ok(state) => DatabaseState::CatalogLoaded(state),
                 Err(e) => DatabaseState::CatalogLoadError(state, Arc::new(e)),
             },
-            DatabaseState::CatalogLoaded(state) => match state.advance().await {
+            DatabaseState::CatalogLoaded(state) => match state.advance(shared).await {
                 Ok(state) => DatabaseState::Initialized(state),
                 Err(e) => DatabaseState::ReplayError(state, Arc::new(e)),
             },
@@ -888,24 +960,27 @@ impl DatabaseStateRulesLoaded {
         .await
         .context(CatalogLoad)?;
 
-        let write_buffer = shared
-            .application
-            .write_buffer_factory()
-            .new_config(
-                shared.config.server_id,
-                self.provided_rules.rules().as_ref(),
-            )
-            .await
-            .context(CreateWriteBuffer)?;
+        let rules = self.provided_rules.rules();
+        let write_buffer_factory = shared.application.write_buffer_factory();
+        let producer = match rules.write_buffer_connection.as_ref() {
+            Some(connection) if matches!(connection.direction, WriteBufferDirection::Write) => {
+                let producer = write_buffer_factory
+                    .new_config_write(shared.config.name.as_str(), connection)
+                    .await
+                    .context(CreateWriteBuffer)?;
+                Some(producer)
+            }
+            _ => None,
+        };
 
         let database_to_commit = DatabaseToCommit {
             server_id: shared.config.server_id,
             iox_object_store: Arc::clone(&self.iox_object_store),
             exec: Arc::clone(shared.application.executor()),
-            rules: Arc::clone(self.provided_rules.rules()),
+            rules: Arc::clone(rules),
             preserved_catalog,
             catalog,
-            write_buffer,
+            write_buffer_producer: producer,
             metrics_registry_v2: Arc::clone(shared.application.metric_registry_v2()),
         };
 
@@ -931,28 +1006,64 @@ struct DatabaseStateCatalogLoaded {
 
 impl DatabaseStateCatalogLoaded {
     /// Perform replay
-    async fn advance(&self) -> Result<DatabaseStateInitialized, InitError> {
+    async fn advance(
+        &self,
+        shared: &DatabaseShared,
+    ) -> Result<DatabaseStateInitialized, InitError> {
         let db = Arc::clone(&self.db);
-
-        db.perform_replay(self.replay_plan.as_ref().as_ref())
-            .await
-            .context(Replay)?;
 
         // TODO: Pull write buffer and lifecycle out of Db
         db.unsuppress_persistence().await;
-        db.allow_write_buffer_read();
+
+        let rules = self.provided_rules.rules();
+        let write_buffer_factory = shared.application.write_buffer_factory();
+        let write_buffer_consumer = match rules.write_buffer_connection.as_ref() {
+            Some(connection) if matches!(connection.direction, WriteBufferDirection::Read) => {
+                let mut consumer = write_buffer_factory
+                    .new_config_read(
+                        shared.config.server_id,
+                        shared.config.name.as_str(),
+                        connection,
+                    )
+                    .await
+                    .context(CreateWriteBuffer)?;
+
+                db.perform_replay(self.replay_plan.as_ref().as_ref(), consumer.as_mut())
+                    .await
+                    .context(Replay)?;
+
+                Some(Arc::new(WriteBufferConsumer::new(
+                    consumer,
+                    Arc::clone(&db),
+                    shared.application.metric_registry().as_ref(),
+                )))
+            }
+            _ => None,
+        };
 
         Ok(DatabaseStateInitialized {
             db,
+            write_buffer_consumer,
             provided_rules: Arc::clone(&self.provided_rules),
         })
     }
 }
 
 #[derive(Debug, Clone)]
-struct DatabaseStateInitialized {
+pub struct DatabaseStateInitialized {
     db: Arc<Db>,
+    write_buffer_consumer: Option<Arc<WriteBufferConsumer>>,
     provided_rules: Arc<ProvidedDatabaseRules>,
+}
+
+impl DatabaseStateInitialized {
+    pub fn db(&self) -> &Arc<Db> {
+        &self.db
+    }
+
+    pub fn write_buffer_consumer(&self) -> Option<&Arc<WriteBufferConsumer>> {
+        self.write_buffer_consumer.as_ref()
+    }
 }
 
 #[cfg(test)]
@@ -962,10 +1073,11 @@ mod tests {
         PartitionTemplate, TemplatePart, WriteBufferConnection, WriteBufferDirection,
     };
     use entry::{test_helpers::lp_to_entries, Sequence, SequencedEntry};
-    use object_store::ObjectStore;
+    use object_store::{ObjectStore, ObjectStoreApi};
     use write_buffer::{config::WriteBufferConfigFactory, mock::MockBufferSharedState};
 
     use super::*;
+    use object_store::path::ObjectStorePath;
     use std::{
         convert::{TryFrom, TryInto},
         num::NonZeroU32,
@@ -1029,6 +1141,116 @@ mod tests {
 
         // Shouldn't have waited for server tracker to finish
         assert!(!server_dummy_job.is_complete());
+    }
+
+    async fn initialized_database() -> (Arc<ApplicationState>, Database) {
+        let server_id = ServerId::try_from(1).unwrap();
+        let application = Arc::new(ApplicationState::new(
+            Arc::new(ObjectStore::new_in_memory()),
+            None,
+        ));
+
+        let db_name = DatabaseName::new("test").unwrap();
+        Database::create(
+            Arc::clone(&application),
+            &ProvidedDatabaseRules::new_empty(db_name.clone()),
+            server_id,
+        )
+        .await
+        .unwrap();
+
+        let db_config = DatabaseConfig {
+            name: db_name,
+            server_id,
+            wipe_catalog_on_error: false,
+            skip_replay: false,
+        };
+        let database = Database::new(Arc::clone(&application), db_config.clone());
+        database.wait_for_init().await.unwrap();
+        (application, database)
+    }
+
+    #[tokio::test]
+    async fn database_reinitialize() {
+        let (_, database) = initialized_database().await;
+
+        tokio::time::timeout(Duration::from_millis(1), database.join())
+            .await
+            .unwrap_err();
+
+        database.shared.state_notify.notify_waiters();
+
+        // Database should still be running
+        tokio::time::timeout(Duration::from_millis(1), database.join())
+            .await
+            .unwrap_err();
+
+        {
+            let mut state = database.shared.state.write();
+            let mut state = state.get_mut().unwrap();
+            *state = DatabaseState::Known(DatabaseStateKnown {});
+            database.shared.state_notify.notify_waiters();
+        }
+
+        // Database should still be running
+        tokio::time::timeout(Duration::from_millis(1), database.join())
+            .await
+            .unwrap_err();
+
+        // Database should re-initialize correctly
+        tokio::time::timeout(Duration::from_millis(1), database.wait_for_init())
+            .await
+            .unwrap()
+            .unwrap();
+
+        database.shutdown();
+        // Database should shutdown
+        tokio::time::timeout(Duration::from_millis(1), database.join())
+            .await
+            .unwrap()
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn database_delete_restore() {
+        let (application, database) = initialized_database().await;
+        database.delete().await.unwrap();
+
+        assert_eq!(database.state_code(), DatabaseStateCode::Known);
+        assert!(matches!(
+            database.init_error().unwrap().as_ref(),
+            InitError::NoActiveDatabase
+        ));
+
+        // TODO: Replace with recover logic
+        let os = application.object_store();
+        let mut path = os.new_path();
+        path.push_dir("1");
+        path.push_dir("test");
+        path.push_dir("0");
+        path.set_file_name("DELETED");
+
+        os.delete(&path).await.unwrap();
+
+        {
+            let mut state = database.shared.state.write();
+            let mut state = state.get_mut().unwrap();
+            *state = DatabaseState::Known(DatabaseStateKnown {});
+            database.shared.state_notify.notify_waiters();
+        }
+
+        // Database should re-initialize correctly
+        tokio::time::timeout(Duration::from_millis(1), database.wait_for_init())
+            .await
+            .unwrap()
+            .unwrap();
+
+        database.shutdown();
+        // Database should shutdown
+        tokio::time::timeout(Duration::from_millis(1), database.join())
+            .await
+            .unwrap()
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1104,7 +1326,7 @@ mod tests {
         let db = database.initialized_db().unwrap();
         let t_0 = Instant::now();
         loop {
-            // use later partition here so that we can implicitely wait for both entries
+            // use later partition here so that we can implicitly wait for both entries
             if db.partition_summary("table_1", "partition_by_b").is_some() {
                 break;
             }

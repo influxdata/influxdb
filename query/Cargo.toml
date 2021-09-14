@@ -24,7 +24,6 @@ datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
 hashbrown = "0.11"
-influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11.2"
@@ -35,6 +34,7 @@ tokio = { version = "1.11", features = ["macros"] }
 tokio-stream = "0.1.2"
 trace = { path = "../trace" }
 tracker = { path = "../tracker" }
+predicate = { path = "../predicate" }
 
 
 # use libc on unix like platforms to set worker priority in DedicatedExecutor

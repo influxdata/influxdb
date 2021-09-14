@@ -24,6 +24,7 @@ impl From<ChunkSummary> for management::Chunk {
             time_of_first_write,
             time_of_last_write,
             time_closed,
+            order,
         } = summary;
 
         Self {
@@ -39,6 +40,7 @@ impl From<ChunkSummary> for management::Chunk {
             time_of_first_write: Some(time_of_first_write.into()),
             time_of_last_write: Some(time_of_last_write.into()),
             time_closed: time_closed.map(Into::into),
+            order: order.get(),
         }
     }
 }
@@ -105,6 +107,7 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             time_of_first_write,
             time_of_last_write,
             time_closed,
+            order,
         } = proto;
 
         Ok(Self {
@@ -121,6 +124,7 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             time_of_first_write: required_timestamp(time_of_first_write, "time_of_first_write")?,
             time_of_last_write: required_timestamp(time_of_last_write, "time_of_last_write")?,
             time_closed: timestamp(time_closed, "time_closed")?,
+            order: order.into(),
         })
     }
 }
@@ -164,6 +168,7 @@ impl TryFrom<management::ChunkLifecycleAction> for Option<ChunkLifecycleAction> 
 mod test {
     use super::*;
     use chrono::{TimeZone, Utc};
+    use data_types::chunk_metadata::ChunkOrder;
 
     #[test]
     fn valid_proto_to_summary() {
@@ -185,6 +190,7 @@ mod test {
                 seconds: 50,
                 nanos: 7,
             }),
+            order: 5,
         };
 
         let summary = ChunkSummary::try_from(proto).expect("conversion successful");
@@ -201,6 +207,7 @@ mod test {
             time_of_last_write: now,
             time_closed: None,
             time_of_last_access: Some(Utc.timestamp_nanos(50_000_000_007)),
+            order: ChunkOrder::new(5),
         };
 
         assert_eq!(
@@ -226,6 +233,7 @@ mod test {
             time_of_last_write: now,
             time_closed: None,
             time_of_last_access: Some(Utc.timestamp_nanos(12_000_100_007)),
+            order: ChunkOrder::new(5),
         };
 
         let proto = management::Chunk::try_from(summary).expect("conversion successful");
@@ -246,6 +254,7 @@ mod test {
                 seconds: 12,
                 nanos: 100_007,
             }),
+            order: 5,
         };
 
         assert_eq!(

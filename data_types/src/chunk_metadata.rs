@@ -158,6 +158,9 @@ pub struct ChunkSummary {
     /// Time at which this chunk was marked as closed. Note this is
     /// not the same as the timestamps on the data itself
     pub time_closed: Option<DateTime<Utc>>,
+
+    /// Order of this chunk relative to other overlapping chunks.
+    pub order: ChunkOrder,
 }
 
 /// Represents metadata about the physical storage of a column in a chunk
@@ -190,5 +193,41 @@ impl ChunkSummary {
             && self.memory_bytes == other.memory_bytes
             && self.object_store_bytes == other.object_store_bytes
             && self.row_count == other.row_count
+    }
+}
+
+/// Order of a chunk.
+///
+/// This is used for:
+/// 1. **upsert order:** chunks with higher order overwrite data in chunks with lower order
+/// 2. **locking order:** chunks must be locked in consistent (ascending) order
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct ChunkOrder(u32);
+
+impl ChunkOrder {
+    pub const MAX: Self = Self(u32::MAX);
+
+    pub fn new(order: u32) -> Self {
+        Self(order)
+    }
+
+    pub fn get(&self) -> u32 {
+        self.0
+    }
+
+    pub fn next(&self) -> Self {
+        Self(self.0.checked_add(1).expect("chunk order overflow"))
+    }
+}
+
+impl std::fmt::Display for ChunkOrder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("ChunkOrder").field(&self.0).finish()
+    }
+}
+
+impl From<u32> for ChunkOrder {
+    fn from(order: u32) -> Self {
+        Self(order)
     }
 }

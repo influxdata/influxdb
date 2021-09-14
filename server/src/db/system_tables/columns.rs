@@ -220,7 +220,7 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use chrono::{TimeZone, Utc};
     use data_types::{
-        chunk_metadata::{ChunkColumnSummary, ChunkStorage, ChunkSummary},
+        chunk_metadata::{ChunkColumnSummary, ChunkOrder, ChunkStorage, ChunkSummary},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
     };
 
@@ -321,6 +321,7 @@ mod tests {
                         time_of_first_write: Utc.timestamp_nanos(1),
                         time_of_last_write: Utc.timestamp_nanos(2),
                         time_closed: None,
+                        order: ChunkOrder::new(5),
                     },
                     columns: vec![
                         ChunkColumnSummary {
@@ -357,6 +358,7 @@ mod tests {
                         time_of_first_write: Utc.timestamp_nanos(1),
                         time_of_last_write: Utc.timestamp_nanos(2),
                         time_closed: None,
+                        order: ChunkOrder::new(6),
                     },
                     columns: vec![ChunkColumnSummary {
                         name: "c1".into(),
@@ -387,6 +389,7 @@ mod tests {
                         time_of_first_write: Utc.timestamp_nanos(1),
                         time_of_last_write: Utc.timestamp_nanos(2),
                         time_closed: None,
+                        order: ChunkOrder::new(5),
                     },
                     columns: vec![ChunkColumnSummary {
                         name: "c3".into(),

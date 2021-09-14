@@ -1,8 +1,8 @@
 use datafusion::logical_plan::{col, lit};
+use predicate::predicate::PredicateBuilder;
 use query::{
     exec::stringset::{IntoStringSet, StringSetRef},
     frontend::influxrpc::InfluxRpcPlanner,
-    predicate::PredicateBuilder,
 };
 
 use crate::scenarios::*;
