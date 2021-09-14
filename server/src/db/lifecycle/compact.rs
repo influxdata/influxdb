@@ -10,10 +10,8 @@ use chrono::{DateTime, Utc};
 use data_types::job::Job;
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
-use query::{
-    compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, predicate::Predicate,
-    QueryChunkMeta,
-};
+use predicate::predicate::Predicate;
+use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 

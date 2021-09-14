@@ -11,7 +11,7 @@ use parquet_file::{
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
 };
 use persistence_windows::checkpoint::{ReplayPlan, ReplayPlanner};
-use query::predicate::Predicate;
+use predicate::predicate::Predicate;
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
 

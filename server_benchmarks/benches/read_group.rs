@@ -7,10 +7,12 @@ use datafusion::logical_plan::{col, lit};
 use flate2::read::GzDecoder;
 use tokio::runtime::Runtime;
 
-use query::exec::ExecutorType;
-use query::predicate::PredicateBuilder;
-use query::{exec::Executor, predicate::Predicate};
-use query::{frontend::influxrpc::InfluxRpcPlanner, group_by::Aggregate};
+use predicate::predicate::{Predicate, PredicateBuilder};
+use query::{
+    exec::{Executor, ExecutorType},
+    frontend::influxrpc::InfluxRpcPlanner,
+    group_by::Aggregate,
+};
 use query_tests::scenarios::DbScenario;
 use server::db::Db;
 

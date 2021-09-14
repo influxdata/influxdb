@@ -38,9 +38,9 @@ use parquet_file::catalog::{
     prune::prune_history as prune_catalog_transaction_history,
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
+use predicate::predicate::Predicate;
 use query::{
     exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
-    predicate::Predicate,
     QueryDatabase,
 };
 use trace::ctx::SpanContext;

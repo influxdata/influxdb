@@ -9,7 +9,7 @@ use internal_types::{
     selection::Selection,
 };
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
-use query::predicate::Predicate;
+use predicate::predicate::Predicate;
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, mem, sync::Arc};
 

@@ -210,7 +210,7 @@ impl fmt::Display for Predicate {
 ///
 /// Example:
 /// ```
-/// use query::predicate::PredicateBuilder;
+/// use predicate::predicate::PredicateBuilder;
 /// use datafusion::logical_plan::{col, lit};
 ///
 /// let p = PredicateBuilder::new()
@@ -281,7 +281,7 @@ impl PredicateBuilder {
     }
 
     fn regex_match_expr(mut self, column: &str, pattern: impl Into<String>, matches: bool) -> Self {
-        let expr = crate::func::regex::regex_match_expr(col(column), pattern.into(), matches);
+        let expr = crate::regex::regex_match_expr(col(column), pattern.into(), matches);
         self.inner.exprs.push(expr);
         self
     }

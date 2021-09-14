@@ -19,9 +19,9 @@ use generated_types::{
     TimestampRange,
 };
 use observability_deps::tracing::{error, info};
-use query::{
-    exec::{fieldlist::FieldList, seriesset::Error as SeriesSetError, ExecutionContextProvider},
-    predicate::PredicateBuilder,
+use predicate::predicate::PredicateBuilder;
+use query::exec::{
+    fieldlist::FieldList, seriesset::Error as SeriesSetError, ExecutionContextProvider,
 };
 use server::DatabaseStore;
 
@@ -1050,9 +1050,9 @@ mod tests {
         Client as StorageClient, OrgAndBucket,
     };
     use panic_logging::SendPanicsToTracing;
+    use predicate::predicate::PredicateMatch;
     use query::{
         exec::Executor,
-        predicate::PredicateMatch,
         test::{TestChunk, TestDatabase, TestError},
     };
     use test_helpers::{assert_contains, tracing::TracingCapture};

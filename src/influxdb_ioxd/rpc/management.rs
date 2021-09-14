@@ -6,7 +6,7 @@ use std::time::Instant;
 use data_types::{server_id::ServerId, DatabaseName};
 use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound};
 use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
-use query::predicate::{ParseDeletePredicate, PredicateBuilder};
+use predicate::predicate::{ParseDeletePredicate, PredicateBuilder};
 use query::QueryDatabase;
 use server::rules::ProvidedDatabaseRules;
 use server::{ApplicationState, ConnectionManager, Error, Server};

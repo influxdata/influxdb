@@ -12,7 +12,7 @@ use observability_deps::tracing::info;
 use persistence_windows::{
     min_max_sequence::OptionalMinMaxSequence, persistence_windows::PersistenceWindows,
 };
-use query::predicate::Predicate;
+use predicate::predicate::Predicate;
 use snafu::Snafu;
 use std::{
     collections::{btree_map::Entry, BTreeMap},

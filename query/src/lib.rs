@@ -19,7 +19,7 @@ use internal_types::{
     selection::Selection,
 };
 use observability_deps::tracing::trace;
-use predicate::PredicateMatch;
+use predicate::predicate::{Predicate, PredicateMatch};
 
 use hashbrown::HashMap;
 use std::{fmt::Debug, sync::Arc};
@@ -29,15 +29,12 @@ pub mod frontend;
 pub mod func;
 pub mod group_by;
 pub mod plan;
-pub mod predicate;
 pub mod provider;
 pub mod pruning;
 pub mod statistics;
 pub mod util;
 
 pub use exec::context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
-
-use self::predicate::Predicate;
 
 /// Trait for an object (designed to be a Chunk) which can provide
 /// metadata

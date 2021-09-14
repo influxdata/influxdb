@@ -39,6 +39,7 @@ once_cell = { version = "1.4.0", features = ["race"] }
 parking_lot = "0.11.2"
 parquet_file = { path = "../parquet_file" }
 persistence_windows = { path = "../persistence_windows" }
+predicate = { path = "../predicate" }
 query = { path = "../query" }
 rand = "0.8.3"
 rand_distr = "0.4.0"
