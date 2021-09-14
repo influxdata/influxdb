@@ -384,8 +384,6 @@ for usecase in iot metaquery multi-measurement; do
   influx bucket delete -o $TEST_ORG -t $TEST_TOKEN -n $db_name
 done
 
-exit 0
-
 echo "Using Telegraph to report results from the following files:"
 ls $working_dir
 
