@@ -486,8 +486,16 @@ where
         right: (L, &cmp::Operator),
         dst: RowIDs,
     ) -> RowIDs {
-        let left = (self.transcoder.encode(left.0), left.1);
-        let right = (self.transcoder.encode(right.0), right.1);
+        debug!(left=?left, right=?right, encoding=?ENCODING_NAME, "row_ids_filter_range");
+        let left = self
+            .transcoder
+            .encode_comparable(left.0, *left.1)
+            .expect("transcoder must return Some variant");
+        let right = self
+            .transcoder
+            .encode_comparable(right.0, *right.1)
+            .expect("transcoder must return Some variant");
+        debug!(left=?left, right=?right, encoding=?ENCODING_NAME, "row_ids_filter_range encoded expr");
 
         match (left.1, right.1) {
             (cmp::Operator::GT, cmp::Operator::LT)
@@ -498,8 +506,8 @@ where
             | (cmp::Operator::LT, cmp::Operator::GTE)
             | (cmp::Operator::LTE, cmp::Operator::GT)
             | (cmp::Operator::LTE, cmp::Operator::GTE) => self.row_ids_cmp_range_order(
-                (left.0, Self::ord_from_op(left.1)),
-                (right.0, Self::ord_from_op(right.1)),
+                (left.0, Self::ord_from_op(&left.1)),
+                (right.0, Self::ord_from_op(&right.1)),
                 dst,
             ),
 
