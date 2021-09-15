@@ -184,23 +184,11 @@ start_time() {
 
 end_time() {
   case $1 in
-    iot|window-agg|group-agg|bare-agg)
+    iot|window-agg|group-agg|bare-agg|group-window-transpose-low-card)
       echo 2018-01-01T12:00:00Z
       ;;
-    multi-measurement|metaquery)
+    multi-measurement|metaquery|group-window-transpose-high-card)
       echo 2019-01-01T00:00:00Z
-      ;;
-    group-window-transpose)
-    # The group-window transpose tests currently require special handling due to
-    # the difference in performance between having the existing pushdown enabled
-    # or disabled for data with varying degrees of cardinality. Ideally this
-    # pushdown will be optimized and this test can be simplified in the future.
-      cardinality=$(echo $2 | cut -d '-' -f2)
-      if [ "$cardinality" = "low" ]; then
-        echo 2018-01-01T12:00:00Z
-      else
-        echo 2019-01-01T00:00:00Z
-      fi
       ;;
     *)
       echo "unknown use-case: $1"
@@ -211,11 +199,8 @@ end_time() {
 
 query_types() {
   case $1 in
-    window-agg|group-agg|bare-agg)
+    window-agg|group-agg|bare-agg|group-window-transpose-low-card|group-window-transpose-high-card)
       echo min mean max first last count sum
-      ;;
-    group-window-transpose)
-      echo min-high-card mean-high-card max-high-card first-high-card last-high-card count-high-card sum-high-card min-low-card mean-low-card max-low-card first-low-card last-low-card count-low-card sum-low-card
       ;;
     iot)
       echo fast-query-small-data standalone-filter aggregate-keep aggregate-drop sorted-pivot
@@ -235,13 +220,14 @@ query_types() {
 
 # Many of the query generator use-cases have aliases to make reporting more
 # clear. This function will translate the aliased query use cases to their
-# dataset use cases.
+# dataset use cases. Effectively this means "for this query use case, run the
+# queries against this dataset use case".
 query_usecase_alias() {
   case $1 in
-    window-agg|group-agg|bare-agg|group-window-transpose|iot)
+    window-agg|group-agg|bare-agg|group-window-transpose|iot|group-window-transpose-low-card)
       echo iot
       ;;
-    metaquery)
+    metaquery|group-window-transpose-high-card)
       echo metaquery
       ;;
     multi-measurement)
@@ -281,15 +267,15 @@ curl -XPOST -H "Authorization: Token ${TEST_TOKEN}" \
 
 # Generate queries to test.
 query_files=""
-for usecase in window-agg group-agg bare-agg group-window-transpose iot metaquery multi-measurement; do
+for usecase in window-agg group-agg bare-agg group-window-transpose-low-card group-window-transpose-high-card iot metaquery multi-measurement; do
   for type in $(query_types $usecase); do
     query_fname="${TEST_FORMAT}_${usecase}_${type}"
     $GOPATH/bin/bulk_query_gen \
         -use-case=$usecase \
         -query-type=$type \
         -format=influx-${TEST_FORMAT} \
-        -timestamp-start=$(start_time $usecase $type) \
-        -timestamp-end=$(end_time $usecase $type) \
+        -timestamp-start=$(start_time $usecase) \
+        -timestamp-end=$(end_time $usecase) \
         -queries=$queries \
         -scale-var=$scale_var > \
       ${DATASET_DIR}/$query_fname
