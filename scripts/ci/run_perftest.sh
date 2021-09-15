@@ -311,8 +311,6 @@ for usecase in iot metaquery multi-measurement; do
         -debug=0 \
         -print-interval=0 \
         -json=true \
-        $(org_flag $format) \
-        -token=$TEST_TOKEN \
         -workers=$workers \
         -benchmark-duration=$duration | \
       jq '."all queries"' | \
