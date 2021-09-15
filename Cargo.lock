@@ -3150,6 +3150,7 @@ dependencies = [
  "data_types",
  "datafusion 0.1.0",
  "datafusion_util",
+ "generated_types",
  "internal_types",
  "observability_deps",
  "regex",
