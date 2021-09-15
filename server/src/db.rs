@@ -13,7 +13,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::{TimeZone, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use parking_lot::{Mutex, RwLock};
 use rand_distr::{Distribution, Poisson};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -862,7 +862,7 @@ impl Db {
     }
 
     /// Stores an entry based on the configuration.
-    pub async fn store_entry(&self, entry: Entry) -> Result<()> {
+    pub async fn store_entry(&self, entry: Entry, time_of_write: DateTime<Utc>) -> Result<()> {
         let immutable = {
             let rules = self.rules.read();
             rules.lifecycle_rules.immutable
@@ -897,7 +897,11 @@ impl Db {
                     entry,
                 ));
 
-                self.store_sequenced_entry(sequenced_entry, filter_table_batch_keep_all)
+                self.store_sequenced_entry(
+                    sequenced_entry,
+                    filter_table_batch_keep_all,
+                    time_of_write,
+                )
             }
             (_, true) => {
                 // If not configured to send entries to the write buffer and the database is
@@ -910,7 +914,11 @@ impl Db {
                 // sequencing entries so skip doing so here
                 let sequenced_entry = Arc::new(SequencedEntry::new_unsequenced(entry));
 
-                self.store_sequenced_entry(sequenced_entry, filter_table_batch_keep_all)
+                self.store_sequenced_entry(
+                    sequenced_entry,
+                    filter_table_batch_keep_all,
+                    time_of_write,
+                )
             }
         }
     }
@@ -931,6 +939,7 @@ impl Db {
         &self,
         sequenced_entry: Arc<SequencedEntry>,
         filter_table_batch: F,
+        time_of_write: DateTime<Utc>,
     ) -> Result<()>
     where
         F: Fn(Option<&Sequence>, &str, &TableBatch<'_>) -> (bool, Option<Vec<bool>>),
@@ -956,10 +965,9 @@ impl Db {
             }
         }
 
-        // Note: as this is taken before any synchronisation writes may arrive to a chunk
+        // Note: as `time_of_write` is taken before any synchronisation writes may arrive to a chunk
         // out of order w.r.t this timestamp. As DateTime<Utc> isn't monotonic anyway
         // this isn't an issue
-        let time_of_write = Utc::now();
 
         if let Some(partitioned_writes) = sequenced_entry.partition_writes() {
             let sequence = sequenced_entry.as_ref().sequence();
@@ -1214,8 +1222,12 @@ pub mod test_helpers {
 
     use super::*;
 
-    /// Try to write lineprotocol data and return all tables that where written.
-    pub async fn try_write_lp(db: &Db, lp: &str) -> Result<Vec<String>> {
+    /// Try to write lineprotocol data w/ specific `time_of_write` and return all tables that where written.
+    pub async fn try_write_lp_with_time(
+        db: &Db,
+        lp: &str,
+        time_of_write: DateTime<Utc>,
+    ) -> Result<Vec<String>> {
         let entries = {
             let partitioner = &db.rules.read().partition_template;
             lp_to_entries(lp, partitioner)
@@ -1229,13 +1241,27 @@ pub mod test_helpers {
                         tables.insert(batch.name().to_string());
                     }
                 }
-                db.store_entry(entry).await?;
+                db.store_entry(entry, time_of_write).await?;
             }
         }
 
         let mut tables: Vec<_> = tables.into_iter().collect();
         tables.sort();
         Ok(tables)
+    }
+
+    /// Try to write lineprotocol data and return all tables that where written.
+    pub async fn try_write_lp(db: &Db, lp: &str) -> Result<Vec<String>> {
+        try_write_lp_with_time(db, lp, Utc::now()).await
+    }
+
+    /// Same was [`try_write_lp_with_time`](try_write_lp_with_time) but will panic on failure.
+    pub async fn write_lp_with_time(
+        db: &Db,
+        lp: &str,
+        time_of_write: DateTime<Utc>,
+    ) -> Vec<String> {
+        try_write_lp_with_time(db, lp, time_of_write).await.unwrap()
     }
 
     /// Same was [`try_write_lp`](try_write_lp) but will panic on failure.
@@ -1343,7 +1369,7 @@ mod tests {
         let db = immutable_db().await;
 
         let entry = lp_to_entry("cpu bar=1 10");
-        let res = db.store_entry(entry).await;
+        let res = db.store_entry(entry, Utc::now()).await;
         assert_contains!(
             res.unwrap_err().to_string(),
             "Cannot write to this database: no mutable buffer configured"
@@ -1369,7 +1395,7 @@ mod tests {
             .db;
 
         let entry = lp_to_entry("cpu bar=1 10");
-        test_db.store_entry(entry).await.unwrap();
+        test_db.store_entry(entry, Utc::now()).await.unwrap();
 
         assert_eq!(write_buffer_state.get_messages(0).len(), 1);
     }
@@ -1389,7 +1415,7 @@ mod tests {
             .db;
 
         let entry = lp_to_entry("cpu bar=1 10");
-        db.store_entry(entry).await.unwrap();
+        db.store_entry(entry, Utc::now()).await.unwrap();
 
         assert_eq!(write_buffer_state.get_messages(0).len(), 1);
 
@@ -1417,7 +1443,7 @@ mod tests {
 
         let entry = lp_to_entry("cpu bar=1 10");
 
-        let res = db.store_entry(entry).await;
+        let res = db.store_entry(entry, Utc::now()).await;
 
         assert!(
             matches!(res, Err(Error::WriteBufferWritingError { .. })),
@@ -1431,7 +1457,7 @@ mod tests {
         // Validate that writes are rejected if this database is reading from the write buffer
         let db = immutable_db().await;
         let entry = lp_to_entry("cpu bar=1 10");
-        let res = db.store_entry(entry).await;
+        let res = db.store_entry(entry, Utc::now()).await;
         assert_contains!(
             res.unwrap_err().to_string(),
             "Cannot write to this database: no mutable buffer configured"
@@ -1475,7 +1501,7 @@ mod tests {
         let entry = lp_to_entry(&lp);
 
         // This should succeed and start chunks in the MUB
-        db.store_entry(entry).await.unwrap();
+        db.store_entry(entry, Utc::now()).await.unwrap();
 
         // 3 more lines that should go in the 3 partitions/chunks.
         // Line 1 has the same schema and should end up in the MUB.
@@ -1493,7 +1519,7 @@ mod tests {
         let entry = lp_to_entry(&lp);
 
         // This should return an error because there was at least one error in the loop
-        let result = db.store_entry(entry).await;
+        let result = db.store_entry(entry, Utc::now()).await;
         assert_contains!(
             result.unwrap_err().to_string(),
             "Storing sequenced entry failed with the following error(s), and possibly more:"
@@ -2276,7 +2302,7 @@ mod tests {
         };
 
         let entry = lp_to_entry("cpu bar=true 10");
-        let result = db.store_entry(entry).await;
+        let result = db.store_entry(entry, Utc::now()).await;
         assert!(result.is_err());
         {
             let partition = db.catalog.partition("cpu", partition_key).unwrap();

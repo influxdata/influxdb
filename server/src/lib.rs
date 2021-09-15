@@ -69,6 +69,7 @@
 )]
 
 use async_trait::async_trait;
+use chrono::Utc;
 use data_types::{
     database_rules::{NodeGroup, RoutingRules, ShardConfig, ShardId, Sink},
     deleted_database::DeletedDatabase,
@@ -950,7 +951,7 @@ where
         };
 
         let bytes = entry.data().len() as u64;
-        db.store_entry(entry).await.map_err(|e| {
+        db.store_entry(entry, Utc::now()).await.map_err(|e| {
             self.metrics.ingest_entries_bytes_total.add_with_attributes(
                 bytes,
                 &[

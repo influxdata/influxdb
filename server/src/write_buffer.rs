@@ -2,6 +2,7 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use chrono::Utc;
 use futures::future::{BoxFuture, Shared};
 use futures::stream::{BoxStream, FuturesUnordered};
 use futures::{FutureExt, StreamExt, TryFutureExt};
@@ -123,6 +124,7 @@ async fn stream_in_sequenced_entries<'a>(
             match db.store_sequenced_entry(
                 Arc::clone(&sequenced_entry),
                 crate::db::filter_table_batch_keep_all,
+                Utc::now(),
             ) {
                 Ok(_) => {
                     red_observation.ok();
