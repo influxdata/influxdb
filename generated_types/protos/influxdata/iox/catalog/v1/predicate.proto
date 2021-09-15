@@ -74,8 +74,7 @@ message Scalar {
   oneof value {
     bool value_bool = 1;
     int64 value_i64 = 2;
-    uint64 value_u64 = 3;
-    double value_f64 = 4;
-    string value_string = 5;
+    double value_f64 = 3;
+    string value_string = 4;
   }
 }

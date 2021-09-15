@@ -213,7 +213,6 @@ fn deserialize_scalar_value(
     {
         proto::scalar::Value::ValueBool(value) => Ok(ScalarValue::Boolean(Some(*value))),
         proto::scalar::Value::ValueI64(value) => Ok(ScalarValue::Int64(Some(*value))),
-        proto::scalar::Value::ValueU64(value) => Ok(ScalarValue::UInt64(Some(*value))),
         proto::scalar::Value::ValueF64(value) => Ok(ScalarValue::Float64(Some(*value))),
         proto::scalar::Value::ValueString(value) => Ok(ScalarValue::Utf8(Some(value.clone()))),
     }
