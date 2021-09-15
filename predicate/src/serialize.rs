@@ -228,6 +228,9 @@ fn deserialize_operator(op: &proto::Op) -> Result<Operator, DeserializeError> {
 
 #[cfg(test)]
 mod tests {
+    use arrow::datatypes::DataType;
+    use test_helpers::assert_contains;
+
     use crate::predicate::{ParseDeletePredicate, PredicateBuilder};
 
     use super::*;
@@ -239,6 +242,76 @@ mod tests {
         let proto = serialize(&predicate).unwrap();
         let recovered = deserialize(&proto, table_name).unwrap();
         assert_eq!(predicate, recovered);
+    }
+
+    #[test]
+    fn test_fail_serialize_unsupported_expression() {
+        let table_name = "my_table";
+        let mut predicate = delete_predicate(table_name);
+        predicate.exprs.push(Expr::Not(Box::new(Expr::BinaryExpr {
+            left: Box::new(Expr::Column(Column {
+                relation: None,
+                name: "foo".to_string(),
+            })),
+            op: Operator::Eq,
+            right: Box::new(Expr::Literal(ScalarValue::Utf8(Some("x".to_string())))),
+        })));
+        let err = serialize(&predicate).unwrap_err();
+        assert_contains!(err.to_string(), "unsupported expression:");
+    }
+
+    #[test]
+    fn test_fail_serialize_unsupported_operants() {
+        let table_name = "my_table";
+        let mut predicate = delete_predicate(table_name);
+        predicate.exprs.push(Expr::BinaryExpr {
+            left: Box::new(Expr::Column(Column {
+                relation: None,
+                name: "foo".to_string(),
+            })),
+            op: Operator::Eq,
+            right: Box::new(Expr::Column(Column {
+                relation: None,
+                name: "bar".to_string(),
+            })),
+        });
+        let err = serialize(&predicate).unwrap_err();
+        assert_contains!(err.to_string(), "unsupported operants:");
+    }
+
+    #[test]
+    fn test_fail_serialize_unsupported_scalar_value() {
+        let table_name = "my_table";
+        let mut predicate = delete_predicate(table_name);
+        predicate.exprs.push(Expr::BinaryExpr {
+            left: Box::new(Expr::Column(Column {
+                relation: None,
+                name: "foo".to_string(),
+            })),
+            op: Operator::Eq,
+            right: Box::new(Expr::Literal(ScalarValue::List(
+                Some(Box::new(vec![])),
+                Box::new(DataType::Float64),
+            ))),
+        });
+        let err = serialize(&predicate).unwrap_err();
+        assert_contains!(err.to_string(), "unsupported scalar value:");
+    }
+
+    #[test]
+    fn test_fail_serialize_unsupported_operator() {
+        let table_name = "my_table";
+        let mut predicate = delete_predicate(table_name);
+        predicate.exprs.push(Expr::BinaryExpr {
+            left: Box::new(Expr::Column(Column {
+                relation: None,
+                name: "foo".to_string(),
+            })),
+            op: Operator::Like,
+            right: Box::new(Expr::Literal(ScalarValue::Utf8(Some("x".to_string())))),
+        });
+        let err = serialize(&predicate).unwrap_err();
+        assert_contains!(err.to_string(), "unsupported operator:");
     }
 
     fn delete_predicate(table_name: &str) -> Predicate {

@@ -17,4 +17,5 @@ snafu = "0.6.9"
 sqlparser = "0.10.0"
 
 [dev-dependencies]
+test_helpers = { path = "../test_helpers" }
 tokio = { version = "1.11", features = ["macros"] }
