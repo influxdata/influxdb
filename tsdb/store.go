@@ -1771,9 +1771,6 @@ func (s *Store) TagValuesByPredicate(ctx context.Context, auth query.Authorizer,
 	return s.tagValues(ctx, names, is, auth, cond)
 }
 
-// tagValues takes an influxql condition and a list of measurement names and
-// returns a slice of TagValues for those measurement names matching the
-// condition.
 func (s *Store) tagValues(ctx context.Context, names [][]byte, is IndexSet, auth query.Authorizer, cond influxql.Expr) ([]TagValues, error) {
 	filterExpr := influxql.CloneExpr(cond)
 	filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {

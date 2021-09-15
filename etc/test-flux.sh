@@ -33,7 +33,7 @@ build_test_harness() {
 
 run_integration_tests() {
   log "Running integration tests..."
-  ./fluxtest -v -p flux.zip -p query/ --test tag_values_measurement_or_predicate --test tag_values_measurement_or_regex --test tag_values_measurement_or_negation
+  ./fluxtest -v -p flux.zip -p query/
 }
 
 cleanup() {
