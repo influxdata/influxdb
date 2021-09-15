@@ -11,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 
 use ::metrics::{KeyValue, MetricRegistry};
 use entry::SequencedEntry;
-use observability_deps::tracing::{debug, error, info};
+use observability_deps::tracing::{debug, error, info, warn};
 use write_buffer::core::{FetchHighWatermark, WriteBufferError, WriteBufferReading};
 
 use crate::Db;
@@ -83,6 +83,19 @@ impl WriteBufferConsumer {
     /// Waits for the background worker of this `Database` to exit
     pub fn join(&self) -> impl Future<Output = Result<(), Arc<JoinError>>> {
         self.join.clone()
+    }
+}
+
+impl Drop for WriteBufferConsumer {
+    fn drop(&mut self) {
+        if !self.shutdown.is_cancelled() {
+            warn!("write buffer consumer dropped without calling shutdown()");
+            self.shutdown.cancel();
+        }
+
+        if self.join.clone().now_or_never().is_none() {
+            warn!("write buffer consumer dropped without waiting for worker termination");
+        }
     }
 }
 
