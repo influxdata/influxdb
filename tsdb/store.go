@@ -1709,7 +1709,9 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 			switch e.Op {
 			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || tag.Val != "_name" {
+				// Drop all system names except "_name" so that regex and negation
+				// operators work.
+				if !ok || (tag.Val != "_name" && influxql.IsSystemName(tag.Val)) {
 					return nil
 				}
 			}
@@ -1724,6 +1726,8 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 			switch e.Op {
 			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 				tag, ok := e.LHS.(*influxql.VarRef)
+				// Drop all system names including "_name", since this expression will
+				// be used with a list of names to find matching tags.
 				if !ok || influxql.IsSystemName(tag.Val) {
 					return nil
 				}
