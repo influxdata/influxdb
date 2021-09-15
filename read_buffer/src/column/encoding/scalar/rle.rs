@@ -289,18 +289,16 @@ where
                 let left_cmp_result = next.partial_cmp(left.0);
                 let right_cmp_result = next.partial_cmp(right.0);
 
-                // TODO(edd): eurgh I still don't understand how I got this to
-                // be correct. Need to revisit to make it simpler.
                 let left_result_ok =
-                    !(left_cmp_result == Some(left_op.0) || left_cmp_result == Some(left_op.1));
+                    left_cmp_result == Some(left_op.0) || left_cmp_result == Some(left_op.1);
                 let right_result_ok =
-                    !(right_cmp_result == Some(right_op.0) || right_cmp_result == Some(right_op.1));
+                    right_cmp_result == Some(right_op.0) || right_cmp_result == Some(right_op.1);
 
-                if !(left_result_ok || right_result_ok) {
+                if left_result_ok && right_result_ok {
                     dst.add_range(curr_logical_row_id, curr_logical_row_id + rl);
                 }
-                curr_logical_row_id += rl;
             }
+            curr_logical_row_id += rl;
         }
 
         dst
@@ -1087,6 +1085,37 @@ mod test {
                 vec![2, 3, 4, 5, 6, 7, 9],
             ),
             ((10000, &Operator::LTE), (3999, &Operator::GT), vec![]),
+        ];
+
+        let calls = cases.len();
+        for (left, right, exp) in cases {
+            let dst = enc.row_ids_filter_range(left, right, RowIDs::new_vector());
+            assert_eq!(dst.unwrap_vector(), &exp);
+        }
+        assert_eq!(transcoder.encodings(), calls * 2);
+    }
+
+    #[test]
+    fn row_ids_filter_range_nulls() {
+        let (enc, transcoder) = new_encoding_opt(vec![
+            Some(100),
+            None,
+            None,
+            None,
+            Some(100),
+            Some(101),
+            Some(101),
+        ]);
+
+        let cases = vec![
+            (
+                (100, &Operator::GTE),
+                (240, &Operator::LT),
+                vec![0, 4, 5, 6],
+            ),
+            ((100, &Operator::GT), (240, &Operator::LT), vec![5, 6]),
+            ((10, &Operator::LT), (-100, &Operator::GT), vec![]),
+            ((21, &Operator::GTE), (100, &Operator::LTE), vec![0, 4]),
         ];
 
         let calls = cases.len();
