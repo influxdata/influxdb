@@ -56,7 +56,7 @@ pub struct ChunkMetrics {
 
 impl ChunkMetrics {
     /// Creates an instance of ChunkMetrics that isn't registered with a central
-    /// metrics registry. Observations made to instruments on this ChunkMetrics instance
+    /// metric registry. Observations made to instruments on this ChunkMetrics instance
     /// will therefore not be visible to other ChunkMetrics instances or metric instruments
     /// created on a metrics domain, and vice versa
     pub fn new_unregistered() -> Self {

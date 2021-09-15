@@ -16,13 +16,12 @@ use query::{exec::Executor, QueryDatabase};
 use std::{borrow::Cow, convert::TryFrom, num::NonZeroU32, sync::Arc, time::Duration};
 use write_buffer::core::WriteBufferWriting;
 
-// A wrapper around a Db and a metrics registry allowing for isolated testing
+// A wrapper around a Db and a metric registry allowing for isolated testing
 // of a Db and its metrics.
 #[derive(Debug)]
 pub struct TestDb {
     pub db: Arc<Db>,
-    pub metric_registry: metrics::TestMetricRegistry,
-    pub metrics_registry_v2: Arc<metric::Registry>,
+    pub metric_registry: Arc<metric::Registry>,
     pub replay_plan: ReplayPlan,
 }
 
@@ -80,15 +79,12 @@ impl TestDbBuilder {
             target_query_partitions: 4,
         }));
 
-        let metric_registry = Arc::new(metrics::MetricRegistry::new());
-        let metrics_registry_v2 = Arc::new(metric::Registry::new());
+        let metric_registry = Arc::new(metric::Registry::new());
 
         let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
             db_name.as_str(),
             Arc::clone(&iox_object_store),
-            server_id,
             Arc::clone(&metric_registry),
-            Arc::clone(&metrics_registry_v2),
             false,
             false,
         )
@@ -126,12 +122,11 @@ impl TestDbBuilder {
             catalog,
             write_buffer_producer: self.write_buffer_producer,
             exec,
-            metrics_registry_v2: Arc::clone(&metrics_registry_v2),
+            metric_registry: Arc::clone(&metric_registry),
         };
 
         TestDb {
-            metric_registry: metrics::TestMetricRegistry::new(metric_registry),
-            metrics_registry_v2,
+            metric_registry,
             db: Db::new(
                 database_to_commit,
                 Arc::new(JobRegistry::new(Default::default())),

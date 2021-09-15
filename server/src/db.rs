@@ -29,7 +29,6 @@ use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use entry::{Entry, Sequence, SequencedEntry, TableBatch};
 use internal_types::schema::Schema;
 use iox_object_store::IoxObjectStore;
-use metrics::KeyValue;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info};
 use parquet_file::catalog::{
@@ -257,11 +256,8 @@ pub struct Db {
     /// A handle to the global jobs registry for long running tasks
     jobs: Arc<JobRegistry>,
 
-    /// The metrics registry to inject into created components in the Db.
-    metrics_registry: Arc<metrics::MetricRegistry>,
-
-    /// The global metrics registry
-    metrics_registry_v2: Arc<metric::Registry>,
+    /// The global metric registry
+    metric_registry: Arc<metric::Registry>,
 
     /// Catalog interface for query
     catalog_access: Arc<QueryCatalogAccess>,
@@ -271,9 +267,6 @@ pub struct Db {
 
     /// Number of iterations of the worker cleanup loop for this Db
     worker_iterations_cleanup: AtomicUsize,
-
-    /// Metric attributes
-    metric_attributes: Vec<KeyValue>,
 
     /// Optional write buffer producer
     /// TODO: Move onto Database
@@ -312,7 +305,7 @@ pub(crate) struct DatabaseToCommit {
     /// TODO: Move onto Database
     pub(crate) write_buffer_producer: Option<Arc<dyn WriteBufferWriting>>,
 
-    pub(crate) metrics_registry_v2: Arc<metric::Registry>,
+    pub(crate) metric_registry: Arc<metric::Registry>,
 }
 
 impl Db {
@@ -322,8 +315,6 @@ impl Db {
         let rules = RwLock::new(database_to_commit.rules);
         let server_id = database_to_commit.server_id;
         let iox_object_store = Arc::clone(&database_to_commit.iox_object_store);
-        let metrics_registry = Arc::clone(&database_to_commit.catalog.metrics_registry);
-        let metric_attributes = database_to_commit.catalog.metric_attributes.clone();
 
         let catalog = Arc::new(database_to_commit.catalog);
 
@@ -331,7 +322,7 @@ impl Db {
             &db_name,
             Arc::clone(&catalog),
             Arc::clone(&jobs),
-            database_to_commit.metrics_registry_v2.as_ref(),
+            database_to_commit.metric_registry.as_ref(),
         );
         let catalog_access = Arc::new(catalog_access);
 
@@ -343,12 +334,10 @@ impl Db {
             preserved_catalog: Arc::new(database_to_commit.preserved_catalog),
             catalog,
             jobs,
-            metrics_registry,
-            metrics_registry_v2: database_to_commit.metrics_registry_v2,
+            metric_registry: database_to_commit.metric_registry,
             catalog_access,
             worker_iterations_lifecycle: AtomicUsize::new(0),
             worker_iterations_cleanup: AtomicUsize::new(0),
-            metric_attributes,
             write_buffer_producer: database_to_commit.write_buffer_producer,
             cleanup_lock: Default::default(),
             lifecycle_policy: tokio::sync::Mutex::new(None),
@@ -1062,7 +1051,7 @@ impl Db {
                         }
                         None => {
                             let chunk_result = MBChunk::new(
-                                MutableBufferChunkMetrics::new(self.metrics_registry_v2.as_ref()),
+                                MutableBufferChunkMetrics::new(self.metric_registry.as_ref()),
                                 table_batch,
                                 mask.as_ref().map(|x| x.as_ref()),
                             )
@@ -1589,7 +1578,7 @@ mod tests {
 
         write_lp(db.as_ref(), "cpu bar=1 10").await;
 
-        let registry = test_db.metrics_registry_v2.as_ref();
+        let registry = test_db.metric_registry.as_ref();
 
         // A chunk has been opened
         assert_storage_gauge(registry, "catalog_loaded_chunks", "mutable_buffer", 1);
@@ -1703,7 +1692,7 @@ mod tests {
         summary.record(Utc.timestamp_nanos(650000000010));
 
         let mut reporter = metric::RawReporter::default();
-        test_db.metrics_registry_v2.report(&mut reporter);
+        test_db.metric_registry.report(&mut reporter);
 
         let observation = reporter
             .metric("catalog_row_time")
@@ -1849,7 +1838,7 @@ mod tests {
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_batches_eq!(&expected, &batches);
 
-        let registry = test_db.metrics_registry_v2.as_ref();
+        let registry = test_db.metric_registry.as_ref();
 
         // A chunk is now in the read buffer
         assert_storage_gauge(registry, "catalog_loaded_chunks", "read_buffer", 1);
@@ -1976,7 +1965,7 @@ mod tests {
 
         let mb = collect_read_filter(&mb_chunk).await;
 
-        let registry = test_db.metrics_registry_v2.as_ref();
+        let registry = test_db.metric_registry.as_ref();
         // MUB chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 3607);
 
@@ -2080,7 +2069,7 @@ mod tests {
             .await
             .unwrap();
 
-        let registry = test_db.metrics_registry_v2.as_ref();
+        let registry = test_db.metric_registry.as_ref();
 
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
@@ -2189,7 +2178,7 @@ mod tests {
             vec![pq_chunk_id]
         );
 
-        let registry = test_db.metrics_registry_v2.as_ref();
+        let registry = test_db.metric_registry.as_ref();
 
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
@@ -3073,7 +3062,7 @@ mod tests {
         write_lp(db.as_ref(), "cpu bar=1 10").await;
 
         let mut reporter = metric::RawReporter::default();
-        test_db.metrics_registry_v2.report(&mut reporter);
+        test_db.metric_registry.report(&mut reporter);
 
         let exclusive = reporter
             .metric("catalog_lock")
@@ -3124,7 +3113,7 @@ mod tests {
         task.await.unwrap();
 
         let mut reporter = metric::RawReporter::default();
-        test_db.metrics_registry_v2.report(&mut reporter);
+        test_db.metric_registry.report(&mut reporter);
 
         let exclusive = reporter
             .metric("catalog_lock")

@@ -2,9 +2,7 @@
 //! [`PreservedCatalog`](parquet_file::catalog::api::PreservedCatalog).
 
 use super::catalog::{chunk::ChunkStage, table::TableSchemaUpsertHandle, Catalog};
-use data_types::server_id::ServerId;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
-use metrics::{KeyValue, MetricRegistry};
 use observability_deps::tracing::{error, info};
 use parquet_file::{
     catalog::api::{CatalogParquetInfo, CatalogState, ChunkCreationFailed, PreservedCatalog},
@@ -48,22 +46,14 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub async fn load_or_create_preserved_catalog(
     db_name: &str,
     iox_object_store: Arc<IoxObjectStore>,
-    server_id: ServerId,
-    metrics_registry: Arc<MetricRegistry>,
-    metrics_registry_v2: Arc<::metric::Registry>,
+    metric_registry: Arc<::metric::Registry>,
     wipe_on_error: bool,
     skip_replay: bool,
 ) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
     // first try to load existing catalogs
     match PreservedCatalog::load(
         Arc::clone(&iox_object_store),
-        LoaderEmptyInput::new(
-            db_name,
-            server_id,
-            Arc::clone(&metrics_registry),
-            Arc::clone(&metrics_registry_v2),
-            skip_replay,
-        ),
+        LoaderEmptyInput::new(Arc::clone(&metric_registry), skip_replay),
     )
     .await
     {
@@ -86,15 +76,8 @@ pub async fn load_or_create_preserved_catalog(
                 db_name
             );
 
-            create_preserved_catalog(
-                db_name,
-                Arc::clone(&iox_object_store),
-                server_id,
-                Arc::clone(&metrics_registry),
-                metrics_registry_v2,
-                skip_replay,
-            )
-            .await
+            create_preserved_catalog(Arc::clone(&iox_object_store), metric_registry, skip_replay)
+                .await
         }
         Err(e) => {
             if wipe_on_error {
@@ -107,11 +90,8 @@ pub async fn load_or_create_preserved_catalog(
                     .context(CannotWipeCatalog)?;
 
                 create_preserved_catalog(
-                    db_name,
                     Arc::clone(&iox_object_store),
-                    server_id,
-                    Arc::clone(&metrics_registry),
-                    metrics_registry_v2,
+                    metric_registry,
                     skip_replay,
                 )
                 .await
@@ -126,22 +106,13 @@ pub async fn load_or_create_preserved_catalog(
 ///
 /// This will fail if a preserved catalog already exists.
 pub async fn create_preserved_catalog(
-    db_name: &str,
     iox_object_store: Arc<IoxObjectStore>,
-    server_id: ServerId,
-    metrics_registry: Arc<MetricRegistry>,
-    metrics_registry_v2: Arc<metric::Registry>,
+    metric_registry: Arc<metric::Registry>,
     skip_replay: bool,
 ) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
     let (preserved_catalog, loader) = PreservedCatalog::new_empty(
         Arc::clone(&iox_object_store),
-        LoaderEmptyInput::new(
-            db_name,
-            server_id,
-            metrics_registry,
-            metrics_registry_v2,
-            skip_replay,
-        ),
+        LoaderEmptyInput::new(metric_registry, skip_replay),
     )
     .await
     .context(CannotCreateCatalog)?;
@@ -159,29 +130,14 @@ pub async fn create_preserved_catalog(
 /// All input required to create an empty [`Loader`]
 #[derive(Debug)]
 struct LoaderEmptyInput {
-    metrics_registry: Arc<::metrics::MetricRegistry>,
-    metrics_registry_v2: Arc<::metric::Registry>,
-    metric_attributes: Vec<KeyValue>,
+    metric_registry: Arc<::metric::Registry>,
     skip_replay: bool,
 }
 
 impl LoaderEmptyInput {
-    fn new(
-        db_name: &str,
-        server_id: ServerId,
-        metrics_registry: Arc<MetricRegistry>,
-        metrics_registry_v2: Arc<metric::Registry>,
-        skip_replay: bool,
-    ) -> Self {
-        let metric_attributes = vec![
-            KeyValue::new("db_name", db_name.to_string()),
-            KeyValue::new("svr_id", format!("{}", server_id)),
-        ];
-
+    fn new(metric_registry: Arc<metric::Registry>, skip_replay: bool) -> Self {
         Self {
-            metrics_registry,
-            metrics_registry_v2,
-            metric_attributes,
+            metric_registry,
             skip_replay,
         }
     }
@@ -192,7 +148,7 @@ impl LoaderEmptyInput {
 struct Loader {
     catalog: Catalog,
     planner: Option<ReplayPlanner>,
-    metrics_registry_v2: Arc<metric::Registry>,
+    metric_registry: Arc<metric::Registry>,
 }
 
 impl CatalogState for Loader {
@@ -200,14 +156,9 @@ impl CatalogState for Loader {
 
     fn new_empty(db_name: &str, data: Self::EmptyInput) -> Self {
         Self {
-            catalog: Catalog::new(
-                Arc::from(db_name),
-                data.metrics_registry,
-                Arc::clone(&data.metrics_registry_v2),
-                data.metric_attributes,
-            ),
+            catalog: Catalog::new(Arc::from(db_name), Arc::clone(&data.metric_registry)),
             planner: (!data.skip_replay).then(ReplayPlanner::new),
-            metrics_registry_v2: Arc::new(Default::default()),
+            metric_registry: Arc::new(Default::default()),
         }
     }
 
@@ -241,7 +192,7 @@ impl CatalogState for Loader {
         }
 
         // Create a parquet chunk for this chunk
-        let metrics = ParquetChunkMetrics::new(self.metrics_registry_v2.as_ref());
+        let metrics = ParquetChunkMetrics::new(self.metric_registry.as_ref());
         let parquet_chunk = ParquetChunk::new(
             &info.path,
             iox_object_store,
@@ -319,7 +270,7 @@ impl CatalogState for Loader {
 mod tests {
     use super::*;
     use crate::db::checkpoint_data_from_catalog;
-    use data_types::DatabaseName;
+    use data_types::{server_id::ServerId, DatabaseName};
     use object_store::ObjectStore;
     use parquet_file::catalog::{
         api::CheckpointData,
@@ -348,8 +299,6 @@ mod tests {
         load_or_create_preserved_catalog(
             &db_name,
             iox_object_store,
-            server_id,
-            Default::default(),
             Default::default(),
             true,
             false,
@@ -364,11 +313,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_catalog_state() {
-        let metrics_registry = Arc::new(::metrics::MetricRegistry::new());
         let empty_input = LoaderEmptyInput {
-            metrics_registry,
-            metrics_registry_v2: Default::default(),
-            metric_attributes: vec![],
+            metric_registry: Default::default(),
             skip_replay: false,
         };
         assert_catalog_state_implementation::<Loader, _>(empty_input, checkpoint_data_from_loader)

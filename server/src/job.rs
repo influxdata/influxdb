@@ -24,11 +24,11 @@ pub struct JobRegistryInner {
 }
 
 impl JobRegistry {
-    pub fn new(metric_registry_v2: Arc<metric::Registry>) -> Self {
+    pub fn new(metric_registry: Arc<metric::Registry>) -> Self {
         Self {
             inner: Mutex::new(JobRegistryInner {
                 registry: TaskRegistryWithHistory::new(JOB_HISTORY_SIZE),
-                metrics: JobRegistryMetrics::new(metric_registry_v2),
+                metrics: JobRegistryMetrics::new(metric_registry),
             }),
         }
     }
@@ -102,17 +102,17 @@ struct JobRegistryMetrics {
 }
 
 impl JobRegistryMetrics {
-    fn new(metric_registry_v2: Arc<metric::Registry>) -> Self {
+    fn new(metric_registry: Arc<metric::Registry>) -> Self {
         Self {
-            active_gauge: metric_registry_v2
+            active_gauge: metric_registry
                 .register_metric("influxdb_iox_job_count", "Number of known jobs"),
             completed_accu: Default::default(),
-            cpu_time_histogram: metric_registry_v2.register_metric_with_options(
+            cpu_time_histogram: metric_registry.register_metric_with_options(
                 "influxdb_iox_job_completed_cpu",
                 "CPU time of of completed jobs",
                 Self::duration_histogram_options,
             ),
-            wall_time_histogram: metric_registry_v2.register_metric_with_options(
+            wall_time_histogram: metric_registry.register_metric_with_options(
                 "influxdb_iox_job_completed_wall",
                 "Wall time of of completed jobs",
                 Self::duration_histogram_options,

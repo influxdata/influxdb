@@ -1422,7 +1422,7 @@ mod tests {
     #[tokio::test]
     async fn write_entry_local() {
         let application = make_application();
-        let registry = Arc::clone(application.metric_registry_v2());
+        let registry = Arc::clone(application.metric_registry());
         let server = make_server(application);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.wait_for_init().await.unwrap();
@@ -2344,7 +2344,7 @@ mod tests {
         application.job_registry().reclaim();
 
         let mut reporter = metric::RawReporter::default();
-        application.metric_registry_v2().report(&mut reporter);
+        application.metric_registry().report(&mut reporter);
 
         server.shutdown();
         server.join().await.unwrap();

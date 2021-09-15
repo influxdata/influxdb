@@ -22,15 +22,15 @@ pub struct CatalogMetrics {
     /// Name of the database
     db_name: Arc<str>,
 
-    /// Metrics registry
-    metrics_registry: Arc<metric::Registry>,
+    /// Metric registry
+    metric_registry: Arc<metric::Registry>,
     /// Catalog memory metrics
     memory_metrics: StorageGauge,
 }
 
 impl CatalogMetrics {
-    pub fn new(db_name: Arc<str>, metrics_registry: Arc<metric::Registry>) -> Self {
-        let chunks_mem_usage = metrics_registry.register_metric(
+    pub fn new(db_name: Arc<str>, metric_registry: Arc<metric::Registry>) -> Self {
+        let chunks_mem_usage = metric_registry.register_metric(
             "catalog_chunks_mem_usage_bytes",
             "Memory usage by catalog chunks",
         );
@@ -40,7 +40,7 @@ impl CatalogMetrics {
 
         Self {
             db_name,
-            metrics_registry,
+            metric_registry,
             memory_metrics,
         }
     }
@@ -59,34 +59,34 @@ impl CatalogMetrics {
         let mut lock_attributes = base_attributes.clone();
         lock_attributes.insert("lock", "table");
         let table_lock_metrics = Arc::new(LockMetrics::new(
-            self.metrics_registry.as_ref(),
+            self.metric_registry.as_ref(),
             lock_attributes.clone(),
         ));
 
         lock_attributes.insert("lock", "partition");
         let partition_lock_metrics = Arc::new(LockMetrics::new(
-            self.metrics_registry.as_ref(),
+            self.metric_registry.as_ref(),
             lock_attributes.clone(),
         ));
 
         lock_attributes.insert("lock", "chunk");
         let chunk_lock_metrics = Arc::new(LockMetrics::new(
-            self.metrics_registry.as_ref(),
+            self.metric_registry.as_ref(),
             lock_attributes,
         ));
 
-        let storage_gauge = self.metrics_registry.register_metric(
+        let storage_gauge = self.metric_registry.register_metric(
             "catalog_loaded_chunks",
             "The number of chunks loaded in a each chunk storage location",
         );
 
-        let row_gauge = self.metrics_registry.register_metric(
+        let row_gauge = self.metric_registry.register_metric(
             "catalog_loaded_rows",
             "The number of rows loaded in each chunk storage location",
         );
 
         let timestamp_histogram = report_timestamp_metrics(table_name).then(|| {
-            TimestampHistogram::new(self.metrics_registry.as_ref(), base_attributes.clone())
+            TimestampHistogram::new(self.metric_registry.as_ref(), base_attributes.clone())
         });
 
         let chunk_storage = StorageGauge::new(&storage_gauge, base_attributes.clone());

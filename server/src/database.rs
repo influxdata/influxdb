@@ -146,10 +146,8 @@ impl Database {
             "new database"
         );
 
-        let metrics = metrics::Metrics::new(
-            application.metric_registry_v2().as_ref(),
-            config.name.as_str(),
-        );
+        let metrics =
+            metrics::Metrics::new(application.metric_registry().as_ref(), config.name.as_str());
 
         let shared = Arc::new(DatabaseShared {
             config,
@@ -191,11 +189,8 @@ impl Database {
             .context(SavingRules)?;
 
         create_preserved_catalog(
-            db_name.as_str(),
             Arc::clone(&iox_object_store),
-            server_id,
             Arc::clone(application.metric_registry()),
-            Arc::clone(application.metric_registry_v2()),
             true,
         )
         .await
@@ -1027,9 +1022,7 @@ impl DatabaseStateRulesLoaded {
         let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
             shared.config.name.as_str(),
             Arc::clone(&self.iox_object_store),
-            shared.config.server_id,
             Arc::clone(shared.application.metric_registry()),
-            Arc::clone(shared.application.metric_registry_v2()),
             shared.config.wipe_catalog_on_error,
             shared.config.skip_replay,
         )
@@ -1057,7 +1050,7 @@ impl DatabaseStateRulesLoaded {
             preserved_catalog,
             catalog,
             write_buffer_producer: producer,
-            metrics_registry_v2: Arc::clone(shared.application.metric_registry_v2()),
+            metric_registry: Arc::clone(shared.application.metric_registry()),
         };
 
         let db = Db::new(
@@ -1111,7 +1104,7 @@ impl DatabaseStateCatalogLoaded {
                 Some(Arc::new(WriteBufferConsumer::new(
                     consumer,
                     Arc::clone(&db),
-                    shared.application.metric_registry_v2().as_ref(),
+                    shared.application.metric_registry().as_ref(),
                 )))
             }
             _ => None,

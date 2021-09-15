@@ -370,7 +370,7 @@ where
         app_server,
         max_request_size,
         lp_metrics: Arc::new(LineProtocolMetrics::new(
-            application.metric_registry_v2().as_ref(),
+            application.metric_registry().as_ref(),
         )),
     };
 
@@ -637,13 +637,9 @@ async fn handle_metrics<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .data::<Arc<ApplicationState>>()
         .expect("application state");
 
-    let mut body = application.metric_registry().metrics_as_text();
-
-    // Prometheus does not require that metrics are output in order and so can concat exports
-    // This will break if the same metric is published from two different exporters, but this
-    // is a temporary way to avoid migrating all metrics in one go
+    let mut body: Vec<u8> = Default::default();
     let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
-    application.metric_registry_v2().report(&mut reporter);
+    application.metric_registry().report(&mut reporter);
 
     Ok(Response::new(Body::from(body)))
 }
@@ -871,7 +867,7 @@ pub async fn serve<M>(
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    let metric_registry = Arc::clone(application.metric_registry_v2());
+    let metric_registry = Arc::clone(application.metric_registry());
     let router = router(application, server, max_request_size);
     let new_service = tower::MakeService::new(router, trace_collector, metric_registry);
 
@@ -935,7 +931,7 @@ mod tests {
 
         let application = make_application();
         let metric: Metric<U64Counter> = application
-            .metric_registry_v2()
+            .metric_registry()
             .register_metric("my_metric", "description");
 
         let app_server = make_server(Arc::clone(&application));
@@ -1057,7 +1053,7 @@ mod tests {
     async fn test_write_metrics() {
         let application = make_application();
         let app_server = make_server(Arc::clone(&application));
-        let metric_registry_v2 = Arc::clone(application.metric_registry_v2());
+        let metric_registry = Arc::clone(application.metric_registry());
 
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.wait_for_init().await.unwrap();
@@ -1088,7 +1084,7 @@ mod tests {
             .expect("sent data");
 
         // The request completed successfully
-        let request_count = metric_registry_v2
+        let request_count = metric_registry
             .get_instrument::<Metric<U64Counter>>("http_requests")
             .unwrap();
 
@@ -1116,7 +1112,7 @@ mod tests {
             .unwrap()
             .clone();
 
-        let request_duration_ok = metric_registry_v2
+        let request_duration_ok = metric_registry
             .get_instrument::<Metric<DurationHistogram>>("http_request_duration")
             .unwrap()
             .get_observer(&Attributes::from(&[
@@ -1126,7 +1122,7 @@ mod tests {
             .unwrap()
             .clone();
 
-        let entry_ingest = metric_registry_v2
+        let entry_ingest = metric_registry
             .get_instrument::<Metric<U64Counter>>("ingest_entries_bytes")
             .unwrap();
 
@@ -1154,7 +1150,7 @@ mod tests {
         assert_eq!(entry_ingest_error.fetch(), 0);
 
         // A single successful point landed
-        let ingest_lines = metric_registry_v2
+        let ingest_lines = metric_registry
             .get_instrument::<Metric<U64Counter>>("ingest_lines")
             .unwrap();
 
@@ -1178,7 +1174,7 @@ mod tests {
         assert_eq!(ingest_lines_error.fetch(), 0);
 
         // Which consists of two fields
-        let observation = metric_registry_v2
+        let observation = metric_registry
             .get_instrument::<Metric<U64Counter>>("ingest_fields")
             .unwrap()
             .get_observer(&Attributes::from(&[
@@ -1190,7 +1186,7 @@ mod tests {
         assert_eq!(observation, 2);
 
         // Bytes of data were written
-        let observation = metric_registry_v2
+        let observation = metric_registry
             .get_instrument::<Metric<U64Counter>>("ingest_bytes")
             .unwrap()
             .get_observer(&Attributes::from(&[
@@ -1213,7 +1209,7 @@ mod tests {
             .unwrap();
 
         // An invalid database should not be reported as a new metric
-        assert!(metric_registry_v2
+        assert!(metric_registry
             .get_instrument::<Metric<U64Counter>>("ingest_lines")
             .unwrap()
             .get_observer(&Attributes::from(&[

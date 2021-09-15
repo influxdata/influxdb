@@ -57,7 +57,7 @@ async fn chunk_pruning_sql() {
     // Test that partition pruning is connected up
     let TestDb {
         db,
-        metrics_registry_v2,
+        metric_registry,
         ..
     } = setup().await;
 
@@ -79,7 +79,7 @@ async fn chunk_pruning_sql() {
 
     let attributes = Attributes::from(&[("db_name", "placeholder"), ("table_name", "cpu")]);
     // Validate that the chunk was pruned using the metrics
-    let pruned_chunks = metrics_registry_v2
+    let pruned_chunks = metric_registry
         .get_instrument::<Metric<U64Counter>>("query_access_pruned_chunks")
         .unwrap()
         .get_observer(&attributes)
@@ -88,7 +88,7 @@ async fn chunk_pruning_sql() {
     assert_eq!(pruned_chunks, 1);
 
     // Validate that the chunk was pruned using the metrics
-    let pruned_rows = metrics_registry_v2
+    let pruned_rows = metric_registry
         .get_instrument::<Metric<U64Counter>>("query_access_pruned_rows")
         .unwrap()
         .get_observer(&attributes)
@@ -103,7 +103,7 @@ async fn chunk_pruning_influxrpc() {
     // Test that partition pruning is connected up
     let TestDb {
         db,
-        metrics_registry_v2,
+        metric_registry,
         ..
     } = setup().await;
 
@@ -127,7 +127,7 @@ async fn chunk_pruning_influxrpc() {
 
     let attributes = Attributes::from(&[("db_name", "placeholder"), ("table_name", "cpu")]);
     // Validate that the chunk was pruned using the metrics
-    let pruned_chunks = metrics_registry_v2
+    let pruned_chunks = metric_registry
         .get_instrument::<Metric<U64Counter>>("query_access_pruned_chunks")
         .unwrap()
         .get_observer(&attributes)
@@ -136,7 +136,7 @@ async fn chunk_pruning_influxrpc() {
     assert_eq!(pruned_chunks, 1);
 
     // Validate that the chunk was pruned using the metrics
-    let pruned_rows = metrics_registry_v2
+    let pruned_rows = metric_registry
         .get_instrument::<Metric<U64Counter>>("query_access_pruned_rows")
         .unwrap()
         .get_observer(&attributes)

@@ -837,16 +837,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dashmap"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e77a43b28d0668df09411cb0bc9a8c2adc40f9a048afe863e05fd43251e8e39c"
-dependencies = [
- "cfg-if",
- "num_cpus",
-]
-
-[[package]]
 name = "data_types"
 version = "0.1.0"
 dependencies = [
@@ -1746,7 +1736,6 @@ dependencies = [
  "logfmt",
  "metric",
  "metric_exporters",
- "metrics",
  "mutable_buffer",
  "num_cpus",
  "object_store",
@@ -2198,20 +2187,6 @@ dependencies = [
  "observability_deps",
  "prometheus",
  "test_helpers",
-]
-
-[[package]]
-name = "metrics"
-version = "0.1.0"
-dependencies = [
- "dashmap",
- "hashbrown",
- "observability_deps",
- "opentelemetry",
- "opentelemetry-prometheus",
- "parking_lot",
- "prometheus",
- "snafu",
 ]
 
 [[package]]
@@ -2714,8 +2689,6 @@ checksum = "e1cf9b1c4e9a6c4de793c632496fa490bdc0e1eea73f0c91394f7b6990935d22"
 dependencies = [
  "async-trait",
  "crossbeam-channel",
- "dashmap",
- "fnv",
  "futures",
  "js-sys",
  "lazy_static",
@@ -2740,17 +2713,6 @@ dependencies = [
  "thiserror",
  "thrift",
  "tokio",
-]
-
-[[package]]
-name = "opentelemetry-prometheus"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ee9c06c1366665e7d4dba6540a42ea48900a9c92dc5b963f3ae05fbba76dc63"
-dependencies = [
- "opentelemetry",
- "prometheus",
- "protobuf",
 ]
 
 [[package]]
@@ -4124,7 +4086,6 @@ dependencies = [
  "itertools 0.10.1",
  "lifecycle",
  "metric",
- "metrics",
  "mutable_buffer",
  "num_cpus",
  "object_store",
