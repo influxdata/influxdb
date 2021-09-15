@@ -18,7 +18,7 @@ use internal_types::{
     schema::{sort::SortKey, Schema, TIME_COLUMN_NAME},
     selection::Selection,
 };
-use observability_deps::tracing::trace;
+use observability_deps::tracing::{debug, trace};
 use predicate::predicate::{Predicate, PredicateMatch};
 
 use hashbrown::HashMap;
@@ -167,6 +167,8 @@ where
     }
 
     fn delete_predicates(&self) -> &Vec<Predicate> {
+        let pred: &Vec<Predicate> = self.as_ref().delete_predicates();
+        debug!(?pred, "Delete predicate in QueryChunkMeta");
         self.as_ref().delete_predicates()
     }
 }

@@ -3786,11 +3786,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_delete_open_mub() {
+    async fn test_delete_on_different_chunk_types() {
         ::test_helpers::maybe_start_logging();
 
         let db = make_db().await.db;
-        // load a line at time 10 nanosecond which belong to partition starting with 0 nanosecond or  "1970-01-01T00"
+        // load 2 lines at time 10 and 20 nanoseconds which belong to partition starting with 0 nanosecond or  "1970-01-01T00"
         write_lp(db.as_ref(), "cpu bar=1 10").await;
         write_lp(db.as_ref(), "cpu bar=2 20").await;
         let partition_key = "1970-01-01T00";
@@ -3798,6 +3798,10 @@ mod tests {
 
         // ----
         // There is one open mub chunk
+        // Verify there is MUB but no RUB no OS
+        assert!(!mutable_chunk_ids(&db, partition_key).is_empty());
+        assert!(read_buffer_chunk_ids(&db, partition_key).is_empty());
+        assert!(read_parquet_file_chunk_ids(&db, partition_key).is_empty());
         // Let query it
         let expected = vec![
             "+-----+--------------------------------+",
@@ -3811,7 +3815,7 @@ mod tests {
         assert_batches_sorted_eq!(expected, &batches);
 
         // ---
-        // Delete that row
+        // Delete a row with timestamp 10
         let i: f64 = 1.0;
         let expr = col("bar").eq(lit(i));
         let pred = PredicateBuilder::new()
@@ -3821,26 +3825,40 @@ mod tests {
             .build();
         db.delete("cpu", &pred).await.unwrap();
         // When the above delete is issued, the open mub chunk is frozen with the delete predicate added
-
+        // Verify there is MUB but no RUB no OS
+        assert!(!mutable_chunk_ids(&db, partition_key).is_empty());
+        assert!(read_buffer_chunk_ids(&db, partition_key).is_empty());
+        assert!(read_parquet_file_chunk_ids(&db, partition_key).is_empty());
         // Let query again
-        // NGA todo: since MUB does not filtering data, the filtering needs to be done at scan step
+        // NGA todo: since MUB does not support predicate push down, the filtering needs to be done at scan step
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_batches_sorted_eq!(expected, &batches); // this fails when the todo is done
 
-        // --
-        // Since chunk was frozen when the delete is issue, nothing will be frozen futher
+        // ---
+        // Since chunk was frozen when the delete was issued, nothing will be frozen futher
         let mb_open_chunk = db.rollover_partition("cpu", partition_key).await.unwrap();
         assert!(mb_open_chunk.is_none());
+        // Verify there is MUB but no RUB no OS
+        assert!(!mutable_chunk_ids(&db, partition_key).is_empty());
+        assert!(read_buffer_chunk_ids(&db, partition_key).is_empty());
+        assert!(read_parquet_file_chunk_ids(&db, partition_key).is_empty());
 
         // ---
         // let move MUB to RUB. The delete predicate will be included in RUB
         let mb_chunk_id = 0;
         let _mb_chunk = db.chunk("cpu", partition_key, mb_chunk_id).unwrap();
-        let _rb_chunk = db
+        let rb_chunk = db
             .move_chunk_to_read_buffer("cpu", partition_key, mb_chunk_id)
             .await
             .unwrap();
-        // Let query again and since RUB supports delete predicate, we should see only 1 row
+        // Verify there is RUB but no MUB no OS
+        assert!(mutable_chunk_ids(&db, partition_key).is_empty());
+        assert_eq!(
+            read_buffer_chunk_ids(&db, partition_key),
+            vec![rb_chunk.id()]
+        );
+        assert!(read_parquet_file_chunk_ids(&db, partition_key).is_empty());
+        // Let query again and since RUB supports delete predicate push down, we should see only 1 row
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         let expected = vec![
             "+-----+--------------------------------+",
@@ -3852,7 +3870,7 @@ mod tests {
         assert_batches_sorted_eq!(expected, &batches);
 
         // ---
-        // Write the RB chunk to Object Store but keep it in RB
+        // Write the RUB chunk to Object Store but keep it in RUB
         let pq_chunk = db
             .persist_partition(
                 "cpu",
@@ -3861,9 +3879,8 @@ mod tests {
             )
             .await
             .unwrap();
-
         let pq_chunk_id = pq_chunk.id();
-        // we should have chunks in both the read buffer and pq
+        // we should have chunks in both RUB and OS
         assert!(mutable_chunk_ids(&db, partition_key).is_empty());
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![pq_chunk_id]);
         assert_eq!(
@@ -3876,7 +3893,7 @@ mod tests {
 
         // ---
         // Unload RB chunk but keep it in OS
-        let _pq_chunk = db
+        let pq_chunk = db
             .unload_read_buffer("cpu", partition_key, pq_chunk_id)
             .unwrap();
 
@@ -3885,9 +3902,9 @@ mod tests {
         assert!(read_buffer_chunk_ids(&db, partition_key).is_empty());
         assert_eq!(
             read_parquet_file_chunk_ids(&db, partition_key),
-            vec![pq_chunk_id]
+            vec![pq_chunk.id()]
         );
-        // Let query again but this time from OS
+        // Let query again but this time from OS and should also see one row (OS prunes partition )
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_batches_sorted_eq!(expected, &batches);
     }

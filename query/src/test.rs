@@ -25,6 +25,7 @@ use internal_types::{
     schema::{builder::SchemaBuilder, merge::SchemaMerger, InfluxColumnType, Schema},
     selection::Selection,
 };
+use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use snafu::Snafu;
 use std::num::NonZeroU64;
@@ -913,6 +914,9 @@ impl QueryChunkMeta for TestChunk {
 
     // return a reference to delete predicates of the chunk
     fn delete_predicates(&self) -> &Vec<Predicate> {
+        let pred: &Vec<Predicate> = &self.delete_predicates;
+        debug!(?pred, "Delete predicate in Test Chunk");
+
         &self.delete_predicates
     }
 }

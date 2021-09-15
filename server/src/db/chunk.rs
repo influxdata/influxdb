@@ -371,11 +371,14 @@ impl QueryChunk for DbChunk {
                     Ok(predicate) => predicate,
                     Err(_) => read_buffer::Predicate::default(),
                 };
+                debug!(?rb_predicate, "Predicate pushed down to RUB");
 
                 // combine all delete expressions to RUB's negated ones
                 let negated_delete_exprs = Self::to_rub_negated_predicates(delete_predicates)?;
-
-                debug!(?rb_predicate, "Predicate pushed down to RUB");
+                debug!(
+                    ?negated_delete_exprs,
+                    "Negated Predicate pushed down to RUB"
+                );
 
                 let read_results = chunk.read_filter(rb_predicate, selection, negated_delete_exprs);
                 let schema =
@@ -535,6 +538,9 @@ impl QueryChunkMeta for DbChunk {
 
     // return a reference to delete predicates of the chunk
     fn delete_predicates(&self) -> &Vec<Predicate> {
+        let pred: &Vec<Predicate> = &self.meta.delete_predicates;
+        debug!(?pred, "Delete predicate in  DbChunk");
+
         &self.meta.delete_predicates
     }
 }
