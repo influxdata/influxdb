@@ -8,7 +8,10 @@ use crate::{
     ApplicationState, Db,
 };
 use chrono::{DateTime, Utc};
-use data_types::{database_rules::WriteBufferDirection, server_id::ServerId, DatabaseName};
+use data_types::{
+    database_rules::WriteBufferDirection, deleted_database::GenerationId, server_id::ServerId,
+    DatabaseName,
+};
 use futures::{
     future::{BoxFuture, FusedFuture, Shared},
     FutureExt, TryFutureExt,
@@ -89,6 +92,11 @@ pub enum Error {
 
     #[snafu(display("cannot restore database named {} that is already active", db_name))]
     CannotRestoreActiveDatabase { db_name: String },
+
+    #[snafu(display("{}", source))]
+    CannotRestoreDatabaseInObjectStorage {
+        source: iox_object_store::IoxObjectStoreError,
+    },
 }
 
 #[derive(Debug, Snafu)]
@@ -111,7 +119,7 @@ pub enum WriteError {
     HardLimitReached {},
 }
 
-type BackgroundWorkerFuture = Mutex<Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>>;
+type BackgroundWorkerFuture = Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>;
 
 /// A `Database` represents a single configured IOx database - i.e. an
 /// entity with a corresponding set of `DatabaseRules`.
@@ -164,7 +172,7 @@ impl Database {
         });
 
         let handle = tokio::spawn(background_worker(Arc::clone(&shared)));
-        let join = Mutex::new(handle.map_err(Arc::new).boxed().shared());
+        let join = handle.map_err(Arc::new).boxed().shared();
 
         Self { join, shared }
     }
@@ -247,19 +255,13 @@ impl Database {
             shared.state_notify.notify_waiters();
         }
 
-        self.shutdown();
-
         Ok(())
     }
 
-    /// Mark this database as restored.
-    pub async fn restore(&self, iox_object_store: IoxObjectStore) -> Result<(), Error> {
+    /// Mark this database generation as restored.
+    pub async fn restore(&self, generation_id: usize) -> Result<(), Error> {
         let db_name = &self.shared.config.name;
-        info!(
-            %db_name,
-            object_store_path=%iox_object_store.debug_database_path(),
-            "restoring database"
-        );
+        info!(%db_name, %generation_id, "restoring database");
 
         let handle = {
             let state = self.shared.state.read();
@@ -273,24 +275,26 @@ impl Database {
             })?
         };
 
+        IoxObjectStore::restore_database(
+            Arc::clone(self.shared.application.object_store()),
+            self.shared.config.server_id,
+            db_name,
+            GenerationId {
+                inner: generation_id,
+            },
+        )
+        .await
+        .context(CannotRestoreDatabaseInObjectStorage)?;
+
         let shared = Arc::clone(&self.shared);
 
         {
-            // Reset the state to initializing with the given iox object storage
+            // Reset the state
             let mut state = shared.state.write();
-            *state.unfreeze(handle) =
-                DatabaseState::DatabaseObjectStoreFound(DatabaseStateDatabaseObjectStoreFound {
-                    iox_object_store: Arc::new(iox_object_store),
-                });
+            *state.unfreeze(handle) = DatabaseState::Known(DatabaseStateKnown {});
+            shared.state_notify.notify_waiters();
             info!(%db_name, "set database state to object store found");
         }
-
-        // Restart the background worker to re-initialize the database
-        let handle = tokio::spawn(background_worker(Arc::clone(&shared)));
-        let mut join = self.join.lock();
-        *join = handle.map_err(Arc::new).boxed().shared();
-        let mut shutdown = shared.shutdown.lock();
-        *shutdown = Default::default();
 
         Ok(())
     }
@@ -298,13 +302,12 @@ impl Database {
     /// Triggers shutdown of this `Database`
     pub fn shutdown(&self) {
         info!(db_name=%self.shared.config.name, "database shutting down");
-        let shutdown = self.shared.shutdown.lock();
-        shutdown.cancel()
+        self.shared.shutdown.cancel()
     }
 
     /// Waits for the background worker of this `Database` to exit
     pub fn join(&self) -> impl Future<Output = Result<(), Arc<JoinError>>> {
-        self.join.lock().clone()
+        self.join.clone()
     }
 
     /// Returns the config of this database
@@ -585,13 +588,12 @@ impl Database {
 impl Drop for Database {
     fn drop(&mut self) {
         let db_name = &self.shared.config.name;
-        let shutdown = self.shared.shutdown.lock();
-        if !shutdown.is_cancelled() {
+        if !self.shared.shutdown.is_cancelled() {
             warn!(%db_name, "database dropped without calling shutdown()");
-            shutdown.cancel();
+            self.shared.shutdown.cancel();
         }
 
-        if self.join.lock().clone().now_or_never().is_none() {
+        if self.join.clone().now_or_never().is_none() {
             warn!(%db_name, "database dropped without waiting for worker termination");
         }
     }
@@ -604,7 +606,7 @@ struct DatabaseShared {
     config: DatabaseConfig,
 
     /// A token that is used to trigger shutdown of the background worker
-    shutdown: Mutex<CancellationToken>,
+    shutdown: CancellationToken,
 
     /// Application-global state
     application: Arc<ApplicationState>,
@@ -754,12 +756,7 @@ async fn initialize_database(shared: &DatabaseShared) {
     let db_name = &shared.config.name;
     info!(%db_name, "database initialization started");
 
-    let mut shutdown_cancelled = {
-        let s = shared.shutdown.lock();
-        s.is_cancelled()
-    };
-
-    while !shutdown_cancelled {
+    while !shared.shutdown.is_cancelled() {
         // Acquire locks and determine if work to be done
         let maybe_transaction = {
             let state = shared.state.read();
@@ -808,10 +805,6 @@ async fn initialize_database(shared: &DatabaseShared) {
             None => {
                 info!(%db_name, "backing off initialization");
                 tokio::time::sleep(INIT_BACKOFF).await;
-                shutdown_cancelled = {
-                    let s = shared.shutdown.lock();
-                    s.is_cancelled()
-                };
                 continue;
             }
         };
@@ -850,11 +843,6 @@ async fn initialize_database(shared: &DatabaseShared) {
             *state.unfreeze(handle) = next_state;
             shared.state_notify.notify_waiters();
         }
-
-        shutdown_cancelled = {
-            let s = shared.shutdown.lock();
-            s.is_cancelled()
-        };
     }
 }
 
@@ -1204,21 +1192,19 @@ impl DatabaseStateInitialized {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use chrono::Utc;
     use data_types::database_rules::{
         PartitionTemplate, TemplatePart, WriteBufferConnection, WriteBufferDirection,
     };
     use entry::{test_helpers::lp_to_entries, Sequence, SequencedEntry};
-    use object_store::{ObjectStore, ObjectStoreApi};
-    use write_buffer::{config::WriteBufferConfigFactory, mock::MockBufferSharedState};
-
-    use super::*;
-    use object_store::path::ObjectStorePath;
+    use object_store::ObjectStore;
     use std::{
         convert::{TryFrom, TryInto},
         num::NonZeroU32,
         time::Instant,
     };
+    use write_buffer::{config::WriteBufferConfigFactory, mock::MockBufferSharedState};
 
     #[tokio::test]
     async fn database_shutdown_waits_for_jobs() {
@@ -1349,7 +1335,7 @@ mod tests {
 
     #[tokio::test]
     async fn database_delete_restore() {
-        let (application, database) = initialized_database().await;
+        let (_application, database) = initialized_database().await;
         database.delete().await.unwrap();
 
         assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
@@ -1358,22 +1344,7 @@ mod tests {
             InitError::NoActiveDatabase
         ));
 
-        // TODO: Replace with recover logic
-        let os = application.object_store();
-        let mut path = os.new_path();
-        path.push_dir("1");
-        path.push_dir("test");
-        path.push_dir("0");
-        path.set_file_name("DELETED");
-
-        os.delete(&path).await.unwrap();
-
-        {
-            let mut state = database.shared.state.write();
-            let mut state = state.get_mut().unwrap();
-            *state = DatabaseState::Known(DatabaseStateKnown {});
-            database.shared.state_notify.notify_waiters();
-        }
+        database.restore(0).await.unwrap();
 
         // Database should re-initialize correctly
         tokio::time::timeout(Duration::from_millis(1), database.wait_for_init())

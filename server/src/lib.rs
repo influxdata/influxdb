@@ -153,11 +153,6 @@ pub enum Error {
     CannotMarkDatabaseDeleted { source: crate::database::Error },
 
     #[snafu(display("{}", source))]
-    CannotRestoreDatabaseInObjectStorage {
-        source: iox_object_store::IoxObjectStoreError,
-    },
-
-    #[snafu(display("{}", source))]
     CannotRestoreDatabase { source: crate::database::Error },
 
     #[snafu(display("database already exists: {}", db_name))]
@@ -700,7 +695,7 @@ where
         db_name: &DatabaseName<'static>,
         generation_id: u64,
     ) -> Result<()> {
-        let (server_id, database) = {
+        let database = {
             let state = self.shared.state.read();
             let initialized = state.initialized()?;
 
@@ -717,24 +712,15 @@ where
                 }
             }
 
-            (initialized.server_id, database)
+            database
         };
 
-        let iox_object_store = IoxObjectStore::restore_database(
-            Arc::clone(self.shared.application.object_store()),
-            server_id,
-            db_name,
-            GenerationId {
-                inner: generation_id as usize,
-            },
-        )
-        .await
-        .context(CannotRestoreDatabaseInObjectStorage)?;
-
         database
-            .restore(iox_object_store)
+            .restore(generation_id as usize)
             .await
             .context(CannotRestoreDatabase)?;
+
+        database.wait_for_init().await.context(DatabaseInit)?;
 
         Ok(())
     }

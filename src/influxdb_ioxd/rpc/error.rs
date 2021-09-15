@@ -136,6 +136,10 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
         Error::CannotRestoreActiveDatabase { .. } => {
             tonic::Status::failed_precondition(error.to_string())
         }
+        Error::CannotRestoreDatabaseInObjectStorage { source } => {
+            error!(%source, "Unexpected error restoring database");
+            InternalError {}.into()
+        }
     }
 }
 

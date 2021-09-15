@@ -177,7 +177,7 @@ message DeleteDatabaseRequest {
 message DeleteDatabaseResponse {}
 
 message RestoreDatabaseRequest {
-	// The generation ID of the deleted database.
+  // The generation ID of the deleted database.
   uint64 generation_id = 1;
 
   // the name of the database
