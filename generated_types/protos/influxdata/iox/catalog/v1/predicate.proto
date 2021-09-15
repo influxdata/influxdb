@@ -1,0 +1,80 @@
+syntax = "proto3";
+package influxdata.iox.catalog.v1;
+
+// Represents a parsed predicate for evaluation by the InfluxDB IOx query engine.
+message Predicate {
+  // Optional table restriction. If present, restricts the results to only tables these tables.
+  OptionalStringSet table_names = 1;
+
+  // Optional field restriction. If present, restricts the results to only tables which have *at least one* of the
+  // fields in field_columns.
+  OptionalStringSet field_columns = 2;
+
+  // Optional partition key filter
+  OptionalString partition_key = 3;
+
+  // Optional timestamp range: only rows within this range are included in results. Other rows are excluded.
+  TimestampRange range = 4;
+
+  // Optional arbitrary predicates, represented as list of expressions applied a logical conjunction (aka they are
+  // 'AND'ed together). Only rows that evaluate to TRUE for all these expressions should be returned. Other rows are
+  // excluded from the results.
+  repeated Expr exprs = 5;
+}
+
+// A optional string set.
+//
+// This is used instead of a `repeated string` to differenctiate between "empty set" and "none".
+message OptionalStringSet {
+  repeated string values = 1;
+}
+
+// An optional string.
+message OptionalString {
+  string value = 1;
+}
+
+// Specifies a continuous range of nanosecond timestamps.
+message TimestampRange {
+  // Start defines the inclusive lower bound.
+  int64 start = 1;
+
+  // End defines the exclusive upper bound.
+  int64 end = 2;
+}
+
+// Single expression to be used as parts of a predicate.
+//
+// Only very simple expression of the type `<columng> <op> <scalar>` are supported.
+message Expr {
+  // Column (w/o table name).
+  string column = 1;
+
+  // Operator.
+  Op op = 2;
+
+  // Scalar value.
+  Scalar scalar = 3;
+}
+
+// Binary operator that can be evaluated on a column and a scalar value.
+enum Op {
+  // Unspecified operator, will result in an error.
+  OP_UNSPECIFIED = 0;
+
+  // Strict equality (`=`).
+  OP_EQ = 1;
+
+  // Inequality (`!=`).
+  OP_NE = 2;
+}
+
+// Scalar value of a certain type.
+message Scalar {
+  oneof value {
+    bool value_bool = 1;
+    int64 value_i64 = 2;
+    double value_f64 = 3;
+    string value_string = 4;
+  }
+}
