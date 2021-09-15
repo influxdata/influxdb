@@ -1215,7 +1215,7 @@ async fn test_get_server_status_db_error() {
         .contains("error deserializing database rules"));
     assert_eq!(
         DatabaseState::from_i32(db_status.state).unwrap(),
-        DatabaseState::DatabaseObjectStoreFound
+        DatabaseState::RulesLoadError
     );
 }
 

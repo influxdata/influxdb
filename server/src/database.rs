@@ -7,12 +7,12 @@ use crate::{
     rules::ProvidedDatabaseRules,
     ApplicationState, Db,
 };
-use data_types::database_rules::WriteBufferDirection;
-use data_types::{database_state::DatabaseStateCode, server_id::ServerId, DatabaseName};
+use data_types::{database_rules::WriteBufferDirection, server_id::ServerId, DatabaseName};
 use futures::{
     future::{BoxFuture, FusedFuture, Shared},
     FutureExt, TryFutureExt,
 };
+use generated_types::database_state::DatabaseState as DatabaseStateCode;
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
@@ -809,11 +809,13 @@ impl DatabaseState {
             DatabaseState::RulesLoaded(_) => DatabaseStateCode::RulesLoaded,
             DatabaseState::CatalogLoaded(_) => DatabaseStateCode::CatalogLoaded,
             DatabaseState::Initialized(_) => DatabaseStateCode::Initialized,
-            DatabaseState::DatabaseObjectStoreLookupError(_, _) => DatabaseStateCode::Known,
-            DatabaseState::NoActiveDatabase(_, _) => DatabaseStateCode::Known,
-            DatabaseState::RulesLoadError(_, _) => DatabaseStateCode::DatabaseObjectStoreFound,
-            DatabaseState::CatalogLoadError(_, _) => DatabaseStateCode::RulesLoaded,
-            DatabaseState::ReplayError(_, _) => DatabaseStateCode::CatalogLoaded,
+            DatabaseState::DatabaseObjectStoreLookupError(_, _) => {
+                DatabaseStateCode::DatabaseObjectStoreLookupError
+            }
+            DatabaseState::NoActiveDatabase(_, _) => DatabaseStateCode::NoActiveDatabase,
+            DatabaseState::RulesLoadError(_, _) => DatabaseStateCode::RulesLoadError,
+            DatabaseState::CatalogLoadError(_, _) => DatabaseStateCode::CatalogLoadError,
+            DatabaseState::ReplayError(_, _) => DatabaseStateCode::ReplayError,
         }
     }
 
@@ -1216,7 +1218,7 @@ mod tests {
         let (application, database) = initialized_database().await;
         database.delete().await.unwrap();
 
-        assert_eq!(database.state_code(), DatabaseStateCode::Known);
+        assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
         assert!(matches!(
             database.init_error().unwrap().as_ref(),
             InitError::NoActiveDatabase

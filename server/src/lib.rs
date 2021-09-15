@@ -2298,7 +2298,7 @@ mod tests {
                 .unwrap_err()
                 .to_string(),
             "error wiping preserved catalog: database (db_broken_rules) in invalid state \
-            (DatabaseObjectStoreFound) for transition (WipePreservedCatalog)"
+            (RulesLoadError) for transition (WipePreservedCatalog)"
         );
 
         // 4. wipe DB with broken catalog, this will bring the DB back to life

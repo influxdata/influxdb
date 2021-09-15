@@ -1,26 +1,27 @@
-use crate::influxdata::iox::management::v1 as management;
-use data_types::database_state::DatabaseStateCode;
+pub use crate::influxdata::iox::management::v1::database_status::DatabaseState;
+use std::fmt::Formatter;
 
-impl From<DatabaseStateCode> for management::database_status::DatabaseState {
-    fn from(state_code: DatabaseStateCode) -> Self {
-        match state_code {
-            DatabaseStateCode::Known => Self::Known,
-            DatabaseStateCode::DatabaseObjectStoreFound => Self::DatabaseObjectStoreFound,
-            DatabaseStateCode::RulesLoaded => Self::RulesLoaded,
-            DatabaseStateCode::CatalogLoaded => Self::CatalogLoaded,
-            DatabaseStateCode::Initialized => Self::Initialized,
-            DatabaseStateCode::RulesLoadError => Self::RulesLoadError,
-            DatabaseStateCode::CatalogLoadError => Self::CatalogLoadError,
-            DatabaseStateCode::ReplayError => Self::ReplayError,
+impl DatabaseState {
+    /// Returns a human readable description
+    pub fn description(&self) -> &'static str {
+        match self {
+            DatabaseState::Known => "Known",
+            DatabaseState::RulesLoaded => "RulesLoaded",
+            DatabaseState::CatalogLoaded => "CatalogLoaded",
+            DatabaseState::RulesLoadError => "RulesLoadError",
+            DatabaseState::CatalogLoadError => "CatalogLoadError",
+            DatabaseState::ReplayError => "ReplayError",
+            DatabaseState::Initialized => "Initialized",
+            DatabaseState::DatabaseObjectStoreFound => "DatabaseObjectStoreFound",
+            DatabaseState::DatabaseObjectStoreLookupError => "DatabaseObjectStoreLookupError",
+            DatabaseState::NoActiveDatabase => "NoActiveDatabase",
+            DatabaseState::Unspecified => "Unspecified",
         }
     }
 }
 
-impl From<Option<DatabaseStateCode>> for management::database_status::DatabaseState {
-    fn from(state_code: Option<DatabaseStateCode>) -> Self {
-        match state_code {
-            Some(state_code) => state_code.into(),
-            None => Self::Unspecified,
-        }
+impl std::fmt::Display for DatabaseState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.description())
     }
 }
