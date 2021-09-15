@@ -259,6 +259,36 @@ where
     }
 }
 
+/// A common grouping of `MetricObserver` for reporting on fallible code paths
+#[derive(Debug, Clone)]
+pub struct ResultMetric<T> {
+    pub ok: T,
+    pub client_error: T,
+    pub server_error: T,
+}
+
+impl<T> ResultMetric<T>
+where
+    T: MetricObserver<Recorder = T>,
+{
+    pub fn new(metric: &Metric<T>, mut attributes: Attributes) -> Self {
+        attributes.insert("status", "ok");
+        let ok = metric.recorder(attributes.clone());
+
+        attributes.insert("status", "client_error");
+        let client_error = metric.recorder(attributes.clone());
+
+        attributes.insert("status", "server_error");
+        let server_error = metric.recorder(attributes);
+
+        Self {
+            ok,
+            client_error,
+            server_error,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

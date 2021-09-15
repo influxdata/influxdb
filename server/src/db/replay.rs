@@ -566,7 +566,7 @@ mod tests {
                 parts: vec![TemplatePart::Column("tag_partition_by".to_string())],
             };
 
-            let registry = metrics::MetricRegistry::new();
+            let registry = metric::Registry::new();
             let write_buffer_state =
                 MockBufferSharedState::empty_with_n_sequencers(self.n_sequencers);
 

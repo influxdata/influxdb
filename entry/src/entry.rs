@@ -761,6 +761,35 @@ impl Entry {
             None => None,
         }
     }
+
+    /// Returns an iterator over the PartitionWrite in this entry
+    ///
+    /// TODO: Replace partition_writes with this
+    pub fn partition_writes_iter(&self) -> impl Iterator<Item = PartitionWrite<'_>> {
+        self.fb()
+            .operation_as_write()
+            .into_iter()
+            .flat_map(|write| {
+                write
+                    .partition_writes()
+                    .into_iter()
+                    .flat_map(|partition_write| {
+                        partition_write
+                            .iter()
+                            .map(|write| PartitionWrite { fb: write })
+                    })
+            })
+    }
+
+    /// Returns an iterator of table batches in this entry with their partition key
+    pub fn table_batches(&self) -> impl Iterator<Item = (&str, TableBatch<'_>)> + '_ {
+        self.partition_writes_iter().flat_map(|partition_write| {
+            let key = partition_write.key();
+            partition_write
+                .table_batches_iter()
+                .map(move |table_batch| (key, table_batch))
+        })
+    }
 }
 
 impl TryFrom<Vec<u8>> for Entry {
@@ -811,13 +840,13 @@ pub struct PartitionWrite<'a> {
 }
 
 impl<'a> PartitionWrite<'a> {
-    pub fn key(&self) -> &str {
+    pub fn key(&self) -> &'a str {
         self.fb
             .key()
             .expect("key must be present in the flatbuffer PartitionWrite")
     }
 
-    pub fn table_batches(&self) -> Vec<TableBatch<'_>> {
+    pub fn table_batches(&self) -> Vec<TableBatch<'a>> {
         match self.fb.table_batches().as_ref() {
             Some(batches) => batches
                 .iter()
@@ -825,6 +854,18 @@ impl<'a> PartitionWrite<'a> {
                 .collect::<Vec<_>>(),
             None => vec![],
         }
+    }
+
+    /// Returns an iterator of table batches in this PartitionWrite
+    pub fn table_batches_iter(&self) -> impl Iterator<Item = TableBatch<'a>> {
+        self.fb
+            .table_batches()
+            .into_iter()
+            .flat_map(|table_batches| {
+                table_batches
+                    .iter()
+                    .map(|table_batch| TableBatch { fb: table_batch })
+            })
     }
 }
 

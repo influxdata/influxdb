@@ -1035,7 +1035,7 @@ impl DatabaseStateCatalogLoaded {
                 Some(Arc::new(WriteBufferConsumer::new(
                     consumer,
                     Arc::clone(&db),
-                    shared.application.metric_registry().as_ref(),
+                    shared.application.metric_registry_v2().as_ref(),
                 )))
             }
             _ => None,
