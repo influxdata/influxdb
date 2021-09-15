@@ -7,6 +7,7 @@ use crate::{
     rules::ProvidedDatabaseRules,
     ApplicationState, Db,
 };
+use chrono::{DateTime, Utc};
 use data_types::{database_rules::WriteBufferDirection, server_id::ServerId, DatabaseName};
 use futures::{
     future::{BoxFuture, FusedFuture, Shared},
@@ -25,6 +26,8 @@ use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
 
 const INIT_BACKOFF: Duration = Duration::from_secs(1);
+
+mod metrics;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -85,6 +88,26 @@ pub enum Error {
     NoActiveDatabaseToDelete { db_name: String },
 }
 
+#[derive(Debug, Snafu)]
+pub enum WriteError {
+    #[snafu(context(false))]
+    DbError { source: super::db::Error },
+
+    #[snafu(display("write buffer producer error: {}", source))]
+    WriteBuffer {
+        source: Box<dyn std::error::Error + Sync + Send>,
+    },
+
+    #[snafu(display("writing only allowed through write buffer"))]
+    WritingOnlyAllowedThroughWriteBuffer,
+
+    #[snafu(display("database not initialized: {}", state))]
+    NotInitialized { state: DatabaseStateCode },
+
+    #[snafu(display("Hard buffer size limit reached"))]
+    HardLimitReached {},
+}
+
 /// A `Database` represents a single configured IOx database - i.e. an
 /// entity with a corresponding set of `DatabaseRules`.
 ///
@@ -123,12 +146,18 @@ impl Database {
             "new database"
         );
 
+        let metrics = metrics::Metrics::new(
+            application.metric_registry_v2().as_ref(),
+            config.name.as_str(),
+        );
+
         let shared = Arc::new(DatabaseShared {
             config,
             application,
             shutdown: Default::default(),
             state: RwLock::new(Freezable::new(DatabaseState::Known(DatabaseStateKnown {}))),
             state_notify: Default::default(),
+            metrics,
         });
 
         let handle = tokio::spawn(background_worker(Arc::clone(&shared)));
@@ -462,6 +491,48 @@ impl Database {
             Ok(())
         })
     }
+
+    /// Writes an entry to this `Database` this will either:
+    ///
+    /// - write it to a write buffer
+    /// - write it to a local `Db`
+    ///
+    pub async fn write_entry(
+        &self,
+        entry: entry::Entry,
+        time_of_write: DateTime<Utc>,
+    ) -> Result<(), WriteError> {
+        let recorder = self.shared.metrics.entry_ingest(entry.data().len());
+
+        let db = {
+            let state = self.shared.state.read();
+            match &**state {
+                DatabaseState::Initialized(initialized) => match &initialized.write_buffer_consumer
+                {
+                    Some(_) => return Err(WriteError::WritingOnlyAllowedThroughWriteBuffer),
+                    None => Arc::clone(&initialized.db),
+                },
+                state => {
+                    return Err(WriteError::NotInitialized {
+                        state: state.state_code(),
+                    })
+                }
+            }
+        };
+
+        db.store_entry(entry, time_of_write).await.map_err(|e| {
+            use super::db::Error;
+            match e {
+                // TODO: Pull write buffer producer out of Db
+                Error::WriteBufferWritingError { source } => WriteError::WriteBuffer { source },
+                Error::HardLimitReached {} => WriteError::HardLimitReached {},
+                e => e.into(),
+            }
+        })?;
+
+        recorder.success();
+        Ok(())
+    }
 }
 
 impl Drop for Database {
@@ -497,6 +568,9 @@ struct DatabaseShared {
 
     /// Notify that the database state has changed
     state_notify: Notify,
+
+    /// Metrics for this database
+    metrics: metrics::Metrics,
 }
 
 /// The background worker for `Database` - there should only ever be one

@@ -1729,6 +1729,7 @@ dependencies = [
  "flate2",
  "futures",
  "generated_types",
+ "hashbrown",
  "heappy",
  "hex",
  "http",

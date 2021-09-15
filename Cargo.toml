@@ -125,6 +125,7 @@ dirs = "3.0.1"
 dotenv = "0.15.0"
 flate2 = "1.0"
 futures = "0.3"
+hashbrown = "0.11"
 http = "0.2.0"
 hyper = "0.14"
 libc = { version = "0.2" }

@@ -1,5 +1,4 @@
 use std::convert::{TryFrom, TryInto};
-use std::sync::Arc;
 
 use regex::Regex;
 
@@ -45,14 +44,12 @@ impl TryFrom<management::ShardConfig> for ShardConfig {
                 .map_or(Ok(None), |r| r.map(Some))
                 .field("hash_ring")?,
             ignore_errors: proto.ignore_errors,
-            shards: Arc::new(
-                proto
-                    .shards
-                    .into_iter()
-                    .map(|(k, v)| Ok((k, v.try_into()?)))
-                    .collect::<Result<_, FieldViolation>>()
-                    .field("shards")?,
-            ),
+            shards: proto
+                .shards
+                .into_iter()
+                .map(|(k, v)| Ok((k, v.try_into()?)))
+                .collect::<Result<_, FieldViolation>>()
+                .field("shards")?,
         })
     }
 }

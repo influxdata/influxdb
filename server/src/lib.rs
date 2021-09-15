@@ -71,7 +71,7 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use data_types::{
-    database_rules::{NodeGroup, RoutingRules, ShardConfig, ShardId, Sink},
+    database_rules::{NodeGroup, RoutingRules, ShardId, Sink},
     deleted_database::DeletedDatabase,
     error::ErrorLogger,
     job::Job,
@@ -79,7 +79,7 @@ use data_types::{
     {DatabaseName, DatabaseNameError},
 };
 use database::{Database, DatabaseConfig};
-use entry::{lines_to_sharded_entries, pb_to_entry, Entry, ShardedEntry};
+use entry::{lines_to_sharded_entries, pb_to_entry, Entry};
 use futures::future::{BoxFuture, Future, FutureExt, Shared, TryFutureExt};
 use generated_types::influxdata::pbdata::v1 as pb;
 use hashbrown::HashMap;
@@ -203,8 +203,10 @@ pub enum Error {
     ))]
     WritingOnlyAllowedThroughWriteBuffer { db_name: String },
 
-    #[snafu(display("Cannot write to write buffer, bytes {}: {}", bytes, source))]
-    WriteBuffer { source: db::Error, bytes: u64 },
+    #[snafu(display("Cannot write to write buffer: {}", source))]
+    WriteBuffer {
+        source: Box<dyn std::error::Error + Sync + Send>,
+    },
 
     #[snafu(display("no remote configured for node group: {:?}", node_group))]
     NoRemoteConfigured { node_group: NodeGroup },
@@ -258,52 +260,6 @@ pub trait DatabaseStore: std::fmt::Debug + Send + Sync {
     async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error>;
 }
 
-/// A collection of metrics used to instrument the Server.
-#[derive(Debug)]
-pub struct ServerMetrics {
-    /// The number of LP lines ingested
-    pub ingest_lines_total: metrics::Counter,
-
-    /// The number of LP fields ingested
-    pub ingest_fields_total: metrics::Counter,
-
-    /// The number of LP bytes ingested
-    pub ingest_points_bytes_total: metrics::Counter,
-
-    /// The number of Entry bytes ingested
-    pub ingest_entries_bytes_total: metrics::Counter,
-}
-
-impl ServerMetrics {
-    pub fn new(registry: Arc<metrics::MetricRegistry>) -> Self {
-        // Server manages multiple domains.
-        let ingest_domain = registry.register_domain("ingest");
-
-        Self {
-            ingest_lines_total: ingest_domain.register_counter_metric(
-                "points",
-                None,
-                "total LP points ingested",
-            ),
-            ingest_fields_total: ingest_domain.register_counter_metric(
-                "fields",
-                None,
-                "total LP field values ingested",
-            ),
-            ingest_points_bytes_total: ingest_domain.register_counter_metric(
-                "points",
-                Some("bytes"),
-                "total LP points bytes ingested",
-            ),
-            ingest_entries_bytes_total: ingest_domain.register_counter_metric(
-                "entries",
-                Some("bytes"),
-                "total Entry bytes ingested",
-            ),
-        }
-    }
-}
-
 /// Configuration options for `Server`
 #[derive(Debug)]
 pub struct ServerConfig {
@@ -330,8 +286,6 @@ impl Default for ServerConfig {
 #[derive(Debug)]
 pub struct Server<M: ConnectionManager> {
     connection_manager: Arc<M>,
-
-    metrics: Arc<ServerMetrics>,
 
     /// Future that resolves when the background worker exits
     join: Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>,
@@ -515,10 +469,6 @@ where
         application: Arc<ApplicationState>,
         config: ServerConfig,
     ) -> Self {
-        let metrics = Arc::new(ServerMetrics::new(Arc::clone(
-            application.metric_registry(),
-        )));
-
         let shared = Arc::new(ServerShared {
             shutdown: Default::default(),
             application,
@@ -533,7 +483,6 @@ where
         let join = handle.map_err(Arc::new).boxed().shared();
 
         Self {
-            metrics,
             shared,
             join,
             connection_manager: Arc::new(connection_manager),
@@ -560,13 +509,6 @@ where
             });
 
         Ok(())
-    }
-
-    /// Return the metrics associated with this server
-    ///
-    /// TODO: Server should record its own metrics
-    pub fn metrics(&self) -> &Arc<ServerMetrics> {
-        &self.metrics
     }
 
     /// Returns the server id for this server if set
@@ -786,85 +728,40 @@ where
         default_time: i64,
     ) -> Result<()> {
         let db = self.db(db_name)?;
+        let rules = db.rules();
 
-        // need to split this in two blocks because we cannot hold a lock across an async call.
-        let routing_config_target = {
-            let rules = db.rules();
-            if let Some(RoutingRules::RoutingConfig(routing_config)) = &rules.routing_rules {
-                let sharded_entries = lines_to_sharded_entries(
-                    lines,
-                    default_time,
-                    None as Option<&ShardConfig>,
-                    &*rules,
-                )
+        let shard_config = match &rules.routing_rules {
+            Some(RoutingRules::ShardConfig(shard_config)) => Some(shard_config),
+            _ => None,
+        };
+
+        let sharded_entries =
+            lines_to_sharded_entries(lines, default_time, shard_config, rules.as_ref())
                 .context(LineConversion)?;
-                Some((routing_config.sink.clone(), sharded_entries))
-            } else {
-                None
-            }
-        };
-
-        if let Some((sink, sharded_entries)) = routing_config_target {
-            for i in sharded_entries {
-                self.write_entry_sink(db_name, &sink, i.entry).await?;
-            }
-            return Ok(());
-        }
-
-        // Split lines into shards while holding a read lock on the sharding config.
-        // Once the lock is released we have a vector of entries, each associated with a
-        // shard id, and an Arc to the mapping between shard ids and node
-        // groups. This map is atomically replaced every time the sharding
-        // config is updated, hence it's safe to use after we release the shard config
-        // lock.
-        let (sharded_entries, shards) = {
-            let rules = db.rules();
-
-            let shard_config = rules.routing_rules.as_ref().map(|cfg| match cfg {
-                RoutingRules::RoutingConfig(_) => unreachable!("routing config handled above"),
-                RoutingRules::ShardConfig(shard_config) => shard_config,
-            });
-
-            let sharded_entries =
-                lines_to_sharded_entries(lines, default_time, shard_config, &*rules)
-                    .context(LineConversion)?;
-
-            let shards = shard_config
-                .as_ref()
-                .map(|cfg| Arc::clone(&cfg.shards))
-                .unwrap_or_default();
-
-            (sharded_entries, shards)
-        };
 
         // Write to all shards in parallel; as soon as one fails return error
         // immediately to the client and abort all other outstanding requests.
-        // This can take some time, but we're no longer holding the lock to the shard
-        // config.
-        futures_util::future::try_join_all(
-            sharded_entries
-                .into_iter()
-                .map(|e| self.write_sharded_entry(db_name, Arc::clone(&shards), e)),
-        )
+        futures_util::future::try_join_all(sharded_entries.into_iter().map(
+            |sharded_entry| async {
+                let sink = match &rules.routing_rules {
+                    Some(RoutingRules::ShardConfig(shard_config)) => {
+                        let id = sharded_entry.shard_id.expect("sharded entry");
+                        Some(shard_config.shards.get(&id).expect("valid shard"))
+                    }
+                    Some(RoutingRules::RoutingConfig(config)) => Some(&config.sink),
+                    None => None,
+                };
+
+                match sink {
+                    Some(sink) => {
+                        self.write_entry_sink(db_name, sink, sharded_entry.entry)
+                            .await
+                    }
+                    None => self.write_entry_local(db_name, sharded_entry.entry).await,
+                }
+            },
+        ))
         .await?;
-
-        Ok(())
-    }
-
-    async fn write_sharded_entry(
-        &self,
-        db_name: &DatabaseName<'_>,
-        shards: Arc<std::collections::HashMap<u32, Sink>>,
-        sharded_entry: ShardedEntry,
-    ) -> Result<()> {
-        match sharded_entry.shard_id {
-            Some(shard_id) => {
-                let sink = shards.get(&shard_id).context(ShardNotFound { shard_id })?;
-                self.write_entry_sink(db_name, sink, sharded_entry.entry)
-                    .await?
-            }
-            None => self.write_entry_local(db_name, sharded_entry.entry).await?,
-        }
         Ok(())
     }
 
@@ -936,49 +833,28 @@ where
 
     /// Write an entry to the local `Db`
     ///
-    /// TODO: Push this out of `Server` into `Database`
+    /// TODO: Remove this and migrate callers to `Database::write_entry`
     pub async fn write_entry_local(&self, db_name: &DatabaseName<'_>, entry: Entry) -> Result<()> {
-        let database = self.active_database(db_name)?;
-        let db = {
-            let initialized = database
-                .initialized()
-                .context(DatabaseNotInitialized { db_name })?;
+        use database::WriteError;
 
-            if initialized.write_buffer_consumer().is_some() {
-                return WritingOnlyAllowedThroughWriteBuffer { db_name }.fail();
-            }
-            Arc::clone(initialized.db())
-        };
-
-        let bytes = entry.data().len() as u64;
-        db.store_entry(entry, Utc::now()).await.map_err(|e| {
-            self.metrics.ingest_entries_bytes_total.add_with_attributes(
-                bytes,
-                &[
-                    metrics::KeyValue::new("status", "error"),
-                    metrics::KeyValue::new("db_name", db_name.to_string()),
-                ],
-            );
-            match e {
-                db::Error::HardLimitReached {} => Error::HardLimitReached {},
-                db::Error::WriteBufferWritingError { .. } => {
-                    Error::WriteBuffer { source: e, bytes }
-                }
-                _ => Error::UnknownDatabaseError {
-                    source: Box::new(e),
+        self.active_database(db_name)?
+            .write_entry(entry, Utc::now())
+            .await
+            .map_err(|e| match e {
+                WriteError::NotInitialized { .. } => Error::DatabaseNotInitialized {
+                    db_name: db_name.to_string(),
                 },
-            }
-        })?;
-
-        self.metrics.ingest_entries_bytes_total.add_with_attributes(
-            bytes,
-            &[
-                metrics::KeyValue::new("status", "ok"),
-                metrics::KeyValue::new("db_name", db_name.to_string()),
-            ],
-        );
-
-        Ok(())
+                WriteError::WriteBuffer { source } => Error::WriteBuffer { source },
+                WriteError::WritingOnlyAllowedThroughWriteBuffer => {
+                    Error::WritingOnlyAllowedThroughWriteBuffer {
+                        db_name: db_name.to_string(),
+                    }
+                }
+                WriteError::DbError { source } => Error::UnknownDatabaseError {
+                    source: Box::new(source),
+                },
+                WriteError::HardLimitReached { .. } => Error::HardLimitReached {},
+            })
     }
 
     /// Update database rules and save on success.
@@ -1273,7 +1149,7 @@ mod tests {
     use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
     use iox_object_store::IoxObjectStore;
-    use metrics::TestMetricRegistry;
+    use metric::{Attributes, Metric, U64Counter};
     use object_store::{
         path::{parsed::DirsAndFileName, ObjectStorePath},
         ObjectStore, ObjectStoreApi,
@@ -1546,7 +1422,7 @@ mod tests {
     #[tokio::test]
     async fn write_entry_local() {
         let application = make_application();
-        let metric_registry = TestMetricRegistry::new(Arc::clone(application.metric_registry()));
+        let registry = Arc::clone(application.metric_registry_v2());
         let server = make_server(application);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.wait_for_init().await.unwrap();
@@ -1587,12 +1463,13 @@ mod tests {
         ];
         assert_batches_eq!(expected, &batches);
 
-        metric_registry
-            .has_metric_family("ingest_entries_bytes_total")
-            .with_attributes(&[("status", "ok"), ("db_name", "foo")])
-            .counter()
-            .eq(240.0)
-            .unwrap();
+        let bytes = registry
+            .get_instrument::<Metric<U64Counter>>("ingest_entries_bytes")
+            .unwrap()
+            .get_observer(&Attributes::from(&[("status", "ok"), ("db_name", "foo")]))
+            .unwrap()
+            .fetch();
+        assert_eq!(bytes, 240)
     }
 
     // This tests sets up a database with a sharding config which defines exactly one shard
@@ -1647,11 +1524,9 @@ mod tests {
                 shards: vec![TEST_SHARD_ID].into(),
                 ..Default::default()
             }),
-            shards: Arc::new(
-                vec![(TEST_SHARD_ID, Sink::Iox(remote_ids.clone()))]
-                    .into_iter()
-                    .collect(),
-            ),
+            shards: vec![(TEST_SHARD_ID, Sink::Iox(remote_ids.clone()))]
+                .into_iter()
+                .collect(),
             ..Default::default()
         };
 
