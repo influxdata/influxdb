@@ -5,8 +5,8 @@ use snafu::Snafu;
 
 use data_types::{
     chunk_metadata::{
-        ChunkAddr, ChunkColumnSummary, ChunkLifecycleAction, ChunkStorage, ChunkSummary,
-        DetailedChunkSummary,
+        ChunkAddr, ChunkColumnSummary, ChunkLifecycleAction, ChunkOrder, ChunkStorage,
+        ChunkSummary, DetailedChunkSummary,
     },
     instant::to_approximate_datetime,
     partition_metadata::TableSummary,
@@ -221,7 +221,7 @@ pub struct CatalogChunk {
     time_closed: Option<DateTime<Utc>>,
 
     /// Order of this chunk relative to other overlapping chunks.
-    order: u32,
+    order: ChunkOrder,
 }
 
 macro_rules! unexpected_state {
@@ -275,7 +275,7 @@ impl CatalogChunk {
         chunk: mutable_buffer::chunk::MBChunk,
         time_of_write: DateTime<Utc>,
         metrics: ChunkMetrics,
-        order: u32,
+        order: ChunkOrder,
     ) -> Self {
         assert_eq!(chunk.table_name(), &addr.table_name);
 
@@ -308,7 +308,7 @@ impl CatalogChunk {
         schema: Arc<Schema>,
         metrics: ChunkMetrics,
         delete_predicates: Arc<Vec<Predicate>>,
-        order: u32,
+        order: ChunkOrder,
     ) -> Self {
         let stage = ChunkStage::Frozen {
             meta: Arc::new(ChunkMetadata {
@@ -343,7 +343,7 @@ impl CatalogChunk {
         time_of_last_write: DateTime<Utc>,
         metrics: ChunkMetrics,
         delete_predicates: Arc<Vec<Predicate>>,
-        order: u32,
+        order: ChunkOrder,
     ) -> Self {
         assert_eq!(chunk.table_name(), addr.table_name.as_ref());
 
@@ -422,7 +422,7 @@ impl CatalogChunk {
         self.time_closed
     }
 
-    pub fn order(&self) -> u32 {
+    pub fn order(&self) -> ChunkOrder {
         self.order
     }
 
@@ -1231,7 +1231,7 @@ mod tests {
             mb_chunk,
             time_of_write,
             ChunkMetrics::new_unregistered(),
-            5,
+            ChunkOrder::new(5),
         )
     }
 
@@ -1249,7 +1249,7 @@ mod tests {
             now,
             ChunkMetrics::new_unregistered(),
             Arc::new(vec![] as Vec<Predicate>),
-            6,
+            ChunkOrder::new(6),
         )
     }
 }

@@ -505,7 +505,9 @@ File {
                                     },
                                 },
                             },
-                            chunk_order: 5,
+                            chunk_order: ChunkOrder(
+                                5,
+                            ),
                         },
                     ),
                     schema: Ok(

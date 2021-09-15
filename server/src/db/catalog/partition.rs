@@ -4,7 +4,7 @@ use super::chunk::{CatalogChunk, ChunkStage, Error as ChunkError};
 use crate::db::catalog::metrics::PartitionMetrics;
 use chrono::{DateTime, Utc};
 use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkSummary},
+    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkOrder, ChunkSummary},
     partition_metadata::{PartitionAddr, PartitionSummary},
 };
 use internal_types::schema::Schema;
@@ -52,7 +52,7 @@ pub struct Partition {
     /// The chunks that make up this partition, indexed by id.
     //
     // Alongside the chunk we also store its order.
-    chunks: BTreeMap<u32, (u32, Arc<RwLock<CatalogChunk>>)>,
+    chunks: BTreeMap<u32, (ChunkOrder, Arc<RwLock<CatalogChunk>>)>,
 
     /// When this partition was created
     created_at: DateTime<Utc>,
@@ -71,7 +71,7 @@ pub struct Partition {
     persistence_windows: Option<PersistenceWindows>,
 
     /// Tracks next chunk order in this partition.
-    next_chunk_order: u32,
+    next_chunk_order: ChunkOrder,
 }
 
 impl Partition {
@@ -89,7 +89,7 @@ impl Partition {
             next_chunk_id: 0,
             metrics: Arc::new(metrics),
             persistence_windows: None,
-            next_chunk_order: 0,
+            next_chunk_order: ChunkOrder::new(0),
         }
     }
 
@@ -142,7 +142,7 @@ impl Partition {
         assert_eq!(chunk.table_name().as_ref(), self.table_name());
 
         let chunk_id = Self::pick_next(&mut self.next_chunk_id, "Chunk ID Overflow");
-        let chunk_order = Self::pick_next(&mut self.next_chunk_order, "Chunk Order Overflow");
+        let chunk_order = self.next_chunk_order();
 
         let addr = ChunkAddr::new(&self.addr, chunk_id);
 
@@ -177,7 +177,7 @@ impl Partition {
         time_of_last_write: DateTime<Utc>,
         schema: Arc<Schema>,
         delete_predicates: Arc<Vec<Predicate>>,
-        chunk_order: u32,
+        chunk_order: ChunkOrder,
     ) -> (u32, Arc<RwLock<CatalogChunk>>) {
         let chunk_id = Self::pick_next(&mut self.next_chunk_id, "Chunk ID Overflow");
         assert!(
@@ -232,7 +232,7 @@ impl Partition {
         time_of_first_write: DateTime<Utc>,
         time_of_last_write: DateTime<Utc>,
         delete_predicates: Arc<Vec<Predicate>>,
-        chunk_order: u32,
+        chunk_order: ChunkOrder,
     ) -> Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name(), self.table_name());
 
@@ -257,9 +257,7 @@ impl Partition {
                 self.next_chunk_id = self
                     .next_chunk_id
                     .max(chunk_id.checked_add(1).expect("Chunk ID Overflow"));
-                self.next_chunk_order = self
-                    .next_chunk_order
-                    .max(chunk_order.checked_add(1).expect("Chunk Order Overflow"));
+                self.next_chunk_order = self.next_chunk_order.max(chunk_order.next());
 
                 vacant.insert((chunk_order, Arc::clone(&chunk)));
                 chunk
@@ -311,7 +309,7 @@ impl Partition {
     }
 
     /// Return an immutable chunk and its order reference by chunk id.
-    pub fn chunk(&self, chunk_id: u32) -> Option<(&Arc<RwLock<CatalogChunk>>, u32)> {
+    pub fn chunk(&self, chunk_id: u32) -> Option<(&Arc<RwLock<CatalogChunk>>, ChunkOrder)> {
         self.chunks
             .get(&chunk_id)
             .map(|(order, chunk)| (chunk, *order))
@@ -330,7 +328,7 @@ impl Partition {
     /// Return chunks in this partition with their order and ids.
     ///
     /// Note that chunks are guaranteed ordered by chunk order and ID.
-    pub fn keyed_chunks(&self) -> Vec<(u32, u32, &Arc<RwLock<CatalogChunk>>)> {
+    pub fn keyed_chunks(&self) -> Vec<(u32, ChunkOrder, &Arc<RwLock<CatalogChunk>>)> {
         let mut chunks: Vec<_> = self
             .chunks
             .iter()
@@ -385,6 +383,12 @@ impl Partition {
         self.persistence_windows
             .as_ref()
             .map(|persistence_windows| persistence_windows.sequencer_numbers())
+    }
+
+    fn next_chunk_order(&mut self) -> ChunkOrder {
+        let res = self.next_chunk_order;
+        self.next_chunk_order = self.next_chunk_order.next();
+        res
     }
 }
 
