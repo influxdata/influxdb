@@ -269,7 +269,7 @@ func (cmd *Command) backupShard(db, rp, sid string) (err error) {
 		}
 		defer func() {
 			if closeErr := f.Close(); err == nil {
-				err= closeErr
+				err = closeErr
 			}
 			if remErr := os.Remove(shardArchivePath); err == nil {
 				err = remErr
