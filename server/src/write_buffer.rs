@@ -318,7 +318,7 @@ mod tests {
         let consumer = WriteBufferConsumer::new(
             Box::new(MockBufferForReading::new(write_buffer_state, None).unwrap()),
             Arc::clone(&db),
-            test_db.metrics_registry_v2.as_ref(),
+            test_db.metric_registry.as_ref(),
         );
 
         let query = "select * from cpu";
@@ -345,7 +345,7 @@ mod tests {
         consumer.shutdown();
         consumer.join().await.unwrap();
 
-        let metrics = test_db.metrics_registry_v2;
+        let metrics = test_db.metric_registry;
         let observation = metrics
             .get_instrument::<Metric<U64Counter>>("write_buffer_ingest_requests")
             .unwrap()
@@ -489,7 +489,7 @@ mod tests {
         let consumer = WriteBufferConsumer::new(
             Box::new(MockBufferForReading::new(write_buffer_state, None).unwrap()),
             Arc::clone(&db),
-            test_db.metrics_registry_v2.as_ref(),
+            test_db.metric_registry.as_ref(),
         );
 
         // after a while the table should exist
@@ -530,7 +530,7 @@ mod tests {
         let test_db = TestDb::builder().build().await;
 
         let db = Arc::new(test_db.db);
-        let metric_registry = test_db.metrics_registry_v2;
+        let metric_registry = test_db.metric_registry;
 
         // do: start background task loop
         let shutdown: CancellationToken = Default::default();

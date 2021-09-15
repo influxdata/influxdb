@@ -18,6 +18,8 @@ mod pprof;
 
 mod tower;
 
+mod metrics;
+
 // Influx crates
 use super::planner::Planner;
 use data_types::{
@@ -40,6 +42,7 @@ use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 
+use crate::influxdb_ioxd::http::metrics::LineProtocolMetrics;
 use hyper::server::conn::AddrIncoming;
 use std::num::NonZeroI32;
 use std::{
@@ -351,6 +354,7 @@ where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
     app_server: Arc<AppServer<M>>,
+    lp_metrics: Arc<LineProtocolMetrics>,
     max_request_size: usize,
 }
 
@@ -365,6 +369,9 @@ where
     let server = Server {
         app_server,
         max_request_size,
+        lp_metrics: Arc::new(LineProtocolMetrics::new(
+            application.metric_registry().as_ref(),
+        )),
     };
 
     // Create a router and specify the the handlers.
@@ -486,10 +493,13 @@ where
 {
     let Server {
         app_server: server,
+        lp_metrics,
         max_request_size,
     } = req.data::<Server<M>>().expect("server state");
+
     let max_request_size = *max_request_size;
     let server = Arc::clone(server);
+    let lp_metrics = Arc::clone(lp_metrics);
 
     let query = req.uri().query().context(ExpectedQueryString)?;
 
@@ -522,74 +532,31 @@ where
     let num_lines = lines.len();
     debug!(num_lines, num_fields, body_size=body.len(), %db_name, org=%write_info.org, bucket=%write_info.bucket, "inserting lines into database");
 
-    server
-        .write_lines(&db_name, &lines, default_time)
-        .await
-        .map_err(|e| {
-            let attributes = &[
-                metrics::KeyValue::new("status", "error"),
-                metrics::KeyValue::new("db_name", db_name.to_string()),
-            ];
-
-            server
-                .metrics()
-                .ingest_lines_total
-                .add_with_attributes(num_lines as u64, attributes);
-
-            server
-                .metrics()
-                .ingest_fields_total
-                .add_with_attributes(num_fields as u64, attributes);
-
-            server
-                .metrics()
-                .ingest_points_bytes_total
-                .add_with_attributes(
-                    body.len() as u64,
-                    &[
-                        metrics::KeyValue::new("status", "error"),
-                        metrics::KeyValue::new("db_name", db_name.to_string()),
-                    ],
-                );
-            debug!(?e, ?db_name, ?num_lines, "error writing lines");
-
-            match e {
-                server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
-                    db_name: db_name.to_string(),
-                },
-                _ => ApplicationError::WritingPoints {
-                    org: write_info.org.clone(),
-                    bucket_name: write_info.bucket.clone(),
-                    source: Box::new(e),
-                },
-            }
-        })?;
-
-    let attributes = &[
-        metrics::KeyValue::new("status", "ok"),
-        metrics::KeyValue::new("db_name", db_name.to_string()),
-    ];
-
-    server
-        .metrics()
-        .ingest_lines_total
-        .add_with_attributes(num_lines as u64, attributes);
-
-    server
-        .metrics()
-        .ingest_fields_total
-        .add_with_attributes(num_fields as u64, attributes);
-
-    // line protocol bytes successfully written
-    server
-        .metrics()
-        .ingest_points_bytes_total
-        .add_with_attributes(body.len() as u64, attributes);
-
-    Ok(Response::builder()
-        .status(StatusCode::NO_CONTENT)
-        .body(Body::empty())
-        .unwrap())
+    match server.write_lines(&db_name, &lines, default_time).await {
+        Ok(_) => {
+            lp_metrics.record_write(&db_name, lines.len(), num_fields, body.len(), true);
+            Ok(Response::builder()
+                .status(StatusCode::NO_CONTENT)
+                .body(Body::empty())
+                .unwrap())
+        }
+        Err(server::Error::DatabaseNotFound { .. }) => {
+            debug!(%db_name, %num_lines, "database not found");
+            // Purposefully do not record ingest metrics
+            Err(ApplicationError::DatabaseNotFound {
+                db_name: db_name.to_string(),
+            })
+        }
+        Err(e) => {
+            debug!(%e, %db_name, %num_lines, "error writing lines");
+            lp_metrics.record_write(&db_name, lines.len(), num_fields, body.len(), false);
+            Err(ApplicationError::WritingPoints {
+                org: write_info.org.clone(),
+                bucket_name: write_info.bucket.clone(),
+                source: Box::new(e),
+            })
+        }
+    }
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
@@ -670,13 +637,9 @@ async fn handle_metrics<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .data::<Arc<ApplicationState>>()
         .expect("application state");
 
-    let mut body = application.metric_registry().metrics_as_text();
-
-    // Prometheus does not require that metrics are output in order and so can concat exports
-    // This will break if the same metric is published from two different exporters, but this
-    // is a temporary way to avoid migrating all metrics in one go
+    let mut body: Vec<u8> = Default::default();
     let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
-    application.metric_registry_v2().report(&mut reporter);
+    application.metric_registry().report(&mut reporter);
 
     Ok(Response::new(Body::from(body)))
 }
@@ -904,7 +867,7 @@ pub async fn serve<M>(
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    let metric_registry = Arc::clone(application.metric_registry_v2());
+    let metric_registry = Arc::clone(application.metric_registry());
     let router = router(application, server, max_request_size);
     let new_service = tower::MakeService::new(router, trace_collector, metric_registry);
 
@@ -927,8 +890,7 @@ mod tests {
     use reqwest::{Client, Response};
 
     use data_types::{database_rules::DatabaseRules, server_id::ServerId, DatabaseName};
-    use metric::{Attributes, DurationHistogram, Metric};
-    use metrics::TestMetricRegistry;
+    use metric::{Attributes, DurationHistogram, Metric, U64Counter};
     use object_store::ObjectStore;
     use serde::de::DeserializeOwned;
     use server::{db::Db, rules::ProvidedDatabaseRules, ApplicationState, ConnectionManagerImpl};
@@ -969,7 +931,7 @@ mod tests {
 
         let application = make_application();
         let metric: Metric<U64Counter> = application
-            .metric_registry_v2()
+            .metric_registry()
             .register_metric("my_metric", "description");
 
         let app_server = make_server(Arc::clone(&application));
@@ -1091,8 +1053,7 @@ mod tests {
     async fn test_write_metrics() {
         let application = make_application();
         let app_server = make_server(Arc::clone(&application));
-        let metric_registry = TestMetricRegistry::new(Arc::clone(application.metric_registry()));
-        let metric_registry_v2 = Arc::clone(application.metric_registry_v2());
+        let metric_registry = Arc::clone(application.metric_registry());
 
         app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         app_server.wait_for_init().await.unwrap();
@@ -1106,22 +1067,52 @@ mod tests {
         let client = Client::new();
 
         let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1568756160";
+        let incompatible_lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=\"incompatible\" 1568756170";
 
         // send good data
         let org_name = "MetricsOrg";
         let bucket_name = "MetricsBucket";
+        let post_url = format!(
+            "{}/api/v2/write?bucket={}&org={}",
+            server_url, bucket_name, org_name
+        );
         client
-            .post(&format!(
-                "{}/api/v2/write?bucket={}&org={}",
-                server_url, bucket_name, org_name
-            ))
+            .post(&post_url)
             .body(lp_data)
             .send()
             .await
             .expect("sent data");
 
         // The request completed successfully
-        let request_count = metric_registry_v2
+        let request_count = metric_registry
+            .get_instrument::<Metric<U64Counter>>("http_requests")
+            .unwrap();
+
+        let request_count_ok = request_count
+            .get_observer(&Attributes::from(&[
+                ("path", "/api/v2/write"),
+                ("status", "ok"),
+            ]))
+            .unwrap()
+            .clone();
+
+        let request_count_client_error = request_count
+            .get_observer(&Attributes::from(&[
+                ("path", "/api/v2/write"),
+                ("status", "client_error"),
+            ]))
+            .unwrap()
+            .clone();
+
+        let request_count_server_error = request_count
+            .get_observer(&Attributes::from(&[
+                ("path", "/api/v2/write"),
+                ("status", "server_error"),
+            ]))
+            .unwrap()
+            .clone();
+
+        let request_duration_ok = metric_registry
             .get_instrument::<Metric<DurationHistogram>>("http_request_duration")
             .unwrap()
             .get_observer(&Attributes::from(&[
@@ -1129,36 +1120,84 @@ mod tests {
                 ("status", "ok"),
             ]))
             .unwrap()
-            .fetch()
-            .sample_count();
+            .clone();
 
-        assert_eq!(request_count, 1);
+        let entry_ingest = metric_registry
+            .get_instrument::<Metric<U64Counter>>("ingest_entries_bytes")
+            .unwrap();
+
+        let entry_ingest_ok = entry_ingest
+            .get_observer(&Attributes::from(&[
+                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("status", "ok"),
+            ]))
+            .unwrap()
+            .clone();
+
+        let entry_ingest_error = entry_ingest
+            .get_observer(&Attributes::from(&[
+                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("status", "error"),
+            ]))
+            .unwrap()
+            .clone();
+
+        assert_eq!(request_duration_ok.fetch().sample_count(), 1);
+        assert_eq!(request_count_ok.fetch(), 1);
+        assert_eq!(request_count_client_error.fetch(), 0);
+        assert_eq!(request_count_server_error.fetch(), 0);
+        assert_ne!(entry_ingest_ok.fetch(), 0);
+        assert_eq!(entry_ingest_error.fetch(), 0);
 
         // A single successful point landed
-        metric_registry
-            .has_metric_family("ingest_points_total")
-            .with_attributes(&[("db_name", "MetricsOrg_MetricsBucket"), ("status", "ok")])
-            .counter()
-            .eq(1.0)
+        let ingest_lines = metric_registry
+            .get_instrument::<Metric<U64Counter>>("ingest_lines")
             .unwrap();
+
+        let ingest_lines_ok = ingest_lines
+            .get_observer(&Attributes::from(&[
+                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("status", "ok"),
+            ]))
+            .unwrap()
+            .clone();
+
+        let ingest_lines_error = ingest_lines
+            .get_observer(&Attributes::from(&[
+                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("status", "error"),
+            ]))
+            .unwrap()
+            .clone();
+
+        assert_eq!(ingest_lines_ok.fetch(), 1);
+        assert_eq!(ingest_lines_error.fetch(), 0);
 
         // Which consists of two fields
-        metric_registry
-            .has_metric_family("ingest_fields_total")
-            .with_attributes(&[("db_name", "MetricsOrg_MetricsBucket"), ("status", "ok")])
-            .counter()
-            .eq(2.0)
-            .unwrap();
+        let observation = metric_registry
+            .get_instrument::<Metric<U64Counter>>("ingest_fields")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("status", "ok"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(observation, 2);
 
         // Bytes of data were written
-        metric_registry
-            .has_metric_family("ingest_points_bytes_total")
-            .with_attributes(&[("status", "ok"), ("db_name", "MetricsOrg_MetricsBucket")])
-            .counter()
-            .eq(98.0)
-            .unwrap();
+        let observation = metric_registry
+            .get_instrument::<Metric<U64Counter>>("ingest_bytes")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "MetricsOrg_MetricsBucket"),
+                ("status", "ok"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(observation, 98);
 
-        // Generate an error
+        // Write to a non-existent database
         client
             .post(&format!(
                 "{}/api/v2/write?bucket=NotMyBucket&org=NotMyOrg",
@@ -1169,13 +1208,36 @@ mod tests {
             .await
             .unwrap();
 
-        // A single point was rejected
-        metric_registry
-            .has_metric_family("ingest_points_total")
-            .with_attributes(&[("db_name", "NotMyOrg_NotMyBucket"), ("status", "error")])
-            .counter()
-            .eq(1.0)
+        // An invalid database should not be reported as a new metric
+        assert!(metric_registry
+            .get_instrument::<Metric<U64Counter>>("ingest_lines")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "NotMyOrg_NotMyBucket"),
+                ("status", "error"),
+            ]))
+            .is_none());
+        assert_eq!(ingest_lines_ok.fetch(), 1);
+        assert_eq!(ingest_lines_error.fetch(), 0);
+
+        // Perform an invalid write
+        client
+            .post(&post_url)
+            .body(incompatible_lp_data)
+            .send()
+            .await
             .unwrap();
+
+        // This currently results in an InternalServerError which is correctly recorded
+        // as a server error, but this should probably be a BadRequest client error (#2538)
+        assert_eq!(ingest_lines_ok.fetch(), 1);
+        assert_eq!(ingest_lines_error.fetch(), 1);
+        assert_eq!(request_duration_ok.fetch().sample_count(), 1);
+        assert_eq!(request_count_ok.fetch(), 1);
+        assert_eq!(request_count_client_error.fetch(), 0);
+        assert_eq!(request_count_server_error.fetch(), 1);
+        assert_ne!(entry_ingest_ok.fetch(), 0);
+        assert_ne!(entry_ingest_error.fetch(), 0);
     }
 
     /// Sets up a test database with some data for testing the query endpoint

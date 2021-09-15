@@ -41,7 +41,7 @@ pub fn move_chunk_to_read_buffer(
     // Drop locks
     let chunk = guard.into_data().chunk;
 
-    let metric_registry = Arc::clone(&db.metrics_registry_v2);
+    let metric_registry = Arc::clone(&db.metric_registry);
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
     let fut = async move {

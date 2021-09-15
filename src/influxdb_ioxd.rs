@@ -181,7 +181,7 @@ pub async fn main(config: Config) -> Result<()> {
 
     // Register jemalloc metrics
     application
-        .metric_registry_v2()
+        .metric_registry()
         .register_instrument("jemalloc_metrics", jemalloc::JemallocMetrics::new);
 
     let app_server = make_server(Arc::clone(&application), &config);

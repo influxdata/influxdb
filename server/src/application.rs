@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use metrics::MetricRegistry;
 use object_store::ObjectStore;
 use observability_deps::tracing::info;
 use query::exec::Executor;
@@ -16,8 +15,7 @@ pub struct ApplicationState {
     write_buffer_factory: Arc<WriteBufferConfigFactory>,
     executor: Arc<Executor>,
     job_registry: Arc<JobRegistry>,
-    metric_registry: Arc<MetricRegistry>,
-    metric_registry_v2: Arc<metric::Registry>,
+    metric_registry: Arc<metric::Registry>,
 }
 
 impl ApplicationState {
@@ -43,16 +41,15 @@ impl ApplicationState {
         let num_threads = num_worker_threads.unwrap_or_else(num_cpus::get);
         info!(%num_threads, "using specified number of threads per thread pool");
 
-        let metric_registry_v2 = Arc::new(metric::Registry::new());
-        let job_registry = Arc::new(JobRegistry::new(Arc::clone(&metric_registry_v2)));
+        let metric_registry = Arc::new(metric::Registry::new());
+        let job_registry = Arc::new(JobRegistry::new(Arc::clone(&metric_registry)));
 
         Self {
             object_store,
             write_buffer_factory,
             executor: Arc::new(Executor::new(num_threads)),
             job_registry,
-            metric_registry: Arc::new(metrics::MetricRegistry::new()),
-            metric_registry_v2,
+            metric_registry,
         }
     }
 
@@ -68,12 +65,8 @@ impl ApplicationState {
         &self.job_registry
     }
 
-    pub fn metric_registry(&self) -> &Arc<MetricRegistry> {
+    pub fn metric_registry(&self) -> &Arc<metric::Registry> {
         &self.metric_registry
-    }
-
-    pub fn metric_registry_v2(&self) -> &Arc<metric::Registry> {
-        &self.metric_registry_v2
     }
 
     pub fn executor(&self) -> &Arc<Executor> {

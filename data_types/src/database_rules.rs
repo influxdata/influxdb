@@ -5,7 +5,6 @@ use std::{
     collections::HashMap,
     hash::{Hash, Hasher},
     num::{NonZeroU32, NonZeroUsize},
-    sync::Arc,
 };
 
 use chrono::{TimeZone, Utc};
@@ -444,7 +443,7 @@ pub struct ShardConfig {
     pub ignore_errors: bool,
     /// Mapping between shard IDs and node groups. Other sharding rules use
     /// ShardId as targets.
-    pub shards: Arc<HashMap<ShardId, Sink>>,
+    pub shards: HashMap<ShardId, Sink>,
 }
 
 /// Configuration for a specific IOx sink
