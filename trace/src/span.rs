@@ -67,6 +67,11 @@ impl Span {
             collector.export(self)
         }
     }
+
+    /// Create a new child span with the specified name
+    pub fn child(&self, name: impl Into<Cow<'static, str>>) -> Self {
+        self.ctx.child(name)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -77,7 +82,7 @@ pub struct SpanEvent {
 }
 
 /// Values that can be stored in a Span's metadata and events
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MetaValue {
     String(Cow<'static, str>),
     Float(f64),
@@ -161,9 +166,15 @@ impl<'a> SpanRecorder {
     /// returns a `SpanRecorder` for it. Otherwise returns an empty `SpanRecorder`
     pub fn child(&self, name: &'static str) -> Self {
         match &self.span {
-            Some(span) => Self::new(Some(span.ctx.child(name))),
+            Some(span) => Self::new(Some(span.child(name))),
             None => Self::new(None),
         }
+    }
+
+    /// Return a reference to the span contained in this SpanRecorder,
+    /// or None if there is no active span
+    pub fn span(&self) -> Option<&Span> {
+        self.span.as_ref()
     }
 }
 

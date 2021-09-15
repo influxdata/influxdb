@@ -752,7 +752,10 @@ mod tests {
         let prepare_sql_span = child(sql_span, "prepare_sql").unwrap();
         child(prepare_sql_span, "prepare_plan").unwrap();
 
-        child(ctx_span, "collect").unwrap();
+        let collect_span = child(ctx_span, "collect").unwrap();
+
+        // validate spans from DataFusion ExecutionPlan are present
+        child(collect_span, "ProjectionExec: expr").unwrap();
 
         let database_not_found = root_spans[3];
         assert_eq!(database_not_found.status, SpanStatus::Err);
