@@ -365,12 +365,11 @@ impl QueryChunk for DbChunk {
             }
             State::ReadBuffer { chunk, .. } => {
                 // Only apply pushdownable predicates
-                let rb_predicate = match to_read_buffer_predicate(&pred_with_deleted_ranges)
-                    .context(PredicateConversion)
-                {
-                    Ok(predicate) => predicate,
-                    Err(_) => read_buffer::Predicate::default(),
-                };
+                let rb_predicate =
+                    match to_read_buffer_predicate(predicate).context(PredicateConversion) {
+                        Ok(predicate) => predicate,
+                        Err(_) => read_buffer::Predicate::default(),
+                    };
                 debug!(?rb_predicate, "Predicate pushed down to RUB");
 
                 // combine all delete expressions to RUB's negated ones

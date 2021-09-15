@@ -175,11 +175,24 @@ impl Predicate {
         }
     }
 
-    /// Add a list of not(a delete expr)
+    /// Add a list of disjunctive negated expressions.
+    /// Example: there are two deletes as follows
+    ///   . Delete_1: WHERE city != "Boston"  AND temp = 70
+    ///   . Delete 2: WHERE state = "NY" AND route != "I90"
+    /// The negated list will be "NOT(Delete_1)", NOT(Delete_2)" which means
+    ///    NOT(city != "Boston"  AND temp = 70),  NOT(state = "NY" AND route != "I90") which means
+    ///   [NOT(city = Boston") OR NOT(temp = 70)], [NOT(state = "NY") OR NOT(route != "I90")]
     pub fn add_delete_exprs(&mut self, delete_predicates: &[Self]) {
         for pred in delete_predicates {
+            let mut expr: Option<Expr> = None;
             for exp in &pred.exprs {
-                self.exprs.push(exp.clone().not());
+                match expr {
+                    None => expr = Some(exp.clone().not()),
+                    Some(e) => expr = Some(e.or(exp.clone().not())),
+                }
+            }
+            if let Some(e) = expr {
+                self.exprs.push(e);
             }
         }
     }
