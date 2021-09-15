@@ -900,6 +900,8 @@ version = "0.1.0"
 dependencies = [
  "datafusion 0.1.0",
  "futures",
+ "tokio",
+ "tokio-stream",
 ]
 
 [[package]]
@@ -2904,7 +2906,6 @@ dependencies = [
  "persistence_windows",
  "predicate",
  "prost",
- "query",
  "snafu",
  "tempfile",
  "test_helpers",

@@ -26,11 +26,10 @@ use datafusion::{
     scalar::ScalarValue,
 };
 
+use datafusion_util::AdapterStream;
 use futures::StreamExt;
 use observability_deps::tracing::{debug, trace};
 use tokio::sync::{mpsc::Sender, Mutex};
-
-use crate::exec::stream::AdapterStream;
 
 /// Implements stream splitting described in `make_stream_split`
 ///
