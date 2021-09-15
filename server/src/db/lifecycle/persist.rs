@@ -144,8 +144,8 @@ pub fn persist_chunks(
                 );
             }
 
-            // NGA todo: we hit this error if there are rows but they are deleted - todo before merge: open a ticket
-            // Need to think a way to handle this
+            // NGA todo: we hit this error if there are rows but they are deleted
+            // Need to think a way to handle this (https://github.com/influxdata/influxdb_iox/issues/2546)
             let to_persist = to_persist.expect("should be rows to persist");
 
             let (new_chunk_id, new_chunk) = partition_write.create_rub_chunk(

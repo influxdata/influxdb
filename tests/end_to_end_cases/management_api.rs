@@ -1490,9 +1490,9 @@ async fn test_delete() {
 
     // Delete some data
     let table = "cpu";
-    let start = "0";
-    let stop = "1200";
-    let pred = r#"region = "west""#;
+    let start = "100";
+    let stop = "120";
+    let pred = "region = west";
     let _del = management_client
         .delete(db_name.clone(), table, start, stop, pred)
         .await
