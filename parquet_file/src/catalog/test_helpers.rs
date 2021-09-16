@@ -12,7 +12,11 @@ use snafu::ResultExt;
 
 use crate::{
     catalog::{
-        api::{CatalogParquetInfo, CatalogState, CheckpointData, PreservedCatalog},
+        core::PreservedCatalog,
+        interface::{
+            CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError,
+            CheckpointData,
+        },
         internals::{
             proto_io::{load_transaction_proto, store_transaction_proto},
             types::TransactionKey,
@@ -61,8 +65,8 @@ impl TestCatalogState {
     }
 
     /// Inserts a file into this catalog state
-    pub fn insert(&mut self, info: CatalogParquetInfo) -> crate::catalog::api::Result<()> {
-        use crate::catalog::api::{Error, MetadataExtractFailed};
+    pub fn insert(&mut self, info: CatalogParquetInfo) -> Result<(), CatalogStateAddError> {
+        use crate::catalog::interface::MetadataExtractFailed;
 
         let iox_md = info
             .metadata
@@ -80,7 +84,7 @@ impl TestCatalogState {
 
         match partition.chunks.entry(iox_md.chunk_id) {
             Occupied(o) => {
-                return Err(Error::ParquetFileAlreadyExists {
+                return Err(CatalogStateAddError::ParquetFileAlreadyExists {
                     path: o.get().path.clone(),
                 });
             }
@@ -104,13 +108,11 @@ impl CatalogState for TestCatalogState {
         &mut self,
         _iox_object_store: Arc<IoxObjectStore>,
         info: CatalogParquetInfo,
-    ) -> crate::catalog::api::Result<()> {
+    ) -> Result<(), CatalogStateAddError> {
         self.insert(info)
     }
 
-    fn remove(&mut self, path: &ParquetFilePath) -> crate::catalog::api::Result<()> {
-        use crate::catalog::api::Error;
-
+    fn remove(&mut self, path: &ParquetFilePath) -> Result<(), CatalogStateRemoveError> {
         let partitions = self
             .tables
             .values_mut()
@@ -136,7 +138,7 @@ impl CatalogState for TestCatalogState {
         }
 
         match removed {
-            0 => Err(Error::ParquetFileDoesNotExist { path: path.clone() }),
+            0 => Err(CatalogStateRemoveError::ParquetFileDoesNotExist { path: path.clone() }),
             _ => Ok(()),
         }
     }
@@ -173,8 +175,6 @@ where
     S: CatalogState + Debug + Send + Sync,
     F: Fn(&S) -> CheckpointData + Send,
 {
-    use crate::catalog::api::Error;
-
     // empty state
     let iox_object_store = make_iox_object_store().await;
     let (_catalog, mut state) =
@@ -317,11 +317,17 @@ where
                 },
             )
             .unwrap_err();
-        assert!(matches!(err, Error::ParquetFileAlreadyExists { .. }));
+        assert!(matches!(
+            err,
+            CatalogStateAddError::ParquetFileAlreadyExists { .. }
+        ));
 
         // does not exist as has a different UUID
         let err = state.remove(&path).unwrap_err();
-        assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
+        assert!(matches!(
+            err,
+            CatalogStateRemoveError::ParquetFileDoesNotExist { .. }
+        ));
     }
     assert_checkpoint(&state, &f, &expected);
 
@@ -340,7 +346,10 @@ where
                 },
             )
             .unwrap_err();
-        assert!(matches!(err, Error::ParquetFileAlreadyExists { .. }));
+        assert!(matches!(
+            err,
+            CatalogStateAddError::ParquetFileAlreadyExists { .. }
+        ));
 
         // this transaction will still work
         let (path, metadata) =
@@ -369,12 +378,18 @@ where
                 },
             )
             .unwrap_err();
-        assert!(matches!(err, Error::ParquetFileAlreadyExists { .. }));
+        assert!(matches!(
+            err,
+            CatalogStateAddError::ParquetFileAlreadyExists { .. }
+        ));
 
         // does not exist - as different UUID
         let path = ParquetFilePath::new(&chunk_addr(7));
         let err = state.remove(&path).unwrap_err();
-        assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
+        assert!(matches!(
+            err,
+            CatalogStateRemoveError::ParquetFileDoesNotExist { .. }
+        ));
 
         // this still works
         let (path, _) = expected.remove(&7).unwrap();
@@ -382,7 +397,10 @@ where
 
         // recently removed
         let err = state.remove(&path).unwrap_err();
-        assert!(matches!(err, Error::ParquetFileDoesNotExist { .. }));
+        assert!(matches!(
+            err,
+            CatalogStateRemoveError::ParquetFileDoesNotExist { .. }
+        ));
     }
     assert_checkpoint(&state, &f, &expected);
 }
