@@ -1,7 +1,9 @@
 //! Abstract interfaces to make different users work with the perserved catalog.
 use std::{collections::HashMap, sync::Arc};
 
+use data_types::chunk_metadata::ChunkAddr;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
+use predicate::predicate::Predicate;
 use snafu::Snafu;
 
 use crate::metadata::IoxParquetMetaData;
@@ -17,6 +19,34 @@ pub struct CatalogParquetInfo {
 
     /// Associated parquet metadata.
     pub metadata: Arc<IoxParquetMetaData>,
+}
+
+/// Same as [ChunkAddr] but w/o the database part.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChunkAddrWithoutDatabase {
+    pub table_name: Arc<str>,
+    pub partition_key: Arc<str>,
+    pub chunk_id: u32,
+}
+
+impl From<ChunkAddr> for ChunkAddrWithoutDatabase {
+    fn from(addr: ChunkAddr) -> Self {
+        Self {
+            table_name: addr.table_name,
+            partition_key: addr.partition_key,
+            chunk_id: addr.chunk_id,
+        }
+    }
+}
+
+impl std::fmt::Display for ChunkAddrWithoutDatabase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Chunk('{}':'{}':{})",
+            self.table_name, self.partition_key, self.chunk_id
+        )
+    }
 }
 
 #[derive(Debug, Snafu)]
@@ -63,6 +93,13 @@ pub enum CatalogStateRemoveError {
     ParquetFileDoesNotExist { path: ParquetFilePath },
 }
 
+#[derive(Debug, Snafu)]
+#[snafu(visibility(pub))]
+pub enum CatalogStateDeletePredicateError {
+    #[snafu(display("Chunk does not exist in catalog: {}", chunk))]
+    ChunkDoesNotExist { chunk: ChunkAddrWithoutDatabase },
+}
+
 /// Abstraction over how the in-memory state of the catalog works.
 pub trait CatalogState {
     /// Input to create a new empty instance.
@@ -82,6 +119,15 @@ pub trait CatalogState {
 
     /// Remove parquet file from state.
     fn remove(&mut self, path: &ParquetFilePath) -> Result<(), CatalogStateRemoveError>;
+
+    /// Register new predicate to delete data.
+    ///
+    /// The delete predicate will only be applied to the given chunks (by table name, partition key, and chunk ID).
+    fn delete_predicate(
+        &mut self,
+        predicate: Arc<Predicate>,
+        chunks: Vec<ChunkAddrWithoutDatabase>,
+    ) -> Result<(), CatalogStateDeletePredicateError>;
 }
 
 /// Structure that holds all information required to create a checkpoint.
@@ -96,4 +142,10 @@ pub struct CheckpointData {
     ///
     /// If a file was once added but later removed it MUST NOT appear in the result.
     pub files: HashMap<ParquetFilePath, CatalogParquetInfo>,
+
+    /// List of active delete predicates together with their chunks (by table name, partition key, and chunk ID).
+    ///
+    /// This must only contains chunks that are still present in the catalog. Predicates that do not have any chunks
+    /// attached should be left out.
+    pub delete_predicates: Vec<(Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)>,
 }

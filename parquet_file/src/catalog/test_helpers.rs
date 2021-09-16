@@ -8,14 +8,16 @@ use std::{
 };
 
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
-use snafu::ResultExt;
+use predicate::predicate::Predicate;
+use snafu::{OptionExt, ResultExt};
 
 use crate::{
     catalog::{
         core::PreservedCatalog,
         interface::{
-            CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError,
-            CheckpointData,
+            CatalogParquetInfo, CatalogState, CatalogStateAddError,
+            CatalogStateDeletePredicateError, CatalogStateRemoveError, CheckpointData,
+            ChunkAddrWithoutDatabase,
         },
         internals::{
             proto_io::{load_transaction_proto, store_transaction_proto},
@@ -33,13 +35,19 @@ pub struct Table {
 
 #[derive(Clone, Debug, Default)]
 pub struct Partition {
-    pub chunks: HashMap<u32, CatalogParquetInfo>,
+    pub chunks: HashMap<u32, Chunk>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Chunk {
+    pub parquet_info: CatalogParquetInfo,
+    pub delete_predicates: Vec<Arc<Predicate>>,
 }
 
 /// In-memory catalog state, for testing.
 #[derive(Clone, Debug, Default)]
 pub struct TestCatalogState {
-    /// Map of all parquet files that are currently pregistered.
+    /// Map of all parquet files that are currently registered.
     pub tables: HashMap<Arc<str>, Table>,
 }
 
@@ -51,6 +59,7 @@ impl TestCatalogState {
                 .files()
                 .map(|info| (info.path.clone(), info.clone()))
                 .collect(),
+            delete_predicates: self.delete_predicates(),
         }
     }
 
@@ -60,8 +69,36 @@ impl TestCatalogState {
             table
                 .partitions
                 .values()
-                .flat_map(|partition| partition.chunks.values())
+                .flat_map(|partition| partition.chunks.values().map(|chunk| &chunk.parquet_info))
         })
+    }
+
+    /// Return an iterator over all predicates in this catalog.
+    pub fn delete_predicates(&self) -> Vec<(Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)> {
+        let mut predicates: HashMap<usize, (Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)> =
+            Default::default();
+
+        for (table_name, table) in &self.tables {
+            for (partition_key, partition) in &table.partitions {
+                for (chunk_id, chunk) in &partition.chunks {
+                    for predicate in &chunk.delete_predicates {
+                        let predicate_ref: &Predicate = predicate.as_ref();
+                        let addr = (predicate_ref as *const Predicate) as usize;
+                        let pred_chunk = || ChunkAddrWithoutDatabase {
+                            table_name: Arc::clone(table_name),
+                            partition_key: Arc::clone(partition_key),
+                            chunk_id: *chunk_id,
+                        };
+                        predicates
+                            .entry(addr)
+                            .and_modify(|(_predicate, v)| v.push(pred_chunk()))
+                            .or_insert_with(|| (Arc::clone(predicate), vec![pred_chunk()]));
+                    }
+                }
+            }
+        }
+
+        predicates.into_values().collect()
     }
 
     /// Inserts a file into this catalog state
@@ -85,10 +122,13 @@ impl TestCatalogState {
         match partition.chunks.entry(iox_md.chunk_id) {
             Occupied(o) => {
                 return Err(CatalogStateAddError::ParquetFileAlreadyExists {
-                    path: o.get().path.clone(),
+                    path: o.get().parquet_info.path.clone(),
                 });
             }
-            Vacant(v) => v.insert(info),
+            Vacant(v) => v.insert(Chunk {
+                parquet_info: info,
+                delete_predicates: vec![],
+            }),
         };
 
         Ok(())
@@ -124,7 +164,7 @@ impl CatalogState for TestCatalogState {
                 .chunks
                 .iter()
                 .filter_map(|(id, chunk)| {
-                    if &chunk.path == path {
+                    if &chunk.parquet_info.path == path {
                         return Some(*id);
                     }
                     None
@@ -141,6 +181,36 @@ impl CatalogState for TestCatalogState {
             0 => Err(CatalogStateRemoveError::ParquetFileDoesNotExist { path: path.clone() }),
             _ => Ok(()),
         }
+    }
+
+    fn delete_predicate(
+        &mut self,
+        predicate: Arc<Predicate>,
+        chunks: Vec<ChunkAddrWithoutDatabase>,
+    ) -> Result<(), CatalogStateDeletePredicateError> {
+        use crate::catalog::interface::ChunkDoesNotExist;
+
+        for addr in chunks {
+            self.tables
+                .get_mut(&addr.table_name)
+                .context(ChunkDoesNotExist {
+                    chunk: addr.clone(),
+                })?
+                .partitions
+                .get_mut(&addr.partition_key)
+                .context(ChunkDoesNotExist {
+                    chunk: addr.clone(),
+                })?
+                .chunks
+                .get_mut(&addr.chunk_id)
+                .context(ChunkDoesNotExist {
+                    chunk: addr.clone(),
+                })?
+                .delete_predicates
+                .push(Arc::clone(&predicate));
+        }
+
+        Ok(())
     }
 }
 
@@ -183,8 +253,10 @@ where
             .unwrap();
 
     // The expected state of the catalog
-    let mut expected: HashMap<u32, (ParquetFilePath, Arc<IoxParquetMetaData>)> = HashMap::new();
-    assert_checkpoint(&state, &f, &expected);
+    let mut expected_files: HashMap<u32, (ParquetFilePath, Arc<IoxParquetMetaData>)> =
+        HashMap::new();
+    let mut expected_predicates: Vec<(Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)> = vec![];
+    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // add files
     {
@@ -206,17 +278,17 @@ where
                     },
                 )
                 .unwrap();
-            expected.insert(chunk_id, (path, Arc::new(metadata)));
+            expected_files.insert(chunk_id, (path, Arc::new(metadata)));
         }
     }
-    assert_checkpoint(&state, &f, &expected);
+    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // remove files
     {
-        let (path, _) = expected.remove(&1).unwrap();
+        let (path, _) = expected_files.remove(&1).unwrap();
         state.remove(&path).unwrap();
     }
-    assert_checkpoint(&state, &f, &expected);
+    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // add and remove in the same transaction
     {
@@ -234,11 +306,11 @@ where
             .unwrap();
         state.remove(&path).unwrap();
     }
-    assert_checkpoint(&state, &f, &expected);
+    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // remove and add in the same transaction
     {
-        let (path, metadata) = expected.get(&3).unwrap();
+        let (path, metadata) = expected_files.get(&3).unwrap();
         state.remove(path).unwrap();
         state
             .add(
@@ -251,7 +323,7 @@ where
             )
             .unwrap();
     }
-    assert_checkpoint(&state, &f, &expected);
+    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // add, remove, add in the same transaction
     {
@@ -278,13 +350,13 @@ where
                 },
             )
             .unwrap();
-        expected.insert(6, (path, Arc::new(metadata)));
+        expected_files.insert(6, (path, Arc::new(metadata)));
     }
-    assert_checkpoint(&state, &f, &expected);
+    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // remove, add, remove in same transaction
     {
-        let (path, metadata) = expected.remove(&4).unwrap();
+        let (path, metadata) = expected_files.remove(&4).unwrap();
         state.remove(&path).unwrap();
         state
             .add(
@@ -298,7 +370,7 @@ where
             .unwrap();
         state.remove(&path).unwrap();
     }
-    assert_checkpoint(&state, &f, &expected);
+    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // error handling, no real opt
     {
@@ -329,12 +401,12 @@ where
             CatalogStateRemoveError::ParquetFileDoesNotExist { .. }
         ));
     }
-    assert_checkpoint(&state, &f, &expected);
+    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // error handling, still something works
     {
         // already exists (should also not change the metadata)
-        let (_, metadata) = expected.get(&0).unwrap();
+        let (_, metadata) = expected_files.get(&0).unwrap();
         let err = state
             .add(
                 Arc::clone(&iox_object_store),
@@ -365,7 +437,7 @@ where
                 },
             )
             .unwrap();
-        expected.insert(7, (path.clone(), Arc::clone(&metadata)));
+        expected_files.insert(7, (path.clone(), Arc::clone(&metadata)));
 
         // recently added
         let err = state
@@ -392,7 +464,7 @@ where
         ));
 
         // this still works
-        let (path, _) = expected.remove(&7).unwrap();
+        let (path, _) = expected_files.remove(&7).unwrap();
         state.remove(&path).unwrap();
 
         // recently removed
@@ -402,7 +474,123 @@ where
             CatalogStateRemoveError::ParquetFileDoesNotExist { .. }
         ));
     }
-    assert_checkpoint(&state, &f, &expected);
+    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+
+    // add predicates
+    {
+        // create two chunks that we can use for delete predicate
+        let chunk_addr_1 = chunk_addr(8);
+        let (path, metadata) = make_metadata(
+            &iox_object_store,
+            "ok",
+            chunk_addr_1.clone(),
+            TestSize::Full,
+        )
+        .await;
+        state
+            .add(
+                Arc::clone(&iox_object_store),
+                CatalogParquetInfo {
+                    path: path.clone(),
+                    file_size_bytes: 33,
+                    metadata: Arc::new(metadata.clone()),
+                },
+            )
+            .unwrap();
+        expected_files.insert(chunk_addr_1.chunk_id, (path, Arc::new(metadata)));
+
+        let chunk_addr_2 = chunk_addr(9);
+        let (path, metadata) = make_metadata(
+            &iox_object_store,
+            "ok",
+            chunk_addr_2.clone(),
+            TestSize::Full,
+        )
+        .await;
+        state
+            .add(
+                Arc::clone(&iox_object_store),
+                CatalogParquetInfo {
+                    path: path.clone(),
+                    file_size_bytes: 33,
+                    metadata: Arc::new(metadata.clone()),
+                },
+            )
+            .unwrap();
+        expected_files.insert(chunk_addr_2.chunk_id, (path, Arc::new(metadata)));
+
+        // first predicate used only a single chunk
+        let predicate_1 = create_delete_predicate(&chunk_addr_1.table_name, 1);
+        let chunks_1 = vec![chunk_addr_1.clone().into()];
+        state
+            .delete_predicate(Arc::clone(&predicate_1), chunks_1.clone())
+            .unwrap();
+        expected_predicates.push((predicate_1, chunks_1));
+
+        // second predicate uses both chunks (but not the older chunks)
+        let predicate_2 = create_delete_predicate(&chunk_addr_2.table_name, 2);
+        let chunks_2 = vec![chunk_addr_1.into(), chunk_addr_2.into()];
+        state
+            .delete_predicate(Arc::clone(&predicate_2), chunks_2.clone())
+            .unwrap();
+        expected_predicates.push((predicate_2, chunks_2));
+
+        // chunks created afterwards are unaffected
+        let chunk_addr_3 = chunk_addr(10);
+        let (path, metadata) = make_metadata(
+            &iox_object_store,
+            "ok",
+            chunk_addr_3.clone(),
+            TestSize::Full,
+        )
+        .await;
+        state
+            .add(
+                Arc::clone(&iox_object_store),
+                CatalogParquetInfo {
+                    path: path.clone(),
+                    file_size_bytes: 33,
+                    metadata: Arc::new(metadata.clone()),
+                },
+            )
+            .unwrap();
+        expected_files.insert(chunk_addr_3.chunk_id, (path, Arc::new(metadata)));
+    }
+    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+
+    // removing a chunk will also remove its predicates
+    {
+        let (path, _) = expected_files.remove(&8).unwrap();
+        state.remove(&path).unwrap();
+        expected_predicates = expected_predicates
+            .into_iter()
+            .filter_map(|(predicate, chunks)| {
+                let chunks: Vec<_> = chunks
+                    .into_iter()
+                    .filter(|addr| addr.chunk_id != 8)
+                    .collect();
+                (!chunks.is_empty()).then(|| (predicate, chunks))
+            })
+            .collect();
+    }
+    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
+
+    // registering predicates for unknown chunks errors
+    {
+        let predicate = create_delete_predicate("some_table", 1);
+        let chunks = vec![ChunkAddrWithoutDatabase {
+            table_name: Arc::from("some_table"),
+            partition_key: Arc::from("part"),
+            chunk_id: 1000,
+        }];
+        let err = state
+            .delete_predicate(Arc::clone(&predicate), chunks)
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            CatalogStateDeletePredicateError::ChunkDoesNotExist { .. }
+        ));
+    }
 }
 
 /// Assert that tracked files and their linked metadata are equal.
@@ -410,10 +598,12 @@ fn assert_checkpoint<S, F>(
     state: &S,
     f: &F,
     expected_files: &HashMap<u32, (ParquetFilePath, Arc<IoxParquetMetaData>)>,
+    expected_predicates: &[(Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)],
 ) where
     F: Fn(&S) -> CheckpointData,
 {
-    let actual_files: HashMap<ParquetFilePath, CatalogParquetInfo> = f(state).files;
+    let data = f(state);
+    let actual_files = data.files;
 
     let sorted_keys_actual = get_sorted_keys(actual_files.keys());
     let sorted_keys_expected = get_sorted_keys(expected_files.values().map(|(path, _)| path));
@@ -437,6 +627,8 @@ fn assert_checkpoint<S, F>(
         let stats_expected = md_expected.read_statistics(&schema_expected).unwrap();
         assert_eq!(stats_actual, stats_expected);
     }
+
+    assert_eq!(data.delete_predicates, expected_predicates);
 }
 
 /// Get a sorted list of keys from an iterator.
@@ -446,4 +638,44 @@ fn get_sorted_keys<'a>(
     let mut keys: Vec<_> = keys.collect();
     keys.sort();
     keys
+}
+
+/// Helper to create a simple delete predicate.
+fn create_delete_predicate(table_name: &str, value: i64) -> Arc<Predicate> {
+    use datafusion::{
+        logical_plan::{Column, Expr, Operator},
+        scalar::ScalarValue,
+    };
+
+    Arc::new(Predicate {
+        table_names: Some(
+            IntoIterator::into_iter([table_name.to_string(), format!("not_{}", table_name)])
+                .collect(),
+        ),
+        field_columns: None,
+        partition_key: None,
+        range: None,
+        exprs: vec![Expr::BinaryExpr {
+            left: Box::new(Expr::Column(Column {
+                relation: Some(table_name.to_string()),
+                name: "foo".to_string(),
+            })),
+            op: Operator::Eq,
+            right: Box::new(Expr::Literal(ScalarValue::Int64(Some(value)))),
+        }],
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_catalog_state() {
+        assert_catalog_state_implementation::<TestCatalogState, _>(
+            (),
+            TestCatalogState::checkpoint_data,
+        )
+        .await;
+    }
 }

@@ -6,11 +6,15 @@ use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::{ObjectStore, ObjectStoreApi};
 use observability_deps::tracing::info;
 use parking_lot::Mutex;
+use predicate::predicate::Predicate;
 use snafu::{ResultExt, Snafu};
 
 use crate::catalog::{
     core::PreservedCatalog,
-    interface::{CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError},
+    interface::{
+        CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateDeletePredicateError,
+        CatalogStateRemoveError, ChunkAddrWithoutDatabase,
+    },
 };
 
 #[derive(Debug, Snafu)]
@@ -135,6 +139,15 @@ impl CatalogState for TracerCatalogState {
 
     fn remove(&mut self, _path: &ParquetFilePath) -> Result<(), CatalogStateRemoveError> {
         // Do NOT remove the file since we still need it for time travel
+        Ok(())
+    }
+
+    fn delete_predicate(
+        &mut self,
+        _predicate: Arc<Predicate>,
+        _chunks: Vec<ChunkAddrWithoutDatabase>,
+    ) -> Result<(), CatalogStateDeletePredicateError> {
+        // No need to track delete predicates.
         Ok(())
     }
 }
