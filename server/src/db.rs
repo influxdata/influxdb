@@ -1301,9 +1301,7 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use bytes::Bytes;
     use chrono::{DateTime, TimeZone};
-    use datafusion::logical_plan::{col, lit};
     use futures::{stream, StreamExt, TryStreamExt};
-    use predicate::predicate::PredicateBuilder;
     use tokio_util::sync::CancellationToken;
 
     use ::test_helpers::assert_contains;

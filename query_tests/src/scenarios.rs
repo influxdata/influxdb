@@ -1,5 +1,4 @@
 //! This module contains testing scenarios for Db
-#[allow(unused_imports, dead_code, unused_macros)]
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -1297,8 +1296,7 @@ pub struct DeleteFromOsOneMeasurementOneChunk {}
 #[async_trait]
 impl DbSetup for DeleteFromOsOneMeasurementOneChunk {
     async fn make(&self) -> Vec<DbScenario> {
-        // The main purpose of these scenarios is the delete predicate is added in RUB
-        // and is moved with chunk moving
+        // The main purpose of these scenarios is the delete predicate is added to persisted chunks
 
         // General setup for all scenarios
         let partition_key = "1970-01-01T00";
@@ -1332,7 +1330,7 @@ impl DbSetup for DeleteFromOsOneMeasurementOneChunk {
 
         // return scenarios to run queries
         //vec![scenario_rub_os, scenario_rub_os_unload_rub, scenario_os]
-        // NGA todo: turn the last 2 scenarios on when #2518band #2550 are done
+        // NGA todo: turn the last 2 scenarios on when #2518 and #2550 are done
         vec![scenario_rub_os]
     }
 }
@@ -1507,7 +1505,6 @@ async fn make_delete_mub(lp_lines: Vec<&str>, pred: &Predicate) -> DbScenario {
     assert_eq!(count_mutable_buffer_chunks(&db), 1);
     assert_eq!(count_read_buffer_chunks(&db), 0);
     assert_eq!(count_object_store_chunks(&db), 0);
-    // delete one row
     db.delete("cpu", pred).await.unwrap();
     // Still one but frozen MUB, no RUB, no OS
     assert_eq!(count_mutable_buffer_chunks(&db), 1);
@@ -1529,7 +1526,7 @@ async fn make_delete_mub_to_rub(
     let db = make_db().await.db;
     // create an open MUB
     write_lp(&db, &lp_lines.join("\n")).await;
-    // delete one row in MUB
+    // delete data in MUB
     db.delete("cpu", pred).await.unwrap();
     // move MUB to RUB and the delete predicate will be automatically included in RUB
     db.rollover_partition(table_name, partition_key)
@@ -1558,7 +1555,7 @@ async fn make_delete_mub_to_rub_and_os(
     let db = make_db().await.db;
     // create an open MUB
     write_lp(&db, &lp_lines.join("\n")).await;
-    // delete one row in MUB
+    // delete data in MUB
     db.delete("cpu", pred).await.unwrap();
     // move MUB to RUB and the delete predicate will be automatically included in RUB
     db.rollover_partition(table_name, partition_key)
@@ -1595,7 +1592,7 @@ async fn make_delete_mub_to_os(
     let db = make_db().await.db;
     // create an open MUB
     write_lp(&db, &lp_lines.join("\n")).await;
-    // delete one row in MUB
+    // delete data in MUB
     db.delete("cpu", pred).await.unwrap();
     // move MUB to RUB and the delete predicate will be automatically included in RUB
     db.rollover_partition(table_name, partition_key)
@@ -1641,7 +1638,7 @@ async fn make_delete_rub(
     db.move_chunk_to_read_buffer(table_name, partition_key, 0)
         .await
         .unwrap();
-    // delete one row in RUB
+    // delete data in RUB
     db.delete("cpu", pred).await.unwrap();
     // No MUB, one RUB, no OS
     assert_eq!(count_mutable_buffer_chunks(&db), 0);
@@ -1670,7 +1667,7 @@ async fn make_delete_rub_to_os(
     db.move_chunk_to_read_buffer(table_name, partition_key, 0)
         .await
         .unwrap();
-    // delete one row in RUB
+    // delete data in RUB
     db.delete("cpu", pred).await.unwrap();
     // persist RUB and the delete predicate will be automatically included in the OS chunk
     db.persist_partition(
@@ -1707,7 +1704,7 @@ async fn make_delete_rub_to_os_and_unload_rub(
     db.move_chunk_to_read_buffer(table_name, partition_key, 0)
         .await
         .unwrap();
-    // delete one row in RUB
+    // delete data in RUB
     db.delete("cpu", pred).await.unwrap();
     // persist RUB and the delete predicate will be automatically included in the OS chunk
     db.persist_partition(
@@ -1754,7 +1751,7 @@ async fn make_delete_os_with_rub(
     )
     .await
     .unwrap();
-    // delete one row after persisted but RUB still available
+    // delete data after persisted but RUB still available
     db.delete("cpu", pred).await.unwrap();
     // No MUB, one RUB, one OS
     assert_eq!(count_mutable_buffer_chunks(&db), 0);
@@ -1791,7 +1788,7 @@ async fn make_delete_os_with_rub_then_unload_rub(
     )
     .await
     .unwrap();
-    // delete one row after persisted but RUB still available
+    // delete data after persisted but RUB still available
     db.delete("cpu", pred).await.unwrap();
     // remove RUB
     db.unload_read_buffer(table_name, partition_key, 1).unwrap();
@@ -1833,7 +1830,7 @@ async fn make_delete_os(
     .unwrap();
     // remove RUB
     db.unload_read_buffer(table_name, partition_key, 1).unwrap();
-    // delete one row after persisted but RUB still available
+    // delete data after persisted but RUB still available
     db.delete("cpu", pred).await.unwrap();
     // No MUB, no RUB, one OS
     assert_eq!(count_mutable_buffer_chunks(&db), 0);
