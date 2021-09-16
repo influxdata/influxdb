@@ -39,6 +39,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         idpe_path.join("source.proto"),
         catalog_path.join("catalog.proto"),
         catalog_path.join("parquet_metadata.proto"),
+        catalog_path.join("predicate.proto"),
         management_path.join("database_rules.proto"),
         management_path.join("chunk.proto"),
         management_path.join("partition.proto"),
@@ -63,12 +64,6 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     config
         .compile_well_known_types()
         .disable_comments(&[".google"])
-        // approximates jsonpb. This is still not enough to deal with the special cases like Any
-        // Tracking issue for proper jsonpb support in prost: https://github.com/danburkert/prost/issues/277
-        .type_attribute(
-            ".",
-            "#[derive(serde::Serialize,serde::Deserialize)] #[serde(rename_all = \"camelCase\")]",
-        )
         .extern_path(".google.protobuf", "::google_types::protobuf")
         .bytes(&[".influxdata.iox.catalog.v1.AddParquet.metadata"]);
 
@@ -77,6 +72,12 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         .file_descriptor_set_path(&descriptor_path)
         .format(true)
         .compile_with_config(config, &proto_files, &[root.into()])?;
+
+    let descriptor_set = std::fs::read(descriptor_path)?;
+
+    pbjson_build::Builder::new()
+        .register_descriptors(&descriptor_set)?
+        .build(&[".influxdata", ".google.longrunning", ".google.rpc"])?;
 
     Ok(())
 }

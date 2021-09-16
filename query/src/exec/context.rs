@@ -22,6 +22,7 @@ use trace::{ctx::SpanContext, span::SpanRecorder};
 
 use crate::exec::{
     fieldlist::{FieldList, IntoFieldList},
+    query_tracing::send_metrics_to_tracing,
     schema_pivot::{SchemaPivotExec, SchemaPivotNode},
     seriesset::{SeriesSetConverter, SeriesSetItem},
     split::StreamSplitExec,
@@ -37,8 +38,7 @@ use crate::plan::{
 // Reuse DataFusion error and Result types for this module
 pub use datafusion::error::{DataFusionError as Error, Result};
 
-use super::split::StreamSplitNode;
-use super::task::DedicatedExecutor;
+use super::{split::StreamSplitNode, task::DedicatedExecutor};
 
 // The default catalog name - this impacts what SQL queries use if not specified
 pub const DEFAULT_CATALOG: &str = "public";
@@ -278,7 +278,11 @@ impl IOxExecutionContext {
             displayable(physical_plan.as_ref()).indent()
         );
 
-        ctx.run(collect(physical_plan)).await
+        let res = ctx.run(collect(Arc::clone(&physical_plan))).await;
+
+        // send metrics to tracing, even on error
+        ctx.save_metrics(physical_plan);
+        res
     }
 
     /// Executes the physical plan and produces a RecordBatchStream to stream
@@ -480,6 +484,21 @@ impl IOxExecutionContext {
             inner: self.inner.clone(),
             exec: self.exec.clone(),
             recorder: self.recorder.child(name),
+        }
+    }
+
+    /// Saves any DataFusion metrics that are currently present in
+    /// `physical_plan` to the span recorder so they show up in
+    /// distributed traces (e.g. Jaeger)
+    ///
+    /// This function should be invoked after `physical_plan` has
+    /// fully `collect`ed, meaning that `PhysicalPlan::execute()` has
+    /// been invoked and the resulting streams have been completely
+    /// consumed. Calling `save_metrics` metrics prior to this point
+    /// may result in saving incomplete information.
+    pub fn save_metrics(&self, physical_plan: Arc<dyn ExecutionPlan>) {
+        if let Some(span) = self.recorder.span() {
+            send_metrics_to_tracing(span, physical_plan.as_ref())
         }
     }
 }

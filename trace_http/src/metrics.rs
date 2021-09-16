@@ -1,6 +1,6 @@
 use crate::classify::Classification;
 use hashbrown::HashMap;
-use metric::{Attributes, DurationHistogram, Metric, U64Counter};
+use metric::{Attributes, DurationHistogram, Metric, ResultMetric, U64Counter};
 use parking_lot::{MappedMutexGuard, Mutex, MutexGuard};
 use std::sync::Arc;
 use std::time::Instant;
@@ -58,14 +58,14 @@ impl MetricsCollection {
 /// The request metrics for a specific set of attributes (e.g. path)
 #[derive(Debug)]
 struct Metrics {
-    ok: U64Counter,
-    client_error: U64Counter,
-    server_error: U64Counter,
-    aborted: U64Counter,
+    /// Counts of un-aborted requests
+    request_count: ResultMetric<U64Counter>,
 
-    duration_ok: DurationHistogram,
-    duration_client_error: DurationHistogram,
-    duration_server_error: DurationHistogram,
+    /// Count of aborted requests
+    aborted_count: U64Counter,
+
+    /// Latency distribution of non-aborted requests
+    request_duration: ResultMetric<DurationHistogram>,
 }
 
 impl Metrics {
@@ -82,30 +82,16 @@ impl Metrics {
             registry.register_metric(duration, "distribution of request latencies");
 
         let mut attributes = attributes.into();
-
-        attributes.insert("status", "ok");
-        let ok = counter.recorder(attributes.clone());
-        let duration_ok = duration.recorder(attributes.clone());
-
-        attributes.insert("status", "client_error");
-        let client_error = counter.recorder(attributes.clone());
-        let duration_client_error = duration.recorder(attributes.clone());
-
-        attributes.insert("status", "server_error");
-        let server_error = counter.recorder(attributes.clone());
-        let duration_server_error = duration.recorder(attributes.clone());
+        let count = ResultMetric::new(&counter, attributes.clone());
+        let duration = ResultMetric::new(&duration, attributes.clone());
 
         attributes.insert("status", "aborted");
-        let aborted = counter.recorder(attributes.clone());
+        let aborted_count = counter.recorder(attributes);
 
         Self {
-            ok,
-            client_error,
-            server_error,
-            aborted,
-            duration_ok,
-            duration_client_error,
-            duration_server_error,
+            request_count: count,
+            request_duration: duration,
+            aborted_count,
         }
     }
 }
@@ -141,18 +127,18 @@ impl Drop for MetricsRecorder {
         let duration = self.start_instant.elapsed();
         match self.classification {
             Some(Classification::Ok) => {
-                metrics.ok.inc(1);
-                metrics.duration_ok.record(duration);
+                metrics.request_count.ok.inc(1);
+                metrics.request_duration.ok.record(duration);
             }
             Some(Classification::ClientErr) | Some(Classification::PathNotFound) => {
-                metrics.client_error.inc(1);
-                metrics.duration_client_error.record(duration);
+                metrics.request_count.client_error.inc(1);
+                metrics.request_duration.client_error.record(duration);
             }
             Some(Classification::ServerErr) => {
-                metrics.server_error.inc(1);
-                metrics.duration_server_error.record(duration);
+                metrics.request_count.server_error.inc(1);
+                metrics.request_duration.server_error.record(duration);
             }
-            None => metrics.aborted.inc(1),
+            None => metrics.aborted_count.inc(1),
         }
     }
 }

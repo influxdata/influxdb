@@ -91,35 +91,21 @@ pub struct Catalog {
     tables: RwLock<HashMap<Arc<str>, Table>>,
 
     metrics: Arc<CatalogMetrics>,
-
-    pub(crate) metrics_registry: Arc<::metrics::MetricRegistry>,
-    pub(crate) metric_attributes: Vec<::metrics::KeyValue>,
 }
 
 impl Catalog {
     #[cfg(test)]
     fn test() -> Self {
-        let registry = Arc::new(::metrics::MetricRegistry::new());
-        Self::new(Arc::from("test"), registry, Default::default(), vec![])
+        Self::new(Arc::from("test"), Default::default())
     }
 
-    pub fn new(
-        db_name: Arc<str>,
-        metrics_registry: Arc<::metrics::MetricRegistry>,
-        metrics_registry_v2: Arc<::metric::Registry>,
-        metric_attributes: Vec<::metrics::KeyValue>,
-    ) -> Self {
-        let metrics = Arc::new(CatalogMetrics::new(
-            Arc::clone(&db_name),
-            metrics_registry_v2,
-        ));
+    pub fn new(db_name: Arc<str>, metric_registry: Arc<::metric::Registry>) -> Self {
+        let metrics = Arc::new(CatalogMetrics::new(Arc::clone(&db_name), metric_registry));
 
         Self {
             db_name,
             tables: Default::default(),
             metrics,
-            metrics_registry,
-            metric_attributes,
         }
     }
 

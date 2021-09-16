@@ -1,13 +1,17 @@
 //! Methods to cleanup the object store.
 use std::{collections::HashSet, sync::Arc};
 
-use crate::catalog::api::{CatalogParquetInfo, CatalogState, PreservedCatalog};
 use futures::TryStreamExt;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::{ObjectStore, ObjectStoreApi};
 use observability_deps::tracing::info;
 use parking_lot::Mutex;
 use snafu::{ResultExt, Snafu};
+
+use crate::catalog::{
+    core::PreservedCatalog,
+    interface::{CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError},
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -22,7 +26,7 @@ pub enum Error {
     },
 
     #[snafu(display("Error from catalog loading while cleaning object store: {}", source))]
-    CatalogLoadError { source: crate::catalog::api::Error },
+    CatalogLoadError { source: crate::catalog::core::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -124,12 +128,12 @@ impl CatalogState for TracerCatalogState {
         &mut self,
         _iox_object_store: Arc<IoxObjectStore>,
         info: CatalogParquetInfo,
-    ) -> crate::catalog::api::Result<()> {
+    ) -> Result<(), CatalogStateAddError> {
         self.files.lock().insert(info.path);
         Ok(())
     }
 
-    fn remove(&mut self, _path: &ParquetFilePath) -> crate::catalog::api::Result<()> {
+    fn remove(&mut self, _path: &ParquetFilePath) -> Result<(), CatalogStateRemoveError> {
         // Do NOT remove the file since we still need it for time travel
         Ok(())
     }

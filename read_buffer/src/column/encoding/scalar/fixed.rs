@@ -7,6 +7,7 @@
 //! allow results to be emitted as some logical type `L` via a transformation
 //! `T`.
 use either::Either;
+use observability_deps::tracing::debug;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -373,14 +374,36 @@ where
         Some(self.transcoder.decode(max))
     }
 
-    fn row_ids_filter(&self, value: L, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
-        let value = self.transcoder.encode(value);
+    fn row_ids_filter(&self, value: L, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
+        debug!(value=?value, operator=?op, encoding=?ENCODING_NAME, "row_ids_filter");
+        let (value, op) = match self.transcoder.encode_comparable(value, *op) {
+            Some((value, op)) => (value, op),
+            None => {
+                // The value is not encodable. This can happen with the == or !=
+                // operator. In the case of ==, no values in the encoding could
+                // possible satisfy the expression. In the case of !=, all
+                // values would satisfy the expression.
+                dst.clear();
+                return match op {
+                    cmp::Operator::Equal => dst,
+                    cmp::Operator::NotEqual => {
+                        dst.add_range(0, self.num_rows());
+                        dst
+                    }
+                    op => panic!("operator {:?} not expected", op),
+                };
+            }
+        };
+        debug!(value=?value, operator=?op, encoding=?ENCODING_NAME, "row_ids_filter encoded expr");
+
+        // N.B, the transcoder may have changed the operator depending on the
+        // value provided.
         match op {
             cmp::Operator::GT => self.row_ids_cmp_order(&value, PartialOrd::gt, dst),
             cmp::Operator::GTE => self.row_ids_cmp_order(&value, PartialOrd::ge, dst),
             cmp::Operator::LT => self.row_ids_cmp_order(&value, PartialOrd::lt, dst),
             cmp::Operator::LTE => self.row_ids_cmp_order(&value, PartialOrd::le, dst),
-            _ => self.row_ids_equal(&value, op, dst),
+            _ => self.row_ids_equal(&value, &op, dst),
         }
     }
 
@@ -390,8 +413,16 @@ where
         right: (L, &cmp::Operator),
         dst: RowIDs,
     ) -> RowIDs {
-        let left = (self.transcoder.encode(left.0), left.1);
-        let right = (self.transcoder.encode(right.0), right.1);
+        debug!(left=?left, right=?right, encoding=?ENCODING_NAME, "row_ids_filter_range");
+        let left = self
+            .transcoder
+            .encode_comparable(left.0, *left.1)
+            .expect("transcoder must return Some variant");
+        let right = self
+            .transcoder
+            .encode_comparable(right.0, *right.1)
+            .expect("transcoder must return Some variant");
+        debug!(left=?left, right=?right, encoding=?ENCODING_NAME, "row_ids_filter_range encoded expr");
 
         match (&left.1, &right.1) {
             (cmp::Operator::GT, cmp::Operator::LT)
@@ -402,8 +433,8 @@ where
             | (cmp::Operator::LT, cmp::Operator::GTE)
             | (cmp::Operator::LTE, cmp::Operator::GT)
             | (cmp::Operator::LTE, cmp::Operator::GTE) => self.row_ids_cmp_range_order(
-                (&left.0, Self::ord_from_op(left.1)),
-                (&right.0, Self::ord_from_op(right.1)),
+                (&left.0, Self::ord_from_op(&left.1)),
+                (&right.0, Self::ord_from_op(&right.1)),
                 dst,
             ),
 

@@ -2,20 +2,20 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use chrono::Utc;
 use futures::future::{BoxFuture, Shared};
 use futures::stream::{BoxStream, FuturesUnordered};
 use futures::{FutureExt, StreamExt, TryFutureExt};
 use tokio::task::JoinError;
 use tokio_util::sync::CancellationToken;
 
-use ::metrics::{KeyValue, MetricRegistry};
 use entry::SequencedEntry;
-use observability_deps::tracing::{debug, error, info};
+use observability_deps::tracing::{debug, error, info, warn};
 use write_buffer::core::{FetchHighWatermark, WriteBufferError, WriteBufferReading};
 
 use crate::Db;
 
-use self::metrics::SequencerMetrics;
+use self::metrics::{SequencerMetrics, WriteBufferIngestMetrics};
 
 mod metrics;
 
@@ -34,16 +34,11 @@ impl WriteBufferConsumer {
     pub fn new(
         mut write_buffer: Box<dyn WriteBufferReading>,
         db: Arc<Db>,
-        registry: &MetricRegistry,
+        registry: &metric::Registry,
     ) -> Self {
         let shutdown = CancellationToken::new();
 
-        let ingest_domain = registry.register_domain_with_attributes(
-            "write_buffer",
-            vec![KeyValue::new("db_name", db.rules().name.to_string())],
-        );
-
-        let ingest_metrics = metrics::WriteBufferIngestMetrics::new(Arc::new(ingest_domain));
+        let ingest_metrics = WriteBufferIngestMetrics::new(registry, &db.rules().name);
 
         let shutdown_captured = shutdown.clone();
         let join = tokio::spawn(async move {
@@ -85,6 +80,19 @@ impl WriteBufferConsumer {
     }
 }
 
+impl Drop for WriteBufferConsumer {
+    fn drop(&mut self) {
+        if !self.shutdown.is_cancelled() {
+            warn!("write buffer consumer dropped without calling shutdown()");
+            self.shutdown.cancel();
+        }
+
+        if self.join.clone().now_or_never().is_none() {
+            warn!("write buffer consumer dropped without waiting for worker termination");
+        }
+    }
+}
+
 /// This is used to take entries from a `Stream` and put them in the mutable buffer, such as
 /// streaming entries from a write buffer.
 async fn stream_in_sequenced_entries<'a>(
@@ -99,63 +107,6 @@ async fn stream_in_sequenced_entries<'a>(
     let mut watermark = 0_u64;
 
     while let Some(sequenced_entry_result) = stream.next().await {
-        let red_observation = metrics.red.observation();
-
-        // get entry from sequencer
-        let sequenced_entry = match sequenced_entry_result {
-            Ok(sequenced_entry) => sequenced_entry,
-            Err(e) => {
-                debug!(
-                    %e,
-                    %db_name,
-                    sequencer_id,
-                    "Error converting write buffer data to SequencedEntry",
-                );
-                red_observation.client_error();
-                continue;
-            }
-        };
-        let sequenced_entry = Arc::new(sequenced_entry);
-
-        // store entry
-        let mut logged_hard_limit = false;
-        loop {
-            match db.store_sequenced_entry(
-                Arc::clone(&sequenced_entry),
-                crate::db::filter_table_batch_keep_all,
-            ) {
-                Ok(_) => {
-                    red_observation.ok();
-                    break;
-                }
-                Err(crate::db::Error::HardLimitReached {}) => {
-                    // wait a bit and retry
-                    if !logged_hard_limit {
-                        info!(
-                            %db_name,
-                            sequencer_id,
-                            "Hard limit reached while reading from write buffer, waiting for compaction to catch up",
-                        );
-                        logged_hard_limit = true;
-                    }
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                    continue;
-                }
-                Err(e) => {
-                    debug!(
-                        %e,
-                        %db_name,
-                        sequencer_id,
-                        "Error storing SequencedEntry from write buffer in database"
-                    );
-                    red_observation.error();
-
-                    // no retry
-                    break;
-                }
-            }
-        }
-
         // maybe update sequencer watermark
         // We are not updating this watermark every round because asking the sequencer for that watermark can be
         // quite expensive.
@@ -180,9 +131,62 @@ async fn stream_in_sequenced_entries<'a>(
             watermark_last_updated = Some(now);
         }
 
-        std::mem::drop(red_observation);
+        let mut metrics = metrics.recorder(watermark);
 
-        metrics.record_write(&sequenced_entry, watermark)
+        // get entry from sequencer
+        let sequenced_entry = match sequenced_entry_result {
+            Ok(sequenced_entry) => sequenced_entry,
+            Err(e) => {
+                debug!(
+                    %e,
+                    %db_name,
+                    sequencer_id,
+                    "Error converting write buffer data to SequencedEntry",
+                );
+                continue;
+            }
+        };
+        let sequenced_entry = Arc::new(sequenced_entry);
+        metrics.entry(Arc::clone(&sequenced_entry));
+
+        // store entry
+        let mut logged_hard_limit = false;
+        loop {
+            match db.store_sequenced_entry(
+                Arc::clone(&sequenced_entry),
+                crate::db::filter_table_batch_keep_all,
+                Utc::now(),
+            ) {
+                Ok(_) => {
+                    metrics.success();
+                    break;
+                }
+                Err(crate::db::Error::HardLimitReached {}) => {
+                    // wait a bit and retry
+                    if !logged_hard_limit {
+                        info!(
+                            %db_name,
+                            sequencer_id,
+                            "Hard limit reached while reading from write buffer, waiting for compaction to catch up",
+                        );
+                        logged_hard_limit = true;
+                    }
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+                Err(e) => {
+                    debug!(
+                        %e,
+                        %db_name,
+                        sequencer_id,
+                        "Error storing SequencedEntry from write buffer in database"
+                    );
+
+                    // no retry
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -210,6 +214,7 @@ mod tests {
     use crate::utils::TestDb;
 
     use super::*;
+    use metric::{Attributes, Metric, U64Counter, U64Gauge};
 
     #[tokio::test]
     async fn read_from_write_buffer_updates_persistence_windows() {
@@ -313,7 +318,7 @@ mod tests {
         let consumer = WriteBufferConsumer::new(
             Box::new(MockBufferForReading::new(write_buffer_state, None).unwrap()),
             Arc::clone(&db),
-            test_db.metric_registry.registry().as_ref(),
+            test_db.metric_registry.as_ref(),
         );
 
         let query = "select * from cpu";
@@ -333,62 +338,91 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
 
-        // check: metrics
-        // We need to do that BEFORE shutting down the background loop because gauges would be dropped and resetted otherwise
-        let metrics = test_db.metric_registry;
-        metrics
-            .has_metric_family("write_buffer_ingest_requests_total")
-            .with_attributes(&[
-                ("db_name", "placeholder"),
-                ("sequencer_id", "0"),
-                ("status", "ok"),
-            ])
-            .counter()
-            .eq(2.0)
-            .unwrap();
-        metrics
-            .has_metric_family("write_buffer_read_bytes_total")
-            .with_attributes(&[("db_name", "placeholder"), ("sequencer_id", "0")])
-            .counter()
-            .eq(528.0)
-            .unwrap();
-        metrics
-            .has_metric_family("write_buffer_last_sequence_number")
-            .with_attributes(&[("db_name", "placeholder"), ("sequencer_id", "0")])
-            .gauge()
-            .eq(7.0)
-            .unwrap();
-        metrics
-            .has_metric_family("write_buffer_sequence_number_lag")
-            .with_attributes(&[("db_name", "placeholder"), ("sequencer_id", "0")])
-            .gauge()
-            .eq(0.0)
-            .unwrap();
-        metrics
-            .has_metric_family("write_buffer_last_min_ts")
-            .with_attributes(&[("db_name", "placeholder"), ("sequencer_id", "0")])
-            .gauge()
-            .eq(20.0)
-            .unwrap();
-        metrics
-            .has_metric_family("write_buffer_last_max_ts")
-            .with_attributes(&[("db_name", "placeholder"), ("sequencer_id", "0")])
-            .gauge()
-            .eq(30.0)
-            .unwrap();
-        metrics
-            .has_metric_family("write_buffer_last_ingest_ts")
-            .with_attributes(&[("db_name", "placeholder"), ("sequencer_id", "0")])
-            .gauge()
-            .eq(ingest_ts2.timestamp_nanos() as f64)
-            .unwrap();
-
         // do: stop background task loop
         shutdown.cancel();
         join_handle.await.unwrap();
 
         consumer.shutdown();
         consumer.join().await.unwrap();
+
+        let metrics = test_db.metric_registry;
+        let observation = metrics
+            .get_instrument::<Metric<U64Counter>>("write_buffer_ingest_requests")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "placeholder"),
+                ("sequencer_id", "0"),
+                ("status", "ok"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(observation, 2);
+
+        let observation = metrics
+            .get_instrument::<Metric<U64Counter>>("write_buffer_read_bytes")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "placeholder"),
+                ("sequencer_id", "0"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(observation, 528);
+
+        let observation = metrics
+            .get_instrument::<Metric<U64Gauge>>("write_buffer_last_sequence_number")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "placeholder"),
+                ("sequencer_id", "0"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(observation, 7);
+
+        let observation = metrics
+            .get_instrument::<Metric<U64Gauge>>("write_buffer_sequence_number_lag")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "placeholder"),
+                ("sequencer_id", "0"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(observation, 0);
+
+        let observation = metrics
+            .get_instrument::<Metric<U64Gauge>>("write_buffer_last_min_ts")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "placeholder"),
+                ("sequencer_id", "0"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(observation, 20);
+
+        let observation = metrics
+            .get_instrument::<Metric<U64Gauge>>("write_buffer_last_max_ts")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "placeholder"),
+                ("sequencer_id", "0"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(observation, 30);
+
+        let observation = metrics
+            .get_instrument::<Metric<U64Gauge>>("write_buffer_last_ingest_ts")
+            .unwrap()
+            .get_observer(&Attributes::from(&[
+                ("db_name", "placeholder"),
+                ("sequencer_id", "0"),
+            ]))
+            .unwrap()
+            .fetch();
+        assert_eq!(observation, ingest_ts2.timestamp_nanos() as u64);
 
         // check: the expected results should be there
         let batches = run_query(db, "select * from cpu order by time").await;
@@ -455,7 +489,7 @@ mod tests {
         let consumer = WriteBufferConsumer::new(
             Box::new(MockBufferForReading::new(write_buffer_state, None).unwrap()),
             Arc::clone(&db),
-            test_db.metric_registry.registry().as_ref(),
+            test_db.metric_registry.as_ref(),
         );
 
         // after a while the table should exist
@@ -496,7 +530,7 @@ mod tests {
         let test_db = TestDb::builder().build().await;
 
         let db = Arc::new(test_db.db);
-        let metrics = test_db.metric_registry;
+        let metric_registry = test_db.metric_registry;
 
         // do: start background task loop
         let shutdown: CancellationToken = Default::default();
@@ -508,26 +542,25 @@ mod tests {
         let consumer = WriteBufferConsumer::new(
             Box::new(MockBufferForReading::new(write_buffer_state, None).unwrap()),
             Arc::clone(&db),
-            metrics.registry().as_ref(),
+            metric_registry.as_ref(),
         );
 
         // check: after a while the error should be reported in the database's metrics
         let t_0 = Instant::now();
+        let attributes = Attributes::from(&[
+            ("db_name", "placeholder"),
+            ("sequencer_id", "0"),
+            ("status", "client_error"),
+        ]);
         loop {
-            let family = metrics.try_has_metric_family("write_buffer_ingest_requests_total");
+            let maybe_metric = metric_registry
+                .get_instrument::<Metric<U64Counter>>("write_buffer_ingest_requests");
 
-            if let Ok(metric) = family {
-                if metric
-                    .with_attributes(&[
-                        ("db_name", "placeholder"),
-                        ("sequencer_id", "0"),
-                        ("status", "client_error"),
-                    ])
-                    .counter()
-                    .eq(1.0)
-                    .is_ok()
-                {
-                    break;
+            if let Some(metric) = maybe_metric {
+                if let Some(observer) = metric.get_observer(&attributes) {
+                    if observer.fetch() == 1 {
+                        break;
+                    }
                 }
             }
 

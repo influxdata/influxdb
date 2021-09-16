@@ -1,4 +1,5 @@
 use either::Either;
+use observability_deps::tracing::debug;
 
 use crate::column::cmp;
 use crate::column::RowIDs;
@@ -288,18 +289,35 @@ where
                 let left_cmp_result = next.partial_cmp(left.0);
                 let right_cmp_result = next.partial_cmp(right.0);
 
-                // TODO(edd): eurgh I still don't understand how I got this to
-                // be correct. Need to revisit to make it simpler.
                 let left_result_ok =
-                    !(left_cmp_result == Some(left_op.0) || left_cmp_result == Some(left_op.1));
+                    left_cmp_result == Some(left_op.0) || left_cmp_result == Some(left_op.1);
                 let right_result_ok =
-                    !(right_cmp_result == Some(right_op.0) || right_cmp_result == Some(right_op.1));
+                    right_cmp_result == Some(right_op.0) || right_cmp_result == Some(right_op.1);
 
-                if !(left_result_ok || right_result_ok) {
+                if left_result_ok && right_result_ok {
                     dst.add_range(curr_logical_row_id, curr_logical_row_id + rl);
                 }
-                curr_logical_row_id += rl;
             }
+            curr_logical_row_id += rl;
+        }
+
+        dst
+    }
+
+    fn all_non_null_row_ids(&self, mut dst: RowIDs) -> RowIDs {
+        dst.clear();
+
+        if self.null_count() == 0 {
+            dst.add_range(0, self.num_rows());
+            return dst;
+        }
+
+        let mut curr_logical_row_id = 0;
+        for (rl, next) in &self.run_lengths {
+            if next.is_some() {
+                dst.add_range(curr_logical_row_id, curr_logical_row_id + rl);
+            }
+            curr_logical_row_id += rl;
         }
 
         dst
@@ -375,15 +393,34 @@ where
         self.num_rows
     }
 
-    fn row_ids_filter(&self, value: L, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
-        let value = self.transcoder.encode(value);
+    fn row_ids_filter(&self, value: L, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
+        debug!(value=?value, operator=?op, encoding=?ENCODING_NAME, "row_ids_filter");
+        let (value, op) = match self.transcoder.encode_comparable(value, *op) {
+            Some((value, op)) => (value, op),
+            None => {
+                // The value is not encodable. This can happen with the == or !=
+                // operator. In the case of ==, no values in the encoding could
+                // possible satisfy the expression. In the case of !=, all
+                // non-null values would satisfy the expression.
+                dst.clear();
+                return match op {
+                    cmp::Operator::Equal => dst,
+                    cmp::Operator::NotEqual => {
+                        dst = self.all_non_null_row_ids(dst);
+                        dst
+                    }
+                    op => panic!("operator {:?} not expected", op),
+                };
+            }
+        };
+        debug!(value=?value, operator=?op, encoding=?ENCODING_NAME, "row_ids_filter encoded expr");
+
         match op {
-            cmp::Operator::Equal | cmp::Operator::NotEqual => {
-                self.row_ids_cmp_equal(value, op, dst)
-            }
-            cmp::Operator::LT | cmp::Operator::LTE | cmp::Operator::GT | cmp::Operator::GTE => {
-                self.row_ids_cmp(value, op, dst)
-            }
+            cmp::Operator::GT => self.row_ids_cmp(value, &op, dst),
+            cmp::Operator::GTE => self.row_ids_cmp(value, &op, dst),
+            cmp::Operator::LT => self.row_ids_cmp(value, &op, dst),
+            cmp::Operator::LTE => self.row_ids_cmp(value, &op, dst),
+            _ => self.row_ids_cmp_equal(value, &op, dst),
         }
     }
 
@@ -393,8 +430,16 @@ where
         right: (L, &cmp::Operator),
         dst: RowIDs,
     ) -> RowIDs {
-        let left = (self.transcoder.encode(left.0), left.1);
-        let right = (self.transcoder.encode(right.0), right.1);
+        debug!(left=?left, right=?right, encoding=?ENCODING_NAME, "row_ids_filter_range");
+        let left = self
+            .transcoder
+            .encode_comparable(left.0, *left.1)
+            .expect("transcoder must return Some variant");
+        let right = self
+            .transcoder
+            .encode_comparable(right.0, *right.1)
+            .expect("transcoder must return Some variant");
+        debug!(left=?left, right=?right, encoding=?ENCODING_NAME, "row_ids_filter_range encoded expr");
 
         match (&left.1, &right.1) {
             (cmp::Operator::GT, cmp::Operator::LT)
@@ -405,8 +450,8 @@ where
             | (cmp::Operator::LT, cmp::Operator::GTE)
             | (cmp::Operator::LTE, cmp::Operator::GT)
             | (cmp::Operator::LTE, cmp::Operator::GTE) => self.row_ids_cmp_range(
-                (&left.0, Self::ord_from_op(left.1)),
-                (&right.0, Self::ord_from_op(right.1)),
+                (&left.0, Self::ord_from_op(&left.1)),
+                (&right.0, Self::ord_from_op(&right.1)),
                 dst,
             ),
 
@@ -618,6 +663,16 @@ mod test {
         let mock = Arc::new(MockTranscoder::default());
         (
             RLE::new_from_iter(values.into_iter(), Arc::clone(&mock)),
+            mock,
+        )
+    }
+
+    fn new_encoding_opt(
+        values: Vec<Option<i64>>,
+    ) -> (RLE<i64, i64, Arc<MockTranscoder>>, Arc<MockTranscoder>) {
+        let mock = Arc::new(MockTranscoder::default());
+        (
+            RLE::new_from_iter_opt(values.into_iter(), Arc::clone(&mock)),
             mock,
         )
     }
@@ -982,6 +1037,38 @@ mod test {
     }
 
     #[test]
+    fn row_ids_filter_range_all_non_null() {
+        let cases = vec![
+            (vec![None], vec![]),
+            (vec![None, None, None], vec![]),
+            (vec![Some(22)], vec![0_u32]),
+            (vec![Some(22), Some(3), Some(3)], vec![0, 1, 2]),
+            (vec![Some(22), None], vec![0]),
+            (
+                vec![Some(22), None, Some(1), None, Some(3), None],
+                vec![0, 2, 4],
+            ),
+            (vec![Some(22), None, None, Some(33)], vec![0, 3]),
+            (vec![None, None, Some(33)], vec![2]),
+            (
+                vec![None, None, Some(33), None, None, Some(3), Some(3), Some(1)],
+                vec![2, 5, 6, 7],
+            ),
+        ];
+
+        for (i, (data, exp)) in cases.into_iter().enumerate() {
+            let (v, _) = new_encoding_opt(data);
+            let dst = RowIDs::new_vector();
+            assert_eq!(
+                v.all_non_null_row_ids(dst).unwrap_vector(),
+                &exp,
+                "example {:?} failed",
+                i
+            );
+        }
+    }
+
+    #[test]
     fn row_ids_filter_range() {
         let (enc, transcoder) = new_encoding(vec![
             100, 100, 101, 101, 101, 200, 300, 2030, 3, 101, 4, 5, 21, 100,
@@ -1006,6 +1093,37 @@ mod test {
                 vec![2, 3, 4, 5, 6, 7, 9],
             ),
             ((10000, &Operator::LTE), (3999, &Operator::GT), vec![]),
+        ];
+
+        let calls = cases.len();
+        for (left, right, exp) in cases {
+            let dst = enc.row_ids_filter_range(left, right, RowIDs::new_vector());
+            assert_eq!(dst.unwrap_vector(), &exp);
+        }
+        assert_eq!(transcoder.encodings(), calls * 2);
+    }
+
+    #[test]
+    fn row_ids_filter_range_nulls() {
+        let (enc, transcoder) = new_encoding_opt(vec![
+            Some(100),
+            None,
+            None,
+            None,
+            Some(100),
+            Some(101),
+            Some(101),
+        ]);
+
+        let cases = vec![
+            (
+                (100, &Operator::GTE),
+                (240, &Operator::LT),
+                vec![0, 4, 5, 6],
+            ),
+            ((100, &Operator::GT), (240, &Operator::LT), vec![5, 6]),
+            ((10, &Operator::LT), (-100, &Operator::GT), vec![]),
+            ((21, &Operator::GTE), (100, &Operator::LTE), vec![0, 4]),
         ];
 
         let calls = cases.len();

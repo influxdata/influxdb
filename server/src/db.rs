@@ -13,7 +13,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::{TimeZone, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use parking_lot::{Mutex, RwLock};
 use rand_distr::{Distribution, Poisson};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -29,12 +29,12 @@ use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use entry::{Entry, Sequence, SequencedEntry, TableBatch};
 use internal_types::schema::Schema;
 use iox_object_store::IoxObjectStore;
-use metrics::KeyValue;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info};
 use parquet_file::catalog::{
-    api::{CatalogParquetInfo, CheckpointData, PreservedCatalog},
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
+    core::PreservedCatalog,
+    interface::{CatalogParquetInfo, CheckpointData},
     prune::prune_history as prune_catalog_transaction_history,
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
@@ -257,11 +257,8 @@ pub struct Db {
     /// A handle to the global jobs registry for long running tasks
     jobs: Arc<JobRegistry>,
 
-    /// The metrics registry to inject into created components in the Db.
-    metrics_registry: Arc<metrics::MetricRegistry>,
-
-    /// The global metrics registry
-    metrics_registry_v2: Arc<metric::Registry>,
+    /// The global metric registry
+    metric_registry: Arc<metric::Registry>,
 
     /// Catalog interface for query
     catalog_access: Arc<QueryCatalogAccess>,
@@ -271,9 +268,6 @@ pub struct Db {
 
     /// Number of iterations of the worker cleanup loop for this Db
     worker_iterations_cleanup: AtomicUsize,
-
-    /// Metric attributes
-    metric_attributes: Vec<KeyValue>,
 
     /// Optional write buffer producer
     /// TODO: Move onto Database
@@ -312,7 +306,7 @@ pub(crate) struct DatabaseToCommit {
     /// TODO: Move onto Database
     pub(crate) write_buffer_producer: Option<Arc<dyn WriteBufferWriting>>,
 
-    pub(crate) metrics_registry_v2: Arc<metric::Registry>,
+    pub(crate) metric_registry: Arc<metric::Registry>,
 }
 
 impl Db {
@@ -322,8 +316,6 @@ impl Db {
         let rules = RwLock::new(database_to_commit.rules);
         let server_id = database_to_commit.server_id;
         let iox_object_store = Arc::clone(&database_to_commit.iox_object_store);
-        let metrics_registry = Arc::clone(&database_to_commit.catalog.metrics_registry);
-        let metric_attributes = database_to_commit.catalog.metric_attributes.clone();
 
         let catalog = Arc::new(database_to_commit.catalog);
 
@@ -331,7 +323,7 @@ impl Db {
             &db_name,
             Arc::clone(&catalog),
             Arc::clone(&jobs),
-            database_to_commit.metrics_registry_v2.as_ref(),
+            database_to_commit.metric_registry.as_ref(),
         );
         let catalog_access = Arc::new(catalog_access);
 
@@ -343,12 +335,10 @@ impl Db {
             preserved_catalog: Arc::new(database_to_commit.preserved_catalog),
             catalog,
             jobs,
-            metrics_registry,
-            metrics_registry_v2: database_to_commit.metrics_registry_v2,
+            metric_registry: database_to_commit.metric_registry,
             catalog_access,
             worker_iterations_lifecycle: AtomicUsize::new(0),
             worker_iterations_cleanup: AtomicUsize::new(0),
-            metric_attributes,
             write_buffer_producer: database_to_commit.write_buffer_producer,
             cleanup_lock: Default::default(),
             lifecycle_policy: tokio::sync::Mutex::new(None),
@@ -862,7 +852,7 @@ impl Db {
     }
 
     /// Stores an entry based on the configuration.
-    pub async fn store_entry(&self, entry: Entry) -> Result<()> {
+    pub async fn store_entry(&self, entry: Entry, time_of_write: DateTime<Utc>) -> Result<()> {
         let immutable = {
             let rules = self.rules.read();
             rules.lifecycle_rules.immutable
@@ -897,7 +887,11 @@ impl Db {
                     entry,
                 ));
 
-                self.store_sequenced_entry(sequenced_entry, filter_table_batch_keep_all)
+                self.store_sequenced_entry(
+                    sequenced_entry,
+                    filter_table_batch_keep_all,
+                    time_of_write,
+                )
             }
             (_, true) => {
                 // If not configured to send entries to the write buffer and the database is
@@ -910,7 +904,11 @@ impl Db {
                 // sequencing entries so skip doing so here
                 let sequenced_entry = Arc::new(SequencedEntry::new_unsequenced(entry));
 
-                self.store_sequenced_entry(sequenced_entry, filter_table_batch_keep_all)
+                self.store_sequenced_entry(
+                    sequenced_entry,
+                    filter_table_batch_keep_all,
+                    time_of_write,
+                )
             }
         }
     }
@@ -931,6 +929,7 @@ impl Db {
         &self,
         sequenced_entry: Arc<SequencedEntry>,
         filter_table_batch: F,
+        time_of_write: DateTime<Utc>,
     ) -> Result<()>
     where
         F: Fn(Option<&Sequence>, &str, &TableBatch<'_>) -> (bool, Option<Vec<bool>>),
@@ -956,10 +955,9 @@ impl Db {
             }
         }
 
-        // Note: as this is taken before any synchronisation writes may arrive to a chunk
+        // Note: as `time_of_write` is taken before any synchronisation writes may arrive to a chunk
         // out of order w.r.t this timestamp. As DateTime<Utc> isn't monotonic anyway
         // this isn't an issue
-        let time_of_write = Utc::now();
 
         if let Some(partitioned_writes) = sequenced_entry.partition_writes() {
             let sequence = sequenced_entry.as_ref().sequence();
@@ -1054,7 +1052,7 @@ impl Db {
                         }
                         None => {
                             let chunk_result = MBChunk::new(
-                                MutableBufferChunkMetrics::new(self.metrics_registry_v2.as_ref()),
+                                MutableBufferChunkMetrics::new(self.metric_registry.as_ref()),
                                 table_batch,
                                 mask.as_ref().map(|x| x.as_ref()),
                             )
@@ -1214,8 +1212,12 @@ pub mod test_helpers {
 
     use super::*;
 
-    /// Try to write lineprotocol data and return all tables that where written.
-    pub async fn try_write_lp(db: &Db, lp: &str) -> Result<Vec<String>> {
+    /// Try to write lineprotocol data w/ specific `time_of_write` and return all tables that where written.
+    pub async fn try_write_lp_with_time(
+        db: &Db,
+        lp: &str,
+        time_of_write: DateTime<Utc>,
+    ) -> Result<Vec<String>> {
         let entries = {
             let partitioner = &db.rules.read().partition_template;
             lp_to_entries(lp, partitioner)
@@ -1229,13 +1231,27 @@ pub mod test_helpers {
                         tables.insert(batch.name().to_string());
                     }
                 }
-                db.store_entry(entry).await?;
+                db.store_entry(entry, time_of_write).await?;
             }
         }
 
         let mut tables: Vec<_> = tables.into_iter().collect();
         tables.sort();
         Ok(tables)
+    }
+
+    /// Try to write lineprotocol data and return all tables that where written.
+    pub async fn try_write_lp(db: &Db, lp: &str) -> Result<Vec<String>> {
+        try_write_lp_with_time(db, lp, Utc::now()).await
+    }
+
+    /// Same was [`try_write_lp_with_time`](try_write_lp_with_time) but will panic on failure.
+    pub async fn write_lp_with_time(
+        db: &Db,
+        lp: &str,
+        time_of_write: DateTime<Utc>,
+    ) -> Vec<String> {
+        try_write_lp_with_time(db, lp, time_of_write).await.unwrap()
     }
 
     /// Same was [`try_write_lp`](try_write_lp) but will panic on failure.
@@ -1318,7 +1334,7 @@ mod tests {
         assert_store_sequenced_entry_failures,
         db::{
             catalog::chunk::ChunkStage,
-            test_helpers::{run_query, try_write_lp, write_lp},
+            test_helpers::{run_query, try_write_lp, write_lp, write_lp_with_time},
         },
         utils::{make_db, TestDb},
     };
@@ -1345,7 +1361,7 @@ mod tests {
         let db = immutable_db().await;
 
         let entry = lp_to_entry("cpu bar=1 10");
-        let res = db.store_entry(entry).await;
+        let res = db.store_entry(entry, Utc::now()).await;
         assert_contains!(
             res.unwrap_err().to_string(),
             "Cannot write to this database: no mutable buffer configured"
@@ -1371,7 +1387,7 @@ mod tests {
             .db;
 
         let entry = lp_to_entry("cpu bar=1 10");
-        test_db.store_entry(entry).await.unwrap();
+        test_db.store_entry(entry, Utc::now()).await.unwrap();
 
         assert_eq!(write_buffer_state.get_messages(0).len(), 1);
     }
@@ -1391,7 +1407,7 @@ mod tests {
             .db;
 
         let entry = lp_to_entry("cpu bar=1 10");
-        db.store_entry(entry).await.unwrap();
+        db.store_entry(entry, Utc::now()).await.unwrap();
 
         assert_eq!(write_buffer_state.get_messages(0).len(), 1);
 
@@ -1419,7 +1435,7 @@ mod tests {
 
         let entry = lp_to_entry("cpu bar=1 10");
 
-        let res = db.store_entry(entry).await;
+        let res = db.store_entry(entry, Utc::now()).await;
 
         assert!(
             matches!(res, Err(Error::WriteBufferWritingError { .. })),
@@ -1433,7 +1449,7 @@ mod tests {
         // Validate that writes are rejected if this database is reading from the write buffer
         let db = immutable_db().await;
         let entry = lp_to_entry("cpu bar=1 10");
-        let res = db.store_entry(entry).await;
+        let res = db.store_entry(entry, Utc::now()).await;
         assert_contains!(
             res.unwrap_err().to_string(),
             "Cannot write to this database: no mutable buffer configured"
@@ -1477,7 +1493,7 @@ mod tests {
         let entry = lp_to_entry(&lp);
 
         // This should succeed and start chunks in the MUB
-        db.store_entry(entry).await.unwrap();
+        db.store_entry(entry, Utc::now()).await.unwrap();
 
         // 3 more lines that should go in the 3 partitions/chunks.
         // Line 1 has the same schema and should end up in the MUB.
@@ -1495,7 +1511,7 @@ mod tests {
         let entry = lp_to_entry(&lp);
 
         // This should return an error because there was at least one error in the loop
-        let result = db.store_entry(entry).await;
+        let result = db.store_entry(entry, Utc::now()).await;
         assert_contains!(
             result.unwrap_err().to_string(),
             "Storing sequenced entry failed with the following error(s), and possibly more:"
@@ -1565,7 +1581,7 @@ mod tests {
 
         write_lp(db.as_ref(), "cpu bar=1 10").await;
 
-        let registry = test_db.metrics_registry_v2.as_ref();
+        let registry = test_db.metric_registry.as_ref();
 
         // A chunk has been opened
         assert_storage_gauge(registry, "catalog_loaded_chunks", "mutable_buffer", 1);
@@ -1679,7 +1695,7 @@ mod tests {
         summary.record(Utc.timestamp_nanos(650000000010));
 
         let mut reporter = metric::RawReporter::default();
-        test_db.metrics_registry_v2.report(&mut reporter);
+        test_db.metric_registry.report(&mut reporter);
 
         let observation = reporter
             .metric("catalog_row_time")
@@ -1825,7 +1841,7 @@ mod tests {
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_batches_eq!(&expected, &batches);
 
-        let registry = test_db.metrics_registry_v2.as_ref();
+        let registry = test_db.metric_registry.as_ref();
 
         // A chunk is now in the read buffer
         assert_storage_gauge(registry, "catalog_loaded_chunks", "read_buffer", 1);
@@ -1862,9 +1878,8 @@ mod tests {
         let test_db = make_db().await;
         let db = Arc::new(test_db.db);
 
-        let time0 = Utc::now();
-        write_lp(db.as_ref(), "cpu bar=1 10").await;
-        let time1 = Utc::now();
+        let t_write1 = Utc::now();
+        write_lp_with_time(db.as_ref(), "cpu bar=1 10", t_write1).await;
 
         let partition_key = "1970-01-01T00";
         let mb_chunk = db
@@ -1879,14 +1894,12 @@ mod tests {
 
         let first_old_rb_write = old_rb_chunk.time_of_first_write();
         let last_old_rb_write = old_rb_chunk.time_of_last_write();
-        assert!(time0 < first_old_rb_write);
         assert_eq!(first_old_rb_write, last_old_rb_write);
-        assert!(first_old_rb_write < time1);
+        assert_eq!(first_old_rb_write, t_write1);
 
         // Put new data into the mutable buffer
-        let time2 = Utc::now();
-        write_lp(db.as_ref(), "cpu bar=2 20").await;
-        let time3 = Utc::now();
+        let t_write2 = Utc::now();
+        write_lp_with_time(db.as_ref(), "cpu bar=2 20", t_write2).await;
 
         // now, compact it
         let compacted_rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
@@ -1904,8 +1917,7 @@ mod tests {
         let last_compacted_write = compacted_rb_chunk.time_of_last_write();
         assert_eq!(first_old_rb_write, first_compacted_write);
         assert_ne!(last_old_rb_write, last_compacted_write);
-        assert!(time2 < last_compacted_write);
-        assert!(last_compacted_write < time3);
+        assert_eq!(last_compacted_write, t_write2);
 
         // data should be readable
         let expected = vec![
@@ -1952,7 +1964,7 @@ mod tests {
 
         let mb = collect_read_filter(&mb_chunk).await;
 
-        let registry = test_db.metrics_registry_v2.as_ref();
+        let registry = test_db.metric_registry.as_ref();
         // MUB chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 3607);
 
@@ -2056,7 +2068,7 @@ mod tests {
             .await
             .unwrap();
 
-        let registry = test_db.metrics_registry_v2.as_ref();
+        let registry = test_db.metric_registry.as_ref();
 
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
@@ -2165,7 +2177,7 @@ mod tests {
             vec![pq_chunk_id]
         );
 
-        let registry = test_db.metrics_registry_v2.as_ref();
+        let registry = test_db.metric_registry.as_ref();
 
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
@@ -2278,7 +2290,7 @@ mod tests {
         };
 
         let entry = lp_to_entry("cpu bar=true 10");
-        let result = db.store_entry(entry).await;
+        let result = db.store_entry(entry, Utc::now()).await;
         assert!(result.is_err());
         {
             let partition = db.catalog.partition("cpu", partition_key).unwrap();
@@ -2470,12 +2482,16 @@ mod tests {
     #[tokio::test]
     async fn partition_chunk_summaries_timestamp() {
         let db = Arc::new(make_db().await.db);
-        let start = Utc::now();
-        write_lp(&db, "cpu bar=1 1").await;
-        let after_first_write = Utc::now();
-        write_lp(&db, "cpu bar=2 2").await;
+
+        let t_first_write = Utc::now();
+        write_lp_with_time(&db, "cpu bar=1 1", t_first_write).await;
+
+        let t_second_write = Utc::now();
+        write_lp_with_time(&db, "cpu bar=2 2", t_second_write).await;
+
+        let t_close_before = Utc::now();
         db.rollover_partition("cpu", "1970-01-01T00").await.unwrap();
-        let after_close = Utc::now();
+        let t_close_after = Utc::now();
 
         let mut chunk_summaries = db.chunk_summaries().unwrap();
 
@@ -2483,59 +2499,18 @@ mod tests {
 
         let summary = &chunk_summaries[0];
         assert_eq!(summary.id, 0, "summary; {:#?}", summary);
-        assert!(
-            summary.time_of_first_write > start,
-            "summary; {:#?}",
-            summary
-        );
-        assert!(
-            summary.time_of_first_write < after_close,
-            "summary; {:#?}",
-            summary
-        );
-
-        assert!(
-            summary.time_of_last_write > after_first_write,
-            "summary; {:#?}",
-            summary
-        );
-        assert!(
-            summary.time_of_last_write < after_close,
-            "summary; {:#?}",
-            summary
-        );
-
-        assert!(
-            summary.time_closed.unwrap() > after_first_write,
-            "summary; {:#?}",
-            summary
-        );
-        assert!(
-            summary.time_closed.unwrap() < after_close,
-            "summary; {:#?}",
-            summary
-        );
+        assert_eq!(summary.time_of_first_write, t_first_write);
+        assert_eq!(summary.time_of_last_write, t_second_write);
+        assert!(t_close_before <= summary.time_closed.unwrap());
+        assert!(summary.time_closed.unwrap() <= t_close_after);
     }
 
-    fn assert_first_last_times_eq(chunk_summary: &ChunkSummary) {
+    fn assert_first_last_times_eq(chunk_summary: &ChunkSummary, expected: DateTime<Utc>) {
         let first_write = chunk_summary.time_of_first_write;
         let last_write = chunk_summary.time_of_last_write;
 
         assert_eq!(first_write, last_write);
-    }
-
-    fn assert_first_last_times_between(
-        chunk_summary: &ChunkSummary,
-        before: DateTime<Utc>,
-        after: DateTime<Utc>,
-    ) {
-        let first_write = chunk_summary.time_of_first_write;
-        let last_write = chunk_summary.time_of_last_write;
-
-        assert!(before < first_write);
-        assert!(before < last_write);
-        assert!(first_write < after);
-        assert!(last_write < after);
+        assert_eq!(first_write, expected);
     }
 
     fn assert_chunks_times_ordered(before: &ChunkSummary, after: &ChunkSummary) {
@@ -2568,21 +2543,17 @@ mod tests {
         let db = make_db().await.db;
 
         // get three chunks: one open, one closed in mb and one close in rb
-        // TIME 0 ---------------------------------------------------------------------------------
-        let time0 = Utc::now();
         // In open chunk, will end up in rb/os
-        write_lp(&db, "cpu bar=1 1").await;
-        // TIME 1 ---------------------------------------------------------------------------------
-        let time1 = Utc::now();
+        let t_write1 = Utc::now();
+        write_lp_with_time(&db, "cpu bar=1 1", t_write1).await;
+
         // Move open chunk to closed
         db.rollover_partition("cpu", "1970-01-01T00").await.unwrap();
-        // TIME 2 ---------------------------------------------------------------------------------
-        let time2 = Utc::now();
+
         // New open chunk in mb
         // This point will end up in rb/os
-        write_lp(&db, "cpu bar=1,baz=2 2").await;
-        // TIME 3 ---------------------------------------------------------------------------------
-        let time3 = Utc::now();
+        let t_write2 = Utc::now();
+        write_lp_with_time(&db, "cpu bar=1,baz=2 2", t_write2).await;
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2591,19 +2562,15 @@ mod tests {
         // Each chunk has one write, so both chunks should have first write == last write
         let closed_mb_t3 = chunk_summaries[0].clone();
         assert_eq!(closed_mb_t3.storage, ChunkStorage::ClosedMutableBuffer);
-        assert_first_last_times_eq(&closed_mb_t3);
-        assert_first_last_times_between(&closed_mb_t3, time0, time1);
+        assert_first_last_times_eq(&closed_mb_t3, t_write1);
         let open_mb_t3 = chunk_summaries[1].clone();
         assert_eq!(open_mb_t3.storage, ChunkStorage::OpenMutableBuffer);
-        assert_first_last_times_eq(&open_mb_t3);
-        assert_first_last_times_between(&open_mb_t3, time2, time3);
+        assert_first_last_times_eq(&open_mb_t3, t_write2);
         assert_chunks_times_ordered(&closed_mb_t3, &open_mb_t3);
 
         // This point makes a new open mb chunk and will end up in the closed mb chunk
-        write_lp(&db, "cpu bar=1,baz=2,frob=3 400000000000000").await;
-        // TIME 4 ---------------------------------------------------------------------------------
-        // we don't need to check this value with anything because no timestamps
-        // should be between time3 and time4
+        let t_write3 = Utc::now();
+        write_lp_with_time(&db, "cpu bar=1,baz=2,frob=3 400000000000000", t_write3).await;
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2626,9 +2593,6 @@ mod tests {
         db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
             .await
             .unwrap();
-        // TIME 5 ---------------------------------------------------------------------------------
-        // we don't need to check this value with anything because no timestamps
-        // should be between time4 and time5
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2655,9 +2619,6 @@ mod tests {
         )
         .await
         .unwrap();
-        // TIME 6 ---------------------------------------------------------------------------------
-        // we don't need to check this value with anything because no timestamps
-        // should be between time5 and time6
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2679,8 +2640,6 @@ mod tests {
 
         // Move open chunk to closed
         db.rollover_partition("cpu", "1970-01-05T15").await.unwrap();
-        // TIME 7 ---------------------------------------------------------------------------------
-        let time7 = Utc::now();
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2697,9 +2656,8 @@ mod tests {
 
         // New open chunk in mb
         // This point will stay in this open mb chunk
-        write_lp(&db, "cpu bar=1,baz=3,blargh=3 400000000000000").await;
-        // TIME 8 ---------------------------------------------------------------------------------
-        let time8 = Utc::now();
+        let t_write4 = Utc::now();
+        write_lp_with_time(&db, "cpu bar=1,baz=3,blargh=3 400000000000000", t_write4).await;
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2717,8 +2675,7 @@ mod tests {
         // times should be the same
         let open_mb_t8 = chunk_summaries[2].clone();
         assert_eq!(open_mb_t8.storage, ChunkStorage::OpenMutableBuffer);
-        assert_first_last_times_eq(&open_mb_t8);
-        assert_first_last_times_between(&open_mb_t8, time7, time8);
+        assert_first_last_times_eq(&open_mb_t8, t_write4);
 
         let lifecycle_action = None;
 
@@ -3049,7 +3006,7 @@ mod tests {
         write_lp(db.as_ref(), "cpu bar=1 10").await;
 
         let mut reporter = metric::RawReporter::default();
-        test_db.metrics_registry_v2.report(&mut reporter);
+        test_db.metric_registry.report(&mut reporter);
 
         let exclusive = reporter
             .metric("catalog_lock")
@@ -3100,7 +3057,7 @@ mod tests {
         task.await.unwrap();
 
         let mut reporter = metric::RawReporter::default();
-        test_db.metrics_registry_v2.report(&mut reporter);
+        test_db.metric_registry.report(&mut reporter);
 
         let exclusive = reporter
             .metric("catalog_lock")

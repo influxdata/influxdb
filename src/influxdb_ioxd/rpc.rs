@@ -105,7 +105,7 @@ where
 
     let builder = tonic::transport::Server::builder();
     let mut builder = builder.layer(trace_http::tower::TraceLayer::new(
-        Arc::clone(application.metric_registry_v2()),
+        Arc::clone(application.metric_registry()),
         trace_collector,
         true,
     ));

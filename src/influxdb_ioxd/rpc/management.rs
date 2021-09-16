@@ -446,16 +446,12 @@ where
             .map(|databases| {
                 databases
                     .into_iter()
-                    .map(|database| {
-                        let state: database_status::DatabaseState = database.state_code().into();
-
-                        DatabaseStatus {
-                            db_name: database.config().name.to_string(),
-                            error: database.init_error().map(|e| ProtobufError {
-                                message: e.to_string(),
-                            }),
-                            state: state.into(),
-                        }
+                    .map(|database| DatabaseStatus {
+                        db_name: database.config().name.to_string(),
+                        error: database.init_error().map(|e| ProtobufError {
+                            message: e.to_string(),
+                        }),
+                        state: database.state_code().into(),
                     })
                     .collect()
             })

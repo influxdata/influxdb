@@ -11,6 +11,7 @@ use datafusion::{
     logical_plan::Expr,
     physical_plan::{parquet::ParquetExec, ExecutionPlan, Partitioning, SendableRecordBatchStream},
 };
+use datafusion_util::AdapterStream;
 use futures::StreamExt;
 use internal_types::selection::Selection;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
@@ -23,7 +24,6 @@ use parquet::{
     file::{metadata::KeyValue, properties::WriterProperties, writer::TryClone},
 };
 use predicate::predicate::Predicate;
-use query::exec::stream::AdapterStream;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     io::{Cursor, Seek, SeekFrom, Write},

@@ -1,6 +1,7 @@
 //! Compiles Protocol Buffers and FlatBuffers schema definitions into
 //! native Rust types.
 
+use std::env;
 use std::path::PathBuf;
 
 type Error = Box<dyn std::error::Error>;
@@ -16,16 +17,18 @@ fn main() -> Result<()> {
         println!("cargo:rerun-if-changed={}", proto_file.display());
     }
 
+    let descriptor_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("proto_descriptor.bin");
     prost_build::Config::new()
+        .file_descriptor_set_path(&descriptor_path)
         .compile_well_known_types()
         .disable_comments(&["."])
-        // approximates jsonpb. This is still not enough to deal with the special cases like Any.
-        .type_attribute(
-            ".google",
-            "#[derive(serde::Serialize,serde::Deserialize)] #[serde(rename_all = \"camelCase\")]",
-        )
         .bytes(&[".google"])
         .compile_protos(&proto_files, &[root])?;
+
+    let descriptor_set = std::fs::read(descriptor_path)?;
+    pbjson_build::Builder::new()
+        .register_descriptors(&descriptor_set)?
+        .build(&[".google"])?;
 
     Ok(())
 }

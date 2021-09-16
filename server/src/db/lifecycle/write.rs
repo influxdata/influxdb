@@ -17,7 +17,7 @@ use data_types::{chunk_metadata::ChunkLifecycleAction, job::Job};
 use internal_types::selection::Selection;
 use observability_deps::tracing::{debug, warn};
 use parquet_file::{
-    catalog::api::CatalogParquetInfo,
+    catalog::interface::CatalogParquetInfo,
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
     metadata::IoxMetadata,
     storage::Storage,
@@ -135,7 +135,7 @@ pub(super) fn write_chunk_to_object_store(
                 .context(WritingToObjectStore)?;
             let parquet_metadata = Arc::new(parquet_metadata);
 
-            let metrics = ParquetChunkMetrics::new(db.metrics_registry_v2.as_ref());
+            let metrics = ParquetChunkMetrics::new(db.metric_registry.as_ref());
             let parquet_chunk = Arc::new(
                 ParquetChunk::new(
                     &path,

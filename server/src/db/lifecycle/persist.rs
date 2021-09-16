@@ -87,7 +87,7 @@ pub fn persist_chunks(
     let time_of_first_write = time_of_first_write.expect("Should have had a first write somewhere");
     let time_of_last_write = time_of_last_write.expect("Should have had a last write somewhere");
 
-    let metric_registry = Arc::clone(&db.metrics_registry_v2);
+    let metric_registry = Arc::clone(&db.metric_registry);
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
     let fut = async move {

@@ -57,6 +57,9 @@ members = [
     "observability_deps",
     "packers",
     "panic_logging",
+    "pbjson",
+    "pbjson_build",
+    "pbjson_test",
     "persistence_windows",
     "predicate",
     "query",
@@ -95,7 +98,6 @@ iox_object_store = { path = "iox_object_store" }
 logfmt = { path = "logfmt" }
 metric = { path = "metric" }
 metric_exporters = { path = "metric_exporters" }
-metrics = { path = "metrics" }
 mutable_buffer = { path = "mutable_buffer" }
 num_cpus = "1.13.0"
 object_store = { path = "object_store" }
@@ -125,6 +127,7 @@ dirs = "3.0.1"
 dotenv = "0.15.0"
 flate2 = "1.0"
 futures = "0.3"
+hashbrown = "0.11"
 http = "0.2.0"
 hyper = "0.14"
 libc = { version = "0.2" }

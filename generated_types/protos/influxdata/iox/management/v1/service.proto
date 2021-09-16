@@ -37,8 +37,8 @@ service ManagementService {
 
   rpc DeleteDatabase(DeleteDatabaseRequest) returns (DeleteDatabaseResponse);
 
-	// List deleted databases and their metadata.
-	rpc ListDeletedDatabases(ListDeletedDatabasesRequest) returns (ListDeletedDatabasesResponse);
+  // List deleted databases and their metadata.
+  rpc ListDeletedDatabases(ListDeletedDatabasesRequest) returns (ListDeletedDatabasesResponse);
 
   // List chunks available on this database
   rpc ListChunks(ListChunksRequest) returns (ListChunksResponse);
@@ -177,16 +177,16 @@ message DeleteDatabaseResponse {}
 message ListDeletedDatabasesRequest {}
 
 message ListDeletedDatabasesResponse {
-	repeated DeletedDatabase deleted_databases = 1;
+  repeated DeletedDatabase deleted_databases = 1;
 }
 
 // This resource represents a deleted database.
 message DeletedDatabase {
-	// The generation ID of the deleted database.
+  // The generation ID of the deleted database.
   uint64 generation_id = 1;
 
-	// The UTC datetime at which this database was deleted.
-	google.protobuf.Timestamp deleted_at = 2;
+  // The UTC datetime at which this database was deleted.
+  google.protobuf.Timestamp deleted_at = 2;
 
   // The name of the deleted database.
   string db_name = 3;
@@ -366,8 +366,11 @@ message DatabaseStatus {
     // Database is known but nothing is loaded.
     DATABASE_STATE_KNOWN = 1;
 
-		// Database object storage has been found
-		DATABASE_STATE_DATABASE_OBJECT_STORE_FOUND = 8;
+    // Database object storage has been found
+    DATABASE_STATE_DATABASE_OBJECT_STORE_FOUND = 8;
+
+    // No active database
+    DATABASE_STATE_NO_ACTIVE_DATABASE = 10;
 
     // Rules are loaded
     DATABASE_STATE_RULES_LOADED = 2;
@@ -386,6 +389,9 @@ message DatabaseStatus {
 
     // Error during replay
     DATABASE_STATE_REPLAY_ERROR = 7;
+
+    // Error encountered identifying active generation
+    DATABASE_STATE_DATABASE_OBJECT_STORE_LOOKUP_ERROR = 9;
   }
 
   // Current initialization state of the database.
@@ -463,7 +469,7 @@ message DeleteRequest {
 
   // predicate
   // conjunctive expressions of binary 'column_name = literal' or 'column_ame != literal'
-  string predicate  = 5;
+  string predicate = 5;
 }
 
 message DeleteResponse {

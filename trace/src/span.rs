@@ -67,6 +67,11 @@ impl Span {
             collector.export(self)
         }
     }
+
+    /// Create a new child span with the specified name
+    pub fn child(&self, name: impl Into<Cow<'static, str>>) -> Self {
+        self.ctx.child(name)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -77,7 +82,7 @@ pub struct SpanEvent {
 }
 
 /// Values that can be stored in a Span's metadata and events
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MetaValue {
     String(Cow<'static, str>),
     Float(f64),
@@ -161,9 +166,15 @@ impl<'a> SpanRecorder {
     /// returns a `SpanRecorder` for it. Otherwise returns an empty `SpanRecorder`
     pub fn child(&self, name: &'static str) -> Self {
         match &self.span {
-            Some(span) => Self::new(Some(span.ctx.child(name))),
+            Some(span) => Self::new(Some(span.child(name))),
             None => Self::new(None),
         }
+    }
+
+    /// Return a reference to the span contained in this SpanRecorder,
+    /// or None if there is no active span
+    pub fn span(&self) -> Option<&Span> {
+        self.span.as_ref()
     }
 }
 
@@ -190,29 +201,14 @@ impl<'a> Drop for SpanRecorder {
 
 #[cfg(test)]
 mod tests {
-    use std::num::{NonZeroU128, NonZeroU64};
     use std::sync::Arc;
 
-    use crate::ctx::{SpanId, TraceId};
     use crate::{RingBufferTraceCollector, TraceCollector};
 
     use super::*;
 
     fn make_span(collector: Arc<dyn TraceCollector>) -> Span {
-        Span {
-            name: "foo".into(),
-            ctx: SpanContext {
-                trace_id: TraceId(NonZeroU128::new(23948923).unwrap()),
-                parent_span_id: None,
-                span_id: SpanId(NonZeroU64::new(3498394).unwrap()),
-                collector: Some(collector),
-            },
-            start: None,
-            end: None,
-            status: SpanStatus::Unknown,
-            metadata: Default::default(),
-            events: vec![],
-        }
+        SpanContext::new(collector).child("foo")
     }
 
     #[test]

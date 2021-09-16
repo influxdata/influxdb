@@ -1200,6 +1200,29 @@ async fn test_get_server_status_db_error() {
     path.push("rules.pb");
     std::fs::write(path, "foo").unwrap();
 
+    // create soft-deleted database
+    let mut path = server_fixture.dir().to_path_buf();
+    path.push("42");
+    path.push("soft_deleted");
+    path.push("0");
+    std::fs::create_dir_all(path.clone()).unwrap();
+    path.push("DELETED");
+    std::fs::write(path, "foo").unwrap();
+
+    // create DB dir containing multiple active databases
+    let mut path = server_fixture.dir().to_path_buf();
+    path.push("42");
+    path.push("multiple_active");
+    let mut other_gen_path = path.clone();
+    path.push("0");
+    std::fs::create_dir_all(path.clone()).unwrap();
+    path.push("rules.pb");
+    std::fs::write(path, "foo").unwrap();
+    other_gen_path.push("1");
+    std::fs::create_dir_all(other_gen_path.clone()).unwrap();
+    other_gen_path.push("rules.pb");
+    std::fs::write(other_gen_path, "foo").unwrap();
+
     // initialize
     client.update_server_id(42).await.expect("set ID failed");
     server_fixture.wait_server_initialized().await;
@@ -1208,14 +1231,40 @@ async fn test_get_server_status_db_error() {
     let status = client.get_server_status().await.unwrap();
     assert!(status.initialized);
     assert_eq!(status.error, None);
-    assert_eq!(status.database_statuses.len(), 1);
+    assert_eq!(status.database_statuses.len(), 3);
+    dbg!(&status.database_statuses);
+
+    // databases should be alphabetical by name: multiple_active, my_db, soft_deleted
     let db_status = &status.database_statuses[0];
+    dbg!(&db_status);
+    assert_eq!(db_status.db_name, "multiple_active");
+    assert!(dbg!(&db_status.error.as_ref().unwrap().message).contains(
+        "error finding active generation directory in object storage: Multiple active \
+                   databases found in object storage"
+    ));
+    assert_eq!(
+        DatabaseState::from_i32(db_status.state).unwrap(),
+        DatabaseState::DatabaseObjectStoreLookupError,
+    );
+
+    let db_status = &status.database_statuses[1];
+    dbg!(&db_status);
     assert_eq!(db_status.db_name, "my_db");
     assert!(dbg!(&db_status.error.as_ref().unwrap().message)
         .contains("error deserializing database rules"));
     assert_eq!(
         DatabaseState::from_i32(db_status.state).unwrap(),
-        DatabaseState::DatabaseObjectStoreFound
+        DatabaseState::RulesLoadError
+    );
+
+    let db_status = &status.database_statuses[2];
+    dbg!(&db_status);
+    assert_eq!(db_status.db_name, "soft_deleted");
+    assert!(dbg!(&db_status.error.as_ref().unwrap().message)
+        .contains("no active generation directory found, not loading"));
+    assert_eq!(
+        DatabaseState::from_i32(db_status.state).unwrap(),
+        DatabaseState::NoActiveDatabase,
     );
 }
 
