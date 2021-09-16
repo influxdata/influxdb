@@ -1,0 +1,18 @@
+[package]
+name = "pbjson_test"
+version = "0.1.0"
+authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
+edition = "2018"
+description = "Test resources for pbjson converion"
+
+[dependencies]
+prost = "0.8"
+pbjson = { path = "../pbjson" }
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1.0"
+
+[build-dependencies]
+prost-build = "0.8"
+pbjson_build = { path = "../pbjson_build" }

@@ -1,0 +1,12 @@
+[package]
+name = "pbjson"
+version = "0.1.0"
+authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
+edition = "2018"
+description = "Utilities for pbjson converion"
+
+[dependencies]
+
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]

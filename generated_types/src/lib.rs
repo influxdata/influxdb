@@ -10,6 +10,10 @@ pub mod influxdata {
     pub mod platform {
         pub mod storage {
             include!(concat!(env!("OUT_DIR"), "/influxdata.platform.storage.rs"));
+            include!(concat!(
+                env!("OUT_DIR"),
+                "/influxdata.platform.storage.serde.rs"
+            ));
 
             // Can't implement `Default` because `prost::Message` implements `Default`
             impl TimestampRange {
@@ -27,6 +31,10 @@ pub mod influxdata {
         pub mod catalog {
             pub mod v1 {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.catalog.v1.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.catalog.v1.serde.rs"
+                ));
             }
         }
 
@@ -37,12 +45,20 @@ pub mod influxdata {
                     "influxdata.iox.management.v1.OperationMetadata";
 
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.management.v1.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.management.v1.serde.rs"
+                ));
             }
         }
 
         pub mod write {
             pub mod v1 {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.write.v1.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.write.v1.serde.rs"
+                ));
             }
         }
     }
@@ -50,6 +66,7 @@ pub mod influxdata {
     pub mod pbdata {
         pub mod v1 {
             include!(concat!(env!("OUT_DIR"), "/influxdata.pbdata.v1.rs"));
+            include!(concat!(env!("OUT_DIR"), "/influxdata.pbdata.v1.serde.rs"));
         }
     }
 }

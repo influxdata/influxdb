@@ -17,6 +17,7 @@ mod pb {
             use std::convert::{TryFrom, TryInto};
 
             include!(concat!(env!("OUT_DIR"), "/google.protobuf.rs"));
+            include!(concat!(env!("OUT_DIR"), "/google.protobuf.serde.rs"));
 
             impl TryFrom<Duration> for std::time::Duration {
                 type Error = std::num::TryFromIntError;

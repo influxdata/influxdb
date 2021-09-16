@@ -5,10 +5,12 @@ pub use google_types::*;
 
 pub mod rpc {
     include!(concat!(env!("OUT_DIR"), "/google.rpc.rs"));
+    include!(concat!(env!("OUT_DIR"), "/google.rpc.serde.rs"));
 }
 
 pub mod longrunning {
     include!(concat!(env!("OUT_DIR"), "/google.longrunning.rs"));
+    include!(concat!(env!("OUT_DIR"), "/google.longrunning.serde.rs"));
 
     impl Operation {
         /// Return the IOx operation `id`. This `id` can

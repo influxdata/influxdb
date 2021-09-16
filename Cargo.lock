@@ -1318,13 +1318,13 @@ dependencies = [
  "data_types",
  "futures",
  "google_types",
- "influxdb_line_protocol",
  "num_cpus",
  "observability_deps",
+ "pbjson",
+ "pbjson_build",
  "proc-macro2",
  "prost",
  "prost-build",
- "prost-types",
  "regex",
  "serde",
  "serde_json",
@@ -1392,6 +1392,8 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "chrono",
+ "pbjson",
+ "pbjson_build",
  "prost",
  "prost-build",
  "serde",
@@ -2895,6 +2897,37 @@ name = "paste"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf547ad0c65e31259204bd90935776d1c693cec2f4ff7abb7a1bbbd40dfe58"
+
+[[package]]
+name = "pbjson"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "pbjson_build"
+version = "0.1.0"
+dependencies = [
+ "heck",
+ "itertools 0.10.1",
+ "pbjson_test",
+ "prost",
+ "prost-types",
+ "tempfile",
+]
+
+[[package]]
+name = "pbjson_test"
+version = "0.1.0"
+dependencies = [
+ "pbjson",
+ "pbjson_build",
+ "prost",
+ "prost-build",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "peeking_take_while"
