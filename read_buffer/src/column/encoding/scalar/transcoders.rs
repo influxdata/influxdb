@@ -1,3 +1,4 @@
+use crate::column::cmp::Operator;
 use std::{
     convert::TryFrom,
     fmt::{Debug, Display},
@@ -13,7 +14,17 @@ use std::{
 // `P` is a physical type that is stored directly within an encoding, `L` is
 // a logical type callers expect to be returned.
 pub trait Transcoder<P, L>: Debug + Display {
+    /// A function that encodes a logical value into a physical representation.
     fn encode(&self, _: L) -> P;
+
+    /// A function that attempts to encode a logical value, within the context
+    /// of a comparison operator, into a physical representation.
+    ///
+    /// Implementation should return a suitable operator for the physical
+    /// representation, which may differ from the provided operator.
+    fn encode_comparable(&self, _: L, _: Operator) -> Option<(P, Operator)>;
+
+    /// A function to decode a physical representation back into a logical value.
     fn decode(&self, _: P) -> L;
 }
 
@@ -27,6 +38,10 @@ pub struct NoOpTranscoder {}
 impl<T> Transcoder<T, T> for NoOpTranscoder {
     fn encode(&self, v: T) -> T {
         v
+    }
+
+    fn encode_comparable(&self, v: T, op: Operator) -> Option<(T, Operator)> {
+        Some((v, op))
     }
 
     fn decode(&self, v: T) -> T {
@@ -56,11 +71,15 @@ pub struct ByteTrimmer {}
 impl<P, L> Transcoder<P, L> for ByteTrimmer
 where
     L: From<P>,
-    P: TryFrom<L>,
+    P: TryFrom<L> + PartialEq + PartialOrd,
     <P as TryFrom<L>>::Error: std::fmt::Debug,
 {
     fn encode(&self, v: L) -> P {
         P::try_from(v).unwrap()
+    }
+
+    fn encode_comparable(&self, v: L, op: Operator) -> Option<(P, Operator)> {
+        P::try_from(v).ok().map(|p| (p, op))
     }
 
     fn decode(&self, v: P) -> L {
@@ -91,6 +110,54 @@ macro_rules! make_float_trimmer {
                 v as $type
             }
 
+            fn encode_comparable(&self, v: f64, op: Operator) -> Option<($type, Operator)> {
+                assert!(v <= <$type>::MAX as f64);
+                if v == ((v as $type) as f64) {
+                    return Some((v as $type, op));
+                }
+
+                match op {
+                    Operator::Equal => {
+                        None // no encoded values will == v
+                    }
+                    Operator::NotEqual => {
+                        None // all encoded values will != v
+                    }
+                    Operator::LT => {
+                        // convert to next highest encodable value. For example
+                        // given '< 23.2` return 24.0 encoded as the physical
+                        // type. < 23.2 is logically equivalent to < 24.0 since
+                        // there are no valid values in the domain (23.2, 24.0).
+                        Some((v.ceil() as $type, op))
+                    }
+                    Operator::LTE => {
+                        // convert to next highest encodable value and change
+                        // operator to <.
+                        // For example given '<= 23.2` return 24.0 encoded as
+                        // the physical type. <= 23.2 is logically equivalent
+                        // to < 24.0 since there are no valid values in the
+                        // domain [23.2, 24.0).
+                        Some((v.ceil() as $type, Operator::LT))
+                    }
+                    Operator::GT => {
+                        // convert to next lowest encodable value. For example
+                        // given '> 23.2` return 23.0 encoded as the physical
+                        // type. > 23.2 is logically equivalent to > 23.0 since
+                        // there are no valid values in the domain (23.0, 23.2].
+                        Some((v.floor() as $type, op))
+                    }
+                    Operator::GTE => {
+                        // convert to next lowest encodable value and change
+                        // operator to >.
+                        // For example given '>= 23.2` return 23.0 encoded as
+                        // the physical type. >= 23.2 is logically equivalent
+                        // to > 24.0 since there are no valid values in the
+                        // domain [23.2, 24.0).
+                        Some((v.floor() as $type, Operator::GT))
+                    }
+                }
+            }
+
             fn decode(&self, v: $type) -> f64 {
                 v.into()
             }
@@ -119,7 +186,7 @@ impl Display for FloatByteTrimmer {
 //        result.
 
 #[cfg(test)]
-use std::{sync::atomic::AtomicUsize, sync::atomic::Ordering, sync::Arc};
+use std::{sync::atomic, sync::atomic::AtomicUsize, sync::Arc};
 #[cfg(test)]
 /// A mock implementation of Transcoder that tracks calls to encode and decode.
 /// This is useful for testing encoder implementations.
@@ -127,6 +194,7 @@ use std::{sync::atomic::AtomicUsize, sync::atomic::Ordering, sync::Arc};
 pub struct MockTranscoder {
     encoding_calls: AtomicUsize,
     decoding_calls: AtomicUsize,
+    partial_cmp_calls: AtomicUsize,
 }
 
 #[cfg(test)]
@@ -135,6 +203,7 @@ impl Default for MockTranscoder {
         Self {
             encoding_calls: AtomicUsize::default(),
             decoding_calls: AtomicUsize::default(),
+            partial_cmp_calls: AtomicUsize::default(),
         }
     }
 }
@@ -142,23 +211,28 @@ impl Default for MockTranscoder {
 #[cfg(test)]
 impl MockTranscoder {
     pub fn encodings(&self) -> usize {
-        self.encoding_calls.load(Ordering::Relaxed)
+        self.encoding_calls.load(atomic::Ordering::Relaxed)
     }
 
     pub fn decodings(&self) -> usize {
-        self.decoding_calls.load(Ordering::Relaxed)
+        self.decoding_calls.load(atomic::Ordering::Relaxed)
     }
 }
 
 #[cfg(test)]
 impl<T> Transcoder<T, T> for MockTranscoder {
     fn encode(&self, v: T) -> T {
-        self.encoding_calls.fetch_add(1, Ordering::Relaxed);
+        self.encoding_calls.fetch_add(1, atomic::Ordering::Relaxed);
         v
     }
 
+    fn encode_comparable(&self, v: T, op: Operator) -> Option<(T, Operator)> {
+        self.encoding_calls.fetch_add(1, atomic::Ordering::Relaxed);
+        Some((v, op))
+    }
+
     fn decode(&self, v: T) -> T {
-        self.decoding_calls.fetch_add(1, Ordering::Relaxed);
+        self.decoding_calls.fetch_add(1, atomic::Ordering::Relaxed);
         v
     }
 }
@@ -166,12 +240,17 @@ impl<T> Transcoder<T, T> for MockTranscoder {
 #[cfg(test)]
 impl<T> Transcoder<T, T> for Arc<MockTranscoder> {
     fn encode(&self, v: T) -> T {
-        self.encoding_calls.fetch_add(1, Ordering::Relaxed);
+        self.encoding_calls.fetch_add(1, atomic::Ordering::Relaxed);
         v
     }
 
+    fn encode_comparable(&self, v: T, op: Operator) -> Option<(T, Operator)> {
+        self.encoding_calls.fetch_add(1, atomic::Ordering::Relaxed);
+        Some((v, op))
+    }
+
     fn decode(&self, v: T) -> T {
-        self.decoding_calls.fetch_add(1, Ordering::Relaxed);
+        self.decoding_calls.fetch_add(1, atomic::Ordering::Relaxed);
         v
     }
 }

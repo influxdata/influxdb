@@ -3,6 +3,7 @@
 //! This encoding stores a column of fixed-width numerical values backed by an
 //! an Arrow array, allowing for storage of NULL values.
 use either::Either;
+use observability_deps::tracing::debug;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::mem::size_of;
@@ -227,6 +228,43 @@ where
         }
         dst
     }
+
+    // Identify all row IDs that contain a non-null value.
+    fn all_non_null_row_ids(&self, mut dst: RowIDs) -> RowIDs {
+        dst.clear();
+
+        if self.null_count() == 0 {
+            dst.add_range(0, self.num_rows());
+            return dst;
+        }
+
+        let mut found = false;
+        let mut count = 0;
+        for i in 0..self.num_rows() as usize {
+            if self.arr.is_null(i) {
+                if found {
+                    // add the non-null range
+                    let (min, max) = (i as u32 - count, i as u32);
+                    dst.add_range(min, max);
+                    found = false;
+                    count = 0;
+                }
+                continue;
+            }
+
+            if !found {
+                found = true;
+            }
+            count += 1;
+        }
+
+        // add any remaining range.
+        if found {
+            let (min, max) = (self.num_rows() - count, self.num_rows());
+            dst.add_range(min, max);
+        }
+        dst
+    }
 }
 
 impl<P, L, T> ScalarEncoding<L> for FixedNull<P, L, T>
@@ -411,14 +449,34 @@ where
         max.map(|v| self.transcoder.decode(v))
     }
 
-    fn row_ids_filter(&self, value: L, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
-        let value = self.transcoder.encode(value);
+    fn row_ids_filter(&self, value: L, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
+        debug!(value=?value, operator=?op, encoding=?ENCODING_NAME, "row_ids_filter");
+        let (value, op) = match self.transcoder.encode_comparable(value, *op) {
+            Some((value, op)) => (value, op),
+            None => {
+                // The value is not encodable. This can happen with the == or !=
+                // operator. In the case of ==, no values in the encoding could
+                // possible satisfy the expression. In the case of !=, all
+                // non-null values would satisfy the expression.
+                dst.clear();
+                return match op {
+                    cmp::Operator::Equal => dst,
+                    cmp::Operator::NotEqual => {
+                        dst = self.all_non_null_row_ids(dst);
+                        dst
+                    }
+                    op => panic!("operator {:?} not expected", op),
+                };
+            }
+        };
+        debug!(value=?value, operator=?op, encoding=?ENCODING_NAME, "row_ids_filter encoded expr");
+
         match op {
-            cmp::Operator::GT => self.row_ids_cmp_order(value, Self::ord_from_op(op), dst),
-            cmp::Operator::GTE => self.row_ids_cmp_order(value, Self::ord_from_op(op), dst),
-            cmp::Operator::LT => self.row_ids_cmp_order(value, Self::ord_from_op(op), dst),
-            cmp::Operator::LTE => self.row_ids_cmp_order(value, Self::ord_from_op(op), dst),
-            _ => self.row_ids_equal(value, op, dst),
+            cmp::Operator::GT => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
+            cmp::Operator::GTE => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
+            cmp::Operator::LT => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
+            cmp::Operator::LTE => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
+            _ => self.row_ids_equal(value, &op, dst),
         }
     }
 
@@ -428,8 +486,16 @@ where
         right: (L, &cmp::Operator),
         dst: RowIDs,
     ) -> RowIDs {
-        let left = (self.transcoder.encode(left.0), left.1);
-        let right = (self.transcoder.encode(right.0), right.1);
+        debug!(left=?left, right=?right, encoding=?ENCODING_NAME, "row_ids_filter_range");
+        let left = self
+            .transcoder
+            .encode_comparable(left.0, *left.1)
+            .expect("transcoder must return Some variant");
+        let right = self
+            .transcoder
+            .encode_comparable(right.0, *right.1)
+            .expect("transcoder must return Some variant");
+        debug!(left=?left, right=?right, encoding=?ENCODING_NAME, "row_ids_filter_range encoded expr");
 
         match (left.1, right.1) {
             (cmp::Operator::GT, cmp::Operator::LT)
@@ -440,8 +506,8 @@ where
             | (cmp::Operator::LT, cmp::Operator::GTE)
             | (cmp::Operator::LTE, cmp::Operator::GT)
             | (cmp::Operator::LTE, cmp::Operator::GTE) => self.row_ids_cmp_range_order(
-                (left.0, Self::ord_from_op(left.1)),
-                (right.0, Self::ord_from_op(right.1)),
+                (left.0, Self::ord_from_op(&left.1)),
+                (right.0, Self::ord_from_op(&right.1)),
                 dst,
             ),
 
@@ -787,6 +853,38 @@ mod test {
             RowIDs::new_vector(),
         );
         assert_eq!(row_ids.to_vec(), vec![1, 2, 4]);
+    }
+
+    #[test]
+    fn row_ids_filter_range_all_non_null() {
+        let cases = vec![
+            (vec![None], vec![]),
+            (vec![None, None, None], vec![]),
+            (vec![Some(22)], vec![0_u32]),
+            (vec![Some(22), Some(3), Some(3)], vec![0, 1, 2]),
+            (vec![Some(22), None], vec![0]),
+            (
+                vec![Some(22), None, Some(1), None, Some(3), None],
+                vec![0, 2, 4],
+            ),
+            (vec![Some(22), None, None, Some(33)], vec![0, 3]),
+            (vec![None, None, Some(33)], vec![2]),
+            (
+                vec![None, None, Some(33), None, None, Some(3), Some(3), Some(1)],
+                vec![2, 5, 6, 7],
+            ),
+        ];
+
+        for (i, (data, exp)) in cases.into_iter().enumerate() {
+            let (v, _) = new_encoding(data);
+            let dst = RowIDs::new_vector();
+            assert_eq!(
+                v.all_non_null_row_ids(dst).unwrap_vector(),
+                &exp,
+                "example {:?} failed",
+                i
+            );
+        }
     }
 
     #[test]

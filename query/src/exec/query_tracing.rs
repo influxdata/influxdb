@@ -173,17 +173,9 @@ mod tests {
         Metric,
     };
 
-    use std::{
-        num::{NonZeroU128, NonZeroU64},
-        sync::Arc,
-        time::Duration,
-    };
+    use std::{sync::Arc, time::Duration};
 
-    use trace::{
-        ctx::{SpanContext, SpanId, TraceId},
-        span::{MetaValue, SpanStatus},
-        RingBufferTraceCollector,
-    };
+    use trace::{ctx::SpanContext, span::MetaValue, RingBufferTraceCollector};
 
     use super::*;
 
@@ -358,23 +350,7 @@ mod tests {
 
         // create a new span connected to the collector
         fn make_span(&self) -> Span {
-            let collector = Arc::clone(&self.collector);
-
-            // lifted from make_span in trace/src/span.rs
-            Span {
-                name: "foo".into(),
-                ctx: SpanContext {
-                    trace_id: TraceId(NonZeroU128::new(23948923).unwrap()),
-                    parent_span_id: None,
-                    span_id: SpanId(NonZeroU64::new(3498394).unwrap()),
-                    collector: Some(collector),
-                },
-                start: None,
-                end: None,
-                status: SpanStatus::Unknown,
-                metadata: Default::default(),
-                events: vec![],
-            }
+            SpanContext::new(Arc::clone(&self.collector) as _).child("foo")
         }
 
         /// return all collected spans
