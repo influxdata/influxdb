@@ -519,7 +519,7 @@ impl Db {
     pub async fn delete(
         self: &Arc<Self>,
         table_name: &str,
-        delete_predicate: &Predicate,
+        delete_predicate: Arc<Predicate>,
     ) -> Result<()> {
         // get all partitions of this table
         let table = self
@@ -534,7 +534,7 @@ impl Db {
                 // save the delete predicate in the chunk
                 let mut chunk = chunk.write();
                 chunk
-                    .add_delete_predicate(delete_predicate)
+                    .add_delete_predicate(Arc::clone(&delete_predicate))
                     .context(AddDeletePredicateError)?;
             }
         }
@@ -3780,7 +3780,7 @@ mod tests {
             .timestamp_range(0, 15)
             .add_expr(expr)
             .build();
-        db.delete("cpu", &pred).await.unwrap();
+        db.delete("cpu", Arc::new(pred)).await.unwrap();
         // When the above delete is issued, the open mub chunk is frozen with the delete predicate added
         // Verify there is MUB but no RUB no OS
         assert!(!mutable_chunk_ids(&db, partition_key).is_empty());
@@ -3913,7 +3913,7 @@ mod tests {
             .add_expr(expr1)
             .add_expr(expr2)
             .build();
-        db.delete("cpu", &pred).await.unwrap();
+        db.delete("cpu", Arc::new(pred)).await.unwrap();
         // When the above delete is issued, the open mub chunk is frozen with the delete predicate added
         // Verify there is MUB but no RUB no OS
         assert!(!mutable_chunk_ids(&db, partition_key).is_empty());

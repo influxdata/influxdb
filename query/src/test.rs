@@ -175,7 +175,8 @@ pub struct TestChunk {
     predicate_match: Option<PredicateMatch>,
 
     /// Copy of delete predicates passed
-    delete_predicates: Vec<Predicate>,
+    delete_predicates: Vec<Arc<Predicate>>,
+
     /// Order of this chunk relative to other overlapping chunks.
     order: ChunkOrder,
 }
@@ -823,7 +824,7 @@ impl QueryChunk for TestChunk {
         &self,
         predicate: &Predicate,
         _selection: Selection<'_>,
-        _delete_predicates: &[Predicate],
+        _delete_predicates: &[Arc<Predicate>],
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         self.check_error()?;
 
@@ -913,11 +914,11 @@ impl QueryChunkMeta for TestChunk {
     }
 
     // return a reference to delete predicates of the chunk
-    fn delete_predicates(&self) -> &Vec<Predicate> {
-        let pred: &Vec<Predicate> = &self.delete_predicates;
+    fn delete_predicates(&self) -> &[Arc<Predicate>] {
+        let pred = &self.delete_predicates;
         debug!(?pred, "Delete predicate in Test Chunk");
 
-        &self.delete_predicates
+        pred
     }
 }
 
@@ -927,7 +928,7 @@ pub async fn raw_data(chunks: &[Arc<TestChunk>]) -> Vec<RecordBatch> {
     for c in chunks {
         let pred = Predicate::default();
         let selection = Selection::All;
-        let delete_predicates: Vec<Predicate> = vec![];
+        let delete_predicates: Vec<Arc<Predicate>> = vec![];
         let mut stream = c
             .read_filter(&pred, selection, &delete_predicates)
             .expect("Error in read_filter");
