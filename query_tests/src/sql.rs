@@ -808,3 +808,68 @@ async fn sql_select_all_different_tags_chunks() {
         &expected
     );
 }
+
+#[tokio::test]
+async fn sql_select_with_deleted_data_from_one_expr() {
+    let expected = vec![
+        "+-----+--------------------------------+",
+        "| bar | time                           |",
+        "+-----+--------------------------------+",
+        "| 2   | 1970-01-01T00:00:00.000000020Z |",
+        "+-----+--------------------------------+",
+    ];
+
+    // Data deleted when it is in MUB, and then moved to RUB and OS
+    run_sql_test_case!(
+        DeleteFromMubOneMeasurementOneChunk {},
+        "SELECT * from cpu",
+        &expected
+    );
+
+    // Data deleted when it is in RUB, and then moved OS
+    run_sql_test_case!(
+        DeleteFromRubOneMeasurementOneChunk {},
+        "SELECT * from cpu",
+        &expected
+    );
+
+    // Data deleted when it is in OS
+    run_sql_test_case!(
+        DeleteFromOsOneMeasurementOneChunk {},
+        "SELECT * from cpu",
+        &expected
+    );
+}
+
+#[tokio::test]
+async fn sql_select_with_deleted_data_from_multi_exprs() {
+    let expected = vec![
+        "+-----+-----+--------------------------------+",
+        "| bar | foo | time                           |",
+        "+-----+-----+--------------------------------+",
+        "| 1   | me  | 1970-01-01T00:00:00.000000040Z |",
+        "| 2   | you | 1970-01-01T00:00:00.000000020Z |",
+        "+-----+-----+--------------------------------+",
+    ];
+
+    // Data deleted when it is in MUB, and then moved to RUB and OS
+    run_sql_test_case!(
+        DeleteMultiExprsFromMubOneMeasurementOneChunk {},
+        "SELECT * from cpu",
+        &expected
+    );
+
+    // Data deleted when it is in RUB, and then moved OS
+    run_sql_test_case!(
+        DeleteMultiExprsFromRubOneMeasurementOneChunk {},
+        "SELECT * from cpu",
+        &expected
+    );
+
+    // Data deleted when it is in OS
+    run_sql_test_case!(
+        DeleteMultiExprsFromOsOneMeasurementOneChunk {},
+        "SELECT * from cpu",
+        &expected
+    );
+}
