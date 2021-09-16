@@ -241,14 +241,14 @@ where
         let mut found = false;
         let mut count = 0;
         for i in 0..self.num_rows() as usize {
-            if self.arr.is_null(i) && found {
-                // add the non-null range
-                let (min, max) = (i as u32 - count, i as u32);
-                dst.add_range(min, max);
-                found = false;
-                count = 0;
-                continue;
-            } else if self.arr.is_null(i) {
+            if self.arr.is_null(i) {
+                if found {
+                    // add the non-null range
+                    let (min, max) = (i as u32 - count, i as u32);
+                    dst.add_range(min, max);
+                    found = false;
+                    count = 0;
+                }
                 continue;
             }
 
