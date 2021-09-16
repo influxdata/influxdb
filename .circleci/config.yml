@@ -69,20 +69,20 @@ workflows:
           record_ingest_results: true
           requires:
             - cross_build
-          # filters:
-          #   branches:
-          #     only:
-          #       - "master"
+          filters:
+            branches:
+              only:
+                - "master"
       - perf_test:
           name: perf-test-influxql
           format: http
           record_ingest_results: false
           requires:
             - cross_build
-          # filters:
-          #   branches:
-          #     only:
-          #       - "master"
+          filters:
+            branches:
+              only:
+                - "master"
       - grace_daily:
           requires:
             - build
