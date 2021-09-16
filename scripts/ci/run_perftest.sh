@@ -175,48 +175,18 @@ force_compaction() {
 # must be provided to both the data generation and query generation commands
 # and must be the same to ensure that the queries cover the data range.
 start_time() {
-  case $1 in
-    iot|window-agg|group-agg|bare-agg)
-      echo 2018-01-01T00:00:00Z
-      ;;
-    group-window-transpose)
-      cardinality=$(echo $2 | cut -d '-' -f2)
-      if [ "$cardinality" = "low" ]; then
-        echo 2018-01-01T00:00:00Z
-      else
-        echo 2019-01-01T00:00:00Z
-      fi
-      ;;
-    metaquery)
-      echo 2019-01-01T00:00:00Z
-      ;;
-    multi-measurement)
-      echo 2017-01-01T00:00:00Z
-      ;;
-    *)
-      echo "unknown use-case: $1"
-      exit 1
-      ;;
-  esac
+  # All queries and datasets can start at the same time. Certain queries and
+  # datasets will use case-dependent end-times.
+  echo 2018-01-01T00:00:00Z
 }
+
 end_time() {
   case $1 in
-    iot|window-agg|group-agg|bare-agg)
+    iot|window-agg|group-agg|bare-agg|group-window-transpose-low-card)
       echo 2018-01-01T12:00:00Z
       ;;
-    group-window-transpose)
-      cardinality=$(echo $2 | cut -d '-' -f2)
-      if [ "$cardinality" = "low" ]; then
-        echo 2018-01-01T12:00:00Z
-      else
-        echo 2020-01-01T00:00:00Z
-      fi
-      ;;
-    metaquery)
-      echo 2020-01-01T00:00:00Z
-      ;;
-    multi-measurement)
-      echo 2018-01-01T00:00:00Z
+    multi-measurement|metaquery|group-window-transpose-high-card)
+      echo 2019-01-01T00:00:00Z
       ;;
     *)
       echo "unknown use-case: $1"
@@ -225,9 +195,94 @@ end_time() {
   esac
 }
 
-# Run and record tests
+query_types() {
+  case $1 in
+    window-agg|group-agg|bare-agg|group-window-transpose-low-card|group-window-transpose-high-card)
+      echo min mean max first last count sum
+      ;;
+    iot)
+      echo fast-query-small-data standalone-filter aggregate-keep aggregate-drop sorted-pivot
+      ;;
+    metaquery)
+      echo field-keys tag-values
+      ;;
+    multi-measurement)
+      echo multi-measurement-or
+      ;;
+    *)
+      echo "unknown use-case: $1"
+      exit 1
+      ;;
+  esac
+}
 
-# Generate and ingest bulk data. Record the time spent as an ingest test.
+# Many of the query generator use-cases have aliases to make reporting more
+# clear. This function will translate the aliased query use cases to their
+# dataset use cases. Effectively this means "for this query use case, run the
+# queries against this dataset use case".
+query_usecase_alias() {
+  case $1 in
+    window-agg|group-agg|bare-agg|group-window-transpose|iot|group-window-transpose-low-card)
+      echo iot
+      ;;
+    metaquery|group-window-transpose-high-card)
+      echo metaquery
+      ;;
+    multi-measurement)
+      echo multi-measurement
+      ;;
+    *)
+      echo "unknown use-case: $1"
+      exit 1
+      ;;
+  esac
+}
+
+org_flag() {
+  case $1 in
+    flux-http)
+      echo -organization=$TEST_ORG
+      ;;
+    http)
+      echo -use-compatibility=true
+      ;;
+    *)
+      echo echo "unknown query format: $1"
+      exit 1
+      ;;
+  esac
+}
+
+create_dbrp() {
+curl -XPOST -H "Authorization: Token ${TEST_TOKEN}" \
+  -d "{\"org\":\"${TEST_ORG}\",\"bucketID\":\"$(bucket_id)\",\"database\":\"$db_name\",\"retention_policy\":\"autogen\"}" \
+  http://${NGINX_HOST}:8086/api/v2/dbrps
+}
+
+##########################
+## Run and record tests ##
+##########################
+
+# Generate queries to test.
+query_files=""
+for usecase in window-agg group-agg bare-agg group-window-transpose-low-card group-window-transpose-high-card iot metaquery multi-measurement; do
+  for type in $(query_types $usecase); do
+    query_fname="${TEST_FORMAT}_${usecase}_${type}"
+    $GOPATH/bin/bulk_query_gen \
+        -use-case=$usecase \
+        -query-type=$type \
+        -format=influx-${TEST_FORMAT} \
+        -timestamp-start=$(start_time $usecase) \
+        -timestamp-end=$(end_time $usecase) \
+        -queries=$queries \
+        -scale-var=$scale_var > \
+      ${DATASET_DIR}/$query_fname
+    query_files="$query_files $query_fname"
+  done
+done
+
+# Generate and ingest bulk data. Record the time spent as an ingest test if
+# specified, and run the query performance tests for each dataset.
 for usecase in iot metaquery multi-measurement; do
   data_fname="influx-bulk-records-usecase-$usecase"
   $GOPATH/bin/bulk_data_gen \
@@ -251,97 +306,47 @@ for usecase in iot metaquery multi-measurement; do
   $GOPATH/bin/bulk_load_influx $load_opts | \
     jq ". += {branch: \"$INFLUXDB_VERSION\", commit: \"$TEST_COMMIT\", time: \"$datestring\", i_type: \"$DATA_I_TYPE\", use_case: \"$usecase\"}" > ${out}
 
-  # Cleanup
+  # Cleanup from the data generation and loading.
   force_compaction
   rm ${DATASET_DIR}/$data_fname
-done
 
-query_types() {
-  case $1 in
-    window-agg|group-agg|bare-agg)
-      echo min mean max first last count sum
-      ;;
-    group-window-transpose)
-      echo min-high-card mean-high-card max-high-card first-high-card last-high-card count-high-card sum-high-card min-low-card mean-low-card max-low-card first-low-card last-low-card count-low-card sum-low-card
-      ;;
-    iot)
-      echo fast-query-small-data standalone-filter aggregate-keep aggregate-drop sorted-pivot
-      ;;
-    metaquery)
-      echo field-keys tag-values
-      ;;
-    multi-measurement)
-      echo multi-measurement-or
-      ;;
-    *)
-      echo "unknown use-case: $1"
-      exit 1
-      ;;
-  esac
-}
+  # Generate a DBRP mapping for use by InfluxQL queries.
+  create_dbrp
+ 
+  # Run the query tests applicable to this dataset.
+  for query_file in $query_files; do 
+    format=$(echo $query_file | cut -d '_' -f1)
+    query_usecase=$(echo $query_file | cut -d '_' -f2)
+    type=$(echo $query_file | cut -d '_' -f3)
 
-# Generate queries to test.
-query_files=""
-for usecase in window-agg group-agg bare-agg group-window-transpose iot metaquery multi-measurement; do
-  for type in $(query_types $usecase); do
-    query_fname="${TEST_FORMAT}_${usecase}_${type}"
-    $GOPATH/bin/bulk_query_gen \
-        -use-case=$usecase \
-        -query-type=$type \
-        -format=influx-${TEST_FORMAT} \
-        -timestamp-start=$(start_time $usecase $type) \
-        -timestamp-end=$(end_time $usecase $type) \
-        -queries=$queries \
-        -scale-var=$scale_var > \
-      ${DATASET_DIR}/$query_fname
-    query_files="$query_files $query_fname"
+    # Only run the query tests for queries applicable to this dataset.
+    if [ "$usecase" != "$(query_usecase_alias $query_usecase)" ]; then
+      continue
+    fi
+
+    ${GOPATH}/bin/query_benchmarker_influxdb \
+        -file=${DATASET_DIR}/$query_file \
+        -urls=http://${NGINX_HOST}:8086 \
+        -debug=0 \
+        -print-interval=0 \
+        -json=true \
+        $(org_flag $format) \
+        -token=$TEST_TOKEN \
+        -workers=$workers \
+        -benchmark-duration=$duration | \
+      jq '."all queries"' | \
+      jq -s '.[-1]' | \
+      jq ". += {use_case: \"$query_usecase\", query_type: \"$type\", branch: \"$INFLUXDB_VERSION\", commit: \"$TEST_COMMIT\", time: \"$datestring\", i_type: \"$DATA_I_TYPE\", query_format: \"$format\"}" > \
+        $working_dir/test-query-$format-$query_usecase-$type.json
+
+      # Restart daemon between query tests.
+      systemctl stop influxdb
+      systemctl unmask influxdb.service
+      systemctl start influxdb
   done
-done
 
-org_flag() {
-  case $1 in
-    flux-http)
-      echo -organization=$TEST_ORG
-      ;;
-    http)
-      echo -use-compatibility=true
-      ;;
-    *)
-      echo echo "unknown query format: $1"
-      exit 1
-      ;;
-  esac
-}
-
-# Generate a DBRP mapping for use by InfluxQL queries.
-curl -XPOST -H "Authorization: Token ${TEST_TOKEN}" \
-  -d "{\"org\":\"${TEST_ORG}\",\"bucketID\":\"$(bucket_id)\",\"database\":\"$db_name\",\"retention_policy\":\"autogen\"}" \
-  http://${NGINX_HOST}:8086/api/v2/dbrps
-
-# Run the query benchmarks
-for query_file in $query_files; do
-  format=$(echo $query_file | cut -d '_' -f1)
-  usecase=$(echo $query_file | cut -d '_' -f2)
-  type=$(echo $query_file | cut -d '_' -f3)
-  ${GOPATH}/bin/query_benchmarker_influxdb \
-      -file=${DATASET_DIR}/$query_file \
-      -urls=http://${NGINX_HOST}:8086 \
-      -debug=0 \
-      -print-interval=0 \
-      -json=true \
-      $(org_flag $format) \
-      -token=$TEST_TOKEN \
-      -workers=$workers \
-      -benchmark-duration=$duration | \
-    jq '."all queries"' | \
-    jq -s '.[-1]' | \
-    jq ". += {use_case: \"$usecase\", query_type: \"$type\", branch: \"$INFLUXDB_VERSION\", commit: \"$TEST_COMMIT\", time: \"$datestring\", i_type: \"$DATA_I_TYPE\", query_format: \"$format\"}" > \
-      $working_dir/test-query-$format-$usecase-$type.json
-
-    # restart daemon
-    systemctl stop influxdb
-    systemctl unmask influxdb.service
-    systemctl start influxdb
+  # Delete DB to start anew.
+  curl -X DELETE -H "Authorization: Token ${TEST_TOKEN}" http://${NGINX_HOST}:8086/api/v2/buckets/$(bucket_id)
 done
 
 echo "Using Telegraph to report results from the following files:"
