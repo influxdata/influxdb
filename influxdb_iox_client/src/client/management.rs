@@ -3,8 +3,8 @@ use thiserror::Error;
 use self::generated_types::{management_service_client::ManagementServiceClient, *};
 
 use crate::connection::Connection;
-use ::generated_types::google::longrunning::Operation;
 
+use crate::google::{longrunning::IoxOperation, FieldViolation};
 use std::convert::TryInto;
 use std::num::NonZeroU32;
 
@@ -180,6 +180,10 @@ pub enum CreateDummyJobError {
     #[error("Server returned an empty response")]
     EmptyResponse,
 
+    /// Response payload was invalid
+    #[error("Invalid response: {0}")]
+    InvalidResponse(#[from] FieldViolation),
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -264,6 +268,10 @@ pub enum ClosePartitionChunkError {
     #[error("Server unavailable: {}", .0.message())]
     Unavailable(tonic::Status),
 
+    /// Response payload was invalid
+    #[error("Invalid response: {0}")]
+    InvalidResponse(#[from] FieldViolation),
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -315,6 +323,10 @@ pub enum WipePersistedCatalogError {
     /// Response contained no payload
     #[error("Server returned an empty response")]
     EmptyResponse,
+
+    /// Response payload was invalid
+    #[error("Invalid response: {0}")]
+    InvalidResponse(#[from] FieldViolation),
 
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
@@ -800,7 +812,7 @@ impl Client {
     pub async fn create_dummy_job(
         &mut self,
         nanos: Vec<u64>,
-    ) -> Result<Operation, CreateDummyJobError> {
+    ) -> Result<IoxOperation, CreateDummyJobError> {
         let response = self
             .inner
             .create_dummy_job(CreateDummyJobRequest { nanos })
@@ -810,7 +822,8 @@ impl Client {
         Ok(response
             .into_inner()
             .operation
-            .ok_or(CreateDummyJobError::EmptyResponse)?)
+            .ok_or(CreateDummyJobError::EmptyResponse)?
+            .try_into()?)
     }
 
     /// Closes the specified chunk in the specified partition and
@@ -823,7 +836,7 @@ impl Client {
         table_name: impl Into<String> + Send,
         partition_key: impl Into<String> + Send,
         chunk_id: u32,
-    ) -> Result<Operation, ClosePartitionChunkError> {
+    ) -> Result<IoxOperation, ClosePartitionChunkError> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
         let table_name = table_name.into();
@@ -846,7 +859,8 @@ impl Client {
         Ok(response
             .into_inner()
             .operation
-            .ok_or(ClosePartitionChunkError::EmptyResponse)?)
+            .ok_or(ClosePartitionChunkError::EmptyResponse)?
+            .try_into()?)
     }
 
     /// Unload chunk from read buffer but keep it in object store.
@@ -887,7 +901,7 @@ impl Client {
     pub async fn wipe_persisted_catalog(
         &mut self,
         db_name: impl Into<String> + Send,
-    ) -> Result<Operation, WipePersistedCatalogError> {
+    ) -> Result<IoxOperation, WipePersistedCatalogError> {
         let db_name = db_name.into();
 
         let response = self
@@ -905,7 +919,8 @@ impl Client {
         Ok(response
             .into_inner()
             .operation
-            .ok_or(WipePersistedCatalogError::EmptyResponse)?)
+            .ok_or(WipePersistedCatalogError::EmptyResponse)?
+            .try_into()?)
     }
 
     /// Skip replay of an uninitialized database.

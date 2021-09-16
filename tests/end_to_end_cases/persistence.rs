@@ -2,7 +2,6 @@ use itertools::Itertools;
 
 use arrow_util::assert_batches_eq;
 use data_types::chunk_metadata::ChunkStorage;
-use influxdb_iox_client::operations;
 
 use crate::{
     common::server_fixture::ServerFixture,
@@ -125,11 +124,11 @@ async fn test_full_lifecycle() {
         .await
         .unwrap()
         .iter()
-        .any(|operation| match operation.metadata().job {
+        .any(|operation| match &operation.metadata.job {
             Some(Job::CompactChunks(CompactChunks {
                 db_name: operation_db_name,
                 ..
-            })) => operation_db_name == db_name,
+            })) => operation_db_name == &db_name,
             _ => false,
         });
     assert!(performed_compaction);
@@ -269,20 +268,16 @@ async fn create_readbuffer_chunk(fixture: &ServerFixture, db_name: &str) -> u32 
     assert_eq!(chunks[0].storage, ChunkStorage::OpenMutableBuffer);
 
     // Move the chunk to read buffer
-    let operation = management_client
+    let iox_operation = management_client
         .close_partition_chunk(db_name, table_name, partition_key, 0)
         .await
         .expect("new partition chunk");
 
-    println!("Operation response is {:?}", operation);
-    let operation_id = operation.id();
-
-    let meta = operations::ClientOperation::try_new(operation)
-        .unwrap()
-        .metadata();
+    println!("Operation response is {:?}", iox_operation);
+    let operation_id = iox_operation.operation.id();
 
     // ensure we got a legit job description back
-    if let Some(Job::CloseChunk(close_chunk)) = meta.job {
+    if let Some(Job::CloseChunk(close_chunk)) = iox_operation.metadata.job {
         assert_eq!(close_chunk.db_name, db_name);
         assert_eq!(close_chunk.partition_key, partition_key);
         assert_eq!(close_chunk.chunk_id, 0);

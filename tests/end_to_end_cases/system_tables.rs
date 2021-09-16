@@ -27,12 +27,12 @@ async fn test_operations() {
         .expect("write succeded");
 
     // Move the chunk to read buffer
-    let operation = management_client
+    let iox_operation = management_client
         .close_partition_chunk(&db_name1, table_name, partition_key, 0)
         .await
         .expect("new partition chunk");
 
-    let operation_id = operation.id();
+    let operation_id = iox_operation.operation.id();
     operations_client
         .wait_operation(operation_id, Some(std::time::Duration::from_secs(1)))
         .await

@@ -12,6 +12,11 @@ pub mod longrunning {
     include!(concat!(env!("OUT_DIR"), "/google.longrunning.rs"));
     include!(concat!(env!("OUT_DIR"), "/google.longrunning.serde.rs"));
 
+    use crate::google::{FieldViolation, FieldViolationExt};
+    use crate::influxdata::iox::management::v1::{OperationMetadata, OPERATION_METADATA};
+    use prost::{bytes::Bytes, Message};
+    use std::convert::TryFrom;
+
     impl Operation {
         /// Return the IOx operation `id`. This `id` can
         /// be passed to the various APIs in the
@@ -20,6 +25,46 @@ pub mod longrunning {
             self.name
                 .parse()
                 .expect("Internal error: id returned from server was not an integer")
+        }
+
+        /// Decodes an IOx `OperationMetadata` metadata payload
+        pub fn iox_metadata(&self) -> Result<OperationMetadata, FieldViolation> {
+            let metadata = self
+                .metadata
+                .as_ref()
+                .ok_or_else(|| FieldViolation::required("metadata"))?;
+
+            if !crate::protobuf_type_url_eq(&metadata.type_url, OPERATION_METADATA) {
+                return Err(FieldViolation {
+                    field: "metadata.type_url".to_string(),
+                    description: "Unexpected field type".to_string(),
+                });
+            }
+
+            Message::decode(Bytes::clone(&metadata.value)).field("metadata.value")
+        }
+    }
+
+    /// Groups together an `Operation` with a decoded `OperationMetadata`
+    ///
+    /// When serialized this will serialize the encoded Any field on `Operation` along
+    /// with its decoded representation as `OperationMetadata`
+    #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+    pub struct IoxOperation {
+        /// The `Operation` message returned from the API
+        pub operation: Operation,
+        /// The decoded `Operation::metadata` contained within `IoxOperation::operation`
+        pub metadata: OperationMetadata,
+    }
+
+    impl TryFrom<Operation> for IoxOperation {
+        type Error = FieldViolation;
+
+        fn try_from(operation: Operation) -> Result<Self, Self::Error> {
+            Ok(Self {
+                metadata: operation.iox_metadata()?,
+                operation,
+            })
         }
     }
 }
