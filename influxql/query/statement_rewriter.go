@@ -224,12 +224,9 @@ func rewriteShowSeriesCardinalityStatement(stmt *influxql.ShowSeriesCardinalityS
 	}, nil
 }
 
-func withKeyExpr(tagKeyExpr influxql.Expr, op influxql.Token) influxql.Expr {
+func rewriteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement) (influxql.Statement, error) {
 	var expr influxql.Expr
-	if tagKeyExpr == nil {
-		return nil
-	}
-	if list, ok := tagKeyExpr.(*influxql.ListLiteral); ok {
+	if list, ok := stmt.TagKeyExpr.(*influxql.ListLiteral); ok {
 		for _, tagKey := range list.Vals {
 			tagExpr := &influxql.BinaryExpr{
 				Op:  influxql.EQ,
@@ -249,17 +246,11 @@ func withKeyExpr(tagKeyExpr influxql.Expr, op influxql.Token) influxql.Expr {
 		}
 	} else {
 		expr = &influxql.BinaryExpr{
-			Op:  op,
+			Op:  stmt.Op,
 			LHS: &influxql.VarRef{Val: "_tagKey"},
-			RHS: tagKeyExpr,
+			RHS: stmt.TagKeyExpr,
 		}
 	}
-	return expr
-}
-
-func rewriteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement) (influxql.Statement, error) {
-	// parser enforces that TagKeyExpr is non-nil
-	expr := withKeyExpr(stmt.TagKeyExpr, stmt.Op)
 
 	// Set condition or "AND" together.
 	condition := stmt.Condition
@@ -357,26 +348,9 @@ func rewriteShowTagValuesCardinalityStatement(stmt *influxql.ShowTagValuesCardin
 }
 
 func rewriteShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement) (influxql.Statement, error) {
-	condition := rewriteSourcesCondition(stmt.Sources, stmt.Condition)
-	tagExpr := withKeyExpr(stmt.TagKeyExpr, stmt.TagKeyOp)
-
-	// if tagExpr == nil, condition is already set correctly
-	if tagExpr != nil {
-		if condition != nil {
-			condition = &influxql.BinaryExpr{
-				LHS: &influxql.ParenExpr{Expr: condition},
-				RHS: &influxql.ParenExpr{Expr: tagExpr},
-				Op:  influxql.AND,
-			}
-		} else {
-			// condition is nil, replace with tagExpr
-			condition = tagExpr
-		}
-	}
-
 	return &influxql.ShowTagKeysStatement{
 		Database:   stmt.Database,
-		Condition:  condition,
+		Condition:  rewriteSourcesCondition(stmt.Sources, stmt.Condition),
 		SortFields: stmt.SortFields,
 		Limit:      stmt.Limit,
 		Offset:     stmt.Offset,
