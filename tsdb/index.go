@@ -1458,7 +1458,7 @@ func (is IndexSet) measurementNamesByExpr(auth query.Authorizer, expr influxql.E
 	case *influxql.ParenExpr:
 		return is.measurementNamesByExpr(auth, e.Expr)
 	default:
-		return nil, fmt.Errorf("Invalid measurement expression %#v", expr)
+		return nil, fmt.Errorf("invalid measurement expression %#v", expr)
 	}
 }
 
@@ -2890,7 +2890,7 @@ func (is IndexSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, key
 			// seriesByExprIterator doesn't handle
 			lit, ok := e.Expr.(*influxql.BooleanLiteral)
 			if !ok {
-				return nil, fmt.Errorf("Expression too complex for metaquery: %v", e.Expr)
+				return nil, fmt.Errorf("expression too complex for metaquery: %v", e.Expr)
 			}
 			if !lit.Val {
 				continue
