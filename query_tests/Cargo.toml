@@ -10,19 +10,19 @@ description = "Tests of the query engine against different database configuratio
 [dependencies]
 async-trait = "0.1"
 data_types = { path = "../data_types" }
+datafusion = { path = "../datafusion" }
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
+predicate = { path = "../predicate" }
 query = { path = "../query" }
 server = { path = "../server" }
 
 [dev-dependencies]
 arrow = { version = "5.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
-datafusion = { path = "../datafusion" }
 data_types = { path = "../data_types" }
 internal_types = { path = "../internal_types" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
-predicate = { path = "../predicate" }
 snafu = "0.6.3"
 tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers" }
