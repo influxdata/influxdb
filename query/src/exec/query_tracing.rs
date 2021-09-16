@@ -1,15 +1,67 @@
 //! This module contains the code to map DataFusion metrics to `Span`s
 //! for use in distributed tracing (e.g. Jaeger)
 
-use std::{borrow::Cow, fmt};
+use std::{borrow::Cow, fmt, sync::Arc};
 
+use arrow::record_batch::RecordBatch;
 use chrono::{DateTime, Utc};
 use datafusion::physical_plan::{
     metrics::{MetricValue, MetricsSet},
-    DisplayFormatType, ExecutionPlan,
+    DisplayFormatType, ExecutionPlan, RecordBatchStream, SendableRecordBatchStream,
 };
+use futures::StreamExt;
 use observability_deps::tracing::debug;
-use trace::span::Span;
+use trace::span::{Span, SpanRecorder};
+
+/// Stream wrapper that records DataFusion `MetricSets` into IOx
+/// [`Span`]s when it is dropped.
+pub(crate) struct TracedStream {
+    inner: SendableRecordBatchStream,
+    span_recorder: SpanRecorder,
+    physical_plan: Arc<dyn ExecutionPlan>,
+}
+
+impl TracedStream {
+    /// Return a stream that records DataFusion `MetricSets` from
+    /// `physical_plan` into `span` when dropped.
+    pub(crate) fn new(
+        inner: SendableRecordBatchStream,
+        span: Option<trace::span::Span>,
+        physical_plan: Arc<dyn ExecutionPlan>,
+    ) -> Self {
+        Self {
+            inner,
+            span_recorder: SpanRecorder::new(span),
+            physical_plan,
+        }
+    }
+}
+
+impl RecordBatchStream for TracedStream {
+    fn schema(&self) -> arrow::datatypes::SchemaRef {
+        self.inner.schema()
+    }
+}
+
+impl futures::Stream for TracedStream {
+    type Item = arrow::error::Result<RecordBatch>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        self.inner.poll_next_unpin(cx)
+    }
+}
+
+impl Drop for TracedStream {
+    fn drop(&mut self) {
+        if let Some(span) = self.span_recorder.span() {
+            let default_end_time = Utc::now();
+            send_metrics_to_tracing(default_end_time, span, self.physical_plan.as_ref());
+        }
+    }
+}
 
 /// This function translates data in DataFusion `MetricSets` into IOx
 /// [`Span`]s. It records a snapshot of the current state of the
@@ -26,15 +78,7 @@ use trace::span::Span;
 /// 1. If the ExecutionPlan had no metrics
 /// 2. The total number of rows produced by the ExecutionPlan (if available)
 /// 3. The elapsed compute time taken by the ExecutionPlan
-pub(crate) fn send_metrics_to_tracing(parent_span: &Span, physical_plan: &dyn ExecutionPlan) {
-    // The parent span may be open, but since the physical_plan is
-    // assumed to be fully collected, using `now()` is a conservative
-    // estimate of the end time
-    let default_end_time = Utc::now();
-    send_metrics_to_tracing_inner(default_end_time, parent_span, physical_plan)
-}
-
-fn send_metrics_to_tracing_inner(
+fn send_metrics_to_tracing(
     default_end_time: DateTime<Utc>,
     parent_span: &Span,
     physical_plan: &dyn ExecutionPlan,
@@ -101,7 +145,7 @@ fn send_metrics_to_tracing_inner(
 
     // recurse
     for child in physical_plan.children() {
-        send_metrics_to_tracing_inner(span_end, &span, child.as_ref())
+        send_metrics_to_tracing(span_end, &span, child.as_ref())
     }
 
     span.export()
@@ -185,7 +229,7 @@ mod tests {
         let exec = TestExec::new(name, Default::default());
 
         let traces = TraceBuilder::new();
-        send_metrics_to_tracing(&traces.make_span(), &exec);
+        send_metrics_to_tracing(Utc::now(), &traces.make_span(), &exec);
 
         let spans = traces.spans();
         assert_eq!(spans.len(), 1);
@@ -216,7 +260,7 @@ mod tests {
         exec.new_child("child4", make_time_metricset(None, None));
 
         let traces = TraceBuilder::new();
-        send_metrics_to_tracing_inner(ts5, &traces.make_span(), &exec);
+        send_metrics_to_tracing(ts5, &traces.make_span(), &exec);
 
         let spans = traces.spans();
         println!("Spans: \n\n{:#?}", spans);
@@ -242,7 +286,7 @@ mod tests {
         exec.metrics = None;
 
         let traces = TraceBuilder::new();
-        send_metrics_to_tracing(&traces.make_span(), &exec);
+        send_metrics_to_tracing(Utc::now(), &traces.make_span(), &exec);
 
         let spans = traces.spans();
         assert_eq!(spans.len(), 1);
@@ -266,7 +310,7 @@ mod tests {
         add_elapsed_compute(exec.metrics_mut(), 2000, 2);
 
         let traces = TraceBuilder::new();
-        send_metrics_to_tracing(&traces.make_span(), &exec);
+        send_metrics_to_tracing(Utc::now(), &traces.make_span(), &exec);
 
         // aggregated metrics should be reported
         let spans = traces.spans();

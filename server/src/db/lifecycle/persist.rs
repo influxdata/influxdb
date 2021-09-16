@@ -112,8 +112,10 @@ pub fn persist_chunks(
             "Expected split plan to produce exactly 2 partitions"
         );
 
-        let to_persist_stream = ctx.execute_partition(Arc::clone(&physical_plan), 0).await?;
-        let remainder_stream = ctx.execute_partition(physical_plan, 1).await?;
+        let to_persist_stream = ctx
+            .execute_stream_partitioned(Arc::clone(&physical_plan), 0)
+            .await?;
+        let remainder_stream = ctx.execute_stream_partitioned(physical_plan, 1).await?;
 
         let (to_persist, remainder) = futures::future::try_join(
             collect_rub(to_persist_stream, &addr, metric_registry.as_ref()),

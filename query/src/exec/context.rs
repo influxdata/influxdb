@@ -11,18 +11,19 @@ use datafusion::{
     logical_plan::{LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
         coalesce_partitions::CoalescePartitionsExec,
-        collect, displayable,
+        displayable,
         planner::{DefaultPhysicalPlanner, ExtensionPlanner},
         ExecutionPlan, PhysicalPlanner, SendableRecordBatchStream,
     },
     prelude::*,
 };
+use futures::TryStreamExt;
 use observability_deps::tracing::{debug, trace};
 use trace::{ctx::SpanContext, span::SpanRecorder};
 
 use crate::exec::{
     fieldlist::{FieldList, IntoFieldList},
-    query_tracing::send_metrics_to_tracing,
+    query_tracing::TracedStream,
     schema_pivot::{SchemaPivotExec, SchemaPivotNode},
     seriesset::{SeriesSetConverter, SeriesSetItem},
     split::StreamSplitExec,
@@ -272,45 +273,63 @@ impl IOxExecutionContext {
     /// Executes the logical plan using DataFusion on a separate
     /// thread pool and produces RecordBatches
     pub async fn collect(&self, physical_plan: Arc<dyn ExecutionPlan>) -> Result<Vec<RecordBatch>> {
-        let ctx = self.child_ctx("collect");
         debug!(
             "Running plan, physical:\n{}",
             displayable(physical_plan.as_ref()).indent()
         );
+        let ctx = self.child_ctx("collect");
+        let stream = ctx.execute_stream(physical_plan).await?;
 
-        let res = ctx.run(collect(Arc::clone(&physical_plan))).await;
-
-        // send metrics to tracing, even on error
-        ctx.save_metrics(physical_plan);
-        res
+        ctx.run(
+            stream
+                .err_into() // convert to DataFusionError
+                .try_collect(),
+        )
+        .await
     }
 
-    /// Executes the physical plan and produces a RecordBatchStream to stream
-    /// over the result that iterates over the results.
-    pub async fn execute(
+    /// Executes the physical plan and produces a
+    /// `SendableRecordBatchStream` to stream over the result that
+    /// iterates over the results. The creation of the stream is
+    /// performed in a separate thread pool.
+    pub async fn execute_stream(
         &self,
         physical_plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
         match physical_plan.output_partitioning().partition_count() {
             0 => unreachable!(),
-            1 => self.execute_partition(physical_plan, 0).await,
+            1 => self.execute_stream_partitioned(physical_plan, 0).await,
             _ => {
                 // Merge into a single partition
-                self.execute_partition(Arc::new(CoalescePartitionsExec::new(physical_plan)), 0)
-                    .await
+                self.execute_stream_partitioned(
+                    Arc::new(CoalescePartitionsExec::new(physical_plan)),
+                    0,
+                )
+                .await
             }
         }
     }
 
-    /// Executes a single partition of a physical plan and produces a RecordBatchStream to stream
-    /// over the result that iterates over the results.
-    pub async fn execute_partition(
+    /// Executes a single partition of a physical plan and produces a
+    /// `SendableRecordBatchStream` to stream over the result that
+    /// iterates over the results. The creation of the stream is
+    /// performed in a separate thread pool.
+    pub async fn execute_stream_partitioned(
         &self,
         physical_plan: Arc<dyn ExecutionPlan>,
         partition: usize,
     ) -> Result<SendableRecordBatchStream> {
-        self.run(async move { physical_plan.execute(partition).await })
-            .await
+        let span = self
+            .recorder
+            .span()
+            .map(|span| span.child("execute_stream_partitioned"));
+
+        self.run(async move {
+            let stream = physical_plan.execute(partition).await?;
+            let stream = TracedStream::new(stream, span, physical_plan);
+            Ok(Box::pin(stream) as _)
+        })
+        .await
     }
 
     /// Executes the SeriesSetPlans on the query executor, in
@@ -349,7 +368,7 @@ impl IOxExecutionContext {
 
                     let physical_plan = ctx.prepare_plan(&plan)?;
 
-                    let it = ctx.execute(physical_plan).await?;
+                    let it = ctx.execute_stream(physical_plan).await?;
 
                     SeriesSetConverter::default()
                         .convert(
@@ -484,21 +503,6 @@ impl IOxExecutionContext {
             inner: self.inner.clone(),
             exec: self.exec.clone(),
             recorder: self.recorder.child(name),
-        }
-    }
-
-    /// Saves any DataFusion metrics that are currently present in
-    /// `physical_plan` to the span recorder so they show up in
-    /// distributed traces (e.g. Jaeger)
-    ///
-    /// This function should be invoked after `physical_plan` has
-    /// fully `collect`ed, meaning that `PhysicalPlan::execute()` has
-    /// been invoked and the resulting streams have been completely
-    /// consumed. Calling `save_metrics` metrics prior to this point
-    /// may result in saving incomplete information.
-    pub fn save_metrics(&self, physical_plan: Arc<dyn ExecutionPlan>) {
-        if let Some(span) = self.recorder.span() {
-            send_metrics_to_tracing(span, physical_plan.as_ref())
         }
     }
 }
