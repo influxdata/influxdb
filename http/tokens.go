@@ -7,8 +7,10 @@ import (
 	"strings"
 )
 
-const tokenScheme = "Token "
-const altTokenScheme = "Bearer "
+const (
+	tokenScheme  = "Token "
+	bearerScheme = "Bearer "
+)
 
 // errors
 var (
@@ -23,10 +25,12 @@ func GetToken(r *http.Request) (string, error) {
 		return "", ErrAuthHeaderMissing
 	}
 
-	if strings.HasPrefix(header, tokenScheme) {
+	if len(header) >= len(tokenScheme) &&
+		strings.EqualFold(header[:len(tokenScheme)], tokenScheme) {
 		return header[len(tokenScheme):], nil
-	} else if strings.HasPrefix(header, altTokenScheme) {
-		return header[len(altTokenScheme):], nil
+	} else if len(header) > len(bearerScheme) &&
+		strings.EqualFold(header[:len(bearerScheme)], bearerScheme) {
+		return header[len(bearerScheme):], nil
 	}
 
 	return "", ErrAuthBadScheme

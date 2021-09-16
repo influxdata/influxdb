@@ -65,6 +65,15 @@ func TestGetToken(t *testing.T) {
 				result: "tok2",
 			},
 		},
+		{
+			name: "short header",
+			args: args{
+				header: "a",
+			},
+			wants: wants{
+				err: ErrAuthBadScheme,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
