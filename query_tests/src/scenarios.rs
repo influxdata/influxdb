@@ -1224,19 +1224,24 @@ impl DbSetup for DeleteFromMubOneMeasurementOneChunk {
             .build();
 
         // delete happens when data in MUB
-        let _scenario_mub = make_delete_mub(lp_lines.clone(), &pred).await;
+        let _scenario_mub = make_delete_mub(lp_lines.clone(), pred.clone()).await;
 
         // delete happens when data in MUB then moved to RUB
         let scenario_rub =
-            make_delete_mub_to_rub(lp_lines.clone(), &pred, table_name, partition_key).await;
+            make_delete_mub_to_rub(lp_lines.clone(), pred.clone(), table_name, partition_key).await;
 
         // delete happens when data in MUB then moved to RUB and then persisted
-        let scenario_rub_os =
-            make_delete_mub_to_rub_and_os(lp_lines.clone(), &pred, table_name, partition_key).await;
+        let scenario_rub_os = make_delete_mub_to_rub_and_os(
+            lp_lines.clone(),
+            pred.clone(),
+            table_name,
+            partition_key,
+        )
+        .await;
 
         // delete happens when data in MUB then moved to RUB, then persisted, and then RUB is unloaded
         let scenario_os =
-            make_delete_mub_to_os(lp_lines.clone(), &pred, table_name, partition_key).await;
+            make_delete_mub_to_os(lp_lines.clone(), pred, table_name, partition_key).await;
 
         // return scenarios to run queries
         // NGA todo: add scenario_mub in this after the deleted data is removed in the scan
@@ -1270,20 +1275,16 @@ impl DbSetup for DeleteFromRubOneMeasurementOneChunk {
 
         // delete happens to data in RUB
         let scenario_rub =
-            make_delete_rub(lp_lines.clone(), &pred, table_name, partition_key).await;
+            make_delete_rub(lp_lines.clone(), pred.clone(), table_name, partition_key).await;
 
         // delete happens to data in RUB then persisted
         let scenario_rub_os =
-            make_delete_rub_to_os(lp_lines.clone(), &pred, table_name, partition_key).await;
+            make_delete_rub_to_os(lp_lines.clone(), pred.clone(), table_name, partition_key).await;
 
         // delete happens to data in RUB then persisted then RUB unloaded
-        let scenario_os = make_delete_rub_to_os_and_unload_rub(
-            lp_lines.clone(),
-            &pred,
-            table_name,
-            partition_key,
-        )
-        .await;
+        let scenario_os =
+            make_delete_rub_to_os_and_unload_rub(lp_lines.clone(), pred, table_name, partition_key)
+                .await;
 
         // return scenarios to run queries
         vec![scenario_rub, scenario_rub_os, scenario_os]
@@ -1314,19 +1315,20 @@ impl DbSetup for DeleteFromOsOneMeasurementOneChunk {
 
         // delete happens after data is persisted but still in RUB
         let scenario_rub_os =
-            make_delete_os_with_rub(lp_lines.clone(), &pred, table_name, partition_key).await;
+            make_delete_os_with_rub(lp_lines.clone(), pred.clone(), table_name, partition_key)
+                .await;
 
         // delete happens after data is persisted but still in RUB and then unload RUB
         let _scenario_rub_os_unload_rub = make_delete_os_with_rub_then_unload_rub(
             lp_lines.clone(),
-            &pred,
+            pred.clone(),
             table_name,
             partition_key,
         )
         .await;
 
         // delete happens after data is persisted and RUB is unloaded
-        let _scenario_os = make_delete_os(lp_lines.clone(), &pred, table_name, partition_key).await;
+        let _scenario_os = make_delete_os(lp_lines.clone(), pred, table_name, partition_key).await;
 
         // return scenarios to run queries
         //vec![scenario_rub_os, scenario_rub_os_unload_rub, scenario_os]
@@ -1366,19 +1368,24 @@ impl DbSetup for DeleteMultiExprsFromMubOneMeasurementOneChunk {
             .build();
 
         // delete happens when data in MUB
-        let _scenario_mub = make_delete_mub(lp_lines.clone(), &pred).await;
+        let _scenario_mub = make_delete_mub(lp_lines.clone(), pred.clone()).await;
 
         // delete happens when data in MUB then moved to RUB
         let scenario_rub =
-            make_delete_mub_to_rub(lp_lines.clone(), &pred, table_name, partition_key).await;
+            make_delete_mub_to_rub(lp_lines.clone(), pred.clone(), table_name, partition_key).await;
 
         // delete happens when data in MUB then moved to RUB and then persisted
-        let scenario_rub_os =
-            make_delete_mub_to_rub_and_os(lp_lines.clone(), &pred, table_name, partition_key).await;
+        let scenario_rub_os = make_delete_mub_to_rub_and_os(
+            lp_lines.clone(),
+            pred.clone(),
+            table_name,
+            partition_key,
+        )
+        .await;
 
         // delete happens when data in MUB then moved to RUB, then persisted, and then RUB is unloaded
         let scenario_os =
-            make_delete_mub_to_os(lp_lines.clone(), &pred, table_name, partition_key).await;
+            make_delete_mub_to_os(lp_lines.clone(), pred, table_name, partition_key).await;
 
         // return scenarios to run queries
         // NGA todo: add scenario_mub in this after the deleted data is removed in the scan
@@ -1419,20 +1426,16 @@ impl DbSetup for DeleteMultiExprsFromRubOneMeasurementOneChunk {
 
         // delete happens to data in RUB
         let scenario_rub =
-            make_delete_rub(lp_lines.clone(), &pred, table_name, partition_key).await;
+            make_delete_rub(lp_lines.clone(), pred.clone(), table_name, partition_key).await;
 
         // delete happens to data in RUB then persisted
         let scenario_rub_os =
-            make_delete_rub_to_os(lp_lines.clone(), &pred, table_name, partition_key).await;
+            make_delete_rub_to_os(lp_lines.clone(), pred.clone(), table_name, partition_key).await;
 
         // delete happens to data in RUB then persisted then RUB unloaded
-        let scenario_os = make_delete_rub_to_os_and_unload_rub(
-            lp_lines.clone(),
-            &pred,
-            table_name,
-            partition_key,
-        )
-        .await;
+        let scenario_os =
+            make_delete_rub_to_os_and_unload_rub(lp_lines.clone(), pred, table_name, partition_key)
+                .await;
 
         // return scenarios to run queries
         vec![scenario_rub, scenario_rub_os, scenario_os]
@@ -1471,19 +1474,20 @@ impl DbSetup for DeleteMultiExprsFromOsOneMeasurementOneChunk {
 
         // delete happens after data is persisted but still in RUB
         let scenario_rub_os =
-            make_delete_os_with_rub(lp_lines.clone(), &pred, table_name, partition_key).await;
+            make_delete_os_with_rub(lp_lines.clone(), pred.clone(), table_name, partition_key)
+                .await;
 
         // delete happens after data is persisted but still in RUB and then unload RUB
         let _scenario_rub_os_unload_rub = make_delete_os_with_rub_then_unload_rub(
             lp_lines.clone(),
-            &pred,
+            pred.clone(),
             table_name,
             partition_key,
         )
         .await;
 
         // delete happens after data is persisted and RUB is unloaded
-        let _scenario_os = make_delete_os(lp_lines.clone(), &pred, table_name, partition_key).await;
+        let _scenario_os = make_delete_os(lp_lines.clone(), pred, table_name, partition_key).await;
 
         // return scenarios to run queries
         //vec![scenario_rub_os, scenario_rub_os_unload_rub, scenario_os]
@@ -1497,7 +1501,7 @@ impl DbSetup for DeleteMultiExprsFromOsOneMeasurementOneChunk {
 //  2. Many different-type chunks when a delete happens
 //  3. Combination of above
 
-async fn make_delete_mub(lp_lines: Vec<&str>, pred: &Predicate) -> DbScenario {
+async fn make_delete_mub(lp_lines: Vec<&str>, pred: Predicate) -> DbScenario {
     let db = make_db().await.db;
     // create an open MUB
     write_lp(&db, &lp_lines.join("\n")).await;
@@ -1505,7 +1509,7 @@ async fn make_delete_mub(lp_lines: Vec<&str>, pred: &Predicate) -> DbScenario {
     assert_eq!(count_mutable_buffer_chunks(&db), 1);
     assert_eq!(count_read_buffer_chunks(&db), 0);
     assert_eq!(count_object_store_chunks(&db), 0);
-    db.delete("cpu", pred).await.unwrap();
+    db.delete("cpu", Arc::new(pred)).await.unwrap();
     // Still one but frozen MUB, no RUB, no OS
     assert_eq!(count_mutable_buffer_chunks(&db), 1);
     assert_eq!(count_read_buffer_chunks(&db), 0);
@@ -1519,7 +1523,7 @@ async fn make_delete_mub(lp_lines: Vec<&str>, pred: &Predicate) -> DbScenario {
 
 async fn make_delete_mub_to_rub(
     lp_lines: Vec<&str>,
-    pred: &Predicate,
+    pred: Predicate,
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
@@ -1527,7 +1531,7 @@ async fn make_delete_mub_to_rub(
     // create an open MUB
     write_lp(&db, &lp_lines.join("\n")).await;
     // delete data in MUB
-    db.delete("cpu", pred).await.unwrap();
+    db.delete("cpu", Arc::new(pred)).await.unwrap();
     // move MUB to RUB and the delete predicate will be automatically included in RUB
     db.rollover_partition(table_name, partition_key)
         .await
@@ -1548,7 +1552,7 @@ async fn make_delete_mub_to_rub(
 
 async fn make_delete_mub_to_rub_and_os(
     lp_lines: Vec<&str>,
-    pred: &Predicate,
+    pred: Predicate,
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
@@ -1556,7 +1560,7 @@ async fn make_delete_mub_to_rub_and_os(
     // create an open MUB
     write_lp(&db, &lp_lines.join("\n")).await;
     // delete data in MUB
-    db.delete("cpu", pred).await.unwrap();
+    db.delete("cpu", Arc::new(pred)).await.unwrap();
     // move MUB to RUB and the delete predicate will be automatically included in RUB
     db.rollover_partition(table_name, partition_key)
         .await
@@ -1585,7 +1589,7 @@ async fn make_delete_mub_to_rub_and_os(
 
 async fn make_delete_mub_to_os(
     lp_lines: Vec<&str>,
-    pred: &Predicate,
+    pred: Predicate,
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
@@ -1593,7 +1597,7 @@ async fn make_delete_mub_to_os(
     // create an open MUB
     write_lp(&db, &lp_lines.join("\n")).await;
     // delete data in MUB
-    db.delete("cpu", pred).await.unwrap();
+    db.delete("cpu", Arc::new(pred)).await.unwrap();
     // move MUB to RUB and the delete predicate will be automatically included in RUB
     db.rollover_partition(table_name, partition_key)
         .await
@@ -1624,7 +1628,7 @@ async fn make_delete_mub_to_os(
 
 async fn make_delete_rub(
     lp_lines: Vec<&str>,
-    pred: &Predicate,
+    pred: Predicate,
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
@@ -1639,7 +1643,7 @@ async fn make_delete_rub(
         .await
         .unwrap();
     // delete data in RUB
-    db.delete("cpu", pred).await.unwrap();
+    db.delete("cpu", Arc::new(pred)).await.unwrap();
     // No MUB, one RUB, no OS
     assert_eq!(count_mutable_buffer_chunks(&db), 0);
     assert_eq!(count_read_buffer_chunks(&db), 1);
@@ -1653,7 +1657,7 @@ async fn make_delete_rub(
 
 async fn make_delete_rub_to_os(
     lp_lines: Vec<&str>,
-    pred: &Predicate,
+    pred: Predicate,
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
@@ -1668,7 +1672,7 @@ async fn make_delete_rub_to_os(
         .await
         .unwrap();
     // delete data in RUB
-    db.delete("cpu", pred).await.unwrap();
+    db.delete("cpu", Arc::new(pred)).await.unwrap();
     // persist RUB and the delete predicate will be automatically included in the OS chunk
     db.persist_partition(
         table_name,
@@ -1690,7 +1694,7 @@ async fn make_delete_rub_to_os(
 
 async fn make_delete_rub_to_os_and_unload_rub(
     lp_lines: Vec<&str>,
-    pred: &Predicate,
+    pred: Predicate,
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
@@ -1705,7 +1709,7 @@ async fn make_delete_rub_to_os_and_unload_rub(
         .await
         .unwrap();
     // delete data in RUB
-    db.delete("cpu", pred).await.unwrap();
+    db.delete("cpu", Arc::new(pred)).await.unwrap();
     // persist RUB and the delete predicate will be automatically included in the OS chunk
     db.persist_partition(
         table_name,
@@ -1729,7 +1733,7 @@ async fn make_delete_rub_to_os_and_unload_rub(
 
 async fn make_delete_os_with_rub(
     lp_lines: Vec<&str>,
-    pred: &Predicate,
+    pred: Predicate,
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
@@ -1752,7 +1756,7 @@ async fn make_delete_os_with_rub(
     .await
     .unwrap();
     // delete data after persisted but RUB still available
-    db.delete("cpu", pred).await.unwrap();
+    db.delete("cpu", Arc::new(pred)).await.unwrap();
     // No MUB, one RUB, one OS
     assert_eq!(count_mutable_buffer_chunks(&db), 0);
     assert_eq!(count_read_buffer_chunks(&db), 1);
@@ -1766,7 +1770,7 @@ async fn make_delete_os_with_rub(
 
 async fn make_delete_os_with_rub_then_unload_rub(
     lp_lines: Vec<&str>,
-    pred: &Predicate,
+    pred: Predicate,
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
@@ -1789,7 +1793,7 @@ async fn make_delete_os_with_rub_then_unload_rub(
     .await
     .unwrap();
     // delete data after persisted but RUB still available
-    db.delete("cpu", pred).await.unwrap();
+    db.delete("cpu", Arc::new(pred)).await.unwrap();
     // remove RUB
     db.unload_read_buffer(table_name, partition_key, 1).unwrap();
     // No MUB, no RUB, one OS
@@ -1806,7 +1810,7 @@ async fn make_delete_os_with_rub_then_unload_rub(
 
 async fn make_delete_os(
     lp_lines: Vec<&str>,
-    pred: &Predicate,
+    pred: Predicate,
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
@@ -1831,7 +1835,7 @@ async fn make_delete_os(
     // remove RUB
     db.unload_read_buffer(table_name, partition_key, 1).unwrap();
     // delete data after persisted but RUB still available
-    db.delete("cpu", pred).await.unwrap();
+    db.delete("cpu", Arc::new(pred)).await.unwrap();
     // No MUB, no RUB, one OS
     assert_eq!(count_mutable_buffer_chunks(&db), 0);
     assert_eq!(count_read_buffer_chunks(&db), 0);
