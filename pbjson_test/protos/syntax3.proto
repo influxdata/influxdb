@@ -60,11 +60,13 @@ message KitchenSink {
     Empty one_of_message = 30;
   }
 
-  // Bytes support is currently broken
-  //  bytes bytes = 31;
-  //  optional bytes optional_bytes = 32;
-  //  map<string, bytes> bytes_dict = 35;
+  bytes bytes = 31;
+  optional bytes optional_bytes = 32;
+  repeated bytes repeated_bytes = 33;
 
-  string string = 33;
-  optional string optional_string = 34;
+  // Bytes support is currently broken - https://github.com/tokio-rs/prost/issues/531
+  //  map<string, bytes> bytes_dict = 34;
+
+  string string = 35;
+  optional string optional_string = 36;
 }

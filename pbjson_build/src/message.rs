@@ -12,7 +12,7 @@ use prost_types::{
 use crate::descriptor::{Descriptor, DescriptorSet, MessageDescriptor, Syntax, TypeName, TypePath};
 use crate::escape::escape_ident;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ScalarType {
     F64,
     F32,
@@ -61,7 +61,7 @@ pub enum FieldType {
     Map(ScalarType, Box<FieldType>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum FieldModifier {
     Required,
     Optional,
