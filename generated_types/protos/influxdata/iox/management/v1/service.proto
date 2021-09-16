@@ -189,18 +189,18 @@ message RestoreDatabaseResponse {}
 message ListDeletedDatabasesRequest {}
 
 message ListDeletedDatabasesResponse {
-  repeated DeletedDatabase deleted_databases = 1;
+  repeated DetailedDatabase deleted_databases = 1;
 }
 
-// This resource represents a deleted database.
-message DeletedDatabase {
-  // The generation ID of the deleted database.
+// This resource represents detailed information about a database.
+message DetailedDatabase {
+  // The generation ID of the database.
   uint64 generation_id = 1;
 
-  // The UTC datetime at which this database was deleted.
+  // The UTC datetime at which this database was deleted, if applicable.
   google.protobuf.Timestamp deleted_at = 2;
 
-  // The name of the deleted database.
+  // The name of the database.
   string db_name = 3;
 }
 

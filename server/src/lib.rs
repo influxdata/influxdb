@@ -72,7 +72,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use data_types::{
     database_rules::{NodeGroup, RoutingRules, ShardId, Sink},
-    deleted_database::DeletedDatabase,
+    detailed_database::DetailedDatabase,
     error::ErrorLogger,
     job::Job,
     server_id::ServerId,
@@ -726,7 +726,7 @@ where
     }
 
     /// List all deleted databases in object storage.
-    pub async fn list_deleted_databases(&self) -> Result<Vec<DeletedDatabase>> {
+    pub async fn list_deleted_databases(&self) -> Result<Vec<DetailedDatabase>> {
         let server_id = {
             let state = self.shared.state.read();
             let initialized = state.initialized()?;

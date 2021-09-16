@@ -2,12 +2,15 @@ use crate::DatabaseName;
 use chrono::{DateTime, Utc};
 use std::{fmt, str::FromStr};
 
-/// Metadata about a deleted database that could be restored or permanently deleted.
+/// Detailed metadata about a database.
 #[derive(Debug, Clone, PartialEq)]
-pub struct DeletedDatabase {
+pub struct DetailedDatabase {
+    /// The name of the database
     pub name: DatabaseName<'static>,
+    /// The generation ID of the database in object storage
     pub generation_id: GenerationId,
-    pub deleted_at: DateTime<Utc>,
+    /// The UTC datetime at which this database was deleted, if applicable
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// Identifier for a generation of a particular database

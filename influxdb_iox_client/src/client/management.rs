@@ -604,7 +604,7 @@ impl Client {
     /// List deleted databases and metadata
     pub async fn list_deleted_databases(
         &mut self,
-    ) -> Result<Vec<DeletedDatabase>, ListDatabaseError> {
+    ) -> Result<Vec<DetailedDatabase>, ListDatabaseError> {
         let response = self
             .inner
             .list_deleted_databases(ListDeletedDatabasesRequest {})

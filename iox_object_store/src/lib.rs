@@ -17,7 +17,7 @@
 use bytes::{Bytes, BytesMut};
 use chrono::{DateTime, Utc};
 use data_types::{
-    deleted_database::{DeletedDatabase, GenerationId},
+    detailed_database::{DetailedDatabase, GenerationId},
     error::ErrorLogger,
     server_id::ServerId,
     DatabaseName,
@@ -96,19 +96,19 @@ pub struct IoxObjectStore {
 #[derive(Debug, Copy, Clone, PartialEq)]
 struct Generation {
     id: GenerationId,
-    deleted: Option<DateTime<Utc>>,
+    deleted_at: Option<DateTime<Utc>>,
 }
 
 impl Generation {
     fn active(id: usize) -> Self {
         Self {
             id: GenerationId { inner: id },
-            deleted: None,
+            deleted_at: None,
         }
     }
 
     fn is_active(&self) -> bool {
-        self.deleted.is_none()
+        self.deleted_at.is_none()
     }
 }
 
@@ -147,24 +147,21 @@ impl IoxObjectStore {
     pub async fn list_deleted_databases(
         inner: &ObjectStore,
         server_id: ServerId,
-    ) -> Result<Vec<DeletedDatabase>> {
+    ) -> Result<Vec<DetailedDatabase>> {
         let mut deleted_databases = vec![];
 
         let all_dbs = Self::list_all_databases(inner, server_id).await;
 
         for (name, generations) in all_dbs? {
-            for deleted_gen in generations {
-                if let Generation {
-                    id,
-                    deleted: Some(deleted_at),
-                } = deleted_gen
-                {
-                    deleted_databases.push(DeletedDatabase {
-                        name: name.clone(),
-                        generation_id: id,
-                        deleted_at,
-                    });
-                }
+            for gen in generations
+                .into_iter()
+                .filter(|gen| gen.deleted_at.is_some())
+            {
+                deleted_databases.push(DetailedDatabase {
+                    name: name.clone(),
+                    generation_id: gen.id,
+                    deleted_at: gen.deleted_at,
+                });
             }
         }
 
@@ -228,13 +225,13 @@ impl IoxObjectStore {
                 let generation_list_result = inner.list_with_delimiter(&prefix).await?;
                 let tombstone_file = TombstonePath::new_from_object_store_path(&prefix);
 
-                let deleted = generation_list_result
+                let deleted_at = generation_list_result
                     .objects
                     .into_iter()
                     .find(|object| object.location == tombstone_file.inner)
                     .map(|object| object.last_modified);
 
-                generations.push(Generation { id, deleted });
+                generations.push(Generation { id, deleted_at });
             } else {
                 // Deliberately ignoring errors with parsing; if the directory isn't a usize, it's
                 // not a valid database generation directory and we should skip it.
@@ -965,7 +962,7 @@ mod tests {
             generations[0],
             Generation {
                 id: GenerationId { inner: 0 },
-                deleted: None,
+                deleted_at: None,
             }
         );
 
@@ -999,7 +996,7 @@ mod tests {
             generations[1],
             Generation {
                 id: GenerationId { inner: 1 },
-                deleted: None,
+                deleted_at: None,
             }
         );
     }
