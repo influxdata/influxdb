@@ -161,6 +161,41 @@ impl Predicate {
     pub fn is_empty(&self) -> bool {
         self == &EMPTY_PREDICATE
     }
+
+    /// Add each range [start, stop] of the delete_predicates into the predicate in
+    /// the form "time < start OR time > stop" to eliminate that range from the query
+    pub fn add_delete_ranges(&mut self, delete_predicates: &[Self]) {
+        for pred in delete_predicates {
+            if let Some(range) = pred.range {
+                let expr = col(TIME_COLUMN_NAME)
+                    .lt(lit(range.start))
+                    .or(col(TIME_COLUMN_NAME).gt(lit(range.end)));
+                self.exprs.push(expr);
+            }
+        }
+    }
+
+    /// Add a list of disjunctive negated expressions.
+    /// Example: there are two deletes as follows
+    ///   . Delete_1: WHERE city != "Boston"  AND temp = 70
+    ///   . Delete 2: WHERE state = "NY" AND route != "I90"
+    /// The negated list will be "NOT(Delete_1)", NOT(Delete_2)" which means
+    ///    NOT(city != "Boston"  AND temp = 70),  NOT(state = "NY" AND route != "I90") which means
+    ///   [NOT(city = Boston") OR NOT(temp = 70)], [NOT(state = "NY") OR NOT(route != "I90")]
+    pub fn add_delete_exprs(&mut self, delete_predicates: &[Self]) {
+        for pred in delete_predicates {
+            let mut expr: Option<Expr> = None;
+            for exp in &pred.exprs {
+                match expr {
+                    None => expr = Some(exp.clone().not()),
+                    Some(e) => expr = Some(e.or(exp.clone().not())),
+                }
+            }
+            if let Some(e) = expr {
+                self.exprs.push(e);
+            }
+        }
+    }
 }
 
 impl fmt::Display for Predicate {

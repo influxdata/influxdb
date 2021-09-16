@@ -25,6 +25,7 @@ use internal_types::{
     schema::{builder::SchemaBuilder, merge::SchemaMerger, InfluxColumnType, Schema},
     selection::Selection,
 };
+use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use snafu::Snafu;
 use std::num::NonZeroU64;
@@ -173,6 +174,8 @@ pub struct TestChunk {
     /// Return value for apply_predicate, if desired
     predicate_match: Option<PredicateMatch>,
 
+    /// Copy of delete predicates passed
+    delete_predicates: Vec<Predicate>,
     /// Order of this chunk relative to other overlapping chunks.
     order: ChunkOrder,
 }
@@ -248,6 +251,7 @@ impl TestChunk {
             table_data: Default::default(),
             saved_error: Default::default(),
             predicate_match: Default::default(),
+            delete_predicates: Default::default(),
             order: ChunkOrder::new(0),
         }
     }
@@ -819,6 +823,7 @@ impl QueryChunk for TestChunk {
         &self,
         predicate: &Predicate,
         _selection: Selection<'_>,
+        _delete_predicates: &[Predicate],
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         self.check_error()?;
 
@@ -908,12 +913,11 @@ impl QueryChunkMeta for TestChunk {
     }
 
     // return a reference to delete predicates of the chunk
-    fn delete_predicates(&self) -> Arc<Vec<Predicate>> {
-        // Since this is the test chunk and its focus is not (yet) on
-        // deletion, return an empty delete predicate now which means nothing is deleted
-        // from this test chunk
-        let pred: Vec<Predicate> = vec![];
-        Arc::new(pred)
+    fn delete_predicates(&self) -> &Vec<Predicate> {
+        let pred: &Vec<Predicate> = &self.delete_predicates;
+        debug!(?pred, "Delete predicate in Test Chunk");
+
+        &self.delete_predicates
     }
 }
 
@@ -923,8 +927,9 @@ pub async fn raw_data(chunks: &[Arc<TestChunk>]) -> Vec<RecordBatch> {
     for c in chunks {
         let pred = Predicate::default();
         let selection = Selection::All;
+        let delete_predicates: Vec<Predicate> = vec![];
         let mut stream = c
-            .read_filter(&pred, selection)
+            .read_filter(&pred, selection, &delete_predicates)
             .expect("Error in read_filter");
         while let Some(b) = stream.next().await {
             let b = b.expect("Error in stream");
