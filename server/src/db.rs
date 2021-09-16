@@ -1332,7 +1332,7 @@ mod tests {
         assert_store_sequenced_entry_failures,
         db::{
             catalog::chunk::ChunkStage,
-            test_helpers::{run_query, try_write_lp, write_lp},
+            test_helpers::{run_query, try_write_lp, write_lp, write_lp_with_time},
         },
         utils::{make_db, TestDb},
     };
@@ -1876,9 +1876,8 @@ mod tests {
         let test_db = make_db().await;
         let db = Arc::new(test_db.db);
 
-        let time0 = Utc::now();
-        write_lp(db.as_ref(), "cpu bar=1 10").await;
-        let time1 = Utc::now();
+        let t_write1 = Utc::now();
+        write_lp_with_time(db.as_ref(), "cpu bar=1 10", t_write1).await;
 
         let partition_key = "1970-01-01T00";
         let mb_chunk = db
@@ -1893,14 +1892,12 @@ mod tests {
 
         let first_old_rb_write = old_rb_chunk.time_of_first_write();
         let last_old_rb_write = old_rb_chunk.time_of_last_write();
-        assert!(time0 < first_old_rb_write);
         assert_eq!(first_old_rb_write, last_old_rb_write);
-        assert!(first_old_rb_write < time1);
+        assert_eq!(first_old_rb_write, t_write1);
 
         // Put new data into the mutable buffer
-        let time2 = Utc::now();
-        write_lp(db.as_ref(), "cpu bar=2 20").await;
-        let time3 = Utc::now();
+        let t_write2 = Utc::now();
+        write_lp_with_time(db.as_ref(), "cpu bar=2 20", t_write2).await;
 
         // now, compact it
         let compacted_rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
@@ -1918,8 +1915,7 @@ mod tests {
         let last_compacted_write = compacted_rb_chunk.time_of_last_write();
         assert_eq!(first_old_rb_write, first_compacted_write);
         assert_ne!(last_old_rb_write, last_compacted_write);
-        assert!(time2 < last_compacted_write);
-        assert!(last_compacted_write < time3);
+        assert_eq!(last_compacted_write, t_write2);
 
         // data should be readable
         let expected = vec![
@@ -2484,12 +2480,16 @@ mod tests {
     #[tokio::test]
     async fn partition_chunk_summaries_timestamp() {
         let db = Arc::new(make_db().await.db);
-        let start = Utc::now();
-        write_lp(&db, "cpu bar=1 1").await;
-        let after_first_write = Utc::now();
-        write_lp(&db, "cpu bar=2 2").await;
+
+        let t_first_write = Utc::now();
+        write_lp_with_time(&db, "cpu bar=1 1", t_first_write).await;
+
+        let t_second_write = Utc::now();
+        write_lp_with_time(&db, "cpu bar=2 2", t_second_write).await;
+
+        let t_close_before = Utc::now();
         db.rollover_partition("cpu", "1970-01-01T00").await.unwrap();
-        let after_close = Utc::now();
+        let t_close_after = Utc::now();
 
         let mut chunk_summaries = db.chunk_summaries().unwrap();
 
@@ -2497,59 +2497,18 @@ mod tests {
 
         let summary = &chunk_summaries[0];
         assert_eq!(summary.id, 0, "summary; {:#?}", summary);
-        assert!(
-            summary.time_of_first_write > start,
-            "summary; {:#?}",
-            summary
-        );
-        assert!(
-            summary.time_of_first_write < after_close,
-            "summary; {:#?}",
-            summary
-        );
-
-        assert!(
-            summary.time_of_last_write > after_first_write,
-            "summary; {:#?}",
-            summary
-        );
-        assert!(
-            summary.time_of_last_write < after_close,
-            "summary; {:#?}",
-            summary
-        );
-
-        assert!(
-            summary.time_closed.unwrap() > after_first_write,
-            "summary; {:#?}",
-            summary
-        );
-        assert!(
-            summary.time_closed.unwrap() < after_close,
-            "summary; {:#?}",
-            summary
-        );
+        assert_eq!(summary.time_of_first_write, t_first_write);
+        assert_eq!(summary.time_of_last_write, t_second_write);
+        assert!(t_close_before <= summary.time_closed.unwrap());
+        assert!(summary.time_closed.unwrap() <= t_close_after);
     }
 
-    fn assert_first_last_times_eq(chunk_summary: &ChunkSummary) {
+    fn assert_first_last_times_eq(chunk_summary: &ChunkSummary, expected: DateTime<Utc>) {
         let first_write = chunk_summary.time_of_first_write;
         let last_write = chunk_summary.time_of_last_write;
 
         assert_eq!(first_write, last_write);
-    }
-
-    fn assert_first_last_times_between(
-        chunk_summary: &ChunkSummary,
-        before: DateTime<Utc>,
-        after: DateTime<Utc>,
-    ) {
-        let first_write = chunk_summary.time_of_first_write;
-        let last_write = chunk_summary.time_of_last_write;
-
-        assert!(before < first_write);
-        assert!(before < last_write);
-        assert!(first_write < after);
-        assert!(last_write < after);
+        assert_eq!(first_write, expected);
     }
 
     fn assert_chunks_times_ordered(before: &ChunkSummary, after: &ChunkSummary) {
@@ -2582,21 +2541,17 @@ mod tests {
         let db = make_db().await.db;
 
         // get three chunks: one open, one closed in mb and one close in rb
-        // TIME 0 ---------------------------------------------------------------------------------
-        let time0 = Utc::now();
         // In open chunk, will end up in rb/os
-        write_lp(&db, "cpu bar=1 1").await;
-        // TIME 1 ---------------------------------------------------------------------------------
-        let time1 = Utc::now();
+        let t_write1 = Utc::now();
+        write_lp_with_time(&db, "cpu bar=1 1", t_write1).await;
+
         // Move open chunk to closed
         db.rollover_partition("cpu", "1970-01-01T00").await.unwrap();
-        // TIME 2 ---------------------------------------------------------------------------------
-        let time2 = Utc::now();
+
         // New open chunk in mb
         // This point will end up in rb/os
-        write_lp(&db, "cpu bar=1,baz=2 2").await;
-        // TIME 3 ---------------------------------------------------------------------------------
-        let time3 = Utc::now();
+        let t_write2 = Utc::now();
+        write_lp_with_time(&db, "cpu bar=1,baz=2 2", t_write2).await;
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2605,19 +2560,15 @@ mod tests {
         // Each chunk has one write, so both chunks should have first write == last write
         let closed_mb_t3 = chunk_summaries[0].clone();
         assert_eq!(closed_mb_t3.storage, ChunkStorage::ClosedMutableBuffer);
-        assert_first_last_times_eq(&closed_mb_t3);
-        assert_first_last_times_between(&closed_mb_t3, time0, time1);
+        assert_first_last_times_eq(&closed_mb_t3, t_write1);
         let open_mb_t3 = chunk_summaries[1].clone();
         assert_eq!(open_mb_t3.storage, ChunkStorage::OpenMutableBuffer);
-        assert_first_last_times_eq(&open_mb_t3);
-        assert_first_last_times_between(&open_mb_t3, time2, time3);
+        assert_first_last_times_eq(&open_mb_t3, t_write2);
         assert_chunks_times_ordered(&closed_mb_t3, &open_mb_t3);
 
         // This point makes a new open mb chunk and will end up in the closed mb chunk
-        write_lp(&db, "cpu bar=1,baz=2,frob=3 400000000000000").await;
-        // TIME 4 ---------------------------------------------------------------------------------
-        // we don't need to check this value with anything because no timestamps
-        // should be between time3 and time4
+        let t_write3 = Utc::now();
+        write_lp_with_time(&db, "cpu bar=1,baz=2,frob=3 400000000000000", t_write3).await;
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2640,9 +2591,6 @@ mod tests {
         db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
             .await
             .unwrap();
-        // TIME 5 ---------------------------------------------------------------------------------
-        // we don't need to check this value with anything because no timestamps
-        // should be between time4 and time5
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2669,9 +2617,6 @@ mod tests {
         )
         .await
         .unwrap();
-        // TIME 6 ---------------------------------------------------------------------------------
-        // we don't need to check this value with anything because no timestamps
-        // should be between time5 and time6
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2693,8 +2638,6 @@ mod tests {
 
         // Move open chunk to closed
         db.rollover_partition("cpu", "1970-01-05T15").await.unwrap();
-        // TIME 7 ---------------------------------------------------------------------------------
-        let time7 = Utc::now();
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2711,9 +2654,8 @@ mod tests {
 
         // New open chunk in mb
         // This point will stay in this open mb chunk
-        write_lp(&db, "cpu bar=1,baz=3,blargh=3 400000000000000").await;
-        // TIME 8 ---------------------------------------------------------------------------------
-        let time8 = Utc::now();
+        let t_write4 = Utc::now();
+        write_lp_with_time(&db, "cpu bar=1,baz=3,blargh=3 400000000000000", t_write4).await;
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2731,8 +2673,7 @@ mod tests {
         // times should be the same
         let open_mb_t8 = chunk_summaries[2].clone();
         assert_eq!(open_mb_t8.storage, ChunkStorage::OpenMutableBuffer);
-        assert_first_last_times_eq(&open_mb_t8);
-        assert_first_last_times_between(&open_mb_t8, time7, time8);
+        assert_first_last_times_eq(&open_mb_t8, t_write4);
 
         let lifecycle_action = None;
 

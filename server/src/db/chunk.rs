@@ -514,7 +514,7 @@ mod tests {
     use crate::{
         db::{
             catalog::chunk::{CatalogChunk, ChunkStage},
-            test_helpers::write_lp,
+            test_helpers::{write_lp, write_lp_with_time},
         },
         utils::make_db,
     };
@@ -608,9 +608,8 @@ mod tests {
     async fn parquet_records_access() {
         let db = make_db().await.db;
 
-        let before_creation = Utc::now();
-        write_lp(&db, "cpu,tag=1 bar=1 1").await;
-        let after_creation = Utc::now();
+        let creation_time = Utc::now();
+        write_lp_with_time(&db, "cpu,tag=1 bar=1 1", creation_time).await;
 
         let id = db
             .persist_partition(
@@ -632,8 +631,7 @@ mod tests {
         let first_write = chunk.time_of_first_write();
         let last_write = chunk.time_of_last_write();
         assert_eq!(first_write, last_write);
-        assert!(before_creation < first_write);
-        assert!(last_write < after_creation);
+        assert_eq!(first_write, creation_time);
 
         test_chunk_access(&chunk).await
     }

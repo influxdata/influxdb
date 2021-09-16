@@ -148,7 +148,7 @@ pub(crate) fn compact_chunks(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{db::test_helpers::write_lp, utils::make_db};
+    use crate::{db::test_helpers::write_lp_with_time, utils::make_db};
     use data_types::chunk_metadata::ChunkStorage;
     use lifecycle::{LockableChunk, LockablePartition};
     use query::QueryDatabase;
@@ -158,15 +158,13 @@ mod tests {
         let test_db = make_db().await;
         let db = test_db.db;
 
-        let time0 = Utc::now();
-
-        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
-        write_lp(db.as_ref(), "cpu,tag1=asfd,tag2=foo bar=2 20").await;
-        write_lp(db.as_ref(), "cpu,tag1=bingo,tag2=foo bar=2 10").await;
-        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 20").await;
-        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 10").await;
-
-        let time1 = Utc::now();
+        let t_first_write = Utc::now();
+        write_lp_with_time(db.as_ref(), "cpu,tag1=cupcakes bar=1 10", t_first_write).await;
+        write_lp_with_time(db.as_ref(), "cpu,tag1=asfd,tag2=foo bar=2 20", Utc::now()).await;
+        write_lp_with_time(db.as_ref(), "cpu,tag1=bingo,tag2=foo bar=2 10", Utc::now()).await;
+        write_lp_with_time(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 20", Utc::now()).await;
+        let t_last_write = Utc::now();
+        write_lp_with_time(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 10", t_last_write).await;
 
         let partition_keys = db.partition_keys().unwrap();
         assert_eq!(partition_keys.len(), 1);
@@ -182,9 +180,8 @@ mod tests {
 
         let (_, fut) = compact_chunks(partition.upgrade(), vec![chunk.upgrade()]).unwrap();
         // NB: perform the write before spawning the background task that performs the compaction
-        let time2 = Utc::now();
-        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 40").await;
-        let time3 = Utc::now();
+        let t_later_write = Utc::now();
+        write_lp_with_time(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 40", t_later_write).await;
         tokio::spawn(fut).await.unwrap().unwrap().unwrap();
 
         let mut chunk_summaries: Vec<_> = db_partition.read().chunk_summaries().collect();
@@ -194,16 +191,14 @@ mod tests {
         let mub_summary = &chunk_summaries[0];
         let first_mub_write = mub_summary.time_of_first_write;
         let last_mub_write = mub_summary.time_of_last_write;
-        assert!(time2 < first_mub_write);
         assert_eq!(first_mub_write, last_mub_write);
-        assert!(first_mub_write < time3);
+        assert_eq!(first_mub_write, t_later_write);
 
         let rub_summary = &chunk_summaries[1];
         let first_rub_write = rub_summary.time_of_first_write;
         let last_rub_write = rub_summary.time_of_last_write;
-        assert!(time0 < first_rub_write);
-        assert!(first_rub_write < last_rub_write);
-        assert!(last_rub_write < time1);
+        assert_eq!(first_rub_write, t_first_write);
+        assert_eq!(last_rub_write, t_last_write);
 
         let summaries: Vec<_> = chunk_summaries
             .iter()
