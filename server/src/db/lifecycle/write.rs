@@ -17,7 +17,7 @@ use data_types::{chunk_metadata::ChunkLifecycleAction, job::Job};
 use internal_types::selection::Selection;
 use observability_deps::tracing::{debug, warn};
 use parquet_file::{
-    catalog::api::CatalogParquetInfo,
+    catalog::interface::CatalogParquetInfo,
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
     metadata::IoxMetadata,
     storage::Storage,

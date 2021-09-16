@@ -223,8 +223,7 @@ mod tests {
 
     use crate::{
         catalog::{
-            api::{CatalogParquetInfo, PreservedCatalog},
-            test_helpers::TestCatalogState,
+            core::PreservedCatalog, interface::CatalogParquetInfo, test_helpers::TestCatalogState,
         },
         test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize},
     };

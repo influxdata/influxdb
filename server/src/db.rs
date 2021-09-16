@@ -32,8 +32,9 @@ use iox_object_store::IoxObjectStore;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info};
 use parquet_file::catalog::{
-    api::{CatalogParquetInfo, CheckpointData, PreservedCatalog},
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
+    core::PreservedCatalog,
+    interface::{CatalogParquetInfo, CheckpointData},
     prune::prune_history as prune_catalog_transaction_history,
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
