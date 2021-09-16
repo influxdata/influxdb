@@ -148,24 +148,21 @@ impl IoxObjectStore {
         inner: &ObjectStore,
         server_id: ServerId,
     ) -> Result<Vec<DetailedDatabase>> {
-        let mut deleted_databases = vec![];
-
-        let all_dbs = Self::list_all_databases(inner, server_id).await;
-
-        for (name, generations) in all_dbs? {
-            for gen in generations
-                .into_iter()
-                .filter(|gen| gen.deleted_at.is_some())
-            {
-                deleted_databases.push(DetailedDatabase {
-                    name: name.clone(),
-                    generation_id: gen.id,
-                    deleted_at: gen.deleted_at,
-                });
-            }
-        }
-
-        Ok(deleted_databases)
+        Ok(Self::list_all_databases(inner, server_id)
+            .await?
+            .into_iter()
+            .flat_map(|(name, generations)| {
+                let name = Arc::new(name);
+                generations.into_iter().filter_map(move |gen| {
+                    let name = Arc::clone(&name);
+                    gen.deleted_at.map(|_| DetailedDatabase {
+                        name: (*name).clone(),
+                        generation_id: gen.id,
+                        deleted_at: gen.deleted_at,
+                    })
+                })
+            })
+            .collect())
     }
 
     /// List database names in object storage along with all existing generations for each database
