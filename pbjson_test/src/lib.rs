@@ -196,13 +196,30 @@ mod tests {
         decoded.repeated_value = Default::default();
         verify_decode(&decoded, "{}");
 
-        // Bytes support currently broken
-        // decoded.bytes = prost::bytes::Bytes::from_static(b"kjkjkj");
-        // verify(&decoded, r#"{"bytes":"a2pramtqCg=="}"#);
-        //
-        // decoded.repeated_value = Default::default();
-        // verify_decode(&decoded, "{}");
-        //
+        decoded.bytes = prost::bytes::Bytes::from_static(b"kjkjkj");
+        verify(&decoded, r#"{"bytes":"a2pramtq"}"#);
+
+        decoded.bytes = Default::default();
+        verify_decode(&decoded, "{}");
+
+        decoded.optional_bytes = Some(prost::bytes::Bytes::from_static(b"kjkjkj"));
+        verify(&decoded, r#"{"optionalBytes":"a2pramtq"}"#);
+
+        decoded.optional_bytes = Some(Default::default());
+        verify(&decoded, r#"{"optionalBytes":""}"#);
+
+        decoded.optional_bytes = None;
+        verify_decode(&decoded, "{}");
+
+        decoded.repeated_bytes = vec![
+            prost::bytes::Bytes::from_static(b"sdfsd"),
+            prost::bytes::Bytes::from_static(b"fghfg"),
+        ];
+        verify(&decoded, r#"{"repeatedBytes":["c2Rmc2Q=","ZmdoZmc="]}"#);
+
+        decoded.repeated_bytes = Default::default();
+        verify_decode(&decoded, "{}");
+
         // decoded.bytes_dict.insert(
         //     "test".to_string(),
         //     prost::bytes::Bytes::from_static(b"asdf"),
