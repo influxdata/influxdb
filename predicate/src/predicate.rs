@@ -164,8 +164,13 @@ impl Predicate {
 
     /// Add each range [start, stop] of the delete_predicates into the predicate in
     /// the form "time < start OR time > stop" to eliminate that range from the query
-    pub fn add_delete_ranges(&mut self, delete_predicates: &[Self]) {
+    pub fn add_delete_ranges<S>(&mut self, delete_predicates: &[S])
+    where
+        S: AsRef<Self>,
+    {
         for pred in delete_predicates {
+            let pred = pred.as_ref();
+
             if let Some(range) = pred.range {
                 let expr = col(TIME_COLUMN_NAME)
                     .lt(lit(range.start))
@@ -182,8 +187,13 @@ impl Predicate {
     /// The negated list will be "NOT(Delete_1)", NOT(Delete_2)" which means
     ///    NOT(city != "Boston"  AND temp = 70),  NOT(state = "NY" AND route != "I90") which means
     ///   [NOT(city = Boston") OR NOT(temp = 70)], [NOT(state = "NY") OR NOT(route != "I90")]
-    pub fn add_delete_exprs(&mut self, delete_predicates: &[Self]) {
+    pub fn add_delete_exprs<S>(&mut self, delete_predicates: &[S])
+    where
+        S: AsRef<Self>,
+    {
         for pred in delete_predicates {
+            let pred = pred.as_ref();
+
             let mut expr: Option<Expr> = None;
             for exp in &pred.exprs {
                 match expr {
