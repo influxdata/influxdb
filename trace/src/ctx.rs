@@ -55,6 +55,22 @@ pub struct SpanContext {
 }
 
 impl SpanContext {
+    /// Create a new root span context, sent to `collector`. The
+    /// new span context has a random trace_id and span_id, and thus
+    /// is not connected to any existing span or trace.
+    pub fn new(collector: Arc<dyn TraceCollector>) -> Self {
+        let mut rng = rand::thread_rng();
+        let trace_id: u128 = rng.gen_range(1..u128::MAX);
+        let span_id: u64 = rng.gen_range(1..u64::MAX);
+
+        Self {
+            trace_id: TraceId(NonZeroU128::new(trace_id).unwrap()),
+            parent_span_id: None,
+            span_id: SpanId(NonZeroU64::new(span_id).unwrap()),
+            collector: Some(collector),
+        }
+    }
+
     /// Creates a new child of the Span described by this TraceContext
     pub fn child(&self, name: impl Into<Cow<'static, str>>) -> Span {
         Span {
@@ -71,5 +87,24 @@ impl SpanContext {
             metadata: Default::default(),
             events: Default::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::RingBufferTraceCollector;
+
+    #[test]
+    fn test_new() {
+        // two newly created spans should not have duplicated trace or span ids
+        let collector = Arc::new(RingBufferTraceCollector::new(5)) as _;
+
+        let ctx1 = SpanContext::new(Arc::clone(&collector));
+        let ctx2 = SpanContext::new(collector);
+
+        assert_ne!(ctx1.trace_id, ctx2.trace_id);
+        assert_ne!(ctx1.span_id, ctx2.span_id);
     }
 }
