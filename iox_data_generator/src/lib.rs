@@ -77,6 +77,15 @@ pub enum Error {
         /// Underlying `agent` module error that caused this problem
         source: agent::Error,
     },
+
+    /// Error that may happen when constructing an agent's writer
+    #[snafu(display("Could not create writer for agent `{}`, caused by:\n{}", name, source))]
+    CouldNotCreateAgentWriter {
+        /// The name of the relevant agent
+        name: String,
+        /// Underlying `write` module error that caused this problem
+        source: write::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -135,7 +144,9 @@ pub async fn generate<T: DataGenRng>(
             )
             .context(CouldNotCreateAgent { name: &agent_name })?;
 
-            let agent_points_writer = points_writer_builder.build_for_agent(&agent_name);
+            let agent_points_writer = points_writer_builder
+                .build_for_agent(&agent_name)
+                .context(CouldNotCreateAgentWriter { name: &agent_name })?;
 
             handles.push(tokio::task::spawn(async move {
                 agent.generate_all(agent_points_writer, batch_size).await
