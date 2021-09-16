@@ -1,13 +1,12 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use assert_cmd::Command;
 use predicates::prelude::*;
 
-use data_types::chunk_metadata::ChunkAddr;
-use data_types::{
-    chunk_metadata::ChunkStorage,
-    job::{Job, Operation},
+use data_types::chunk_metadata::ChunkStorage;
+use generated_types::google::longrunning::IoxOperation;
+use generated_types::influxdata::iox::management::v1::{
+    operation_metadata::Job, CloseChunk, WipePreservedCatalog,
 };
 use test_helpers::make_temp_file;
 use write_buffer::maybe_skip_kafka_integration;
@@ -720,7 +719,7 @@ async fn test_close_partition_chunk() {
     let lp_data = vec!["cpu,region=west user=23.2 100"];
     load_lp(addr, &db_name, lp_data);
 
-    let stdout: Operation = serde_json::from_slice(
+    let stdout: IoxOperation = serde_json::from_slice(
         &Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("database")
@@ -739,18 +738,16 @@ async fn test_close_partition_chunk() {
     )
     .expect("Expected JSON output");
 
-    let expected_job = Job::CompactChunk {
-        chunk: ChunkAddr {
-            db_name: Arc::from(db_name.as_str()),
-            table_name: Arc::from("cpu"),
-            partition_key: Arc::from("cpu"),
-            chunk_id: 0,
-        },
-    };
+    let expected_job = Job::CloseChunk(CloseChunk {
+        db_name,
+        table_name: "cpu".to_string(),
+        partition_key: "cpu".to_string(),
+        chunk_id: 0,
+    });
 
     assert_eq!(
         Some(expected_job),
-        stdout.job,
+        stdout.metadata.job,
         "operation was {:#?}",
         stdout
     );
@@ -783,7 +780,7 @@ async fn test_wipe_persisted_catalog() {
     let server_fixture = fixture_broken_catalog(&db_name).await;
     let addr = server_fixture.grpc_base();
 
-    let stdout: Operation = serde_json::from_slice(
+    let stdout: IoxOperation = serde_json::from_slice(
         &Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("database")
@@ -800,13 +797,11 @@ async fn test_wipe_persisted_catalog() {
     )
     .expect("Expected JSON output");
 
-    let expected_job = Job::WipePreservedCatalog {
-        db_name: Arc::from(db_name.as_str()),
-    };
+    let expected_job = Job::WipePreservedCatalog(WipePreservedCatalog { db_name });
 
     assert_eq!(
         Some(expected_job),
-        stdout.job,
+        stdout.metadata.job,
         "operation was {:#?}",
         stdout
     );

@@ -519,7 +519,7 @@ impl Db {
     pub async fn delete(
         self: &Arc<Self>,
         table_name: &str,
-        delete_predicate: &Predicate,
+        delete_predicate: Arc<Predicate>,
     ) -> Result<()> {
         // get all partitions of this table
         let table = self
@@ -534,7 +534,7 @@ impl Db {
                 // save the delete predicate in the chunk
                 let mut chunk = chunk.write();
                 chunk
-                    .add_delete_predicate(delete_predicate)
+                    .add_delete_predicate(Arc::clone(&delete_predicate))
                     .context(AddDeletePredicateError)?;
             }
         }

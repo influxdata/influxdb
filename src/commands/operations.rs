@@ -1,11 +1,8 @@
-use data_types::job::Operation;
-use generated_types::google::FieldViolation;
 use influxdb_iox_client::{
     connection::Connection,
     management,
     operations::{self, Client},
 };
-use std::convert::TryInto;
 use structopt::StructOpt;
 use thiserror::Error;
 
@@ -14,9 +11,6 @@ use thiserror::Error;
 pub enum Error {
     #[error("Client error: {0}")]
     ClientError(#[from] operations::Error),
-
-    #[error("Received invalid response: {0}")]
-    InvalidResponse(#[from] FieldViolation),
 
     #[error("Failed to create dummy job: {0}")]
     CreateDummyJobError(#[from] management::CreateDummyJobError),
@@ -68,29 +62,16 @@ enum Command {
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
     match config.command {
         Command::List => {
-            let result: Result<Vec<Operation>, _> = Client::new(connection)
-                .list_operations()
-                .await?
-                .into_iter()
-                .map(|c| c.operation())
-                .map(TryInto::try_into)
-                .collect();
-            let operations = result?;
+            let operations = Client::new(connection).list_operations().await?;
             serde_json::to_writer_pretty(std::io::stdout(), &operations)?;
         }
         Command::Get { id } => {
-            let operation: Operation = Client::new(connection)
-                .get_operation(id)
-                .await?
-                .try_into()?;
+            let operation = Client::new(connection).get_operation(id).await?;
             serde_json::to_writer_pretty(std::io::stdout(), &operation)?;
         }
         Command::Wait { id, nanos } => {
             let timeout = nanos.map(std::time::Duration::from_nanos);
-            let operation: Operation = Client::new(connection)
-                .wait_operation(id, timeout)
-                .await?
-                .try_into()?;
+            let operation = Client::new(connection).wait_operation(id, timeout).await?;
             serde_json::to_writer_pretty(std::io::stdout(), &operation)?;
         }
         Command::Cancel { id } => {
@@ -98,10 +79,9 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             println!("Ok");
         }
         Command::Test { nanos } => {
-            let operation: Operation = management::Client::new(connection)
+            let operation = management::Client::new(connection)
                 .create_dummy_job(nanos)
-                .await?
-                .try_into()?;
+                .await?;
             serde_json::to_writer_pretty(std::io::stdout(), &operation)?;
         }
     }

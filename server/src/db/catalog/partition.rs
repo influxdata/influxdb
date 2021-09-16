@@ -176,7 +176,7 @@ impl Partition {
         time_of_first_write: DateTime<Utc>,
         time_of_last_write: DateTime<Utc>,
         schema: Arc<Schema>,
-        delete_predicates: Arc<Vec<Predicate>>,
+        delete_predicates: Vec<Arc<Predicate>>,
         chunk_order: ChunkOrder,
     ) -> (u32, Arc<RwLock<CatalogChunk>>) {
         let chunk_id = Self::pick_next(&mut self.next_chunk_id, "Chunk ID Overflow");
@@ -231,7 +231,7 @@ impl Partition {
         chunk: Arc<parquet_file::chunk::ParquetChunk>,
         time_of_first_write: DateTime<Utc>,
         time_of_last_write: DateTime<Utc>,
-        delete_predicates: Arc<Vec<Predicate>>,
+        delete_predicates: Vec<Arc<Predicate>>,
         chunk_order: ChunkOrder,
     ) -> Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name(), self.table_name());
@@ -246,7 +246,7 @@ impl Partition {
                     time_of_first_write,
                     time_of_last_write,
                     self.metrics.new_chunk_metrics(),
-                    Arc::clone(&delete_predicates),
+                    delete_predicates,
                     chunk_order,
                 )),
         );

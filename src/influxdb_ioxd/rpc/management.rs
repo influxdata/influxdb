@@ -615,7 +615,7 @@ where
                     del_predicate.exprs.push(expr);
                 }
 
-                db.delete(&table_name, &del_predicate)
+                db.delete(&table_name, Arc::new(del_predicate))
                     .await
                     .map_err(default_db_error_handler)?;
             }

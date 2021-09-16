@@ -121,7 +121,7 @@ impl DbChunk {
                 let meta = ChunkMetadata {
                     table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: snapshot.full_schema(),
-                    delete_predicates: Arc::new(vec![]), // open chunk does not have delete predicate
+                    delete_predicates: vec![], // open chunk does not have delete predicate
                 };
                 (state, Arc::new(meta))
             }
@@ -226,7 +226,7 @@ impl DbChunk {
     }
 
     pub fn to_rub_negated_predicates(
-        delete_predicates: &[Predicate],
+        delete_predicates: &[Arc<Predicate>],
     ) -> Result<Vec<read_buffer::Predicate>> {
         let mut rub_preds: Vec<read_buffer::Predicate> = vec![];
         for pred in delete_predicates {
@@ -331,7 +331,7 @@ impl QueryChunk for DbChunk {
         &self,
         predicate: &Predicate,
         selection: Selection<'_>,
-        delete_predicates: &[Predicate],
+        delete_predicates: &[Arc<Predicate>],
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         // Predicate is not required to be applied for correctness. We only pushed it down
         // when possible for performance gain
@@ -536,11 +536,11 @@ impl QueryChunkMeta for DbChunk {
     }
 
     // return a reference to delete predicates of the chunk
-    fn delete_predicates(&self) -> &Vec<Predicate> {
-        let pred: &Vec<Predicate> = &self.meta.delete_predicates;
+    fn delete_predicates(&self) -> &[Arc<Predicate>] {
+        let pred = &self.meta.delete_predicates;
         debug!(?pred, "Delete predicate in  DbChunk");
 
-        &self.meta.delete_predicates
+        pred
     }
 }
 

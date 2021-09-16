@@ -10,14 +10,23 @@ use std::{
 };
 use std::{
     fs,
-    fs::OpenOptions,
+    fs::{File, OpenOptions},
+    io::BufWriter,
     path::{Path, PathBuf},
 };
-use tracing::info;
 
 /// Errors that may happen while writing points.
 #[derive(Snafu, Debug)]
 pub enum Error {
+    /// Error that may happen when writing line protocol to a file
+    #[snafu(display("Could open line protocol file {}: {}", filename.display(), source))]
+    CantOpenLineProtocolFile {
+        /// The location of the file we tried to open
+        filename: PathBuf,
+        /// Underlying IO error that caused this problem
+        source: std::io::Error,
+    },
+
     /// Error that may happen when writing line protocol to a no-op sink
     #[snafu(display("Could not generate line protocol: {}", source))]
     CantWriteToNoOp {
@@ -174,7 +183,7 @@ impl PointsWriterBuilder {
 
     /// Create a writer out of this writer's configuration for a particular
     /// agent that runs in a separate thread/task.
-    pub fn build_for_agent(&mut self, agent_name: &str) -> PointsWriter {
+    pub fn build_for_agent(&mut self, agent_name: &str) -> Result<PointsWriter> {
         let inner_writer = match &mut self.config {
             PointsWriterConfig::Api {
                 client,
@@ -189,7 +198,16 @@ impl PointsWriterBuilder {
                 let mut filename = dir_path.clone();
                 filename.push(agent_name);
                 filename.set_extension("txt");
-                InnerPointsWriter::File(filename)
+
+                let file = OpenOptions::new()
+                    .append(true)
+                    .create(true)
+                    .open(&filename)
+                    .context(CantOpenLineProtocolFile { filename })?;
+
+                let file = BufWriter::new(file);
+
+                InnerPointsWriter::File { file }
             }
             PointsWriterConfig::NoOp { perform_write } => InnerPointsWriter::NoOp {
                 perform_write: *perform_write,
@@ -204,7 +222,7 @@ impl PointsWriterBuilder {
             PointsWriterConfig::Stdout => InnerPointsWriter::Stdout,
         };
 
-        PointsWriter { inner_writer }
+        Ok(PointsWriter { inner_writer })
     }
 }
 
@@ -228,7 +246,9 @@ enum InnerPointsWriter {
         org: String,
         bucket: String,
     },
-    File(PathBuf),
+    File {
+        file: BufWriter<File>,
+    },
     NoOp {
         perform_write: bool,
     },
@@ -250,22 +270,12 @@ impl InnerPointsWriter {
                     .await
                     .context(CantWriteToApi)?;
             }
-            Self::File(filename) => {
-                info!("Opening file {:?}", filename);
-                let num_points = points.len();
-                let file = OpenOptions::new()
-                    .append(true)
-                    .create(true)
-                    .open(&filename)
-                    .context(CantWriteToLineProtocolFile)?;
-
-                let mut file = std::io::BufWriter::new(file);
+            Self::File { file } => {
                 for point in points {
                     point
-                        .write_data_point_to(&mut file)
+                        .write_data_point_to(&mut *file)
                         .context(CantWriteToLineProtocolFile)?;
                 }
-                info!("Wrote {} points to {:?}", num_points, filename);
             }
             Self::NoOp { perform_write } => {
                 if *perform_write {

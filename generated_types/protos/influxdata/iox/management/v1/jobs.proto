@@ -27,12 +27,11 @@ message OperationMetadata {
   // The number of tasks that did not run to completion (e.g. panic)
   uint64 dropped_count = 16;
 
+  reserved 6;
+
   // What kind of job is it?
   oneof job {
     Dummy dummy = 5;
-    /* historical artifact
-    PersistSegment persist_segment = 6;
-    */
     CloseChunk close_chunk = 7;
     WriteChunk write_chunk = 8;
     WipePreservedCatalog wipe_preserved_catalog = 9;

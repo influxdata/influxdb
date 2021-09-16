@@ -45,7 +45,7 @@ pub(crate) fn compact_chunks(
     let mut input_rows = 0;
     let mut time_of_first_write: Option<DateTime<Utc>> = None;
     let mut time_of_last_write: Option<DateTime<Utc>> = None;
-    let mut delete_predicates: Vec<Predicate> = vec![];
+    let mut delete_predicates: Vec<Arc<Predicate>> = vec![];
     let mut min_order = ChunkOrder::MAX;
     let query_chunks = chunks
         .into_iter()
@@ -66,8 +66,7 @@ pub(crate) fn compact_chunks(
                 .map(|prev_last| prev_last.max(candidate_last))
                 .or(Some(candidate_last));
 
-            let mut preds = (*chunk.delete_predicates()).clone();
-            delete_predicates.append(&mut preds);
+            delete_predicates.extend(chunk.delete_predicates().iter().cloned());
 
             min_order = min_order.min(chunk.order());
 
@@ -103,7 +102,7 @@ pub(crate) fn compact_chunks(
             ReorgPlanner::new().compact_plan(schema, query_chunks.iter().map(Arc::clone), key)?;
 
         let physical_plan = ctx.prepare_plan(&plan)?;
-        let stream = ctx.execute(physical_plan).await?;
+        let stream = ctx.execute_stream(physical_plan).await?;
         let rb_chunk = collect_rub(stream, &addr, metric_registry.as_ref())
             .await?
             .expect("chunk has zero rows");
@@ -119,7 +118,7 @@ pub(crate) fn compact_chunks(
                 time_of_first_write,
                 time_of_last_write,
                 schema,
-                Arc::new(delete_predicates),
+                delete_predicates,
                 min_order,
             )
         };

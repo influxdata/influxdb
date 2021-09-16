@@ -9,7 +9,6 @@ use generated_types::{
 };
 use influxdb_iox_client::{
     management::{Client, CreateDatabaseError},
-    operations,
     write::WriteError,
 };
 
@@ -880,20 +879,16 @@ async fn test_close_partition_chunk() {
     assert_eq!(chunks[0].storage, ChunkStorage::OpenMutableBuffer as i32);
 
     // Move the chunk to read buffer
-    let operation = management_client
+    let iox_operation = management_client
         .close_partition_chunk(&db_name, table_name, partition_key, 0)
         .await
         .expect("new partition chunk");
 
-    println!("Operation response is {:?}", operation);
-    let operation_id = operation.id();
-
-    let meta = operations::ClientOperation::try_new(operation)
-        .unwrap()
-        .metadata();
+    println!("Operation response is {:?}", iox_operation);
+    let operation_id = iox_operation.operation.id();
 
     // ensure we got a legit job description back
-    if let Some(Job::CloseChunk(close_chunk)) = meta.job {
+    if let Some(Job::CloseChunk(close_chunk)) = iox_operation.metadata.job {
         assert_eq!(close_chunk.db_name, db_name);
         assert_eq!(close_chunk.partition_key, partition_key);
         assert_eq!(close_chunk.chunk_id, 0);
@@ -1020,20 +1015,16 @@ async fn test_wipe_preserved_catalog() {
     // Recover by wiping preserved catalog
     //
 
-    let operation = management_client
+    let iox_operation = management_client
         .wipe_persisted_catalog(&db_name)
         .await
         .expect("wipe persisted catalog");
 
-    println!("Operation response is {:?}", operation);
-    let operation_id = operation.id();
-
-    let meta = operations::ClientOperation::try_new(operation)
-        .unwrap()
-        .metadata();
+    println!("Operation response is {:?}", iox_operation);
+    let operation_id = iox_operation.operation.id();
 
     // ensure we got a legit job description back
-    if let Some(Job::WipePreservedCatalog(wipe_persisted_catalog)) = meta.job {
+    if let Some(Job::WipePreservedCatalog(wipe_persisted_catalog)) = iox_operation.metadata.job {
         assert_eq!(wipe_persisted_catalog.db_name, db_name);
     } else {
         panic!("unexpected job returned")

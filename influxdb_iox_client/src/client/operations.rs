@@ -1,11 +1,9 @@
 use thiserror::Error;
 
-use ::generated_types::{
-    google::FieldViolation, influxdata::iox::management::v1 as management, protobuf_type_url_eq,
-};
-
 use self::generated_types::{operations_client::OperationsClient, *};
 use crate::connection::Connection;
+use std::convert::TryInto;
+
 /// Re-export generated_types
 pub mod generated_types {
     pub use generated_types::google::longrunning::*;
@@ -16,7 +14,7 @@ pub mod generated_types {
 pub enum Error {
     /// Client received an invalid response
     #[error("Invalid server response: {}", .0)]
-    InvalidResponse(#[from] FieldViolation),
+    InvalidResponse(#[from] ::generated_types::google::FieldViolation),
 
     /// Operation was not found
     #[error("Operation not found: {}", .0)]
@@ -66,7 +64,7 @@ impl Client {
     }
 
     /// Get information of all client operation
-    pub async fn list_operations(&mut self) -> Result<Vec<ClientOperation>> {
+    pub async fn list_operations(&mut self) -> Result<Vec<IoxOperation>> {
         Ok(self
             .inner
             .list_operations(ListOperationsRequest::default())
@@ -75,12 +73,12 @@ impl Client {
             .into_inner()
             .operations
             .into_iter()
-            .map(|o| ClientOperation::try_new(o).unwrap())
-            .collect())
+            .map(TryInto::try_into)
+            .collect::<Result<_, _>>()?)
     }
 
     /// Get information about a specific operation
-    pub async fn get_operation(&mut self, id: usize) -> Result<Operation> {
+    pub async fn get_operation(&mut self, id: usize) -> Result<IoxOperation> {
         Ok(self
             .inner
             .get_operation(GetOperationRequest {
@@ -91,7 +89,8 @@ impl Client {
                 tonic::Code::NotFound => Error::NotFound(id),
                 _ => Error::ServerError(e),
             })?
-            .into_inner())
+            .into_inner()
+            .try_into()?)
     }
 
     /// Cancel a given operation
@@ -115,7 +114,7 @@ impl Client {
         &mut self,
         id: usize,
         timeout: Option<std::time::Duration>,
-    ) -> Result<Operation> {
+    ) -> Result<IoxOperation> {
         Ok(self
             .inner
             .wait_operation(WaitOperationRequest {
@@ -127,50 +126,7 @@ impl Client {
                 tonic::Code::NotFound => Error::NotFound(id),
                 _ => Error::ServerError(e),
             })?
-            .into_inner())
-    }
-
-    /// Return the Client Operation
-    pub async fn client_operation(&mut self, id: usize) -> Result<ClientOperation> {
-        let operation = self.get_operation(id).await?;
-        ClientOperation::try_new(operation)
-    }
-}
-
-/// IOx's Client Operation
-#[derive(Debug, Clone)]
-pub struct ClientOperation {
-    inner: generated_types::Operation,
-}
-
-impl ClientOperation {
-    /// Create a new Cient Operation
-    pub fn try_new(operation: generated_types::Operation) -> Result<Self> {
-        if operation.metadata.is_some() {
-            let metadata = operation.metadata.clone().unwrap();
-            if !protobuf_type_url_eq(&metadata.type_url, management::OPERATION_METADATA) {
-                return Err(Error::WrongOperationMetaData);
-            }
-        } else {
-            return Err(Error::NotFound(0));
-        }
-
-        Ok(Self { inner: operation })
-    }
-
-    /// Return Metadata for this client operation
-    pub fn metadata(&self) -> management::OperationMetadata {
-        prost::Message::decode(self.inner.metadata.clone().unwrap().value)
-            .expect("failed to decode metadata")
-    }
-
-    /// Return name of this operation
-    pub fn name(&self) -> &str {
-        &self.inner.name
-    }
-
-    /// Return the inner's Operation
-    pub fn operation(self) -> Operation {
-        self.inner
+            .into_inner()
+            .try_into()?)
     }
 }

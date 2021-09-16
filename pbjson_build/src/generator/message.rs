@@ -198,28 +198,14 @@ fn write_serialize_variable<W: Write>(
     writer: &mut W,
 ) -> Result<()> {
     match &field.field_type {
-        FieldType::Scalar(ScalarType::I64) | FieldType::Scalar(ScalarType::U64) => {
-            match field.field_modifier {
-                FieldModifier::Repeated => {
-                    writeln!(
-                        writer,
-                        "{}struct_ser.serialize_field(\"{}\", &{}.iter().map(ToString::to_string).collect::<Vec<_>>())?;",
-                        Indent(indent),
-                        field.json_name(),
-                        variable.raw
-                    )
-                }
-                _ => {
-                    writeln!(
-                        writer,
-                        "{}struct_ser.serialize_field(\"{}\", {}.to_string().as_str())?;",
-                        Indent(indent),
-                        field.json_name(),
-                        variable.raw
-                    )
-                }
-            }
-        }
+        FieldType::Scalar(scalar) => write_serialize_scalar_variable(
+            indent,
+            *scalar,
+            field.field_modifier,
+            variable,
+            field.json_name(),
+            writer,
+        ),
         FieldType::Enum(path) => {
             write!(writer, "{}let v = ", Indent(indent))?;
             match field.field_modifier {
@@ -296,6 +282,52 @@ fn write_serialize_variable<W: Write>(
                 Indent(indent),
                 field.json_name(),
                 variable.as_ref
+            )
+        }
+    }
+}
+
+fn write_serialize_scalar_variable<W: Write>(
+    indent: usize,
+    scalar: ScalarType,
+    field_modifier: FieldModifier,
+    variable: Variable<'_>,
+    json_name: String,
+    writer: &mut W,
+) -> Result<()> {
+    let conversion = match scalar {
+        ScalarType::I64 | ScalarType::U64 => "ToString::to_string",
+        ScalarType::Bytes => "pbjson::private::base64::encode",
+        _ => {
+            return writeln!(
+                writer,
+                "{}struct_ser.serialize_field(\"{}\", {})?;",
+                Indent(indent),
+                json_name,
+                variable.as_ref
+            )
+        }
+    };
+
+    match field_modifier {
+        FieldModifier::Repeated => {
+            writeln!(
+                writer,
+                "{}struct_ser.serialize_field(\"{}\", &{}.iter().map({}).collect::<Vec<_>>())?;",
+                Indent(indent),
+                json_name,
+                variable.raw,
+                conversion
+            )
+        }
+        _ => {
+            writeln!(
+                writer,
+                "{}struct_ser.serialize_field(\"{}\", {}(&{}).as_str())?;",
+                Indent(indent),
+                json_name,
+                conversion,
+                variable.raw,
             )
         }
     }
@@ -641,33 +673,8 @@ fn write_deserialize_field<W: Write>(
     }
 
     match &field.field_type {
-        FieldType::Scalar(scalar) if scalar.is_numeric() => {
-            writeln!(writer)?;
-
-            match field.field_modifier {
-                FieldModifier::Repeated => {
-                    writeln!(
-                        writer,
-                        "{}map.next_value::<Vec<::pbjson::private::NumberDeserialize<{}>>>()?",
-                        Indent(indent + 2),
-                        scalar.rust_type()
-                    )?;
-                    writeln!(
-                        writer,
-                        "{}.into_iter().map(|x| x.0).collect()",
-                        Indent(indent + 3)
-                    )?;
-                }
-                _ => {
-                    writeln!(
-                        writer,
-                        "{}map.next_value::<::pbjson::private::NumberDeserialize<{}>>()?.0",
-                        Indent(indent + 2),
-                        scalar.rust_type()
-                    )?;
-                }
-            }
-            write!(writer, "{}", Indent(indent + 1))?;
+        FieldType::Scalar(scalar) => {
+            write_encode_scalar_field(indent + 1, *scalar, field.field_modifier, writer)?;
         }
         FieldType::Enum(path) => match field.field_modifier {
             FieldModifier::Repeated => {
@@ -693,8 +700,12 @@ fn write_deserialize_field<W: Write>(
                 Indent(indent + 2),
             )?;
 
-            let map_k = match key.is_numeric() {
-                true => {
+            let map_k = match key {
+                ScalarType::Bytes => {
+                    // https://github.com/tokio-rs/prost/issues/531
+                    panic!("bytes are not currently supported as map keys")
+                }
+                _ if key.is_numeric() => {
                     write!(
                         writer,
                         "::pbjson::private::NumberDeserialize<{}>",
@@ -702,7 +713,7 @@ fn write_deserialize_field<W: Write>(
                     )?;
                     "k.0"
                 }
-                false => {
+                _ => {
                     write!(writer, "_")?;
                     "k"
                 }
@@ -716,6 +727,10 @@ fn write_deserialize_field<W: Write>(
                         scalar.rust_type()
                     )?;
                     "v.0"
+                }
+                FieldType::Scalar(ScalarType::Bytes) => {
+                    // https://github.com/tokio-rs/prost/issues/531
+                    panic!("bytes are not currently supported as map values")
                 }
                 FieldType::Enum(path) => {
                     write!(writer, "{}", config.rust_type(path))?;
@@ -751,4 +766,44 @@ fn write_deserialize_field<W: Write>(
 
     writeln!(writer, ");")?;
     writeln!(writer, "{}}}", Indent(indent))
+}
+
+fn write_encode_scalar_field<W: Write>(
+    indent: usize,
+    scalar: ScalarType,
+    field_modifier: FieldModifier,
+    writer: &mut W,
+) -> Result<()> {
+    let deserializer = match scalar {
+        ScalarType::Bytes => "BytesDeserialize",
+        _ if scalar.is_numeric() => "NumberDeserialize",
+        _ => return write!(writer, "map.next_value()?",),
+    };
+
+    writeln!(writer)?;
+
+    match field_modifier {
+        FieldModifier::Repeated => {
+            writeln!(
+                writer,
+                "{}map.next_value::<Vec<::pbjson::private::{}<_>>>()?",
+                Indent(indent + 1),
+                deserializer
+            )?;
+            writeln!(
+                writer,
+                "{}.into_iter().map(|x| x.0).collect()",
+                Indent(indent + 2)
+            )?;
+        }
+        _ => {
+            writeln!(
+                writer,
+                "{}map.next_value::<::pbjson::private::{}<_>>()?.0",
+                Indent(indent + 1),
+                deserializer
+            )?;
+        }
+    }
+    write!(writer, "{}", Indent(indent))
 }
