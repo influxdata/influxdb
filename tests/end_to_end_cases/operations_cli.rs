@@ -1,6 +1,7 @@
 use crate::common::server_fixture::ServerFixture;
 use assert_cmd::Command;
-use data_types::job::{Job, Operation, OperationStatus};
+use generated_types::google::longrunning::IoxOperation;
+use generated_types::influxdata::iox::management::v1::{operation_metadata::Job, Dummy};
 use predicates::prelude::*;
 
 #[tokio::test]
@@ -9,7 +10,7 @@ async fn test_start_stop() {
     let addr = server_fixture.grpc_base();
     let duration = std::time::Duration::from_secs(10).as_nanos() as u64;
 
-    let stdout: Operation = serde_json::from_slice(
+    let stdout: IoxOperation = serde_json::from_slice(
         &Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("operation")
@@ -24,13 +25,13 @@ async fn test_start_stop() {
     )
     .expect("expected JSON output");
 
-    assert_eq!(stdout.total_count, 1);
-    match stdout.job {
-        Some(Job::Dummy { nanos, .. }) => assert_eq!(nanos, vec![duration]),
-        _ => panic!("expected dummy job got {:?}", stdout.job),
+    assert_eq!(stdout.metadata.total_count, 1);
+    match stdout.metadata.job {
+        Some(Job::Dummy(Dummy { nanos, .. })) => assert_eq!(nanos, vec![duration]),
+        _ => panic!("expected dummy job got {:?}", stdout.metadata.job),
     }
 
-    let operations: Vec<Operation> = serde_json::from_slice(
+    let operations: Vec<IoxOperation> = serde_json::from_slice(
         &Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("operation")
@@ -45,33 +46,33 @@ async fn test_start_stop() {
     .expect("expected JSON output");
 
     assert_eq!(operations.len(), 1);
-    match &operations[0].job {
-        Some(Job::Dummy { nanos, .. }) => {
+    match &operations[0].metadata.job {
+        Some(Job::Dummy(Dummy { nanos, .. })) => {
             assert_eq!(nanos.len(), 1);
             assert_eq!(nanos[0], duration);
         }
-        _ => panic!("expected dummy job got {:?}", &operations[0].job),
+        _ => panic!("expected dummy job got {:?}", &operations[0].metadata.job),
     }
 
-    let id = operations[0].id;
+    let name = &operations[0].operation.name;
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("operation")
         .arg("cancel")
-        .arg(id.to_string())
+        .arg(name.clone())
         .arg("--host")
         .arg(addr)
         .assert()
         .success()
         .stdout(predicate::str::contains("Ok"));
 
-    let completed: Operation = serde_json::from_slice(
+    let completed: IoxOperation = serde_json::from_slice(
         &Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("operation")
             .arg("wait")
-            .arg(id.to_string())
+            .arg(name.to_string())
             .arg("--host")
             .arg(addr)
             .assert()
@@ -81,9 +82,8 @@ async fn test_start_stop() {
     )
     .expect("expected JSON output");
 
-    assert_eq!(completed.pending_count, 0);
-    assert_eq!(completed.total_count, 1);
-    assert_eq!(completed.cancelled_count, 1);
-    assert_eq!(completed.status, OperationStatus::Cancelled);
-    assert_eq!(&completed.job, &operations[0].job)
+    assert_eq!(completed.metadata.pending_count, 0);
+    assert_eq!(completed.metadata.total_count, 1);
+    assert_eq!(completed.metadata.cancelled_count, 1);
+    assert_eq!(&completed.metadata.job, &operations[0].metadata.job)
 }

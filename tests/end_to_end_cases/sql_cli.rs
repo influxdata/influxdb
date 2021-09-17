@@ -306,17 +306,20 @@ async fn test_sql_observer_operations() {
     let partition_key = "cpu";
     let table_name = "cpu";
     // Move the chunk to read buffer
-    let operation = management_client
+    let iox_operation = management_client
         .close_partition_chunk(&db_name, table_name, partition_key, 0)
         .await
         .expect("new partition chunk");
 
-    println!("Operation response is {:?}", operation);
+    println!("Operation response is {:?}", iox_operation);
 
     // wait for the job to be done
     fixture
         .operations_client()
-        .wait_operation(operation.id(), Some(std::time::Duration::from_secs(1)))
+        .wait_operation(
+            iox_operation.operation.id(),
+            Some(std::time::Duration::from_secs(1)),
+        )
         .await
         .expect("failed to wait operation");
 

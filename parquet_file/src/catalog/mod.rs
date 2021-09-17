@@ -1,6 +1,7 @@
-pub mod api;
 pub mod cleanup;
+pub mod core;
 pub mod dump;
+pub mod interface;
 mod internals;
 pub mod prune;
 pub mod rebuild;

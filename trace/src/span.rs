@@ -201,29 +201,14 @@ impl<'a> Drop for SpanRecorder {
 
 #[cfg(test)]
 mod tests {
-    use std::num::{NonZeroU128, NonZeroU64};
     use std::sync::Arc;
 
-    use crate::ctx::{SpanId, TraceId};
     use crate::{RingBufferTraceCollector, TraceCollector};
 
     use super::*;
 
     fn make_span(collector: Arc<dyn TraceCollector>) -> Span {
-        Span {
-            name: "foo".into(),
-            ctx: SpanContext {
-                trace_id: TraceId(NonZeroU128::new(23948923).unwrap()),
-                parent_span_id: None,
-                span_id: SpanId(NonZeroU64::new(3498394).unwrap()),
-                collector: Some(collector),
-            },
-            start: None,
-            end: None,
-            status: SpanStatus::Unknown,
-            metadata: Default::default(),
-            events: vec![],
-        }
+        SpanContext::new(collector).child("foo")
     }
 
     #[test]

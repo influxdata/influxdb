@@ -16,7 +16,7 @@ use internal_types::{access::AccessRecorder, schema::Schema};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
-use predicate::predicate::{Predicate, PredicateBuilder};
+use predicate::predicate::Predicate;
 use read_buffer::RBChunk;
 use tracker::{TaskRegistration, TaskTracker};
 
@@ -80,7 +80,7 @@ pub struct ChunkMetadata {
     pub schema: Arc<Schema>,
 
     /// Delete predicates of this chunk
-    pub delete_predicates: Arc<Vec<Predicate>>,
+    pub delete_predicates: Vec<Arc<Predicate>>,
 }
 
 /// Different memory representations of a frozen chunk.
@@ -307,14 +307,14 @@ impl CatalogChunk {
         time_of_last_write: DateTime<Utc>,
         schema: Arc<Schema>,
         metrics: ChunkMetrics,
-        delete_predicates: Arc<Vec<Predicate>>,
+        delete_predicates: Vec<Arc<Predicate>>,
         order: ChunkOrder,
     ) -> Self {
         let stage = ChunkStage::Frozen {
             meta: Arc::new(ChunkMetadata {
                 table_summary: Arc::new(chunk.table_summary()),
                 schema,
-                delete_predicates: Arc::clone(&delete_predicates),
+                delete_predicates,
             }),
             representation: ChunkStageFrozenRepr::ReadBuffer(Arc::new(chunk)),
         };
@@ -342,7 +342,7 @@ impl CatalogChunk {
         time_of_first_write: DateTime<Utc>,
         time_of_last_write: DateTime<Utc>,
         metrics: ChunkMetrics,
-        delete_predicates: Arc<Vec<Predicate>>,
+        delete_predicates: Vec<Arc<Predicate>>,
         order: ChunkOrder,
     ) -> Self {
         assert_eq!(chunk.table_name(), addr.table_name.as_ref());
@@ -469,30 +469,24 @@ impl CatalogChunk {
         }
     }
 
-    pub fn add_delete_predicate(&mut self, delete_predicate: &Predicate) -> Result<()> {
+    pub fn add_delete_predicate(&mut self, delete_predicate: Arc<Predicate>) -> Result<()> {
+        debug!(
+            ?delete_predicate,
+            "Input delete predicate to CatalogChunk add_delete_predicate"
+        );
         match &mut self.stage {
             ChunkStage::Open { mb_chunk: _ } => {
                 // Freeze/close this chunk and add delete_predicate to its frozen one
                 self.freeze_with_predicate(delete_predicate)?;
             }
-            ChunkStage::Frozen { meta, .. } => {
+            ChunkStage::Frozen { meta, .. } | ChunkStage::Persisted { meta, .. } => {
                 // Add the delete_predicate into the chunk's metadata
-                let mut del_preds: Vec<Predicate> = (*meta.delete_predicates).clone();
-                del_preds.push(delete_predicate.clone());
+                let mut del_preds = meta.delete_predicates.clone();
+                del_preds.push(delete_predicate);
                 *meta = Arc::new(ChunkMetadata {
                     table_summary: Arc::clone(&meta.table_summary),
                     schema: Arc::clone(&meta.schema),
-                    delete_predicates: Arc::new(del_preds),
-                });
-            }
-            ChunkStage::Persisted { meta, .. } => {
-                // Add the delete_predicate into the chunk's metadata
-                let mut del_preds: Vec<Predicate> = (*meta.delete_predicates).clone();
-                del_preds.push(delete_predicate.clone());
-                *meta = Arc::new(ChunkMetadata {
-                    table_summary: Arc::clone(&meta.table_summary),
-                    schema: Arc::clone(&meta.schema),
-                    delete_predicates: Arc::new(del_preds),
+                    delete_predicates: del_preds,
                 });
             }
         }
@@ -500,14 +494,23 @@ impl CatalogChunk {
         Ok(())
     }
 
-    pub fn delete_predicates(&mut self) -> Arc<Vec<Predicate>> {
+    pub fn delete_predicates(&mut self) -> &[Arc<Predicate>] {
         match &self.stage {
             ChunkStage::Open { mb_chunk: _ } => {
                 // no delete predicate for open chunk
-                Arc::new(vec![])
+                debug!("delete_predicates of Open chunk is empty");
+                &[]
             }
-            ChunkStage::Frozen { meta, .. } => Arc::clone(&meta.delete_predicates),
-            ChunkStage::Persisted { meta, .. } => Arc::clone(&meta.delete_predicates),
+            ChunkStage::Frozen { meta, .. } => {
+                let preds = &meta.delete_predicates;
+                debug!(?preds, "delete_predicates of Frozen chunk");
+                preds
+            }
+            ChunkStage::Persisted { meta, .. } => {
+                let preds = &meta.delete_predicates;
+                debug!(?preds, "delete_predicates of Persisted chunk");
+                preds
+            }
         }
     }
 
@@ -679,7 +682,14 @@ impl CatalogChunk {
     ///
     /// This only works for chunks in the _open_ stage (chunk is converted) and the _frozen_ stage
     /// (no-op) and will fail for other stages.
-    pub fn freeze_with_predicate(&mut self, delete_predicate: &Predicate) -> Result<()> {
+    pub fn freeze_with_predicate(&mut self, delete_predicate: Arc<Predicate>) -> Result<()> {
+        self.freeze_with_delete_predicates(vec![delete_predicate])
+    }
+
+    fn freeze_with_delete_predicates(
+        &mut self,
+        delete_predicates: Vec<Arc<Predicate>>,
+    ) -> Result<()> {
         match &self.stage {
             ChunkStage::Open { mb_chunk, .. } => {
                 debug!(%self.addr, row_count=mb_chunk.rows(), "freezing chunk");
@@ -692,7 +702,7 @@ impl CatalogChunk {
                 let metadata = ChunkMetadata {
                     table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: s.full_schema(),
-                    delete_predicates: Arc::new(vec![delete_predicate.clone()]),
+                    delete_predicates,
                 };
 
                 self.stage = ChunkStage::Frozen {
@@ -714,7 +724,7 @@ impl CatalogChunk {
     }
 
     pub fn freeze(&mut self) -> Result<()> {
-        self.freeze_with_predicate(&PredicateBuilder::default().build())
+        self.freeze_with_delete_predicates(vec![])
     }
 
     /// Set the chunk to the Moving state, returning a handle to the underlying storage
@@ -776,7 +786,7 @@ impl CatalogChunk {
                 *meta = Arc::new(ChunkMetadata {
                     table_summary: Arc::clone(&meta.table_summary),
                     schema,
-                    delete_predicates: Arc::clone(&meta.delete_predicates),
+                    delete_predicates: meta.delete_predicates.clone(),
                 });
 
                 match &representation {
@@ -1151,7 +1161,7 @@ mod tests {
         expected_exprs1.push(e);
 
         // Add a delete predicate into a chunk the open chunk = delete simulation for open chunk
-        chunk.add_delete_predicate(&del_pred1).unwrap();
+        chunk.add_delete_predicate(Arc::new(del_pred1)).unwrap();
         // chunk must be in frozen stage now
         assert_eq!(chunk.stage().name(), "Frozen");
         // chunk must have a delete predicate
@@ -1182,7 +1192,7 @@ mod tests {
         let mut expected_exprs2 = vec![];
         let e = col("cost").not_eq(lit(15));
         expected_exprs2.push(e);
-        chunk.add_delete_predicate(&del_pred2).unwrap();
+        chunk.add_delete_predicate(Arc::new(del_pred2)).unwrap();
         // chunk still must be in frozen stage now
         assert_eq!(chunk.stage().name(), "Frozen");
         // chunk must have 2 delete predicates
@@ -1248,7 +1258,7 @@ mod tests {
             now,
             now,
             ChunkMetrics::new_unregistered(),
-            Arc::new(vec![] as Vec<Predicate>),
+            vec![],
             ChunkOrder::new(6),
         )
     }

@@ -556,12 +556,8 @@ where
         }
 
         if t_start.elapsed() >= wait_time {
-            let operations = fixture.operations_client().list_operations().await.unwrap();
-            let mut operations: Vec<_> = operations
-                .into_iter()
-                .map(|x| (x.name().parse::<usize>().unwrap(), x.metadata()))
-                .collect();
-            operations.sort_by_key(|x| x.0);
+            let mut operations = fixture.operations_client().list_operations().await.unwrap();
+            operations.sort_by(|a, b| a.operation.name.cmp(&b.operation.name));
 
             panic!(
                 "Could not find {} within {:?}.\nChunks were: {:#?}\nOperations were: {:#?}",

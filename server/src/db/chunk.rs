@@ -121,7 +121,7 @@ impl DbChunk {
                 let meta = ChunkMetadata {
                     table_summary: Arc::new(mb_chunk.table_summary()),
                     schema: snapshot.full_schema(),
-                    delete_predicates: Arc::new(vec![]), //todo: consider to use the one of the given chunk if appropriate
+                    delete_predicates: vec![], // open chunk does not have delete predicate
                 };
                 (state, Arc::new(meta))
             }
@@ -224,6 +224,19 @@ impl DbChunk {
     pub fn time_of_last_write(&self) -> DateTime<Utc> {
         self.time_of_last_write
     }
+
+    pub fn to_rub_negated_predicates(
+        delete_predicates: &[Arc<Predicate>],
+    ) -> Result<Vec<read_buffer::Predicate>> {
+        let mut rub_preds: Vec<read_buffer::Predicate> = vec![];
+        for pred in delete_predicates {
+            let rub_pred = to_read_buffer_predicate(pred).context(PredicateConversion)?;
+            rub_preds.push(rub_pred);
+        }
+
+        debug!(?rub_preds, "RUB delete predicates");
+        Ok(rub_preds)
+    }
 }
 
 impl QueryChunk for DbChunk {
@@ -314,17 +327,35 @@ impl QueryChunk for DbChunk {
         Ok(pred_result)
     }
 
-    // NGA todo: add delete predicate here to eliminate data at query time
     fn read_filter(
         &self,
         predicate: &Predicate,
         selection: Selection<'_>,
+        delete_predicates: &[Arc<Predicate>],
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         // Predicate is not required to be applied for correctness. We only pushed it down
         // when possible for performance gain
 
         debug!(?predicate, "Input Predicate to read_filter");
         self.access_recorder.record_access_now();
+
+        debug!(?delete_predicates, "Input Delete Predicates to read_filter");
+
+        // add negated deleted ranges to the predicate
+        let mut pred_with_deleted_ranges = predicate.clone();
+        pred_with_deleted_ranges.add_delete_ranges(delete_predicates);
+        debug!(
+            ?pred_with_deleted_ranges,
+            "Input Predicate plus deleted ranges"
+        );
+
+        // add negated deleted predicates
+        let mut pred_wth_deleted_exprs = pred_with_deleted_ranges.clone();
+        pred_wth_deleted_exprs.add_delete_exprs(delete_predicates);
+        debug!(
+            ?pred_wth_deleted_exprs,
+            "Input Predicate plus deleted ranges and deleted predicates"
+        );
 
         match &self.state {
             State::MutableBuffer { chunk, .. } => {
@@ -339,12 +370,16 @@ impl QueryChunk for DbChunk {
                         Ok(predicate) => predicate,
                         Err(_) => read_buffer::Predicate::default(),
                     };
-
                 debug!(?rb_predicate, "Predicate pushed down to RUB");
 
-                // TODO: add collection of delete predicates associated with
-                // this chunk.
-                let read_results = chunk.read_filter(rb_predicate, selection, vec![]);
+                // combine all delete expressions to RUB's negated ones
+                let negated_delete_exprs = Self::to_rub_negated_predicates(delete_predicates)?;
+                debug!(
+                    ?negated_delete_exprs,
+                    "Negated Predicate pushed down to RUB"
+                );
+
+                let read_results = chunk.read_filter(rb_predicate, selection, negated_delete_exprs);
                 let schema =
                     chunk
                         .read_filter_table_schema(selection)
@@ -357,13 +392,11 @@ impl QueryChunk for DbChunk {
                     schema.into(),
                 )))
             }
-            State::ParquetFile { chunk, .. } => {
-                chunk
-                    .read_filter(predicate, selection)
-                    .context(ParquetFileChunkError {
-                        chunk_id: self.id(),
-                    })
-            }
+            State::ParquetFile { chunk, .. } => chunk
+                .read_filter(&pred_wth_deleted_exprs, selection)
+                .context(ParquetFileChunkError {
+                    chunk_id: self.id(),
+                }),
         }
     }
 
@@ -503,8 +536,11 @@ impl QueryChunkMeta for DbChunk {
     }
 
     // return a reference to delete predicates of the chunk
-    fn delete_predicates(&self) -> Arc<Vec<Predicate>> {
-        Arc::clone(&self.meta.delete_predicates)
+    fn delete_predicates(&self) -> &[Arc<Predicate>] {
+        let pred = &self.meta.delete_predicates;
+        debug!(?pred, "Delete predicate in  DbChunk");
+
+        pred
     }
 }
 
@@ -514,7 +550,7 @@ mod tests {
     use crate::{
         db::{
             catalog::chunk::{CatalogChunk, ChunkStage},
-            test_helpers::write_lp,
+            test_helpers::{write_lp, write_lp_with_time},
         },
         utils::make_db,
     };
@@ -527,7 +563,7 @@ mod tests {
         let t2 = chunk.access_recorder().get_metrics();
 
         snapshot
-            .read_filter(&Default::default(), Selection::All)
+            .read_filter(&Default::default(), Selection::All, &[])
             .unwrap();
         let t3 = chunk.access_recorder().get_metrics();
 
@@ -608,9 +644,8 @@ mod tests {
     async fn parquet_records_access() {
         let db = make_db().await.db;
 
-        let before_creation = Utc::now();
-        write_lp(&db, "cpu,tag=1 bar=1 1").await;
-        let after_creation = Utc::now();
+        let creation_time = Utc::now();
+        write_lp_with_time(&db, "cpu,tag=1 bar=1 1", creation_time).await;
 
         let id = db
             .persist_partition(
@@ -632,8 +667,7 @@ mod tests {
         let first_write = chunk.time_of_first_write();
         let last_write = chunk.time_of_last_write();
         assert_eq!(first_write, last_write);
-        assert!(before_creation < first_write);
-        assert!(last_write < after_creation);
+        assert_eq!(first_write, creation_time);
 
         test_chunk_access(&chunk).await
     }

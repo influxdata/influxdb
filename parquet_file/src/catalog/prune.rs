@@ -8,7 +8,7 @@ use object_store::{ObjectStore, ObjectStoreApi};
 use snafu::{ResultExt, Snafu};
 
 use crate::catalog::{
-    api::{ProtoIOError, ProtoParseError},
+    core::{ProtoIOError, ProtoParseError},
     internals::{proto_io::load_transaction_proto, proto_parse::parse_timestamp},
 };
 
@@ -33,7 +33,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Prune history of [`PreservedCatalog`](crate::catalog::api::PreservedCatalog).
+/// Prune history of [`PreservedCatalog`](crate::catalog::core::PreservedCatalog).
 ///
 /// This deletes all transactions and checkpoints that were started prior to `before`. Note that this only deletes data
 /// that is safe to delete when time travel to `before` is allowed. For example image the following transactions:
@@ -133,8 +133,7 @@ fn is_checkpoint_or_zero(path: &TransactionFilePath) -> bool {
 mod tests {
     use crate::{
         catalog::{
-            api::{CheckpointData, PreservedCatalog},
-            test_helpers::TestCatalogState,
+            core::PreservedCatalog, interface::CheckpointData, test_helpers::TestCatalogState,
         },
         test_utils::make_iox_object_store,
     };

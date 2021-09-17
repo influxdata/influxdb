@@ -28,7 +28,7 @@ use data_types::{
 };
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
-use query::{exec::ExecutionContextProvider, QueryDatabase};
+use query::exec::ExecutionContextProvider;
 use server::{ApplicationState, ConnectionManager, Error, Server as AppServer};
 
 // External crates
@@ -392,7 +392,6 @@ where
         .get("/health", health::<M>)
         .get("/metrics", handle_metrics::<M>)
         .get("/iox/api/v1/databases/:name/query", query::<M>)
-        .get("/api/v1/partitions", list_partitions::<M>)
         .get("/debug/pprof", pprof_home::<M>)
         .get("/debug/pprof/profile", pprof_profile::<M>)
         .get("/debug/pprof/allocs", pprof_heappy_profile::<M>)
@@ -642,43 +641,6 @@ async fn handle_metrics<M: ConnectionManager + Send + Sync + Debug + 'static>(
     application.metric_registry().report(&mut reporter);
 
     Ok(Response::new(Body::from(body)))
-}
-
-#[derive(Deserialize, Debug)]
-/// Arguments in the query string of the request to /partitions
-struct DatabaseInfo {
-    org: String,
-    bucket: String,
-}
-
-#[tracing::instrument(level = "debug")]
-async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
-    req: Request<Body>,
-) -> Result<Response<Body>, ApplicationError> {
-    let server = Arc::clone(&req.data::<Server<M>>().expect("server state").app_server);
-
-    let query = req.uri().query().context(ExpectedQueryString {})?;
-
-    let info: DatabaseInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
-        query_string: query,
-    })?;
-
-    let db_name =
-        org_and_bucket_to_database(&info.org, &info.bucket).context(BucketMappingError)?;
-
-    let db = server.db(&db_name)?;
-
-    let partition_keys =
-        db.partition_keys()
-            .map_err(|e| Box::new(e) as _)
-            .context(BucketByName {
-                org: &info.org,
-                bucket_name: &info.bucket,
-            })?;
-
-    let result = serde_json::to_string(&partition_keys).context(JsonGenerationError)?;
-
-    Ok(Response::new(Body::from(result)))
 }
 
 #[derive(Deserialize, Debug)]

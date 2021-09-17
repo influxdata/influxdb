@@ -52,7 +52,7 @@ pub fn persist_chunks(
     let mut time_of_first_write: Option<DateTime<Utc>> = None;
     let mut time_of_last_write: Option<DateTime<Utc>> = None;
     let mut query_chunks = vec![];
-    let mut delete_predicates: Vec<Predicate> = vec![];
+    let mut delete_predicates: Vec<Arc<Predicate>> = vec![];
     let mut min_order = ChunkOrder::MAX;
     for mut chunk in chunks {
         // Sanity-check
@@ -72,8 +72,7 @@ pub fn persist_chunks(
             .map(|prev_last| prev_last.max(candidate_last))
             .or(Some(candidate_last));
 
-        let mut preds = (*chunk.delete_predicates()).clone();
-        delete_predicates.append(&mut preds);
+        delete_predicates.extend(chunk.delete_predicates().iter().cloned());
 
         min_order = min_order.min(chunk.order());
 
@@ -112,8 +111,10 @@ pub fn persist_chunks(
             "Expected split plan to produce exactly 2 partitions"
         );
 
-        let to_persist_stream = ctx.execute_partition(Arc::clone(&physical_plan), 0).await?;
-        let remainder_stream = ctx.execute_partition(physical_plan, 1).await?;
+        let to_persist_stream = ctx
+            .execute_stream_partitioned(Arc::clone(&physical_plan), 0)
+            .await?;
+        let remainder_stream = ctx.execute_stream_partitioned(physical_plan, 1).await?;
 
         let (to_persist, remainder) = futures::future::try_join(
             collect_rub(to_persist_stream, &addr, metric_registry.as_ref()),
@@ -131,7 +132,6 @@ pub fn persist_chunks(
                 partition_write.force_drop_chunk(id)
             }
 
-            let del_preds = Arc::new(delete_predicates);
             // Upsert remainder to catalog
             if let Some(remainder) = remainder {
                 partition_write.create_rub_chunk(
@@ -139,11 +139,13 @@ pub fn persist_chunks(
                     time_of_first_write,
                     time_of_last_write,
                     Arc::clone(&schema),
-                    Arc::clone(&del_preds),
+                    delete_predicates.clone(),
                     min_order,
                 );
             }
 
+            // NGA todo: we hit this error if there are rows but they are deleted
+            // Need to think a way to handle this (https://github.com/influxdata/influxdb_iox/issues/2546)
             let to_persist = to_persist.expect("should be rows to persist");
 
             let (new_chunk_id, new_chunk) = partition_write.create_rub_chunk(
@@ -151,7 +153,7 @@ pub fn persist_chunks(
                 time_of_first_write,
                 time_of_last_write,
                 schema,
-                del_preds,
+                delete_predicates,
                 min_order,
             );
             let to_persist = LockableCatalogChunk {

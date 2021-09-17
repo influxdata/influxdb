@@ -1195,7 +1195,7 @@ mod tests {
         path::{parsed::DirsAndFileName, ObjectStorePath},
         ObjectStore, ObjectStoreApi,
     };
-    use parquet_file::catalog::{api::PreservedCatalog, test_helpers::TestCatalogState};
+    use parquet_file::catalog::{core::PreservedCatalog, test_helpers::TestCatalogState};
     use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner, QueryDatabase};
     use std::{
         convert::{TryFrom, TryInto},

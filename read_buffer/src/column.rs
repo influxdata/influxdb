@@ -2068,6 +2068,40 @@ mod test {
     }
 
     #[test]
+    fn row_ids_filter_float_trimmed() {
+        let input = &[100.0, 200.0, 300.0, 2.0, 22.0, 30.0];
+
+        let col = Column::from(&input[..]);
+        let mut row_ids = col.row_ids_filter(
+            &cmp::Operator::Equal,
+            &Value::from(200.0),
+            RowIDs::new_bitmap(),
+        );
+        assert_eq!(row_ids.unwrap().to_vec(), vec![1]);
+
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::LT,
+            &Value::from(64000.0),
+            RowIDs::new_bitmap(),
+        );
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
+
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::GTE,
+            &Value::from(-1_000_000.0),
+            RowIDs::new_bitmap(),
+        );
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
+
+        row_ids = col.row_ids_filter(
+            &cmp::Operator::NotEqual,
+            &Value::from(1_000_000.3),
+            RowIDs::new_bitmap(),
+        );
+        assert!(matches!(row_ids, RowIDsOption::All(_)));
+    }
+
+    #[test]
     fn row_ids_range() {
         let input = &[100_i64, 200, 300, 2, 200, 22, 30];
 

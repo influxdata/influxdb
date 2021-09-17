@@ -7,13 +7,17 @@ use observability_deps::tracing::error;
 use snafu::{ResultExt, Snafu};
 
 use crate::{
-    catalog::api::{CatalogParquetInfo, CatalogState, PreservedCatalog},
+    catalog::{
+        core::PreservedCatalog,
+        interface::{CatalogParquetInfo, CatalogState},
+    },
     metadata::IoxParquetMetaData,
 };
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Cannot create new empty catalog: {}", source))]
-    NewEmptyFailure { source: crate::catalog::api::Error },
+    NewEmptyFailure { source: crate::catalog::core::Error },
 
     #[snafu(display("Cannot read store: {}", source))]
     ReadFailure { source: object_store::Error },
@@ -25,13 +29,15 @@ pub enum Error {
     },
 
     #[snafu(display("Cannot add file to transaction: {}", source))]
-    FileRecordFailure { source: crate::catalog::api::Error },
+    FileRecordFailure {
+        source: crate::catalog::interface::CatalogStateAddError,
+    },
 
     #[snafu(display("Cannot commit transaction: {}", source))]
-    CommitFailure { source: crate::catalog::api::Error },
+    CommitFailure { source: crate::catalog::core::Error },
 
     #[snafu(display("Cannot create checkpoint: {}", source))]
-    CheckpointFailure { source: crate::catalog::api::Error },
+    CheckpointFailure { source: crate::catalog::core::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -164,7 +170,7 @@ async fn read_parquet(
 mod tests {
     use super::*;
     use crate::{
-        catalog::{api::PreservedCatalog, test_helpers::TestCatalogState},
+        catalog::{core::PreservedCatalog, test_helpers::TestCatalogState},
         metadata::IoxMetadata,
         storage::{MemWriter, Storage},
         test_utils::{

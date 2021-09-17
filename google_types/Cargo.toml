@@ -8,8 +8,10 @@ edition = "2018"
 [dependencies] # In alphabetical order
 bytes = { version = "1.0", features = ["serde"] }
 chrono = "0.4"
+pbjson = { path = "../pbjson" }
 prost = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 
 [build-dependencies] # In alphabetical order
 prost-build = "0.8"
+pbjson_build = { path = "../pbjson_build" }

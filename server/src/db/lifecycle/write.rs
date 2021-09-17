@@ -17,7 +17,7 @@ use data_types::{chunk_metadata::ChunkLifecycleAction, job::Job};
 use internal_types::selection::Selection;
 use observability_deps::tracing::{debug, warn};
 use parquet_file::{
-    catalog::api::CatalogParquetInfo,
+    catalog::interface::CatalogParquetInfo,
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
     metadata::IoxMetadata,
     storage::Storage,
@@ -26,7 +26,7 @@ use persistence_windows::{
     checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder},
     persistence_windows::FlushHandle,
 };
-use query::QueryChunk;
+use query::{QueryChunk, QueryChunkMeta};
 use snafu::ResultExt;
 use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
@@ -89,7 +89,11 @@ pub(super) fn write_chunk_to_object_store(
 
         // Get RecordBatchStream of data from the read buffer chunk
         let stream = db_chunk
-            .read_filter(&Default::default(), Selection::All)
+            .read_filter(
+                &Default::default(),
+                Selection::All,
+                db_chunk.delete_predicates(),
+            )
             .expect("read filter should be infallible");
 
         // check that the upcoming state change will very likely succeed

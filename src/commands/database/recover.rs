@@ -1,6 +1,3 @@
-use std::convert::TryInto;
-
-use data_types::job::Operation;
 use generated_types::google::FieldViolation;
 use influxdb_iox_client::{connection::Connection, management};
 use snafu::{ResultExt, Snafu};
@@ -74,12 +71,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 return Err(Error::NeedsTheForceError);
             }
 
-            let operation: Operation = client
+            let operation = client
                 .wipe_persisted_catalog(db_name)
                 .await
-                .context(WipeError)?
-                .try_into()
-                .context(InvalidResponse)?;
+                .context(WipeError)?;
 
             serde_json::to_writer_pretty(std::io::stdout(), &operation).context(WritingJson)?;
         }
