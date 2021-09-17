@@ -950,7 +950,7 @@ jobs:
                   set -x
                   CHANGELOG_FILENAME="CHANGELOG.md"
                   cat \<< EOF >> env_vars.sh
-                  S3_PATH="https://dl.influxdata.com/platform/nightlies/2.0"
+                  S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/platform/nightlies/2.0"
                   CHANGELOG_FILENAME=${CHANGELOG_FILENAME}
                   SCRIPT_OPTIONS="--prepend ${CHANGELOG_FILENAME}"
                   EOF
@@ -964,7 +964,7 @@ jobs:
                   LAST_RELEASE_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags=v2* --skip=1 --max-count=1))
 
                   cat \<< EOF >> env_vars.sh
-                  S3_PATH="https://dl.influxdata.com/influxdb/releases"
+                  S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/influxdb/releases"
                   CHANGELOG_FILENAME="CHANGELOG-${LAST_RELEASE_TAG}.md"
                   SCRIPT_OPTIONS=""
                   EOF
