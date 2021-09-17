@@ -141,6 +141,11 @@ struct List {
     /// Whether to list databases marked as deleted instead, to restore or permanently delete.
     #[structopt(long)]
     deleted: bool,
+
+    /// Whether to list detailed information, including generation IDs, about all databases,
+    /// whether they are active or marked as deleted.
+    #[structopt(long)]
+    detailed: bool,
 }
 
 /// Return configuration of specific database
@@ -258,20 +263,24 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::List(list) => {
             let mut client = management::Client::new(connection);
-            if list.deleted {
-                let deleted = client.list_deleted_databases().await?;
-                println!("Deleted at                      | Generation ID | Name");
-                println!("--------------------------------+---------------+--------");
-                for database in deleted {
+            if list.deleted || list.detailed {
+                let databases = if list.deleted {
+                    client.list_deleted_databases().await?
+                } else {
+                    client.list_detailed_databases().await?
+                };
+                println!("Deleted at                       | Generation ID | Name");
+                println!("---------------------------------+---------------+--------");
+                for database in databases {
                     let deleted_at = database
                         .deleted_at
                         .and_then(|t| {
                             let dt: Result<DateTime<Utc>, _> = t.try_into();
                             dt.ok().map(|d| d.to_string())
                         })
-                        .unwrap_or_else(|| String::from("Unknown"));
+                        .unwrap_or_else(String::new);
                     println!(
-                        "{:<33}{:<16}{}",
+                        "{:<34}{:<16}{}",
                         deleted_at, database.generation_id, database.db_name,
                     );
                 }

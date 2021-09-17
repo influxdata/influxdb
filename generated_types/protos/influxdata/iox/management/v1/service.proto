@@ -42,6 +42,9 @@ service ManagementService {
   // List deleted databases and their metadata.
   rpc ListDeletedDatabases(ListDeletedDatabasesRequest) returns (ListDeletedDatabasesResponse);
 
+  // List all databases and their metadata.
+  rpc ListDetailedDatabases(ListDetailedDatabasesRequest) returns (ListDetailedDatabasesResponse);
+
   // List chunks available on this database
   rpc ListChunks(ListChunksRequest) returns (ListChunksResponse);
 
@@ -190,6 +193,12 @@ message ListDeletedDatabasesRequest {}
 
 message ListDeletedDatabasesResponse {
   repeated DetailedDatabase deleted_databases = 1;
+}
+
+message ListDetailedDatabasesRequest {}
+
+message ListDetailedDatabasesResponse {
+  repeated DetailedDatabase databases = 1;
 }
 
 // This resource represents detailed information about a database.

@@ -213,6 +213,22 @@ where
         }))
     }
 
+    async fn list_detailed_databases(
+        &self,
+        _: Request<ListDetailedDatabasesRequest>,
+    ) -> Result<Response<ListDetailedDatabasesResponse>, Status> {
+        let databases = self
+            .server
+            .list_detailed_databases()
+            .await
+            .map_err(default_server_error_handler)?
+            .into_iter()
+            .map(Into::into)
+            .collect();
+
+        Ok(Response::new(ListDetailedDatabasesResponse { databases }))
+    }
+
     async fn list_chunks(
         &self,
         request: Request<ListChunksRequest>,

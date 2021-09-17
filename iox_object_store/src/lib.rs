@@ -165,6 +165,30 @@ impl IoxObjectStore {
             .collect())
     }
 
+    /// List all databases in in object storage along with their generation IDs and if/when they
+    /// were deleted. Useful for visibility into object storage and finding databases to restore or
+    /// permanently delete.
+    pub async fn list_detailed_databases(
+        inner: &ObjectStore,
+        server_id: ServerId,
+    ) -> Result<Vec<DetailedDatabase>> {
+        Ok(Self::list_all_databases(inner, server_id)
+            .await?
+            .into_iter()
+            .flat_map(|(name, generations)| {
+                let name = Arc::new(name);
+                generations.into_iter().map(move |gen| {
+                    let name = Arc::clone(&name);
+                    DetailedDatabase {
+                        name: (*name).clone(),
+                        generation_id: gen.id,
+                        deleted_at: gen.deleted_at,
+                    }
+                })
+            })
+            .collect())
+    }
+
     /// List database names in object storage along with all existing generations for each database
     /// and whether the generations are marked as deleted or not. Useful for finding candidates
     /// to restore or to permanently delete. Makes many more calls to object storage than

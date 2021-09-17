@@ -183,6 +183,8 @@ async fn test_create_database_immutable() {
         .stdout(predicate::str::contains(r#""immutable": true"#));
 }
 
+const DELETED_DB_DATETIME: &str = r#"[\d-]+\s[\d:\.]+\s[A-Z]+"#;
+
 #[tokio::test]
 async fn delete_database() {
     let server_fixture = ServerFixture::create_shared().await;
@@ -224,6 +226,18 @@ async fn delete_database() {
         .success()
         .stdout(predicate::str::contains(db).not());
 
+    // Listing detailed database info does include the active database, along with its generation
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--detailed")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match(format!(r#"(?m)^\s+0\s+{}$"#, db)).unwrap());
+
     // Delete the database
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -257,7 +271,25 @@ async fn delete_database() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains(db));
+        .stdout(
+            predicate::str::is_match(format!(r#"(?m)^{}\s+0\s+{}$"#, DELETED_DB_DATETIME, db))
+                .unwrap(),
+        );
+
+    // Listing detailed database info does include the deleted database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--detailed")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::is_match(format!(r#"(?m)^{}\s+0\s+{}$"#, DELETED_DB_DATETIME, db))
+                .unwrap(),
+        );
 
     // Deleting the database again is an error
     Command::cargo_bin("influxdb_iox")
@@ -306,7 +338,26 @@ async fn delete_database() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains(db));
+        .stdout(
+            predicate::str::is_match(format!(r#"(?m)^{}\s+0\s+{}$"#, DELETED_DB_DATETIME, db))
+                .unwrap(),
+        );
+
+    // Listing detailed database info includes both active and deleted
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--detailed")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::is_match(format!(r#"(?m)^{}\s+0\s+{}$"#, DELETED_DB_DATETIME, db))
+                .unwrap()
+                .and(predicate::str::is_match(format!(r#"(?m)^\s+1\s+{}$"#, db)).unwrap()),
+        );
 
     // Delete the 2nd database
     Command::cargo_bin("influxdb_iox")
@@ -342,8 +393,37 @@ async fn delete_database() {
         .assert()
         .success()
         .stdout(
-            predicate::str::contains(format!("0               {}", db))
-                .and(predicate::str::contains(format!("1               {}", db))),
+            predicate::str::is_match(format!(r#"(?m)^{}\s+0\s+{}$"#, DELETED_DB_DATETIME, db))
+                .unwrap()
+                .and(
+                    predicate::str::is_match(format!(
+                        r#"(?m)^{}\s+1\s+{}$"#,
+                        DELETED_DB_DATETIME, db
+                    ))
+                    .unwrap(),
+                ),
+        );
+
+    // Listing detailed database info includes both deleted generations
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--detailed")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::is_match(format!(r#"(?m)^{}\s+0\s+{}$"#, DELETED_DB_DATETIME, db))
+                .unwrap()
+                .and(
+                    predicate::str::is_match(format!(
+                        r#"(?m)^{}\s+1\s+{}$"#,
+                        DELETED_DB_DATETIME, db
+                    ))
+                    .unwrap(),
+                ),
         );
 
     // Restore generation 0
@@ -384,9 +464,33 @@ async fn delete_database() {
         .assert()
         .success()
         .stdout(
-            predicate::str::contains(format!("1               {}", db))
-                .and(predicate::str::contains(format!("0               {}", db)).not()),
+            predicate::str::is_match(format!(r#"(?m)^{}\s+0\s+{}$"#, DELETED_DB_DATETIME, db))
+                .unwrap().not()
+                .and(
+                    predicate::str::is_match(format!(
+                        r#"(?m)^{}\s+1\s+{}$"#,
+                        DELETED_DB_DATETIME, db
+                    ))
+                    .unwrap(),
+                ),
         );
+
+    // Listing detailed database info includes both active and deleted
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--detailed")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::is_match(format!(r#"(?m)^{}\s+1\s+{}$"#, DELETED_DB_DATETIME, db))
+                .unwrap()
+                .and(predicate::str::is_match(format!(r#"(?m)^\s+0\s+{}$"#, db)).unwrap()),
+        );
+
 }
 
 #[tokio::test]
