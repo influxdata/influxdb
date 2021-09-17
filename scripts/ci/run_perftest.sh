@@ -206,7 +206,7 @@ query_types() {
       echo fast-query-small-data standalone-filter aggregate-keep aggregate-drop sorted-pivot
       ;;
     metaquery)
-      echo field-keys tag-values
+      echo field-keys tag-values cardinality
       ;;
     multi-measurement)
       echo multi-measurement-or
@@ -227,7 +227,7 @@ query_usecase_alias() {
     window-agg|group-agg|bare-agg|group-window-transpose|iot|group-window-transpose-low-card)
       echo iot
       ;;
-    metaquery|group-window-transpose-high-card)
+    metaquery|group-window-transpose-high-card|cardinality)
       echo metaquery
       ;;
     multi-measurement)
