@@ -147,7 +147,8 @@ impl CatalogState for TracerCatalogState {
         _predicate: Arc<Predicate>,
         _chunks: Vec<ChunkAddrWithoutDatabase>,
     ) -> Result<(), CatalogStateDeletePredicateError> {
-        // No need to track delete predicates.
+        // No need to track delete predicates, because the cleanup's job is to remove unreferenced parquet files. Delete
+        // predicates however are stored directly within the preserved catalog and therefore don't need pruning.
         Ok(())
     }
 }
