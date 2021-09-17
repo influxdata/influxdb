@@ -146,10 +146,7 @@ pub enum DeserializeError {
 }
 
 /// Deserialize IOx [`Predicate`] from a protobuf object.
-pub fn deserialize(
-    proto_predicate: &proto::Predicate,
-    table_name: &str,
-) -> Result<Predicate, DeserializeError> {
+pub fn deserialize(proto_predicate: &proto::Predicate) -> Result<Predicate, DeserializeError> {
     let predicate = Predicate {
         table_names: deserialize_optional_string_set(&proto_predicate.table_names),
         field_columns: deserialize_optional_string_set(&proto_predicate.field_columns),
@@ -158,7 +155,7 @@ pub fn deserialize(
         exprs: proto_predicate
             .exprs
             .iter()
-            .map(|expr| deserialize_expr(expr, table_name))
+            .map(|expr| deserialize_expr(expr))
             .collect::<Result<Vec<Expr>, DeserializeError>>()?,
     };
     Ok(predicate)
@@ -181,9 +178,9 @@ fn deserialize_timestamp_range(r: &Option<proto::TimestampRange>) -> Option<Time
     })
 }
 
-fn deserialize_expr(proto_expr: &proto::Expr, table_name: &str) -> Result<Expr, DeserializeError> {
+fn deserialize_expr(proto_expr: &proto::Expr) -> Result<Expr, DeserializeError> {
     let column = Column {
-        relation: Some(table_name.to_string()),
+        relation: None,
         name: proto_expr.column.clone(),
     };
     let op = deserialize_operator(&proto::Op::from_i32(proto_expr.op).context(
@@ -240,7 +237,7 @@ mod tests {
         let table_name = "my_table";
         let predicate = delete_predicate(table_name);
         let proto = serialize(&predicate).unwrap();
-        let recovered = deserialize(&proto, table_name).unwrap();
+        let recovered = deserialize(&proto).unwrap();
         assert_eq!(predicate, recovered);
     }
 

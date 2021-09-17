@@ -65,6 +65,8 @@ pub fn move_chunk_to_read_buffer(
         // Can drop and re-acquire as lifecycle action prevents concurrent modification
         let mut guard = chunk.write();
 
+        // https://github.com/influxdata/influxdb_iox/issues/2546
+        // The chunk may have all soft deleted data. Need to handle it correctly and not throw error
         let rb_chunk =
             rb_chunk.expect("Chunks moving to the read buffer should have at least one row");
 

@@ -9,6 +9,7 @@ use datafusion::{
     logical_plan::Expr,
     physical_plan::{
         expressions::{col as physical_col, PhysicalSortExpr},
+        filter::FilterExec,
         projection::ProjectionExec,
         sort::SortExec,
         sort_preserving_merge::SortPreservingMergeExec,
@@ -20,7 +21,11 @@ use internal_types::schema::{merge::SchemaMerger, sort::SortKey, Schema};
 use observability_deps::tracing::{debug, info, trace};
 use predicate::predicate::{Predicate, PredicateBuilder};
 
-use crate::{compute_sort_key, util::arrow_sort_key_exprs, QueryChunk};
+use crate::{
+    compute_sort_key,
+    util::{arrow_sort_key_exprs, df_physical_expr},
+    QueryChunk,
+};
 
 use snafu::{ResultExt, Snafu};
 
@@ -51,6 +56,11 @@ pub enum Error {
 
     #[snafu(display("Internal error adding sort operator '{}'", source,))]
     InternalSort {
+        source: datafusion::error::DataFusionError,
+    },
+
+    #[snafu(display("Internal error adding filter operator '{}'", source,))]
+    InternalFilter {
         source: datafusion::error::DataFusionError,
     },
 
@@ -711,12 +721,32 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     }
 
     /// Return a sort plan for for a given chunk
-    /// The plan will look like this
+    /// This plan is applied for every chunk to read data from chunk
+    /// The plan will look like this. Reading bottom up:
+    ///   1. First we scan the data in IOxReadFilterNode which represents
+    ///        a custom implemented scan of MUB, RUB, OS. Both Select Predicate of
+    ///        the query and Delete Predicates of the chunk is pushed down
+    ///        here to eliminate as much data as early as possible but it is not guaranteed
+    ///        all filters are applied because only certain expressions work
+    ///        at this low chunk scan level.
+    ///        Delete Predicates are tombstone of deleted data that will be eliminated at read time.
+    ///   2. If the chunk has Delete Predicates, the FilterExec will be added to filter data out
+    ///       We apply delete predicate filter at this low level because the Delete Predicates are chunk specific.
+    ///   3. Then SortExec is added if there is a request to sort this chunk at this stage
+    ///       See the description of function build_scan_plan to see why the sort may be needed
     /// ```text
     ///                ┌─────────────────┐
     ///                │    SortExec     │
     ///                │   (optional)    │
     ///                └─────────────────┘
+    ///                          ▲
+    ///                          │
+    ///                          │
+    ///                ┌───────────────────────┐
+    ///                │    FilterExec         │
+    ///                | To apply delete preds │
+    ///                │    (Chunk)            │
+    ///                └───────────────────────┘
     ///                          ▲
     ///                          │
     ///                          │
@@ -728,17 +758,33 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     fn build_sort_plan_for_read_filter(
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
-        chunk: Arc<C>, // This chunk is identified having duplicates
-        predicate: Predicate,
+        chunk: Arc<C>,        // This chunk is identified having duplicates
+        predicate: Predicate, // This is the select predicate of the query
         output_sort_key: &SortKey<'_>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         // Create the bottom node IOxReadFilterNode for this chunk
-        let input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
+        let mut input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
             Arc::clone(&table_name),
             output_schema,
             vec![Arc::clone(&chunk)],
             predicate,
         ));
+
+        // Add Filter operator, FilterExec, if the chunk has delete predicates
+        let del_preds = chunk.delete_predicates();
+        debug!(?del_preds, "Chunk delete predicates");
+        let negated_del_expr_val = Predicate::negated_expr(del_preds);
+        if let Some(negated_del_expr) = negated_del_expr_val {
+            debug!(?negated_del_expr, "Logical negated expressions");
+
+            let negated_physical_del_expr =
+                df_physical_expr(&*input, negated_del_expr).context(InternalFilter)?;
+            debug!(?negated_physical_del_expr, "Physical negated expressions");
+
+            input = Arc::new(
+                FilterExec::try_new(negated_physical_del_expr, input).context(InternalFilter)?,
+            );
+        }
 
         // Add the sort operator, SortExec, if needed
         if !output_sort_key.is_empty() {
