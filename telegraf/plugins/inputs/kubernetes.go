@@ -52,6 +52,8 @@ func (k *Kubernetes) UnmarshalTOML(data interface{}) error {
 	if !ok {
 		return errors.New("bad url for kubernetes input plugin")
 	}
-	k.URL, _ = dataOK["url"].(string)
+	if k.URL, ok = dataOK["url"].(string); !ok {
+		return errors.New("url is not a string value")
+	}
 	return nil
 }

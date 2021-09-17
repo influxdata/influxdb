@@ -22,7 +22,9 @@ func (d *Docker) UnmarshalTOML(data interface{}) error {
 	if !ok {
 		return errors.New("bad endpoint for docker input plugin")
 	}
-	d.Endpoint, _ = dataOK["endpoint"].(string)
+	if d.Endpoint, ok = dataOK["endpoint"].(string); !ok {
+		return errors.New("endpoint is not a string value")
+	}
 	return nil
 }
 
