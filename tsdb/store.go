@@ -13,7 +13,6 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -1512,35 +1511,29 @@ func (s *Store) TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []u
 		return nil, nil
 	}
 
-	measurementExpr := influxql.CloneExpr(cond)
-	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
+	// take out the _name = 'mymeasurement' clause from 'FROM' clause
+	measurementExpr, remainingExpr, err := influxql.PartitionExpr(influxql.CloneExpr(cond), func(e influxql.Expr) (bool, error) {
 		switch e := e.(type) {
 		case *influxql.BinaryExpr:
 			switch e.Op {
 			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || tag.Val != "_name" {
-					return nil
+				if ok && tag.Val == "_name" {
+					return true, nil
 				}
 			}
 		}
-		return e
-	}), nil)
+		return false, nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
-	filterExpr := influxql.CloneExpr(cond)
-	filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
-		switch e := e.(type) {
-		case *influxql.BinaryExpr:
-			switch e.Op {
-			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || influxql.IsSystemName(tag.Val) {
-					return nil
-				}
-			}
-		}
-		return e
-	}), nil)
+	// take out the _tagKey = 'mykey' clause from 'WITH KEY' clause
+	tagKeyExpr, filterExpr, err := influxql.PartitionExpr(remainingExpr, isTagKeyClause)
+	if err != nil {
+		return nil, err
+	}
 
 	// Get all the shards we're interested in.
 	is := IndexSet{Indexes: make([]Index, 0, len(shardIDs))}
@@ -1587,7 +1580,7 @@ func (s *Store) TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []u
 		}
 
 		// Build keyset over all indexes for measurement.
-		tagKeySet, err := is.MeasurementTagKeysByExpr(name, nil)
+		tagKeySet, err := is.MeasurementTagKeysByExpr(name, tagKeyExpr)
 		if err != nil {
 			return nil, err
 		} else if len(tagKeySet) == 0 {
@@ -1683,42 +1676,66 @@ func (a tagValuesSlice) Len() int           { return len(a) }
 func (a tagValuesSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a tagValuesSlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[j].name) == -1 }
 
+func isTagKeyClause(e influxql.Expr) (bool, error) {
+	switch e := e.(type) {
+	case *influxql.BinaryExpr:
+		switch e.Op {
+		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+			tag, ok := e.LHS.(*influxql.VarRef)
+			if ok && tag.Val == "_tagKey" {
+				return true, nil
+			}
+		case influxql.OR, influxql.AND:
+			ok1, err := isTagKeyClause(e.LHS)
+			if err != nil {
+				return false, err
+			}
+			ok2, err := isTagKeyClause(e.RHS)
+			if err != nil {
+				return false, err
+			}
+			return ok1 && ok2, nil
+		}
+	case *influxql.ParenExpr:
+		return isTagKeyClause(e.Expr)
+	}
+	return false, nil
+}
+
 // TagValues returns the tag keys and values for the provided shards, where the
 // tag values satisfy the provided condition.
 func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]TagValues, error) {
+	if len(shardIDs) == 0 {
+		return nil, nil
+	}
+
 	if cond == nil {
 		return nil, errors.New("a condition is required")
 	}
 
-	measurementExpr := influxql.CloneExpr(cond)
-	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
+	// take out the _name = 'mymeasurement' clause from 'FROM' clause
+	measurementExpr, remainingExpr, err := influxql.PartitionExpr(influxql.CloneExpr(cond), func(e influxql.Expr) (bool, error) {
 		switch e := e.(type) {
 		case *influxql.BinaryExpr:
 			switch e.Op {
 			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || tag.Val != "_name" {
-					return nil
+				if ok && tag.Val == "_name" {
+					return true, nil
 				}
 			}
 		}
-		return e
-	}), nil)
+		return false, nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
-	filterExpr := influxql.CloneExpr(cond)
-	filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
-		switch e := e.(type) {
-		case *influxql.BinaryExpr:
-			switch e.Op {
-			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || influxql.IsSystemName(tag.Val) {
-					return nil
-				}
-			}
-		}
-		return e
-	}), nil)
+	// take out the _tagKey = 'mykey' clause from 'WITH KEY' / 'WITH KEY IN' clause
+	tagKeyExpr, filterExpr, err := influxql.PartitionExpr(remainingExpr, isTagKeyClause)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build index set to work on.
 	is := IndexSet{Indexes: make([]Index, 0, len(shardIDs))}
@@ -1748,8 +1765,6 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 	}
 	s.mu.RUnlock()
 
-	// Stores each list of TagValues for each measurement.
-	var allResults []tagValues
 	var maxMeasurements int // Hint as to lower bound on number of measurements.
 	// names will be sorted by MeasurementNamesByExpr.
 	// Authorisation can be done later on, when series may have been filtered
@@ -1763,9 +1778,8 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 		maxMeasurements = len(names)
 	}
 
-	if allResults == nil {
-		allResults = make([]tagValues, 0, len(is.Indexes)*len(names)) // Assuming all series in all shards.
-	}
+	// Stores each list of TagValues for each measurement.
+	allResults := make([]tagValues, 0, len(names))
 
 	// Iterate over each matching measurement in the shard. For each
 	// measurement we'll get the matching tag keys (e.g., when a WITH KEYS)
@@ -1781,7 +1795,7 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 		}
 
 		// Determine a list of keys from condition.
-		keySet, err := is.MeasurementTagKeysByExpr(name, cond)
+		keySet, err := is.MeasurementTagKeysByExpr(name, tagKeyExpr)
 		if err != nil {
 			return nil, err
 		}
@@ -1800,7 +1814,7 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 		for k := range keySet {
 			result.keys = append(result.keys, k)
 		}
-		sort.Sort(sort.StringSlice(result.keys))
+		sort.Strings(result.keys)
 
 		// get all the tag values for each key in the keyset.
 		// Each slice in the results contains the sorted values associated
@@ -1829,19 +1843,11 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 		}
 	}
 
+	// Not sure this is necessary, should be pre-sorted
+	sort.Sort(tagValuesSlice(allResults))
+
 	result := make([]TagValues, 0, maxMeasurements)
-
-	// We need to sort all results by measurement name.
-	if len(is.Indexes) > 1 {
-		sort.Sort(tagValuesSlice(allResults))
-	}
-
-	// The next stage is to merge the tagValue results for each shard's measurements.
-	var i, j int
-	// Used as a temporary buffer in mergeTagValues. There can be at most len(shards)
-	// instances of tagValues for a given measurement.
-	idxBuf := make([][2]int, 0, len(is.Indexes))
-	for i < len(allResults) {
+	for _, r := range allResults {
 		// check for timeouts
 		select {
 		case <-ctx.Done():
@@ -1849,20 +1855,7 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 		default:
 		}
 
-		// Gather all occurrences of the same measurement for merging.
-		for j+1 < len(allResults) && bytes.Equal(allResults[j+1].name, allResults[i].name) {
-			j++
-		}
-
-		// An invariant is that there can't be more than n instances of tag
-		// key value pairs for a given measurement, where n is the number of
-		// shards.
-		if got, exp := j-i+1, len(is.Indexes); got > exp {
-			return nil, fmt.Errorf("unexpected results returned engine. Got %d measurement sets for %d shards", got, exp)
-		}
-
-		nextResult := mergeTagValues(idxBuf, allResults[i:j+1]...)
-		i = j + 1
+		nextResult := makeTagValues(r)
 		if len(nextResult.Values) > 0 {
 			result = append(result, nextResult)
 		}
@@ -1870,109 +1863,15 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 	return result, nil
 }
 
-// mergeTagValues merges multiple sorted sets of temporary tagValues using a
-// direct k-way merge whilst also removing duplicated entries. The result is a
-// single TagValue type.
-//
-// TODO(edd): a Tournament based merge (see: Knuth's TAOCP 5.4.1) might be more
-// appropriate at some point.
-//
-func mergeTagValues(valueIdxs [][2]int, tvs ...tagValues) TagValues {
+func makeTagValues(tv tagValues) TagValues {
 	var result TagValues
-	if len(tvs) == 0 {
-		return TagValues{}
-	} else if len(tvs) == 1 {
-		result.Measurement = string(tvs[0].name)
-		// TODO(edd): will be too small likely. Find a hint?
-		result.Values = make([]KeyValue, 0, len(tvs[0].values))
+	result.Measurement = string(tv.name)
+	// TODO(edd): will be too small likely. Find a hint?
+	result.Values = make([]KeyValue, 0, len(tv.values))
 
-		for ki, key := range tvs[0].keys {
-			for _, value := range tvs[0].values[ki] {
-				result.Values = append(result.Values, KeyValue{Key: key, Value: value})
-			}
-		}
-		return result
-	}
-
-	result.Measurement = string(tvs[0].name)
-
-	var maxSize int
-	for _, tv := range tvs {
-		if len(tv.values) > maxSize {
-			maxSize = len(tv.values)
-		}
-	}
-	result.Values = make([]KeyValue, 0, maxSize) // This will likely be too small but it's a start.
-
-	// Resize and reset to the number of TagValues we're merging.
-	valueIdxs = valueIdxs[:len(tvs)]
-	for i := 0; i < len(valueIdxs); i++ {
-		valueIdxs[i][0], valueIdxs[i][1] = 0, 0
-	}
-
-	var (
-		j              int
-		keyCmp, valCmp int
-	)
-
-	for {
-		// Which of the provided TagValue sets currently holds the smallest element.
-		// j is the candidate we're going to next pick for the result set.
-		j = -1
-
-		// Find the smallest element
-		for i := 0; i < len(tvs); i++ {
-			if valueIdxs[i][0] >= len(tvs[i].keys) {
-				continue // We have completely drained all tag keys and values for this shard.
-			} else if len(tvs[i].values[valueIdxs[i][0]]) == 0 {
-				// There are no tag values for these keys.
-				valueIdxs[i][0]++
-				valueIdxs[i][1] = 0
-				continue
-			} else if j == -1 {
-				// We haven't picked a best TagValues set yet. Pick this one.
-				j = i
-				continue
-			}
-
-			// It this tag key is lower than the candidate's tag key
-			keyCmp = strings.Compare(tvs[i].keys[valueIdxs[i][0]], tvs[j].keys[valueIdxs[j][0]])
-			if keyCmp == -1 {
-				j = i
-			} else if keyCmp == 0 {
-				valCmp = strings.Compare(tvs[i].values[valueIdxs[i][0]][valueIdxs[i][1]], tvs[j].values[valueIdxs[j][0]][valueIdxs[j][1]])
-				// Same tag key but this tag value is lower than the candidate.
-				if valCmp == -1 {
-					j = i
-				} else if valCmp == 0 {
-					// Duplicate tag key/value pair.... Remove and move onto
-					// the next value for shard i.
-					valueIdxs[i][1]++
-					if valueIdxs[i][1] >= len(tvs[i].values[valueIdxs[i][0]]) {
-						// Drained all these tag values, move onto next key.
-						valueIdxs[i][0]++
-						valueIdxs[i][1] = 0
-					}
-				}
-			}
-		}
-
-		// We could have drained all of the TagValue sets and be done...
-		if j == -1 {
-			break
-		}
-
-		// Append the smallest KeyValue
-		result.Values = append(result.Values, KeyValue{
-			Key:   string(tvs[j].keys[valueIdxs[j][0]]),
-			Value: tvs[j].values[valueIdxs[j][0]][valueIdxs[j][1]],
-		})
-		// Increment the indexes for the chosen TagValue.
-		valueIdxs[j][1]++
-		if valueIdxs[j][1] >= len(tvs[j].values[valueIdxs[j][0]]) {
-			// Drained all these tag values, move onto next key.
-			valueIdxs[j][0]++
-			valueIdxs[j][1] = 0
+	for ki, key := range tv.keys {
+		for _, value := range tv.values[ki] {
+			result.Values = append(result.Values, KeyValue{Key: key, Value: value})
 		}
 	}
 	return result
