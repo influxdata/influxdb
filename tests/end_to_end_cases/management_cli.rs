@@ -187,14 +187,18 @@ const DELETED_DB_DATETIME: &str = r#"[\d-]+\s[\d:\.]+\s[A-Z]+"#;
 
 fn deleted_db_match(db: &str, generation_id: usize) -> predicates::str::RegexPredicate {
     predicate::str::is_match(format!(
-        r#"(?m)^{}\s+{}\s+{}$"#,
+        r#"(?m)^\|\s+{}\s+\|\s+{}\s+\|\s+{}\s+\|$"#,
         DELETED_DB_DATETIME, generation_id, db
     ))
     .unwrap()
 }
 
 fn active_db_match(db: &str, generation_id: usize) -> predicates::str::RegexPredicate {
-    predicate::str::is_match(format!(r#"(?m)^\s+{}\s+{}$"#, generation_id, db)).unwrap()
+    predicate::str::is_match(format!(
+        r#"(?m)^\|\s+\|\s+{}\s+\|\s+{}\s+\|$"#,
+        generation_id, db
+    ))
+    .unwrap()
 }
 
 #[tokio::test]
