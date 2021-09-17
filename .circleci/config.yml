@@ -830,7 +830,7 @@ jobs:
             cargo install git-cliff
             cd ..
 
-            S3_PATH="dl.influxdata.com/platform/nightlies/master"
+            S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/platform/nightlies/master"
             curl -o CHANGELOG.md ${S3_PATH}/CHANGELOG.md
             curl -o scripts/ci/changelog-commit.txt ${S3_PATH}/changelog-commit.txt
 
