@@ -9,7 +9,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use data_types::{
-    database_rules::WriteBufferDirection, deleted_database::GenerationId, server_id::ServerId,
+    database_rules::WriteBufferDirection, detailed_database::GenerationId, server_id::ServerId,
     DatabaseName,
 };
 use futures::{

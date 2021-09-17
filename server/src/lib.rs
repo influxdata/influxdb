@@ -72,7 +72,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use data_types::{
     database_rules::{NodeGroup, RoutingRules, ShardId, Sink},
-    deleted_database::DeletedDatabase,
+    detailed_database::DetailedDatabase,
     error::ErrorLogger,
     job::Job,
     server_id::ServerId,
@@ -241,6 +241,9 @@ pub enum Error {
 
     #[snafu(display("error listing deleted databases in object storage: {}", source))]
     ListDeletedDatabases { source: object_store::Error },
+
+    #[snafu(display("error listing detailed databases in object storage: {}", source))]
+    ListDetailedDatabases { source: object_store::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -725,8 +728,8 @@ where
         Ok(())
     }
 
-    /// List all deleted databases in object storage.
-    pub async fn list_deleted_databases(&self) -> Result<Vec<DeletedDatabase>> {
+    /// List deleted databases in object storage.
+    pub async fn list_deleted_databases(&self) -> Result<Vec<DetailedDatabase>> {
         let server_id = {
             let state = self.shared.state.read();
             let initialized = state.initialized()?;
@@ -739,6 +742,22 @@ where
         )
         .await
         .context(ListDeletedDatabases)?)
+    }
+
+    /// List all databases, active and deleted, in object storage, including their generation IDs.
+    pub async fn list_detailed_databases(&self) -> Result<Vec<DetailedDatabase>> {
+        let server_id = {
+            let state = self.shared.state.read();
+            let initialized = state.initialized()?;
+            initialized.server_id
+        };
+
+        Ok(IoxObjectStore::list_detailed_databases(
+            self.shared.application.object_store(),
+            server_id,
+        )
+        .await
+        .context(ListDetailedDatabases)?)
     }
 
     pub async fn write_pb(&self, database_batch: pb::DatabaseBatch) -> Result<()> {

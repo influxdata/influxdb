@@ -604,7 +604,7 @@ impl Client {
     /// List deleted databases and metadata
     pub async fn list_deleted_databases(
         &mut self,
-    ) -> Result<Vec<DeletedDatabase>, ListDatabaseError> {
+    ) -> Result<Vec<DetailedDatabase>, ListDatabaseError> {
         let response = self
             .inner
             .list_deleted_databases(ListDeletedDatabasesRequest {})
@@ -614,6 +614,21 @@ impl Client {
                 _ => ListDatabaseError::ServerError(status),
             })?;
         Ok(response.into_inner().deleted_databases)
+    }
+
+    /// List all databases and detailed metadata
+    pub async fn list_detailed_databases(
+        &mut self,
+    ) -> Result<Vec<DetailedDatabase>, ListDatabaseError> {
+        let response = self
+            .inner
+            .list_detailed_databases(ListDetailedDatabasesRequest {})
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::Unavailable => ListDatabaseError::Unavailable(status),
+                _ => ListDatabaseError::ServerError(status),
+            })?;
+        Ok(response.into_inner().databases)
     }
 
     /// Get database configuration

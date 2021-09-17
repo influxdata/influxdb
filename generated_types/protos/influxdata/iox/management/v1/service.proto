@@ -42,6 +42,9 @@ service ManagementService {
   // List deleted databases and their metadata.
   rpc ListDeletedDatabases(ListDeletedDatabasesRequest) returns (ListDeletedDatabasesResponse);
 
+  // List all databases and their metadata.
+  rpc ListDetailedDatabases(ListDetailedDatabasesRequest) returns (ListDetailedDatabasesResponse);
+
   // List chunks available on this database
   rpc ListChunks(ListChunksRequest) returns (ListChunksResponse);
 
@@ -189,18 +192,24 @@ message RestoreDatabaseResponse {}
 message ListDeletedDatabasesRequest {}
 
 message ListDeletedDatabasesResponse {
-  repeated DeletedDatabase deleted_databases = 1;
+  repeated DetailedDatabase deleted_databases = 1;
 }
 
-// This resource represents a deleted database.
-message DeletedDatabase {
-  // The generation ID of the deleted database.
+message ListDetailedDatabasesRequest {}
+
+message ListDetailedDatabasesResponse {
+  repeated DetailedDatabase databases = 1;
+}
+
+// This resource represents detailed information about a database.
+message DetailedDatabase {
+  // The generation ID of the database.
   uint64 generation_id = 1;
 
-  // The UTC datetime at which this database was deleted.
+  // The UTC datetime at which this database was deleted, if applicable.
   google.protobuf.Timestamp deleted_at = 2;
 
-  // The name of the deleted database.
+  // The name of the database.
   string db_name = 3;
 }
 

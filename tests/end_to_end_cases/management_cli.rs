@@ -183,6 +183,24 @@ async fn test_create_database_immutable() {
         .stdout(predicate::str::contains(r#""immutable": true"#));
 }
 
+const DELETED_DB_DATETIME: &str = r#"[\d-]+\s[\d:\.]+\s[A-Z]+"#;
+
+fn deleted_db_match(db: &str, generation_id: usize) -> predicates::str::RegexPredicate {
+    predicate::str::is_match(format!(
+        r#"(?m)^\|\s+{}\s+\|\s+{}\s+\|\s+{}\s+\|$"#,
+        DELETED_DB_DATETIME, generation_id, db
+    ))
+    .unwrap()
+}
+
+fn active_db_match(db: &str, generation_id: usize) -> predicates::str::RegexPredicate {
+    predicate::str::is_match(format!(
+        r#"(?m)^\|\s+\|\s+{}\s+\|\s+{}\s+\|$"#,
+        generation_id, db
+    ))
+    .unwrap()
+}
+
 #[tokio::test]
 async fn delete_database() {
     let server_fixture = ServerFixture::create_shared().await;
@@ -224,6 +242,18 @@ async fn delete_database() {
         .success()
         .stdout(predicate::str::contains(db).not());
 
+    // Listing detailed database info does include the active database, along with its generation
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--detailed")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(active_db_match(db, 0));
+
     // Delete the database
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -257,7 +287,19 @@ async fn delete_database() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains(db));
+        .stdout(deleted_db_match(db, 0));
+
+    // Listing detailed database info does include the deleted database
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--detailed")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(deleted_db_match(db, 0));
 
     // Deleting the database again is an error
     Command::cargo_bin("influxdb_iox")
@@ -306,7 +348,19 @@ async fn delete_database() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains(db));
+        .stdout(deleted_db_match(db, 0));
+
+    // Listing detailed database info includes both active and deleted
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--detailed")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(deleted_db_match(db, 0).and(active_db_match(db, 1)));
 
     // Delete the 2nd database
     Command::cargo_bin("influxdb_iox")
@@ -341,10 +395,19 @@ async fn delete_database() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(
-            predicate::str::contains(format!("0               {}", db))
-                .and(predicate::str::contains(format!("1               {}", db))),
-        );
+        .stdout(deleted_db_match(db, 0).and(deleted_db_match(db, 1)));
+
+    // Listing detailed database info includes both deleted generations
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--detailed")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(deleted_db_match(db, 0).and(deleted_db_match(db, 1)));
 
     // Restore generation 0
     Command::cargo_bin("influxdb_iox")
@@ -383,10 +446,19 @@ async fn delete_database() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(
-            predicate::str::contains(format!("1               {}", db))
-                .and(predicate::str::contains(format!("0               {}", db)).not()),
-        );
+        .stdout(deleted_db_match(db, 0).not().and(deleted_db_match(db, 1)));
+
+    // Listing detailed database info includes both active and deleted
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("list")
+        .arg("--detailed")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(active_db_match(db, 0).and(deleted_db_match(db, 1)));
 }
 
 #[tokio::test]

@@ -11,6 +11,7 @@ use influxdb_iox_client::{
     },
     write::{self, WriteError},
 };
+use prettytable::{format, Cell, Row, Table};
 use std::{
     convert::TryInto, fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr,
     time::Duration,
@@ -141,6 +142,11 @@ struct List {
     /// Whether to list databases marked as deleted instead, to restore or permanently delete.
     #[structopt(long)]
     deleted: bool,
+
+    /// Whether to list detailed information, including generation IDs, about all databases,
+    /// whether they are active or marked as deleted.
+    #[structopt(long)]
+    detailed: bool,
 }
 
 /// Return configuration of specific database
@@ -258,23 +264,37 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::List(list) => {
             let mut client = management::Client::new(connection);
-            if list.deleted {
-                let deleted = client.list_deleted_databases().await?;
-                println!("Deleted at                      | Generation ID | Name");
-                println!("--------------------------------+---------------+--------");
-                for database in deleted {
+            if list.deleted || list.detailed {
+                let databases = if list.deleted {
+                    client.list_deleted_databases().await?
+                } else {
+                    client.list_detailed_databases().await?
+                };
+
+                let mut table = Table::new();
+                table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+                table.set_titles(Row::new(vec![
+                    Cell::new("Deleted at"),
+                    Cell::new("Generation ID"),
+                    Cell::new("Name"),
+                ]));
+
+                for database in databases {
                     let deleted_at = database
                         .deleted_at
                         .and_then(|t| {
                             let dt: Result<DateTime<Utc>, _> = t.try_into();
                             dt.ok().map(|d| d.to_string())
                         })
-                        .unwrap_or_else(|| String::from("Unknown"));
-                    println!(
-                        "{:<33}{:<16}{}",
-                        deleted_at, database.generation_id, database.db_name,
-                    );
+                        .unwrap_or_else(String::new);
+                    table.add_row(Row::new(vec![
+                        Cell::new(&deleted_at),
+                        Cell::new(&database.generation_id.to_string()),
+                        Cell::new(&database.db_name),
+                    ]));
                 }
+
+                print!("{}", table);
             } else {
                 let names = client.list_database_names().await?;
                 println!("{}", names.join("\n"))
