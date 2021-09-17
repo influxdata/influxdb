@@ -1,9 +1,16 @@
 name = "storage_cardinality_example"
 base_seed = "this is a demo"
 
+# Values are automatically generated before the agents are intialized. They generate tag key/value pairs
+# with the name of the value as the tag key and the evaluated template as the value. These pairs
+# are Arc wrapped so they can be shared across tagsets and used in the agents as pre-generated data.
 [[values]]
+# the name must not have a . in it, which is used to access children later. Otherwise it's open.
 name = "role"
+# the template can use a number of helpers to get an id, a random string and the name, see below for examples
 template = "storage"
+# this number of tag pairs will be generated. If this is > 1, the id or a random character string should be
+# used in the template to ensure that the tag key/value pairs are unique.
 cardinality = 1
 
 [[values]]
@@ -15,7 +22,7 @@ cardinality = 1
 name = "org_id"
 # Fill in the value with the cardinality counter and 15 random alphanumeric characters
 template = "{{id}}_{{random 15}}"
-cardinality = 1
+cardinality = 2
 has_one = ["env"]
 
 [[values]]
@@ -25,36 +32,22 @@ cardinality = 10
 
 [[values]]
 name = "bucket_id"
+# a bucket belongs to an org. With this, you would be able to access the org.id or org.value in the template
 belongs_to = "org_id"
-# each bucket will have a unique value so it can be used here to guarantee uniqueness even across orgs
+# each bucket will have a unique id, which is used here to guarantee uniqueness even across orgs. We also
+# have a random 15 character alphanumeric sequence to pad out the value length.
 template = "{{id}}_{{random 15}}"
 # For each org, 3 buckets will be generated
 cardinality = 3
-
-[[values]]
-name = "node_id"
-template = "{{id}}"
-cardinality = 100
-
-[[values]]
-name = "host"
-template = "storage-{{node_id.value}}"
-belongs_to = "node_id"
-cardinality = 1
-
-[[values]]
-name = "hostname"
-template = "{{node_id.value}}"
-belongs_to = "node_id"
-cardinality = 1
 
 [[values]]
 name = "partition_id"
 template = "{{id}}"
 cardinality = 10
 
-# makes a tagset so every bucket exists on every node with every partition.
-# So count(bucket) * count(node) * count(partition) cardinality.
+# makes a tagset so every bucket appears in every partition. The other tags are descriptive and don't
+# increase the cardiality beyond count(bucket) * count(partition). Later this example will use the
+# agent and measurement generation to take this base tagset and increase cardinality on a per-agent basis.
 [[tag_sets]]
 name = "bucket_set"
 for_each = [
@@ -63,19 +56,24 @@ for_each = [
     "org_id",
     "org_id.env",
     "org_id.bucket_id",
-    "node_id",
-    "node_id.hostname",
-    "node_id.host",
     "partition_id",
 ]
 
 [[agents]]
 name = "metric-scraper"
-# sampling_interval = "1s"
+# create this many agents
+count = 3
 
 [[agents.measurements]]
 name = "storage_usage_bucket_cardinality"
-# TODO: new syntax to make use of tag sets here
+# each sampling will have all the tag sets from this collection in addition to the tags and tag_pairs specified
+tag_set = "bucket_set"
+# for each agent, this specific measurement will be decorated with these additional tags.
+tag_pairs = [
+    {key = "node_id", template = "{{agent.id}}"},
+    {key = "hostname", template = "{{agent.id}}"},
+    {key = "host", template = "storage-{{agent.id}}"},
+]
 
 [[agents.measurements.fields]]
 name = "gauge"

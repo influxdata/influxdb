@@ -75,7 +75,7 @@ pub struct GeneratedTagSets {
     has_one_values: BTreeMap<String, ParentToHasOnes>,
     // this maps the name of the tag set specified in the spec to the collection of tag
     // sets that were pre-generated.
-    tag_sets: BTreeMap<String, Vec<TagSet>>,
+    tag_sets: BTreeMap<String, Arc<Vec<TagSet>>>,
 }
 
 #[derive(Debug, Default)]
@@ -86,7 +86,6 @@ pub struct ParentToHasOnes {
 }
 
 impl GeneratedTagSets {
-    #[allow(dead_code)]
     pub fn from_spec(spec: &DataSpec) -> Result<Self> {
         let mut generated_tag_sets = Self::default();
 
@@ -119,8 +118,7 @@ impl GeneratedTagSets {
         Ok(generated_tag_sets)
     }
 
-    #[allow(dead_code)]
-    pub fn sets_for(&self, name: &str) -> Option<&Vec<TagSet>> {
+    pub fn sets_for(&self, name: &str) -> Option<&Arc<Vec<TagSet>>> {
         self.tag_sets.get(name)
     }
 
@@ -183,7 +181,8 @@ impl GeneratedTagSets {
             })
             .collect();
         let tag_sets = self.for_each_tag_set(None, &tag_set_keys, &mut tag_pairs, 0)?;
-        self.tag_sets.insert(set_name.to_string(), tag_sets);
+        self.tag_sets
+            .insert(set_name.to_string(), Arc::new(tag_sets));
 
         Ok(())
     }
@@ -461,8 +460,8 @@ impl std::fmt::Display for TagSet {
 
 #[derive(Debug, PartialEq, PartialOrd)]
 pub struct TagPair {
-    key: Arc<String>,
-    value: Arc<String>,
+    pub key: Arc<String>,
+    pub value: Arc<String>,
 }
 
 impl std::fmt::Display for TagPair {

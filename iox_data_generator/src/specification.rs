@@ -28,11 +28,14 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct DataSpec {
-    /// Every point generated from this configuration will contain a tag
-    /// `data_spec=[this value]` to identify what generated that data. This
-    /// name can also be used in string replacements by using the
-    /// placeholder `{{data_spec}}`.
+    /// If `include_spec_tag` is set to true, eveyr point generated from this
+    /// configuration will contain a tag `data_spec=[this value]` to identify
+    /// what generated that data. This name can also be used in string replacements
+    /// by using the placeholder `{{data_spec}}`.
     pub name: String,
+    /// If set to true, all samples generated will include a `data_spec=[name]`
+    /// key/value pair.
+    pub include_spec_tag: Option<bool>,
     /// A string to be used as the seed to the random number generators.
     ///
     /// When specified, this is used as a base seed propagated through all
@@ -197,9 +200,27 @@ pub struct MeasurementSpec {
     /// Specification of the tags for this measurement
     #[serde(default)]
     pub tags: Vec<TagSpec>,
+    /// Specifies a tag set to include in every sampling in addition to tags specified
+    pub tag_set: Option<String>,
+    /// Specification of tag key/value pairs that get generated once and reused for
+    /// every sampling.
+    #[serde(default)]
+    pub tag_pairs: Vec<TagPairSpec>,
     /// Specification of the fields for this measurement. At least one field is
     /// required.
     pub fields: Vec<FieldSpec>,
+}
+
+/// Specification of a tag key/value pair whose template will be evaluated once and
+/// the value will be reused across every sampling.
+#[derive(Deserialize, Debug)]
+#[cfg_attr(test, derive(Default))]
+#[serde(deny_unknown_fields)]
+pub struct TagPairSpec {
+    /// The tag key
+    pub key: String,
+    /// The template the generate the tag value
+    pub template: String,
 }
 
 /// The specification of how to generate tag keys and values for a particular

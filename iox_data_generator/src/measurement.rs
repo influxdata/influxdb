@@ -8,10 +8,15 @@ use crate::{
     DataGenRng, RandomNumberGenerator,
 };
 
+use crate::substitution::{FormatNowHelper, RandomHelper};
+use crate::tag_set::{GeneratedTagSets, TagPair, TagSet};
+use handlebars::Handlebars;
 use influxdb2_client::models::DataPoint;
 use itertools::Itertools;
-use snafu::{ResultExt, Snafu};
+use serde_json::json;
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::fmt;
+use std::sync::{Arc, Mutex};
 
 /// Measurement-specific Results
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -78,6 +83,41 @@ pub enum Error {
         /// Underlying `tag` module error that caused this problem
         source: crate::tag::Error,
     },
+
+    /// Error generated if tag_set and tag_pair are used with any other options
+    #[snafu(display("If using either tag_set or tag_pair in a measurement spec, other options are not currently supported"))]
+    TagSetTagPairOnly,
+
+    /// Error generated if specifying a tag_set that wasn't generated
+    #[snafu(display(
+        "Tag set {} referenced not found for measurement {}",
+        tag_set,
+        measurement
+    ))]
+    GeneratedTagSetNotFound {
+        /// The name of the tag set
+        tag_set: String,
+        /// The name of the measurement it is being associated with
+        measurement: String,
+    },
+
+    /// Error that may happen when compiling a template from the values specification
+    #[snafu(display("Could not compile template `{}`, caused by:\n{}", template, source))]
+    CantCompileTemplate {
+        /// Underlying Handlebars error that caused this problem
+        source: handlebars::TemplateError,
+        /// Template that caused this problem
+        template: String,
+    },
+
+    /// Error that may happen when rendering a template with passed in data
+    #[snafu(display("Could not render template `{}`, caused by:\n{}", template, source))]
+    CantRenderTemplate {
+        /// Underlying Handlebars error that caused this problem
+        source: handlebars::RenderError,
+        /// Template that caused this problem
+        template: String,
+    },
 }
 
 /// A set of `count` measurements that have the same configuration but different
@@ -98,6 +138,7 @@ impl<T: DataGenRng> MeasurementGeneratorSet<T> {
         parent_seed: impl fmt::Display,
         static_tags: &[Tag],
         execution_start_time: i64,
+        generated_tag_sets: &GeneratedTagSets,
     ) -> Result<Self> {
         let count = spec.count.unwrap_or(1);
 
@@ -111,6 +152,7 @@ impl<T: DataGenRng> MeasurementGeneratorSet<T> {
                     &parent_seed,
                     static_tags,
                     execution_start_time,
+                    generated_tag_sets,
                 )
             })
             .collect::<Result<_>>()?;
@@ -142,10 +184,12 @@ pub struct MeasurementGenerator<T: DataGenRng> {
     total_tag_cardinality: usize,
     field_generator_sets: Vec<FieldGeneratorSet>,
     count: usize,
+    pre_generated_tags: Option<PreGeneratedTags>,
 }
 
 impl<T: DataGenRng> MeasurementGenerator<T> {
     /// Create a new way to generate measurements from a specification
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         agent_name: impl Into<String>,
         agent_id: usize,
@@ -154,7 +198,16 @@ impl<T: DataGenRng> MeasurementGenerator<T> {
         parent_seed: impl fmt::Display,
         static_tags: &[Tag],
         execution_start_time: i64,
+        generated_tag_sets: &GeneratedTagSets,
     ) -> Result<Self> {
+        // For now the config will only support the use of either tag_set and tag_pair or all
+        // the other options. After some refactoring the other options will be brought in.
+        if (spec.tag_set.is_some() || !spec.tag_pairs.is_empty())
+            && (spec.count.is_some() || !spec.tags.is_empty())
+        {
+            return TagSetTagPairOnly.fail();
+        }
+
         let agent_name = agent_name.into();
         let spec_name = Substitute::once(
             &spec.name,
@@ -167,7 +220,7 @@ impl<T: DataGenRng> MeasurementGenerator<T> {
         .context(CouldNotCreateMeasurementName)?;
 
         let seed = format!("{}-{}", parent_seed, spec_name);
-        let rng = RandomNumberGenerator::<T>::new(seed);
+        let rng = RandomNumberGenerator::<T>::new(seed.clone());
 
         let tag_generator_sets: Vec<TagGeneratorSet<T>> = spec
             .tags
@@ -197,6 +250,66 @@ impl<T: DataGenRng> MeasurementGenerator<T> {
             .collect::<crate::field::Result<_>>()
             .context(CouldNotCreateFieldGeneratorSets { name: &spec_name })?;
 
+        // generate the tag pairs
+        let random_helper = RandomHelper::new(Mutex::new(RandomNumberGenerator::<T>::new(seed)));
+        let mut template = Handlebars::new();
+        template.register_helper("format-time", Box::new(FormatNowHelper));
+        template.register_helper("random", Box::new(random_helper));
+        let template_data = json!({
+            "agent": {"id": agent_id, "name": &agent_name},
+            "measurement": {"id": measurement_id, "name": &spec_name},
+        });
+
+        // TODO: refactor this structure to have tag_set and tag_pairs work more cleanly
+        //       with the other options.
+        let tag_pairs: Vec<_> = spec
+            .tag_pairs
+            .iter()
+            .map(|s| {
+                template
+                    .register_template_string(&s.key, &s.template)
+                    .context(CantCompileTemplate {
+                        template: &spec.name,
+                    })?;
+                let value =
+                    template
+                        .render(&s.key, &template_data)
+                        .context(CantRenderTemplate {
+                            template: &spec.name,
+                        })?;
+
+                Ok(Arc::new(TagPair {
+                    key: Arc::new(s.key.to_string()),
+                    value: Arc::new(value),
+                }))
+            })
+            .collect::<Result<Vec<Arc<TagPair>>>>()?;
+
+        let pre_generated_tags = match &spec.tag_set {
+            Some(t) => {
+                let generated_tag_sets = Arc::clone(generated_tag_sets.sets_for(t).context(
+                    GeneratedTagSetNotFound {
+                        tag_set: t,
+                        measurement: &spec_name,
+                    },
+                )?);
+                Some(PreGeneratedTags {
+                    tag_pairs,
+                    generated_tag_sets,
+                })
+            }
+            None => {
+                if tag_pairs.is_empty() {
+                    None
+                } else {
+                    Some(PreGeneratedTags {
+                        tag_pairs,
+                        generated_tag_sets: Arc::new(vec![]),
+                    })
+                }
+            }
+        };
+
         Ok(Self {
             rng,
             name: spec_name,
@@ -205,12 +318,17 @@ impl<T: DataGenRng> MeasurementGenerator<T> {
             total_tag_cardinality,
             field_generator_sets,
             count: spec.count.unwrap_or(1),
+            pre_generated_tags,
         })
     }
 }
 
 impl<T: DataGenRng> MeasurementGenerator<T> {
     fn generate(&mut self, timestamp: i64) -> Result<Vec<DataPoint>> {
+        if self.pre_generated_tags.is_some() {
+            return self.generate_with_pre_generated_tags(timestamp);
+        }
+
         // Split out the tags that we want all combinations of. Perhaps these should be
         // a different type?
         let mut tags_with_cardinality: Vec<_> = itertools::process_results(
@@ -286,7 +404,49 @@ impl<T: DataGenRng> MeasurementGenerator<T> {
         tags_with_cardinality
             .iter()
             .map(|tags| self.one(&tags[..], timestamp))
-            .collect()
+            .collect::<Result<Vec<DataPoint>>>()
+    }
+
+    fn generate_with_pre_generated_tags(&mut self, timestamp: i64) -> Result<Vec<DataPoint>> {
+        let pregen = self.pre_generated_tags.as_ref().unwrap();
+
+        let point_builders: Vec<_> = pregen
+            .generated_tag_sets
+            .iter()
+            .map(|ts| {
+                let mut point = DataPoint::builder(&self.name);
+
+                for tag in &ts.tags {
+                    point = point.tag(tag.key.to_string(), tag.value.to_string());
+                }
+
+                for tag in &pregen.tag_pairs {
+                    point = point.tag(tag.key.to_string(), tag.value.to_string());
+                }
+
+                point
+            })
+            .collect();
+
+        let mut points = Vec::with_capacity(point_builders.len());
+
+        for mut pb in point_builders {
+            for fgs in &mut self.field_generator_sets {
+                for field in fgs.generate(timestamp) {
+                    pb = pb.field(&field.key, field.value);
+                }
+            }
+
+            pb = pb.timestamp(timestamp);
+
+            let point = pb
+                .build()
+                .context(InfluxDataPointError { name: &self.name })?;
+
+            points.push(point);
+        }
+
+        Ok(points)
     }
 
     fn one(&mut self, tags: &[Tag], timestamp: i64) -> Result<DataPoint> {
@@ -313,6 +473,12 @@ impl<T: DataGenRng> MeasurementGenerator<T> {
             .build()
             .context(InfluxDataPointError { name: &self.name })
     }
+}
+
+#[derive(Debug)]
+struct PreGeneratedTags {
+    tag_pairs: Vec<Arc<TagPair>>,
+    generated_tag_sets: Arc<Vec<TagSet>>,
 }
 
 #[cfg(test)]
@@ -361,7 +527,11 @@ mod test {
                 },
                 count: None,
             }],
+            tag_set: None,
+            tag_pairs: vec![],
         };
+
+        let generated_tag_sets = GeneratedTagSets::default();
 
         let mut measurement_generator = MeasurementGenerator::<ZeroRng>::new(
             "agent_name",
@@ -371,6 +541,7 @@ mod test {
             TEST_SEED,
             &[],
             fake_now,
+            &generated_tag_sets,
         )
         .unwrap();
 
@@ -409,7 +580,11 @@ mod test {
                     count: None,
                 },
             ],
+            tag_set: None,
+            tag_pairs: vec![],
         };
+
+        let generated_tag_sets = GeneratedTagSets::default();
 
         let mut measurement_generator = MeasurementGenerator::<DynamicRng>::new(
             "agent_name",
@@ -419,6 +594,7 @@ mod test {
             TEST_SEED,
             &[],
             fake_now,
+            &generated_tag_sets,
         )
         .unwrap();
 
@@ -451,9 +627,13 @@ mod test {
                 },
                 count: None,
             }],
+            tag_pairs: vec![],
+            tag_set: None,
         };
 
         let always_tags = vec![Tag::new("my_tag", "my_val")];
+
+        let generated_tag_sets = GeneratedTagSets::default();
 
         let mut measurement_generator = MeasurementGenerator::<ZeroRng>::new(
             "agent_name",
@@ -463,6 +643,7 @@ mod test {
             TEST_SEED,
             &always_tags,
             fake_now,
+            &generated_tag_sets,
         )
         .unwrap();
 
@@ -501,6 +682,8 @@ mod test {
             ..Default::default()
         };
 
+        let generated_tag_sets = GeneratedTagSets::default();
+
         let mut measurement_generator = MeasurementGenerator::<ZeroRng>::new(
             "agent_name",
             0,
@@ -509,6 +692,7 @@ mod test {
             TEST_SEED,
             &[],
             fake_now,
+            &generated_tag_sets,
         )
         .unwrap();
 
@@ -544,6 +728,8 @@ mod test {
             ..Default::default()
         };
 
+        let generated_tag_sets = GeneratedTagSets::default();
+
         let mut measurement_generator = MeasurementGenerator::<ZeroRng>::new(
             "agent_name",
             42,
@@ -552,6 +738,7 @@ mod test {
             TEST_SEED,
             &[],
             fake_now,
+            &generated_tag_sets,
         )
         .unwrap();
 
@@ -584,6 +771,8 @@ mod test {
             ..Default::default()
         };
 
+        let generated_tag_sets = GeneratedTagSets::default();
+
         let mut measurement_generator = MeasurementGenerator::<ZeroRng>::new(
             "agent_name",
             0,
@@ -592,6 +781,7 @@ mod test {
             TEST_SEED,
             &[],
             fake_now,
+            &generated_tag_sets,
         )
         .unwrap();
 
@@ -642,6 +832,8 @@ mod test {
             ..Default::default()
         };
 
+        let generated_tag_sets = GeneratedTagSets::default();
+
         let mut measurement_generator = MeasurementGenerator::<ZeroRng>::new(
             "agent_name",
             0,
@@ -650,6 +842,7 @@ mod test {
             TEST_SEED,
             &[],
             fake_now,
+            &generated_tag_sets,
         )
         .unwrap();
 
@@ -706,6 +899,8 @@ mod test {
             ..Default::default()
         };
 
+        let generated_tag_sets = GeneratedTagSets::default();
+
         let mut measurement_generator = MeasurementGenerator::<ZeroRng>::new(
             "agent_name",
             0,
@@ -714,6 +909,7 @@ mod test {
             TEST_SEED,
             &[],
             fake_now,
+            &generated_tag_sets,
         )
         .unwrap();
 
@@ -763,7 +959,10 @@ mod test {
                 },
                 count: Some(2),
             }],
+            ..Default::default()
         };
+
+        let generated_tag_sets = GeneratedTagSets::default();
 
         let mut measurement_generator_set = MeasurementGeneratorSet::<ZeroRng>::new(
             "agent_name",
@@ -772,6 +971,7 @@ mod test {
             TEST_SEED,
             &[],
             fake_now,
+            &generated_tag_sets,
         )
         .unwrap();
 
@@ -818,6 +1018,8 @@ measurement-42-1 field-42-1-0=0i,field-42-1-1=0i {}
         )
         .unwrap();
 
+        let generated_tag_sets = GeneratedTagSets::default();
+
         let mut measurement_generator = MeasurementGenerator::<DynamicRng>::new(
             "agent_name",
             0,
@@ -826,6 +1028,7 @@ measurement-42-1 field-42-1-0=0i,field-42-1-1=0i {}
             TEST_SEED,
             &[],
             fake_now,
+            &generated_tag_sets,
         )?;
 
         let line_protocol = measurement_generator.generate_strings(fake_now)?;
@@ -880,6 +1083,68 @@ measurement-42-1 field-42-1-0=0i,field-42-1-1=0i {}
         resampling_test("", false)
     }
 
+    #[test]
+    fn tag_set_and_tag_pairs() {
+        let data_spec: specification::DataSpec = toml::from_str(
+            r#"
+            name = "ex"
+
+            [[values]]
+            name = "foo"
+            template = "foo-{{id}}"
+            cardinality = 2
+
+            [[tag_sets]]
+            name = "foo_set"
+            for_each = ["foo"]
+
+            [[agents]]
+            name = "test"
+
+            [[agents.measurements]]
+            name = "m1"
+            tag_set = "foo_set"
+            tag_pairs = [{key = "hello", template = "world{{measurement.id}}"}]
+
+            [[agents.measurements.fields]]
+            name = "val"
+            i64_range = [3, 3]"#,
+        )
+        .unwrap();
+
+        let fake_now = 678;
+
+        let generated_tag_sets = GeneratedTagSets::from_spec(&data_spec).unwrap();
+
+        let mut measurement_generator_set = MeasurementGeneratorSet::<ZeroRng>::new(
+            "agent_name",
+            42,
+            &data_spec.agents[0].measurements[0],
+            TEST_SEED,
+            &[],
+            fake_now,
+            &generated_tag_sets,
+        )
+        .unwrap();
+
+        let points = measurement_generator_set.generate(fake_now).unwrap();
+        let mut v = Vec::new();
+        for point in points {
+            point.write_data_point_to(&mut v).unwrap();
+        }
+        let line_protocol = str::from_utf8(&v).unwrap();
+
+        assert_eq!(
+            line_protocol,
+            format!(
+                "m1,foo=foo-1,hello=world0 val=3i {}
+m1,foo=foo-2,hello=world0 val=3i {}
+",
+                fake_now, fake_now
+            )
+        );
+    }
+
     fn resampling_test(resampling_toml: &str, expect_different: bool) -> Result<()> {
         let fake_now = 678;
 
@@ -907,6 +1172,8 @@ measurement-42-1 field-42-1-0=0i,field-42-1-1=0i {}
         ))
         .unwrap();
 
+        let generated_tag_sets = GeneratedTagSets::default();
+
         let mut measurement_generator = MeasurementGenerator::<DynamicRng>::new(
             "agent_name",
             0,
@@ -915,6 +1182,7 @@ measurement-42-1 field-42-1-0=0i,field-42-1-1=0i {}
             TEST_SEED,
             &[],
             fake_now,
+            &generated_tag_sets,
         )?;
 
         let lines = measurement_generator.generate_strings(fake_now)?;

@@ -28,9 +28,11 @@
 )]
 
 use crate::substitution::Substitute;
+use crate::tag_set::GeneratedTagSets;
 use rand::Rng;
 use rand_seeder::Seeder;
 use snafu::{ResultExt, Snafu};
+use std::sync::Arc;
 use std::{
     convert::TryFrom,
     time::{SystemTime, UNIX_EPOCH},
@@ -86,6 +88,13 @@ pub enum Error {
         /// Underlying `write` module error that caused this problem
         source: write::Error,
     },
+
+    /// Error generating tags sets
+    #[snafu(display("Error generating tag sets prior to creating agents: \n{}", source))]
+    CouldNotGenerateTagSets {
+        /// Underlying `tag_set` module error
+        source: tag_set::Error,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -96,6 +105,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// If `start_datetime` or `end_datetime` are `None`,  the current datetime will
 /// be used.
+#[allow(clippy::too_many_arguments)]
 pub async fn generate<T: DataGenRng>(
     spec: &specification::DataSpec,
     points_writer_builder: &mut write::PointsWriterBuilder,
@@ -104,6 +114,7 @@ pub async fn generate<T: DataGenRng>(
     execution_start_time: i64,
     continue_on: bool,
     batch_size: usize,
+    one_agent_at_a_time: bool, // run one agent after another, if printing to stdout
 ) -> Result<usize> {
     let seed = spec.base_seed.to_owned().unwrap_or_else(|| {
         let mut rng = rand::thread_rng();
@@ -111,6 +122,10 @@ pub async fn generate<T: DataGenRng>(
     });
 
     let mut handles = vec![];
+
+    let generated_tag_sets = GeneratedTagSets::from_spec(spec).context(CouldNotGenerateTagSets)?;
+
+    let lock = Arc::new(tokio::sync::Mutex::new(()));
 
     // for each agent specification
     for agent_spec in &spec.agents {
@@ -141,6 +156,7 @@ pub async fn generate<T: DataGenRng>(
                 end_datetime,
                 execution_start_time,
                 continue_on,
+                &generated_tag_sets,
             )
             .context(CouldNotCreateAgent { name: &agent_name })?;
 
@@ -148,8 +164,16 @@ pub async fn generate<T: DataGenRng>(
                 .build_for_agent(&agent_name)
                 .context(CouldNotCreateAgentWriter { name: &agent_name })?;
 
+            let lock_ref = Arc::clone(&lock);
+
             handles.push(tokio::task::spawn(async move {
-                agent.generate_all(agent_points_writer, batch_size).await
+                // did this weird hack because otherwise the stdout outputs would be jumbled together garbage
+                if one_agent_at_a_time {
+                    let _l = lock_ref.lock().await;
+                    agent.generate_all(agent_points_writer, batch_size).await
+                } else {
+                    agent.generate_all(agent_points_writer, batch_size).await
+                }
             }));
         }
     }
@@ -325,6 +349,8 @@ bool = true"#;
         // for the first 15 seconds of the year
         let end_datetime = Some(15 * 1_000_000_000);
 
+        let generated_tag_sets = GeneratedTagSets::default();
+
         let mut agent = agent::Agent::<ZeroRng>::new(
             agent_spec,
             &agent_spec.name,
@@ -335,6 +361,7 @@ bool = true"#;
             end_datetime,
             execution_start_time,
             false,
+            &generated_tag_sets,
         )?;
 
         let data_points = agent.generate().await?;

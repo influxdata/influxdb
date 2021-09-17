@@ -7,6 +7,7 @@ use iox_data_generator::{
 pub fn single_agent(c: &mut Criterion) {
     let spec = DataSpec {
         base_seed: Some("faster faster faster".into()),
+        include_spec_tag: Some(true),
         name: "benchmark".into(),
         values: vec![],
         tag_sets: vec![],
@@ -25,6 +26,8 @@ pub fn single_agent(c: &mut Criterion) {
                     field_value_spec: FieldValueSpec::Bool(true),
                     count: None,
                 }],
+                tag_set: None,
+                tag_pairs: vec![],
             }],
         }],
     };
@@ -52,6 +55,7 @@ pub fn single_agent(c: &mut Criterion) {
                     0,
                     false,
                     1,
+                    false,
                 )
             });
             let n_points = r.expect("Could not generate data");

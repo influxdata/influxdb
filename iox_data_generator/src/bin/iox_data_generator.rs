@@ -202,6 +202,7 @@ Logging:
         execution_start_time.timestamp_nanos(),
         continue_on,
         batch_size,
+        disable_log_output,
     )
     .await;
 

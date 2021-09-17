@@ -5,6 +5,7 @@ use crate::{
     DataGenRng, RandomNumberGenerator,
 };
 
+use crate::tag_set::GeneratedTagSets;
 use influxdb2_client::models::DataPoint;
 use snafu::{ResultExt, Snafu};
 use std::{fmt, time::Duration};
@@ -86,6 +87,7 @@ impl<T: DataGenRng> Agent<T> {
         end_datetime: Option<i64>,   // also in nanoseconds since the epoch, defaults to now
         execution_start_time: i64,
         continue_on: bool, // If true, run in "continue" mode after historical data is generated
+        generated_tag_sets: &GeneratedTagSets,
     ) -> Result<Self> {
         let name = agent_name.into();
         // Will agents actually need rngs? Might just need seeds...
@@ -103,6 +105,7 @@ impl<T: DataGenRng> Agent<T> {
                     &seed,
                     &agent_tags,
                     execution_start_time,
+                    generated_tag_sets,
                 )
             })
             .collect::<crate::measurement::Result<_>>()
@@ -240,11 +243,22 @@ mod test {
                     },
                     count: Some(2),
                 }],
+                tag_pairs: vec![],
+                tag_set: None,
             };
 
-            let measurement_generator_set =
-                MeasurementGeneratorSet::new("test", 42, &measurement_spec, "spec-test", &[], 0)
-                    .unwrap();
+            let generated_tag_sets = GeneratedTagSets::default();
+
+            let measurement_generator_set = MeasurementGeneratorSet::new(
+                "test",
+                42,
+                &measurement_spec,
+                "spec-test",
+                &[],
+                0,
+                &generated_tag_sets,
+            )
+            .unwrap();
 
             Self {
                 agent_id: 0,
