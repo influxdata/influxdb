@@ -1,3 +1,5 @@
+//! Code for defining values and tag sets with tags that are dependent on other tags.
+
 use crate::specification::{DataSpec, ValuesSpec};
 use crate::substitution::{FormatNowHelper, RandomHelper};
 use crate::RandomNumberGenerator;
@@ -13,6 +15,7 @@ use std::{collections::BTreeMap, sync::Mutex};
 
 /// Errors that may happen while reading a TOML specification.
 #[derive(Snafu, Debug)]
+#[allow(missing_docs)]
 pub enum Error {
     #[snafu(display("{} specifies a has_one member {} that isn't defined", value, has_one))]
     HasOneDependencyNotDefined { value: String, has_one: String },
@@ -50,18 +53,21 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// A collection of pre-generated values.
 #[derive(Debug)]
 pub struct GeneratedValueCollection {
     name: String,
     values: Vec<GeneratedValue>,
 }
 
+/// A single generated value's id and tag key/value pair.
 #[derive(Debug)]
 pub struct GeneratedValue {
     id: usize,
     tag_pair: Arc<TagPair>,
 }
 
+/// All generated tag sets specified
 #[derive(Debug, Default)]
 pub struct GeneratedTagSets {
     // These map the name of a collection of values to its values. All values will have
@@ -78,6 +84,7 @@ pub struct GeneratedTagSets {
     tag_sets: BTreeMap<String, Arc<Vec<TagSet>>>,
 }
 
+/// Generated parent to has_one mappings
 #[derive(Debug, Default)]
 pub struct ParentToHasOnes {
     // each parent id will have its has_ones stored in this map. The map within
@@ -86,6 +93,7 @@ pub struct ParentToHasOnes {
 }
 
 impl GeneratedTagSets {
+    /// Generate tag sets from a `DataSpec`
     pub fn from_spec(spec: &DataSpec) -> Result<Self> {
         let mut generated_tag_sets = Self::default();
 
@@ -118,6 +126,7 @@ impl GeneratedTagSets {
         Ok(generated_tag_sets)
     }
 
+    /// Returns the tag sets for the given name
     pub fn sets_for(&self, name: &str) -> Option<&Arc<Vec<TagSet>>> {
         self.tag_sets.get(name)
     }
@@ -440,8 +449,10 @@ fn has_one_values_key(parent: &str, child: &str) -> String {
     format!("{}.{}", parent, child)
 }
 
+/// A collection of tag key/value pairs
 #[derive(Debug)]
 pub struct TagSet {
+    /// The tags in the set
     pub tags: Vec<Arc<TagPair>>,
 }
 
@@ -458,9 +469,12 @@ impl std::fmt::Display for TagSet {
     }
 }
 
+/// A tag key/value pair
 #[derive(Debug, PartialEq, PartialOrd)]
 pub struct TagPair {
+    /// the key
     pub key: Arc<String>,
+    /// the value
     pub value: Arc<String>,
 }
 

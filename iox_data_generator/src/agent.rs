@@ -209,6 +209,13 @@ impl<T: DataGenRng> Agent<T> {
 
         Ok(points)
     }
+
+    /// Sets the current date and time for the agent and resets its finished state to false. Enables
+    /// calling generate again during testing and benchmarking.
+    pub fn reset_current_date_time(&mut self, current_datetime: i64) {
+        self.finished = false;
+        self.current_datetime = current_datetime;
+    }
 }
 
 #[cfg(test)]
