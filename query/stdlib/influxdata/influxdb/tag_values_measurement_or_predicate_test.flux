@@ -1,3 +1,7 @@
+// TODO(whb): These tests should get ported to the flux repo and removed here
+// when they are included with a flux release that InfluxDB uses to remove the
+// redundancy.
+
 package influxdb_test
 
 import "csv"
