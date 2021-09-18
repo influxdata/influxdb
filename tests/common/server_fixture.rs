@@ -32,7 +32,6 @@ pub struct BindAddresses {
     grpc_bind_addr: String,
 
     http_base: String,
-    iox_api_v1_base: String,
     grpc_base: String,
 }
 
@@ -66,14 +65,12 @@ impl Default for BindAddresses {
         let grpc_addr = Self::get_free_port();
 
         let http_base = format!("http://{}", http_addr);
-        let iox_api_v1_base = format!("http://{}/iox/api/v1", http_addr);
         let grpc_base = format!("http://{}", grpc_addr);
 
         Self {
             http_bind_addr: http_addr.to_string(),
             grpc_bind_addr: grpc_addr.to_string(),
             http_base,
-            iox_api_v1_base,
             grpc_base,
         }
     }
@@ -182,11 +179,6 @@ impl ServerFixture {
     /// Return the http base URL for the HTTP API
     pub fn http_base(&self) -> &str {
         &self.server.addrs().http_base
-    }
-
-    /// Return the base URL for the IOx V1 API
-    pub fn iox_api_v1_base(&self) -> &str {
-        &self.server.addrs().iox_api_v1_base
     }
 
     /// Return an a http client suitable suitable for communicating with this

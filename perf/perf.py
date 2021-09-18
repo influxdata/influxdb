@@ -587,8 +587,8 @@ def grpc_create_database(router_id, writer_id):
         writer.request('influxdata.iox.management.v1.ManagementService', 'CreateDatabase', writer_db_rules)
 
         writer_http_addr = 'localhost:%d' % (writer_id * 10000 + 8080)
-        writer_query_url = 'http://%s/iox/api/v1/databases/%s/query' % (writer_http_addr, db_name)
-        writer_query_params = {'q': 'select count(1) from sentinel'}
+        writer_query_url = 'http://%s/api/v3/query' % writer_http_addr
+        writer_query_params = {'q': 'select count(1) from sentinel', 'd': db_name}
 
         response = requests.get(url=writer_query_url, params=writer_query_params, timeout=10)
         for i in range(20):
@@ -641,7 +641,7 @@ def run_test_battery(battery_name, router_id, writer_id, debug=False, do_trace=F
     # Query
 
     writer_http_addr = 'localhost:%d' % (writer_id * 10000 + 8080)
-    query_url = 'http://%s/iox/api/v1/databases/%s/query' % (writer_http_addr, db_name)
+    query_url = 'http://%s/api/v3/query' % writer_http_addr
     queries_filename = os.path.join(battery_dir, 'queries.toml')
     queries = toml.load(open(queries_filename))
 
@@ -659,7 +659,7 @@ def run_test_battery(battery_name, router_id, writer_id, debug=False, do_trace=F
 
         print('running test "%s"' % name)
         time_start = time.time()
-        params = {'q': sql, 'format': 'csv'}
+        params = {'q': sql, 'format': 'csv', 'd': db_name}
         headers = {}
         if do_trace:
             # TODO remove this after IOx can be configured to sample 100% of traces

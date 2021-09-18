@@ -391,7 +391,7 @@ where
         .post("/api/v2/write", write::<M>)
         .get("/health", health::<M>)
         .get("/metrics", handle_metrics::<M>)
-        .get("/iox/api/v1/databases/:name/query", query::<M>)
+        .get("/api/v3/query", query::<M>)
         .get("/debug/pprof", pprof_home::<M>)
         .get("/debug/pprof/profile", pprof_profile::<M>)
         .get("/debug/pprof/allocs", pprof_heappy_profile::<M>)
@@ -561,6 +561,9 @@ where
 #[derive(Deserialize, Debug, PartialEq)]
 /// Parsed URI Parameters of the request to the .../query endpoint
 struct QueryParams {
+    #[serde(alias = "database")]
+    d: String,
+    #[serde(alias = "query")]
     q: String,
     #[serde(default = "default_format")]
     format: String,
@@ -578,19 +581,14 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
 
     let uri_query = req.uri().query().context(ExpectedQueryString {})?;
 
-    let QueryParams { q, format } =
+    let QueryParams { d, q, format } =
         serde_urlencoded::from_str(uri_query).context(InvalidQueryString {
             query_string: uri_query,
         })?;
 
     let format = QueryOutputFormat::from_str(&format).context(ParsingFormat { format })?;
 
-    let db_name_str = req
-        .param("name")
-        .expect("db name must have been set by routerify")
-        .clone();
-
-    let db_name = DatabaseName::new(&db_name_str).context(DatabaseNameError)?;
+    let db_name = DatabaseName::new(&d).context(DatabaseNameError)?;
     debug!(uri = ?req.uri(), %q, ?format, %db_name, "running SQL query");
 
     let db = server.db(&db_name)?;
@@ -1243,7 +1241,7 @@ mod tests {
         // send query data
         let response = client
             .get(&format!(
-                "{}/iox/api/v1/databases/MyOrg_MyBucket/query?q={}",
+                "{}/api/v3/query?d=MyOrg_MyBucket&q={}",
                 server_url, "select%20*%20from%20h2o_temperature"
             ))
             .send()
@@ -1263,7 +1261,7 @@ mod tests {
         // same response is expected if we explicitly request 'format=pretty'
         let response = client
             .get(&format!(
-                "{}/iox/api/v1/databases/MyOrg_MyBucket/query?q={}&format=pretty",
+                "{}/api/v3/query?d=MyOrg_MyBucket&q={}&format=pretty",
                 server_url, "select%20*%20from%20h2o_temperature"
             ))
             .send()
@@ -1280,7 +1278,7 @@ mod tests {
         // send query data
         let response = client
             .get(&format!(
-                "{}/iox/api/v1/databases/MyOrg_MyBucket/query?q={}&format=csv",
+                "{}/api/v3/query?d=MyOrg_MyBucket&q={}&format=csv",
                 server_url, "select%20*%20from%20h2o_temperature"
             ))
             .send()
@@ -1318,7 +1316,7 @@ mod tests {
         // send query data
         let response = client
             .get(&format!(
-                "{}/iox/api/v1/databases/MyOrg_MyBucket/query?q={}&format=json",
+                "{}/api/v3/query?d=MyOrg_MyBucket&q={}&format=json",
                 server_url, "select%20*%20from%20h2o_temperature%20order%20by%20surface_degrees"
             ))
             .send()
