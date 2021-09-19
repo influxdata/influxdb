@@ -11,8 +11,8 @@ async-trait = "0.1"
 chrono = { version = "0.4" }
 futures = "0.3"
 observability_deps = { path = "../observability_deps" }
-opentelemetry = { version = "0.16", features = ["rt-tokio"] }
-opentelemetry-jaeger = { version = "0.15", optional = true, features = ["rt-tokio"] }
+opentelemetry = { version = "0.16" }
+opentelemetry-jaeger = { version = "0.15", optional = true }
 snafu = "0.6"
 structopt = { version = "0.3.23" }
 tokio = { version = "1.11", features = ["macros", "time", "sync", "rt"] }

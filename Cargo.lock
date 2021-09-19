@@ -2656,8 +2656,6 @@ dependencies = [
  "pin-project",
  "rand 0.8.4",
  "thiserror",
- "tokio",
- "tokio-stream",
 ]
 
 [[package]]
@@ -2672,7 +2670,6 @@ dependencies = [
  "opentelemetry-semantic-conventions",
  "thiserror",
  "thrift",
- "tokio",
 ]
 
 [[package]]
