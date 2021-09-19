@@ -15,7 +15,7 @@ use futures::{
 use rusoto_core::ByteStream;
 use rusoto_credential::{InstanceMetadataProvider, StaticProvider};
 use rusoto_s3::S3;
-use snafu::{futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::convert::TryFrom;
 use std::{fmt, io};
 
@@ -179,6 +179,7 @@ impl ObjectStoreApi for AmazonS3 {
             key: key.clone(),
             ..Default::default()
         };
+        let bucket_name = self.bucket_name.clone();
         Ok(self
             .client
             .get_object(get_request)
@@ -192,9 +193,10 @@ impl ObjectStoreApi for AmazonS3 {
                 bucket: self.bucket_name.to_owned(),
                 location: key.clone(),
             })?
-            .context(UnableToGetPieceOfData {
-                bucket: self.bucket_name.to_owned(),
-                location: key,
+            .map_err(move |source| Error::UnableToGetPieceOfData {
+                source,
+                bucket: bucket_name.clone(),
+                location: key.clone(),
             })
             .err_into()
             .boxed())

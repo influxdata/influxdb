@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use cloud_storage::Client;
 use futures::{stream::BoxStream, Stream, StreamExt, TryStreamExt};
-use snafu::{ensure, futures::TryStreamExt as _, ResultExt, Snafu};
+use snafu::{ensure, ResultExt, Snafu};
 use std::{convert::TryFrom, env, io};
 
 /// A specialized `Result` for Google Cloud Storage object store-related errors
@@ -181,6 +181,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
                 bucket: &self.bucket_name,
             })?;
 
+        let bucket_name = self.bucket_name.clone();
         let objects = object_lists
             .map_ok(|list| {
                 list.items
@@ -188,8 +189,9 @@ impl ObjectStoreApi for GoogleCloudStorage {
                     .map(|o| CloudPath::raw(o.name))
                     .collect::<Vec<_>>()
             })
-            .context(UnableToStreamListData {
-                bucket: &self.bucket_name,
+            .map_err(move |source| Error::UnableToStreamListData {
+                source,
+                bucket: bucket_name.clone(),
             });
 
         Ok(objects.boxed())

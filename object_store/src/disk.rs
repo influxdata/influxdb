@@ -9,7 +9,7 @@ use futures::{
     stream::{self, BoxStream},
     Stream, StreamExt, TryStreamExt,
 };
-use snafu::{ensure, futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use std::{collections::BTreeSet, convert::TryFrom, io, path::PathBuf};
 use tokio::fs;
@@ -135,7 +135,10 @@ impl ObjectStoreApi for File {
 
         let s = FramedRead::new(file, BytesCodec::new())
             .map_ok(|b| b.freeze())
-            .context(UnableToReadBytes { path });
+            .map_err(move |source| Error::UnableToReadBytes {
+                source,
+                path: path.clone(),
+            });
         Ok(s.boxed())
     }
 
