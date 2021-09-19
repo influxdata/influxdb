@@ -108,7 +108,7 @@ struct Create {
     /// Prune catalog transactions older than the given age.
     ///
     /// Keeping old transaction can be useful for debugging.
-    #[structopt(long, default_value = "1d", parse(try_from_str = parse_duration::parse))]
+    #[structopt(long, default_value = "1d", parse(try_from_str = humantime::parse_duration))]
     catalog_transaction_prune_age: Duration,
 
     /// Once a partition hasn't received a write for this period of time,

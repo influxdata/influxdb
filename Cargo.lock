@@ -130,7 +130,7 @@ dependencies = [
  "lazy_static",
  "lexical-core",
  "multiversion",
- "num 0.4.0",
+ "num",
  "prettytable-rs",
  "rand 0.8.4",
  "regex",
@@ -1719,6 +1719,7 @@ dependencies = [
  "heappy",
  "hex",
  "http",
+ "humantime",
  "hyper",
  "influxdb2_client",
  "influxdb_iox_client",
@@ -1741,7 +1742,6 @@ dependencies = [
  "parking_lot",
  "parquet",
  "parquet_file",
- "parse_duration",
  "pprof",
  "predicate",
  "predicates",
@@ -1885,11 +1885,11 @@ dependencies = [
  "futures",
  "generated_types",
  "handlebars",
+ "humantime",
  "influxdb2_client",
  "influxdb_iox_client",
  "itertools 0.9.0",
  "packers",
- "parse_duration",
  "rand 0.8.4",
  "rand_core 0.6.3",
  "rand_seeder",
@@ -2393,29 +2393,15 @@ dependencies = [
 
 [[package]]
 name = "num"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8536030f9fea7127f841b45bb6243b27255787fb4eb83958aa1ef9d2fdc0c36"
-dependencies = [
- "num-bigint 0.2.6",
- "num-complex 0.2.4",
- "num-integer",
- "num-iter",
- "num-rational 0.2.4",
- "num-traits",
-]
-
-[[package]]
-name = "num"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43db66d1170d347f9a065114077f7dccb00c1b9478c89384490a3425279a4606"
 dependencies = [
  "num-bigint 0.4.2",
- "num-complex 0.4.0",
+ "num-complex",
  "num-integer",
  "num-iter",
- "num-rational 0.4.0",
+ "num-rational",
  "num-traits",
 ]
 
@@ -2438,16 +2424,6 @@ checksum = "74e768dff5fb39a41b3bcd30bb25cf989706c90d028d1ad71971987aa309d535"
 dependencies = [
  "autocfg",
  "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-complex"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
-dependencies = [
- "autocfg",
  "num-traits",
 ]
 
@@ -2487,18 +2463,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2021c8337a54d21aca0d59a92577a029af9431cb59b909b03252b9c164fad59"
 dependencies = [
  "autocfg",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-rational"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c000134b5dbf44adc5cb772486d335293351644b801551abe8f75c84cfa4aef"
-dependencies = [
- "autocfg",
- "num-bigint 0.2.6",
  "num-integer",
  "num-traits",
 ]
@@ -2872,17 +2836,6 @@ dependencies = [
  "tokio-stream",
  "tracker",
  "uuid",
-]
-
-[[package]]
-name = "parse_duration"
-version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7037e5e93e0172a5a96874380bf73bc6ecef022e26fa25f2be26864d6b3ba95d"
-dependencies = [
- "lazy_static",
- "num 0.2.1",
- "regex",
 ]
 
 [[package]]

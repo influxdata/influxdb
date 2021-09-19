@@ -11,12 +11,12 @@ chrono-english = "0.1.4"
 clap = "2.33.1"
 futures = "0.3.5"
 handlebars = "4.1.2"
+humantime = "2.1.0"
 data_types = { path = "../data_types" }
 generated_types = { path = "../generated_types" }
 influxdb2_client = { path = "../influxdb2_client" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 packers = { path = "../packers" }
-parse_duration = "2.1.1"
 itertools = "0.9.0"
 rand = { version = "0.8.3", features = ["small_rng"] }
 rand_core = "0.6.2"

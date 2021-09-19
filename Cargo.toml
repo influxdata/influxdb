@@ -129,6 +129,7 @@ flate2 = "1.0"
 futures = "0.3"
 hashbrown = "0.11"
 http = "0.2.0"
+humantime = "2.1.0"
 hyper = "0.14"
 libc = { version = "0.2" }
 log = "0.4"
@@ -136,7 +137,6 @@ once_cell = { version = "1.4.0", features = ["parking_lot"] }
 parking_lot = "0.11.2"
 itertools = "0.10.1"
 parquet = "5.3"
-parse_duration = "2.1.1"
 # used by arrow/datafusion anyway
 prettytable-rs = "0.8"
 pprof = { version = "^0.5", default-features = false, features = ["flamegraph", "protobuf"], optional = true }

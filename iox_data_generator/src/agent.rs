@@ -6,7 +6,6 @@ use crate::{
 };
 
 use influxdb2_client::models::DataPoint;
-use parse_duration;
 use snafu::{ResultExt, Snafu};
 use std::{fmt, time::Duration};
 use tracing::{debug, info};
@@ -42,7 +41,7 @@ pub enum Error {
     #[snafu(display("Sampling interval must be valid string: {}", source))]
     InvalidSamplingInterval {
         /// Underlying `parse` error
-        source: parse_duration::parse::Error,
+        source: humantime::DurationError,
     },
 }
 
@@ -115,7 +114,7 @@ impl<T: DataGenRng> Agent<T> {
         // Convert to nanoseconds
         let sampling_interval = match &agent_spec.sampling_interval {
             None => None,
-            Some(s) => Some(parse_duration::parse(s).context(InvalidSamplingInterval)?),
+            Some(s) => Some(humantime::parse_duration(s).context(InvalidSamplingInterval)?),
         };
 
         Ok(Self {
