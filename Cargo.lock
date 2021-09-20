@@ -957,9 +957,9 @@ dependencies = [
 
 [[package]]
 name = "dirs"
-version = "3.0.2"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30baa043103c9d0c2a57cf537cc2f35623889dc0d405e6c3cccfadbc81c71309"
+checksum = "ca3aa72a6f96ea37bbc5aa912f6788242832f75369bdfdadcb0e38423f100059"
 dependencies = [
  "dirs-sys",
 ]
@@ -1709,7 +1709,7 @@ dependencies = [
  "csv",
  "data_types",
  "datafusion 0.1.0",
- "dirs 3.0.2",
+ "dirs 4.0.0",
  "dotenv",
  "entry",
  "flate2",
