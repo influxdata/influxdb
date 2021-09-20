@@ -232,10 +232,10 @@ pub enum Error {
     ))]
     IoxMetadataVersionMismatch { actual: u32, expected: Vec<u32> },
 
-    #[snafu(display("Cannot encode ZSTD message: {}", source))]
+    #[snafu(display("Cannot encode ZSTD message for parquet metadata: {}", source))]
     ZstdEncodeFailure { source: std::io::Error },
 
-    #[snafu(display("Cannot decode ZSTD message: {}", source))]
+    #[snafu(display("Cannot decode ZSTD message for parquet metadata: {}", source))]
     ZstdDecodeFailure { source: std::io::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
