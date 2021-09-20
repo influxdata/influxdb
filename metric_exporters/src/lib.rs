@@ -69,7 +69,7 @@ impl<'a, W: Write> metric::Reporter for PrometheusTextEncoder<'a, W> {
             }
         };
 
-        let mut metric = MetricFamily::new();
+        let mut metric = MetricFamily::default();
         metric.set_name(name);
         metric.set_help(description.to_string());
         metric.set_field_type(metric_type);
@@ -82,75 +82,90 @@ impl<'a, W: Write> metric::Reporter for PrometheusTextEncoder<'a, W> {
 
         let metrics = metrics.mut_metric();
 
-        let mut metric = Metric::new();
+        let mut metric = Metric::default();
 
-        for (name, value) in attributes.iter() {
-            let mut pair = LabelPair::new();
-            pair.set_name(name.to_string());
-            pair.set_value(value.to_string());
-            metric.mut_label().push(pair)
-        }
+        metric.set_label(
+            attributes
+                .iter()
+                .map(|(name, value)| {
+                    let mut pair = LabelPair::default();
+                    pair.set_name(name.to_string());
+                    pair.set_value(value.to_string());
+                    pair
+                })
+                .collect(),
+        );
 
         match observation {
             Observation::U64Counter(v) => {
-                let mut counter = Counter::new();
+                let mut counter = Counter::default();
                 counter.set_value(v as f64);
                 metric.set_counter(counter)
             }
             Observation::U64Gauge(v) => {
-                let mut gauge = Gauge::new();
+                let mut gauge = Gauge::default();
                 gauge.set_value(v as f64);
                 metric.set_gauge(gauge)
             }
             Observation::DurationCounter(v) => {
-                let mut counter = Counter::new();
+                let mut counter = Counter::default();
                 counter.set_value(v.as_secs_f64());
                 metric.set_counter(counter)
             }
             Observation::DurationGauge(v) => {
-                let mut gauge = Gauge::new();
+                let mut gauge = Gauge::default();
                 gauge.set_value(v.as_secs_f64());
                 metric.set_gauge(gauge)
             }
             Observation::U64Histogram(v) => {
-                let mut histogram = Histogram::new();
+                let mut histogram = Histogram::default();
                 let mut cumulative_count = 0;
 
-                for observation in v.buckets {
-                    cumulative_count += observation.count;
+                histogram.set_bucket(
+                    v.buckets
+                        .into_iter()
+                        .map(|observation| {
+                            cumulative_count += observation.count;
 
-                    let mut bucket = Bucket::new();
-                    let le = match observation.le {
-                        u64::MAX => f64::INFINITY,
-                        v => v as f64,
-                    };
+                            let mut bucket = Bucket::default();
+                            let le = match observation.le {
+                                u64::MAX => f64::INFINITY,
+                                v => v as f64,
+                            };
 
-                    bucket.set_upper_bound(le);
-                    bucket.set_cumulative_count(cumulative_count);
-                    histogram.mut_bucket().push(bucket)
-                }
+                            bucket.set_upper_bound(le);
+                            bucket.set_cumulative_count(cumulative_count);
+                            bucket
+                        })
+                        .collect(),
+                );
 
                 histogram.set_sample_count(cumulative_count);
                 histogram.set_sample_sum(v.total as f64);
                 metric.set_histogram(histogram)
             }
             Observation::DurationHistogram(v) => {
-                let mut histogram = Histogram::new();
+                let mut histogram = Histogram::default();
                 let mut cumulative_count = 0;
 
-                for observation in v.buckets {
-                    cumulative_count += observation.count;
+                histogram.set_bucket(
+                    v.buckets
+                        .into_iter()
+                        .map(|observation| {
+                            cumulative_count += observation.count;
 
-                    let mut bucket = Bucket::new();
-                    let le = match observation.le {
-                        metric::DURATION_MAX => f64::INFINITY,
-                        v => v.as_secs_f64(),
-                    };
+                            let mut bucket = Bucket::default();
+                            let le = match observation.le {
+                                metric::DURATION_MAX => f64::INFINITY,
+                                v => v.as_secs_f64(),
+                            };
 
-                    bucket.set_upper_bound(le);
-                    bucket.set_cumulative_count(cumulative_count);
-                    histogram.mut_bucket().push(bucket)
-                }
+                            bucket.set_upper_bound(le);
+                            bucket.set_cumulative_count(cumulative_count);
+                            bucket
+                        })
+                        .collect(),
+                );
 
                 histogram.set_sample_count(cumulative_count);
                 histogram.set_sample_sum(v.total.as_secs_f64());
