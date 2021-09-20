@@ -7,10 +7,11 @@ use influxdb_iox_client::{
     format::QueryOutputFormat,
     management::{
         self, generated_types::*, CreateDatabaseError, DeleteDatabaseError, GetDatabaseError,
-        ListDatabaseError,
+        ListDatabaseError, RestoreDatabaseError,
     },
     write::{self, WriteError},
 };
+use prettytable::{format, Cell, Row, Table};
 use std::{
     convert::TryInto, fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr,
     time::Duration,
@@ -36,6 +37,9 @@ pub enum Error {
 
     #[error("Error deleting database: {0}")]
     DeleteDatabaseError(#[from] DeleteDatabaseError),
+
+    #[error("Error restoring database: {0}")]
+    RestoreDatabaseError(#[from] RestoreDatabaseError),
 
     #[error("Error reading file {:?}: {}", file_name, source)]
     ReadingFile {
@@ -104,7 +108,7 @@ struct Create {
     /// Prune catalog transactions older than the given age.
     ///
     /// Keeping old transaction can be useful for debugging.
-    #[structopt(long, default_value = "1d", parse(try_from_str = parse_duration::parse))]
+    #[structopt(long, default_value = "1d", parse(try_from_str = humantime::parse_duration))]
     catalog_transaction_prune_age: Duration,
 
     /// Once a partition hasn't received a write for this period of time,
@@ -138,6 +142,11 @@ struct List {
     /// Whether to list databases marked as deleted instead, to restore or permanently delete.
     #[structopt(long)]
     deleted: bool,
+
+    /// Whether to list detailed information, including generation IDs, about all databases,
+    /// whether they are active or marked as deleted.
+    #[structopt(long)]
+    detailed: bool,
 }
 
 /// Return configuration of specific database
@@ -184,6 +193,16 @@ struct Delete {
     name: String,
 }
 
+/// Restore a deleted database generation
+#[derive(Debug, StructOpt)]
+struct Restore {
+    /// The generation ID of the database to restore
+    generation_id: usize,
+
+    /// The name of the database to delete
+    name: String,
+}
+
 /// All possible subcommands for database
 #[derive(Debug, StructOpt)]
 enum Command {
@@ -196,6 +215,7 @@ enum Command {
     Partition(partition::Config),
     Recover(recover::Config),
     Delete(Delete),
+    Restore(Restore),
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
@@ -244,23 +264,37 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::List(list) => {
             let mut client = management::Client::new(connection);
-            if list.deleted {
-                let deleted = client.list_deleted_databases().await?;
-                println!("Deleted at                      | Generation ID | Name");
-                println!("--------------------------------+---------------+--------");
-                for database in deleted {
+            if list.deleted || list.detailed {
+                let databases = if list.deleted {
+                    client.list_deleted_databases().await?
+                } else {
+                    client.list_detailed_databases().await?
+                };
+
+                let mut table = Table::new();
+                table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+                table.set_titles(Row::new(vec![
+                    Cell::new("Deleted at"),
+                    Cell::new("Generation ID"),
+                    Cell::new("Name"),
+                ]));
+
+                for database in databases {
                     let deleted_at = database
                         .deleted_at
                         .and_then(|t| {
                             let dt: Result<DateTime<Utc>, _> = t.try_into();
                             dt.ok().map(|d| d.to_string())
                         })
-                        .unwrap_or_else(|| String::from("Unknown"));
-                    println!(
-                        "{:<33}{:<16}{}",
-                        deleted_at, database.generation_id, database.db_name,
-                    );
+                        .unwrap_or_else(String::new);
+                    table.add_row(Row::new(vec![
+                        Cell::new(&deleted_at),
+                        Cell::new(&database.generation_id.to_string()),
+                        Cell::new(&database.db_name),
+                    ]));
                 }
+
+                print!("{}", table);
             } else {
                 let names = client.list_database_names().await?;
                 println!("{}", names.join("\n"))
@@ -330,6 +364,13 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             let mut client = management::Client::new(connection);
             client.delete_database(&command.name).await?;
             println!("Deleted database {}", command.name);
+        }
+        Command::Restore(command) => {
+            let mut client = management::Client::new(connection);
+            client
+                .restore_database(&command.name, command.generation_id)
+                .await?;
+            println!("Restored database {}", command.name);
         }
     }
 

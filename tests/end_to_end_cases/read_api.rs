@@ -14,12 +14,10 @@ pub async fn test() {
     let sql_query = "select * from cpu_load_short";
 
     let client = reqwest::Client::new();
-    let db_name = format!("{}_{}", scenario.org_id_str(), scenario.bucket_id_str());
-    let path = format!("/databases/{}/query", db_name);
-    let url = format!("{}{}", server_fixture.iox_api_v1_base(), path);
+    let url = format!("{}/api/v3/query", server_fixture.http_base());
     let mut lines: Vec<_> = client
         .get(&url)
-        .query(&[("q", sql_query)])
+        .query(&[("q", sql_query), ("d", scenario.database_name().as_str())])
         .send()
         .await
         .unwrap()

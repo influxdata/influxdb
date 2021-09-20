@@ -5,7 +5,16 @@ use std::fmt;
 use arrow::datatypes::DataType;
 
 fn format_size(sz: u64) -> String {
-    human_format::Formatter::new().format(sz as f64)
+    let mut s = sz.to_string();
+    let mut i = s.len();
+    loop {
+        i = i.saturating_sub(3);
+        if i == 0 {
+            break;
+        }
+        s.insert(i, ',')
+    }
+    s
 }
 
 /// Represents statistics for data stored in a particular chunk
@@ -46,20 +55,20 @@ impl fmt::Display for ColumnStats {
         )?;
         writeln!(
             f,
-            "  Total rows: {} ({}), DataType: {:?}, Compression: {}",
+            "  Total rows: {}, DataType: {:?}, Compression: {}",
             format_size(self.num_rows),
-            self.num_rows,
             self.data_type,
             self.compression_description
         )?;
-        write!(
+        writeln!(
             f,
-            "  {:30}: {:10} / {:10} ({:8} / {:8}) {:.4} bits per row",
-            "Compressed/Uncompressed Bytes",
+            "  Compressed/Uncompressed Bytes: {} / {}",
             format_size(self.num_compressed_bytes),
             format_size(self.num_uncompressed_bytes),
-            self.num_compressed_bytes,
-            self.num_uncompressed_bytes,
+        )?;
+        write!(
+            f,
+            "  Bits per row: {:.4}",
             8.0 * (self.num_compressed_bytes as f64) / (self.num_rows as f64)
         )
     }
@@ -165,13 +174,11 @@ impl fmt::Display for FileStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}: total columns ({:3}), rows: {:10}({:8}), size: {:10}({:8}), bits per row: {:.4}",
+            "{}: total columns {}, rows: {}, size: {}, bits per row: {:.4}",
             self.file_name,
-            self.col_stats.len(),
+            format_size(self.col_stats.len() as u64),
             format_size(self.total_rows),
-            self.total_rows,
             format_size(self.input_len),
-            self.input_len,
             8.0 * (self.input_len as f64) / (self.total_rows as f64)
         )
     }
@@ -232,12 +239,10 @@ impl fmt::Display for FileSetStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "ALL: total columns ({:3}), rows: {}({}), size: {}({}), bits per row: {:.4}",
-            self.col_stats.len(),
+            "ALL: total columns: {}, rows: {}, size: {}, bits per row: {:.4}",
+            format_size(self.col_stats.len() as u64),
             format_size(self.total_rows),
-            self.total_rows,
             format_size(self.total_len),
-            self.total_len,
             8.0 * (self.total_len as f64) / (self.total_rows as f64)
         )
     }
@@ -295,6 +300,17 @@ mod test {
                 data_type: DataType::Float64,
             }
         }
+    }
+
+    #[test]
+    fn test_format_size() {
+        assert_eq!(format_size(0).as_str(), "0");
+        assert_eq!(format_size(1).as_str(), "1");
+        assert_eq!(format_size(11).as_str(), "11");
+        assert_eq!(format_size(154).as_str(), "154");
+        assert_eq!(format_size(1332).as_str(), "1,332");
+        assert_eq!(format_size(45224).as_str(), "45,224");
+        assert_eq!(format_size(123456789).as_str(), "123,456,789");
     }
 
     #[test]
@@ -397,10 +413,11 @@ mod test {
             data_type: DataType::Float64,
         };
         assert_eq!(
-            format!("{}", stats),
+            stats.to_string(),
             r#"Column Stats 'The Column' [11]
-  Total rows: 123.46 M (123456789), DataType: Float64, Compression: Maximum
-  Compressed/Uncompressed Bytes : 1.23 M     / 5.59 M     ( 1234122 /  5588833) 0.0800 bits per row"#
+  Total rows: 123,456,789, DataType: Float64, Compression: Maximum
+  Compressed/Uncompressed Bytes: 1,234,122 / 5,588,833
+  Bits per row: 0.0800"#
         );
     }
 
@@ -489,8 +506,10 @@ mod test {
             total_rows: 11,
             col_stats: vec![ColumnStats::default()],
         };
-        assert_eq!(format!("{}", file_stats),
-                   "the_filename: total columns (  1), rows: 11.00     (      11), size: 1.34 k    (    1337), bits per row: 972.3636");
+        assert_eq!(
+            file_stats.to_string(),
+            "the_filename: total columns 1, rows: 11, size: 1,337, bits per row: 972.3636"
+        );
     }
 
     #[test]
@@ -564,8 +583,8 @@ mod test {
         };
 
         assert_eq!(
-            format!("{}", file_set_stats),
-            "ALL: total columns (  2), rows: 33.00 (33), size: 1.89 k(1892), bits per row: 458.6667"
+            file_set_stats.to_string(),
+            "ALL: total columns: 2, rows: 33, size: 1,892, bits per row: 458.6667"
         );
     }
 }

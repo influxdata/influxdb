@@ -17,7 +17,7 @@
 use bytes::{Bytes, BytesMut};
 use chrono::{DateTime, Utc};
 use data_types::{
-    deleted_database::{DeletedDatabase, GenerationId},
+    detailed_database::{DetailedDatabase, GenerationId},
     error::ErrorLogger,
     server_id::ServerId,
     DatabaseName,
@@ -31,7 +31,7 @@ use object_store::{
     ObjectStore, ObjectStoreApi, Result,
 };
 use observability_deps::tracing::warn;
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeMap, io, sync::Arc};
 use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
@@ -56,6 +56,27 @@ pub enum IoxObjectStoreError {
 
     #[snafu(display("Multiple active databases found in object storage"))]
     MultipleActiveDatabasesFound,
+
+    #[snafu(display("Cannot restore; there is already an active database named `{}`", name))]
+    ActiveDatabaseAlreadyExists { name: String },
+
+    #[snafu(display("Generation `{}` not found for database `{}`", generation_id, name))]
+    GenerationNotFound {
+        generation_id: GenerationId,
+        name: String,
+    },
+
+    #[snafu(display(
+        "Could not restore generation `{}` of database `{}`: {}",
+        generation_id,
+        name,
+        source
+    ))]
+    RestoreFailed {
+        generation_id: GenerationId,
+        name: String,
+        source: object_store::Error,
+    },
 }
 
 /// Handles persistence of data for a particular database. Writes within its directory/prefix.
@@ -75,19 +96,19 @@ pub struct IoxObjectStore {
 #[derive(Debug, Copy, Clone, PartialEq)]
 struct Generation {
     id: GenerationId,
-    deleted: Option<DateTime<Utc>>,
+    deleted_at: Option<DateTime<Utc>>,
 }
 
 impl Generation {
     fn active(id: usize) -> Self {
         Self {
             id: GenerationId { inner: id },
-            deleted: None,
+            deleted_at: None,
         }
     }
 
     fn is_active(&self) -> bool {
-        self.deleted.is_none()
+        self.deleted_at.is_none()
     }
 }
 
@@ -126,41 +147,47 @@ impl IoxObjectStore {
     pub async fn list_deleted_databases(
         inner: &ObjectStore,
         server_id: ServerId,
-    ) -> Result<Vec<DeletedDatabase>> {
-        let mut deleted_databases = vec![];
-
-        let all_dbs = Self::list_all_databases(inner, server_id).await;
-
-        for (name, generations) in all_dbs? {
-            for deleted_gen in generations {
-                if let Generation {
-                    id,
-                    deleted: Some(deleted_at),
-                } = deleted_gen
-                {
-                    deleted_databases.push(DeletedDatabase {
-                        name: name.clone(),
-                        generation_id: id,
-                        deleted_at,
-                    });
-                }
-            }
-        }
-
-        Ok(deleted_databases)
+    ) -> Result<Vec<DetailedDatabase>> {
+        Ok(Self::list_all_databases(inner, server_id)
+            .await?
+            .into_iter()
+            .flat_map(|(name, generations)| {
+                let name = Arc::new(name);
+                generations.into_iter().filter_map(move |gen| {
+                    let name = Arc::clone(&name);
+                    gen.deleted_at.map(|_| DetailedDatabase {
+                        name: (*name).clone(),
+                        generation_id: gen.id,
+                        deleted_at: gen.deleted_at,
+                    })
+                })
+            })
+            .collect())
     }
 
-    // TODO: implement a function to restore a deleted database generation, given the
-    // relevant information returned from [`list_deleted_databases`].
-    // See https://github.com/influxdata/influxdb_iox/issues/2199
-    // pub async fn restore_deleted_database(
-    //     inner: &ObjectStore,
-    //     server_id: ServerId,
-    //     name: &DatabaseName<'_>,
-    //     generation_id: GenerationId,
-    // ) -> Result<()> {
-    //
-    // }
+    /// List all databases in in object storage along with their generation IDs and if/when they
+    /// were deleted. Useful for visibility into object storage and finding databases to restore or
+    /// permanently delete.
+    pub async fn list_detailed_databases(
+        inner: &ObjectStore,
+        server_id: ServerId,
+    ) -> Result<Vec<DetailedDatabase>> {
+        Ok(Self::list_all_databases(inner, server_id)
+            .await?
+            .into_iter()
+            .flat_map(|(name, generations)| {
+                let name = Arc::new(name);
+                generations.into_iter().map(move |gen| {
+                    let name = Arc::clone(&name);
+                    DetailedDatabase {
+                        name: (*name).clone(),
+                        generation_id: gen.id,
+                        deleted_at: gen.deleted_at,
+                    }
+                })
+            })
+            .collect())
+    }
 
     /// List database names in object storage along with all existing generations for each database
     /// and whether the generations are marked as deleted or not. Useful for finding candidates
@@ -219,13 +246,13 @@ impl IoxObjectStore {
                 let generation_list_result = inner.list_with_delimiter(&prefix).await?;
                 let tombstone_file = TombstonePath::new_from_object_store_path(&prefix);
 
-                let deleted = generation_list_result
+                let deleted_at = generation_list_result
                     .objects
                     .into_iter()
                     .find(|object| object.location == tombstone_file.inner)
                     .map(|object| object.last_modified);
 
-                generations.push(Generation { id, deleted });
+                generations.push(Generation { id, deleted_at });
             } else {
                 // Deliberately ignoring errors with parsing; if the directory isn't a usize, it's
                 // not a valid database generation directory and we should skip it.
@@ -361,6 +388,58 @@ impl IoxObjectStore {
         self.inner
             .put(&self.tombstone_path(), stream, Some(len))
             .await
+    }
+
+    /// Remove the tombstone file to restore a database generation. Will return an error if this
+    /// generation is already active or if there is another database generation already active for
+    /// this database name. Returns the reactivated IoxObjectStore.
+    pub async fn restore_database(
+        inner: Arc<ObjectStore>,
+        server_id: ServerId,
+        database_name: &DatabaseName<'static>,
+        generation_id: GenerationId,
+    ) -> Result<Self, IoxObjectStoreError> {
+        let root_path = RootPath::new(&inner, server_id, database_name);
+
+        let generations = Self::list_generations(&inner, &root_path)
+            .await
+            .context(UnderlyingObjectStoreError)?;
+
+        let active = generations.iter().find(|g| g.is_active());
+
+        ensure!(
+            active.is_none(),
+            ActiveDatabaseAlreadyExists {
+                name: database_name
+            }
+        );
+
+        let restore_candidate = generations
+            .iter()
+            .find(|g| g.id == generation_id && !g.is_active())
+            .context(GenerationNotFound {
+                generation_id,
+                name: database_name.as_str(),
+            })?;
+
+        let generation_path = root_path.generation_path(*restore_candidate);
+        let tombstone_path = TombstonePath::new(&generation_path);
+
+        inner
+            .delete(&tombstone_path.inner)
+            .await
+            .context(RestoreFailed {
+                generation_id,
+                name: database_name.as_str(),
+            })?;
+
+        Ok(Self::existing(
+            inner,
+            server_id,
+            database_name,
+            Generation::active(generation_id.inner),
+            root_path,
+        ))
     }
 
     // Catalog transaction file methods ===========================================================
@@ -904,7 +983,7 @@ mod tests {
             generations[0],
             Generation {
                 id: GenerationId { inner: 0 },
-                deleted: None,
+                deleted_at: None,
             }
         );
 
@@ -938,7 +1017,7 @@ mod tests {
             generations[1],
             Generation {
                 id: GenerationId { inner: 1 },
-                deleted: None,
+                deleted_at: None,
             }
         );
     }
@@ -1236,5 +1315,81 @@ mod tests {
 
         assert_eq!(deleted_dbs[3].name, db_reincarnated);
         assert_eq!(deleted_dbs[3].generation_id.inner, 0);
+    }
+
+    async fn restore_database(
+        object_store: Arc<ObjectStore>,
+        server_id: ServerId,
+        database_name: &DatabaseName<'static>,
+        generation_id: GenerationId,
+    ) -> Result<IoxObjectStore, IoxObjectStoreError> {
+        IoxObjectStore::restore_database(
+            Arc::clone(&object_store),
+            server_id,
+            database_name,
+            generation_id,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn restore_deleted_database() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+
+        // Create a database
+        let db = DatabaseName::new("db").unwrap();
+        let db_iox_store = create_database(Arc::clone(&object_store), server_id, &db).await;
+
+        // Delete the database
+        delete_database(&db_iox_store).await;
+
+        // Create and delete it again so there are two deleted generations
+        let db_iox_store = create_database(Arc::clone(&object_store), server_id, &db).await;
+        delete_database(&db_iox_store).await;
+
+        // Get one generation ID from the list of deleted databases
+        let deleted_dbs = IoxObjectStore::list_deleted_databases(&object_store, server_id)
+            .await
+            .unwrap();
+        assert_eq!(deleted_dbs.len(), 2);
+        let deleted_db = deleted_dbs.iter().find(|d| d.name == db).unwrap();
+
+        // Restore the generation
+        restore_database(
+            Arc::clone(&object_store),
+            server_id,
+            &db,
+            deleted_db.generation_id,
+        )
+        .await
+        .unwrap();
+
+        // The database should be in the list of all databases again
+        let all_dbs = IoxObjectStore::list_all_databases(&object_store, server_id)
+            .await
+            .unwrap();
+        assert_eq!(all_dbs.len(), 1);
+
+        // The other deleted generation should be the only item in the deleted list
+        let deleted_dbs = IoxObjectStore::list_deleted_databases(&object_store, server_id)
+            .await
+            .unwrap();
+        assert_eq!(deleted_dbs.len(), 1);
+
+        // Try to restore the other deleted database
+        let deleted_db = deleted_dbs.iter().find(|d| d.name == db).unwrap();
+        let err = restore_database(
+            Arc::clone(&object_store),
+            server_id,
+            &db,
+            deleted_db.generation_id,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Cannot restore; there is already an active database named `db`"
+        );
     }
 }

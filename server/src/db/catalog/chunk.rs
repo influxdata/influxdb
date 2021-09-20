@@ -494,7 +494,7 @@ impl CatalogChunk {
         Ok(())
     }
 
-    pub fn delete_predicates(&mut self) -> &[Arc<Predicate>] {
+    pub fn delete_predicates(&self) -> &[Arc<Predicate>] {
         match &self.stage {
             ChunkStage::Open { mb_chunk: _ } => {
                 // no delete predicate for open chunk

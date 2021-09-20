@@ -8,7 +8,10 @@ use crate::{
     ApplicationState, Db,
 };
 use chrono::{DateTime, Utc};
-use data_types::{database_rules::WriteBufferDirection, server_id::ServerId, DatabaseName};
+use data_types::{
+    database_rules::WriteBufferDirection, detailed_database::GenerationId, server_id::ServerId,
+    DatabaseName,
+};
 use futures::{
     future::{BoxFuture, FusedFuture, Shared},
     FutureExt, TryFutureExt,
@@ -86,6 +89,14 @@ pub enum Error {
 
     #[snafu(display("no active database named {} to delete", db_name))]
     NoActiveDatabaseToDelete { db_name: String },
+
+    #[snafu(display("cannot restore database named {} that is already active", db_name))]
+    CannotRestoreActiveDatabase { db_name: String },
+
+    #[snafu(display("{}", source))]
+    CannotRestoreDatabaseInObjectStorage {
+        source: iox_object_store::IoxObjectStoreError,
+    },
 }
 
 #[derive(Debug, Snafu)]
@@ -108,6 +119,8 @@ pub enum WriteError {
     HardLimitReached {},
 }
 
+type BackgroundWorkerFuture = Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>;
+
 /// A `Database` represents a single configured IOx database - i.e. an
 /// entity with a corresponding set of `DatabaseRules`.
 ///
@@ -119,7 +132,7 @@ pub enum WriteError {
 #[derive(Debug)]
 pub struct Database {
     /// Future that resolves when the background worker exits
-    join: Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>,
+    join: BackgroundWorkerFuture,
 
     /// The state shared with the background worker
     shared: Arc<DatabaseShared>,
@@ -202,6 +215,7 @@ impl Database {
     /// Mark this database as deleted.
     pub async fn delete(&self) -> Result<(), Error> {
         let db_name = &self.shared.config.name;
+        info!(%db_name, "marking database deleted");
 
         let handle = {
             let state = self.shared.state.read();
@@ -239,6 +253,47 @@ impl Database {
                 Arc::new(InitError::NoActiveDatabase),
             );
             shared.state_notify.notify_waiters();
+        }
+
+        Ok(())
+    }
+
+    /// Mark this database generation as restored.
+    pub async fn restore(&self, generation_id: usize) -> Result<(), Error> {
+        let db_name = &self.shared.config.name;
+        info!(%db_name, %generation_id, "restoring database");
+
+        let handle = {
+            let state = self.shared.state.read();
+
+            // Can't restore an already active database.
+            ensure!(!state.is_active(), CannotRestoreActiveDatabase { db_name });
+
+            state.try_freeze().context(TransitionInProgress {
+                db_name,
+                state: state.state_code(),
+            })?
+        };
+
+        IoxObjectStore::restore_database(
+            Arc::clone(self.shared.application.object_store()),
+            self.shared.config.server_id,
+            db_name,
+            GenerationId {
+                inner: generation_id,
+            },
+        )
+        .await
+        .context(CannotRestoreDatabaseInObjectStorage)?;
+
+        let shared = Arc::clone(&self.shared);
+
+        {
+            // Reset the state
+            let mut state = shared.state.write();
+            *state.unfreeze(handle) = DatabaseState::Known(DatabaseStateKnown {});
+            shared.state_notify.notify_waiters();
+            info!(%db_name, "set database state to object store found");
         }
 
         Ok(())
@@ -1137,21 +1192,19 @@ impl DatabaseStateInitialized {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use chrono::Utc;
     use data_types::database_rules::{
         PartitionTemplate, TemplatePart, WriteBufferConnection, WriteBufferDirection,
     };
     use entry::{test_helpers::lp_to_entries, Sequence, SequencedEntry};
-    use object_store::{ObjectStore, ObjectStoreApi};
-    use write_buffer::{config::WriteBufferConfigFactory, mock::MockBufferSharedState};
-
-    use super::*;
-    use object_store::path::ObjectStorePath;
+    use object_store::ObjectStore;
     use std::{
         convert::{TryFrom, TryInto},
         num::NonZeroU32,
         time::Instant,
     };
+    use write_buffer::{config::WriteBufferConfigFactory, mock::MockBufferSharedState};
 
     #[tokio::test]
     async fn database_shutdown_waits_for_jobs() {
@@ -1282,7 +1335,7 @@ mod tests {
 
     #[tokio::test]
     async fn database_delete_restore() {
-        let (application, database) = initialized_database().await;
+        let (_application, database) = initialized_database().await;
         database.delete().await.unwrap();
 
         assert_eq!(database.state_code(), DatabaseStateCode::NoActiveDatabase);
@@ -1291,22 +1344,7 @@ mod tests {
             InitError::NoActiveDatabase
         ));
 
-        // TODO: Replace with recover logic
-        let os = application.object_store();
-        let mut path = os.new_path();
-        path.push_dir("1");
-        path.push_dir("test");
-        path.push_dir("0");
-        path.set_file_name("DELETED");
-
-        os.delete(&path).await.unwrap();
-
-        {
-            let mut state = database.shared.state.write();
-            let mut state = state.get_mut().unwrap();
-            *state = DatabaseState::Known(DatabaseStateKnown {});
-            database.shared.state_notify.notify_waiters();
-        }
+        database.restore(0).await.unwrap();
 
         // Database should re-initialize correctly
         tokio::time::timeout(Duration::from_millis(1), database.wait_for_init())

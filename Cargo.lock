@@ -130,7 +130,7 @@ dependencies = [
  "lazy_static",
  "lexical-core",
  "multiversion",
- "num 0.4.0",
+ "num",
  "prettytable-rs",
  "rand 0.8.4",
  "regex",
@@ -481,9 +481,6 @@ name = "bytes"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4872d67bab6358e59559027aa3b9157c53d9358c51423c17554809a8858e0f8"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "cache_loader_async"
@@ -863,7 +860,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "5.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=6402200c3ff1ca9732e85ca39fc89ae5f30cd965#6402200c3ff1ca9732e85ca39fc89ae5f30cd965"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=db305dadea458a26723fa53d85463155247d39f9#db305dadea458a26723fa53d85463155247d39f9"
 dependencies = [
  "ahash",
  "arrow",
@@ -957,9 +954,9 @@ dependencies = [
 
 [[package]]
 name = "dirs"
-version = "3.0.2"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30baa043103c9d0c2a57cf537cc2f35623889dc0d405e6c3cccfadbc81c71309"
+checksum = "ca3aa72a6f96ea37bbc5aa912f6788242832f75369bdfdadcb0e38423f100059"
 dependencies = [
  "dirs-sys",
 ]
@@ -1284,7 +1281,7 @@ dependencies = [
  "futures-sink",
  "futures-task",
  "futures-util",
- "pin-project 1.0.8",
+ "pin-project",
  "pin-utils",
 ]
 
@@ -1565,12 +1562,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6456b8a6c8f33fee7d958fcd1b60d55b11940a79e63ae87013e6d22e26034440"
 
 [[package]]
-name = "human_format"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86cce260d758a9aa3d7c4b99d55c815a540f8a37514ba6046ab6be402a157cb0"
-
-[[package]]
 name = "humantime"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1578,9 +1569,9 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
-version = "0.14.12"
+version = "0.14.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13f67199e765030fa08fe0bd581af683f0d5bc04ea09c2b1102012c5fb90e7fd"
+checksum = "15d1cfb9e4f68655fa04c01f59edb405b6074a0f7118ea881e5026e4a1cd8593"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1715,7 +1706,7 @@ dependencies = [
  "csv",
  "data_types",
  "datafusion 0.1.0",
- "dirs 3.0.2",
+ "dirs 4.0.0",
  "dotenv",
  "entry",
  "flate2",
@@ -1725,6 +1716,7 @@ dependencies = [
  "heappy",
  "hex",
  "http",
+ "humantime",
  "hyper",
  "influxdb2_client",
  "influxdb_iox_client",
@@ -1747,7 +1739,6 @@ dependencies = [
  "parking_lot",
  "parquet",
  "parquet_file",
- "parse_duration",
  "pprof",
  "predicate",
  "predicates",
@@ -1758,7 +1749,6 @@ dependencies = [
  "rdkafka",
  "read_buffer",
  "reqwest",
- "routerify",
  "rustyline",
  "serde",
  "serde_json",
@@ -1891,11 +1881,11 @@ dependencies = [
  "futures",
  "generated_types",
  "handlebars",
+ "humantime",
  "influxdb2_client",
  "influxdb_iox_client",
  "itertools 0.9.0",
  "packers",
- "parse_duration",
  "rand 0.8.4",
  "rand_core 0.6.3",
  "rand_seeder",
@@ -2399,29 +2389,15 @@ dependencies = [
 
 [[package]]
 name = "num"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8536030f9fea7127f841b45bb6243b27255787fb4eb83958aa1ef9d2fdc0c36"
-dependencies = [
- "num-bigint 0.2.6",
- "num-complex 0.2.4",
- "num-integer",
- "num-iter",
- "num-rational 0.2.4",
- "num-traits",
-]
-
-[[package]]
-name = "num"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43db66d1170d347f9a065114077f7dccb00c1b9478c89384490a3425279a4606"
 dependencies = [
  "num-bigint 0.4.2",
- "num-complex 0.4.0",
+ "num-complex",
  "num-integer",
  "num-iter",
- "num-rational 0.4.0",
+ "num-rational",
  "num-traits",
 ]
 
@@ -2444,16 +2420,6 @@ checksum = "74e768dff5fb39a41b3bcd30bb25cf989706c90d028d1ad71971987aa309d535"
 dependencies = [
  "autocfg",
  "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-complex"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
-dependencies = [
- "autocfg",
  "num-traits",
 ]
 
@@ -2493,18 +2459,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2021c8337a54d21aca0d59a92577a029af9431cb59b909b03252b9c164fad59"
 dependencies = [
  "autocfg",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-rational"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c000134b5dbf44adc5cb772486d335293351644b801551abe8f75c84cfa4aef"
-dependencies = [
- "autocfg",
- "num-bigint 0.2.6",
  "num-integer",
  "num-traits",
 ]
@@ -2695,11 +2649,9 @@ dependencies = [
  "js-sys",
  "lazy_static",
  "percent-encoding",
- "pin-project 1.0.8",
+ "pin-project",
  "rand 0.8.4",
  "thiserror",
- "tokio",
- "tokio-stream",
 ]
 
 [[package]]
@@ -2714,7 +2666,6 @@ dependencies = [
  "opentelemetry-semantic-conventions",
  "thiserror",
  "thrift",
- "tokio",
 ]
 
 [[package]]
@@ -2774,7 +2725,6 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "criterion",
- "human_format",
  "influxdb_tsm",
  "internal_types",
  "observability_deps",
@@ -2860,6 +2810,7 @@ dependencies = [
  "datafusion_util",
  "futures",
  "generated_types",
+ "google_types",
  "internal_types",
  "iox_object_store",
  "metric",
@@ -2879,17 +2830,7 @@ dependencies = [
  "tokio-stream",
  "tracker",
  "uuid",
-]
-
-[[package]]
-name = "parse_duration"
-version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7037e5e93e0172a5a96874380bf73bc6ecef022e26fa25f2be26864d6b3ba95d"
-dependencies = [
- "lazy_static",
- "num 0.2.1",
- "regex",
+ "zstd",
 ]
 
 [[package]]
@@ -3028,31 +2969,11 @@ dependencies = [
 
 [[package]]
 name = "pin-project"
-version = "0.4.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "918192b5c59119d51e0cd221f4d49dde9112824ba717369e903c97d076083d0f"
-dependencies = [
- "pin-project-internal 0.4.28",
-]
-
-[[package]]
-name = "pin-project"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "576bc800220cc65dac09e99e97b08b358cfab6e17078de8dc5fee223bd2d0c08"
 dependencies = [
- "pin-project-internal 1.0.8",
-]
-
-[[package]]
-name = "pin-project-internal"
-version = "0.4.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3be26700300be6d9d23264c73211d8190e755b6b5ca7a1b28230025511b52a5e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
+ "pin-project-internal",
 ]
 
 [[package]]
@@ -3268,7 +3189,6 @@ dependencies = [
  "lazy_static",
  "memchr",
  "parking_lot",
- "protobuf",
  "thiserror",
 ]
 
@@ -3322,12 +3242,6 @@ dependencies = [
  "bytes",
  "prost",
 ]
-
-[[package]]
-name = "protobuf"
-version = "2.25.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23129d50f2c9355ced935fce8a08bd706ee2e7ce2b3b33bf61dace0e379ac63a"
 
 [[package]]
 name = "query"
@@ -3492,9 +3406,9 @@ dependencies = [
 
 [[package]]
 name = "rand_distr"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "051b398806e42b9cd04ad9ec8f81e355d0a382c543ac6672c62f5a5b452ef142"
+checksum = "964d548f8e7d12e102ef183a0de7e98180c9f8729f555897a857b96e48122d2f"
 dependencies = [
  "num-traits",
  "rand 0.8.4",
@@ -3739,19 +3653,6 @@ dependencies = [
  "untrusted",
  "web-sys",
  "winapi",
-]
-
-[[package]]
-name = "routerify"
-version = "2.0.0-beta-2"
-source = "git+https://github.com/influxdata/routerify?rev=274e250#274e250e556b968ad02259282c0433e445db4200"
-dependencies = [
- "http",
- "hyper",
- "lazy_static",
- "percent-encoding",
- "regex",
- "thiserror",
 ]
 
 [[package]]
@@ -4260,8 +4161,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eab12d3c261b2308b0d80c26fffb58d17eba81a4be97890101f416b478c79ca7"
 dependencies = [
  "doc-comment",
- "futures-core",
- "pin-project 0.4.28",
  "snafu-derive",
 ]
 
@@ -4806,7 +4705,7 @@ dependencies = [
  "hyper",
  "hyper-timeout",
  "percent-encoding",
- "pin-project 1.0.8",
+ "pin-project",
  "prost",
  "prost-derive",
  "tokio",
@@ -4870,7 +4769,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "indexmap",
- "pin-project 1.0.8",
+ "pin-project",
  "rand 0.8.4",
  "slab",
  "tokio",
@@ -4932,7 +4831,7 @@ dependencies = [
  "metric",
  "observability_deps",
  "parking_lot",
- "pin-project 1.0.8",
+ "pin-project",
  "snafu",
  "tower",
  "trace",
@@ -4940,9 +4839,9 @@ dependencies = [
 
 [[package]]
 name = "tracing"
-version = "0.1.27"
+version = "0.1.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2ba9ab62b7d6497a8638dfda5e5c4fb3b2d5a7fca4118f2b96151c8ef1a437e"
+checksum = "84f96e095c0c82419687c20ddf5cb3eadb61f4e1405923c9dc8e53a1adacbda8"
 dependencies = [
  "cfg-if",
  "log",
@@ -4977,7 +4876,7 @@ version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
 dependencies = [
- "pin-project 1.0.8",
+ "pin-project",
  "tracing",
 ]
 
@@ -5004,9 +4903,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.2.22"
+version = "0.2.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62af966210b88ad5776ee3ba12d5f35b8d6a2b2a12168f3080cf02b814d7376b"
+checksum = "fdd0568dbfe3baf7048b7908d2b32bca0d81cd56bec6d2a8f894b01d74f86be3"
 dependencies = [
  "ansi_term 0.12.1",
  "chrono",
@@ -5034,7 +4933,7 @@ dependencies = [
  "metric",
  "observability_deps",
  "parking_lot",
- "pin-project 1.0.8",
+ "pin-project",
  "tokio",
  "tokio-util",
 ]

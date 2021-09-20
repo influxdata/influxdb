@@ -2,7 +2,7 @@
 /// predicates are so common and critical to performance of timeseries
 /// databases in general, and IOx in particular, that they are handled
 /// specially
-#[derive(Clone, PartialEq, Copy, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Debug)]
 pub struct TimestampRange {
     /// Start defines the inclusive lower bound.
     pub start: i64,

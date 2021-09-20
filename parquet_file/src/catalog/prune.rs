@@ -232,6 +232,7 @@ mod tests {
         ckpt_handle
             .create_checkpoint(CheckpointData {
                 files: Default::default(),
+                delete_predicates: Default::default(),
             })
             .await
             .unwrap();

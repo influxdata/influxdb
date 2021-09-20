@@ -34,7 +34,7 @@ use observability_deps::tracing::{debug, error, info};
 use parquet_file::catalog::{
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
     core::PreservedCatalog,
-    interface::{CatalogParquetInfo, CheckpointData},
+    interface::{CatalogParquetInfo, CheckpointData, ChunkAddrWithoutDatabase},
     prune::prune_history as prune_catalog_transaction_history,
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
@@ -612,6 +612,21 @@ impl Db {
         partition_key: &str,
         now: Instant,
     ) -> Result<Arc<DbChunk>> {
+        self.persist_partition_with_timestamp(table_name, partition_key, now, Utc::now)
+            .await
+    }
+
+    /// Internal use only for testing.
+    async fn persist_partition_with_timestamp<F>(
+        self: &Arc<Self>,
+        table_name: &str,
+        partition_key: &str,
+        now: Instant,
+        f_parquet_creation_timestamp: F,
+    ) -> Result<Arc<DbChunk>>
+    where
+        F: Fn() -> DateTime<Utc> + Send,
+    {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
@@ -664,8 +679,13 @@ impl Db {
                 }
             );
 
-            let (_, fut) = lifecycle::persist_chunks(partition, chunks, flush_handle)
-                .context(LifecycleError)?;
+            let (_, fut) = lifecycle::persist_chunks(
+                partition,
+                chunks,
+                flush_handle,
+                f_parquet_creation_timestamp,
+            )
+            .context(LifecycleError)?;
             fut
         };
 
@@ -1183,10 +1203,13 @@ impl CatalogProvider for Db {
 
 pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData {
     let mut files = HashMap::new();
+    let mut delete_predicates: HashMap<usize, (Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)> =
+        Default::default();
 
     for chunk in catalog.chunks() {
         let guard = chunk.read();
         if let ChunkStage::Persisted { parquet, .. } = guard.stage() {
+            // capture parquet file path
             let path = parquet.path().clone();
 
             let m = CatalogParquetInfo {
@@ -1196,10 +1219,36 @@ pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData 
             };
 
             files.insert(path, m);
+
+            // capture delete predicates
+            for predicate in guard.delete_predicates() {
+                let predicate_ref: &Predicate = predicate.as_ref();
+                let addr = (predicate_ref as *const Predicate) as usize;
+                delete_predicates
+                    .entry(addr)
+                    .and_modify(|(_predicate, v)| v.push(guard.addr().clone().into()))
+                    .or_insert_with(|| (Arc::clone(predicate), vec![guard.addr().clone().into()]));
+            }
         }
     }
 
-    CheckpointData { files }
+    let mut delete_predicates: Vec<_> = delete_predicates
+        .into_values()
+        .map(|(predicate, mut chunks)| {
+            chunks.sort();
+            (predicate, chunks)
+        })
+        .collect();
+    delete_predicates.sort_by(|(predicate_a, _chunks_a), (predicate_b, _chunks_b)| {
+        predicate_a
+            .partial_cmp(predicate_b)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    CheckpointData {
+        files,
+        delete_predicates,
+    }
 }
 
 pub mod test_helpers {
@@ -1577,7 +1626,8 @@ mod tests {
 
         let db = Arc::clone(&test_db.db);
 
-        write_lp(db.as_ref(), "cpu bar=1 10").await;
+        let t1_write = Utc.timestamp(11, 22);
+        write_lp_with_time(db.as_ref(), "cpu bar=1 10", t1_write).await;
 
         let registry = test_db.metric_registry.as_ref();
 
@@ -1593,10 +1643,14 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 700);
 
         // write into same chunk again.
-        write_lp(db.as_ref(), "cpu bar=2 20").await;
-        write_lp(db.as_ref(), "cpu bar=3 30").await;
-        write_lp(db.as_ref(), "cpu bar=4 40").await;
-        write_lp(db.as_ref(), "cpu bar=5 50").await;
+        let t2_write = t1_write + chrono::Duration::seconds(1);
+        write_lp_with_time(db.as_ref(), "cpu bar=2 20", t2_write).await;
+        let t3_write = t2_write + chrono::Duration::seconds(1);
+        write_lp_with_time(db.as_ref(), "cpu bar=3 30", t3_write).await;
+        let t4_write = t3_write + chrono::Duration::seconds(1);
+        write_lp_with_time(db.as_ref(), "cpu bar=4 40", t4_write).await;
+        let t5_write = t4_write + chrono::Duration::seconds(1);
+        write_lp_with_time(db.as_ref(), "cpu bar=5 50", t5_write).await;
 
         // verify chunk size updated
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 764);
@@ -1638,16 +1692,18 @@ mod tests {
         let expected_read_buffer_size = 1706;
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
 
-        db.persist_partition(
+        let t6_write = t5_write + chrono::Duration::seconds(1);
+        db.persist_partition_with_timestamp(
             "cpu",
             "1970-01-01T00",
             Instant::now() + Duration::from_secs(1),
+            || t6_write,
         )
         .await
         .unwrap();
 
         // A chunk is now in the object store and still in read buffer
-        let expected_parquet_size = 1551;
+        let expected_parquet_size = 1243;
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", expected_parquet_size);
@@ -2041,8 +2097,10 @@ mod tests {
         let db = test_db.db;
 
         // Write some line protocols in Mutable buffer of the DB
-        write_lp(db.as_ref(), "cpu bar=1 10").await;
-        write_lp(db.as_ref(), "cpu bar=2 20").await;
+        let t1_write = Utc.timestamp(11, 22);
+        write_lp_with_time(db.as_ref(), "cpu bar=1 10", t1_write).await;
+        let t2_write = t1_write + chrono::Duration::seconds(1);
+        write_lp_with_time(db.as_ref(), "cpu bar=2 20", t2_write).await;
 
         //Now mark the MB chunk close
         let partition_key = "1970-01-01T00";
@@ -2057,11 +2115,13 @@ mod tests {
             .await
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
+        let t3_persist = t2_write + chrono::Duration::seconds(1);
         let pq_chunk = db
-            .persist_partition(
+            .persist_partition_with_timestamp(
                 "cpu",
                 partition_key,
                 Instant::now() + Duration::from_secs(1),
+                || t3_persist,
             )
             .await
             .unwrap();
@@ -2071,7 +2131,7 @@ mod tests {
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1551);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1242);
 
         // while MB and RB chunk are identical, the PQ chunk is a new one (split off)
         assert_eq!(mb_chunk.id(), rb_chunk.id());
@@ -2137,8 +2197,10 @@ mod tests {
         let db = test_db.db;
 
         // Write some line protocols in Mutable buffer of the DB
-        write_lp(db.as_ref(), "cpu bar=1 10").await;
-        write_lp(db.as_ref(), "cpu bar=2 20").await;
+        let t1_write = Utc.timestamp(11, 22);
+        write_lp_with_time(db.as_ref(), "cpu bar=1 10", t1_write).await;
+        let t2_write = t1_write + chrono::Duration::seconds(1);
+        write_lp_with_time(db.as_ref(), "cpu bar=2 20", t2_write).await;
 
         // Now mark the MB chunk close
         let partition_key = "1970-01-01T00";
@@ -2153,11 +2215,13 @@ mod tests {
             .await
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
+        let t3_persist = t2_write + chrono::Duration::seconds(1);
         let pq_chunk = db
-            .persist_partition(
+            .persist_partition_with_timestamp(
                 "cpu",
                 partition_key,
                 Instant::now() + Duration::from_secs(1),
+                || t3_persist,
             )
             .await
             .unwrap();
@@ -2180,7 +2244,7 @@ mod tests {
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1551);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1242);
 
         // Unload RB chunk but keep it in OS
         let pq_chunk = db
@@ -2202,7 +2266,7 @@ mod tests {
         // Parquet chunk size only
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 0);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1551);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1242);
 
         // Verify data written to the parquet file in object store
         //
@@ -2542,16 +2606,16 @@ mod tests {
 
         // get three chunks: one open, one closed in mb and one close in rb
         // In open chunk, will end up in rb/os
-        let t_write1 = Utc::now();
-        write_lp_with_time(&db, "cpu bar=1 1", t_write1).await;
+        let t1_write = Utc.timestamp(11, 22);
+        write_lp_with_time(&db, "cpu bar=1 1", t1_write).await;
 
         // Move open chunk to closed
         db.rollover_partition("cpu", "1970-01-01T00").await.unwrap();
 
         // New open chunk in mb
         // This point will end up in rb/os
-        let t_write2 = Utc::now();
-        write_lp_with_time(&db, "cpu bar=1,baz=2 2", t_write2).await;
+        let t2_write = t1_write + chrono::Duration::seconds(1);
+        write_lp_with_time(&db, "cpu bar=1,baz=2 2", t2_write).await;
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2560,15 +2624,15 @@ mod tests {
         // Each chunk has one write, so both chunks should have first write == last write
         let closed_mb_t3 = chunk_summaries[0].clone();
         assert_eq!(closed_mb_t3.storage, ChunkStorage::ClosedMutableBuffer);
-        assert_first_last_times_eq(&closed_mb_t3, t_write1);
+        assert_first_last_times_eq(&closed_mb_t3, t1_write);
         let open_mb_t3 = chunk_summaries[1].clone();
         assert_eq!(open_mb_t3.storage, ChunkStorage::OpenMutableBuffer);
-        assert_first_last_times_eq(&open_mb_t3, t_write2);
+        assert_first_last_times_eq(&open_mb_t3, t2_write);
         assert_chunks_times_ordered(&closed_mb_t3, &open_mb_t3);
 
         // This point makes a new open mb chunk and will end up in the closed mb chunk
-        let t_write3 = Utc::now();
-        write_lp_with_time(&db, "cpu bar=1,baz=2,frob=3 400000000000000", t_write3).await;
+        let t3_write = t2_write + chrono::Duration::seconds(1);
+        write_lp_with_time(&db, "cpu bar=1,baz=2,frob=3 400000000000000", t3_write).await;
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2610,10 +2674,12 @@ mod tests {
         assert_chunks_times_eq(&other_open_mb_t5, &other_open_mb_t4);
 
         // Persist rb to parquet os
-        db.persist_partition(
+        let t4_persist = t3_write + chrono::Duration::seconds(1);
+        db.persist_partition_with_timestamp(
             "cpu",
             "1970-01-01T00",
             Instant::now() + Duration::from_secs(1),
+            || t4_persist,
         )
         .await
         .unwrap();
@@ -2654,8 +2720,8 @@ mod tests {
 
         // New open chunk in mb
         // This point will stay in this open mb chunk
-        let t_write4 = Utc::now();
-        write_lp_with_time(&db, "cpu bar=1,baz=3,blargh=3 400000000000000", t_write4).await;
+        let t5_write = t4_persist + chrono::Duration::seconds(1);
+        write_lp_with_time(&db, "cpu bar=1,baz=3,blargh=3 400000000000000", t5_write).await;
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2673,7 +2739,7 @@ mod tests {
         // times should be the same
         let open_mb_t8 = chunk_summaries[2].clone();
         assert_eq!(open_mb_t8.storage, ChunkStorage::OpenMutableBuffer);
-        assert_first_last_times_eq(&open_mb_t8, t_write4);
+        assert_first_last_times_eq(&open_mb_t8, t5_write);
 
         let lifecycle_action = None;
 
@@ -2684,8 +2750,8 @@ mod tests {
                 id: 2,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                memory_bytes: 4557,       // size of RB and OS chunks
-                object_store_bytes: 1577, // size of parquet file
+                memory_bytes: 4085,       // size of RB and OS chunks
+                object_store_bytes: 1533, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
                 time_of_first_write: Utc.timestamp_nanos(1),
@@ -2739,7 +2805,7 @@ mod tests {
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 1303);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2550);
-        assert_eq!(db.catalog.metrics().memory().object_store(), 2007);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 1535);
     }
 
     #[tokio::test]

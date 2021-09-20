@@ -19,14 +19,18 @@ use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 /// Split and then persist the provided chunks
 ///
 /// TODO: Replace low-level locks with transaction object
-pub fn persist_chunks(
+pub fn persist_chunks<F>(
     partition: LifecycleWriteGuard<'_, Partition, LockableCatalogPartition>,
     chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>>,
     flush_handle: FlushHandle,
+    f_parquet_creation_timestamp: F,
 ) -> Result<(
     TaskTracker<Job>,
     TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
-)> {
+)>
+where
+    F: Fn() -> DateTime<Utc> + Send,
+{
     assert!(
         !chunks.is_empty(),
         "must provide at least 1 chunk to persist"
@@ -164,7 +168,13 @@ pub fn persist_chunks(
             };
             let to_persist = to_persist.write();
 
-            write_chunk_to_object_store(partition_write, to_persist, flush_handle)?.1
+            write_chunk_to_object_store(
+                partition_write,
+                to_persist,
+                flush_handle,
+                f_parquet_creation_timestamp,
+            )?
+            .1
         };
 
         // Wait for write operation to complete
@@ -239,7 +249,7 @@ mod tests {
         assert_eq!(handle.timestamp(), Utc.timestamp_nanos(10));
         let chunks: Vec<_> = chunks.map(|x| x.upgrade()).collect();
 
-        persist_chunks(partition, chunks, handle)
+        persist_chunks(partition, chunks, handle, Utc::now)
             .unwrap()
             .1
             .await

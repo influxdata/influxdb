@@ -12,7 +12,7 @@ use crate::db::{
 
 use ::lifecycle::LifecycleWriteGuard;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use data_types::{chunk_metadata::ChunkLifecycleAction, job::Job};
 use internal_types::selection::Selection;
 use observability_deps::tracing::{debug, warn};
@@ -40,14 +40,18 @@ use super::{
 ///
 /// Returns a future registered with the tracker registry, and the corresponding tracker
 /// The caller can either spawn this future to tokio, or block directly on it
-pub(super) fn write_chunk_to_object_store(
+pub(super) fn write_chunk_to_object_store<F>(
     partition: LifecycleWriteGuard<'_, Partition, LockableCatalogPartition>,
     mut chunk: LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>,
     flush_handle: FlushHandle,
+    f_parquet_creation_timestamp: F,
 ) -> Result<(
     TaskTracker<Job>,
     TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
-)> {
+)>
+where
+    F: Fn() -> DateTime<Utc> + Send,
+{
     let db = Arc::clone(&chunk.data().db);
     let addr = chunk.addr().clone();
     let table_name = Arc::clone(&addr.table_name);
@@ -119,7 +123,7 @@ pub(super) fn write_chunk_to_object_store(
             // IMPORTANT: Writing must take place while holding the cleanup lock, otherwise the file might be deleted
             //            between creation and the transaction commit.
             let metadata = IoxMetadata {
-                creation_timestamp: Utc::now(),
+                creation_timestamp: f_parquet_creation_timestamp(),
                 table_name: Arc::clone(&table_name),
                 partition_key: Arc::clone(&partition_key),
                 chunk_id: addr.chunk_id,

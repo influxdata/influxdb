@@ -37,7 +37,7 @@ pub use crate::catalog::internals::proto_parse::Error as ProtoParseError;
 /// Current version for serialized transactions.
 ///
 /// For breaking changes, this will change.
-pub const TRANSACTION_VERSION: u32 = 13;
+pub const TRANSACTION_VERSION: u32 = 14;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -945,9 +945,7 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
-    use crate::catalog::test_helpers::{
-        assert_catalog_state_implementation, break_catalog_with_weird_version, TestCatalogState,
-    };
+    use crate::catalog::test_helpers::{break_catalog_with_weird_version, TestCatalogState};
     use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize};
 
     #[tokio::test]
@@ -2158,14 +2156,5 @@ mod tests {
                 .unwrap()
                 .is_some()
         );
-    }
-
-    #[tokio::test]
-    async fn test_catalog_state() {
-        assert_catalog_state_implementation::<TestCatalogState, _>(
-            (),
-            TestCatalogState::checkpoint_data,
-        )
-        .await;
     }
 }
