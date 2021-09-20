@@ -3813,7 +3813,6 @@ dependencies = [
  "bitflags",
  "cfg-if",
  "clipboard-win",
- "dirs-next",
  "fd-lock",
  "libc",
  "log",
