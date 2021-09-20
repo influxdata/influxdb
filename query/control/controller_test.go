@@ -40,8 +40,16 @@ func init() {
 var (
 	mockCompiler = &mock.Compiler{
 		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			prev := time.Now()
+			for now := time.Now(); now.Equal(prev); now = time.Now() {
+				time.Sleep(time.Millisecond)
+			}
 			return &mock.Program{
 				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+					prev := time.Now()
+					for now := time.Now(); now.Equal(prev); now = time.Now() {
+						time.Sleep(time.Millisecond)
+					}
 					q.ResultsCh <- &executetest.Result{}
 				},
 			}, nil
@@ -150,9 +158,6 @@ func TestController_QuerySuccess(t *testing.T) {
 			if stats.CompileDuration == 0 {
 				t.Error("expected compile duration to be above zero")
 			}
-			if stats.QueueDuration == 0 {
-				t.Error("expected queue duration to be above zero")
-			}
 			if stats.ExecuteDuration == 0 {
 				t.Error("expected execute duration to be above zero")
 			}
@@ -207,8 +212,16 @@ func TestController_QueryRuntimeError(t *testing.T) {
 
 			q, err := ctrl.Query(context.Background(), makeRequest(&mock.Compiler{
 				CompileFn: func(ctx context.Context) (flux.Program, error) {
+					prev := time.Now()
+					for now := time.Now(); now.Equal(prev); now = time.Now() {
+						time.Sleep(time.Millisecond)
+					}
 					return &mock.Program{
 						ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+							prev := time.Now()
+							for now := time.Now(); now.Equal(prev); now = time.Now() {
+								time.Sleep(time.Millisecond)
+							}
 							q.SetErr(errors.New("runtime error"))
 						},
 					}, nil
@@ -230,9 +243,6 @@ func TestController_QueryRuntimeError(t *testing.T) {
 			stats := q.Statistics()
 			if stats.CompileDuration == 0 {
 				t.Error("expected compile duration to be above zero")
-			}
-			if stats.QueueDuration == 0 {
-				t.Error("expected queue duration to be above zero")
 			}
 			if stats.ExecuteDuration == 0 {
 				t.Error("expected execute duration to be above zero")
