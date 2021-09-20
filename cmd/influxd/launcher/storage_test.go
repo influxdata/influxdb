@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	nethttp "net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/stretchr/testify/require"
 )
@@ -52,6 +54,60 @@ func TestStorage_WriteAndQuery(t *testing.T) {
 	if got := l.FluxQueryOrFail(t, org2.Org, org2.Auth.Token, qs); !cmp.Equal(got, exp) {
 		t.Errorf("unexpected query results -got/+exp\n%s", cmp.Diff(got, exp))
 	}
+}
+
+// Ensure the server will write all points possible with exception of
+// - field type conflict
+// - field too large
+func TestStorage_PartialWrite(t *testing.T) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	// Initial write of integer.
+	l.WritePointsOrFail(t, `cpu value=1i 946684800000000000`)
+
+	// Write mixed-field types.
+	err := l.WritePoints("cpu value=2i 946684800000000001\ncpu value=3 946684800000000002\ncpu value=4i 946684800000000003")
+	require.Error(t, err)
+
+	// Write oversized field value.
+	err = l.WritePoints(fmt.Sprintf(`cpu str="%s" 946684800000000004`, strings.Repeat("a", tsdb.MaxFieldValueLength+1)))
+	require.Error(t, err)
+
+	// Write biggest field value.
+	l.WritePointsOrFail(t, fmt.Sprintf(`cpu str="%s" 946684800000000005`, strings.Repeat("a", tsdb.MaxFieldValueLength)))
+
+	// Ensure the valid points were written.
+	qs := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z) |> keep(columns: ["_time","_field"])`
+
+	exp := `,result,table,_time,_field` + "\r\n" +
+		`,_result,0,2000-01-01T00:00:00.000000005Z,str` + "\r\n" + // str=max-length string
+		`,_result,1,2000-01-01T00:00:00Z,value` + "\r\n" + // value=1
+		`,_result,1,2000-01-01T00:00:00.000000001Z,value` + "\r\n" + // value=2
+		`,_result,1,2000-01-01T00:00:00.000000003Z,value` + "\r\n\r\n" // value=4
+
+	buf, err := http.SimpleQuery(l.URL(), qs, l.Org.Name, l.Auth.Token)
+	require.NoError(t, err)
+	require.Equal(t, exp, string(buf))
+}
+
+func TestStorage_DisableMaxFieldValueSize(t *testing.T) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
+		o.StorageConfig.Data.SkipFieldSizeValidation = true
+	})
+	defer l.ShutdownOrFail(t, ctx)
+
+	// Write a normally-oversized field value.
+	l.WritePointsOrFail(t, fmt.Sprintf(`cpu str="%s" 946684800000000000`, strings.Repeat("a", tsdb.MaxFieldValueLength+1)))
+
+	// Check that the point can be queried.
+	qs := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z) |> keep(columns: ["_value"])`
+	exp := `,result,table,_value` + "\r\n" +
+		fmt.Sprintf(`,_result,0,%s`, strings.Repeat("a", tsdb.MaxFieldValueLength+1)) + "\r\n\r\n"
+
+	buf, err := http.SimpleQuery(l.URL(), qs, l.Org.Name, l.Auth.Token)
+	require.NoError(t, err)
+	require.Equal(t, exp, string(buf))
 }
 
 func TestLauncher_WriteAndQuery(t *testing.T) {
