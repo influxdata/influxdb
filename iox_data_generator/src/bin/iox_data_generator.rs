@@ -62,6 +62,10 @@ Logging:
                 .long("print")
             .help("Print the generated line protocol from a single sample collection to the terminal")
         )
+        .arg(Arg::with_name("NOOP")
+                .long("noop")
+            .help("Runs the generation with agents writing to a sink. Useful for quick stress test to see how much resources the generator will take")
+        )
         .arg(
             Arg::with_name("OUTPUT")
                 .short("o")
@@ -190,6 +194,8 @@ Logging:
         PointsWriterBuilder::new_api(host, org, bucket, token, create_bucket, org_id).await?
     } else if matches.is_present("PRINT") {
         PointsWriterBuilder::new_std_out()
+    } else if matches.is_present("NOOP") {
+        PointsWriterBuilder::new_no_op(true)
     } else {
         panic!("One of --print or --output or --host must be provided.");
     };
