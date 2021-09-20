@@ -1752,7 +1752,6 @@ dependencies = [
  "rdkafka",
  "read_buffer",
  "reqwest",
- "routerify",
  "rustyline",
  "serde",
  "serde_json",
@@ -3664,19 +3663,6 @@ dependencies = [
  "untrusted",
  "web-sys",
  "winapi",
-]
-
-[[package]]
-name = "routerify"
-version = "2.0.0-beta-2"
-source = "git+https://github.com/influxdata/routerify?rev=274e250#274e250e556b968ad02259282c0433e445db4200"
-dependencies = [
- "http",
- "hyper",
- "lazy_static",
- "percent-encoding",
- "regex",
- "thiserror",
 ]
 
 [[package]]
