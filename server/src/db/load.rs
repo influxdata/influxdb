@@ -8,7 +8,8 @@ use parquet_file::{
     catalog::{
         core::PreservedCatalog,
         interface::{
-            CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError,
+            CatalogParquetInfo, CatalogState, CatalogStateAddError,
+            CatalogStateDeletePredicateError, CatalogStateRemoveError, ChunkAddrWithoutDatabase,
             ChunkCreationFailed,
         },
     },
@@ -269,6 +270,27 @@ impl CatalogState for Loader {
         } else {
             Err(CatalogStateRemoveError::ParquetFileDoesNotExist { path: path.clone() })
         }
+    }
+
+    fn delete_predicate(
+        &mut self,
+        predicate: Arc<Predicate>,
+        chunks: Vec<ChunkAddrWithoutDatabase>,
+    ) -> Result<(), CatalogStateDeletePredicateError> {
+        for addr in chunks {
+            let (chunk, _order) = self
+                .catalog
+                .chunk(&addr.table_name, &addr.partition_key, addr.chunk_id)
+                .map_err(|_| CatalogStateDeletePredicateError::ChunkDoesNotExist {
+                    chunk: addr.clone(),
+                })?;
+            let mut chunk = chunk.write();
+            chunk
+                .add_delete_predicate(Arc::clone(&predicate))
+                .expect("this should not fail for persisted chunks");
+        }
+
+        Ok(())
     }
 }
 

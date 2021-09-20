@@ -34,7 +34,7 @@ use observability_deps::tracing::{debug, error, info};
 use parquet_file::catalog::{
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
     core::PreservedCatalog,
-    interface::{CatalogParquetInfo, CheckpointData},
+    interface::{CatalogParquetInfo, CheckpointData, ChunkAddrWithoutDatabase},
     prune::prune_history as prune_catalog_transaction_history,
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
@@ -1203,10 +1203,13 @@ impl CatalogProvider for Db {
 
 pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData {
     let mut files = HashMap::new();
+    let mut delete_predicates: HashMap<usize, (Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)> =
+        Default::default();
 
     for chunk in catalog.chunks() {
         let guard = chunk.read();
         if let ChunkStage::Persisted { parquet, .. } = guard.stage() {
+            // capture parquet file path
             let path = parquet.path().clone();
 
             let m = CatalogParquetInfo {
@@ -1216,10 +1219,36 @@ pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData 
             };
 
             files.insert(path, m);
+
+            // capture delete predicates
+            for predicate in guard.delete_predicates() {
+                let predicate_ref: &Predicate = predicate.as_ref();
+                let addr = (predicate_ref as *const Predicate) as usize;
+                delete_predicates
+                    .entry(addr)
+                    .and_modify(|(_predicate, v)| v.push(guard.addr().clone().into()))
+                    .or_insert_with(|| (Arc::clone(predicate), vec![guard.addr().clone().into()]));
+            }
         }
     }
 
-    CheckpointData { files }
+    let mut delete_predicates: Vec<_> = delete_predicates
+        .into_values()
+        .map(|(predicate, mut chunks)| {
+            chunks.sort();
+            (predicate, chunks)
+        })
+        .collect();
+    delete_predicates.sort_by(|(predicate_a, _chunks_a), (predicate_b, _chunks_b)| {
+        predicate_a
+            .partial_cmp(predicate_b)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    CheckpointData {
+        files,
+        delete_predicates,
+    }
 }
 
 pub mod test_helpers {

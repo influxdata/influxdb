@@ -86,7 +86,7 @@ pub enum PredicateMatch {
 /// distinguishes between some types of columns (tags and fields), and
 /// likewise the semantics of this structure can express some types of
 /// restrictions that only apply to certain types of columns.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
 pub struct Predicate {
     /// Optional table restriction. If present, restricts the results
     /// to only tables whose names are in `table_names`
