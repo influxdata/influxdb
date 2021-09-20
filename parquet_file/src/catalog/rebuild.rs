@@ -179,7 +179,7 @@ mod tests {
         },
     };
     use chrono::Utc;
-    use data_types::chunk_metadata::{ChunkAddr, ChunkOrder};
+    use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
     use datafusion::physical_plan::SendableRecordBatchStream;
     use datafusion_util::MemoryStream;
     use parquet::arrow::ArrowWriter;
@@ -197,11 +197,11 @@ mod tests {
         {
             let mut transaction = catalog.open_transaction().await;
 
-            let info = create_parquet_file(&iox_object_store, 0).await;
+            let info = create_parquet_file(&iox_object_store, ChunkId::new(0)).await;
             state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info);
 
-            let info = create_parquet_file(&iox_object_store, 1).await;
+            let info = create_parquet_file(&iox_object_store, ChunkId::new(1)).await;
             state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info);
 
@@ -215,7 +215,7 @@ mod tests {
         {
             let mut transaction = catalog.open_transaction().await;
 
-            let info = create_parquet_file(&iox_object_store, 2).await;
+            let info = create_parquet_file(&iox_object_store, ChunkId::new(2)).await;
             state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info);
 
@@ -283,7 +283,7 @@ mod tests {
                 .unwrap();
 
         // file w/o metadata
-        create_parquet_file_without_metadata(&iox_object_store, 0).await;
+        create_parquet_file_without_metadata(&iox_object_store, ChunkId::new(0)).await;
 
         // wipe catalog
         drop(catalog);
@@ -358,7 +358,7 @@ mod tests {
 
     pub async fn create_parquet_file(
         iox_object_store: &Arc<IoxObjectStore>,
-        chunk_id: u32,
+        chunk_id: ChunkId,
     ) -> CatalogParquetInfo {
         let table_name = Arc::from("table1");
         let partition_key = Arc::from("part1");
@@ -405,7 +405,7 @@ mod tests {
 
     pub async fn create_parquet_file_without_metadata(
         iox_object_store: &Arc<IoxObjectStore>,
-        chunk_id: u32,
+        chunk_id: ChunkId,
     ) -> (ParquetFilePath, IoxParquetMetaData) {
         let (record_batches, schema, _column_summaries, _num_rows) =
             make_record_batch("foo", TestSize::Full);

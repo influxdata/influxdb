@@ -10,7 +10,7 @@
 
 use chrono::{DateTime, Utc};
 use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkOrder, ChunkStorage},
+    chunk_metadata::{ChunkAddr, ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkStorage},
     database_rules::LifecycleRules,
     DatabaseName,
 };
@@ -60,7 +60,7 @@ pub trait LockablePartition: Sized + std::fmt::Display {
     /// Returns a specific chunk
     fn chunk(
         s: &LifecycleReadGuard<'_, Self::Partition, Self>,
-        chunk_id: u32,
+        chunk_id: ChunkId,
     ) -> Option<Self::Chunk>;
 
     /// Return a list of lockable chunks in this partition.
@@ -151,7 +151,7 @@ pub trait LockableChunk: Sized {
     fn unload_read_buffer(s: LifecycleWriteGuard<'_, Self::Chunk, Self>)
         -> Result<(), Self::Error>;
 
-    fn id(&self) -> u32;
+    fn id(&self) -> ChunkId;
 
     fn order(&self) -> ChunkOrder;
 }

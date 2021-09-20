@@ -20,7 +20,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use ::lifecycle::{LifecycleChunk, LockableChunk, LockablePartition};
 use data_types::{
-    chunk_metadata::{ChunkOrder, ChunkSummary},
+    chunk_metadata::{ChunkId, ChunkOrder, ChunkSummary},
     database_rules::DatabaseRules,
     partition_metadata::{PartitionSummary, TableSummary},
     server_id::ServerId,
@@ -98,10 +98,10 @@ pub enum Error {
     #[snafu(display("Hard buffer size limit reached"))]
     HardLimitReached {},
 
-    #[snafu(display("Can not write entry {}:{} : {}", partition_key, chunk_id, source))]
+    #[snafu(display("Can not write entry {}:{} : {}", partition_key, chunk_id.get(), source))]
     WriteEntry {
         partition_key: String,
-        chunk_id: u32,
+        chunk_id: ChunkId,
         source: mutable_buffer::chunk::Error,
     },
 
@@ -448,7 +448,7 @@ impl Db {
         &self,
         table_name: &str,
         partition_key: &str,
-        chunk_id: u32,
+        chunk_id: ChunkId,
     ) -> catalog::Result<(Arc<tracker::RwLock<CatalogChunk>>, ChunkOrder)> {
         self.catalog.chunk(table_name, partition_key, chunk_id)
     }
@@ -457,7 +457,7 @@ impl Db {
         self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
-        chunk_id: u32,
+        chunk_id: ChunkId,
     ) -> catalog::Result<LockableCatalogChunk> {
         let (chunk, order) = self.chunk(table_name, partition_key, chunk_id)?;
         Ok(LockableCatalogChunk {
@@ -473,7 +473,7 @@ impl Db {
         self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
-        chunk_id: u32,
+        chunk_id: ChunkId,
     ) -> Result<()> {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
@@ -556,7 +556,7 @@ impl Db {
         self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
-        chunk_id: u32,
+        chunk_id: ChunkId,
     ) -> Result<Arc<DbChunk>> {
         let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
         let (_, fut) =
@@ -697,7 +697,7 @@ impl Db {
         self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
-        chunk_id: u32,
+        chunk_id: ChunkId,
     ) -> Result<Arc<DbChunk>> {
         let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
         let chunk = chunk.write();
@@ -732,7 +732,7 @@ impl Db {
         &self,
         table_name: &str,
         partition_key: &str,
-        chunk_id: u32,
+        chunk_id: ChunkId,
     ) -> Option<Arc<TableSummary>> {
         let (chunk, _order) = self.chunk(table_name, partition_key, chunk_id).ok()?;
         let chunk = chunk.read();
@@ -1675,7 +1675,7 @@ mod tests {
 
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 1295);
 
-        db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
+        db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", ChunkId::new(0))
             .await
             .unwrap();
 
@@ -1715,7 +1715,8 @@ mod tests {
         assert_storage_gauge(registry, "catalog_loaded_rows", "read_buffer", 5);
         assert_storage_gauge(registry, "catalog_loaded_rows", "object_store", 5);
 
-        db.unload_read_buffer("cpu", "1970-01-01T00", 1).unwrap();
+        db.unload_read_buffer("cpu", "1970-01-01T00", ChunkId::new(1))
+            .unwrap();
 
         // A chunk is now now in the "os-only" state.
         assert_storage_gauge(registry, "catalog_loaded_chunks", "mutable_buffer", 0);
@@ -1783,7 +1784,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(mb_chunk.id(), 0);
+        assert_eq!(mb_chunk.id(), ChunkId::new(0));
 
         let expected = vec![
             "+-----+--------------------------------+",
@@ -1814,7 +1815,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(chunk.id(), 1);
+        assert_eq!(chunk.id(), ChunkId::new(1));
 
         let batches = run_query(db, "select * from cpu").await;
         assert_batches_sorted_eq!(&expected, &batches);
@@ -1841,7 +1842,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(mb_chunk.id(), 0);
+        assert_eq!(mb_chunk.id(), ChunkId::new(0));
 
         let expected = vec![
             "+------+--------+--------------------------------+------+",
@@ -1881,7 +1882,10 @@ mod tests {
 
         // we should have chunks in both the read buffer only
         assert!(mutable_chunk_ids(&db, partition_key).is_empty());
-        assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![0]);
+        assert_eq!(
+            read_buffer_chunk_ids(&db, partition_key),
+            vec![ChunkId::new(0)]
+        );
 
         // data should be readable
         let expected = vec![
@@ -1909,7 +1913,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             read_buffer_chunk_ids(db.as_ref(), partition_key),
-            vec![] as Vec<u32>
+            vec![] as Vec<ChunkId>
         );
 
         // verify size is not accounted even though a reference to the RubChunk still exists
@@ -2139,8 +2143,14 @@ mod tests {
 
         // we should have chunks in both the read buffer only
         assert!(mutable_chunk_ids(&db, partition_key).is_empty());
-        assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![1]);
-        assert_eq!(read_parquet_file_chunk_ids(&db, partition_key), vec![1]);
+        assert_eq!(
+            read_buffer_chunk_ids(&db, partition_key),
+            vec![ChunkId::new(1)]
+        );
+        assert_eq!(
+            read_parquet_file_chunk_ids(&db, partition_key),
+            vec![ChunkId::new(1)]
+        );
 
         // Verify data written to the parquet file in object store
         //
@@ -2459,10 +2469,10 @@ mod tests {
         write_lp(&db, "cpu bar=1 10").await;
         write_lp(&db, "cpu bar=1 20").await;
 
-        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![0]);
+        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![ChunkId::new(0)]);
         assert_eq!(
             read_buffer_chunk_ids(&db, partition_key),
-            vec![] as Vec<u32>
+            vec![] as Vec<ChunkId>
         );
 
         let partition_key = "1970-01-01T00";
@@ -2471,7 +2481,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(mb_chunk.id(), 0);
+        assert_eq!(mb_chunk.id(), ChunkId::new(0));
 
         // add a new chunk in mutable buffer, and move chunk1 (but
         // not chunk 0) to read buffer
@@ -2487,8 +2497,14 @@ mod tests {
 
         write_lp(&db, "cpu bar=1 40").await;
 
-        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![0, 2]);
-        assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![1]);
+        assert_eq!(
+            mutable_chunk_ids(&db, partition_key),
+            vec![ChunkId::new(0), ChunkId::new(2)]
+        );
+        assert_eq!(
+            read_buffer_chunk_ids(&db, partition_key),
+            vec![ChunkId::new(1)]
+        );
     }
 
     #[tokio::test]
@@ -2509,7 +2525,7 @@ mod tests {
         let expected = vec![ChunkSummary {
             partition_key: Arc::from("1970-01-05T15"),
             table_name: Arc::from("cpu"),
-            id: 0,
+            id: ChunkId::new(0),
             storage: ChunkStorage::OpenMutableBuffer,
             lifecycle_action: None,
             memory_bytes: 1006,    // memory_size
@@ -2560,7 +2576,7 @@ mod tests {
         chunk_summaries.sort_by_key(|s| s.id);
 
         let summary = &chunk_summaries[0];
-        assert_eq!(summary.id, 0, "summary; {:#?}", summary);
+        assert_eq!(summary.id, ChunkId::new(0), "summary; {:#?}", summary);
         assert_eq!(summary.time_of_first_write, t_first_write);
         assert_eq!(summary.time_of_last_write, t_second_write);
         assert!(t_close_before <= summary.time_closed.unwrap());
@@ -2652,7 +2668,7 @@ mod tests {
         assert_chunks_times_ordered(&open_mb_t4, &other_open_mb_t4);
 
         // Move closed mb chunk to rb
-        db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", 0)
+        db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", ChunkId::new(0))
             .await
             .unwrap();
 
@@ -2747,7 +2763,7 @@ mod tests {
             ChunkSummary {
                 partition_key: Arc::from("1970-01-01T00"),
                 table_name: Arc::from("cpu"),
-                id: 2,
+                id: ChunkId::new(2),
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
                 memory_bytes: 4085,       // size of RB and OS chunks
@@ -2762,7 +2778,7 @@ mod tests {
             ChunkSummary {
                 partition_key: Arc::from("1970-01-05T15"),
                 table_name: Arc::from("cpu"),
-                id: 0,
+                id: ChunkId::new(0),
                 storage: ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
                 memory_bytes: 2486,
@@ -2777,7 +2793,7 @@ mod tests {
             ChunkSummary {
                 partition_key: Arc::from("1970-01-05T15"),
                 table_name: Arc::from("cpu"),
-                id: 1,
+                id: ChunkId::new(1),
                 storage: ChunkStorage::OpenMutableBuffer,
                 lifecycle_action,
                 memory_bytes: 1303,
@@ -2947,8 +2963,8 @@ mod tests {
         );
     }
 
-    fn mutable_chunk_ids(db: &Db, partition_key: &str) -> Vec<u32> {
-        let mut chunk_ids: Vec<u32> = db
+    fn mutable_chunk_ids(db: &Db, partition_key: &str) -> Vec<ChunkId> {
+        let mut chunk_ids: Vec<ChunkId> = db
             .partition_chunk_summaries(partition_key)
             .into_iter()
             .filter_map(|chunk| match chunk.storage {
@@ -2962,8 +2978,8 @@ mod tests {
         chunk_ids
     }
 
-    fn read_buffer_chunk_ids(db: &Db, partition_key: &str) -> Vec<u32> {
-        let mut chunk_ids: Vec<u32> = db
+    fn read_buffer_chunk_ids(db: &Db, partition_key: &str) -> Vec<ChunkId> {
+        let mut chunk_ids: Vec<ChunkId> = db
             .partition_chunk_summaries(partition_key)
             .into_iter()
             .filter_map(|chunk| match chunk.storage {
@@ -2976,8 +2992,8 @@ mod tests {
         chunk_ids
     }
 
-    fn read_parquet_file_chunk_ids(db: &Db, partition_key: &str) -> Vec<u32> {
-        let mut chunk_ids: Vec<u32> = db
+    fn read_parquet_file_chunk_ids(db: &Db, partition_key: &str) -> Vec<ChunkId> {
+        let mut chunk_ids: Vec<ChunkId> = db
             .partition_chunk_summaries(partition_key)
             .into_iter()
             .filter_map(|chunk| match chunk.storage {
@@ -3024,8 +3040,14 @@ mod tests {
 
         // we should have chunks in both the read buffer only
         assert!(mutable_chunk_ids(&db, partition_key).is_empty());
-        assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![1]);
-        assert_eq!(read_parquet_file_chunk_ids(&db, partition_key), vec![1]);
+        assert_eq!(
+            read_buffer_chunk_ids(&db, partition_key),
+            vec![ChunkId::new(1)]
+        );
+        assert_eq!(
+            read_parquet_file_chunk_ids(&db, partition_key),
+            vec![ChunkId::new(1)]
+        );
     }
 
     #[tokio::test]
@@ -3350,7 +3372,7 @@ mod tests {
         let path_delete = ParquetFilePath::new(&ChunkAddr {
             table_name: "cpu".into(),
             partition_key: "123".into(),
-            chunk_id: 3,
+            chunk_id: ChunkId::new(3),
             db_name: "not used".into(),
         });
         create_empty_file(&db.iox_object_store, &path_delete).await;
@@ -3757,7 +3779,7 @@ mod tests {
         assert_batches_sorted_eq!(&expected, &batches);
     }
 
-    async fn create_parquet_chunk(db: &Arc<Db>) -> (String, String, u32) {
+    async fn create_parquet_chunk(db: &Arc<Db>) -> (String, String, ChunkId) {
         write_lp(db, "cpu bar=1 10").await;
         let partition_key = "1970-01-01T00";
         let table_name = "cpu";

@@ -6,7 +6,7 @@ use crate::{
 use ::lifecycle::LifecycleDb;
 use chrono::{DateTime, TimeZone, Utc};
 use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkOrder, ChunkStorage},
+    chunk_metadata::{ChunkAddr, ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkStorage},
     database_rules::LifecycleRules,
     error::ErrorLogger,
     job::Job,
@@ -64,7 +64,7 @@ pub struct WeakDb(pub(super) Weak<Db>);
 pub struct LockableCatalogChunk {
     pub db: Arc<Db>,
     pub chunk: Arc<RwLock<CatalogChunk>>,
-    pub id: u32,
+    pub id: ChunkId,
     pub order: ChunkOrder,
 }
 
@@ -101,7 +101,7 @@ impl LockableChunk for LockableCatalogChunk {
         Ok(())
     }
 
-    fn id(&self) -> u32 {
+    fn id(&self) -> ChunkId {
         self.id
     }
 
@@ -177,7 +177,10 @@ impl LockablePartition for LockableCatalogPartition {
         LifecycleWriteGuard::new(self.clone(), self.partition.as_ref())
     }
 
-    fn chunk(s: &LifecycleReadGuard<'_, Partition, Self>, chunk_id: u32) -> Option<Self::Chunk> {
+    fn chunk(
+        s: &LifecycleReadGuard<'_, Partition, Self>,
+        chunk_id: ChunkId,
+    ) -> Option<Self::Chunk> {
         s.chunk(chunk_id)
             .map(|(chunk, order)| LockableCatalogChunk {
                 db: Arc::clone(&s.data().db),
@@ -234,7 +237,12 @@ impl LockablePartition for LockableCatalogPartition {
         partition: LifecycleWriteGuard<'_, Self::Partition, Self>,
         chunk: LifecycleWriteGuard<'_, CatalogChunk, Self::Chunk>,
     ) -> Result<TaskTracker<Job>, Self::Error> {
-        info!(table=%partition.table_name(), partition=%partition.partition_key(), chunk_id=chunk.addr().chunk_id, "drop chunk");
+        info!(
+            table=%partition.table_name(),
+            partition=%partition.partition_key(),
+            chunk_id=chunk.addr().chunk_id.get(),
+            "drop chunk",
+        );
         let (tracker, fut) = drop::drop_chunk(partition, chunk)?;
         let _ = tokio::spawn(async move { fut.await.log_if_error("drop chunk") });
         Ok(tracker)

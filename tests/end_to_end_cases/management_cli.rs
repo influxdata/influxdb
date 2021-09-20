@@ -1060,7 +1060,7 @@ async fn test_unload_partition_chunk() {
         .arg(&db_name)
         .arg("cpu")
         .arg("cpu")
-        .arg(chunk.id.to_string())
+        .arg(chunk.id.get().to_string())
         .arg("--host")
         .arg(addr)
         .assert()

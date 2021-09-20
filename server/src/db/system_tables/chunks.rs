@@ -65,7 +65,10 @@ fn time_to_ts(ts: DateTime<Utc>) -> Option<i64> {
 }
 
 fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
-    let id = chunks.iter().map(|c| Some(c.id)).collect::<UInt32Array>();
+    let id = chunks
+        .iter()
+        .map(|c| Some(c.id.get()))
+        .collect::<UInt32Array>();
     let partition_key = chunks
         .iter()
         .map(|c| Some(c.partition_key.as_ref()))
@@ -144,7 +147,7 @@ mod tests {
     use super::*;
     use arrow_util::assert_batches_eq;
     use chrono::{TimeZone, Utc};
-    use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkOrder, ChunkStorage};
+    use data_types::chunk_metadata::{ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkStorage};
 
     #[test]
     fn test_from_chunk_summaries() {
@@ -152,7 +155,7 @@ mod tests {
             ChunkSummary {
                 partition_key: Arc::from("p1"),
                 table_name: Arc::from("table1"),
-                id: 0,
+                id: ChunkId::new(0),
                 storage: ChunkStorage::OpenMutableBuffer,
                 lifecycle_action: None,
                 memory_bytes: 23754,
@@ -167,7 +170,7 @@ mod tests {
             ChunkSummary {
                 partition_key: Arc::from("p1"),
                 table_name: Arc::from("table1"),
-                id: 1,
+                id: ChunkId::new(1),
                 storage: ChunkStorage::OpenMutableBuffer,
                 lifecycle_action: Some(ChunkLifecycleAction::Persisting),
                 memory_bytes: 23455,
@@ -182,7 +185,7 @@ mod tests {
             ChunkSummary {
                 partition_key: Arc::from("p1"),
                 table_name: Arc::from("table1"),
-                id: 2,
+                id: ChunkId::new(2),
                 storage: ChunkStorage::ObjectStoreOnly,
                 lifecycle_action: None,
                 memory_bytes: 1234,

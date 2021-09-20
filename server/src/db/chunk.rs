@@ -2,7 +2,10 @@ use super::{
     catalog::chunk::ChunkMetadata, pred::to_read_buffer_predicate, streams::ReadFilterResultsStream,
 };
 use chrono::{DateTime, Utc};
-use data_types::{chunk_metadata::ChunkOrder, partition_metadata};
+use data_types::{
+    chunk_metadata::{ChunkId, ChunkOrder},
+    partition_metadata,
+};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
 use internal_types::{
@@ -35,16 +38,16 @@ pub enum Error {
     #[snafu(display("Read Buffer Error in chunk {}: {}", chunk_id, source))]
     ReadBufferChunkError {
         source: read_buffer::Error,
-        chunk_id: u32,
+        chunk_id: ChunkId,
     },
 
     #[snafu(display("Read Buffer Error in chunk {}: {}", chunk_id, msg))]
-    ReadBufferError { chunk_id: u32, msg: String },
+    ReadBufferError { chunk_id: ChunkId, msg: String },
 
     #[snafu(display("Parquet File Error in chunk {}: {}", chunk_id, source))]
     ParquetFileChunkError {
         source: parquet_file::chunk::Error,
-        chunk_id: u32,
+        chunk_id: ChunkId,
     },
 
     #[snafu(display("Internal error restricting schema: {}", source))]
@@ -75,7 +78,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// MutableBuffer, ReadBuffer, or a ParquetFile
 #[derive(Debug)]
 pub struct DbChunk {
-    id: u32,
+    id: ChunkId,
     table_name: Arc<str>,
     access_recorder: AccessRecorder,
     state: State,
@@ -242,7 +245,7 @@ impl DbChunk {
 impl QueryChunk for DbChunk {
     type Error = Error;
 
-    fn id(&self) -> u32 {
+    fn id(&self) -> ChunkId {
         self.id
     }
 

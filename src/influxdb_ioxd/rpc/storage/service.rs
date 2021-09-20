@@ -1039,6 +1039,7 @@ mod tests {
         sync::Arc,
     };
 
+    use data_types::chunk_metadata::ChunkId;
     use parking_lot::Mutex;
     use tokio_stream::wrappers::TcpListenerStream;
 
@@ -1184,7 +1185,7 @@ mod tests {
             .db_or_create(db_info.db_name())
             .await
             .expect("getting db")
-            .get_chunk("my_partition_key", 0)
+            .get_chunk("my_partition_key", ChunkId::new(0))
             .unwrap()
             .predicates();
 
@@ -1252,7 +1253,7 @@ mod tests {
             .db_or_create(db_info.db_name())
             .await
             .expect("getting db")
-            .get_chunk("my_partition_key", 0)
+            .get_chunk("my_partition_key", ChunkId::new(0))
             .unwrap()
             .predicates();
 
@@ -1365,7 +1366,7 @@ mod tests {
             .db_or_create(db_info.db_name())
             .await
             .expect("getting db")
-            .get_chunk("my_partition_key", 0)
+            .get_chunk("my_partition_key", ChunkId::new(0))
             .unwrap()
             .predicates();
 

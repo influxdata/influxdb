@@ -4,7 +4,7 @@ use super::chunk::{CatalogChunk, ChunkStage, Error as ChunkError};
 use crate::db::catalog::metrics::PartitionMetrics;
 use chrono::{DateTime, Utc};
 use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkLifecycleAction, ChunkOrder, ChunkSummary},
+    chunk_metadata::{ChunkAddr, ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkSummary},
     partition_metadata::{PartitionAddr, PartitionSummary},
 };
 use internal_types::schema::Schema;
@@ -52,7 +52,7 @@ pub struct Partition {
     /// The chunks that make up this partition, indexed by id.
     //
     // Alongside the chunk we also store its order.
-    chunks: BTreeMap<u32, (ChunkOrder, Arc<RwLock<CatalogChunk>>)>,
+    chunks: BTreeMap<ChunkId, (ChunkOrder, Arc<RwLock<CatalogChunk>>)>,
 
     /// When this partition was created
     created_at: DateTime<Utc>,
@@ -62,7 +62,7 @@ pub struct Partition {
     last_write_at: DateTime<Utc>,
 
     /// What the next chunk id is
-    next_chunk_id: u32,
+    next_chunk_id: ChunkId,
 
     /// Partition metrics
     metrics: Arc<PartitionMetrics>,
@@ -86,7 +86,7 @@ impl Partition {
             chunks: Default::default(),
             created_at: now,
             last_write_at: now,
-            next_chunk_id: 0,
+            next_chunk_id: ChunkId::new(0),
             metrics: Arc::new(metrics),
             persistence_windows: None,
             next_chunk_order: ChunkOrder::new(0),
@@ -141,7 +141,7 @@ impl Partition {
     ) -> Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name().as_ref(), self.table_name());
 
-        let chunk_id = Self::pick_next(&mut self.next_chunk_id, "Chunk ID Overflow");
+        let chunk_id = self.next_chunk_id();
         let chunk_order = self.next_chunk_order();
 
         let addr = ChunkAddr::new(&self.addr, chunk_id);
@@ -178,8 +178,8 @@ impl Partition {
         schema: Arc<Schema>,
         delete_predicates: Vec<Arc<Predicate>>,
         chunk_order: ChunkOrder,
-    ) -> (u32, Arc<RwLock<CatalogChunk>>) {
-        let chunk_id = Self::pick_next(&mut self.next_chunk_id, "Chunk ID Overflow");
+    ) -> (ChunkId, Arc<RwLock<CatalogChunk>>) {
+        let chunk_id = self.next_chunk_id();
         assert!(
             chunk_order < self.next_chunk_order,
             "chunk order for new RUB chunk ({}) is out of range [0, {})",
@@ -212,12 +212,6 @@ impl Partition {
         (chunk_id, chunk)
     }
 
-    fn pick_next(from: &mut u32, error_msg: &'static str) -> u32 {
-        let next = *from;
-        *from = from.checked_add(1).expect(error_msg);
-        next
-    }
-
     /// Create new chunk that is only in object store (= parquet file).
     ///
     /// The partition-specific chunk ID counter will be set to `max(current, chunk_id + 1)`.
@@ -227,7 +221,7 @@ impl Partition {
     /// Returns the previous chunk with the given chunk_id if any
     pub fn insert_object_store_only_chunk(
         &mut self,
-        chunk_id: u32,
+        chunk_id: ChunkId,
         chunk: Arc<parquet_file::chunk::ParquetChunk>,
         time_of_first_write: DateTime<Utc>,
         time_of_last_write: DateTime<Utc>,
@@ -254,9 +248,7 @@ impl Partition {
         match self.chunks.entry(chunk_id) {
             Entry::Vacant(vacant) => {
                 // only update internal state when we know that insertion is OK
-                self.next_chunk_id = self
-                    .next_chunk_id
-                    .max(chunk_id.checked_add(1).expect("Chunk ID Overflow"));
+                self.next_chunk_id = self.next_chunk_id.max(chunk_id.next());
                 self.next_chunk_order = self.next_chunk_order.max(chunk_order.next());
 
                 vacant.insert((chunk_order, Arc::clone(&chunk)));
@@ -267,7 +259,7 @@ impl Partition {
     }
 
     /// Drop the specified chunk
-    pub fn drop_chunk(&mut self, chunk_id: u32) -> Result<Arc<RwLock<CatalogChunk>>> {
+    pub fn drop_chunk(&mut self, chunk_id: ChunkId) -> Result<Arc<RwLock<CatalogChunk>>> {
         match self.chunks.entry(chunk_id) {
             Entry::Vacant(_) => Err(Error::ChunkNotFound {
                 chunk: ChunkAddr::new(&self.addr, chunk_id),
@@ -292,7 +284,7 @@ impl Partition {
     }
 
     /// Drop the specified chunk even if it has an in-progress lifecycle action
-    pub fn force_drop_chunk(&mut self, chunk_id: u32) {
+    pub fn force_drop_chunk(&mut self, chunk_id: ChunkId) {
         self.chunks.remove(&chunk_id);
     }
 
@@ -309,7 +301,7 @@ impl Partition {
     }
 
     /// Return an immutable chunk and its order reference by chunk id.
-    pub fn chunk(&self, chunk_id: u32) -> Option<(&Arc<RwLock<CatalogChunk>>, ChunkOrder)> {
+    pub fn chunk(&self, chunk_id: ChunkId) -> Option<(&Arc<RwLock<CatalogChunk>>, ChunkOrder)> {
         self.chunks
             .get(&chunk_id)
             .map(|(order, chunk)| (chunk, *order))
@@ -328,7 +320,7 @@ impl Partition {
     /// Return chunks in this partition with their order and ids.
     ///
     /// Note that chunks are guaranteed ordered by chunk order and ID.
-    pub fn keyed_chunks(&self) -> Vec<(u32, ChunkOrder, &Arc<RwLock<CatalogChunk>>)> {
+    pub fn keyed_chunks(&self) -> Vec<(ChunkId, ChunkOrder, &Arc<RwLock<CatalogChunk>>)> {
         let mut chunks: Vec<_> = self
             .chunks
             .iter()
@@ -385,6 +377,12 @@ impl Partition {
             .map(|persistence_windows| persistence_windows.sequencer_numbers())
     }
 
+    fn next_chunk_id(&mut self) -> ChunkId {
+        let res = self.next_chunk_id;
+        self.next_chunk_id = self.next_chunk_id.next();
+        res
+    }
+
     fn next_chunk_order(&mut self) -> ChunkOrder {
         let res = self.next_chunk_order;
         self.next_chunk_order = self.next_chunk_order.next();
@@ -431,7 +429,7 @@ mod tests {
         }
 
         // should be in ascending order
-        let expected_ids = vec![0, 1, 2];
+        let expected_ids = vec![ChunkId::new(0), ChunkId::new(1), ChunkId::new(2)];
 
         let ids = partition
             .chunks()
