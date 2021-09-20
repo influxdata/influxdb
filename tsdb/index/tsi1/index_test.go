@@ -11,6 +11,7 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
@@ -222,6 +223,13 @@ func TestIndex_Open(t *testing.T) {
 				t.Fatalf("got index version %d, expected %d", got, exp)
 			}
 		}
+
+		for i := 0; i < int(idx.PartitionN); i++ {
+			p := idx.PartitionAt(i)
+			if got, exp := p.NeedsCompaction(), false; got != exp {
+				t.Fatalf("got needs compaction %v, expected %v", got, exp)
+			}
+		}
 	})
 
 	// Reopening an open index should return an error.
@@ -298,15 +306,25 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Verify on disk size is the same in each stage.
-	// Each series stores flag(1) + series(uvarint(2)) + len(name)(1) + len(key)(1) + len(value)(1) + checksum(4).
-	expSize := int64(4 * 9)
+	idx.RunStateAware(t, func(t *testing.T, state int) {
+		// Each MANIFEST file is 419 bytes and there are tsi1.DefaultPartitionN of them
+		expSize := int64(tsi1.DefaultPartitionN * 419)
+		switch state {
+		case Initial:
+			fallthrough
+		case Reopen:
+			// In the log file, each series stores flag(1) + series(uvarint(2)) + len(name)(1) + len(key)(1) + len(value)(1) + checksum(4).
+			expSize += 4 * 9
+		case PostCompaction:
+			fallthrough
+		case PostCompactionReopen:
+			// For TSI files after a compaction, instead of 4*9, we have encoded measurement names, tag names, etc which is larger
+			expSize += 2202
+		}
 
-	// Each MANIFEST file is 419 bytes and there are tsi1.DefaultPartitionN of them
-	expSize += int64(tsi1.DefaultPartitionN * 419)
-
-	idx.Run(t, func(t *testing.T) {
 		if got, exp := idx.DiskSizeBytes(), expSize; got != exp {
+			// We had some odd errors - if the size is unexpected, log it
+			idx.Index.LogDiskSize(t)
 			t.Fatalf("got %d bytes, expected %d", got, exp)
 		}
 	})
@@ -517,7 +535,7 @@ func (idx *Index) Close() error {
 }
 
 // Reopen closes and opens the index.
-func (idx *Index) Reopen() error {
+func (idx *Index) Reopen(maxLogSize int64) error {
 	if err := idx.Index.Close(); err != nil {
 		return err
 	}
@@ -529,9 +547,22 @@ func (idx *Index) Reopen() error {
 	}
 
 	partitionN := idx.Index.PartitionN // Remember how many partitions to use.
-	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(idx.Index.Path()))
+	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, "db0", tsi1.WithPath(idx.Index.Path()), tsi1.WithMaximumLogFileSize(maxLogSize))
 	idx.Index.PartitionN = partitionN
 	return idx.Open()
+}
+
+const (
+	Initial = iota
+	Reopen
+	PostCompaction
+	PostCompactionReopen
+)
+
+func curryState(state int, f func(t *testing.T, state int)) func(t *testing.T) {
+	return func(t *testing.T) {
+		f(t, state)
+	}
 }
 
 // Run executes a subtest for each of several different states:
@@ -544,27 +575,42 @@ func (idx *Index) Reopen() error {
 // The index should always respond in the same fashion regardless of
 // how data is stored. This helper allows the index to be easily tested
 // in all major states.
-func (idx *Index) Run(t *testing.T, fn func(t *testing.T)) {
+func (idx *Index) RunStateAware(t *testing.T, fn func(t *testing.T, state int)) {
 	// Invoke immediately.
-	t.Run("state=initial", fn)
+	t.Run("state=initial", curryState(Initial, fn))
 
 	// Reopen and invoke again.
-	if err := idx.Reopen(); err != nil {
+	if err := idx.Reopen(tsdb.DefaultMaxIndexLogFileSize); err != nil {
 		t.Fatalf("reopen error: %s", err)
 	}
-	t.Run("state=reopen", fn)
+	t.Run("state=reopen", curryState(Reopen, fn))
 
-	// TODO: Request a compaction.
-	// if err := idx.Compact(); err != nil {
-	// 	t.Fatalf("compact error: %s", err)
-	// }
-	// t.Run("state=post-compaction", fn)
+	// Reopen requiring a full compaction of the TSL files and invoke again.
+	idx.Reopen(1)
+	for {
+		needsCompaction := false
+		for i := 0; i < int(idx.PartitionN); i++ {
+			needsCompaction = needsCompaction || idx.PartitionAt(i).NeedsCompaction()
+		}
+		if !needsCompaction {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Run("state=post-compaction", curryState(PostCompaction, fn))
 
 	// Reopen and invoke again.
-	if err := idx.Reopen(); err != nil {
+	if err := idx.Reopen(tsdb.DefaultMaxIndexLogFileSize); err != nil {
 		t.Fatalf("post-compaction reopen error: %s", err)
 	}
-	t.Run("state=post-compaction-reopen", fn)
+	t.Run("state=post-compaction-reopen", curryState(PostCompactionReopen, fn))
+}
+
+// Run is the same is RunStateAware but for tests that do not depend on compaction state
+func (idx *Index) Run(t *testing.T, fn func(t *testing.T)) {
+	idx.RunStateAware(t, func(t *testing.T, _ int) {
+		fn(t)
+	})
 }
 
 // CreateSeriesSliceIfNotExists creates multiple series at a time.
