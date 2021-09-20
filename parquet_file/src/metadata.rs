@@ -86,7 +86,7 @@
 //! [Apache Parquet]: https://parquet.apache.org/
 //! [Apache Thrift]: https://thrift.apache.org/
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use data_types::{
     chunk_metadata::ChunkOrder,
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
@@ -397,9 +397,9 @@ impl IoxMetadata {
                     )
                 })
                 .collect(),
-            min_unpersisted_timestamp: Some(encode_timestamp(
-                self.partition_checkpoint.min_unpersisted_timestamp(),
-            )),
+            min_unpersisted_timestamp: Some(
+                self.partition_checkpoint.min_unpersisted_timestamp().into(),
+            ),
         };
 
         let proto_database_checkpoint = proto::DatabaseCheckpoint {
@@ -422,9 +422,9 @@ impl IoxMetadata {
 
         let proto_msg = proto::IoxMetadata {
             version: METADATA_VERSION,
-            creation_timestamp: Some(encode_timestamp(self.creation_timestamp)),
-            time_of_first_write: Some(encode_timestamp(self.time_of_first_write)),
-            time_of_last_write: Some(encode_timestamp(self.time_of_last_write)),
+            creation_timestamp: Some(self.creation_timestamp.into()),
+            time_of_first_write: Some(self.time_of_first_write.into()),
+            time_of_last_write: Some(self.time_of_last_write.into()),
             table_name: self.table_name.to_string(),
             partition_key: self.partition_key.to_string(),
             chunk_id: self.chunk_id,
@@ -440,29 +440,15 @@ impl IoxMetadata {
     }
 }
 
-fn encode_timestamp(ts: DateTime<Utc>) -> proto::FixedSizeTimestamp {
-    proto::FixedSizeTimestamp {
-        seconds: ts.timestamp(),
-        nanos: ts.timestamp_subsec_nanos() as i32,
-    }
-}
-
-fn decode_timestamp(ts: proto::FixedSizeTimestamp) -> Result<DateTime<Utc>> {
-    let dt = NaiveDateTime::from_timestamp(
-        ts.seconds,
-        ts.nanos
-            .try_into()
-            .map_err(|e| Box::new(e) as _)
-            .context(IoxMetadataBroken)?,
-    );
-    Ok(chrono::DateTime::<Utc>::from_utc(dt, Utc))
-}
-
 fn decode_timestamp_from_field(
-    value: Option<proto::FixedSizeTimestamp>,
+    value: Option<google_types::protobuf::Timestamp>,
     field: &'static str,
 ) -> Result<DateTime<Utc>> {
-    decode_timestamp(value.context(IoxMetadataFieldMissing { field })?)
+    value
+        .context(IoxMetadataFieldMissing { field })?
+        .try_into()
+        .map_err(|e| Box::new(e) as _)
+        .context(IoxMetadataBroken)
 }
 
 /// Parquet metadata with IOx-specific wrapper.
@@ -870,7 +856,6 @@ mod tests {
     use super::*;
 
     use internal_types::schema::TIME_COLUMN_NAME;
-    use persistence_windows::checkpoint::PersistCheckpointBuilder;
 
     use crate::test_utils::{
         chunk_addr, create_partition_and_database_checkpoint, load_parquet_from_store, make_chunk,
@@ -1112,42 +1097,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_iox_metadata_to_protobuf_deterministic_size() {
-        // checks that different timestamps do NOT alter the size of the serialized metadata
-        let table_name = Arc::from("table1");
-        let partition_key = Arc::from("part1");
-
-        // try multiple time to provoke an error
-        for _ in 0..100 {
-            // build checkpoints
-            let min_unpersisted_timestamp = Utc::now();
-            let partition_checkpoint = PartitionCheckpoint::new(
-                Arc::clone(&table_name),
-                Arc::clone(&partition_key),
-                Default::default(),
-                min_unpersisted_timestamp,
-            );
-            let builder = PersistCheckpointBuilder::new(partition_checkpoint);
-            let (partition_checkpoint, database_checkpoint) = builder.build();
-
-            let metadata = IoxMetadata {
-                creation_timestamp: Utc::now(),
-                table_name: Arc::clone(&table_name),
-                partition_key: Arc::clone(&partition_key),
-                chunk_id: 1337,
-                partition_checkpoint,
-                database_checkpoint,
-                time_of_first_write: Utc::now(),
-                time_of_last_write: Utc::now(),
-                chunk_order: ChunkOrder::new(5),
-            };
-
-            let proto_bytes = metadata.to_protobuf().unwrap();
-            assert_eq!(proto_bytes.len(), 90);
-        }
-    }
-
     #[tokio::test]
     async fn test_parquet_metadata_size() {
         // setup: preserve chunk to object store
@@ -1163,6 +1112,6 @@ mod tests {
             .await
             .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
-        assert_eq!(parquet_metadata.size(), 3733);
+        assert_eq!(parquet_metadata.size(), 3716);
     }
 }

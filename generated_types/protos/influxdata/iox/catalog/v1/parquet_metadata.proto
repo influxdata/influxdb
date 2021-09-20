@@ -1,13 +1,7 @@
 syntax = "proto3";
 package influxdata.iox.catalog.v1;
 
-// Timestamp similar to the Google version but w/ fixed-sized integers.
-//
-// This is helpful for deterministic outputs.
-message FixedSizeTimestamp {
-  sfixed64 seconds = 1;
-  sfixed32 nanos = 2;
-}
+import "google/protobuf/timestamp.proto";
 
 // IOx-specific metadata that will be serialized into the file-level key-value Parquet metadata under a single key.
 message IoxMetadata {
@@ -15,7 +9,7 @@ message IoxMetadata {
   uint32 version = 1;
 
   // Timestamp when this file was created.
-  FixedSizeTimestamp creation_timestamp = 2;
+  google.protobuf.Timestamp creation_timestamp = 2;
 
   // Table that holds this parquet file.
   string table_name = 3;
@@ -33,10 +27,10 @@ message IoxMetadata {
   DatabaseCheckpoint database_checkpoint = 7;
 
   // Wallclock timestamp of when the first data in this file was received by IOx.
-  FixedSizeTimestamp time_of_first_write = 8;
+  google.protobuf.Timestamp time_of_first_write = 8;
 
   // Wallclock timestamp of when the last data in this file was received by IOx.
-  FixedSizeTimestamp time_of_last_write = 9;
+  google.protobuf.Timestamp time_of_last_write = 9;
 
   // Order of this chunk relative to other overlapping chunks.
   uint32 chunk_order = 10;
@@ -52,7 +46,7 @@ message PartitionCheckpoint {
   map<uint32, OptionalMinMaxSequence> sequencer_numbers = 1;
 
   // Minimum unpersisted timestamp.
-  FixedSizeTimestamp min_unpersisted_timestamp = 2;
+  google.protobuf.Timestamp min_unpersisted_timestamp = 2;
 }
 
 // Record of the playback state for the whole database.

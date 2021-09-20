@@ -14,6 +14,7 @@ datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3.7"
 generated_types = { path = "../generated_types" }
+google_types = { path = "../google_types" }
 internal_types = { path = "../internal_types" }
 iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }

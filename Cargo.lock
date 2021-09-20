@@ -2814,6 +2814,7 @@ dependencies = [
  "datafusion_util",
  "futures",
  "generated_types",
+ "google_types",
  "internal_types",
  "iox_object_store",
  "metric",
