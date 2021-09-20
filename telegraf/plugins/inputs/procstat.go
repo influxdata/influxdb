@@ -70,6 +70,8 @@ func (p *Procstat) UnmarshalTOML(data interface{}) error {
 	if !ok {
 		return errors.New("bad exe for procstat input plugin")
 	}
-	p.Exe, _ = dataOK["exe"].(string)
+	if p.Exe, ok = dataOK["exe"].(string); !ok {
+		return errors.New("exe is not a string value")
+	}
 	return nil
 }
