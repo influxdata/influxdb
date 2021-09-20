@@ -466,7 +466,9 @@ File {
                             time_of_last_write: 1970-01-01T00:00:50.000000060Z,
                             table_name: "table1",
                             partition_key: "part1",
-                            chunk_id: 0,
+                            chunk_id: ChunkId(
+                                0,
+                            ),
                             partition_checkpoint: PartitionCheckpoint {
                                 table_name: "table1",
                                 partition_key: "part1",

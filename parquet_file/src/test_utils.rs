@@ -13,7 +13,7 @@ use arrow::{
 };
 use chrono::{TimeZone, Utc};
 use data_types::{
-    chunk_metadata::{ChunkAddr, ChunkOrder},
+    chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
     server_id::ServerId,
     DatabaseName,
@@ -112,7 +112,7 @@ pub fn chunk_addr(id: u32) -> ChunkAddr {
         db_name: Arc::from(db_name()),
         table_name: Arc::from("table1"),
         partition_key: Arc::from("part1"),
-        chunk_id: id,
+        chunk_id: ChunkId::new(id),
     }
 }
 

@@ -116,7 +116,7 @@ fn from_task_trackers(
         .map(|job| {
             job.metadata()
                 .chunk_ids()
-                .map(|ids| ids.into_iter().join(", "))
+                .map(|ids| ids.into_iter().map(|id| id.get()).join(", "))
         })
         .collect::<StringArray>();
     let descriptions = jobs

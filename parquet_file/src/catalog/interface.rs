@@ -1,7 +1,7 @@
 //! Abstract interfaces to make different users work with the perserved catalog.
 use std::{collections::HashMap, sync::Arc};
 
-use data_types::chunk_metadata::ChunkAddr;
+use data_types::chunk_metadata::{ChunkAddr, ChunkId};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use predicate::predicate::Predicate;
 use snafu::Snafu;
@@ -26,7 +26,7 @@ pub struct CatalogParquetInfo {
 pub struct ChunkAddrWithoutDatabase {
     pub table_name: Arc<str>,
     pub partition_key: Arc<str>,
-    pub chunk_id: u32,
+    pub chunk_id: ChunkId,
 }
 
 impl From<ChunkAddr> for ChunkAddrWithoutDatabase {

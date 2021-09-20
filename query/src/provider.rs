@@ -2386,7 +2386,10 @@ mod test {
     }
 
     fn chunk_ids(group: &[Arc<TestChunk>]) -> String {
-        let ids = group.iter().map(|c| c.id().to_string()).collect::<Vec<_>>();
+        let ids = group
+            .iter()
+            .map(|c| c.id().get().to_string())
+            .collect::<Vec<_>>();
         ids.join(", ")
     }
 

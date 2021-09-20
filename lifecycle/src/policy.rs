@@ -4,7 +4,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use data_types::{
-    chunk_metadata::{ChunkLifecycleAction, ChunkStorage},
+    chunk_metadata::{ChunkId, ChunkLifecycleAction, ChunkStorage},
     database_rules::LifecycleRules,
     DatabaseName,
 };
@@ -150,7 +150,7 @@ where
                             if chunk.lifecycle_action().is_some() {
                                 info!(
                                     %db_name,
-                                    chunk_id = candidate.chunk_id,
+                                    chunk_id = candidate.chunk_id.get(),
                                     %partition,
                                     "cannot mutate chunk with in-progress lifecycle action"
                                 );
@@ -171,7 +171,7 @@ where
                                     }
                                     storage => warn!(
                                         %db_name,
-                                        chunk_id = candidate.chunk_id,
+                                        chunk_id = candidate.chunk_id.get(),
                                         %partition,
                                         ?storage,
                                         "unexpected storage for drop"
@@ -184,7 +184,7 @@ where
                                     }
                                     storage => warn!(
                                         %db_name,
-                                        chunk_id = candidate.chunk_id,
+                                        chunk_id = candidate.chunk_id.get(),
                                         %partition,
                                         ?storage,
                                         "unexpected storage for unload"
@@ -194,7 +194,7 @@ where
                         }
                         None => info!(
                             %db_name,
-                            chunk_id = candidate.chunk_id,
+                            chunk_id = candidate.chunk_id.get(),
                             %partition,
                             "cannot drop chunk that no longer exists on partition"
                         ),
@@ -654,7 +654,7 @@ enum FreeAction {
 /// Describes a candidate to free up memory
 struct FreeCandidate<'a, P> {
     partition: &'a P,
-    chunk_id: u32,
+    chunk_id: ChunkId,
     action: FreeAction,
     access_metrics: AccessMetrics,
 }
@@ -677,7 +677,7 @@ mod tests {
         ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
         LockablePartition, PersistHandle,
     };
-    use data_types::chunk_metadata::{ChunkAddr, ChunkOrder, ChunkStorage};
+    use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder, ChunkStorage};
     use data_types::database_rules::MaxActiveCompactions::MaxActiveCompactions;
     use std::{
         cmp::max,
@@ -690,19 +690,19 @@ mod tests {
 
     #[derive(Debug, Eq, PartialEq)]
     enum MoverEvents {
-        Drop(u32),
-        Unload(u32),
-        Compact(Vec<u32>),
-        Persist(Vec<u32>),
+        Drop(ChunkId),
+        Unload(ChunkId),
+        Compact(Vec<ChunkId>),
+        Persist(Vec<ChunkId>),
     }
 
     #[derive(Debug)]
     struct TestPartition {
-        chunks: BTreeMap<u32, (ChunkOrder, Arc<RwLock<TestChunk>>)>,
+        chunks: BTreeMap<ChunkId, (ChunkOrder, Arc<RwLock<TestChunk>>)>,
         persistable_row_count: usize,
         minimum_unpersisted_age: Option<Instant>,
         max_persistable_timestamp: Option<DateTime<Utc>>,
-        next_id: u32,
+        next_id: ChunkId,
     }
 
     impl TestPartition {
@@ -735,7 +735,7 @@ mod tests {
     }
 
     impl TestChunk {
-        fn new(id: u32, time_of_last_write: i64, storage: ChunkStorage) -> Self {
+        fn new(id: ChunkId, time_of_last_write: i64, storage: ChunkStorage) -> Self {
             let addr = ChunkAddr {
                 db_name: Arc::from(""),
                 table_name: Arc::from(""),
@@ -800,7 +800,7 @@ mod tests {
     struct TestLockableChunk<'a> {
         db: &'a TestDb,
         chunk: Arc<RwLock<TestChunk>>,
-        id: u32,
+        id: ChunkId,
         order: ChunkOrder,
     }
 
@@ -831,7 +831,7 @@ mod tests {
 
         fn chunk(
             s: &LifecycleReadGuard<'_, Self::Partition, Self>,
-            chunk_id: u32,
+            chunk_id: ChunkId,
         ) -> Option<Self::Chunk> {
             let db = s.data().db;
             s.chunks
@@ -865,7 +865,7 @@ mod tests {
             chunks: Vec<LifecycleWriteGuard<'_, TestChunk, Self::Chunk>>,
         ) -> Result<TaskTracker<()>, Self::Error> {
             let id = partition.next_id;
-            partition.next_id += 1;
+            partition.next_id = partition.next_id.next();
 
             let mut new_chunk = TestChunk::new(id, 0, ChunkStorage::ReadBuffer);
             new_chunk.row_count = 0;
@@ -914,7 +914,7 @@ mod tests {
             }
 
             let id = partition.next_id;
-            partition.next_id += 1;
+            partition.next_id = partition.next_id.next();
 
             // The remainder left behind after the split
             let new_chunk = TestChunk::new(id, 0, ChunkStorage::ReadBuffer)
@@ -978,7 +978,7 @@ mod tests {
             Ok(())
         }
 
-        fn id(&self) -> u32 {
+        fn id(&self) -> ChunkId {
             self.id
         }
 
@@ -1045,7 +1045,7 @@ mod tests {
             let chunks = chunks
                 .into_iter()
                 .map(|x| {
-                    max_id = max(max_id, x.addr.chunk_id);
+                    max_id = max(max_id, x.addr.chunk_id.get());
                     (x.addr.chunk_id, (x.order, Arc::new(RwLock::new(x))))
                 })
                 .collect();
@@ -1055,7 +1055,7 @@ mod tests {
                 persistable_row_count: 0,
                 minimum_unpersisted_age: None,
                 max_persistable_timestamp: None,
-                next_id: max_id + 1,
+                next_id: ChunkId::new(max_id + 1),
             }
         }
     }
@@ -1143,20 +1143,23 @@ mod tests {
             mub_row_threshold: NonZeroUsize::new(74).unwrap(),
             ..Default::default()
         };
-        let chunk = TestChunk::new(0, 0, ChunkStorage::OpenMutableBuffer);
+        let chunk = TestChunk::new(ChunkId::new(0), 0, ChunkStorage::OpenMutableBuffer);
         assert!(!can_move(&rules, &chunk, from_secs(9)));
         assert!(can_move(&rules, &chunk, from_secs(11)));
 
         // can move even if the chunk is small
-        let chunk = TestChunk::new(0, 0, ChunkStorage::OpenMutableBuffer).with_row_count(73);
+        let chunk =
+            TestChunk::new(ChunkId::new(0), 0, ChunkStorage::OpenMutableBuffer).with_row_count(73);
         assert!(can_move(&rules, &chunk, from_secs(11)));
 
         // If over the row count threshold, we should be able to move
-        let chunk = TestChunk::new(0, 0, ChunkStorage::OpenMutableBuffer).with_row_count(74);
+        let chunk =
+            TestChunk::new(ChunkId::new(0), 0, ChunkStorage::OpenMutableBuffer).with_row_count(74);
         assert!(can_move(&rules, &chunk, from_secs(0)));
 
         // If below the default row count threshold, it shouldn't move
-        let chunk = TestChunk::new(0, 0, ChunkStorage::OpenMutableBuffer).with_row_count(73);
+        let chunk =
+            TestChunk::new(ChunkId::new(0), 0, ChunkStorage::OpenMutableBuffer).with_row_count(73);
         assert!(!can_move(&rules, &chunk, from_secs(0)));
     }
 
@@ -1171,31 +1174,31 @@ mod tests {
         let mut candidates = vec![
             FreeCandidate {
                 partition: &(),
-                chunk_id: 1,
+                chunk_id: ChunkId::new(1),
                 action: FreeAction::Unload,
                 access_metrics: access_metrics(40),
             },
             FreeCandidate {
                 partition: &(),
-                chunk_id: 3,
+                chunk_id: ChunkId::new(3),
                 action: FreeAction::Unload,
                 access_metrics: access_metrics(20),
             },
             FreeCandidate {
                 partition: &(),
-                chunk_id: 4,
+                chunk_id: ChunkId::new(4),
                 action: FreeAction::Unload,
                 access_metrics: access_metrics(10),
             },
             FreeCandidate {
                 partition: &(),
-                chunk_id: 5,
+                chunk_id: ChunkId::new(5),
                 action: FreeAction::Drop,
                 access_metrics: access_metrics(10),
             },
             FreeCandidate {
                 partition: &(),
-                chunk_id: 6,
+                chunk_id: ChunkId::new(6),
                 action: FreeAction::Drop,
                 access_metrics: access_metrics(5),
             },
@@ -1208,7 +1211,16 @@ mod tests {
         // Should first unload, then drop
         //
         // Should order the same actions by access time, with nulls last
-        assert_eq!(ids, vec![4, 3, 1, 6, 5])
+        assert_eq!(
+            ids,
+            vec![
+                ChunkId::new(4),
+                ChunkId::new(3),
+                ChunkId::new(1),
+                ChunkId::new(6),
+                ChunkId::new(5)
+            ]
+        )
     }
 
     #[test]
@@ -1216,9 +1228,9 @@ mod tests {
         // The default rules shouldn't do anything
         let rules = LifecycleRules::default();
         let chunks = vec![
-            TestChunk::new(0, 1, ChunkStorage::OpenMutableBuffer),
-            TestChunk::new(1, 1, ChunkStorage::OpenMutableBuffer),
-            TestChunk::new(2, 1, ChunkStorage::OpenMutableBuffer),
+            TestChunk::new(ChunkId::new(0), 1, ChunkStorage::OpenMutableBuffer),
+            TestChunk::new(ChunkId::new(1), 1, ChunkStorage::OpenMutableBuffer),
+            TestChunk::new(ChunkId::new(2), 1, ChunkStorage::OpenMutableBuffer),
         ];
 
         let db = TestDb::new(rules, chunks);
@@ -1234,9 +1246,9 @@ mod tests {
             ..Default::default()
         };
         let chunks = vec![
-            TestChunk::new(0, 8, ChunkStorage::OpenMutableBuffer),
-            TestChunk::new(1, 5, ChunkStorage::OpenMutableBuffer),
-            TestChunk::new(2, 0, ChunkStorage::OpenMutableBuffer),
+            TestChunk::new(ChunkId::new(0), 8, ChunkStorage::OpenMutableBuffer),
+            TestChunk::new(ChunkId::new(1), 5, ChunkStorage::OpenMutableBuffer),
+            TestChunk::new(ChunkId::new(2), 0, ChunkStorage::OpenMutableBuffer),
         ];
 
         let db = TestDb::new(rules, chunks);
@@ -1250,24 +1262,36 @@ mod tests {
         lifecycle.check_for_work(from_secs(11), Instant::now());
         let chunks = partition.read().chunks.keys().cloned().collect::<Vec<_>>();
         // expect chunk 2 to have been compacted into a new chunk 3
-        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![2])]);
-        assert_eq!(chunks, vec![0, 1, 3]);
+        assert_eq!(
+            *db.events.read(),
+            vec![MoverEvents::Compact(vec![ChunkId::new(2)])]
+        );
+        assert_eq!(
+            chunks,
+            vec![ChunkId::new(0), ChunkId::new(1), ChunkId::new(3)]
+        );
 
         lifecycle.check_for_work(from_secs(12), Instant::now());
-        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![2])]);
+        assert_eq!(
+            *db.events.read(),
+            vec![MoverEvents::Compact(vec![ChunkId::new(2)])]
+        );
 
         // Should compact everything possible
         lifecycle.check_for_work(from_secs(20), Instant::now());
         assert_eq!(
             *db.events.read(),
             vec![
-                MoverEvents::Compact(vec![2]),
-                MoverEvents::Compact(vec![0, 1, 3])
+                MoverEvents::Compact(vec![ChunkId::new(2)]),
+                MoverEvents::Compact(vec![ChunkId::new(0), ChunkId::new(1), ChunkId::new(3)])
             ]
         );
 
         assert_eq!(partition.read().chunks.len(), 1);
-        assert_eq!(partition.read().chunks[&4].1.read().row_count, 30);
+        assert_eq!(
+            partition.read().chunks[&ChunkId::new(4)].1.read().row_count,
+            30
+        );
     }
 
     #[tokio::test]
@@ -1311,7 +1335,11 @@ mod tests {
             ..Default::default()
         };
 
-        let chunks = vec![TestChunk::new(0, 0, ChunkStorage::OpenMutableBuffer)];
+        let chunks = vec![TestChunk::new(
+            ChunkId::new(0),
+            0,
+            ChunkStorage::OpenMutableBuffer,
+        )];
 
         let db = TestDb::new(rules.clone(), chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
@@ -1323,27 +1351,25 @@ mod tests {
 
         let chunks = vec![
             // two "open" chunks => they must not be dropped (yet)
-            TestChunk::new(0, 0, ChunkStorage::OpenMutableBuffer),
-            TestChunk::new(1, 0, ChunkStorage::OpenMutableBuffer),
+            TestChunk::new(ChunkId::new(0), 0, ChunkStorage::OpenMutableBuffer),
+            TestChunk::new(ChunkId::new(1), 0, ChunkStorage::OpenMutableBuffer),
             // "moved" chunk => can be dropped because `drop_non_persistent=true`
-            TestChunk::new(2, 0, ChunkStorage::ReadBuffer),
+            TestChunk::new(ChunkId::new(2), 0, ChunkStorage::ReadBuffer),
             // "writing" chunk => cannot be unloaded while write is in-progress
-            TestChunk::new(3, 0, ChunkStorage::ReadBuffer)
+            TestChunk::new(ChunkId::new(3), 0, ChunkStorage::ReadBuffer)
                 .with_action(ChunkLifecycleAction::Persisting),
             // "written" chunk => can be unloaded
-            TestChunk::new(4, 0, ChunkStorage::ReadBufferAndObjectStore).with_access_metrics(
-                AccessMetrics {
+            TestChunk::new(ChunkId::new(4), 0, ChunkStorage::ReadBufferAndObjectStore)
+                .with_access_metrics(AccessMetrics {
                     count: 1,
                     last_instant: instant,
-                },
-            ),
+                }),
             // "written" chunk => can be unloaded
-            TestChunk::new(5, 0, ChunkStorage::ReadBufferAndObjectStore).with_access_metrics(
-                AccessMetrics {
+            TestChunk::new(ChunkId::new(5), 0, ChunkStorage::ReadBufferAndObjectStore)
+                .with_access_metrics(AccessMetrics {
                     count: 12,
                     last_instant: instant - Duration::from_secs(1),
-                },
-            ),
+                }),
         ];
 
         let db = TestDb::new(rules, chunks);
@@ -1354,9 +1380,9 @@ mod tests {
         assert_eq!(
             *db.events.read(),
             vec![
-                MoverEvents::Unload(5),
-                MoverEvents::Unload(4),
-                MoverEvents::Drop(2)
+                MoverEvents::Unload(ChunkId::new(5)),
+                MoverEvents::Unload(ChunkId::new(4)),
+                MoverEvents::Drop(ChunkId::new(2))
             ]
         );
     }
@@ -1371,7 +1397,11 @@ mod tests {
             ..Default::default()
         };
 
-        let chunks = vec![TestChunk::new(0, 0, ChunkStorage::OpenMutableBuffer)];
+        let chunks = vec![TestChunk::new(
+            ChunkId::new(0),
+            0,
+            ChunkStorage::OpenMutableBuffer,
+        )];
 
         let db = TestDb::new(rules.clone(), chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
@@ -1381,22 +1411,25 @@ mod tests {
 
         let chunks = vec![
             // two "open" chunks => they must not be dropped (yet)
-            TestChunk::new(0, 0, ChunkStorage::OpenMutableBuffer),
-            TestChunk::new(1, 0, ChunkStorage::OpenMutableBuffer),
+            TestChunk::new(ChunkId::new(0), 0, ChunkStorage::OpenMutableBuffer),
+            TestChunk::new(ChunkId::new(1), 0, ChunkStorage::OpenMutableBuffer),
             // "moved" chunk => cannot be dropped because `drop_non_persistent=false`
-            TestChunk::new(2, 0, ChunkStorage::ReadBuffer),
+            TestChunk::new(ChunkId::new(2), 0, ChunkStorage::ReadBuffer),
             // "writing" chunk => cannot be drop while write is in-progess
-            TestChunk::new(3, 0, ChunkStorage::ReadBuffer)
+            TestChunk::new(ChunkId::new(3), 0, ChunkStorage::ReadBuffer)
                 .with_action(ChunkLifecycleAction::Persisting),
             // "written" chunk => can be unloaded
-            TestChunk::new(4, 0, ChunkStorage::ReadBufferAndObjectStore),
+            TestChunk::new(ChunkId::new(4), 0, ChunkStorage::ReadBufferAndObjectStore),
         ];
 
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
         lifecycle.check_for_work(from_secs(10), Instant::now());
-        assert_eq!(*db.events.read(), vec![MoverEvents::Unload(4)]);
+        assert_eq!(
+            *db.events.read(),
+            vec![MoverEvents::Unload(ChunkId::new(4))]
+        );
     }
 
     #[test]
@@ -1407,7 +1440,11 @@ mod tests {
             ..Default::default()
         };
 
-        let chunks = vec![TestChunk::new(0, 0, ChunkStorage::OpenMutableBuffer)];
+        let chunks = vec![TestChunk::new(
+            ChunkId::new(0),
+            0,
+            ChunkStorage::OpenMutableBuffer,
+        )];
 
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
@@ -1430,78 +1467,79 @@ mod tests {
         let partitions = vec![
             TestPartition::new(vec![
                 // still receiving writes => cannot compact
-                TestChunk::new(0, 20, ChunkStorage::OpenMutableBuffer),
+                TestChunk::new(ChunkId::new(0), 20, ChunkStorage::OpenMutableBuffer),
             ]),
             TestPartition::new(vec![
                 // still receiving writes => cannot compact
-                TestChunk::new(1, 20, ChunkStorage::OpenMutableBuffer),
+                TestChunk::new(ChunkId::new(1), 20, ChunkStorage::OpenMutableBuffer),
                 // closed => can compact
-                TestChunk::new(2, 20, ChunkStorage::ClosedMutableBuffer),
+                TestChunk::new(ChunkId::new(2), 20, ChunkStorage::ClosedMutableBuffer),
             ]),
             TestPartition::new(vec![
                 // open but cold => can compact
-                TestChunk::new(3, 5, ChunkStorage::OpenMutableBuffer),
+                TestChunk::new(ChunkId::new(3), 5, ChunkStorage::OpenMutableBuffer),
                 // closed => can compact
-                TestChunk::new(4, 20, ChunkStorage::ClosedMutableBuffer),
+                TestChunk::new(ChunkId::new(4), 20, ChunkStorage::ClosedMutableBuffer),
                 // closed => can compact
-                TestChunk::new(5, 20, ChunkStorage::ReadBuffer),
+                TestChunk::new(ChunkId::new(5), 20, ChunkStorage::ReadBuffer),
                 // persisted => cannot compact
-                TestChunk::new(6, 20, ChunkStorage::ReadBufferAndObjectStore),
+                TestChunk::new(ChunkId::new(6), 20, ChunkStorage::ReadBufferAndObjectStore),
                 // persisted => cannot compact
-                TestChunk::new(7, 20, ChunkStorage::ObjectStoreOnly),
+                TestChunk::new(ChunkId::new(7), 20, ChunkStorage::ObjectStoreOnly),
             ]),
             TestPartition::new(vec![
                 // closed => can compact
-                TestChunk::new(8, 20, ChunkStorage::ReadBuffer),
+                TestChunk::new(ChunkId::new(8), 20, ChunkStorage::ReadBuffer),
                 // closed => can compact
-                TestChunk::new(9, 20, ChunkStorage::ReadBuffer),
+                TestChunk::new(ChunkId::new(9), 20, ChunkStorage::ReadBuffer),
                 // persisted => cannot compact
-                TestChunk::new(10, 20, ChunkStorage::ReadBufferAndObjectStore),
+                TestChunk::new(ChunkId::new(10), 20, ChunkStorage::ReadBufferAndObjectStore),
                 // persisted => cannot compact
-                TestChunk::new(11, 20, ChunkStorage::ObjectStoreOnly),
+                TestChunk::new(ChunkId::new(11), 20, ChunkStorage::ObjectStoreOnly),
             ]),
             TestPartition::new(vec![
                 // open but cold => can compact
-                TestChunk::new(12, 5, ChunkStorage::OpenMutableBuffer),
+                TestChunk::new(ChunkId::new(12), 5, ChunkStorage::OpenMutableBuffer),
             ]),
             TestPartition::new(vec![
                 // already compacted => should not compact
-                TestChunk::new(13, 5, ChunkStorage::ReadBuffer),
+                TestChunk::new(ChunkId::new(13), 5, ChunkStorage::ReadBuffer),
             ]),
             TestPartition::new(vec![
                 // closed => can compact
-                TestChunk::new(14, 20, ChunkStorage::ReadBuffer).with_row_count(400),
+                TestChunk::new(ChunkId::new(14), 20, ChunkStorage::ReadBuffer).with_row_count(400),
                 // too many individual rows => ignore
-                TestChunk::new(15, 20, ChunkStorage::ReadBuffer).with_row_count(1_000),
+                TestChunk::new(ChunkId::new(15), 20, ChunkStorage::ReadBuffer)
+                    .with_row_count(1_000),
                 // closed => can compact
-                TestChunk::new(16, 20, ChunkStorage::ReadBuffer).with_row_count(400),
+                TestChunk::new(ChunkId::new(16), 20, ChunkStorage::ReadBuffer).with_row_count(400),
                 // too many total rows => next compaction job
-                TestChunk::new(17, 20, ChunkStorage::ReadBuffer).with_row_count(400),
+                TestChunk::new(ChunkId::new(17), 20, ChunkStorage::ReadBuffer).with_row_count(400),
                 // too many total rows => next compaction job
-                TestChunk::new(18, 20, ChunkStorage::ReadBuffer).with_row_count(400),
+                TestChunk::new(ChunkId::new(18), 20, ChunkStorage::ReadBuffer).with_row_count(400),
             ]),
             TestPartition::new(vec![
                 // chunks in this partition listed in reverse `order` to make sure that the compaction actually sorts
                 // them
                 //
                 // blocked by action below
-                TestChunk::new(19, 20, ChunkStorage::ReadBuffer)
+                TestChunk::new(ChunkId::new(19), 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
                     .with_order(ChunkOrder::new(4)),
                 // has an action
-                TestChunk::new(20, 20, ChunkStorage::ReadBuffer)
+                TestChunk::new(ChunkId::new(20), 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
                     .with_order(ChunkOrder::new(3))
                     .with_action(ChunkLifecycleAction::Compacting),
                 // closed => can compact
-                TestChunk::new(21, 20, ChunkStorage::ReadBuffer)
+                TestChunk::new(ChunkId::new(21), 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
                     .with_order(ChunkOrder::new(2)),
-                TestChunk::new(22, 20, ChunkStorage::ReadBuffer)
+                TestChunk::new(ChunkId::new(22), 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
                     .with_order(ChunkOrder::new(1)),
                 // has an action, but doesn't block because it's first
-                TestChunk::new(23, 20, ChunkStorage::ReadBuffer)
+                TestChunk::new(ChunkId::new(23), 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
                     .with_order(ChunkOrder::new(0))
                     .with_action(ChunkLifecycleAction::Compacting),
@@ -1515,18 +1553,24 @@ mod tests {
         assert_eq!(
             *db.events.read(),
             vec![
-                MoverEvents::Compact(vec![2]),
-                MoverEvents::Compact(vec![3, 4, 5]),
-                MoverEvents::Compact(vec![8, 9]),
-                MoverEvents::Compact(vec![12]),
-                MoverEvents::Compact(vec![14, 16]),
-                MoverEvents::Compact(vec![22, 21]),
+                MoverEvents::Compact(vec![ChunkId::new(2)]),
+                MoverEvents::Compact(vec![ChunkId::new(3), ChunkId::new(4), ChunkId::new(5)]),
+                MoverEvents::Compact(vec![ChunkId::new(8), ChunkId::new(9)]),
+                MoverEvents::Compact(vec![ChunkId::new(12)]),
+                MoverEvents::Compact(vec![ChunkId::new(14), ChunkId::new(16)]),
+                MoverEvents::Compact(vec![ChunkId::new(22), ChunkId::new(21)]),
             ],
         );
 
         db.events.write().clear();
         lifecycle.check_for_work(now, Instant::now());
-        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![17, 18])]);
+        assert_eq!(
+            *db.events.read(),
+            vec![MoverEvents::Compact(vec![
+                ChunkId::new(17),
+                ChunkId::new(18)
+            ])]
+        );
     }
 
     #[test]
@@ -1540,19 +1584,19 @@ mod tests {
         let partitions = vec![
             TestPartition::new(vec![
                 // closed => can compact
-                TestChunk::new(0, 20, ChunkStorage::ClosedMutableBuffer),
+                TestChunk::new(ChunkId::new(0), 20, ChunkStorage::ClosedMutableBuffer),
                 // closed => can compact
-                TestChunk::new(10, 30, ChunkStorage::ClosedMutableBuffer),
+                TestChunk::new(ChunkId::new(10), 30, ChunkStorage::ClosedMutableBuffer),
                 // closed => can compact
-                TestChunk::new(12, 40, ChunkStorage::ClosedMutableBuffer),
+                TestChunk::new(ChunkId::new(12), 40, ChunkStorage::ClosedMutableBuffer),
             ]),
             TestPartition::new(vec![
                 // closed => can compact
-                TestChunk::new(1, 20, ChunkStorage::ClosedMutableBuffer),
+                TestChunk::new(ChunkId::new(1), 20, ChunkStorage::ClosedMutableBuffer),
             ]),
             TestPartition::new(vec![
                 // closed => can compact
-                TestChunk::new(200, 10, ChunkStorage::ClosedMutableBuffer),
+                TestChunk::new(ChunkId::new(200), 10, ChunkStorage::ClosedMutableBuffer),
             ]),
         ];
 
@@ -1563,8 +1607,8 @@ mod tests {
         assert_eq!(
             *db.events.read(),
             vec![
-                MoverEvents::Compact(vec![0, 10, 12]),
-                MoverEvents::Compact(vec![1]),
+                MoverEvents::Compact(vec![ChunkId::new(0), ChunkId::new(10), ChunkId::new(12)]),
+                MoverEvents::Compact(vec![ChunkId::new(1)]),
             ],
         );
 
@@ -1572,7 +1616,10 @@ mod tests {
 
         // Compaction slots freed up, other partition can now compact.
         lifecycle.check_for_work(now, Instant::now());
-        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![200]),],);
+        assert_eq!(
+            *db.events.read(),
+            vec![MoverEvents::Compact(vec![ChunkId::new(200)]),],
+        );
     }
 
     #[test]
@@ -1590,59 +1637,65 @@ mod tests {
         let partitions = vec![
             // Insufficient rows and not old enough => don't persist but can compact
             TestPartition::new(vec![
-                TestChunk::new(0, 0, ChunkStorage::ClosedMutableBuffer)
+                TestChunk::new(ChunkId::new(0), 0, ChunkStorage::ClosedMutableBuffer)
                     .with_min_timestamp(from_secs(10)),
-                TestChunk::new(1, 0, ChunkStorage::ReadBuffer).with_min_timestamp(from_secs(5)),
+                TestChunk::new(ChunkId::new(1), 0, ChunkStorage::ReadBuffer)
+                    .with_min_timestamp(from_secs(5)),
             ])
             .with_persistence(10, now, from_secs(20)),
             // Sufficient rows => persist
             TestPartition::new(vec![
-                TestChunk::new(2, 0, ChunkStorage::ClosedMutableBuffer)
+                TestChunk::new(ChunkId::new(2), 0, ChunkStorage::ClosedMutableBuffer)
                     .with_min_timestamp(from_secs(10)),
-                TestChunk::new(3, 0, ChunkStorage::ReadBuffer).with_min_timestamp(from_secs(5)),
+                TestChunk::new(ChunkId::new(3), 0, ChunkStorage::ReadBuffer)
+                    .with_min_timestamp(from_secs(5)),
             ])
             .with_persistence(1_000, now, from_secs(20)),
             // Writes too old => persist
             TestPartition::new(vec![
                 // Should split open chunks
-                TestChunk::new(4, 20, ChunkStorage::OpenMutableBuffer)
+                TestChunk::new(ChunkId::new(4), 20, ChunkStorage::OpenMutableBuffer)
                     .with_min_timestamp(from_secs(10)),
-                TestChunk::new(5, 0, ChunkStorage::ReadBuffer).with_min_timestamp(from_secs(5)),
-                TestChunk::new(6, 0, ChunkStorage::ObjectStoreOnly)
+                TestChunk::new(ChunkId::new(5), 0, ChunkStorage::ReadBuffer)
+                    .with_min_timestamp(from_secs(5)),
+                TestChunk::new(ChunkId::new(6), 0, ChunkStorage::ObjectStoreOnly)
                     .with_min_timestamp(from_secs(5)),
             ])
             .with_persistence(10, now - Duration::from_secs(10), from_secs(20)),
             // Sufficient rows but conflicting compaction => prevent compaction
             TestPartition::new(vec![
-                TestChunk::new(7, 0, ChunkStorage::ClosedMutableBuffer)
+                TestChunk::new(ChunkId::new(7), 0, ChunkStorage::ClosedMutableBuffer)
                     .with_min_timestamp(from_secs(10))
                     .with_action(ChunkLifecycleAction::Compacting),
                 // This chunk would be a compaction candidate, but we want to persist it
-                TestChunk::new(8, 0, ChunkStorage::ClosedMutableBuffer)
+                TestChunk::new(ChunkId::new(8), 0, ChunkStorage::ClosedMutableBuffer)
                     .with_min_timestamp(from_secs(10)),
-                TestChunk::new(9, 0, ChunkStorage::ReadBuffer).with_min_timestamp(from_secs(5)),
+                TestChunk::new(ChunkId::new(9), 0, ChunkStorage::ReadBuffer)
+                    .with_min_timestamp(from_secs(5)),
             ])
             .with_persistence(1_000, now, from_secs(20)),
             // Sufficient rows and non-conflicting compaction => persist
             TestPartition::new(vec![
-                TestChunk::new(10, 0, ChunkStorage::ClosedMutableBuffer)
+                TestChunk::new(ChunkId::new(10), 0, ChunkStorage::ClosedMutableBuffer)
                     .with_min_timestamp(from_secs(21))
                     .with_action(ChunkLifecycleAction::Compacting),
-                TestChunk::new(11, 0, ChunkStorage::ClosedMutableBuffer)
+                TestChunk::new(ChunkId::new(11), 0, ChunkStorage::ClosedMutableBuffer)
                     .with_min_timestamp(from_secs(10)),
-                TestChunk::new(12, 0, ChunkStorage::ReadBuffer).with_min_timestamp(from_secs(5)),
+                TestChunk::new(ChunkId::new(12), 0, ChunkStorage::ReadBuffer)
+                    .with_min_timestamp(from_secs(5)),
             ])
             .with_persistence(1_000, now, from_secs(20)),
             // Sufficient rows, non-conflicting compaction and compact-able chunk => persist + compact
             TestPartition::new(vec![
-                TestChunk::new(13, 0, ChunkStorage::ClosedMutableBuffer)
+                TestChunk::new(ChunkId::new(13), 0, ChunkStorage::ClosedMutableBuffer)
                     .with_min_timestamp(from_secs(21))
                     .with_action(ChunkLifecycleAction::Compacting),
-                TestChunk::new(14, 0, ChunkStorage::ClosedMutableBuffer)
+                TestChunk::new(ChunkId::new(14), 0, ChunkStorage::ClosedMutableBuffer)
                     .with_min_timestamp(from_secs(21)),
-                TestChunk::new(15, 0, ChunkStorage::ClosedMutableBuffer)
+                TestChunk::new(ChunkId::new(15), 0, ChunkStorage::ClosedMutableBuffer)
                     .with_min_timestamp(from_secs(10)),
-                TestChunk::new(16, 0, ChunkStorage::ReadBuffer).with_min_timestamp(from_secs(5)),
+                TestChunk::new(ChunkId::new(16), 0, ChunkStorage::ReadBuffer)
+                    .with_min_timestamp(from_secs(5)),
             ])
             .with_persistence(1_000, now, from_secs(20)),
         ];
@@ -1654,14 +1707,14 @@ mod tests {
         assert_eq!(
             *db.events.read(),
             vec![
-                MoverEvents::Compact(vec![0, 1]),
-                MoverEvents::Persist(vec![2, 3]),
-                MoverEvents::Persist(vec![4, 5]),
-                MoverEvents::Persist(vec![11, 12]),
-                MoverEvents::Persist(vec![15, 16]),
+                MoverEvents::Compact(vec![ChunkId::new(0), ChunkId::new(1)]),
+                MoverEvents::Persist(vec![ChunkId::new(2), ChunkId::new(3)]),
+                MoverEvents::Persist(vec![ChunkId::new(4), ChunkId::new(5)]),
+                MoverEvents::Persist(vec![ChunkId::new(11), ChunkId::new(12)]),
+                MoverEvents::Persist(vec![ChunkId::new(15), ChunkId::new(16)]),
                 // 17 is the resulting chunk from the persist split above
                 // This is "quirk" of TestPartition operations being instantaneous
-                MoverEvents::Compact(vec![14, 17])
+                MoverEvents::Compact(vec![ChunkId::new(14), ChunkId::new(17)])
             ]
         );
     }
@@ -1681,9 +1734,10 @@ mod tests {
         let partitions = vec![
             // Sufficient rows => could persist but should be suppressed
             TestPartition::new(vec![
-                TestChunk::new(2, 0, ChunkStorage::ClosedMutableBuffer)
+                TestChunk::new(ChunkId::new(2), 0, ChunkStorage::ClosedMutableBuffer)
                     .with_min_timestamp(from_secs(10)),
-                TestChunk::new(3, 0, ChunkStorage::ReadBuffer).with_min_timestamp(from_secs(5)),
+                TestChunk::new(ChunkId::new(3), 0, ChunkStorage::ReadBuffer)
+                    .with_min_timestamp(from_secs(5)),
             ])
             .with_persistence(1_000, now, from_secs(20)),
         ];
@@ -1692,10 +1746,16 @@ mod tests {
         let mut lifecycle = LifecyclePolicy::new_suppress_persistence(&db);
 
         lifecycle.check_for_work(from_secs(0), now);
-        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![2, 3]),]);
+        assert_eq!(
+            *db.events.read(),
+            vec![MoverEvents::Compact(vec![ChunkId::new(2), ChunkId::new(3)]),]
+        );
 
         lifecycle.check_for_work(from_secs(0), now);
-        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![2, 3]),]);
+        assert_eq!(
+            *db.events.read(),
+            vec![MoverEvents::Compact(vec![ChunkId::new(2), ChunkId::new(3)]),]
+        );
 
         lifecycle.unsuppress_persistence();
 
@@ -1703,8 +1763,8 @@ mod tests {
         assert_eq!(
             *db.events.read(),
             vec![
-                MoverEvents::Compact(vec![2, 3]),
-                MoverEvents::Persist(vec![4])
+                MoverEvents::Compact(vec![ChunkId::new(2), ChunkId::new(3)]),
+                MoverEvents::Persist(vec![ChunkId::new(4)])
             ]
         );
     }
@@ -1715,13 +1775,20 @@ mod tests {
             late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
-        let chunks = vec![TestChunk::new(0, 40, ChunkStorage::OpenMutableBuffer)];
+        let chunks = vec![TestChunk::new(
+            ChunkId::new(0),
+            40,
+            ChunkStorage::OpenMutableBuffer,
+        )];
 
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
         lifecycle.check_for_work(from_secs(80), Instant::now());
-        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![0])]);
+        assert_eq!(
+            *db.events.read(),
+            vec![MoverEvents::Compact(vec![ChunkId::new(0)])]
+        );
     }
 
     #[test]
@@ -1730,23 +1797,34 @@ mod tests {
             late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
             ..Default::default()
         };
-        let chunks = vec![TestChunk::new(0, 40, ChunkStorage::ClosedMutableBuffer)];
+        let chunks = vec![TestChunk::new(
+            ChunkId::new(0),
+            40,
+            ChunkStorage::ClosedMutableBuffer,
+        )];
 
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
         lifecycle.check_for_work(from_secs(80), Instant::now());
-        assert_eq!(*db.events.read(), vec![MoverEvents::Compact(vec![0])]);
+        assert_eq!(
+            *db.events.read(),
+            vec![MoverEvents::Compact(vec![ChunkId::new(0)])]
+        );
     }
 
     #[test]
     fn test_recovers_lifecycle_action() {
         let rules = LifecycleRules::default();
-        let chunks = vec![TestChunk::new(0, 0, ChunkStorage::ClosedMutableBuffer)];
+        let chunks = vec![TestChunk::new(
+            ChunkId::new(0),
+            0,
+            ChunkStorage::ClosedMutableBuffer,
+        )];
 
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
-        let chunk = Arc::clone(&db.partitions.read()[0].read().chunks[&0].1);
+        let chunk = Arc::clone(&db.partitions.read()[0].read().chunks[&ChunkId::new(0)].1);
 
         let r0 = TaskRegistration::default();
         let tracker = TaskTracker::new(TaskId(0), &r0, ChunkLifecycleAction::Moving);

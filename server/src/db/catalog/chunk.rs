@@ -5,7 +5,7 @@ use snafu::Snafu;
 
 use data_types::{
     chunk_metadata::{
-        ChunkAddr, ChunkColumnSummary, ChunkLifecycleAction, ChunkOrder, ChunkStorage,
+        ChunkAddr, ChunkColumnSummary, ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkStorage,
         ChunkSummary, DetailedChunkSummary,
     },
     instant::to_approximate_datetime,
@@ -379,7 +379,7 @@ impl CatalogChunk {
         &self.addr
     }
 
-    pub fn id(&self) -> u32 {
+    pub fn id(&self) -> ChunkId {
         self.addr.chunk_id
     }
 
@@ -1227,7 +1227,7 @@ mod tests {
             db_name: Arc::from("db"),
             table_name: Arc::from("table1"),
             partition_key: Arc::from("part1"),
-            chunk_id: 0,
+            chunk_id: ChunkId::new(0),
         }
     }
 

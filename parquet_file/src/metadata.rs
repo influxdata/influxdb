@@ -88,7 +88,7 @@
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
 use chrono::{DateTime, Utc};
 use data_types::{
-    chunk_metadata::ChunkOrder,
+    chunk_metadata::{ChunkId, ChunkOrder},
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
 };
 use generated_types::influxdata::iox::catalog::v1 as proto;
@@ -271,7 +271,7 @@ pub struct IoxMetadata {
     pub partition_key: Arc<str>,
 
     /// Chunk ID.
-    pub chunk_id: u32,
+    pub chunk_id: ChunkId,
 
     /// Partition checkpoint with pre-split data for the in this file.
     pub partition_checkpoint: PartitionCheckpoint,
@@ -372,7 +372,7 @@ impl IoxMetadata {
             time_of_last_write,
             table_name,
             partition_key,
-            chunk_id: proto_msg.chunk_id,
+            chunk_id: ChunkId::new(proto_msg.chunk_id),
             partition_checkpoint,
             database_checkpoint,
             chunk_order: proto_msg.chunk_order.into(),
@@ -427,7 +427,7 @@ impl IoxMetadata {
             time_of_last_write: Some(self.time_of_last_write.into()),
             table_name: self.table_name.to_string(),
             partition_key: self.partition_key.to_string(),
-            chunk_id: self.chunk_id,
+            chunk_id: self.chunk_id.get(),
             partition_checkpoint: Some(proto_partition_checkpoint),
             database_checkpoint: Some(proto_database_checkpoint),
             chunk_order: self.chunk_order.get(),
@@ -1069,7 +1069,7 @@ mod tests {
             creation_timestamp: Utc::now(),
             table_name,
             partition_key,
-            chunk_id: 1337,
+            chunk_id: ChunkId::new(1337),
             partition_checkpoint,
             database_checkpoint,
             time_of_first_write: Utc::now(),

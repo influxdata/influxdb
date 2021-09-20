@@ -2,7 +2,7 @@ use crate::{
     google::{FieldViolation, FromFieldOpt},
     influxdata::iox::management::v1 as management,
 };
-use data_types::chunk_metadata::{ChunkLifecycleAction, ChunkStorage, ChunkSummary};
+use data_types::chunk_metadata::{ChunkId, ChunkLifecycleAction, ChunkStorage, ChunkSummary};
 use std::{
     convert::{TryFrom, TryInto},
     sync::Arc,
@@ -30,7 +30,7 @@ impl From<ChunkSummary> for management::Chunk {
         Self {
             partition_key: partition_key.to_string(),
             table_name: table_name.to_string(),
-            id,
+            id: id.get(),
             storage: management::ChunkStorage::from(storage).into(),
             lifecycle_action: management::ChunkLifecycleAction::from(lifecycle_action).into(),
             memory_bytes: memory_bytes as u64,
@@ -113,7 +113,7 @@ impl TryFrom<management::Chunk> for ChunkSummary {
         Ok(Self {
             partition_key: Arc::from(partition_key.as_str()),
             table_name: Arc::from(table_name.as_str()),
-            id,
+            id: ChunkId::new(id),
             storage: management::ChunkStorage::from_i32(storage).required("storage")?,
             lifecycle_action: management::ChunkLifecycleAction::from_i32(lifecycle_action)
                 .required("lifecycle_action")?,
@@ -197,7 +197,7 @@ mod test {
         let expected = ChunkSummary {
             partition_key: Arc::from("foo"),
             table_name: Arc::from("bar"),
-            id: 42,
+            id: ChunkId::new(42),
             memory_bytes: 1234,
             object_store_bytes: 567,
             row_count: 321,
@@ -223,7 +223,7 @@ mod test {
         let summary = ChunkSummary {
             partition_key: Arc::from("foo"),
             table_name: Arc::from("bar"),
-            id: 42,
+            id: ChunkId::new(42),
             memory_bytes: 1234,
             object_store_bytes: 567,
             row_count: 321,

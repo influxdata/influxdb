@@ -631,7 +631,7 @@ impl IoxObjectStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::chunk_metadata::ChunkAddr;
+    use data_types::chunk_metadata::{ChunkAddr, ChunkId};
     use object_store::{parsed_path, path::ObjectStorePath, ObjectStore, ObjectStoreApi};
     use std::num::NonZeroU32;
     use uuid::Uuid;
@@ -748,7 +748,7 @@ mod tests {
             db_name: "clouds".into(),
             table_name: "my_table".into(),
             partition_key: "my_partition".into(),
-            chunk_id: 13,
+            chunk_id: ChunkId::new(13),
         };
         let p1 = ParquetFilePath::new(&chunk_addr);
         add_parquet_file(&iox_object_store, &p1).await;

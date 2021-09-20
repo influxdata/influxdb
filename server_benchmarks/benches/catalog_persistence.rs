@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, SamplingMode};
-use data_types::database_rules::LifecycleRules;
+use data_types::{chunk_metadata::ChunkId, database_rules::LifecycleRules};
 use object_store::{ObjectStore, ThrottleConfig};
 use query::QueryChunk;
 use server::{db::test_helpers::write_lp, utils::TestDb};
@@ -56,7 +56,7 @@ fn benchmark_catalog_persistence(c: &mut Criterion) {
                 // test that data is actually loaded
                 let partition_key = "1970-01-01T00";
                 let table_name = "cpu";
-                let chunk_id = 1;
+                let chunk_id = ChunkId::new(1);
                 assert!(db
                     .table_summary(table_name, partition_key, chunk_id)
                     .is_some());

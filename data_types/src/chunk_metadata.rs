@@ -17,11 +17,11 @@ pub struct ChunkAddr {
     pub partition_key: Arc<str>,
 
     /// The ID of the chunk
-    pub chunk_id: u32,
+    pub chunk_id: ChunkId,
 }
 
 impl ChunkAddr {
-    pub fn new(partition: &PartitionAddr, chunk_id: u32) -> Self {
+    pub fn new(partition: &PartitionAddr, chunk_id: ChunkId) -> Self {
         Self {
             db_name: Arc::clone(&partition.db_name),
             table_name: Arc::clone(&partition.table_name),
@@ -44,7 +44,10 @@ impl std::fmt::Display for ChunkAddr {
         write!(
             f,
             "Chunk('{}':'{}':'{}':{})",
-            self.db_name, self.table_name, self.partition_key, self.chunk_id
+            self.db_name,
+            self.table_name,
+            self.partition_key,
+            self.chunk_id.get()
         )
     }
 }
@@ -125,7 +128,7 @@ pub struct ChunkSummary {
     pub table_name: Arc<str>,
 
     /// The id of this chunk
-    pub id: u32,
+    pub id: ChunkId,
 
     /// How is this chunk stored?
     pub storage: ChunkStorage,
@@ -196,6 +199,38 @@ impl ChunkSummary {
     }
 }
 
+/// ID of a chunk.
+///
+/// This ID is unique within a single partition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct ChunkId(u32);
+
+impl ChunkId {
+    pub const MAX: Self = Self(u32::MAX);
+
+    pub fn new(id: u32) -> Self {
+        Self(id)
+    }
+
+    pub fn get(&self) -> u32 {
+        self.0
+    }
+
+    /// Get next chunk ID.
+    ///
+    /// # Panic
+    /// Panics if `self` is already [max](Self::MAX).
+    pub fn next(&self) -> Self {
+        Self(self.0.checked_add(1).expect("chunk ID overflow"))
+    }
+}
+
+impl std::fmt::Display for ChunkId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("ChunkId").field(&self.0).finish()
+    }
+}
+
 /// Order of a chunk.
 ///
 /// This is used for:
@@ -215,6 +250,10 @@ impl ChunkOrder {
         self.0
     }
 
+    /// Get next chunk order.
+    ///
+    /// # Panic
+    /// Panics if `self` is already [max](Self::MAX).
     pub fn next(&self) -> Self {
         Self(self.0.checked_add(1).expect("chunk order overflow"))
     }

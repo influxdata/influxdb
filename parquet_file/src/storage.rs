@@ -431,7 +431,10 @@ mod tests {
     use arrow::array::{ArrayRef, StringArray};
     use arrow_util::assert_batches_eq;
     use chrono::Utc;
-    use data_types::{chunk_metadata::ChunkOrder, partition_metadata::TableSummary};
+    use data_types::{
+        chunk_metadata::{ChunkId, ChunkOrder},
+        partition_metadata::TableSummary,
+    };
     use datafusion::physical_plan::common::SizedRecordBatchStream;
     use datafusion_util::MemoryStream;
     use parquet::schema::types::ColumnPath;
@@ -448,7 +451,7 @@ mod tests {
             creation_timestamp: Utc::now(),
             table_name,
             partition_key,
-            chunk_id: 1337,
+            chunk_id: ChunkId::new(1337),
             partition_checkpoint,
             database_checkpoint,
             time_of_first_write: Utc::now(),
@@ -505,7 +508,7 @@ mod tests {
         // create Storage
         let table_name = Arc::from("my_table");
         let partition_key = Arc::from("my_partition");
-        let chunk_id = 33;
+        let chunk_id = ChunkId::new(33);
         let iox_object_store = make_iox_object_store().await;
         let storage = Storage::new(Arc::clone(&iox_object_store));
 

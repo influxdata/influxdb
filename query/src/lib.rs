@@ -9,7 +9,7 @@
 )]
 
 use data_types::{
-    chunk_metadata::{ChunkOrder, ChunkSummary},
+    chunk_metadata::{ChunkId, ChunkOrder, ChunkSummary},
     partition_metadata::{InfluxDbType, TableSummary},
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -79,7 +79,7 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync {
 
     /// returns the Id of this chunk. Ids are unique within a
     /// particular partition.
-    fn id(&self) -> u32;
+    fn id(&self) -> ChunkId;
 
     /// Returns the name of the table stored in this chunk
     fn table_name(&self) -> &str;

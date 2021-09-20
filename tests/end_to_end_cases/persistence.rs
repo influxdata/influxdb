@@ -1,7 +1,7 @@
 use itertools::Itertools;
 
 use arrow_util::assert_batches_eq;
-use data_types::chunk_metadata::ChunkStorage;
+use data_types::chunk_metadata::{ChunkId, ChunkStorage};
 
 use crate::{
     common::server_fixture::ServerFixture,
@@ -247,7 +247,7 @@ async fn test_query_chunk_after_restart() {
 }
 
 /// Create a closed read buffer chunk and return its id
-async fn create_readbuffer_chunk(fixture: &ServerFixture, db_name: &str) -> u32 {
+async fn create_readbuffer_chunk(fixture: &ServerFixture, db_name: &str) -> ChunkId {
     let mut management_client = fixture.management_client();
     let mut write_client = fixture.write_client();
     let mut operations_client = fixture.operations_client();

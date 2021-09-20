@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use data_types::chunk_metadata::ChunkId;
 use datafusion::logical_plan::{col, lit};
 use once_cell::sync::OnceCell;
 
@@ -109,14 +110,14 @@ impl DbSetup for NoData {
                 .unwrap()
                 .unwrap()
                 .id(),
-            0
+            ChunkId::new(0),
         );
         assert_eq!(count_mutable_buffer_chunks(&db), 1); //
         assert_eq!(count_read_buffer_chunks(&db), 0); // nothing yet
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
         // Now load the closed chunk into the RB
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
         assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
@@ -124,7 +125,9 @@ impl DbSetup for NoData {
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
         // drop chunk 0
-        db.drop_chunk(table_name, partition_key, 0).await.unwrap();
+        db.drop_chunk(table_name, partition_key, ChunkId::new(0))
+            .await
+            .unwrap();
 
         assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
         assert_eq!(count_read_buffer_chunks(&db), 0); // nothing after dropping chunk 0
@@ -147,14 +150,14 @@ impl DbSetup for NoData {
                 .unwrap()
                 .unwrap()
                 .id(),
-            0
+            ChunkId::new(0),
         );
         assert_eq!(count_mutable_buffer_chunks(&db), 1); // 1 open chunk
         assert_eq!(count_read_buffer_chunks(&db), 0); // nothing yet
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
         // Now load the closed chunk into the RB
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
         assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
@@ -175,7 +178,9 @@ impl DbSetup for NoData {
         assert_eq!(count_object_store_chunks(&db), 1); // close chunk only
 
         // drop chunk 1 (the persisted one)
-        db.drop_chunk(table_name, partition_key, 1).await.unwrap();
+        db.drop_chunk(table_name, partition_key, ChunkId::new(1))
+            .await
+            .unwrap();
 
         assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 0);
@@ -424,7 +429,7 @@ impl DbSetup for TwoMeasurementsManyFieldsTwoChunks {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.move_chunk_to_read_buffer("h2o", partition_key, 0)
+        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(0))
             .await
             .unwrap();
 
@@ -459,7 +464,7 @@ impl DbSetup for OneMeasurementTwoChunksDifferentTagSet {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.move_chunk_to_read_buffer("h2o", partition_key, 0)
+        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(0))
             .await
             .unwrap();
 
@@ -470,7 +475,7 @@ impl DbSetup for OneMeasurementTwoChunksDifferentTagSet {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.move_chunk_to_read_buffer("h2o", partition_key, 1)
+        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(1))
             .await
             .unwrap();
 
@@ -502,7 +507,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.move_chunk_to_read_buffer("h2o", partition_key, 0)
+        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(0))
             .await
             .unwrap();
 
@@ -519,7 +524,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.move_chunk_to_read_buffer("h2o", partition_key, 1)
+        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(1))
             .await
             .unwrap();
 
@@ -536,7 +541,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.move_chunk_to_read_buffer("h2o", partition_key, 2)
+        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(2))
             .await
             .unwrap();
 
@@ -553,7 +558,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
         db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.move_chunk_to_read_buffer("h2o", partition_key, 3)
+        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(3))
             .await
             .unwrap();
 
@@ -588,7 +593,7 @@ impl DbSetup for TwoMeasurementsManyFieldsLifecycle {
         // Use a background task to do the work note when I used
         // TaskTracker::join, it ended up hanging for reasons I don't
         // now
-        db.move_chunk_to_read_buffer("h2o", partition_key, 0)
+        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(0))
             .await
             .unwrap();
 
@@ -691,7 +696,7 @@ pub(crate) async fn make_one_chunk_rub_scenario(
         db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
     }
@@ -719,10 +724,12 @@ impl DbSetup for OneMeasurementAllChunksDropped {
         db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
-        db.drop_chunk(table_name, partition_key, 0).await.unwrap();
+        db.drop_chunk(table_name, partition_key, ChunkId::new(0))
+            .await
+            .unwrap();
 
         vec![DbScenario {
             scenario_name: "one measurement but all chunks are dropped".into(),
@@ -763,7 +770,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
     }
@@ -779,7 +786,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
 
@@ -803,7 +810,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
         db.persist_partition(
@@ -813,7 +820,8 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
         )
         .await
         .unwrap();
-        db.unload_read_buffer(table_name, partition_key, 1).unwrap();
+        db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
+            .unwrap();
     }
     let scenario5 = DbScenario {
         scenario_name: "Data in object store only".into(),
@@ -863,7 +871,7 @@ pub async fn make_two_chunk_scenarios(
         db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
     }
@@ -887,11 +895,11 @@ pub async fn make_two_chunk_scenarios(
             .await
             .unwrap();
 
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
 
-        db.move_chunk_to_read_buffer(table_name, partition_key, 1)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(1))
             .await
             .unwrap();
     }
@@ -907,7 +915,7 @@ pub async fn make_two_chunk_scenarios(
         db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
         db.persist_partition(
@@ -923,7 +931,7 @@ pub async fn make_two_chunk_scenarios(
         db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, 2)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(2))
             .await
             .unwrap();
         db.persist_partition(
@@ -946,7 +954,7 @@ pub async fn make_two_chunk_scenarios(
         db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
         db.persist_partition(
@@ -956,14 +964,15 @@ pub async fn make_two_chunk_scenarios(
         )
         .await
         .unwrap();
-        db.unload_read_buffer(table_name, partition_key, 1).unwrap();
+        db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
+            .unwrap();
     }
     let table_names = write_lp(&db, data2).await;
     for table_name in &table_names {
         db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, 2)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(2))
             .await
             .unwrap();
         db.persist_partition(
@@ -973,7 +982,8 @@ pub async fn make_two_chunk_scenarios(
         )
         .await
         .unwrap();
-        db.unload_read_buffer(table_name, partition_key, 3).unwrap();
+        db.unload_read_buffer(table_name, partition_key, ChunkId::new(3))
+            .unwrap();
     }
     let scenario6 = DbScenario {
         scenario_name: "Data in 2 parquet chunks in object store only".into(),
@@ -988,7 +998,7 @@ pub async fn make_two_chunk_scenarios(
         db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
     }
@@ -1014,7 +1024,7 @@ pub async fn rollover_and_load(db: &Arc<Db>, partition_key: &str, table_name: &s
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
-    db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+    db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
         .await
         .unwrap();
     db.persist_partition(
@@ -1038,7 +1048,7 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
         db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
     }
@@ -1054,7 +1064,7 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
         db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
         db.persist_partition(
@@ -1064,7 +1074,8 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
         )
         .await
         .unwrap();
-        db.unload_read_buffer(table_name, partition_key, 1).unwrap();
+        db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
+            .unwrap();
     }
     let scenario2 = DbScenario {
         scenario_name: "--------------------- Data in object store only ".into(),
@@ -1130,10 +1141,10 @@ impl DbSetup for ChunkOrder {
         assert_eq!(count_read_buffer_chunks(&db), 0);
         assert_eq!(count_object_store_chunks(&db), 0);
         let chunk = db
-            .move_chunk_to_read_buffer(table_name, partition_key, 0)
+            .move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
             .await
             .unwrap();
-        assert_eq!(chunk.id(), 0);
+        assert_eq!(chunk.id(), ChunkId::new(0));
         assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 0);
@@ -1147,8 +1158,10 @@ impl DbSetup for ChunkOrder {
         // prevent chunk 1 from being part of the persistence
         // NOTE: In "real life" that could happen when writes happen while a persistence is in progress, but it's easier
         //       to trigger w/ this tiny locking trick.
-        let lockable_chunk = db.lockable_chunk(table_name, partition_key, 1).unwrap();
-        assert_eq!(lockable_chunk.id, 1);
+        let lockable_chunk = db
+            .lockable_chunk(table_name, partition_key, ChunkId::new(1))
+            .unwrap();
+        assert_eq!(lockable_chunk.id, ChunkId::new(1));
         lockable_chunk
             .chunk
             .write()
@@ -1164,7 +1177,7 @@ impl DbSetup for ChunkOrder {
             )
             .await
             .unwrap();
-        assert_eq!(chunk.id(), 2);
+        assert_eq!(chunk.id(), ChunkId::new(2));
         assert_eq!(count_mutable_buffer_chunks(&db), 1);
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 1);
@@ -1532,7 +1545,7 @@ async fn make_delete_mub_to_rub(
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
-    db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+    db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
         .await
         .unwrap();
     // No MUB, one RUB, no OS
@@ -1561,7 +1574,7 @@ async fn make_delete_mub_to_rub_and_os(
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
-    db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+    db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
         .await
         .unwrap();
     // persist RUB and the delete predicate will be automatically included in the OS chunk
@@ -1598,7 +1611,7 @@ async fn make_delete_mub_to_os(
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
-    db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+    db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
         .await
         .unwrap();
     // persist RUB and the delete predicate will be automatically included in the OS chunk
@@ -1610,7 +1623,8 @@ async fn make_delete_mub_to_os(
     .await
     .unwrap();
     // remove RUB
-    db.unload_read_buffer(table_name, partition_key, 1).unwrap();
+    db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
+        .unwrap();
     // No MUB, no RUB, one OS
     assert_eq!(count_mutable_buffer_chunks(&db), 0);
     assert_eq!(count_read_buffer_chunks(&db), 0);
@@ -1635,7 +1649,7 @@ async fn make_delete_rub(
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
-    db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+    db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
         .await
         .unwrap();
     // delete data in RUB
@@ -1664,7 +1678,7 @@ async fn make_delete_rub_to_os(
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
-    db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+    db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
         .await
         .unwrap();
     // delete data in RUB
@@ -1701,7 +1715,7 @@ async fn make_delete_rub_to_os_and_unload_rub(
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
-    db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+    db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
         .await
         .unwrap();
     // delete data in RUB
@@ -1715,7 +1729,8 @@ async fn make_delete_rub_to_os_and_unload_rub(
     .await
     .unwrap();
     // remove RUB
-    db.unload_read_buffer(table_name, partition_key, 1).unwrap();
+    db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
+        .unwrap();
     // No MUB, no RUB, one OS
     assert_eq!(count_mutable_buffer_chunks(&db), 0);
     assert_eq!(count_read_buffer_chunks(&db), 0);
@@ -1740,7 +1755,7 @@ async fn make_delete_os_with_rub(
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
-    db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+    db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
         .await
         .unwrap();
     // persist RUB and the delete predicate will be automatically included in the OS chunk
@@ -1777,7 +1792,7 @@ async fn make_delete_os_with_rub_then_unload_rub(
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
-    db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+    db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
         .await
         .unwrap();
     // persist RUB and the delete predicate will be automatically included in the OS chunk
@@ -1791,7 +1806,8 @@ async fn make_delete_os_with_rub_then_unload_rub(
     // delete data after persisted but RUB still available
     db.delete("cpu", Arc::new(pred)).await.unwrap();
     // remove RUB
-    db.unload_read_buffer(table_name, partition_key, 1).unwrap();
+    db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
+        .unwrap();
     // No MUB, no RUB, one OS
     assert_eq!(count_mutable_buffer_chunks(&db), 0);
     assert_eq!(count_read_buffer_chunks(&db), 0);
@@ -1817,7 +1833,7 @@ async fn make_delete_os(
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
-    db.move_chunk_to_read_buffer(table_name, partition_key, 0)
+    db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
         .await
         .unwrap();
     // persist RUB and the delete predicate will be automatically included in the OS chunk
@@ -1829,7 +1845,8 @@ async fn make_delete_os(
     .await
     .unwrap();
     // remove RUB
-    db.unload_read_buffer(table_name, partition_key, 1).unwrap();
+    db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
+        .unwrap();
     // delete data after persisted but RUB still available
     db.delete("cpu", Arc::new(pred)).await.unwrap();
     // No MUB, no RUB, one OS

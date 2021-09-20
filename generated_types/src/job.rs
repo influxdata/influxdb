@@ -12,13 +12,13 @@ impl From<Job> for management::operation_metadata::Job {
                 db_name: chunk.db_name.to_string(),
                 partition_key: chunk.partition_key.to_string(),
                 table_name: chunk.table_name.to_string(),
-                chunk_id: chunk.chunk_id,
+                chunk_id: chunk.chunk_id.get(),
             }),
             Job::WriteChunk { chunk } => Self::WriteChunk(management::WriteChunk {
                 db_name: chunk.db_name.to_string(),
                 partition_key: chunk.partition_key.to_string(),
                 table_name: chunk.table_name.to_string(),
-                chunk_id: chunk.chunk_id,
+                chunk_id: chunk.chunk_id.get(),
             }),
             Job::WipePreservedCatalog { db_name } => {
                 Self::WipePreservedCatalog(management::WipePreservedCatalog {
@@ -30,7 +30,7 @@ impl From<Job> for management::operation_metadata::Job {
                     db_name: partition.db_name.to_string(),
                     partition_key: partition.partition_key.to_string(),
                     table_name: partition.table_name.to_string(),
-                    chunks,
+                    chunks: chunks.into_iter().map(|chunk_id| chunk_id.get()).collect(),
                 })
             }
             Job::PersistChunks { partition, chunks } => {
@@ -38,14 +38,14 @@ impl From<Job> for management::operation_metadata::Job {
                     db_name: partition.db_name.to_string(),
                     partition_key: partition.partition_key.to_string(),
                     table_name: partition.table_name.to_string(),
-                    chunks,
+                    chunks: chunks.into_iter().map(|chunk_id| chunk_id.get()).collect(),
                 })
             }
             Job::DropChunk { chunk } => Self::DropChunk(management::DropChunk {
                 db_name: chunk.db_name.to_string(),
                 partition_key: chunk.partition_key.to_string(),
                 table_name: chunk.table_name.to_string(),
-                chunk_id: chunk.chunk_id,
+                chunk_id: chunk.chunk_id.get(),
             }),
             Job::DropPartition { partition } => Self::DropPartition(management::DropPartition {
                 db_name: partition.db_name.to_string(),

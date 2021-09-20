@@ -2,8 +2,10 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::chunk_metadata::ChunkAddr;
-use crate::partition_metadata::PartitionAddr;
+use crate::{
+    chunk_metadata::{ChunkAddr, ChunkId},
+    partition_metadata::PartitionAddr,
+};
 
 /// Metadata associated with a set of background tasks
 /// Used in combination with TrackerRegistry
@@ -25,13 +27,13 @@ pub enum Job {
     /// Compact a set of chunks
     CompactChunks {
         partition: PartitionAddr,
-        chunks: Vec<u32>,
+        chunks: Vec<ChunkId>,
     },
 
     /// Split and persist a set of chunks
     PersistChunks {
         partition: PartitionAddr,
-        chunks: Vec<u32>,
+        chunks: Vec<ChunkId>,
     },
 
     /// Drop chunk from memory and (if persisted) from object store.
@@ -88,7 +90,7 @@ impl Job {
     }
 
     /// Returns the chunk_ids associated with this job, if any
-    pub fn chunk_ids(&self) -> Option<Vec<u32>> {
+    pub fn chunk_ids(&self) -> Option<Vec<ChunkId>> {
         match self {
             Self::Dummy { .. } => None,
             Self::CompactChunk { chunk, .. } => Some(vec![chunk.chunk_id]),

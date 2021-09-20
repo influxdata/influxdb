@@ -4,6 +4,7 @@ use std::{
 };
 
 use arrow::datatypes::{DataType, Field};
+use data_types::chunk_metadata::ChunkId;
 use datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
     logical_plan::{Expr, ExpressionVisitor, LogicalPlan, LogicalPlanBuilder, Operator, Recursion},
@@ -78,7 +79,7 @@ pub enum Error {
         source
     ))]
     CheckingChunkPredicate {
-        chunk_id: u32,
+        chunk_id: ChunkId,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
@@ -207,7 +208,7 @@ impl InfluxRpcPlanner {
                     // TODO: General purpose plans for
                     // table_names. For now, return an error
                     debug!(
-                        chunk = chunk.id(),
+                        chunk = chunk.id().get(),
                         ?predicate,
                         table_name = chunk.table_name(),
                         "can not evaluate predicate"
@@ -276,13 +277,18 @@ impl InfluxRpcPlanner {
 
             match maybe_names {
                 Some(mut names) => {
-                    debug!(table_name, names=?names, chunk_id = chunk.id(), "column names found from metadata");
+                    debug!(
+                        table_name,
+                        names=?names,
+                        chunk_id=chunk.id().get(),
+                        "column names found from metadata",
+                    );
                     known_columns.append(&mut names);
                 }
                 None => {
                     debug!(
                         table_name,
-                        chunk_id = chunk.id(),
+                        chunk_id = chunk.id().get(),
                         "column names need full plan"
                     );
                     // can't get columns only from metadata, need
@@ -404,13 +410,18 @@ impl InfluxRpcPlanner {
 
             match maybe_values {
                 Some(mut names) => {
-                    debug!(table_name, names=?names, chunk_id = chunk.id(), "column values found from metadata");
+                    debug!(
+                        table_name,
+                        names=?names,
+                        chunk_id=chunk.id().get(),
+                        "column values found from metadata",
+                    );
                     known_values.append(&mut names);
                 }
                 None => {
                     debug!(
                         table_name,
-                        chunk_id = chunk.id(),
+                        chunk_id = chunk.id().get(),
                         "need full plan to find column values"
                     );
                     // can't get columns only from metadata, need

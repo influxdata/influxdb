@@ -174,7 +174,7 @@ fn assemble_chunk_columns(
 
         for column in &table_summary.columns {
             partition_key.append_value(chunk_summary.inner.partition_key.as_ref())?;
-            chunk_id.append_value(chunk_summary.inner.id)?;
+            chunk_id.append_value(chunk_summary.inner.id.get())?;
             table_name.append_value(&chunk_summary.inner.table_name)?;
             column_name.append_value(&column.name)?;
             storage.append_value(storage_value)?;
@@ -220,7 +220,7 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use chrono::{TimeZone, Utc};
     use data_types::{
-        chunk_metadata::{ChunkColumnSummary, ChunkOrder, ChunkStorage, ChunkSummary},
+        chunk_metadata::{ChunkColumnSummary, ChunkId, ChunkOrder, ChunkStorage, ChunkSummary},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
     };
 
@@ -311,7 +311,7 @@ mod tests {
                     inner: ChunkSummary {
                         partition_key: "p1".into(),
                         table_name: "t1".into(),
-                        id: 42,
+                        id: ChunkId::new(42),
                         storage: ChunkStorage::ReadBuffer,
                         lifecycle_action,
                         memory_bytes: 23754,
@@ -348,7 +348,7 @@ mod tests {
                     inner: ChunkSummary {
                         partition_key: "p2".into(),
                         table_name: "t1".into(),
-                        id: 43,
+                        id: ChunkId::new(43),
                         storage: ChunkStorage::OpenMutableBuffer,
                         lifecycle_action,
                         memory_bytes: 23754,
@@ -379,7 +379,7 @@ mod tests {
                     inner: ChunkSummary {
                         partition_key: "p2".into(),
                         table_name: "t2".into(),
-                        id: 44,
+                        id: ChunkId::new(44),
                         storage: ChunkStorage::OpenMutableBuffer,
                         lifecycle_action,
                         memory_bytes: 23754,

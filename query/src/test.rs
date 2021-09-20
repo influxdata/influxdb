@@ -13,7 +13,7 @@ use arrow::{
     datatypes::{DataType, Int32Type, TimeUnit},
     record_batch::RecordBatch,
 };
-use data_types::chunk_metadata::ChunkOrder;
+use data_types::chunk_metadata::{ChunkId, ChunkOrder};
 use data_types::{
     chunk_metadata::ChunkSummary,
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
@@ -38,7 +38,7 @@ pub struct TestDatabase {
     /// Partitions which have been saved to this test database
     /// Key is partition name
     /// Value is map of chunk_id to chunk
-    partitions: Mutex<BTreeMap<String, BTreeMap<u32, Arc<TestChunk>>>>,
+    partitions: Mutex<BTreeMap<String, BTreeMap<ChunkId, Arc<TestChunk>>>>,
 
     /// `column_names` to return upon next request
     column_names: Arc<Mutex<Option<StringSetRef>>>,
@@ -77,7 +77,7 @@ impl TestDatabase {
     }
 
     /// Get the specified chunk
-    pub fn get_chunk(&self, partition_key: &str, id: u32) -> Option<Arc<TestChunk>> {
+    pub fn get_chunk(&self, partition_key: &str, id: ChunkId) -> Option<Arc<TestChunk>> {
         self.partitions
             .lock()
             .get(partition_key)
@@ -157,7 +157,7 @@ pub struct TestChunk {
     /// Return value for summary()
     table_summary: TableSummary,
 
-    id: u32,
+    id: ChunkId,
 
     /// Set the flag if this chunk might contain duplicates
     may_contain_pk_duplicates: bool,
@@ -246,7 +246,7 @@ impl TestChunk {
             table_name: table_name.clone(),
             schema: Arc::new(SchemaBuilder::new().build().unwrap()),
             table_summary: TableSummary::new(table_name),
-            id: Default::default(),
+            id: ChunkId::new(0),
             may_contain_pk_duplicates: Default::default(),
             predicates: Default::default(),
             table_data: Default::default(),
@@ -258,7 +258,7 @@ impl TestChunk {
     }
 
     pub fn with_id(mut self, id: u32) -> Self {
-        self.id = id;
+        self.id = ChunkId::new(id);
         self
     }
 
@@ -808,7 +808,7 @@ impl fmt::Display for TestChunk {
 impl QueryChunk for TestChunk {
     type Error = TestError;
 
-    fn id(&self) -> u32 {
+    fn id(&self) -> ChunkId {
         self.id
     }
 

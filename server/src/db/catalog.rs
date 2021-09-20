@@ -2,6 +2,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use data_types::chunk_metadata::ChunkId;
 use data_types::chunk_metadata::ChunkOrder;
 use hashbrown::{HashMap, HashSet};
 
@@ -38,7 +39,7 @@ pub enum Error {
         table
     ))]
     ChunkNotFound {
-        chunk_id: u32,
+        chunk_id: ChunkId,
         partition: String,
         table: String,
     },
@@ -148,7 +149,7 @@ impl Catalog {
         &self,
         table_name: impl AsRef<str>,
         partition_key: impl AsRef<str>,
-        chunk_id: u32,
+        chunk_id: ChunkId,
     ) -> Result<(Arc<RwLock<CatalogChunk>>, ChunkOrder)> {
         let table_name = table_name.as_ref();
         let partition_key = partition_key.as_ref();
@@ -384,22 +385,22 @@ mod tests {
         let p1 = p1.write();
         let p2 = p2.write();
 
-        let (c1_0, _order) = p1.chunk(0).unwrap();
+        let (c1_0, _order) = p1.chunk(ChunkId::new(0)).unwrap();
         assert_eq!(c1_0.read().table_name().as_ref(), "t1");
         assert_eq!(c1_0.read().key(), "p1");
-        assert_eq!(c1_0.read().id(), 0);
+        assert_eq!(c1_0.read().id(), ChunkId::new(0));
 
-        let (c1_1, _order) = p1.chunk(1).unwrap();
+        let (c1_1, _order) = p1.chunk(ChunkId::new(1)).unwrap();
         assert_eq!(c1_1.read().table_name().as_ref(), "t1");
         assert_eq!(c1_1.read().key(), "p1");
-        assert_eq!(c1_1.read().id(), 1);
+        assert_eq!(c1_1.read().id(), ChunkId::new(1));
 
-        let (c2_0, _order) = p2.chunk(0).unwrap();
+        let (c2_0, _order) = p2.chunk(ChunkId::new(0)).unwrap();
         assert_eq!(c2_0.read().table_name().as_ref(), "t2");
         assert_eq!(c2_0.read().key(), "p2");
-        assert_eq!(c2_0.read().id(), 0);
+        assert_eq!(c2_0.read().id(), ChunkId::new(0));
 
-        assert!(p1.chunk(100).is_none());
+        assert!(p1.chunk(ChunkId::new(100)).is_none());
     }
 
     #[test]
@@ -436,7 +437,7 @@ mod tests {
                     .into_iter()
                     .map(|c| {
                         let c = c.read();
-                        format!("Chunk {}:{}:{}", c.key(), c.table_name(), c.id())
+                        format!("Chunk {}:{}:{}", c.key(), c.table_name(), c.id().get())
                     })
                     .collect::<Vec<_>>()
                     .into_iter()
@@ -464,22 +465,22 @@ mod tests {
 
         {
             let mut p2 = p2.write();
-            p2.drop_chunk(0).unwrap();
-            assert!(p2.chunk(0).is_none()); // chunk is gone
+            p2.drop_chunk(ChunkId::new(0)).unwrap();
+            assert!(p2.chunk(ChunkId::new(0)).is_none()); // chunk is gone
         }
         assert_eq!(chunk_strings(&catalog).len(), 3);
 
         {
             let mut p1 = p1.write();
-            p1.drop_chunk(1).unwrap();
-            assert!(p1.chunk(1).is_none()); // chunk is gone
+            p1.drop_chunk(ChunkId::new(1)).unwrap();
+            assert!(p1.chunk(ChunkId::new(1)).is_none()); // chunk is gone
         }
         assert_eq!(chunk_strings(&catalog).len(), 2);
 
         {
             let mut p1 = p1.write();
-            p1.drop_chunk(0).unwrap();
-            assert!(p1.chunk(0).is_none()); // chunk is gone
+            p1.drop_chunk(ChunkId::new(0)).unwrap();
+            assert!(p1.chunk(ChunkId::new(0)).is_none()); // chunk is gone
         }
         assert_eq!(chunk_strings(&catalog).len(), 1);
     }
@@ -491,7 +492,7 @@ mod tests {
         create_open_chunk(&p3);
 
         let mut p3 = p3.write();
-        let err = p3.drop_chunk(2).unwrap_err();
+        let err = p3.drop_chunk(ChunkId::new(2)).unwrap_err();
 
         assert!(matches!(err, partition::Error::ChunkNotFound { .. }))
     }
@@ -510,7 +511,7 @@ mod tests {
 
         {
             let mut p1 = p1.write();
-            p1.drop_chunk(0).unwrap();
+            p1.drop_chunk(ChunkId::new(0)).unwrap();
         }
         assert_eq!(chunk_strings(&catalog), vec!["Chunk p1:table1:1"]);
 

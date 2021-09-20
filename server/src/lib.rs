@@ -71,6 +71,7 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use data_types::{
+    chunk_metadata::ChunkId,
     database_rules::{NodeGroup, RoutingRules, ShardId, Sink},
     detailed_database::DetailedDatabase,
     error::ErrorLogger,
@@ -955,7 +956,7 @@ where
         db_name: &DatabaseName<'_>,
         table_name: impl Into<String>,
         partition_key: impl Into<String>,
-        chunk_id: u32,
+        chunk_id: ChunkId,
     ) -> Result<TaskTracker<Job>> {
         let db = self.db(db_name)?;
         let partition_key = partition_key.into();
@@ -1666,7 +1667,7 @@ mod tests {
             db_name: Arc::from(db_name.as_str()),
             table_name: Arc::from("cpu"),
             partition_key: Arc::from(""),
-            chunk_id: 0,
+            chunk_id: ChunkId::new(0),
         };
         let tracker = server
             .close_chunk(
@@ -1695,7 +1696,7 @@ mod tests {
 
         let actual = chunk_summaries
             .into_iter()
-            .map(|s| format!("{:?} {}", s.storage, s.id))
+            .map(|s| format!("{:?} {}", s.storage, s.id.get()))
             .collect::<Vec<_>>();
 
         let expected = vec!["ReadBuffer 0"];

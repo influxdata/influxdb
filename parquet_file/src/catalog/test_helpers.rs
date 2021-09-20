@@ -7,6 +7,7 @@ use std::{
     sync::Arc,
 };
 
+use data_types::chunk_metadata::ChunkId;
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
 use predicate::predicate::Predicate;
 use snafu::{OptionExt, ResultExt};
@@ -35,7 +36,7 @@ pub struct Table {
 
 #[derive(Clone, Debug, Default)]
 pub struct Partition {
-    pub chunks: HashMap<u32, Chunk>,
+    pub chunks: HashMap<ChunkId, Chunk>,
 }
 
 #[derive(Clone, Debug)]
@@ -265,7 +266,7 @@ where
             .unwrap();
 
     // The expected state of the catalog
-    let mut expected_files: HashMap<u32, (ParquetFilePath, Arc<IoxParquetMetaData>)> =
+    let mut expected_files: HashMap<ChunkId, (ParquetFilePath, Arc<IoxParquetMetaData>)> =
         HashMap::new();
     let mut expected_predicates: Vec<(Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)> = vec![];
     assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
@@ -290,14 +291,14 @@ where
                     },
                 )
                 .unwrap();
-            expected_files.insert(chunk_id, (path, Arc::new(metadata)));
+            expected_files.insert(ChunkId::new(chunk_id), (path, Arc::new(metadata)));
         }
     }
     assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // remove files
     {
-        let (path, _) = expected_files.remove(&1).unwrap();
+        let (path, _) = expected_files.remove(&ChunkId::new(1)).unwrap();
         state.remove(&path).unwrap();
     }
     assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
@@ -322,7 +323,7 @@ where
 
     // remove and add in the same transaction
     {
-        let (path, metadata) = expected_files.get(&3).unwrap();
+        let (path, metadata) = expected_files.get(&ChunkId::new(3)).unwrap();
         state.remove(path).unwrap();
         state
             .add(
@@ -362,13 +363,13 @@ where
                 },
             )
             .unwrap();
-        expected_files.insert(6, (path, Arc::new(metadata)));
+        expected_files.insert(ChunkId::new(6), (path, Arc::new(metadata)));
     }
     assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // remove, add, remove in same transaction
     {
-        let (path, metadata) = expected_files.remove(&4).unwrap();
+        let (path, metadata) = expected_files.remove(&ChunkId::new(4)).unwrap();
         state.remove(&path).unwrap();
         state
             .add(
@@ -418,7 +419,7 @@ where
     // error handling, still something works
     {
         // already exists (should also not change the metadata)
-        let (_, metadata) = expected_files.get(&0).unwrap();
+        let (_, metadata) = expected_files.get(&ChunkId::new(0)).unwrap();
         let err = state
             .add(
                 Arc::clone(&iox_object_store),
@@ -449,7 +450,7 @@ where
                 },
             )
             .unwrap();
-        expected_files.insert(7, (path.clone(), Arc::clone(&metadata)));
+        expected_files.insert(ChunkId::new(7), (path.clone(), Arc::clone(&metadata)));
 
         // recently added
         let err = state
@@ -476,7 +477,7 @@ where
         ));
 
         // this still works
-        let (path, _) = expected_files.remove(&7).unwrap();
+        let (path, _) = expected_files.remove(&ChunkId::new(7)).unwrap();
         state.remove(&path).unwrap();
 
         // recently removed
@@ -572,14 +573,14 @@ where
 
     // removing a chunk will also remove its predicates
     {
-        let (path, _) = expected_files.remove(&8).unwrap();
+        let (path, _) = expected_files.remove(&ChunkId::new(8)).unwrap();
         state.remove(&path).unwrap();
         expected_predicates = expected_predicates
             .into_iter()
             .filter_map(|(predicate, chunks)| {
                 let chunks: Vec<_> = chunks
                     .into_iter()
-                    .filter(|addr| addr.chunk_id != 8)
+                    .filter(|addr| addr.chunk_id != ChunkId::new(8))
                     .collect();
                 (!chunks.is_empty()).then(|| (predicate, chunks))
             })
@@ -593,7 +594,7 @@ where
         let chunks = vec![ChunkAddrWithoutDatabase {
             table_name: Arc::from("some_table"),
             partition_key: Arc::from("part"),
-            chunk_id: 1000,
+            chunk_id: ChunkId::new(1000),
         }];
         let err = state
             .delete_predicate(Arc::clone(&predicate), chunks)
@@ -609,7 +610,7 @@ where
 fn assert_checkpoint<S, F>(
     state: &S,
     f: &F,
-    expected_files: &HashMap<u32, (ParquetFilePath, Arc<IoxParquetMetaData>)>,
+    expected_files: &HashMap<ChunkId, (ParquetFilePath, Arc<IoxParquetMetaData>)>,
     expected_predicates: &[(Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)],
 ) where
     F: Fn(&S) -> CheckpointData,

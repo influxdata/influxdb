@@ -1,4 +1,4 @@
-use data_types::chunk_metadata::ChunkAddr;
+use data_types::chunk_metadata::{ChunkAddr, ChunkId};
 use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath, Path as ObjStoPath},
     Result,
@@ -13,7 +13,7 @@ use uuid::Uuid;
 pub struct ParquetFilePath {
     table_name: Arc<str>,
     partition_key: Arc<str>,
-    chunk_id: u32,
+    chunk_id: ChunkId,
     uuid: Uuid,
 }
 
@@ -45,7 +45,7 @@ impl ParquetFilePath {
     pub fn relative_dirs_and_file_name(&self) -> DirsAndFileName {
         let mut result = DirsAndFileName::default();
         result.push_all_dirs(&[self.table_name.as_ref(), self.partition_key.as_ref()]);
-        result.set_file_name(format!("{}.{}.parquet", self.chunk_id, self.uuid));
+        result.set_file_name(format!("{}.{}.parquet", self.chunk_id.get(), self.uuid));
         result
     }
 
@@ -73,11 +73,13 @@ impl ParquetFilePath {
             .context(MissingChunkId)?
             .to_string();
         let mut parts = file_name.split('.');
-        let chunk_id = parts
-            .next()
-            .context(MissingChunkId)?
-            .parse()
-            .context(InvalidChunkId)?;
+        let chunk_id = ChunkId::new(
+            parts
+                .next()
+                .context(MissingChunkId)?
+                .parse::<u32>()
+                .context(InvalidChunkId)?,
+        );
         let uuid = parts
             .next()
             .context(MissingUuid)?
@@ -184,7 +186,7 @@ mod tests {
             db_name: "clouds".into(),
             table_name: "my_table".into(),
             partition_key: "my_partition".into(),
-            chunk_id: 13,
+            chunk_id: ChunkId::new(13),
         };
 
         let p1 = ParquetFilePath::new(&chunk_addr);
@@ -279,7 +281,7 @@ mod tests {
             ParquetFilePath {
                 table_name: "foo".into(),
                 partition_key: "bar".into(),
-                chunk_id: 3,
+                chunk_id: ChunkId::new(3),
                 uuid
             }
         );
@@ -302,7 +304,7 @@ mod tests {
             ParquetFilePath {
                 table_name: "}*".into(),
                 partition_key: "aoeu".into(),
-                chunk_id: 10,
+                chunk_id: ChunkId::new(10),
                 uuid
             }
         );
@@ -336,7 +338,7 @@ mod tests {
         let pfp = ParquetFilePath {
             table_name: "}*".into(),
             partition_key: "aoeu".into(),
-            chunk_id: 10,
+            chunk_id: ChunkId::new(10),
             uuid,
         };
         let dirs_and_file_name = pfp.relative_dirs_and_file_name();
@@ -368,7 +370,7 @@ mod tests {
         let pfp = ParquetFilePath {
             table_name: "}*".into(),
             partition_key: "aoeu".into(),
-            chunk_id: 10,
+            chunk_id: ChunkId::new(10),
             uuid,
         };
 
