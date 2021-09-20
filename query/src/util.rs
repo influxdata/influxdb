@@ -1,14 +1,18 @@
 //! This module contains DataFusion utility functions and helpers
 
-use std::collections::HashSet;
+use std::{collections::HashSet, convert::TryInto, sync::Arc};
 
 use arrow::{compute::SortOptions, datatypes::Schema as ArrowSchema, record_batch::RecordBatch};
 
 use datafusion::{
     error::DataFusionError,
-    logical_plan::{Expr, LogicalPlan, LogicalPlanBuilder},
+    logical_plan::{DFSchema, Expr, LogicalPlan, LogicalPlanBuilder},
     optimizer::utils::expr_to_columns,
-    physical_plan::expressions::{col as physical_col, PhysicalSortExpr},
+    physical_plan::{
+        expressions::{col as physical_col, PhysicalSortExpr},
+        planner::DefaultPhysicalPlanner,
+        ExecutionPlan, PhysicalExpr,
+    },
 };
 use internal_types::schema::{sort::SortKey, Schema};
 
@@ -68,6 +72,28 @@ pub fn arrow_sort_key_exprs(
     }
 
     sort_exprs
+}
+
+// Build a datafusion physical expression from its logical one
+pub fn df_physical_expr(
+    input: &dyn ExecutionPlan,
+    expr: Expr,
+) -> std::result::Result<Arc<dyn PhysicalExpr>, DataFusionError> {
+    // To create a physical expression for a logical expression we need appropriate
+    // PhysicalPlanner and ExecutionContextState, however, our given logical expression is very basic
+    // and any planner or context will work
+    let physical_planner = DefaultPhysicalPlanner::default();
+    let ctx_state = datafusion::execution::context::ExecutionContextState::new();
+
+    let input_physical_schema = input.schema();
+    let input_logical_schema: DFSchema = input_physical_schema.as_ref().clone().try_into()?;
+
+    physical_planner.create_physical_expr(
+        &expr,
+        &input_logical_schema,
+        &input_physical_schema,
+        &ctx_state,
+    )
 }
 
 #[cfg(test)]

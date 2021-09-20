@@ -341,19 +341,11 @@ impl QueryChunk for DbChunk {
 
         debug!(?delete_predicates, "Input Delete Predicates to read_filter");
 
-        // add negated deleted ranges to the predicate
-        let mut pred_with_deleted_ranges = predicate.clone();
-        pred_with_deleted_ranges.add_delete_ranges(delete_predicates);
+        // merge the negated delete predicates into the select predicate
+        let mut pred_with_deleted_exprs = predicate.clone();
+        pred_with_deleted_exprs.merge_delete_predicates(delete_predicates);
         debug!(
-            ?pred_with_deleted_ranges,
-            "Input Predicate plus deleted ranges"
-        );
-
-        // add negated deleted predicates
-        let mut pred_wth_deleted_exprs = pred_with_deleted_ranges.clone();
-        pred_wth_deleted_exprs.add_delete_exprs(delete_predicates);
-        debug!(
-            ?pred_wth_deleted_exprs,
+            ?pred_with_deleted_exprs,
             "Input Predicate plus deleted ranges and deleted predicates"
         );
 
@@ -393,7 +385,7 @@ impl QueryChunk for DbChunk {
                 )))
             }
             State::ParquetFile { chunk, .. } => chunk
-                .read_filter(&pred_wth_deleted_exprs, selection)
+                .read_filter(&pred_with_deleted_exprs, selection)
                 .context(ParquetFileChunkError {
                     chunk_id: self.id(),
                 }),
