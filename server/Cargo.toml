@@ -8,7 +8,7 @@ edition = "2018"
 arrow = { version = "5.0", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
-bytes = { version = "1.0" }
+bytes = "1.0"
 chrono = "0.4"
 cache_loader_async = { version = "0.1.0", features = ["ttl-cache"] }
 crc32fast = "1.2.0"

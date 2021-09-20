@@ -6,7 +6,7 @@ description = "Standard Protobuf definitions - extracted into separate crate to 
 edition = "2018"
 
 [dependencies] # In alphabetical order
-bytes = { version = "1.0", features = ["serde"] }
+bytes = "1.0"
 chrono = "0.4"
 pbjson = { path = "../pbjson" }
 prost = "0.8"
