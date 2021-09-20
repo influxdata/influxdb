@@ -84,15 +84,15 @@ impl TestCatalogState {
                     for predicate in &chunk.delete_predicates {
                         let predicate_ref: &Predicate = predicate.as_ref();
                         let addr = (predicate_ref as *const Predicate) as usize;
-                        let pred_chunk = || ChunkAddrWithoutDatabase {
+                        let pred_chunk_closure = || ChunkAddrWithoutDatabase {
                             table_name: Arc::clone(table_name),
                             partition_key: Arc::clone(partition_key),
                             chunk_id: *chunk_id,
                         };
                         predicates
                             .entry(addr)
-                            .and_modify(|(_predicate, v)| v.push(pred_chunk()))
-                            .or_insert_with(|| (Arc::clone(predicate), vec![pred_chunk()]));
+                            .and_modify(|(_predicate, v)| v.push(pred_chunk_closure()))
+                            .or_insert_with(|| (Arc::clone(predicate), vec![pred_chunk_closure()]));
                     }
                 }
             }
