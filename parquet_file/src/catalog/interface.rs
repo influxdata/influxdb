@@ -22,7 +22,7 @@ pub struct CatalogParquetInfo {
 }
 
 /// Same as [ChunkAddr] but w/o the database part.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ChunkAddrWithoutDatabase {
     pub table_name: Arc<str>,
     pub partition_key: Arc<str>,
@@ -147,5 +147,7 @@ pub struct CheckpointData {
     ///
     /// This must only contains chunks that are still present in the catalog. Predicates that do not have any chunks
     /// attached should be left out.
+    ///
+    /// The vector itself must be sorted by [`Predicate`]. The chunks list must also be sorted.
     pub delete_predicates: Vec<(Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)>,
 }

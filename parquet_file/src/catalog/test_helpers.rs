@@ -98,7 +98,19 @@ impl TestCatalogState {
             }
         }
 
-        predicates.into_values().collect()
+        let mut predicates: Vec<_> = predicates
+            .into_values()
+            .map(|(predicate, mut chunks)| {
+                chunks.sort();
+                (predicate, chunks)
+            })
+            .collect();
+        predicates.sort_by(|(predicate_a, _chunks_a), (predicate_b, _chunks_b)| {
+            predicate_a
+                .partial_cmp(predicate_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        predicates
     }
 
     /// Inserts a file into this catalog state

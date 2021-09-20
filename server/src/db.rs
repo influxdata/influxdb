@@ -1232,9 +1232,22 @@ pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData 
         }
     }
 
+    let mut delete_predicates: Vec<_> = delete_predicates
+        .into_values()
+        .map(|(predicate, mut chunks)| {
+            chunks.sort();
+            (predicate, chunks)
+        })
+        .collect();
+    delete_predicates.sort_by(|(predicate_a, _chunks_a), (predicate_b, _chunks_b)| {
+        predicate_a
+            .partial_cmp(predicate_b)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
     CheckpointData {
         files,
-        delete_predicates: delete_predicates.into_values().collect(),
+        delete_predicates,
     }
 }
 
