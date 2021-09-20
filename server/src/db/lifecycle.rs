@@ -225,7 +225,7 @@ impl LockablePartition for LockableCatalogPartition {
         handle: Self::PersistHandle,
     ) -> Result<TaskTracker<Job>, Self::Error> {
         info!(table=%partition.table_name(), partition=%partition.partition_key(), "persisting chunks");
-        let (tracker, fut) = persist::persist_chunks(partition, chunks, handle.0)?;
+        let (tracker, fut) = persist::persist_chunks(partition, chunks, handle.0, Utc::now)?;
         let _ = tokio::spawn(async move { fut.await.log_if_error("persisting chunks") });
         Ok(tracker)
     }

@@ -612,6 +612,21 @@ impl Db {
         partition_key: &str,
         now: Instant,
     ) -> Result<Arc<DbChunk>> {
+        self.persist_partition_with_timestamp(table_name, partition_key, now, Utc::now)
+            .await
+    }
+
+    /// Internal use only for testing.
+    async fn persist_partition_with_timestamp<F>(
+        self: &Arc<Self>,
+        table_name: &str,
+        partition_key: &str,
+        now: Instant,
+        f_parquet_creation_timestamp: F,
+    ) -> Result<Arc<DbChunk>>
+    where
+        F: Fn() -> DateTime<Utc> + Send,
+    {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
@@ -664,8 +679,13 @@ impl Db {
                 }
             );
 
-            let (_, fut) = lifecycle::persist_chunks(partition, chunks, flush_handle)
-                .context(LifecycleError)?;
+            let (_, fut) = lifecycle::persist_chunks(
+                partition,
+                chunks,
+                flush_handle,
+                f_parquet_creation_timestamp,
+            )
+            .context(LifecycleError)?;
             fut
         };
 
