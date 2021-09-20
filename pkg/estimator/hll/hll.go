@@ -151,9 +151,10 @@ func (h *Plus) Add(v []byte) {
 
 		if uint32(len(h.tmpSet))*100 > h.m {
 			h.mergeSparse()
-			if uint32(h.sparseList.Len()) > h.m {
-				h.toNormal()
-			}
+		}
+		if uint32(h.sparseList.Len()) > h.m {
+			h.mergeSparse()
+			h.toNormal()
 		}
 	} else {
 		i := bextr(x, 64-h.p, h.p) // {x63,...,x64-p}
@@ -241,6 +242,10 @@ func (h *Plus) MarshalBinary() (data []byte, err error) {
 		return nil, nil
 	}
 
+	if h.sparse {
+		h.mergeSparse()
+	}
+
 	// Marshal a version marker.
 	data = append(data, version)
 
@@ -251,7 +256,7 @@ func (h *Plus) MarshalBinary() (data []byte, err error) {
 		// It's using the sparse representation.
 		data = append(data, byte(1))
 
-		// Add the tmp_set
+		// Add the tmp_set (should be empty)
 		tsdata, err := h.tmpSet.MarshalBinary()
 		if err != nil {
 			return nil, err

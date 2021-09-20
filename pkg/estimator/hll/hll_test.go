@@ -1,7 +1,6 @@
 package hll
 
 import (
-	crand "crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -467,11 +466,13 @@ func TestPlus_Error(t *testing.T) {
 func TestPlus_Marshal_Unmarshal_Sparse(t *testing.T) {
 	h, _ := NewPlus(4)
 	h.sparse = true
-	h.tmpSet = map[uint32]struct{}{26: struct{}{}, 40: struct{}{}}
+	h.tmpSet = map[uint32]struct{}{26: {}, 40: {}}
+
+	src := rand.New(rand.NewSource(6611))
 
 	// Add a bunch of values to the sparse representation.
 	for i := 0; i < 10; i++ {
-		h.sparseList.Append(uint32(rand.Int()))
+		h.sparseList.Append(uint32(src.Int()))
 	}
 
 	data, err := h.MarshalBinary()
@@ -501,9 +502,11 @@ func TestPlus_Marshal_Unmarshal_Dense(t *testing.T) {
 	h, _ := NewPlus(4)
 	h.sparse = false
 
+	src := rand.New(rand.NewSource(1688))
+
 	// Add a bunch of values to the dense representation.
 	for i := 0; i < 10; i++ {
-		h.denseList = append(h.denseList, uint8(rand.Int()))
+		h.denseList = append(h.denseList, uint8(src.Int()))
 	}
 
 	data, err := h.MarshalBinary()
@@ -539,9 +542,11 @@ func TestPlus_Marshal_Unmarshal_Count(t *testing.T) {
 	count := make(map[string]struct{}, 1000000)
 	h, _ := NewPlus(16)
 
+	src := rand.New(rand.NewSource(6828))
+
 	buf := make([]byte, 8)
 	for i := 0; i < 1000000; i++ {
-		if _, err := crand.Read(buf); err != nil {
+		if _, err := src.Read(buf); err != nil {
 			panic(err)
 		}
 
@@ -577,7 +582,7 @@ func TestPlus_Marshal_Unmarshal_Count(t *testing.T) {
 
 	// Add some more values.
 	for i := 0; i < 1000000; i++ {
-		if _, err := crand.Read(buf); err != nil {
+		if _, err := src.Read(buf); err != nil {
 			panic(err)
 		}
 
@@ -605,13 +610,13 @@ func NewTestPlus(p uint8) *Plus {
 }
 
 // Generate random data to add to the sketch.
-func genData(n int) [][]byte {
+func genData(n int, src *rand.Rand) [][]byte {
 	out := make([][]byte, 0, n)
 	buf := make([]byte, 8)
 
 	for i := 0; i < n; i++ {
 		// generate 8 random bytes
-		n, err := rand.Read(buf)
+		n, err := src.Read(buf)
 		if err != nil {
 			panic(err)
 		} else if n != 8 {
@@ -630,10 +635,11 @@ func genData(n int) [][]byte {
 var benchdata = map[int][][]byte{}
 
 func benchmarkPlusAdd(b *testing.B, h *Plus, n int) {
+	src := rand.New(rand.NewSource(9938))
 	blobs, ok := benchdata[n]
 	if !ok {
 		// Generate it.
-		benchdata[n] = genData(n)
+		benchdata[n] = genData(n, src)
 		blobs = benchdata[n]
 	}
 
