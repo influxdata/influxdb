@@ -31,7 +31,7 @@ snafu = "0.6"
 criterion = "0.3.3"
 packers = { path = "../packers" }
 rand = "0.8.3"
-rand_distr = "0.4.0"
+rand_distr = "0.4.2"
 test_helpers = { path = "../test_helpers" }
 
 [[bench]]
