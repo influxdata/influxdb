@@ -2413,6 +2413,40 @@ func (e *Engine) CreateIterator(ctx context.Context, measurement string, opt que
 	return newMergeFinalizerIterator(ctx, itrs, opt, e.logger)
 }
 
+// createSeriesIterator creates an optimized series iterator if possible.
+// We exclude less-common cases for now as not worth implementing.
+func (e *Engine) createSeriesIterator(measurement string, ref *influxql.VarRef, is tsdb.IndexSet, opt query.IteratorOptions) (query.Iterator, error) {
+	// Main check to see if we are trying to create a seriesKey iterator
+	if ref == nil || ref.Val != "_seriesKey" || len(opt.Aux) != 0 {
+		return nil, nil
+	}
+	// Check some other cases that we could maybe handle, but don't
+	if len(opt.Dimensions) > 0 {
+		return nil, nil
+	}
+	if opt.SLimit != 0 || opt.SOffset != 0 {
+		return nil, nil
+	}
+	if opt.StripName {
+		return nil, nil
+	}
+	if opt.Ordered {
+		return nil, nil
+	}
+	// Actual creation of the iterator
+	seriesCursor, err := is.MeasurementSeriesKeyByExprIterator([]byte(measurement), opt.Condition, opt.Authorizer)
+	if err != nil {
+		seriesCursor.Close()
+		return nil, err
+	}
+	var seriesIterator query.Iterator
+	seriesIterator = newSeriesIterator(measurement, seriesCursor)
+	if opt.InterruptCh != nil {
+		seriesIterator = query.NewInterruptIterator(seriesIterator, opt.InterruptCh)
+	}
+	return seriesIterator, nil
+}
+
 func (e *Engine) createCallIterator(ctx context.Context, measurement string, call *influxql.Call, opt query.IteratorOptions) ([]query.Iterator, error) {
 	ref, _ := call.Args[0].(*influxql.VarRef)
 
@@ -2420,6 +2454,28 @@ func (e *Engine) createCallIterator(ctx context.Context, measurement string, cal
 		return nil, err
 	} else if !exists {
 		return nil, nil
+	}
+
+	// check for optimized series iteration for tsi index
+	if e.index.Type() == tsdb.TSI1IndexName {
+		indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+		seriesOpt := opt
+		if len(opt.Dimensions) == 0 && call.Name == "count" {
+			// no point ordering the series if we are just counting all of them
+			seriesOpt.Ordered = false
+		}
+		seriesIterator, err := e.createSeriesIterator(measurement, ref, indexSet, seriesOpt)
+		if err != nil {
+			return nil, err
+		}
+		if seriesIterator != nil {
+			callIterator, err := query.NewCallIterator(seriesIterator, opt)
+			if err != nil {
+				seriesIterator.Close()
+				return nil, err
+			}
+			return []query.Iterator{callIterator}, nil
+		}
 	}
 
 	// Determine tagsets for this measurement based on dimensions and filters.

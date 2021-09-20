@@ -27,6 +27,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
+	tassert "github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -2019,6 +2020,80 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 			if !cmp.Equal([]float64{10.1, 1.3, 1.2, 1.1}, a.Values) {
 				t.Fatal("unexpect values")
 			}
+		})
+	}
+}
+
+// Ensure engine can create an descending iterator for cached values.
+func TestEngine_CreateIterator_SeriesKey(t *testing.T) {
+	t.Parallel()
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			assert := tassert.New(t)
+			e := MustOpenEngine(t, index)
+			defer e.Close()
+
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+			e.CreateSeriesIfNotExists([]byte("cpu,host=A,region=east"), []byte("cpu"), models.NewTags(map[string]string{"host": "A", "region": "east"}))
+			e.CreateSeriesIfNotExists([]byte("cpu,host=B,region=east"), []byte("cpu"), models.NewTags(map[string]string{"host": "B", "region": "east"}))
+			e.CreateSeriesIfNotExists([]byte("cpu,host=C,region=east"), []byte("cpu"), models.NewTags(map[string]string{"host": "C", "region": "east"}))
+			e.CreateSeriesIfNotExists([]byte("cpu,host=A,region=west"), []byte("cpu"), models.NewTags(map[string]string{"host": "A", "region": "west"}))
+
+			if err := e.WritePointsString(
+				`cpu,host=A,region=east value=1.1 1000000001`,
+				`cpu,host=B,region=east value=1.2 1000000002`,
+				`cpu,host=A,region=east value=1.3 1000000003`,
+				`cpu,host=C,region=east value=1.4 1000000004`,
+				`cpu,host=A,region=west value=1.5 1000000005`,
+			); err != nil {
+				t.Fatalf("failed to write points: %s", err.Error())
+			}
+
+			opts := query.IteratorOptions{
+				Expr:       influxql.MustParseExpr(`_seriesKey`),
+				Dimensions: []string{},
+				StartTime:  influxql.MinTime,
+				EndTime:    influxql.MaxTime,
+				Condition:  influxql.MustParseExpr(`host = 'A'`),
+			}
+
+			itr, err := e.CreateIterator(context.Background(), "cpu", opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			stringItr, ok := itr.(query.StringIterator)
+			assert.True(ok, "series iterator must be of type string")
+			expectedSeries := map[string]struct{}{
+				"cpu,host=A,region=west": struct{}{},
+				"cpu,host=A,region=east": struct{}{},
+			}
+			var str *query.StringPoint
+			for str, err = stringItr.Next(); err == nil && str != (*query.StringPoint)(nil); str, err = stringItr.Next() {
+				_, ok := expectedSeries[str.Value]
+				assert.True(ok, "Saw bad key "+str.Value)
+				delete(expectedSeries, str.Value)
+			}
+			assert.NoError(err)
+			assert.NoError(itr.Close())
+
+			countOpts := opts
+			countOpts.Expr = influxql.MustParseExpr(`count(_seriesKey)`)
+			itr, err = e.CreateIterator(context.Background(), "cpu", countOpts)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			integerIter, ok := itr.(query.IntegerIterator)
+			assert.True(ok, "series count iterator must be of type integer")
+			i, err := integerIter.Next()
+			assert.NoError(err)
+			assert.Equal(int64(2), i.Value, "must count 2 series with host=A")
+			i, err = integerIter.Next()
+			assert.NoError(err)
+			assert.Equal((*query.IntegerPoint)(nil), i, "count iterator has only one output")
+			assert.NoError(itr.Close())
 		})
 	}
 }
