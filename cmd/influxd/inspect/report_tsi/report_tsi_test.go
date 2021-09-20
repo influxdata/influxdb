@@ -36,7 +36,7 @@ func Test_ReportTSI_Bucket_Does_Not_Exist(t *testing.T) {
 	params := cmdParams{
 		bucketId:    "12345",
 		expectErr:   true,
-		expectedOut: fmt.Sprintf("open %s: no such file or directory", filepath.Join("12345", "autogen")),
+		expectedOut: fmt.Sprintf("open %s", filepath.Join("12345", "autogen")),
 	}
 	runCommand(t, params)
 }
@@ -174,7 +174,7 @@ func runCommand(t *testing.T, params cmdParams) {
 	cmd := initCommand(t, params)
 
 	if params.expectErr {
-		require.EqualError(t, cmd.Execute(), params.expectedOut)
+		require.Contains(t, cmd.Execute().Error(), params.expectedOut)
 		return
 	}
 
