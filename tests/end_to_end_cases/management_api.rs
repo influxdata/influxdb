@@ -1480,6 +1480,7 @@ async fn test_drop_partition_error() {
 
 #[tokio::test]
 async fn test_delete() {
+    test_helpers::maybe_start_logging();
     let fixture = ServerFixture::create_shared().await;
     let mut write_client = fixture.write_client();
     let mut management_client = fixture.management_client();
@@ -1537,11 +1538,11 @@ async fn test_delete() {
         .delete(db_name.clone(), table, start, stop, pred)
         .await
         .unwrap();
-    // todo: The delete function  above just parses the input, nothing deleted in DB yet
-    // todoL: should add different tests for different stages of chunks, too
+
+    // todo: should add different tests for different stages of chunks, too
+    // next PR
 
     // query to verify data deleted
-    // todo: when the delete is done and integrated, the below test must fail
     let mut query_results = flight_client
         .perform_query(db_name, "select * from cpu")
         .await
@@ -1551,7 +1552,6 @@ async fn test_delete() {
         "+--------+--------------------------------+------+",
         "| region | time                           | user |",
         "+--------+--------------------------------+------+",
-        "| west   | 1970-01-01T00:00:00.000000100Z | 23.2 |",
         "| west   | 1970-01-01T00:00:00.000000150Z | 21   |",
         "+--------+--------------------------------+------+",
     ];

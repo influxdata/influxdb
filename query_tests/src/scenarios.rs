@@ -1237,7 +1237,7 @@ impl DbSetup for DeleteFromMubOneMeasurementOneChunk {
             .build();
 
         // delete happens when data in MUB
-        let _scenario_mub = make_delete_mub(lp_lines.clone(), pred.clone()).await;
+        let scenario_mub = make_delete_mub(lp_lines.clone(), pred.clone()).await;
 
         // delete happens when data in MUB then moved to RUB
         let scenario_rub =
@@ -1257,9 +1257,7 @@ impl DbSetup for DeleteFromMubOneMeasurementOneChunk {
             make_delete_mub_to_os(lp_lines.clone(), pred, table_name, partition_key).await;
 
         // return scenarios to run queries
-        // NGA todo: add scenario_mub in this after the deleted data is removed in the scan
-        //   right now MUB does not push predicate down so the result is not correct yet
-        vec![scenario_rub, scenario_rub_os, scenario_os]
+        vec![scenario_mub, scenario_rub, scenario_rub_os, scenario_os]
     }
 }
 
@@ -1344,8 +1342,8 @@ impl DbSetup for DeleteFromOsOneMeasurementOneChunk {
         let _scenario_os = make_delete_os(lp_lines.clone(), pred, table_name, partition_key).await;
 
         // return scenarios to run queries
-        //vec![scenario_rub_os, scenario_rub_os_unload_rub, scenario_os]
-        // NGA todo: turn the last 2 scenarios on when #2518 and #2550 are done
+        // NGA todo: turn these 2 OS scenarios on. May need to wait for Marco to finish persisting delete predicates first
+        // vec![scenario_rub_os, scenario_rub_os_unload_rub, scenario_os]
         vec![scenario_rub_os]
     }
 }
@@ -1381,7 +1379,7 @@ impl DbSetup for DeleteMultiExprsFromMubOneMeasurementOneChunk {
             .build();
 
         // delete happens when data in MUB
-        let _scenario_mub = make_delete_mub(lp_lines.clone(), pred.clone()).await;
+        let scenario_mub = make_delete_mub(lp_lines.clone(), pred.clone()).await;
 
         // delete happens when data in MUB then moved to RUB
         let scenario_rub =
@@ -1401,9 +1399,7 @@ impl DbSetup for DeleteMultiExprsFromMubOneMeasurementOneChunk {
             make_delete_mub_to_os(lp_lines.clone(), pred, table_name, partition_key).await;
 
         // return scenarios to run queries
-        // NGA todo: add scenario_mub in this after the deleted data is removed in the scan
-        //   right now MUB does not push predicate down so the result is not correct yet
-        vec![scenario_rub, scenario_rub_os, scenario_os]
+        vec![scenario_mub, scenario_rub, scenario_rub_os, scenario_os]
     }
 }
 
@@ -1503,13 +1499,13 @@ impl DbSetup for DeleteMultiExprsFromOsOneMeasurementOneChunk {
         let _scenario_os = make_delete_os(lp_lines.clone(), pred, table_name, partition_key).await;
 
         // return scenarios to run queries
+        // NGA todo: turn these 2 OS scenarios on. May need to wait for Marco to finish persisting delete predicates first
         //vec![scenario_rub_os, scenario_rub_os_unload_rub, scenario_os]
-        // NGA todo: turn the last 2 scenarios on when #2518band #2550 are done
         vec![scenario_rub_os]
     }
 }
 
-// NGA todo: Add these scenarios after deleted data is eliminated from scan
+// NGA todo next PR: Add these scenarios after deleted data is eliminated from scan
 //  1. Many deletes, each has one or/and multi expressions
 //  2. Many different-type chunks when a delete happens
 //  3. Combination of above

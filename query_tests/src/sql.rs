@@ -811,6 +811,8 @@ async fn sql_select_all_different_tags_chunks() {
 
 #[tokio::test]
 async fn sql_select_with_deleted_data_from_one_expr() {
+    test_helpers::maybe_start_logging();
+
     let expected = vec![
         "+-----+--------------------------------+",
         "| bar | time                           |",
