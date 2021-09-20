@@ -206,6 +206,8 @@ impl ChunkSummary {
 pub struct ChunkId(u32);
 
 impl ChunkId {
+    pub const MAX: Self = Self(u32::MAX);
+
     pub fn new(id: u32) -> Self {
         Self(id)
     }
@@ -214,6 +216,10 @@ impl ChunkId {
         self.0
     }
 
+    /// Get next chunk ID.
+    ///
+    /// # Panic
+    /// Panics if `self` is already [max](Self::MAX).
     pub fn next(&self) -> Self {
         Self(self.0.checked_add(1).expect("chunk ID overflow"))
     }
@@ -244,6 +250,10 @@ impl ChunkOrder {
         self.0
     }
 
+    /// Get next chunk order.
+    ///
+    /// # Panic
+    /// Panics if `self` is already [max](Self::MAX).
     pub fn next(&self) -> Self {
         Self(self.0.checked_add(1).expect("chunk order overflow"))
     }
