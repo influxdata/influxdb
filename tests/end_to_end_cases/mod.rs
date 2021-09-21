@@ -17,6 +17,7 @@ pub mod scenario;
 mod sql_cli;
 mod storage_api;
 mod system_tables;
+mod tracing;
 mod write_api;
 mod write_buffer;
 mod write_cli;

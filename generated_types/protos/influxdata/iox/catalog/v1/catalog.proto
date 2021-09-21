@@ -2,6 +2,7 @@ syntax = "proto3";
 package influxdata.iox.catalog.v1;
 
 import "google/protobuf/timestamp.proto";
+import "influxdata/iox/catalog/v1/predicate.proto";
 
 // Path for object store interaction.
 message Path {
@@ -47,6 +48,27 @@ message RemoveParquet {
     Path path = 1;
 }
 
+// Chunk within the preserved part of the catalog.
+message ChunkAddr {
+  // Table name.
+  string table_name = 1;
+
+  // Partition key.
+  string partition_key = 2;
+
+  // Chunk ID.
+  uint32 chunk_id = 3;
+}
+
+// Register new delete predicate
+message DeletePredicate {
+  // Predicate to be applied.
+  Predicate predicate = 1;
+
+  // Chunks that are affected by the predicate.
+  repeated ChunkAddr chunks = 2;
+}
+
 // Single, self-contained transaction.
 message Transaction {
     // Transaction format version.
@@ -60,6 +82,8 @@ message Transaction {
 
             AddParquet add_parquet = 2;
             RemoveParquet remove_parquet = 3;
+
+            DeletePredicate delete_predicate = 4;
         }
     }
 

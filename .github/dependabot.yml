@@ -4,3 +4,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # https://github.com/tkaitchuck/aHash/issues/95
+      - dependency-name: "indexmap"

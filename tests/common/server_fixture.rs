@@ -15,6 +15,8 @@ use futures::prelude::*;
 use generated_types::influxdata::iox::management::v1::{
     database_status::DatabaseState, ServerStatus,
 };
+use http::header::HeaderName;
+use http::HeaderValue;
 use influxdb_iox_client::connection::Connection;
 use once_cell::sync::OnceCell;
 use tempfile::{NamedTempFile, TempDir};
@@ -138,14 +140,14 @@ impl ServerFixture {
     /// waits. The database is left unconfigured (no writer id) and
     /// is not shared with any other tests.
     pub async fn create_single_use() -> Self {
-        Self::create_single_use_with_env(Default::default()).await
+        Self::create_single_use_with_config(Default::default()).await
     }
 
     /// Create a new server fixture with the provided additional environment variables
     /// and wait for it to be ready. The database is left unconfigured (no writer id)
     /// and is not shared with any other tests.
-    pub async fn create_single_use_with_env(env: Vec<(String, String)>) -> Self {
-        let server = TestServer::new(env);
+    pub async fn create_single_use_with_config(test_config: TestConfig) -> Self {
+        let server = TestServer::new(test_config);
         let server = Arc::new(server);
 
         // ensure the server is ready
@@ -279,8 +281,38 @@ struct TestServer {
     /// dropped after the database closes.
     dir: TempDir,
 
+    /// Configuration values for starting the test server
+    test_config: TestConfig,
+}
+
+// Options for creating test servers
+#[derive(Default, Debug)]
+pub struct TestConfig {
     /// Additional environment variables
     env: Vec<(String, String)>,
+
+    /// Headers to add to all client requests
+    client_headers: Vec<(HeaderName, HeaderValue)>,
+}
+
+impl TestConfig {
+    pub fn new() -> Self {
+        Default::default()
+    }
+    // add a name=value environment variable when starting the server
+    pub fn with_env(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.env.push((name.into(), value.into()));
+        self
+    }
+
+    // add a name=value http header to all client requests made to the server
+    pub fn with_client_header(mut self, name: impl AsRef<str>, value: impl AsRef<str>) -> Self {
+        self.client_headers.push((
+            name.as_ref().parse().expect("valid header name"),
+            value.as_ref().parse().expect("valid header value"),
+        ));
+        self
+    }
 }
 
 struct Process {
@@ -289,20 +321,21 @@ struct Process {
 }
 
 impl TestServer {
-    fn new(env: Vec<(String, String)>) -> Self {
+    fn new(test_config: TestConfig) -> Self {
         let addrs = BindAddresses::default();
         let ready = Mutex::new(ServerState::Started);
 
         let dir = test_helpers::tmp_dir().unwrap();
 
-        let server_process = Mutex::new(Self::create_server_process(&addrs, &dir, &env));
+        let server_process =
+            Mutex::new(Self::create_server_process(&addrs, &dir, &test_config.env));
 
         Self {
             ready,
             server_process,
             addrs,
             dir,
-            env,
+            test_config,
         }
     }
 
@@ -311,7 +344,8 @@ impl TestServer {
         let mut server_process = self.server_process.lock().await;
         server_process.child.kill().unwrap();
         server_process.child.wait().unwrap();
-        *server_process = Self::create_server_process(&self.addrs, &self.dir, &self.env);
+        *server_process =
+            Self::create_server_process(&self.addrs, &self.dir, &self.test_config.env);
         *ready_guard = ServerState::Started;
     }
 
@@ -379,7 +413,7 @@ impl TestServer {
 
         // Poll the RPC and HTTP servers separately as they listen on
         // different ports but both need to be up for the test to run
-        let try_grpc_connect = wait_for_grpc(self.addrs());
+        let try_grpc_connect = self.wait_for_grpc();
 
         let try_http_connect = async {
             let client = reqwest::Client::new();
@@ -470,50 +504,51 @@ impl TestServer {
         };
     }
 
-    /// Create a connection channel for the gRPC endpoint
-    async fn grpc_channel(&self) -> influxdb_iox_client::connection::Result<Connection> {
-        grpc_channel(&self.addrs).await
-    }
+    pub async fn wait_for_grpc(&self) {
+        let mut interval = tokio::time::interval(Duration::from_millis(1000));
 
-    fn addrs(&self) -> &BindAddresses {
-        &self.addrs
-    }
-}
+        loop {
+            match self.grpc_channel().await {
+                Ok(channel) => {
+                    println!("Successfully connected to server");
 
-/// Create a connection channel for the gRPC endpoint
-pub async fn grpc_channel(
-    addrs: &BindAddresses,
-) -> influxdb_iox_client::connection::Result<Connection> {
-    influxdb_iox_client::connection::Builder::default()
-        .build(&addrs.grpc_base)
-        .await
-}
+                    let mut health = influxdb_iox_client::health::Client::new(channel);
 
-pub async fn wait_for_grpc(addrs: &BindAddresses) {
-    let mut interval = tokio::time::interval(Duration::from_millis(1000));
-
-    loop {
-        match grpc_channel(addrs).await {
-            Ok(channel) => {
-                println!("Successfully connected to server");
-
-                let mut health = influxdb_iox_client::health::Client::new(channel);
-
-                match health.check_storage().await {
-                    Ok(_) => {
-                        println!("Storage service is running");
-                        return;
-                    }
-                    Err(e) => {
-                        println!("Error checking storage service status: {}", e);
+                    match health.check_storage().await {
+                        Ok(_) => {
+                            println!("Storage service is running");
+                            return;
+                        }
+                        Err(e) => {
+                            println!("Error checking storage service status: {}", e);
+                        }
                     }
                 }
+                Err(e) => {
+                    println!("Waiting for gRPC API to be up: {}", e);
+                }
             }
-            Err(e) => {
-                println!("Waiting for gRPC API to be up: {}", e);
-            }
+            interval.tick().await;
         }
-        interval.tick().await;
+    }
+
+    /// Create a connection channel for the gRPC endpoint
+    async fn grpc_channel(&self) -> influxdb_iox_client::connection::Result<Connection> {
+        let builder = influxdb_iox_client::connection::Builder::default();
+
+        self.test_config
+            .client_headers
+            .iter()
+            .fold(builder, |builder, (header_name, header_value)| {
+                builder.header(header_name, header_value)
+            })
+            .build(&self.addrs.grpc_base)
+            .await
+    }
+
+    /// Returns the addresses to which the server has been bound
+    fn addrs(&self) -> &BindAddresses {
+        &self.addrs
     }
 }
 

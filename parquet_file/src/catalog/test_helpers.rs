@@ -654,7 +654,7 @@ fn get_sorted_keys<'a>(
 }
 
 /// Helper to create a simple delete predicate.
-fn create_delete_predicate(table_name: &str, value: i64) -> Arc<Predicate> {
+pub fn create_delete_predicate(table_name: &str, value: i64) -> Arc<Predicate> {
     use datafusion::{
         logical_plan::{Column, Expr, Operator},
         scalar::ScalarValue,
@@ -670,7 +670,7 @@ fn create_delete_predicate(table_name: &str, value: i64) -> Arc<Predicate> {
         range: None,
         exprs: vec![Expr::BinaryExpr {
             left: Box::new(Expr::Column(Column {
-                relation: Some(table_name.to_string()),
+                relation: None,
                 name: "foo".to_string(),
             })),
             op: Operator::Eq,

@@ -7,9 +7,8 @@ use crate::{
 use async_trait::async_trait;
 use azure_core::prelude::*;
 use azure_storage::{
-    clients::{
-        AsBlobClient, AsContainerClient, AsStorageClient, ContainerClient, StorageAccountClient,
-    },
+    blob::prelude::{AsBlobClient, AsContainerClient, ContainerClient},
+    core::clients::{AsStorageClient, StorageAccountClient},
     DeleteSnapshotsMethod,
 };
 use bytes::Bytes;
@@ -253,8 +252,7 @@ pub fn new_azure(
 ) -> Result<MicrosoftAzure> {
     let account = account.into();
     let access_key = access_key.into();
-    // From https://github.com/Azure/azure-sdk-for-rust/blob/master/sdk/storage/examples/blob_00.rs#L29
-    let http_client: Arc<Box<dyn HttpClient>> = Arc::new(Box::new(reqwest::Client::new()));
+    let http_client: Arc<dyn HttpClient> = Arc::new(reqwest::Client::new());
 
     let storage_account_client =
         StorageAccountClient::new_access_key(Arc::clone(&http_client), &account, &access_key);

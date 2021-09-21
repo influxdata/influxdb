@@ -89,6 +89,26 @@ jobs:
           name: Clippy
           command: cargo clippy --all-targets --workspace -- -D warnings
       - cache_save
+  cargo_audit:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      RUSTFLAGS: "-C debuginfo=1"
+    steps:
+      - checkout
+      - rust_components
+      - cache_restore
+      - run:
+          name: Install Cargo Audit
+          command: cargo install --force cargo-audit
+      - run:
+          name: Cargo Audit
+          command: cargo audit
+      - cache_save
   doc:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -128,7 +148,7 @@ jobs:
       - cache_restore
       - run:
           name: Cargo test
-          command: cargo test --workspace
+          command: cargo test --features=jaeger --workspace
       - cache_save
 
   # end to end tests with Heappy (heap profiling enabled)
@@ -383,6 +403,7 @@ workflows:
     jobs:
       - fmt
       - lint
+      - cargo_audit
       - protobuf-lint
       - test
       - test_heappy
@@ -406,6 +427,10 @@ workflows:
           filters:
             branches:
               only: main
+      - cargo_audit:
+          filters:
+            branches:
+              only: main
       - test:
           filters:
             branches:
@@ -421,6 +446,7 @@ workflows:
           requires: # Only do a release build if all tests have passed
             - fmt
             - lint
+            - cargo_audit
             - test
             - build
 

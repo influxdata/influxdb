@@ -1,0 +1,33 @@
+[advisories]
+ignore = [
+    # title: term is looking for a new maintainer
+    # why needed: used by `prettytable-rs` which is directly used by IOx but also by arrow
+    # upstream issue: https://github.com/phsym/prettytable-rs/issues/119
+    "RUSTSEC-2018-0015",
+
+    # title: memmap is unmaintained
+    # why needed: used by `symbolic` which is used by `pprof`
+    # upstream issue: https://github.com/getsentry/symbolic/issues/304
+    "RUSTSEC-2020-0077",
+
+    # title: difference is unmaintained
+    # why needed: used by `mockito`
+    # upstream issue: https://github.com/lipanski/mockito/issues/132
+    "RUSTSEC-2020-0095",
+]
+
+[output]
+deny = [
+    "unmaintained",
+    "unsound",
+    "yanked",
+]
+quiet = false
+
+[yanked]
+# interaction of workspace-local crates and crates.io is currently broken (e.g. for `query`)
+# see https://github.com/rustsec/rustsec/issues/232
+enabled = false
+
+# currently broken on CircleCI due to https://github.com/rustsec/rustsec/issues/292
+update_index = false
