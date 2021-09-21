@@ -816,44 +816,48 @@ mod tests {
                             .map(|(s1, s2)| (s1.as_ref(), s2.as_ref()))
                             .collect();
 
-                        Self::eval_assert(
-                            || {
-                                assert_eq!(&partitions_actual, partitions);
-                            },
-                            use_assert,
-                        )
+                        if use_assert {
+                            assert_eq!(&partitions_actual, partitions);
+                            true
+                        } else {
+                            &partitions_actual == partitions
+                        }
                     }
                     Check::Query(query, expected) => {
                         let planner = SqlQueryPlanner::default();
                         let ctx = db.new_query_context(None);
 
-                        match planner.query(query, &ctx) {
-                            Ok(physical_plan) => {
-                                match ctx.collect(physical_plan).await {
-                                    Ok(batches) => {
-                                        // we are throwing away the record batches after the assert, so we don't care about interior
-                                        // mutability
-                                        let batches = std::panic::AssertUnwindSafe(batches);
-
-                                        Self::eval_assert(
-                                            || {
-                                                assert_batches_eq!(expected, &batches);
-                                            },
-                                            use_assert,
-                                        )
-                                    }
-                                    err if use_assert => {
-                                        err.unwrap();
-                                        unreachable!()
-                                    }
-                                    _ => false,
-                                }
-                            }
+                        let physical_plan = match planner.query(query, &ctx) {
+                            Ok(physical_plan) => physical_plan,
                             err if use_assert => {
                                 err.unwrap();
                                 unreachable!()
                             }
-                            _ => false,
+                            _ => {
+                                return false;
+                            }
+                        };
+
+                        let batches = match ctx.collect(physical_plan).await {
+                            Ok(batches) => batches,
+                            err if use_assert => {
+                                err.unwrap();
+                                unreachable!()
+                            }
+                            _ => {
+                                return false;
+                            }
+                        };
+
+                        if use_assert {
+                            assert_batches_eq!(expected, &batches);
+                            true
+                        } else {
+                            let formatted =
+                                arrow_util::display::pretty_format_batches(&batches).unwrap();
+                            let actual_lines = formatted.trim().split('\n').collect::<Vec<_>>();
+
+                            expected == &actual_lines
                         }
                     }
                 };
@@ -864,35 +868,6 @@ mod tests {
             }
 
             true
-        }
-
-        /// Evaluates given function that may contain an `assert`.
-        ///
-        /// This helper allows you use the same `assert` statement no matter if you want the error case to panic or if
-        /// you just want to have an boolean expression that states "did it succeed?".
-        ///
-        /// Behavior dependson `raise`:
-        ///
-        /// - `raise = true`: The given function `f` will be executed. If it panics, `eval_assert` will just bubble up
-        ///   the error (aka panic as well). If the function `f` does not panic, `true` is returned (aka "it
-        ///   succeeded").
-        /// - `raise = false`: The given function `f` will be executed but unwinds will be caught. If `f` did panic
-        ///   `false` will be returned (aka "it failed"), otherwise `true` will be returned (aka "it succeeded").
-        fn eval_assert<F>(f: F, raise: bool) -> bool
-        where
-            F: Fn() + std::panic::UnwindSafe,
-        {
-            if raise {
-                f();
-                true
-            } else {
-                // catch unwind w/o printing backtrace
-                let hook_backup = std::panic::take_hook();
-                std::panic::set_hook(Box::new(|_| {}));
-                let res = std::panic::catch_unwind(f);
-                std::panic::set_hook(hook_backup);
-                res.is_ok()
-            }
         }
     }
 
