@@ -67,6 +67,9 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
         Error::DatabaseInit { source } => {
             tonic::Status::invalid_argument(format!("Cannot initialize database: {}", source))
         }
+        e @ Error::StoreSequencedEntryFailures { .. } => {
+            tonic::Status::invalid_argument(e.to_string())
+        }
         error => {
             error!(?error, "Unexpected error");
             InternalError {}.into()
