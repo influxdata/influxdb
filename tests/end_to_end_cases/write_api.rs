@@ -59,7 +59,7 @@ async fn test_write() {
         err.to_string(),
         r#"Client specified an invalid argument: Violation for field "lp_data": Invalid Line Protocol: A generic parsing error occurred"#
     );
-    assert!(matches!(dbg!(err), WriteError::ServerError(_)));
+    assert!(matches!(dbg!(err), WriteError::InvalidArgument(_)));
 
     // ---- test non existent database ----
     let err = write_client
@@ -87,8 +87,11 @@ async fn test_write() {
     }
     assert!(maybe_err.is_some());
     let err = maybe_err.unwrap();
-    let WriteError::ServerError(status) = dbg!(err);
-    assert_eq!(status.code(), tonic::Code::ResourceExhausted);
+    if let WriteError::ServerError(status) = dbg!(&err) {
+        assert_eq!(status.code(), tonic::Code::ResourceExhausted);
+    } else {
+        panic!("Expected ServerError, got {}", err);
+    }
 
     // IMPORTANT: At this point, the database is flooded and pretty much
     // useless. Don't append any tests after the "hard limit" test!
@@ -698,4 +701,30 @@ async fn test_write_routed_no_shard() {
         .unwrap_err()
         .to_string()
         .contains("Table or CTE with name 'disk' not found\""));
+}
+
+#[tokio::test]
+async fn test_write_schema_mismatch() {
+    // regression test for https://github.com/influxdata/influxdb_iox/issues/2538
+    let fixture = ServerFixture::create_shared().await;
+    let mut write_client = fixture.write_client();
+
+    let db_name = rand_name();
+    create_readable_database(&db_name, fixture.grpc_channel()).await;
+
+    write_client
+        .write(&db_name, "table field=1i 10")
+        .await
+        .expect("cannot write");
+
+    let err = write_client
+        .write(&db_name, "table field=1.1 10")
+        .await
+        .unwrap_err();
+    assert_contains!(err.to_string(), "Table batch has mismatching schema");
+    if let WriteError::InvalidArgument(status) = &err {
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+    } else {
+        panic!("Expected InvalidArgument, got {}", err);
+    }
 }

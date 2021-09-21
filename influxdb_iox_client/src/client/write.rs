@@ -13,6 +13,10 @@ pub enum WriteError {
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
+
+    /// Server returned an invalid argument error
+    #[error("Invalid argument: {}: {}", .0.code(), .0.message())]
+    InvalidArgument(tonic::Status),
 }
 
 /// An IOx Write API client.
@@ -70,7 +74,7 @@ impl Client {
             .inner
             .write(write::WriteRequest { db_name, lp_data })
             .await
-            .map_err(WriteError::ServerError)?;
+            .map_err(Self::map_err)?;
 
         Ok(response.into_inner().lines_written as usize)
     }
@@ -91,7 +95,7 @@ impl Client {
         self.inner
             .write_entry(write::WriteEntryRequest { db_name, entry })
             .await
-            .map_err(WriteError::ServerError)?;
+            .map_err(Self::map_err)?;
 
         Ok(())
     }
@@ -104,8 +108,15 @@ impl Client {
         self.inner_pb
             .write(write_request)
             .await
-            .map_err(WriteError::ServerError)?;
+            .map_err(Self::map_err)?;
 
         Ok(())
+    }
+
+    fn map_err(status: tonic::Status) -> WriteError {
+        match status.code() {
+            tonic::Code::InvalidArgument => WriteError::InvalidArgument(status),
+            _ => WriteError::ServerError(status),
+        }
     }
 }
