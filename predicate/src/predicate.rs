@@ -187,26 +187,24 @@ impl Predicate {
         val
     }
 
-    /// Merge the given delete predicates into this select predicate
+    /// Merge the given delete predicates into this select predicate.
+    /// Since we want to eliminate data filtered by the delete predicates,
+    /// they are first converted into their negated form: NOT(delete_predicate)
+    /// then added/merged into the selection one
     pub fn merge_delete_predicates<S>(&mut self, delete_predicates: &[S])
     where
         S: AsRef<Self>,
     {
-        self.add_negated_delete_exprs(delete_predicates);
-    }
+        // Create a list of disjunctive negated expressions.
+        // Example: there are two deletes as follows (note that time_range is stored separated in the Predicate
+        //  but we need to put it together with the exprs here)
+        //   . Delete_1: WHERE city != "Boston"  AND temp = 70  AND time_range in [10, 30)
+        //   . Delete 2: WHERE state = "NY" AND route != "I90" AND time_range in [20, 50)
+        // The negated list will be "NOT(Delete_1)", NOT(Delete_2)" which means
+        //    NOT(city != "Boston"  AND temp = 70 AND time_range in [10, 30)),  NOT(state = "NY" AND route != "I90" AND time_range in [20, 50)) which means
+        //   [NOT(city = Boston") OR NOT(temp = 70) OR NOT(time_range in [10, 30))], [NOT(state = "NY") OR NOT(route != "I90") OR NOT(time_range in [20, 50))]
+        // Note that the "NOT(time_range in [20, 50))]" or "NOT(20 <= time < 50)"" is replaced with "time < 20 OR time >= 50"
 
-    /// Add a list of disjunctive negated expressions.
-    /// Example: there are two deletes as follows (note that time_range is stored separated in the Predicate
-    ///  but we need to put it together with the exprs hee)
-    ///   . Delete_1: WHERE city != "Boston"  AND temp = 70  AND time_range in [10, 30)
-    ///   . Delete 2: WHERE state = "NY" AND route != "I90" AND time_range in [20, 50)
-    /// The negated list will be "NOT(Delete_1)", NOT(Delete_2)" which means
-    ///    NOT(city != "Boston"  AND temp = 70 AND time_range in [10, 30)),  NOT(state = "NY" AND route != "I90" AND time_range in [20, 50)) which means
-    ///   [NOT(city = Boston") OR NOT(temp = 70) OR NOT(time_range in [10, 30))], [NOT(state = "NY") OR NOT(route != "I90") OR NOT(time_range in [20, 50))]
-    fn add_negated_delete_exprs<S>(&mut self, delete_predicates: &[S])
-    where
-        S: AsRef<Self>,
-    {
         for pred in delete_predicates {
             let pred = pred.as_ref();
 
@@ -237,6 +235,8 @@ impl Predicate {
                     Some(e) => expr = Some(e.or(exp.clone().not())),
                 }
             }
+
+            // Push the negated expression of the delete predicate into the list exprs of the select predicate
             if let Some(e) = expr {
                 self.exprs.push(e);
             }
