@@ -20,11 +20,11 @@ use std::str;
 
 #[tokio::test]
 pub async fn test() {
-    let storage_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_shared().await;
 
-    let influxdb2 = storage_fixture.influxdb2_client();
-    let mut storage_client = StorageClient::new(storage_fixture.grpc_channel());
-    let mut management_client = storage_fixture.management_client();
+    let influxdb2 = server_fixture.influxdb2_client();
+    let mut storage_client = StorageClient::new(server_fixture.grpc_channel());
+    let mut management_client = server_fixture.management_client();
 
     let scenario = Scenario::new();
     scenario.create_database(&mut management_client).await;

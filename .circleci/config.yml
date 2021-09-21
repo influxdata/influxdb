@@ -148,7 +148,7 @@ jobs:
       - cache_restore
       - run:
           name: Cargo test
-          command: cargo test --workspace
+          command: cargo test --features=jaeger --workspace
       - cache_save
 
   # end to end tests with Heappy (heap profiling enabled)

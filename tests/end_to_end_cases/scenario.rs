@@ -35,7 +35,7 @@ use write_buffer::core::WriteBufferWriting;
 use write_buffer::kafka::test_utils::{kafka_sequencer_options, purge_kafka_topic};
 use write_buffer::kafka::KafkaBufferProducer;
 
-use crate::common::server_fixture::{ServerFixture, DEFAULT_SERVER_ID};
+use crate::common::server_fixture::{ServerFixture, TestConfig, DEFAULT_SERVER_ID};
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -588,12 +588,9 @@ pub async fn list_chunks(fixture: &ServerFixture, db_name: &str) -> Vec<ChunkSum
 pub async fn fixture_broken_catalog(db_name: &str) -> ServerFixture {
     let server_id = DEFAULT_SERVER_ID;
 
-    let env = vec![(
-        "INFLUXDB_IOX_WIPE_CATALOG_ON_ERROR".to_string(),
-        "no".to_string(),
-    )];
+    let test_config = TestConfig::new().with_env("INFLUXDB_IOX_WIPE_CATALOG_ON_ERROR", "no");
 
-    let fixture = ServerFixture::create_single_use_with_env(env).await;
+    let fixture = ServerFixture::create_single_use_with_config(test_config).await;
     fixture
         .management_client()
         .update_server_id(server_id)
@@ -661,9 +658,9 @@ pub async fn fixture_broken_catalog(db_name: &str) -> ServerFixture {
 pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> ServerFixture {
     let server_id = DEFAULT_SERVER_ID;
 
-    let env = vec![("INFLUXDB_IOX_SKIP_REPLAY".to_string(), "no".to_string())];
+    let test_config = TestConfig::new().with_env("INFLUXDB_IOX_SKIP_REPLAY", "no");
 
-    let fixture = ServerFixture::create_single_use_with_env(env).await;
+    let fixture = ServerFixture::create_single_use_with_config(test_config).await;
     fixture
         .management_client()
         .update_server_id(server_id)
