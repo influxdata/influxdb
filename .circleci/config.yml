@@ -6,6 +6,15 @@ parameters:
     type: string
     default: go1.15.10-ec819fab057e2efdcf478fec05bb5533957721ec
 
+commands:
+  install_rust:
+    steps:
+      - run:
+          name: Install Rust toolchain
+          command: |
+            ./scripts/ci/install-rust.sh
+            echo 'export PATH=${HOME}/.cargo/bin:${PATH}' >> $BASH_ENV
+
 jobs:
   build_binaries:
     docker:
@@ -158,6 +167,53 @@ jobs:
           name: Execute test
           command: ./test-flux.sh || exit 1
           no_output_timeout: 1500s
+  changelog:
+    machine:
+      image: ubuntu-2004:202010-01
+    steps:
+      - checkout
+      - install_rust
+      - run:
+          name: Run script
+          command: |
+            set -x
+            git clone --depth=1 --branch v0.2.5 https://github.com/orhun/git-cliff
+            cd git-cliff
+            cargo install git-cliff
+            cd ..
+
+            S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/platform/nightlies/1.9"
+            curl -o CHANGELOG.md ${S3_PATH}/CHANGELOG.md
+            curl -o scripts/ci/changelog-commit.txt ${S3_PATH}/changelog-commit.txt
+
+            TIMESTAMP="$(date -u '+%Y%m%d')"
+            COMMIT_FILE_PATH="scripts/ci/changelog-commit.txt"
+            LAST_COMMIT=$(cat $COMMIT_FILE_PATH)
+            NEWEST_COMMIT=${CIRCLE_SHA1}
+            ./scripts/ci/update-changelog.sh \
+              --commit-range "$LAST_COMMIT..$NEWEST_COMMIT" \
+              --prepend CHANGELOG.md \
+              -- \
+              --tag $TIMESTAMP
+            echo ${CIRCLE_SHA1} > $COMMIT_FILE_PATH
+
+            mkdir changelog_artifacts
+            cp CHANGELOG.md changelog_artifacts
+            cp $COMMIT_FILE_PATH changelog_artifacts
+      - store_artifacts:
+          path: changelog_artifacts/
+      - aws-s3/copy:
+          arguments: |
+            --acl public-read
+          aws-region: AWS_S3_REGION
+          from: changelog_artifacts/changelog-commit.txt
+          to: s3://dl.influxdata.com/platform/nightlies/1.9/changelog-commit.txt
+      - aws-s3/copy:
+          arguments: |
+            --acl public-read
+          aws-region: AWS_S3_REGION
+          from: changelog_artifacts/CHANGELOG.md
+          to: s3://dl.influxdata.com/platform/nightlies/1.9/CHANGELOG.md
 
 workflows:
   version: 2.1
@@ -180,6 +236,7 @@ workflows:
                 - "master-1.x"
                 - "1.9"
     jobs:
+      - changelog
       - static_code_checks
       - fluxtest
       - unit_test
@@ -187,6 +244,7 @@ workflows:
       - unit_test_race
       - build_binaries:
           requires:
+            - changelog
             - static_code_checks
             - fluxtest
             - unit_test

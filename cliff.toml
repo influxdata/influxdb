@@ -1,0 +1,35 @@
+[changelog]
+body = """
+{%- if version %}
+## {{ version }} [{{ timestamp | date(format="%Y-%m-%d") }}]
+{%- else %}
+## [unreleased]
+{%- endif %}
+----------------------
+{% set grouped_commits = commits | group_by(attribute="group") -%}
+{%- set_global groups_arr = [] -%}
+{%- for group, _commits in grouped_commits -%}
+  {%- set_global groups_arr = groups_arr | concat(with=group) -%}
+{%- endfor -%}
+{% for group in groups_arr | sort | reverse %}
+    {% set g_commits = grouped_commits[group] -%}
+    ### {{ group | upper_first }}
+    {% for commit in g_commits -%}
+        {%- set message = commit.message | split(pat="\n") | first | split(pat=": ") | slice(start=1) | join(sep=" ") | trim | capitalize -%}
+        {% set pr_num = message | split(pat=" ") | last | trim_start_matches(pat="(") | trim_end_matches(pat=")") | trim_start_matches(pat="#") %}
+        {%- set message = message | split(pat=" ") | slice(end=-1) | join(sep=" ") | trim %}
+        1. [{{ pr_num }}](https://github.com/influxdata/influxdb/pull/{{ pr_num }}): {{ message }}
+    {%- endfor %}
+{% endfor %}
+
+"""
+trim = true
+
+[git]
+conventional_commits = false
+commit_parsers = [
+    { message = "^feat*", group = "Features"},
+    { message = "^fix*", group = "Bug Fixes"},
+]
+filter_commits = true
+tag_pattern = "v[12].[0-9].[0-9]*"
