@@ -293,15 +293,9 @@ func TestNewGroupResultSet_GroupNone_NoDataReturnsNil(t *testing.T) {
 	}
 }
 
-func TestNewGroupResultSet_GroupBy_NoDataReturnsNil(t *testing.T) {
-	t.Skip("skipping for now")
-
+func TestNewGroupResultSet_GroupBy_NoSeriesReturnsNil(t *testing.T) {
 	newCursor := func() (reads.SeriesCursor, error) {
-		return &sliceSeriesCursor{
-			rows: newSeriesRows(
-				"aaa,tag0=val00",
-				"aaa,tag0=val01",
-			)}, nil
+		return &sliceSeriesCursor{}, nil
 	}
 
 	rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.GroupBy, GroupKeys: []string{"tag0"}}, newCursor)
