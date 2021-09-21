@@ -132,7 +132,7 @@ impl DbSetup for DeleteFromOsOneMeasurementOneChunk {
                 .await;
 
         // delete happens after data is persisted but still in RUB and then unload RUB
-        let _scenario_rub_os_unload_rub = make_delete_os_with_rub_then_unload_rub(
+        let scenario_rub_os_unload_rub = make_delete_os_with_rub_then_unload_rub(
             lp_lines.clone(),
             pred.clone(),
             table_name,
@@ -141,12 +141,10 @@ impl DbSetup for DeleteFromOsOneMeasurementOneChunk {
         .await;
 
         // delete happens after data is persisted and RUB is unloaded
-        let _scenario_os = make_delete_os(lp_lines.clone(), pred, table_name, partition_key).await;
+        let scenario_os = make_delete_os(lp_lines.clone(), pred, table_name, partition_key).await;
 
         // return scenarios to run queries
-        // NGA todo: turn these 2 OS scenarios on. May need to wait for Marco to finish persisting delete predicates first
-        // vec![scenario_rub_os, scenario_rub_os_unload_rub, scenario_os]
-        vec![scenario_rub_os]
+        vec![scenario_rub_os, scenario_rub_os_unload_rub, scenario_os]
     }
 }
 
@@ -289,7 +287,7 @@ impl DbSetup for DeleteMultiExprsFromOsOneMeasurementOneChunk {
                 .await;
 
         // delete happens after data is persisted but still in RUB and then unload RUB
-        let _scenario_rub_os_unload_rub = make_delete_os_with_rub_then_unload_rub(
+        let scenario_rub_os_unload_rub = make_delete_os_with_rub_then_unload_rub(
             lp_lines.clone(),
             pred.clone(),
             table_name,
@@ -298,12 +296,10 @@ impl DbSetup for DeleteMultiExprsFromOsOneMeasurementOneChunk {
         .await;
 
         // delete happens after data is persisted and RUB is unloaded
-        let _scenario_os = make_delete_os(lp_lines.clone(), pred, table_name, partition_key).await;
+        let scenario_os = make_delete_os(lp_lines.clone(), pred, table_name, partition_key).await;
 
         // return scenarios to run queries
-        // NGA todo: turn these 2 OS scenarios on. May need to wait for Marco to finish persisting delete predicates first
-        //vec![scenario_rub_os, scenario_rub_os_unload_rub, scenario_os]
-        vec![scenario_rub_os]
+        vec![scenario_rub_os, scenario_rub_os_unload_rub, scenario_os]
     }
 }
 
@@ -370,14 +366,12 @@ impl DbSetup for TwoDeleteMultiExprsFromMubOneMeasurementOneChunk {
         .await;
 
         // delete happens when data in MUB then moved to RUB, then persisted, and then RUB is unloaded
-        let _scenario_os =
+        let scenario_os =
             make_delete_mub_to_os_delete(lp_lines.clone(), pred1, pred2, table_name, partition_key)
                 .await;
 
         // return scenarios to run queries
-        // NGA todo: BUG in scenario_os
-        // vec![scenario_mub, scenario_rub, scenario_rub_os, scenario_os]
-        vec![scenario_mub, scenario_rub, scenario_rub_os]
+        vec![scenario_mub, scenario_rub, scenario_rub_os, scenario_os]
     }
 }
 
@@ -440,7 +434,7 @@ impl DbSetup for TwoDeleteMultiExprsFromRubOneMeasurementOneChunk {
         .await;
 
         // delete happens when data in MUB then moved to RUB and then persisted
-        let _scenario_rub_os = make_delete_rub_to_os_and_unload_rub_delete(
+        let scenario_rub_os = make_delete_rub_to_os_and_unload_rub_delete(
             lp_lines.clone(),
             pred1.clone(),
             pred2.clone(),
@@ -450,9 +444,7 @@ impl DbSetup for TwoDeleteMultiExprsFromRubOneMeasurementOneChunk {
         .await;
 
         // return scenarios to run queries
-        // NGA todo: BUG in scenario_rub_os
-        // vec![scenario_rub, scenario_rub_delete, scenario_rub_os]
-        vec![scenario_rub, scenario_rub_delete]
+        vec![scenario_rub, scenario_rub_delete, scenario_rub_os]
     }
 }
 
@@ -503,7 +495,7 @@ impl DbSetup for TwoDeleteMultiExprsFromOsOneMeasurementOneChunk {
         .await;
 
         // delete happens after data is persisted but still in RUB and then unload RUB
-        let _scenario_rub_os_unload_rub = make_delete_os_with_rub_then_unload_rub_delete(
+        let scenario_rub_os_unload_rub = make_delete_os_with_rub_then_unload_rub_delete(
             lp_lines.clone(),
             pred1.clone(),
             pred2.clone(),
@@ -513,7 +505,7 @@ impl DbSetup for TwoDeleteMultiExprsFromOsOneMeasurementOneChunk {
         .await;
 
         // delete happens after data is persisted and unload RUB
-        let _scenario_os = make_delete_os_delete(
+        let scenario_os = make_delete_os_delete(
             lp_lines.clone(),
             pred1.clone(),
             pred2.clone(),
@@ -523,8 +515,7 @@ impl DbSetup for TwoDeleteMultiExprsFromOsOneMeasurementOneChunk {
         .await;
 
         // return scenarios to run queries
-        // NGA todo: bug scenario_rub_os_unload_rub, scenario_os
-        vec![scenario_rub_os]
+        vec![scenario_rub_os, scenario_rub_os_unload_rub, scenario_os]
     }
 }
 
