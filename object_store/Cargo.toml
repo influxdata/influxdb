@@ -8,13 +8,15 @@ edition = "2018"
 async-trait = "0.1.42"
 # Microsoft Azure Blob storage integration
 # In order to support tokio 1.0 and delimiters, needed to pull in unreleased azure sdk
-azure_core = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "14ff9326bb1ba07f98733a548988eccd4532b945", optional = true }
-azure_storage = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "14ff9326bb1ba07f98733a548988eccd4532b945", optional = true, default-features = false, features = ["table", "blob", "queue"] }
+azure_core = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "cb5aba657fe378009c38e979434b2bc93ac0a3d5", optional = true }
+azure_storage = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "cb5aba657fe378009c38e979434b2bc93ac0a3d5", optional = true, default-features = false, features = ["table", "blob", "queue"] }
 bytes = "1.0"
 chrono = "0.4"
 # Google Cloud Storage integration
 cloud-storage = {version = "0.10.2", optional = true}
 futures = "0.3"
+# https://github.com/tkaitchuck/aHash/issues/95
+indexmap = { version = "~1.6.2", optional = true }
 itertools = "0.10.1"
 percent-encoding = "2.1"
 # rusoto crates are for Amazon S3 integration
@@ -31,7 +33,7 @@ walkdir = "2"
 tempfile = "3.1.0"
 
 [features]
-azure = ["azure_core", "azure_storage"]
+azure = ["azure_core", "azure_storage", "indexmap"]
 gcp = ["cloud-storage"]
 aws = ["rusoto_core", "rusoto_credential", "rusoto_s3"]
 
