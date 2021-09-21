@@ -878,8 +878,15 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         )
     }
 
-    /// Return
-    ///
+    /// Return either
+    ///   the simplest IOx scan plan for no chunks which is IOxReadFilterNode:
+    /// ```text
+    ///                ┌─────────────────┐
+    ///                │IOxReadFilterNode│
+    ///                │ (No Chunks)     │
+    ///                └─────────────────┘
+    /// ```
+    /// Or, many plans, one for each chunk, like this:
     /// ```text
     ///   ┌─────────────────┐                   ┌─────────────────┐
     ///   │    SortExec     │                   │    SortExec     │
