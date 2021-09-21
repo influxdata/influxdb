@@ -227,6 +227,10 @@ func Test_BuildTSI_Invalid_Compact_Series_Specific_Shard(t *testing.T) {
 }
 
 func Test_BuildTSI_Valid_Compact_Series(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("mmap implementation on Windows prevents series-file from shrinking during compaction")
+	}
+
 	tempDir := newTempDirectory(t, "", "build-tsi")
 	defer os.RemoveAll(tempDir)
 
