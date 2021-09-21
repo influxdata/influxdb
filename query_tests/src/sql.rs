@@ -909,3 +909,31 @@ async fn sql_select_with_two_deleted_data_from_multi_exprs() {
         &expected
     );
 }
+
+#[tokio::test]
+async fn sql_select_with_three_deleted_data_from_three_chunks() {
+    let expected = vec![
+        "+-----+-----+--------------------------------+",
+        "| bar | foo | time                           |",
+        "+-----+-----+--------------------------------+",
+        "| 1   | me  | 1970-01-01T00:00:00.000000040Z |",
+        "+-----+-----+--------------------------------+",
+    ];
+
+    // Data deleted when it is in MUB, and then moved to RUB and OS
+    run_sql_test_case!(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT * from cpu",
+        &expected
+    );
+
+    // cpu,foo=me bar=1 40
+    // "cpu,foo=me bar=1 42",
+    //         "cpu,foo=me bar=4 50",
+    //         "cpu,foo=me bar=5 60",
+    //         "cpu,foo=me bar=1 60",
+    //         "cpu,foo=you bar=3 70",
+    //         "cpu,foo=me bar=8 90",
+}
+
+
