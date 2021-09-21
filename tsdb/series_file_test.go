@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 	"golang.org/x/sync/errgroup"
 )
@@ -179,6 +180,22 @@ func TestSeriesFile_Compaction(t *testing.T) {
 	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
+	var segmentPaths []string
+	for _, p := range sfile.Partitions() {
+		for _, ss := range p.Segments() {
+			segmentPaths = append(segmentPaths, ss.Path())
+		}
+	}
+
+	sfileSize := func() (res int64) {
+		for _, p := range segmentPaths {
+			fi, err := os.Stat(p)
+			require.NoError(t, err)
+			res += fi.Size()
+		}
+		return
+	}
+
 	// Generate a bunch of keys.
 	var mms [][]byte
 	var tagSets []models.Tags
@@ -189,70 +206,57 @@ func TestSeriesFile_Compaction(t *testing.T) {
 
 	// Add all to the series file.
 	ids, err := sfile.CreateSeriesListIfNotExists(mms, tagSets)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Delete a subset of keys.
 	for i, id := range ids {
 		if i%10 == 0 {
-			if err := sfile.DeleteSeriesID(id); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, sfile.DeleteSeriesID(id))
 		}
 	}
 
-	// Compute total size of all series data.
-	origSize, err := sfile.FileSize()
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Check total series count.
+	require.Equal(t, 1000, int(sfile.SeriesCount()))
 
 	// Compact all segments.
 	var paths []string
 	for _, p := range sfile.Partitions() {
 		for _, ss := range p.Segments() {
-			if err := ss.CompactToPath(ss.Path()+".tmp", p.Index()); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, ss.CompactToPath(ss.Path()+".tmp", p.Index()))
 			paths = append(paths, ss.Path())
 		}
 	}
 
 	// Close index.
-	if err := sfile.SeriesFile.Close(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, sfile.SeriesFile.Close())
+
+	// Compute total size of all series data.
+	origSize := sfileSize()
 
 	// Overwrite files.
 	for _, path := range paths {
-		if err := os.Rename(path+".tmp", path); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, os.Rename(path+".tmp", path))
 	}
+
+	// Check size of compacted series data.
+	// We do this before reopening the index because on Windows, opening+mmap'ing the series
+	// file will cause the file to grow back to its original size.
+	newSize := sfileSize()
+
+	// Verify new size is smaller.
+	require.Greater(t, origSize, newSize)
 
 	// Reopen index.
 	sfile.SeriesFile = tsdb.NewSeriesFile(sfile.SeriesFile.Path())
-	if err := sfile.SeriesFile.Open(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, sfile.SeriesFile.Open())
 
 	// Ensure series status is correct.
 	for i, id := range ids {
-		if got, want := sfile.IsDeleted(id), (i%10) == 0; got != want {
-			t.Fatalf("IsDeleted(%d)=%v, want %v", id, got, want)
-		}
+		require.Equal(t, (i%10) == 0, sfile.IsDeleted(id))
 	}
 
-	// Verify new size is smaller.
-	newSize, err := sfile.FileSize()
-	if err != nil {
-		t.Fatal(err)
-	} else if newSize >= origSize {
-		t.Fatalf("expected new size (%d) to be smaller than original size (%d)", newSize, origSize)
-	}
-
-	t.Logf("original size: %d, new size: %d", origSize, newSize)
+	// Check total series count.
+	require.Equal(t, 900, int(sfile.SeriesCount()))
 }
 
 var cachedCompactionSeriesFile *SeriesFile
