@@ -2,7 +2,7 @@
 
 use crate::{
     catalog::{
-        interface::{CatalogParquetInfo, CatalogState, CheckpointData},
+        interface::{CatalogParquetInfo, CatalogState, CheckpointData, ChunkAddrWithoutDatabase},
         internals::{
             proto_io::{load_transaction_proto, store_transaction_proto},
             proto_parse,
@@ -13,12 +13,14 @@ use crate::{
 };
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
+use data_types::chunk_metadata::ChunkId;
 use futures::{StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
 use object_store::{ObjectStore, ObjectStoreApi};
 use observability_deps::tracing::{info, warn};
 use parking_lot::RwLock;
+use predicate::predicate::Predicate;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{
@@ -37,7 +39,7 @@ pub use crate::catalog::internals::proto_parse::Error as ProtoParseError;
 /// Current version for serialized transactions.
 ///
 /// For breaking changes, this will change.
-pub const TRANSACTION_VERSION: u32 = 14;
+pub const TRANSACTION_VERSION: u32 = 15;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -143,6 +145,24 @@ pub enum Error {
     #[snafu(display("Cannot remove parquet file during load: {}", source))]
     RemoveError {
         source: crate::catalog::interface::CatalogStateRemoveError,
+    },
+
+    #[snafu(display("Cannot add delete predicate: {}", source))]
+    DeletePredicateError {
+        source: crate::catalog::interface::CatalogStateDeletePredicateError,
+    },
+
+    #[snafu(display("Cannot serialize predicate: {}", source))]
+    CannotSerializePredicate {
+        source: predicate::serialize::SerializeError,
+    },
+
+    #[snafu(display("Delete predicate missing"))]
+    DeletePredicateMissing,
+
+    #[snafu(display("Cannot deserialize predicate: {}", source))]
+    CannotDeserializePredicate {
+        source: predicate::serialize::DeserializeError,
     },
 }
 
@@ -555,6 +575,26 @@ impl OpenTransaction {
                         .context(ProtobufParseError)?;
                 state.remove(&path).context(RemoveError)?;
             }
+            proto::transaction::action::Action::DeletePredicate(d) => {
+                let predicate = Arc::new(
+                    predicate::serialize::deserialize(
+                        &d.predicate.context(DeletePredicateMissing)?,
+                    )
+                    .context(CannotDeserializePredicate)?,
+                );
+                let chunks = d
+                    .chunks
+                    .into_iter()
+                    .map(|chunk| ChunkAddrWithoutDatabase {
+                        table_name: Arc::from(chunk.table_name),
+                        partition_key: Arc::from(chunk.partition_key),
+                        chunk_id: ChunkId::new(chunk.chunk_id),
+                    })
+                    .collect();
+                state
+                    .delete_predicate(predicate, chunks)
+                    .context(DeletePredicateError)?;
+            }
         };
         Ok(())
     }
@@ -823,6 +863,35 @@ impl<'c> TransactionHandle<'c> {
                 },
             ));
     }
+
+    /// Register new delete predicate.
+    pub fn delete_predicate(
+        &mut self,
+        predicate: &Predicate,
+        chunks: &[ChunkAddrWithoutDatabase],
+    ) -> Result<()> {
+        self.transaction
+            .as_mut()
+            .expect("transaction handle w/o transaction?!")
+            .record_action(proto::transaction::action::Action::DeletePredicate(
+                proto::DeletePredicate {
+                    predicate: Some(
+                        predicate::serialize::serialize(predicate)
+                            .context(CannotSerializePredicate)?,
+                    ),
+                    chunks: chunks
+                        .iter()
+                        .map(|chunk| proto::ChunkAddr {
+                            table_name: chunk.table_name.to_string(),
+                            partition_key: chunk.partition_key.to_string(),
+                            chunk_id: chunk.chunk_id.get(),
+                        })
+                        .collect(),
+                },
+            ));
+
+        Ok(())
+    }
 }
 
 impl<'c> Debug for TransactionHandle<'c> {
@@ -871,35 +940,11 @@ impl<'c> CheckpointHandle<'c> {
     pub async fn create_checkpoint(self, checkpoint_data: CheckpointData) -> Result<()> {
         let iox_object_store = self.catalog.iox_object_store();
 
-        // sort by key (= path) for deterministic output
-        let files = {
-            let mut tmp: Vec<_> = checkpoint_data.files.into_iter().collect();
-            tmp.sort_by_key(|(path, _metadata)| path.clone());
-            tmp
-        };
-
-        // create transaction to add parquet files
-        let actions: Result<Vec<_>, Error> = files
-            .into_iter()
-            .map(|(_, info)| {
-                let CatalogParquetInfo {
-                    file_size_bytes,
-                    metadata,
-                    path,
-                } = info;
-
-                Ok(proto::transaction::Action {
-                    action: Some(proto::transaction::action::Action::AddParquet(
-                        proto::AddParquet {
-                            path: Some(proto_parse::unparse_dirs_and_filename(&path)),
-                            file_size_bytes: file_size_bytes as u64,
-                            metadata: Bytes::from(metadata.thrift_bytes().to_vec()),
-                        },
-                    )),
-                })
-            })
-            .collect();
-        let actions = actions?;
+        // collect actions for transaction
+        let mut actions = Self::create_actions_for_files(checkpoint_data.files);
+        actions.append(&mut Self::create_actions_for_delete_predicates(
+            checkpoint_data.delete_predicates,
+        )?);
 
         // assemble and store checkpoint protobuf
         let proto = proto::Transaction {
@@ -919,6 +964,65 @@ impl<'c> CheckpointHandle<'c> {
             .context(ProtobufIOError)?;
 
         Ok(())
+    }
+
+    fn create_actions_for_files(
+        files: HashMap<ParquetFilePath, CatalogParquetInfo>,
+    ) -> Vec<proto::transaction::Action> {
+        // sort by key (= path) for deterministic output
+        let files = {
+            let mut tmp: Vec<_> = files.into_iter().collect();
+            tmp.sort_by_key(|(path, _metadata)| path.clone());
+            tmp
+        };
+
+        files
+            .into_iter()
+            .map(|(_, info)| {
+                let CatalogParquetInfo {
+                    file_size_bytes,
+                    metadata,
+                    path,
+                } = info;
+
+                proto::transaction::Action {
+                    action: Some(proto::transaction::action::Action::AddParquet(
+                        proto::AddParquet {
+                            path: Some(proto_parse::unparse_dirs_and_filename(&path)),
+                            file_size_bytes: file_size_bytes as u64,
+                            metadata: Bytes::from(metadata.thrift_bytes().to_vec()),
+                        },
+                    )),
+                }
+            })
+            .collect()
+    }
+
+    fn create_actions_for_delete_predicates(
+        delete_predicates: Vec<(Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)>,
+    ) -> Result<Vec<proto::transaction::Action>, Error> {
+        delete_predicates
+            .into_iter()
+            .map(|(predicate, chunks)| {
+                let action = proto::DeletePredicate {
+                    predicate: Some(
+                        predicate::serialize::serialize(&predicate)
+                            .context(CannotSerializePredicate)?,
+                    ),
+                    chunks: chunks
+                        .iter()
+                        .map(|chunk| proto::ChunkAddr {
+                            table_name: chunk.table_name.to_string(),
+                            partition_key: chunk.partition_key.to_string(),
+                            chunk_id: chunk.chunk_id.get(),
+                        })
+                        .collect(),
+                };
+                Ok(proto::transaction::Action {
+                    action: Some(proto::transaction::action::Action::DeletePredicate(action)),
+                })
+            })
+            .collect()
     }
 
     /// Get revision counter for this transaction.
@@ -942,10 +1046,14 @@ impl<'c> Debug for CheckpointHandle<'c> {
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     use bytes::Bytes;
 
     use super::*;
-    use crate::catalog::test_helpers::{break_catalog_with_weird_version, TestCatalogState};
+    use crate::catalog::test_helpers::{
+        break_catalog_with_weird_version, create_delete_predicate, TestCatalogState,
+    };
     use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize};
 
     #[tokio::test]
@@ -1594,6 +1702,84 @@ mod tests {
         assert_catalog_parquet_files(
             &state,
             &get_catalog_parquet_files(trace.states.last().unwrap()),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_delete_predicates() {
+        let iox_object_store = make_iox_object_store().await;
+
+        let (catalog, mut state) =
+            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap();
+
+        {
+            let mut t = catalog.open_transaction().await;
+
+            // create 3 chunks
+            let mut chunk_addrs = vec![];
+            for id in 0..3 {
+                let chunk_addr = chunk_addr(id);
+                let (path, metadata) =
+                    make_metadata(&iox_object_store, "foo", chunk_addr.clone(), TestSize::Full)
+                        .await;
+                let info = CatalogParquetInfo {
+                    path,
+                    file_size_bytes: 33,
+                    metadata: Arc::new(metadata),
+                };
+                state.insert(info.clone()).unwrap();
+                t.add_parquet(&info);
+
+                chunk_addrs.push(chunk_addr);
+            }
+
+            // create two predicate
+            let predicate_1 = create_delete_predicate(&chunk_addrs[0].table_name, 42);
+            let chunks_1 = vec![chunk_addrs[0].clone().into()];
+            t.delete_predicate(&predicate_1, &chunks_1).unwrap();
+            state.delete_predicate(predicate_1, chunks_1).unwrap();
+
+            let predicate_2 = create_delete_predicate(&chunk_addrs[0].table_name, 1337);
+            let chunks_2 = vec![chunk_addrs[0].clone().into(), chunk_addrs[1].clone().into()];
+            t.delete_predicate(&predicate_2, &chunks_2).unwrap();
+            state.delete_predicate(predicate_2, chunks_2).unwrap();
+
+            t.commit().await.unwrap();
+        }
+
+        // restoring from the last transaction works
+        let (_catalog, state_recovered) =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap()
+                .unwrap();
+        assert_eq!(
+            state.delete_predicates(),
+            state_recovered.delete_predicates()
+        );
+
+        // add a checkpoint
+        {
+            let t = catalog.open_transaction().await;
+
+            let ckpt_handle = t.commit().await.unwrap();
+            ckpt_handle
+                .create_checkpoint(state.checkpoint_data())
+                .await
+                .unwrap();
+        }
+
+        // restoring from the last checkpoint works
+        let (_catalog, state_recovered) =
+            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap()
+                .unwrap();
+        assert_eq!(
+            state.delete_predicates(),
+            state_recovered.delete_predicates()
         );
     }
 
