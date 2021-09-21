@@ -950,12 +950,9 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     }
 
     fn no_delete_predicates(chunks: &[Arc<C>]) -> bool {
-        for chunk in chunks {
-            if !chunk.delete_predicates().is_empty() {
-                return false;
-            }
-        }
-        true
+        chunks
+            .iter()
+            .all(|chunk| chunk.delete_predicates().is_empty())
     }
 
     /// Find the columns needed in the primary key across schemas
