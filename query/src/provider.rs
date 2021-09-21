@@ -879,7 +879,8 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     }
 
     /// Return either
-    ///   the simplest IOx scan plan for no chunks which is IOxReadFilterNode:
+    ///  The simplest IOx scan plan for chunks without delete predicates
+    ///  and no need to sort is IOxReadFilterNode:
     /// ```text
     ///                ┌─────────────────┐
     ///                │IOxReadFilterNode│
@@ -898,7 +899,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     /// ┌─────────────────────────┐          ┌─────────────────────────┐
     /// │ FilterExec (optional)   │          │ FilterExec (optional)   │
     /// | To apply delete preds   │   .....  | To apply delete preds   │
-    /// │    (Chunk)              │          │    (Chunk)              │
+    /// │    (Chunk 1)            │          │    (Chunk n)            │
     /// └─────────────────────────┘          └─────────────────────────┘
     ///            ▲                                     ▲
     ///            │                                     │
@@ -917,9 +918,10 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ) -> Result<Vec<Arc<dyn ExecutionPlan>>> {
         let mut plans: Vec<Arc<dyn ExecutionPlan>> = vec![];
 
-        // Since now each chunk may include delete predicates, we need to create plan for each chunk but
+        // Only chunks without delete predicates should be in this one IOxReadFilterNode
         // if there is no chunk, we still need to return a plan
-        if chunks.is_empty() {
+        if (output_sort_key.is_empty() && Self::no_delete_predicates(&chunks)) || chunks.is_empty()
+        {
             plans.push(Arc::new(IOxReadFilterNode::new(
                 Arc::clone(&table_name),
                 output_schema,
@@ -945,6 +947,15 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             .collect();
 
         sorted_chunk_plans
+    }
+
+    fn no_delete_predicates(chunks: &[Arc<C>]) -> bool {
+        for chunk in chunks {
+            if !chunk.delete_predicates().is_empty() {
+                return false;
+            }
+        }
+        true
     }
 
     /// Find the columns needed in the primary key across schemas
