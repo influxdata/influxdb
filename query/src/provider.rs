@@ -742,11 +742,11 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ///                          ▲
     ///                          │
     ///                          │
-    ///                ┌───────────────────────┐
-    ///                │    FilterExec         │
-    ///                | To apply delete preds │
-    ///                │    (Chunk)            │
-    ///                └───────────────────────┘
+    ///                ┌─────────────────────────┐
+    ///                │ FilterExec (optional)   │
+    ///                | To apply delete preds   │
+    ///                │    (Chunk)              │
+    ///                └─────────────────────────┘
     ///                          ▲
     ///                          │
     ///                          │
@@ -861,19 +861,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     }
 
     /// Return the simplest IOx scan plan of a given chunk which is IOxReadFilterNode
-    /// ```text
-    ///                ┌─────────────────┐
-    ///                │    SortExec     │
-    ///                │   (optional)    │   <-- Only added if the input output_sort_key is not empty
-    ///                └─────────────────┘
-    ///                          ▲
-    ///                          │
-    ///                          │
-    ///                ┌─────────────────┐
-    ///                │IOxReadFilterNode│
-    ///                │    (Chunk)      │
-    ///                └─────────────────┘
-    ///```
+    // And some optional operators on top such as applying delete predicates or sort the chunk
     fn build_plan_for_non_duplicates_chunk(
         table_name: Arc<str>,
         output_schema: Arc<Schema>,
@@ -890,30 +878,28 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         )
     }
 
-    /// Return either:
-    ///   the simplest IOx scan plan for many chunks which is IOxReadFilterNode
-    ///   if the input output_sort_key is empty
-    /// ```text
-    ///                ┌─────────────────┐
-    ///                │IOxReadFilterNode│
-    ///                │ (Many Chunks)   │
-    ///                └─────────────────┘
-    ///```
-    ///
-    /// Otherwise, many plans like this
+    /// Return
     ///
     /// ```text
-    ///   ┌─────────────────┐             ┌─────────────────┐
-    ///   │    SortExec     │             │    SortExec     │
-    ///   │   (optional)    │             │   (optional)    │
-    ///   └─────────────────┘             └─────────────────┘
-    ///            ▲                               ▲
-    ///            │            .....              │
-    ///            │                               │
-    ///   ┌─────────────────┐             ┌─────────────────┐
-    ///   │IOxReadFilterNode│             │IOxReadFilterNode│
-    ///   │    (Chunk 1)    │             │    (Chunk n)    │
-    ///   └─────────────────┘             └─────────────────┘
+    ///   ┌─────────────────┐                   ┌─────────────────┐
+    ///   │    SortExec     │                   │    SortExec     │
+    ///   │   (optional)    │                   │   (optional)    │
+    ///   └─────────────────┘                   └─────────────────┘
+    ///            ▲                                     ▲
+    ///            │                                     │
+    ///            │
+    /// ┌─────────────────────────┐          ┌─────────────────────────┐
+    /// │ FilterExec (optional)   │          │ FilterExec (optional)   │
+    /// | To apply delete preds   │   .....  | To apply delete preds   │
+    /// │    (Chunk)              │          │    (Chunk)              │
+    /// └─────────────────────────┘          └─────────────────────────┘
+    ///            ▲                                     ▲
+    ///            │                                     │
+    ///            │                                     │
+    ///   ┌─────────────────┐                   ┌─────────────────┐
+    ///   │IOxReadFilterNode│                   │IOxReadFilterNode│
+    ///   │    (Chunk 1)    │                   │    (Chunk n)    │
+    ///   └─────────────────┘                   └─────────────────┘
     ///```
     fn build_plans_for_non_duplicates_chunks(
         table_name: Arc<str>,
@@ -924,8 +910,9 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
     ) -> Result<Vec<Arc<dyn ExecutionPlan>>> {
         let mut plans: Vec<Arc<dyn ExecutionPlan>> = vec![];
 
-        // output is not required to be sorted or no chunks provided, only create a read filter for all chunks
-        if output_sort_key.is_empty() || chunks.is_empty() {
+        // Since now each chunk may include delete predicates, we need to create plan for each chunk but
+        // if there is no chunk, we still need to return a plan
+        if chunks.is_empty() {
             plans.push(Arc::new(IOxReadFilterNode::new(
                 Arc::clone(&table_name),
                 output_schema,
