@@ -287,7 +287,7 @@ For IOx to emit traces, the request must have a span context set. You can use th
 # load data
 ./target/debug/influxdb_iox database write my_db tests/fixtures/lineproto/metrics.lp
 # run a query and include a span context
-./target/debug/influxdb_iox database query my_db  'show tables' --header uber-trace-id:4459495:30434:0:1
+./target/debug/influxdb_iox database query my_db  'show tables' --header jaeger-debug-id:tracing-is-a-great-idea
 ```
 
 ### Step 4: Explore Spans in the UI

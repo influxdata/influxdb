@@ -18,7 +18,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use futures::ready;
-use http::{Request, Response};
+use http::{HeaderValue, Request, Response};
 use http_body::SizeHint;
 use pin_project::pin_project;
 use tower::{Layer, Service};
@@ -181,11 +181,21 @@ where
         }
 
         match result {
-            Ok(response) => Poll::Ready(Ok(response.map(|body| TracedBody {
-                span_recorder: self.as_mut().project().span_recorder.take(),
-                inner: body,
-                metrics_recorder,
-            }))),
+            Ok(mut response) => {
+                // add trace-id header to the response, if we have one
+                let span_recorder = self.as_mut().project().span_recorder.take();
+                if let Some(trace_id) = span_recorder.span().map(|span| span.ctx.trace_id) {
+                    // format as hex
+                    let trace_id = HeaderValue::from_str(&format!("{:x}", trace_id.get())).unwrap();
+                    response.headers_mut().insert("trace-id", trace_id);
+                }
+
+                Poll::Ready(Ok(response.map(|body| TracedBody {
+                    span_recorder,
+                    inner: body,
+                    metrics_recorder,
+                })))
+            }
             Err(e) => Poll::Ready(Err(e)),
         }
     }
