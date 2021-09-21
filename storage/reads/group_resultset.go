@@ -227,33 +227,30 @@ func (g *groupResultSet) groupBySort() (int, error) {
 	var seriesRows []*SeriesRow
 	vals := make([][]byte, len(g.keys))
 	tagsBuf := &tagsBuffer{sz: 4096}
-	allTime := g.req.Hints.HintSchemaAllTime()
 
 	seriesRow := seriesCursor.Next()
 	for seriesRow != nil {
-		if allTime || g.seriesHasPoints(seriesRow) {
-			nr := *seriesRow
-			nr.SeriesTags = tagsBuf.copyTags(nr.SeriesTags)
-			nr.Tags = tagsBuf.copyTags(nr.Tags)
+		nr := *seriesRow
+		nr.SeriesTags = tagsBuf.copyTags(nr.SeriesTags)
+		nr.Tags = tagsBuf.copyTags(nr.Tags)
 
-			l := len(g.keys) // for sort key separators
-			for i, k := range g.keys {
-				vals[i] = nr.Tags.Get(k)
-				if len(vals[i]) == 0 {
-					vals[i] = g.nilSort
-				}
-				l += len(vals[i])
+		l := len(g.keys) // for sort key separators
+		for i, k := range g.keys {
+			vals[i] = nr.Tags.Get(k)
+			if len(vals[i]) == 0 {
+				vals[i] = g.nilSort
 			}
-
-			nr.SortKey = make([]byte, 0, l)
-			for _, v := range vals {
-				nr.SortKey = append(nr.SortKey, v...)
-				// separate sort key values with ascii null character
-				nr.SortKey = append(nr.SortKey, '\000')
-			}
-
-			seriesRows = append(seriesRows, &nr)
+			l += len(vals[i])
 		}
+
+		nr.SortKey = make([]byte, 0, l)
+		for _, v := range vals {
+			nr.SortKey = append(nr.SortKey, v...)
+			// separate sort key values with ascii null character
+			nr.SortKey = append(nr.SortKey, '\000')
+		}
+
+		seriesRows = append(seriesRows, &nr)
 		seriesRow = seriesCursor.Next()
 	}
 
