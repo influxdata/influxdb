@@ -366,16 +366,18 @@ READ:
 		cur = nil
 		gc = nil
 
-		if err := f(table); err != nil {
-			table.Close()
-			table = nil
-			return err
-		}
-		select {
-		case <-done:
-		case <-gi.ctx.Done():
-			table.Cancel()
-			break READ
+		if !table.Empty() {
+			if err := f(table); err != nil {
+				table.Close()
+				table = nil
+				return err
+			}
+			select {
+			case <-done:
+			case <-gi.ctx.Done():
+				table.Cancel()
+				break READ
+			}
 		}
 
 		stats := table.Statistics()
