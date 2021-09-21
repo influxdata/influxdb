@@ -227,7 +227,7 @@ impl CatalogState for Loader {
             .map_err(|e| Box::new(e) as _)
             .context(SchemaError { path: info.path })?;
 
-        let delete_predicates: Vec<Arc<Predicate>> = vec![]; // NGA todo: After Marco saves delete predicate into the catalog, it will need to get extracted into this variable
+        let delete_predicates: Vec<Arc<Predicate>> = vec![];
         partition.insert_object_store_only_chunk(
             iox_md.chunk_id,
             parquet_chunk,
