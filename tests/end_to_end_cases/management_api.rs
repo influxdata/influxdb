@@ -1575,7 +1575,6 @@ async fn test_delete() {
         "++",
     ];
     assert_batches_sorted_eq!(&expected, &batches);
- 
 
     // ------------------------------------------
     // Negative Delete test to get error messages
