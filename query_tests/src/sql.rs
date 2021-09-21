@@ -3,6 +3,8 @@
 //! wired all the pieces together (as well as ensure any particularly
 //! important SQL does not regress)
 
+use crate::scenarios;
+
 use super::scenarios::*;
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
@@ -823,21 +825,21 @@ async fn sql_select_with_deleted_data_from_one_expr() {
 
     // Data deleted when it is in MUB, and then moved to RUB and OS
     run_sql_test_case!(
-        DeleteFromMubOneMeasurementOneChunk {},
+        scenarios::delete::DeleteFromMubOneMeasurementOneChunk {},
         "SELECT * from cpu",
         &expected
     );
 
     // Data deleted when it is in RUB, and then moved OS
     run_sql_test_case!(
-        DeleteFromRubOneMeasurementOneChunk {},
+        scenarios::delete::DeleteFromRubOneMeasurementOneChunk {},
         "SELECT * from cpu",
         &expected
     );
 
     // Data deleted when it is in OS
     run_sql_test_case!(
-        DeleteFromOsOneMeasurementOneChunk {},
+        scenarios::delete::DeleteFromOsOneMeasurementOneChunk {},
         "SELECT * from cpu",
         &expected
     );
@@ -856,21 +858,21 @@ async fn sql_select_with_deleted_data_from_multi_exprs() {
 
     // Data deleted when it is in MUB, and then moved to RUB and OS
     run_sql_test_case!(
-        DeleteMultiExprsFromMubOneMeasurementOneChunk {},
+        scenarios::delete::DeleteMultiExprsFromMubOneMeasurementOneChunk {},
         "SELECT * from cpu",
         &expected
     );
 
     // Data deleted when it is in RUB, and then moved OS
     run_sql_test_case!(
-        DeleteMultiExprsFromRubOneMeasurementOneChunk {},
+        scenarios::delete::DeleteMultiExprsFromRubOneMeasurementOneChunk {},
         "SELECT * from cpu",
         &expected
     );
 
     // Data deleted when it is in OS
     run_sql_test_case!(
-        DeleteMultiExprsFromOsOneMeasurementOneChunk {},
+        scenarios::delete::DeleteMultiExprsFromOsOneMeasurementOneChunk {},
         "SELECT * from cpu",
         &expected
     );
@@ -888,21 +890,21 @@ async fn sql_select_with_two_deleted_data_from_multi_exprs() {
 
     // Data deleted when it is in MUB, and then moved to RUB and OS
     run_sql_test_case!(
-        TwoDeleteMultiExprsFromMubOneMeasurementOneChunk {},
+        scenarios::delete::TwoDeleteMultiExprsFromMubOneMeasurementOneChunk {},
         "SELECT * from cpu",
         &expected
     );
 
     // Data deleted when it is in RUB, and then moved OS
     run_sql_test_case!(
-        TwoDeleteMultiExprsFromRubOneMeasurementOneChunk {},
+        scenarios::delete::TwoDeleteMultiExprsFromRubOneMeasurementOneChunk {},
         "SELECT * from cpu",
         &expected
     );
 
     // Data deleted when it is in OS
     run_sql_test_case!(
-        TwoDeleteMultiExprsFromOsOneMeasurementOneChunk {},
+        scenarios::delete::TwoDeleteMultiExprsFromOsOneMeasurementOneChunk {},
         "SELECT * from cpu",
         &expected
     );
