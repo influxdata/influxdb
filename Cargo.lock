@@ -1816,7 +1816,6 @@ dependencies = [
  "hashbrown 0.11.2",
  "indexmap",
  "itertools 0.10.1",
- "observability_deps",
  "snafu",
  "tokio",
 ]
