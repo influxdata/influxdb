@@ -7,20 +7,18 @@ edition = "2018"
 [dependencies] # In alphabetical order
 bytes = "1.0"
 data_types = { path = "../data_types" }
-futures = "0.3"
 google_types = { path = "../google_types" }
-num_cpus = "1.13.0"
 observability_deps = { path = "../observability_deps" }
 pbjson = { path = "../pbjson" }
 prost = "0.8"
 regex = "1.4"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.67"
 thiserror = "1.0.28"
 tonic = "0.5"
 
 [dev-dependencies]
 chrono = { version = "0.4", features = ["serde"] }
+num_cpus = "1.13.0"
 
 [build-dependencies] # In alphabetical order
 # Pin specific version of the tonic-build dependencies to match arrow

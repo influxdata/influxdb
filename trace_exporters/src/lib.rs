@@ -61,6 +61,16 @@ pub struct TracingConfig {
         default_value = "iox-conductor"
     )]
     pub traces_exporter_jaeger_service_name: String,
+
+    /// Tracing: http request header that contains the Jaeger service name
+    ///
+    /// Only used if `--traces-exporter` is "jaeger".
+    #[structopt(
+        long = "--traces-exporter-jaeger-trace-context-header-name",
+        env = "JAEGER_TRACE_CONTEXT_HEADER_NAME",
+        default_value = "uber-trace-id"
+    )]
+    pub jaeger_trace_context_header_name: String,
 }
 
 impl TracingConfig {

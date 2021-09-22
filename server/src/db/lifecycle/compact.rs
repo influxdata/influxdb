@@ -101,7 +101,7 @@ pub(crate) fn compact_chunks(
         let (schema, plan) =
             ReorgPlanner::new().compact_plan(schema, query_chunks.iter().map(Arc::clone), key)?;
 
-        let physical_plan = ctx.prepare_plan(&plan)?;
+        let physical_plan = ctx.prepare_plan(&plan).await?;
         let stream = ctx.execute_stream(physical_plan).await?;
         let rb_chunk = collect_rub(stream, &addr, metric_registry.as_ref())
             .await?

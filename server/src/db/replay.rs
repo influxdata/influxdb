@@ -827,7 +827,7 @@ mod tests {
                         let planner = SqlQueryPlanner::default();
                         let ctx = db.new_query_context(None);
 
-                        let physical_plan = match planner.query(query, &ctx) {
+                        let physical_plan = match planner.query(query, &ctx).await {
                             Ok(physical_plan) => physical_plan,
                             err if use_assert => {
                                 err.unwrap();

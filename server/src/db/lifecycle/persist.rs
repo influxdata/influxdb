@@ -108,7 +108,7 @@ where
             flush_timestamp,
         )?;
 
-        let physical_plan = ctx.prepare_plan(&plan)?;
+        let physical_plan = ctx.prepare_plan(&plan).await?;
         assert_eq!(
             physical_plan.output_partitioning().partition_count(),
             2,

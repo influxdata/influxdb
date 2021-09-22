@@ -11,9 +11,8 @@ use std::{
 use data_types::timestamp::TimestampRange;
 use datafusion::{
     error::DataFusionError,
-    logical_plan::{col, lit, Column, Expr, Operator},
+    logical_plan::{col, lit, lit_timestamp_nano, Column, Expr, Operator},
     optimizer::utils,
-    scalar::ScalarValue,
 };
 use datafusion_util::{make_range_expr, AndExprBuilder};
 use internal_types::schema::TIME_COLUMN_NAME;
@@ -212,15 +211,11 @@ impl Predicate {
 
             // Time range
             if let Some(range) = pred.range {
-                // cast int to timestamp
-                // NGA todo: add in DF a function timestamp_lit(i64_val) which does lit(ScalarValue::TimestampNanosecond(Some(i64_val))
-                //  and use it here
-                let ts_start = ScalarValue::TimestampNanosecond(Some(range.start));
-                let ts_end = ScalarValue::TimestampNanosecond(Some(range.end));
                 // time_expr =  NOT(start <= time_range < end)
+                // Equivalent to: (time < start OR time >= end)
                 let time_expr = col(TIME_COLUMN_NAME)
-                    .lt(lit(ts_start))
-                    .or(col(TIME_COLUMN_NAME).gt_eq(lit(ts_end)));
+                    .lt(lit_timestamp_nano(range.start))
+                    .or(col(TIME_COLUMN_NAME).gt_eq(lit_timestamp_nano(range.end)));
 
                 match expr {
                     None => expr = Some(time_expr),

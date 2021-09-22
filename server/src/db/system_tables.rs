@@ -14,6 +14,7 @@ use arrow::{
     error::Result,
     record_batch::RecordBatch,
 };
+use async_trait::async_trait;
 use datafusion::{
     catalog::schema::SchemaProvider,
     datasource::TableProvider,
@@ -124,6 +125,7 @@ where
     inner: T,
 }
 
+#[async_trait]
 impl<T> TableProvider for SystemTableProvider<T>
 where
     T: IoxSystemTable + 'static,
@@ -136,7 +138,7 @@ where
         self.inner.schema()
     }
 
-    fn scan(
+    async fn scan(
         &self,
         projection: &Option<Vec<usize>>,
         _batch_size: usize,

@@ -1,5 +1,6 @@
 //! Implementation of a DataFusion `TableProvider` in terms of `QueryChunk`s
 
+use async_trait::async_trait;
 use std::sync::Arc;
 
 use arrow::{datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
@@ -212,6 +213,7 @@ impl<C: QueryChunk + 'static> ChunkTableProvider<C> {
     }
 }
 
+#[async_trait]
 impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -222,7 +224,7 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
         self.arrow_schema()
     }
 
-    fn scan(
+    async fn scan(
         &self,
         projection: &Option<Vec<usize>>,
         _batch_size: usize,

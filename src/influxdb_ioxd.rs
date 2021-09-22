@@ -14,6 +14,7 @@ use server::{
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, net::SocketAddr, sync::Arc};
 use trace::TraceCollector;
+use trace_http::ctx::TraceHeaderParser;
 
 mod http;
 mod jemalloc;
@@ -236,12 +237,16 @@ async fn serve(
     // Construct a token to trigger shutdown of API services
     let frontend_shutdown = tokio_util::sync::CancellationToken::new();
 
+    let trace_header_parser = TraceHeaderParser::new()
+        .with_jaeger_header_name(config.tracing_config.jaeger_trace_context_header_name);
+
     // Construct and start up gRPC server
 
     let grpc_server = rpc::serve(
         grpc_listener,
         Arc::clone(&application),
         Arc::clone(&app_server),
+        trace_header_parser.clone(),
         trace_collector.clone(),
         frontend_shutdown.clone(),
         config.initial_serving_state.into(),
@@ -258,6 +263,7 @@ async fn serve(
         Arc::clone(&app_server),
         frontend_shutdown.clone(),
         max_http_request_size,
+        trace_header_parser,
         trace_collector,
     )
     .fuse();

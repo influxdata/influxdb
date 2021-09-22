@@ -1,5 +1,5 @@
 use datafusion::logical_plan::{col, lit};
-use predicate::predicate::PredicateBuilder;
+use predicate::predicate::{Predicate, PredicateBuilder};
 use query::{
     exec::stringset::{IntoStringSet, StringSetRef},
     frontend::influxrpc::InfluxRpcPlanner,
@@ -9,39 +9,42 @@ use crate::scenarios::*;
 
 /// runs tag_value(predicate) and compares it to the expected
 /// output
-macro_rules! run_tag_values_test_case {
-    ($DB_SETUP:expr, $TAG_NAME:expr, $PREDICATE:expr, $EXPECTED_VALUES:expr) => {
-        test_helpers::maybe_start_logging();
-        let predicate = $PREDICATE;
-        let tag_name = $TAG_NAME;
-        let expected_values = $EXPECTED_VALUES;
-        for scenario in $DB_SETUP.make().await {
-            let DbScenario {
-                scenario_name, db, ..
-            } = scenario;
-            println!("Running scenario '{}'", scenario_name);
-            println!("Predicate: '{:#?}'", predicate);
-            let planner = InfluxRpcPlanner::new();
-            let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
+async fn run_tag_values_test_case<D>(
+    db_setup: D,
+    tag_name: &str,
+    predicate: Predicate,
+    expected_tag_values: Vec<&str>,
+) where
+    D: DbSetup,
+{
+    test_helpers::maybe_start_logging();
 
-            let plan = planner
-                .tag_values(db.as_ref(), &tag_name, predicate.clone())
-                .expect("built plan successfully");
-            let names = ctx
-                .to_string_set(plan)
-                .await
-                .expect("converted plan to strings successfully");
+    for scenario in db_setup.make().await {
+        let DbScenario {
+            scenario_name, db, ..
+        } = scenario;
+        println!("Running scenario '{}'", scenario_name);
+        println!("Predicate: '{:#?}'", predicate);
+        let planner = InfluxRpcPlanner::new();
+        let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
-            assert_eq!(
-                names,
-                to_stringset(&expected_values),
-                "Error in  scenario '{}'\n\nexpected:\n{:?}\nactual:\n{:?}",
-                scenario_name,
-                expected_values,
-                names
-            );
-        }
-    };
+        let plan = planner
+            .tag_values(db.as_ref(), tag_name, predicate.clone())
+            .expect("built plan successfully");
+        let names = ctx
+            .to_string_set(plan)
+            .await
+            .expect("converted plan to strings successfully");
+
+        assert_eq!(
+            names,
+            to_stringset(&expected_tag_values),
+            "Error in  scenario '{}'\n\nexpected:\n{:?}\nactual:\n{:?}",
+            scenario_name,
+            expected_tag_values,
+            names
+        );
+    }
 }
 
 #[tokio::test]
@@ -50,12 +53,13 @@ async fn list_tag_values_no_tag() {
     // If the tag is not present, expect no values back (not error)
     let tag_name = "tag_not_in_chunks";
     let expected_tag_keys = vec![];
-    run_tag_values_test_case!(
+    run_tag_values_test_case(
         TwoMeasurementsManyNulls {},
         tag_name,
         predicate,
-        expected_tag_keys
-    );
+        expected_tag_keys,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -63,12 +67,13 @@ async fn list_tag_values_no_predicate_state_col() {
     let predicate = PredicateBuilder::default().build();
     let tag_name = "state";
     let expected_tag_keys = vec!["CA", "MA", "NY"];
-    run_tag_values_test_case!(
+    run_tag_values_test_case(
         TwoMeasurementsManyNulls {},
         tag_name,
         predicate,
-        expected_tag_keys
-    );
+        expected_tag_keys,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -76,12 +81,13 @@ async fn list_tag_values_no_predicate_city_col() {
     let tag_name = "city";
     let predicate = PredicateBuilder::default().build();
     let expected_tag_keys = vec!["Boston", "LA", "NYC"];
-    run_tag_values_test_case!(
+    run_tag_values_test_case(
         TwoMeasurementsManyNulls {},
         tag_name,
         predicate,
-        expected_tag_keys
-    );
+        expected_tag_keys,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -89,12 +95,13 @@ async fn list_tag_values_timestamp_pred_state_col() {
     let tag_name = "state";
     let predicate = PredicateBuilder::default().timestamp_range(50, 201).build();
     let expected_tag_keys = vec!["CA", "MA"];
-    run_tag_values_test_case!(
+    run_tag_values_test_case(
         TwoMeasurementsManyNulls {},
         tag_name,
         predicate,
-        expected_tag_keys
-    );
+        expected_tag_keys,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -104,12 +111,13 @@ async fn list_tag_values_state_pred_state_col() {
         .add_expr(col("state").eq(lit("MA"))) // state=MA
         .build();
     let expected_tag_keys = vec!["Boston"];
-    run_tag_values_test_case!(
+    run_tag_values_test_case(
         TwoMeasurementsManyNulls {},
         tag_name,
         predicate,
-        expected_tag_keys
-    );
+        expected_tag_keys,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -120,12 +128,13 @@ async fn list_tag_values_timestamp_and_state_pred_state_col() {
         .add_expr(col("state").eq(lit("MA"))) // state=MA
         .build();
     let expected_tag_keys = vec!["MA"];
-    run_tag_values_test_case!(
+    run_tag_values_test_case(
         TwoMeasurementsManyNulls {},
         tag_name,
         predicate,
-        expected_tag_keys
-    );
+        expected_tag_keys,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -133,12 +142,13 @@ async fn list_tag_values_table_pred_state_col() {
     let tag_name = "state";
     let predicate = PredicateBuilder::default().table("h2o").build();
     let expected_tag_keys = vec!["CA", "MA"];
-    run_tag_values_test_case!(
+    run_tag_values_test_case(
         TwoMeasurementsManyNulls {},
         tag_name,
         predicate,
-        expected_tag_keys
-    );
+        expected_tag_keys,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -146,12 +156,13 @@ async fn list_tag_values_table_pred_city_col() {
     let tag_name = "city";
     let predicate = PredicateBuilder::default().table("o2").build();
     let expected_tag_keys = vec!["Boston", "NYC"];
-    run_tag_values_test_case!(
+    run_tag_values_test_case(
         TwoMeasurementsManyNulls {},
         tag_name,
         predicate,
-        expected_tag_keys
-    );
+        expected_tag_keys,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -162,12 +173,13 @@ async fn list_tag_values_table_and_timestamp_and_table_pred_state_col() {
         .timestamp_range(50, 201)
         .build();
     let expected_tag_keys = vec!["MA"];
-    run_tag_values_test_case!(
+    run_tag_values_test_case(
         TwoMeasurementsManyNulls {},
         tag_name,
         predicate,
-        expected_tag_keys
-    );
+        expected_tag_keys,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -178,12 +190,13 @@ async fn list_tag_values_table_and_state_pred_state_col() {
         .add_expr(col("state").eq(lit("NY"))) // state=NY
         .build();
     let expected_tag_keys = vec!["NY"];
-    run_tag_values_test_case!(
+    run_tag_values_test_case(
         TwoMeasurementsManyNulls {},
         tag_name,
         predicate,
-        expected_tag_keys
-    );
+        expected_tag_keys,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -195,12 +208,13 @@ async fn list_tag_values_table_and_timestamp_and_state_pred_state_col() {
         .add_expr(col("state").eq(lit("NY"))) // state=NY
         .build();
     let expected_tag_keys = vec!["NY"];
-    run_tag_values_test_case!(
+    run_tag_values_test_case(
         TwoMeasurementsManyNulls {},
         tag_name,
         predicate,
-        expected_tag_keys
-    );
+        expected_tag_keys,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -213,12 +227,13 @@ async fn list_tag_values_table_and_timestamp_and_state_pred_state_col_no_rows() 
         .build();
     let expected_tag_keys = vec![];
 
-    run_tag_values_test_case!(
+    run_tag_values_test_case(
         TwoMeasurementsManyNulls {},
         tag_name,
         predicate,
-        expected_tag_keys
-    );
+        expected_tag_keys,
+    )
+    .await;
 }
 
 #[tokio::test]

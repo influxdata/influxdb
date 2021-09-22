@@ -14,7 +14,11 @@ impl SqlQueryPlanner {
 
     /// Plan a SQL query against the catalogs registered with `ctx`, and return a
     /// DataFusion physical execution plan that runs on the query executor.
-    pub fn query(&self, query: &str, ctx: &IOxExecutionContext) -> Result<Arc<dyn ExecutionPlan>> {
-        ctx.prepare_sql(query)
+    pub async fn query(
+        &self,
+        query: &str,
+        ctx: &IOxExecutionContext,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        ctx.prepare_sql(query).await
     }
 }

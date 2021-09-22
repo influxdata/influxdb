@@ -7,7 +7,7 @@
 //! For those not familiar with tower:
 //!
 //! - A Layer produces a Service
-//! - A Service can then be called with a request which returns a Future  
+//! - A Service can then be called with a request which returns a Future
 //! - This Future returns a response which contains a Body
 //! - This Body contains the data payload (potentially streamed)
 //!
@@ -27,7 +27,7 @@ use observability_deps::tracing::error;
 use trace::{span::SpanRecorder, TraceCollector};
 
 use crate::classify::{classify_headers, classify_response, Classification};
-use crate::ctx::parse_span_ctx;
+use crate::ctx::TraceHeaderParser;
 use crate::metrics::{MetricsCollection, MetricsRecorder};
 
 /// `TraceLayer` implements `tower::Layer` and can be used to decorate a
@@ -41,17 +41,20 @@ use crate::metrics::{MetricsCollection, MetricsRecorder};
 /// [1]: https://www.weave.works/blog/the-red-method-key-metrics-for-microservices-architecture/
 #[derive(Debug, Clone)]
 pub struct TraceLayer {
+    trace_header_parser: TraceHeaderParser,
     metrics: Arc<MetricsCollection>,
     collector: Option<Arc<dyn TraceCollector>>,
 }
 
 impl TraceLayer {
     pub fn new(
+        trace_header_parser: TraceHeaderParser,
         metric_registry: Arc<metric::Registry>,
         collector: Option<Arc<dyn TraceCollector>>,
         is_grpc: bool,
     ) -> Self {
         Self {
+            trace_header_parser,
             metrics: Arc::new(MetricsCollection::new(metric_registry, is_grpc)),
             collector,
         }
@@ -66,6 +69,7 @@ impl<S> Layer<S> for TraceLayer {
             service,
             collector: self.collector.clone(),
             metrics: Arc::clone(&self.metrics),
+            trace_header_parser: self.trace_header_parser.clone(),
         }
     }
 }
@@ -74,6 +78,7 @@ impl<S> Layer<S> for TraceLayer {
 #[derive(Debug, Clone)]
 pub struct TraceService<S> {
     service: S,
+    trace_header_parser: TraceHeaderParser,
     collector: Option<Arc<dyn TraceCollector>>,
     metrics: Arc<MetricsCollection>,
 }
@@ -105,7 +110,7 @@ where
             }
         };
 
-        let span = match parse_span_ctx(collector, request.headers()) {
+        let span = match self.trace_header_parser.parse(collector, request.headers()) {
             Ok(Some(ctx)) => {
                 let span = ctx.child("IOx");
 
