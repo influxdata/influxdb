@@ -1556,24 +1556,24 @@ async fn test_delete() {
 
     // Query cpu again with a selection predicate
     let mut query_results = flight_client
-        .perform_query(db_name.clone(), r#"select * from cpu where cpu.region='west';"#)
+        .perform_query(
+            db_name.clone(),
+            r#"select * from cpu where cpu.region='west';"#,
+        )
         .await
         .unwrap();
     let batches = query_results.to_batches().await.unwrap();
     // result should be as above
     assert_batches_sorted_eq!(&expected, &batches);
 
-     // Query cpu again with a differentselection predicate
-     let mut query_results = flight_client
-     .perform_query(db_name.clone(), "select * from cpu where user!=21")
-     .await
-     .unwrap();
+    // Query cpu again with a differentselection predicate
+    let mut query_results = flight_client
+        .perform_query(db_name.clone(), "select * from cpu where user!=21")
+        .await
+        .unwrap();
     let batches = query_results.to_batches().await.unwrap();
     // result should be nothing
-    let expected = [
-        "++",
-        "++",
-    ];
+    let expected = ["++", "++"];
     assert_batches_sorted_eq!(&expected, &batches);
 
     // ------------------------------------------
@@ -1588,7 +1588,7 @@ async fn test_delete() {
         .delete(db_name.clone(), table, start, stop, pred)
         .await;
     assert!(del.is_err());
-    
+
     // Verify both existing tables still have the same data
     // query to verify data deleted
     // cpu
@@ -1618,7 +1618,7 @@ async fn test_delete() {
         "| 99    | east   | 1970-01-01T00:00:00.000000200Z |",
         "+-------+--------+--------------------------------+",
     ];
-    assert_batches_sorted_eq!(&disk_expected, &batches);   
+    assert_batches_sorted_eq!(&disk_expected, &batches);
 }
 
 #[tokio::test]

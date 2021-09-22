@@ -28,6 +28,8 @@ macro_rules! run_sql_test_case {
 
             let physical_plan = planner.query(&sql, &ctx).expect("built plan successfully");
 
+            //println!(" --- Physical plan: {:#?}", physical_plan);
+
             let results: Vec<RecordBatch> = ctx.collect(physical_plan).await.expect("Running plan");
             assert_batches_sorted_eq!($EXPECTED_LINES, &results);
         }
@@ -750,8 +752,10 @@ async fn sql_predicate_pushdown_correctness_13() {
 #[tokio::test]
 async fn sql_deduplicate_1() {
     // This current expected is wrong because deduplicate is not available yet
+    // let sql =
+    //     "select time, state, city, min_temp, max_temp, area from h2o order by time, state, city";
     let sql =
-        "select time, state, city, min_temp, max_temp, area from h2o order by time, state, city";
+        "select time, state, city, min_temp, max_temp, area from h2o order by state, city, time";
     let expected = vec![
         "+--------------------------------+-------+---------+----------+----------+------+",
         "| time                           | state | city    | min_temp | max_temp | area |",
@@ -911,29 +915,24 @@ async fn sql_select_with_two_deleted_data_from_multi_exprs() {
 }
 
 #[tokio::test]
-async fn sql_select_with_three_deleted_data_from_three_chunks() {
+async fn sql_select_with_three_deletes_from_three_chunks() {
     let expected = vec![
         "+-----+-----+--------------------------------+",
         "| bar | foo | time                           |",
         "+-----+-----+--------------------------------+",
         "| 1   | me  | 1970-01-01T00:00:00.000000040Z |",
+        "| 1   | me  | 1970-01-01T00:00:00.000000042Z |",
+        "| 1   | me  | 1970-01-01T00:00:00.000000062Z |",
+        "| 3   | you | 1970-01-01T00:00:00.000000070Z |",
+        "| 4   | me  | 1970-01-01T00:00:00.000000050Z |",
+        "| 5   | me  | 1970-01-01T00:00:00.000000060Z |",
+        "| 7   | me  | 1970-01-01T00:00:00.000000080Z |",
         "+-----+-----+--------------------------------+",
     ];
 
-    // Data deleted when it is in MUB, and then moved to RUB and OS
     run_sql_test_case!(
         scenarios::delete::ThreeDeleteThreeChunks {},
         "SELECT * from cpu",
         &expected
     );
-
-    // cpu,foo=me bar=1 40
-    // "cpu,foo=me bar=1 42",
-    //         "cpu,foo=me bar=4 50",
-    //         "cpu,foo=me bar=5 60",
-    //         "cpu,foo=me bar=1 60",
-    //         "cpu,foo=you bar=3 70",
-    //         "cpu,foo=me bar=8 90",
 }
-
-

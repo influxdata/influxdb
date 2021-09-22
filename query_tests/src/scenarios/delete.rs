@@ -525,7 +525,6 @@ impl DbSetup for TwoDeleteMultiExprsFromOsOneMeasurementOneChunk {
 pub struct ThreeDeleteThreeChunks {}
 #[async_trait]
 impl DbSetup for ThreeDeleteThreeChunks {
-
     async fn make(&self) -> Vec<DbScenario> {
         // General setup for all scenarios
         let partition_key = "1970-01-01T00";
@@ -533,14 +532,14 @@ impl DbSetup for ThreeDeleteThreeChunks {
 
         // chunk1 data
         let lp_lines_1 = vec![
-            "cpu,foo=me bar=1 10",
-            "cpu,foo=you bar=2 20",
-            "cpu,foo=me bar=1 30",
+            "cpu,foo=me bar=1 10",  // deleted by pred1
+            "cpu,foo=you bar=2 20", // deleted by pred2
+            "cpu,foo=me bar=1 30",  // deleted by pred1
             "cpu,foo=me bar=1 40",
         ];
         // delete predicate on chunk 1
-        let i: f64 = 1.0;
-        let expr1 = col("bar").eq(lit(i));
+        //let i: f64 = 1.0;
+        let expr1 = col("bar").eq(lit(1f64));
         let expr2 = col("foo").eq(lit("me"));
         let pred1 = PredicateBuilder::new()
             .table("cpu")
@@ -552,7 +551,7 @@ impl DbSetup for ThreeDeleteThreeChunks {
         //chunk 2 data
         let lp_lines_2 = vec![
             "cpu,foo=me bar=1 42",
-            "cpu,foo=you bar=3 42",
+            "cpu,foo=you bar=3 42", // deleted by pred2
             "cpu,foo=me bar=4 50",
             "cpu,foo=me bar=5 60",
         ];
@@ -566,10 +565,10 @@ impl DbSetup for ThreeDeleteThreeChunks {
 
         // chunk 3 data
         let lp_lines_3 = vec![
-            "cpu,foo=me bar=1 60",
+            "cpu,foo=me bar=1 62",
             "cpu,foo=you bar=3 70",
             "cpu,foo=me bar=7 80",
-            "cpu,foo=me bar=8 90",
+            "cpu,foo=me bar=8 90", // deleted by pred3
         ];
         // delete predicate on chunk 3
         let i: f64 = 7.0;
@@ -580,86 +579,41 @@ impl DbSetup for ThreeDeleteThreeChunks {
             .add_expr(expr)
             .build();
 
+        let lp_data = vec![lp_lines_1, lp_lines_2, lp_lines_3];
+        let preds = vec![pred1, pred2, pred3];
+
         // 3 chunks: MUB, RUB, OS
-        let scenario_mub_rub_os = make_mub_rub_os_deletes(
-            lp_lines_1.clone(),
-            lp_lines_2.clone(),
-            lp_lines_3.clone(),
-            pred1.clone(),
-            pred2.clone(),
-            pred3.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
+        let scenario_mub_rub_os =
+            make_mub_rub_os_deletes(&lp_data, &preds, table_name, partition_key).await;
 
         // 3 chunks: 2 MUB, 1 RUB
-        let scenario_2mub_rub = make_2mub_rub_deletes(
-            lp_lines_1.clone(),
-            lp_lines_2.clone(),
-            lp_lines_3.clone(),
-            pred1.clone(),
-            pred2.clone(),
-            pred3.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
+        let scenario_2mub_rub =
+            make_2mub_rub_deletes(&lp_data, &preds, table_name, partition_key).await;
 
-         // 3 chunks: 2 MUB, 1 OS
-         let scenario_2mub_os = make_2mub_os_deletes(
-            lp_lines_1.clone(),
-            lp_lines_2.clone(),
-            lp_lines_3.clone(),
-            pred1.clone(),
-            pred2.clone(),
-            pred3.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
+        // 3 chunks: 2 MUB, 1 OS
+        let scenario_2mub_os =
+            make_2mub_os_deletes(&lp_data, &preds, table_name, partition_key).await;
 
         // 3 chunks: 2 RUB, 1 OS
-        let scenario_2rub_os = make_2rub_os_deletes(
-            lp_lines_1.clone(),
-            lp_lines_2.clone(),
-            lp_lines_3.clone(),
-            pred1.clone(),
-            pred2.clone(),
-            pred3.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
+        let scenario_2rub_os =
+            make_2rub_os_deletes(&lp_data, &preds, table_name, partition_key).await;
 
         // 3 chunks:  RUB, 2 OS
-        let scenario_rub_2os = make_rub_2os_deletes(
-            lp_lines_1.clone(),
-            lp_lines_2.clone(),
-            lp_lines_3.clone(),
-            pred1.clone(),
-            pred2.clone(),
-            pred3.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
+        let scenario_rub_2os =
+            make_rub_2os_deletes(&lp_data, &preds, table_name, partition_key).await;
 
         // 3 chunks:  3 OS
-        let scenario_3os = make_3os_deletes(
-            lp_lines_1.clone(),
-            lp_lines_2.clone(),
-            lp_lines_3.clone(),
-            pred1.clone(),
-            pred2.clone(),
-            pred3.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
+        let scenario_3os = make_3os_deletes(&lp_data, &preds, table_name, partition_key).await;
 
         // return scenarios to run queries
-        vec![scenario_mub_rub_os, scenario_2mub_rub, scenario_2mub_os, scenario_2rub_os, scenario_rub_2os, scenario_3os]
+        vec![
+            scenario_mub_rub_os,
+            scenario_2mub_rub,
+            scenario_2mub_os,
+            scenario_2rub_os,
+            scenario_rub_2os,
+            scenario_3os,
+        ]
     }
 }
 
@@ -1410,20 +1364,15 @@ async fn make_delete_os_delete(
 }
 
 async fn make_mub_rub_os_deletes(
-    lp_lines_1: Vec<&str>,
-    lp_lines_2: Vec<&str>,
-    lp_lines_3: Vec<&str>,
-    pred1: Predicate,
-    pred2: Predicate,
-    pred3: Predicate,
+    lp_data: &[Vec<&str>],
+    preds: &[Predicate],
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
-    
     let db = make_db().await.db;
 
     // chunk 1 is an OS chunk
-    write_lp(&db, &lp_lines_1.join("\n")).await;
+    write_lp(&db, &lp_data[0].join("\n")).await;
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
@@ -1441,7 +1390,7 @@ async fn make_mub_rub_os_deletes(
         .unwrap();
 
     // Chunk 2 is a RUB
-    write_lp(&db, &lp_lines_2.join("\n")).await;
+    write_lp(&db, &lp_data[1].join("\n")).await;
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
@@ -1450,7 +1399,7 @@ async fn make_mub_rub_os_deletes(
         .unwrap();
 
     // Chunk 3 is a MUB
-    write_lp(&db, &lp_lines_3.join("\n")).await;
+    write_lp(&db, &lp_data[2].join("\n")).await;
 
     // 1 MUB, 1 RUB, 1 OS
     assert_eq!(count_mutable_buffer_chunks(&db), 1);
@@ -1458,9 +1407,9 @@ async fn make_mub_rub_os_deletes(
     assert_eq!(count_object_store_chunks(&db), 1);
 
     // Let issue 3 deletes
-    db.delete("cpu", Arc::new(pred1)).await.unwrap();
-    db.delete("cpu", Arc::new(pred2)).await.unwrap();
-    db.delete("cpu", Arc::new(pred3)).await.unwrap();
+    db.delete("cpu", Arc::new(preds[0].clone())).await.unwrap();
+    db.delete("cpu", Arc::new(preds[1].clone())).await.unwrap();
+    db.delete("cpu", Arc::new(preds[2].clone())).await.unwrap();
 
     DbScenario {
         scenario_name: "Deleted data from MUB, RUB, and OS".into(),
@@ -1469,20 +1418,15 @@ async fn make_mub_rub_os_deletes(
 }
 
 async fn make_2mub_rub_deletes(
-    lp_lines_1: Vec<&str>,
-    lp_lines_2: Vec<&str>,
-    lp_lines_3: Vec<&str>,
-    pred1: Predicate,
-    pred2: Predicate,
-    pred3: Predicate,
+    lp_data: &[Vec<&str>],
+    preds: &[Predicate],
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
-    
     let db = make_db().await.db;
 
     // Chunk 1 is a RUB
-    write_lp(&db, &lp_lines_1.join("\n")).await;
+    write_lp(&db, &lp_data[0].join("\n")).await;
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
@@ -1491,11 +1435,11 @@ async fn make_2mub_rub_deletes(
         .unwrap();
 
     // Chunk 2 is an frozen MUB and chunk 3 is an open MUB
-    write_lp(&db, &lp_lines_2.join("\n")).await;
+    write_lp(&db, &lp_data[1].join("\n")).await;
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
-    write_lp(&db, &lp_lines_3.join("\n")).await;
+    write_lp(&db, &lp_data[2].join("\n")).await;
 
     // 1 MUB, 1 RUB, 1 OS
     assert_eq!(count_mutable_buffer_chunks(&db), 2);
@@ -1503,9 +1447,9 @@ async fn make_2mub_rub_deletes(
     assert_eq!(count_object_store_chunks(&db), 0);
 
     // Let issue 3 deletes
-    db.delete("cpu", Arc::new(pred1)).await.unwrap();
-    db.delete("cpu", Arc::new(pred2)).await.unwrap();
-    db.delete("cpu", Arc::new(pred3)).await.unwrap();
+    db.delete("cpu", Arc::new(preds[0].clone())).await.unwrap();
+    db.delete("cpu", Arc::new(preds[1].clone())).await.unwrap();
+    db.delete("cpu", Arc::new(preds[2].clone())).await.unwrap();
 
     DbScenario {
         scenario_name: "Deleted data from 2 MUB, 1 RUB".into(),
@@ -1513,22 +1457,16 @@ async fn make_2mub_rub_deletes(
     }
 }
 
-
 async fn make_2mub_os_deletes(
-    lp_lines_1: Vec<&str>,
-    lp_lines_2: Vec<&str>,
-    lp_lines_3: Vec<&str>,
-    pred1: Predicate,
-    pred2: Predicate,
-    pred3: Predicate,
+    lp_data: &[Vec<&str>],
+    preds: &[Predicate],
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
-    
     let db = make_db().await.db;
 
     // chunk 1 is an OS chunk
-    write_lp(&db, &lp_lines_1.join("\n")).await;
+    write_lp(&db, &lp_data[0].join("\n")).await;
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
@@ -1545,22 +1483,22 @@ async fn make_2mub_os_deletes(
     db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
         .unwrap();
 
-   // Chunk 2 is an frozen MUB and chunk 3 is an open MUB
-   write_lp(&db, &lp_lines_2.join("\n")).await;
-   db.rollover_partition(table_name, partition_key)
-       .await
-       .unwrap();
-   write_lp(&db, &lp_lines_3.join("\n")).await;
+    // Chunk 2 is an frozen MUB and chunk 3 is an open MUB
+    write_lp(&db, &lp_data[1].join("\n")).await;
+    db.rollover_partition(table_name, partition_key)
+        .await
+        .unwrap();
+    write_lp(&db, &lp_data[2].join("\n")).await;
 
-   // 2 MUB, 1 OS
-   assert_eq!(count_mutable_buffer_chunks(&db), 2);
-   assert_eq!(count_read_buffer_chunks(&db), 0);
-   assert_eq!(count_object_store_chunks(&db), 1);
+    // 2 MUB, 1 OS
+    assert_eq!(count_mutable_buffer_chunks(&db), 2);
+    assert_eq!(count_read_buffer_chunks(&db), 0);
+    assert_eq!(count_object_store_chunks(&db), 1);
 
     // Let issue 3 deletes
-    db.delete("cpu", Arc::new(pred1)).await.unwrap();
-    db.delete("cpu", Arc::new(pred2)).await.unwrap();
-    db.delete("cpu", Arc::new(pred3)).await.unwrap();
+    db.delete("cpu", Arc::new(preds[0].clone())).await.unwrap();
+    db.delete("cpu", Arc::new(preds[1].clone())).await.unwrap();
+    db.delete("cpu", Arc::new(preds[2].clone())).await.unwrap();
 
     DbScenario {
         scenario_name: "Deleted data from 2 MUB, 1 OS".into(),
@@ -1568,22 +1506,16 @@ async fn make_2mub_os_deletes(
     }
 }
 
-
 async fn make_2rub_os_deletes(
-    lp_lines_1: Vec<&str>,
-    lp_lines_2: Vec<&str>,
-    lp_lines_3: Vec<&str>,
-    pred1: Predicate,
-    pred2: Predicate,
-    pred3: Predicate,
+    lp_data: &[Vec<&str>],
+    preds: &[Predicate],
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
-    
     let db = make_db().await.db;
 
     // chunk 1 is an OS chunk
-    write_lp(&db, &lp_lines_1.join("\n")).await;
+    write_lp(&db, &lp_data[0].join("\n")).await;
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
@@ -1600,8 +1532,8 @@ async fn make_2rub_os_deletes(
     db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
         .unwrap();
 
-    // Chunk 2 and 3 are RUBss 
-    write_lp(&db, &lp_lines_2.join("\n")).await;
+    // Chunk 2 and 3 are RUBss
+    write_lp(&db, &lp_data[1].join("\n")).await;
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
@@ -1609,7 +1541,7 @@ async fn make_2rub_os_deletes(
         .await
         .unwrap();
 
-    write_lp(&db, &lp_lines_3.join("\n")).await;
+    write_lp(&db, &lp_data[2].join("\n")).await;
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
@@ -1617,15 +1549,15 @@ async fn make_2rub_os_deletes(
         .await
         .unwrap();
 
-   // 2 RUB, 1 OS
-   assert_eq!(count_mutable_buffer_chunks(&db), 0);
-   assert_eq!(count_read_buffer_chunks(&db), 2);
-   assert_eq!(count_object_store_chunks(&db), 1);
+    // 2 RUB, 1 OS
+    assert_eq!(count_mutable_buffer_chunks(&db), 0);
+    assert_eq!(count_read_buffer_chunks(&db), 2);
+    assert_eq!(count_object_store_chunks(&db), 1);
 
     // Let issue 3 deletes
-    db.delete("cpu", Arc::new(pred1)).await.unwrap();
-    db.delete("cpu", Arc::new(pred2)).await.unwrap();
-    db.delete("cpu", Arc::new(pred3)).await.unwrap();
+    db.delete("cpu", Arc::new(preds[0].clone())).await.unwrap();
+    db.delete("cpu", Arc::new(preds[1].clone())).await.unwrap();
+    db.delete("cpu", Arc::new(preds[2].clone())).await.unwrap();
 
     DbScenario {
         scenario_name: "Deleted data from 2 RUB, 1 OS".into(),
@@ -1633,22 +1565,16 @@ async fn make_2rub_os_deletes(
     }
 }
 
-
 async fn make_rub_2os_deletes(
-    lp_lines_1: Vec<&str>,
-    lp_lines_2: Vec<&str>,
-    lp_lines_3: Vec<&str>,
-    pred1: Predicate,
-    pred2: Predicate,
-    pred3: Predicate,
+    lp_data: &[Vec<&str>],
+    preds: &[Predicate],
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
-    
     let db = make_db().await.db;
 
     // chunk 1 and 2 are OS
-    write_lp(&db, &lp_lines_1.join("\n")).await;
+    write_lp(&db, &lp_data[0].join("\n")).await;
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
@@ -1665,8 +1591,8 @@ async fn make_rub_2os_deletes(
     db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
         .unwrap();
 
-    // Chunk 2 
-    write_lp(&db, &lp_lines_2.join("\n")).await;
+    // Chunk 2
+    write_lp(&db, &lp_data[1].join("\n")).await;
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
@@ -1684,7 +1610,7 @@ async fn make_rub_2os_deletes(
         .unwrap();
 
     // Chunk 3 are RUB
-    write_lp(&db, &lp_lines_3.join("\n")).await;
+    write_lp(&db, &lp_data[2].join("\n")).await;
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
@@ -1692,15 +1618,15 @@ async fn make_rub_2os_deletes(
         .await
         .unwrap();
 
-   // 1 RUB, 2 OS
-   assert_eq!(count_mutable_buffer_chunks(&db), 0);
-   assert_eq!(count_read_buffer_chunks(&db), 1);
-   assert_eq!(count_object_store_chunks(&db), 2);
+    // 1 RUB, 2 OS
+    assert_eq!(count_mutable_buffer_chunks(&db), 0);
+    assert_eq!(count_read_buffer_chunks(&db), 1);
+    assert_eq!(count_object_store_chunks(&db), 2);
 
     // Let issue 3 deletes
-    db.delete("cpu", Arc::new(pred1)).await.unwrap();
-    db.delete("cpu", Arc::new(pred2)).await.unwrap();
-    db.delete("cpu", Arc::new(pred3)).await.unwrap();
+    db.delete("cpu", Arc::new(preds[0].clone())).await.unwrap();
+    db.delete("cpu", Arc::new(preds[1].clone())).await.unwrap();
+    db.delete("cpu", Arc::new(preds[2].clone())).await.unwrap();
 
     DbScenario {
         scenario_name: "Deleted data from 1 RUB, 2 OS".into(),
@@ -1709,20 +1635,15 @@ async fn make_rub_2os_deletes(
 }
 
 async fn make_3os_deletes(
-    lp_lines_1: Vec<&str>,
-    lp_lines_2: Vec<&str>,
-    lp_lines_3: Vec<&str>,
-    pred1: Predicate,
-    pred2: Predicate,
-    pred3: Predicate,
+    lp_data: &[Vec<&str>],
+    preds: &[Predicate],
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
-    
     let db = make_db().await.db;
 
     // All 3 chunks are OS
-    write_lp(&db, &lp_lines_1.join("\n")).await;
+    write_lp(&db, &lp_data[0].join("\n")).await;
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
@@ -1739,8 +1660,8 @@ async fn make_3os_deletes(
     db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
         .unwrap();
 
-    // Chunk 2 
-    write_lp(&db, &lp_lines_2.join("\n")).await;
+    // Chunk 2
+    write_lp(&db, &lp_data[1].join("\n")).await;
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
@@ -1757,8 +1678,8 @@ async fn make_3os_deletes(
     db.unload_read_buffer(table_name, partition_key, ChunkId::new(3))
         .unwrap();
 
-    // Chunk 3 
-    write_lp(&db, &lp_lines_3.join("\n")).await;
+    // Chunk 3
+    write_lp(&db, &lp_data[2].join("\n")).await;
     db.rollover_partition(table_name, partition_key)
         .await
         .unwrap();
@@ -1775,15 +1696,15 @@ async fn make_3os_deletes(
     db.unload_read_buffer(table_name, partition_key, ChunkId::new(5))
         .unwrap();
 
-   // 3 OS
-   assert_eq!(count_mutable_buffer_chunks(&db), 0);
-   assert_eq!(count_read_buffer_chunks(&db), 0);
-   assert_eq!(count_object_store_chunks(&db), 3);
+    // 3 OS
+    assert_eq!(count_mutable_buffer_chunks(&db), 0);
+    assert_eq!(count_read_buffer_chunks(&db), 0);
+    assert_eq!(count_object_store_chunks(&db), 3);
 
     // Let issue 3 deletes
-    db.delete("cpu", Arc::new(pred1)).await.unwrap();
-    db.delete("cpu", Arc::new(pred2)).await.unwrap();
-    db.delete("cpu", Arc::new(pred3)).await.unwrap();
+    db.delete("cpu", Arc::new(preds[0].clone())).await.unwrap();
+    db.delete("cpu", Arc::new(preds[1].clone())).await.unwrap();
+    db.delete("cpu", Arc::new(preds[2].clone())).await.unwrap();
 
     DbScenario {
         scenario_name: "Deleted data from 3 OS".into(),
