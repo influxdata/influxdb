@@ -2232,7 +2232,6 @@ dependencies = [
  "data_types",
  "entry",
  "hashbrown 0.11.2",
- "influxdb_line_protocol",
  "internal_types",
  "metric",
  "observability_deps",
