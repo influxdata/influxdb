@@ -2277,8 +2277,11 @@ mod tests {
                 bind_addr
             );
 
+            let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
+
             let router = tonic::transport::Server::builder()
                 .layer(trace_http::tower::TraceLayer::new(
+                    trace_header_parser,
                     Arc::clone(&test_storage.metric_registry),
                     None,
                     true,

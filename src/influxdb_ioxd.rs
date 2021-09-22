@@ -14,6 +14,7 @@ use server::{
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, net::SocketAddr, sync::Arc};
 use trace::TraceCollector;
+use trace_http::ctx::TraceHeaderParser;
 
 mod http;
 mod jemalloc;
@@ -188,9 +189,12 @@ pub async fn main(config: Config) -> Result<()> {
 
     let grpc_listener = grpc_listener(config.grpc_bind_address).await?;
     let http_listener = http_listener(config.http_bind_address).await?;
-    let trace_collector = config.tracing_config.build().context(Tracing)?;
+    let async_exporter = config.tracing_config.build().context(Tracing)?;
+    let trace_collector = async_exporter
+        .clone()
+        .map(|x| -> Arc<dyn TraceCollector> { x });
 
-    serve(
+    let r = serve(
         config,
         application,
         grpc_listener,
@@ -198,7 +202,14 @@ pub async fn main(config: Config) -> Result<()> {
         trace_collector,
         app_server,
     )
-    .await
+    .await;
+
+    if let Some(async_exporter) = async_exporter {
+        if let Err(e) = async_exporter.drain().await {
+            error!(%e, "error draining trace exporter");
+        }
+    }
+    r
 }
 
 async fn grpc_listener(addr: SocketAddr) -> Result<tokio::net::TcpListener> {
@@ -236,12 +247,21 @@ async fn serve(
     // Construct a token to trigger shutdown of API services
     let frontend_shutdown = tokio_util::sync::CancellationToken::new();
 
+    let trace_header_parser = TraceHeaderParser::new()
+        .with_jaeger_trace_context_header_name(
+            config
+                .tracing_config
+                .traces_jaeger_trace_context_header_name,
+        )
+        .with_jaeger_debug_name(config.tracing_config.traces_jaeger_debug_name);
+
     // Construct and start up gRPC server
 
     let grpc_server = rpc::serve(
         grpc_listener,
         Arc::clone(&application),
         Arc::clone(&app_server),
+        trace_header_parser.clone(),
         trace_collector.clone(),
         frontend_shutdown.clone(),
         config.initial_serving_state.into(),
@@ -258,6 +278,7 @@ async fn serve(
         Arc::clone(&app_server),
         frontend_shutdown.clone(),
         max_http_request_size,
+        trace_header_parser,
         trace_collector,
     )
     .fuse();
@@ -368,7 +389,7 @@ mod tests {
     use tokio::task::JoinHandle;
     use trace::span::{Span, SpanStatus};
     use trace::RingBufferTraceCollector;
-    use trace_exporters::otel::{OtelExporter, TestOtelExporter};
+    use trace_exporters::export::{AsyncExporter, TestAsyncExporter};
 
     fn test_config(server_id: Option<u32>) -> Config {
         let mut config = Config::from_iter(&[
@@ -783,9 +804,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_otel_exporter() {
+    async fn test_async_exporter() {
         let (sender, mut receiver) = tokio::sync::mpsc::channel(20);
-        let collector = Arc::new(OtelExporter::new(TestOtelExporter::new(sender)));
+        let collector = Arc::new(AsyncExporter::new(TestAsyncExporter::new(sender)));
 
         let (addr, server, join) = tracing_server(&collector).await;
         let conn = jaeger_client(addr, "34f8495:30e34:0:1").await;
@@ -794,15 +815,14 @@ mod tests {
             .await
             .unwrap();
 
-        collector.shutdown();
-        collector.join().await.unwrap();
+        collector.drain().await.unwrap();
 
         server.shutdown();
         join.await.unwrap().unwrap();
 
         let span = receiver.recv().await.unwrap();
-        assert_eq!(span.span_context.trace_id().to_u128(), 0x34f8495);
-        assert_eq!(span.parent_span_id.to_u64(), 0x30e34);
+        assert_eq!(span.ctx.trace_id.get(), 0x34f8495);
+        assert_eq!(span.ctx.parent_span_id.unwrap().get(), 0x30e34);
     }
 
     fn make_rules(db_name: impl Into<String>) -> ProvidedDatabaseRules {

@@ -425,9 +425,9 @@ dependencies = [
 
 [[package]]
 name = "bstr"
-version = "0.2.16"
+version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90682c8d613ad3373e66de8c6411e0ae2ab2571e879d2efbf73558cc66f21279"
+checksum = "ba3569f383e8f1598449f1a423e72e99569137b47740b1da11ef19af3d5c3223"
 dependencies = [
  "lazy_static",
  "memchr",
@@ -677,7 +677,7 @@ dependencies = [
  "criterion-plot",
  "csv",
  "futures",
- "itertools 0.10.1",
+ "itertools",
  "lazy_static",
  "num-traits",
  "oorandom",
@@ -700,7 +700,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d00996de9f2f7559f7f4dc286073197f83e92256a59ed395f9aac01fe717da57"
 dependencies = [
  "cast",
- "itertools 0.10.1",
+ "itertools",
 ]
 
 [[package]]
@@ -828,7 +828,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "5.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=225825634cca55f210d0366422f1543893be67c2#225825634cca55f210d0366422f1543893be67c2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=1c858ce7baab1929cfdba97051ef4e5e4d0a866b#1c858ce7baab1929cfdba97051ef4e5e4d0a866b"
 dependencies = [
  "ahash",
  "arrow",
@@ -1259,7 +1259,6 @@ dependencies = [
  "bytes",
  "chrono",
  "data_types",
- "futures",
  "google_types",
  "num_cpus",
  "observability_deps",
@@ -1270,7 +1269,6 @@ dependencies = [
  "prost-build",
  "regex",
  "serde",
- "serde_json",
  "thiserror",
  "tonic",
  "tonic-build",
@@ -1483,9 +1481,9 @@ dependencies = [
 
 [[package]]
 name = "http"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "527e8c9ac747e28542699a951517aa9a6945af506cd1f2e1b53a576c17b6cc11"
+checksum = "1323096b05d41827dadeaee54c9981958c0f94e670bc94ed80037d1a7b8b186b"
 dependencies = [
  "bytes",
  "fnv",
@@ -1676,7 +1674,7 @@ dependencies = [
  "influxdb_storage_client",
  "internal_types",
  "iox_object_store",
- "itertools 0.10.1",
+ "itertools",
  "libc",
  "log",
  "logfmt",
@@ -1815,8 +1813,7 @@ dependencies = [
  "futures",
  "hashbrown 0.11.2",
  "indexmap",
- "itertools 0.10.1",
- "observability_deps",
+ "itertools",
  "snafu",
  "tokio",
 ]
@@ -1836,7 +1833,7 @@ dependencies = [
  "humantime",
  "influxdb2_client",
  "influxdb_iox_client",
- "itertools 0.9.0",
+ "itertools",
  "packers",
  "rand",
  "rand_core",
@@ -1874,15 +1871,6 @@ name = "ipnet"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68f2d64f2edebec4ce84ad108148e67e1064789bee435edc5b60ad398714a3a9"
-
-[[package]]
-name = "itertools"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
-dependencies = [
- "either",
-]
 
 [[package]]
 name = "itertools"
@@ -2232,7 +2220,6 @@ dependencies = [
  "data_types",
  "entry",
  "hashbrown 0.11.2",
- "influxdb_line_protocol",
  "internal_types",
  "metric",
  "observability_deps",
@@ -2512,7 +2499,7 @@ dependencies = [
  "futures",
  "futures-test",
  "indexmap",
- "itertools 0.10.1",
+ "itertools",
  "percent-encoding",
  "reqwest",
  "rusoto_core",
@@ -2590,46 +2577,6 @@ dependencies = [
  "libc",
  "pkg-config",
  "vcpkg",
-]
-
-[[package]]
-name = "opentelemetry"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1cf9b1c4e9a6c4de793c632496fa490bdc0e1eea73f0c91394f7b6990935d22"
-dependencies = [
- "async-trait",
- "crossbeam-channel",
- "futures",
- "js-sys",
- "lazy_static",
- "percent-encoding",
- "pin-project",
- "rand",
- "thiserror",
-]
-
-[[package]]
-name = "opentelemetry-jaeger"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db22f492873ea037bc267b35a0e8e4fb846340058cb7c864efe3d0bf23684593"
-dependencies = [
- "async-trait",
- "lazy_static",
- "opentelemetry",
- "opentelemetry-semantic-conventions",
- "thiserror",
- "thrift",
-]
-
-[[package]]
-name = "opentelemetry-semantic-conventions"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffeac823339e8b0f27b961f4385057bf9f97f2863bc745bd015fd6091f2270e9"
-dependencies = [
- "opentelemetry",
 ]
 
 [[package]]
@@ -2783,7 +2730,6 @@ dependencies = [
  "thrift",
  "tokio",
  "tokio-stream",
- "tracker",
  "uuid",
  "zstd",
 ]
@@ -2808,7 +2754,7 @@ name = "pbjson_build"
 version = "0.1.0"
 dependencies = [
  "heck",
- "itertools 0.10.1",
+ "itertools",
  "pbjson_test",
  "prost",
  "prost-types",
@@ -3042,7 +2988,7 @@ checksum = "c143348f141cc87aab5b950021bac6145d0e5ae754b0591de23244cee42c9308"
 dependencies = [
  "difflib",
  "float-cmp",
- "itertools 0.10.1",
+ "itertools",
  "normalize-line-endings",
  "predicates-core",
  "regex",
@@ -3165,7 +3111,7 @@ checksum = "355f634b43cdd80724ee7848f95770e7e70eefa6dcf14fea676216573b8fd603"
 dependencies = [
  "bytes",
  "heck",
- "itertools 0.10.1",
+ "itertools",
  "log",
  "multimap",
  "petgraph",
@@ -3182,7 +3128,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "600d2f334aa05acb02a755e217ef1ab6dea4d51b58b7846588b747edec04efba"
 dependencies = [
  "anyhow",
- "itertools 0.10.1",
+ "itertools",
  "proc-macro2",
  "quote",
  "syn",
@@ -3213,7 +3159,7 @@ dependencies = [
  "futures",
  "hashbrown 0.11.2",
  "internal_types",
- "itertools 0.10.1",
+ "itertools",
  "libc",
  "observability_deps",
  "parking_lot",
@@ -3417,7 +3363,7 @@ dependencies = [
  "either",
  "hashbrown 0.11.2",
  "internal_types",
- "itertools 0.10.1",
+ "itertools",
  "metric",
  "observability_deps",
  "packers",
@@ -3899,7 +3845,7 @@ dependencies = [
  "influxdb_line_protocol",
  "internal_types",
  "iox_object_store",
- "itertools 0.10.1",
+ "itertools",
  "lifecycle",
  "metric",
  "mutable_buffer",
@@ -4356,9 +4302,9 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "1.11.0"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4efe6fc2395938c8155973d7be49fe8d03a843726e285e100a8a383cc0154ce"
+checksum = "c2c2416fdedca8443ae44b4527de1ea633af61d8f7169ffa6e72c5b53d24efcc"
 dependencies = [
  "autocfg",
  "bytes",
@@ -4573,12 +4519,10 @@ dependencies = [
  "chrono",
  "futures",
  "observability_deps",
- "opentelemetry",
- "opentelemetry-jaeger",
  "snafu",
  "structopt",
+ "thrift",
  "tokio",
- "tokio-util",
  "trace",
 ]
 
@@ -4590,7 +4534,7 @@ dependencies = [
  "hashbrown 0.11.2",
  "http",
  "http-body",
- "itertools 0.10.1",
+ "itertools",
  "metric",
  "observability_deps",
  "parking_lot",

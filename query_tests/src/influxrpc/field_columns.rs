@@ -1,7 +1,7 @@
 use arrow::datatypes::DataType;
 use arrow_util::assert_batches_eq;
 use datafusion::logical_plan::{col, lit};
-use predicate::predicate::PredicateBuilder;
+use predicate::predicate::{Predicate, PredicateBuilder};
 use query::{
     exec::{
         fieldlist::{Field, FieldList},
@@ -17,42 +17,45 @@ use crate::scenarios::*;
 ///
 /// runs field_column_names(predicate) and compares it to the expected
 /// output
-macro_rules! run_field_columns_test_case {
-    ($DB_SETUP:expr, $PREDICATE:expr, $EXPECTED_FIELDS:expr) => {
-        test_helpers::maybe_start_logging();
-        let predicate = $PREDICATE;
-        let expected_fields = $EXPECTED_FIELDS;
-        for scenario in $DB_SETUP.make().await {
-            let DbScenario {
-                scenario_name, db, ..
-            } = scenario;
-            println!("Running scenario '{}'", scenario_name);
-            println!("Predicate: '{:#?}'", predicate);
-            let planner = InfluxRpcPlanner::new();
-            let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
+async fn run_field_columns_test_case<D>(
+    db_setup: D,
+    predicate: Predicate,
+    expected_fields: FieldList,
+) where
+    D: DbSetup,
+{
+    test_helpers::maybe_start_logging();
 
-            let plan = planner
-                .field_columns(db.as_ref(), predicate.clone())
-                .expect("built plan successfully");
-            let fields = ctx
-                .to_field_list(plan)
-                .await
-                .expect("converted plan to strings successfully");
+    for scenario in db_setup.make().await {
+        let DbScenario {
+            scenario_name, db, ..
+        } = scenario;
+        println!("Running scenario '{}'", scenario_name);
+        println!("Predicate: '{:#?}'", predicate);
+        let planner = InfluxRpcPlanner::new();
+        let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
-            assert_eq!(
-                fields, expected_fields,
-                "Error in  scenario '{}'\n\nexpected:\n{:#?}\nactual:\n{:#?}",
-                scenario_name, expected_fields, fields
-            );
-        }
-    };
+        let plan = planner
+            .field_columns(db.as_ref(), predicate.clone())
+            .expect("built plan successfully");
+        let fields = ctx
+            .to_field_list(plan)
+            .await
+            .expect("converted plan to strings successfully");
+
+        assert_eq!(
+            fields, expected_fields,
+            "Error in  scenario '{}'\n\nexpected:\n{:#?}\nactual:\n{:#?}",
+            scenario_name, expected_fields, fields
+        );
+    }
 }
 
 #[tokio::test]
 async fn test_field_columns_empty_database() {
     let predicate = PredicateBuilder::default().build();
     let expected_fields = FieldList::default();
-    run_field_columns_test_case!(NoData {}, predicate, expected_fields);
+    run_field_columns_test_case(NoData {}, predicate, expected_fields).await;
 }
 
 #[tokio::test]
@@ -62,7 +65,7 @@ async fn test_field_columns_no_predicate() {
         .add_expr(col("state").eq(lit("MA"))) // state=MA
         .build();
     let expected_fields = FieldList::default();
-    run_field_columns_test_case!(TwoMeasurementsManyFields {}, predicate, expected_fields);
+    run_field_columns_test_case(TwoMeasurementsManyFields {}, predicate, expected_fields).await;
 }
 
 #[tokio::test]
@@ -93,7 +96,7 @@ async fn test_field_columns_with_pred() {
         ],
     };
 
-    run_field_columns_test_case!(TwoMeasurementsManyFields {}, predicate, expected_fields);
+    run_field_columns_test_case(TwoMeasurementsManyFields {}, predicate, expected_fields).await;
 }
 
 #[tokio::test]
@@ -112,7 +115,7 @@ async fn test_field_columns_with_ts_pred() {
         }],
     };
 
-    run_field_columns_test_case!(TwoMeasurementsManyFields {}, predicate, expected_fields);
+    run_field_columns_test_case(TwoMeasurementsManyFields {}, predicate, expected_fields).await;
 }
 
 #[tokio::test]

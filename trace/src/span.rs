@@ -87,6 +87,7 @@ pub enum MetaValue {
     String(Cow<'static, str>),
     Float(f64),
     Int(i64),
+    Bool(bool),
 }
 
 impl From<&'static str> for MetaValue {

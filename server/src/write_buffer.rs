@@ -328,7 +328,7 @@ mod tests {
         loop {
             let planner = SqlQueryPlanner::default();
             let ctx = db.new_query_context(None);
-            let physical_plan = planner.query(query, &ctx);
+            let physical_plan = planner.query(query, &ctx).await;
 
             if physical_plan.is_ok() {
                 break;

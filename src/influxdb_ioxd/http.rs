@@ -38,6 +38,7 @@ use hyper::{http::HeaderValue, Body, Method, Request, Response, StatusCode};
 use observability_deps::tracing::{self, debug, error};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
+use trace_http::ctx::TraceHeaderParser;
 
 use crate::influxdb_ioxd::http::metrics::LineProtocolMetrics;
 use hyper::server::conn::{AddrIncoming, AddrStream};
@@ -777,14 +778,15 @@ pub async fn serve<M>(
     app_server: Arc<AppServer<M>>,
     shutdown: CancellationToken,
     max_request_size: usize,
+    trace_header_parser: TraceHeaderParser,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 ) -> Result<(), hyper::Error>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
     let metric_registry = Arc::clone(application.metric_registry());
-    let trace_layer = TraceLayer::new(metric_registry, trace_collector, false);
 
+    let trace_layer = TraceLayer::new(trace_header_parser, metric_registry, trace_collector, false);
     let lp_metrics = Arc::new(LineProtocolMetrics::new(
         application.metric_registry().as_ref(),
     ));
@@ -1482,12 +1484,16 @@ mod tests {
         let addr = AddrIncoming::bind(&bind_addr).expect("failed to bind server");
         let server_url = format!("http://{}", addr.local_addr());
 
+        let trace_header_parser = trace_http::ctx::TraceHeaderParser::new()
+            .with_jaeger_trace_context_header_name("uber-trace-id");
+
         tokio::task::spawn(serve(
             addr,
             application,
             server,
             CancellationToken::new(),
             TEST_MAX_REQUEST_SIZE,
+            trace_header_parser,
             trace_collector,
         ));
         println!("Started server at {}", server_url);

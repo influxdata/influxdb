@@ -194,7 +194,7 @@ impl ReorgPlanner {
     /// that will be best for RLE encoding.
     ///
     /// Prefer to query::provider::build_scan_plan for the detail of the plan
-    ///   
+    ///
     fn sorted_scan_plan<C, I>(&self, schema: Arc<Schema>, chunks: I) -> Result<ScanPlan<C>>
     where
         C: QueryChunk + 'static,
@@ -350,6 +350,7 @@ mod test {
         let physical_plan = executor
             .new_context(ExecutorType::Reorg)
             .prepare_plan(&compact_plan)
+            .await
             .unwrap();
         assert_eq!(
             physical_plan.output_partitioning().partition_count(),
@@ -406,6 +407,7 @@ mod test {
         let physical_plan = executor
             .new_context(ExecutorType::Reorg)
             .prepare_plan(&split_plan)
+            .await
             .unwrap();
 
         assert_eq!(

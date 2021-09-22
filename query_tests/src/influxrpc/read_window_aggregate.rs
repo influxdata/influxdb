@@ -14,58 +14,61 @@ use query::{
 
 /// runs read_window_aggregate(predicate) and compares it to the expected
 /// output
-macro_rules! run_read_window_aggregate_test_case {
-    ($DB_SETUP:expr, $PREDICATE:expr, $AGG:expr, $EVERY:expr, $OFFSET:expr, $EXPECTED_RESULTS:expr) => {
-        test_helpers::maybe_start_logging();
-        let predicate = $PREDICATE;
-        let agg = $AGG;
-        let every = $EVERY;
-        let offset = $OFFSET;
-        let expected_results = $EXPECTED_RESULTS;
-        for scenario in $DB_SETUP.make().await {
-            let DbScenario {
-                scenario_name, db, ..
-            } = scenario;
-            println!("Running scenario '{}'", scenario_name);
-            println!("Predicate: '{:#?}'", predicate);
-            let planner = InfluxRpcPlanner::new();
-            let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
+async fn run_read_window_aggregate_test_case<D>(
+    db_setup: D,
+    predicate: Predicate,
+    agg: Aggregate,
+    every: WindowDuration,
+    offset: WindowDuration,
+    expected_results: Vec<&str>,
+) where
+    D: DbSetup,
+{
+    test_helpers::maybe_start_logging();
 
-            let plans = planner
-                .read_window_aggregate(
-                    db.as_ref(),
-                    predicate.clone(),
-                    agg,
-                    every.clone(),
-                    offset.clone(),
-                )
-                .expect("built plan successfully");
+    for scenario in db_setup.make().await {
+        let DbScenario {
+            scenario_name, db, ..
+        } = scenario;
+        println!("Running scenario '{}'", scenario_name);
+        println!("Predicate: '{:#?}'", predicate);
+        let planner = InfluxRpcPlanner::new();
+        let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
-            let plans = plans.into_inner();
+        let plans = planner
+            .read_window_aggregate(
+                db.as_ref(),
+                predicate.clone(),
+                agg,
+                every.clone(),
+                offset.clone(),
+            )
+            .expect("built plan successfully");
 
-            let mut string_results = vec![];
-            for plan in plans.into_iter() {
-                let batches = ctx
-                    .run_logical_plan(plan.plan)
-                    .await
-                    .expect("ok running plan");
+        let plans = plans.into_inner();
 
-                string_results.extend(
-                    pretty_format_batches(&batches)
-                        .expect("formatting results")
-                        .trim()
-                        .split('\n')
-                        .map(|s| s.to_string()),
-                );
-            }
+        let mut string_results = vec![];
+        for plan in plans.into_iter() {
+            let batches = ctx
+                .run_logical_plan(plan.plan)
+                .await
+                .expect("ok running plan");
 
-            assert_eq!(
-                expected_results, string_results,
-                "Error in  scenario '{}'\n\nexpected:\n{:#?}\n\nactual:\n{:#?}\n",
-                scenario_name, expected_results, string_results
+            string_results.extend(
+                pretty_format_batches(&batches)
+                    .expect("formatting results")
+                    .trim()
+                    .split('\n')
+                    .map(|s| s.to_string()),
             );
         }
-    };
+
+        assert_eq!(
+            expected_results, string_results,
+            "Error in  scenario '{}'\n\nexpected:\n{:#?}\n\nactual:\n{:#?}\n",
+            scenario_name, expected_results, string_results
+        );
+    }
 }
 
 #[tokio::test]
@@ -76,14 +79,8 @@ async fn test_read_window_aggregate_no_data_no_pred() {
     let offset = WindowDuration::from_nanoseconds(0);
     let expected_results = vec![] as Vec<&str>;
 
-    run_read_window_aggregate_test_case!(
-        NoData {},
-        predicate,
-        agg,
-        every,
-        offset,
-        expected_results
-    );
+    run_read_window_aggregate_test_case(NoData {}, predicate, agg, every, offset, expected_results)
+        .await;
 }
 
 struct MeasurementForWindowAggregate {}
@@ -142,14 +139,15 @@ async fn test_read_window_aggregate_nanoseconds() {
         "+--------+-------+--------------------------------+------+",
     ];
 
-    run_read_window_aggregate_test_case!(
+    run_read_window_aggregate_test_case(
         MeasurementForWindowAggregate {},
         predicate,
         agg,
         every,
         offset,
-        expected_results
-    );
+        expected_results,
+    )
+    .await;
 }
 
 struct MeasurementForWindowAggregateMonths {}
@@ -224,12 +222,13 @@ async fn test_read_window_aggregate_months() {
         "+--------+-------+----------------------+------+",
     ];
 
-    run_read_window_aggregate_test_case!(
+    run_read_window_aggregate_test_case(
         MeasurementForWindowAggregateMonths {},
         predicate,
         agg,
         every,
         offset,
-        expected_results
-    );
+        expected_results,
+    )
+    .await;
 }

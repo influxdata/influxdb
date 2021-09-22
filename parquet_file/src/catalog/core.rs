@@ -147,11 +147,6 @@ pub enum Error {
         source: crate::catalog::interface::CatalogStateRemoveError,
     },
 
-    #[snafu(display("Cannot add delete predicate: {}", source))]
-    DeletePredicateError {
-        source: crate::catalog::interface::CatalogStateDeletePredicateError,
-    },
-
     #[snafu(display("Cannot serialize predicate: {}", source))]
     CannotSerializePredicate {
         source: predicate::serialize::SerializeError,
@@ -591,9 +586,7 @@ impl OpenTransaction {
                         chunk_id: ChunkId::new(chunk.chunk_id),
                     })
                     .collect();
-                state
-                    .delete_predicate(predicate, chunks)
-                    .context(DeletePredicateError)?;
+                state.delete_predicate(predicate, chunks);
             }
         };
         Ok(())
@@ -1739,12 +1732,12 @@ mod tests {
             let predicate_1 = create_delete_predicate(&chunk_addrs[0].table_name, 42);
             let chunks_1 = vec![chunk_addrs[0].clone().into()];
             t.delete_predicate(&predicate_1, &chunks_1).unwrap();
-            state.delete_predicate(predicate_1, chunks_1).unwrap();
+            state.delete_predicate(predicate_1, chunks_1);
 
             let predicate_2 = create_delete_predicate(&chunk_addrs[0].table_name, 1337);
             let chunks_2 = vec![chunk_addrs[0].clone().into(), chunk_addrs[1].clone().into()];
             t.delete_predicate(&predicate_2, &chunks_2).unwrap();
-            state.delete_predicate(predicate_2, chunks_2).unwrap();
+            state.delete_predicate(predicate_2, chunks_2);
 
             t.commit().await.unwrap();
         }

@@ -265,7 +265,7 @@ docker run -d --name jaeger \
 
 ### Step 2: Run IOx configured to send traces to the local Jaeger instance
 
-Build IOx with `--features=jaeger` and run with the following environment variables set:
+Build IOx and run with the following environment variable set:
 ```
 TRACES_EXPORTER=jaeger
 TRACES_EXPORTER_JAEGER_AGENT_HOST=localhost
@@ -274,7 +274,7 @@ TRACES_EXPORTER_JAEGER_AGENT_PORT=6831
 
 For example, a command such as this should do the trick:
 ```shell
-TRACES_EXPORTER=jaeger TRACES_EXPORTER_JAEGER_AGENT_HOST=localhost TRACES_EXPORTER_JAEGER_AGENT_PORT=6831 cargo run --features=jaeger -- run -v --object-store=file --data-dir=$HOME/.influxdb_iox --server-id=42
+TRACES_EXPORTER=jaeger TRACES_EXPORTER_JAEGER_AGENT_HOST=localhost TRACES_EXPORTER_JAEGER_AGENT_PORT=6831 cargo run -- run -v --server-id=42
 ```
 
 ### Step 3: Send a request with trace context
@@ -286,8 +286,8 @@ For IOx to emit traces, the request must have a span context set. You can use th
 ./target/debug/influxdb_iox database create my_db
 # load data
 ./target/debug/influxdb_iox database write my_db tests/fixtures/lineproto/metrics.lp
-# run a query and include a span context
-./target/debug/influxdb_iox database query my_db  'show tables' --header uber-trace-id:4459495:30434:0:1
+# run a query and start a new trace 
+./target/debug/influxdb_iox database query my_db  'show tables' --header jaeger-debug-id:tracing-is-a-great-idea
 ```
 
 ### Step 4: Explore Spans in the UI

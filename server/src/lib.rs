@@ -2381,7 +2381,7 @@ mod tests {
         let planner = SqlQueryPlanner::default();
         let ctx = db.new_query_context(None);
 
-        let physical_plan = planner.query(query, &ctx).unwrap();
+        let physical_plan = planner.query(query, &ctx).await.unwrap();
         ctx.collect(physical_plan).await.unwrap()
     }
 

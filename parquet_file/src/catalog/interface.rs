@@ -93,13 +93,6 @@ pub enum CatalogStateRemoveError {
     ParquetFileDoesNotExist { path: ParquetFilePath },
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(visibility(pub))]
-pub enum CatalogStateDeletePredicateError {
-    #[snafu(display("Chunk does not exist in catalog: {}", chunk))]
-    ChunkDoesNotExist { chunk: ChunkAddrWithoutDatabase },
-}
-
 /// Abstraction over how the in-memory state of the catalog works.
 pub trait CatalogState {
     /// Input to create a new empty instance.
@@ -127,7 +120,7 @@ pub trait CatalogState {
         &mut self,
         predicate: Arc<Predicate>,
         chunks: Vec<ChunkAddrWithoutDatabase>,
-    ) -> Result<(), CatalogStateDeletePredicateError>;
+    );
 }
 
 /// Structure that holds all information required to create a checkpoint.
