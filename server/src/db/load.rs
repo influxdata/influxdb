@@ -226,7 +226,10 @@ impl CatalogState for Loader {
             .map_err(|e| Box::new(e) as _)
             .context(SchemaError { path: info.path })?;
 
+        // Delete predicates are loaded explicitely via `CatalogState::delete_predicates` AFTER the chunk is added, so
+        // we leave this list empty (for now).
         let delete_predicates: Vec<Arc<Predicate>> = vec![];
+
         partition.insert_object_store_only_chunk(
             iox_md.chunk_id,
             parquet_chunk,
