@@ -78,6 +78,7 @@ mod test {
         let plan = executor
             .new_context(ExecutorType::Reorg)
             .prepare_plan(&split_plan)
+            .await
             .unwrap();
 
         let mut stream0 = plan.execute(0).await.expect("ran the plan");

@@ -1,6 +1,7 @@
 //! This module contains plumbing to connect InfluxDB IOx extensions to
 //! DataFusion
 
+use async_trait::async_trait;
 use std::{fmt, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
@@ -50,10 +51,11 @@ pub const DEFAULT_SCHEMA: &str = "iox";
 /// and is needed to create plans with the IOx extension nodes.
 struct IOxQueryPlanner {}
 
+#[async_trait]
 impl QueryPlanner for IOxQueryPlanner {
     /// Given a `LogicalPlan` created from above, create an
     /// `ExecutionPlan` suitable for execution
-    fn create_physical_plan(
+    async fn create_physical_plan(
         &self,
         logical_plan: &LogicalPlan,
         ctx_state: &ExecutionContextState,
@@ -63,7 +65,9 @@ impl QueryPlanner for IOxQueryPlanner {
         let physical_planner =
             DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(IOxExtensionPlanner {})]);
         // Delegate most work of physical planning to the default physical planner
-        physical_planner.create_physical_plan(logical_plan, ctx_state)
+        physical_planner
+            .create_physical_plan(logical_plan, ctx_state)
+            .await
     }
 }
 
@@ -246,15 +250,15 @@ impl IOxExecutionContext {
 
     /// Prepare a SQL statement for execution. This assumes that any
     /// tables referenced in the SQL have been registered with this context
-    pub fn prepare_sql(&self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
+    pub async fn prepare_sql(&self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
         let ctx = self.child_ctx("prepare_sql");
         debug!(text=%sql, "planning SQL query");
         let logical_plan = ctx.inner.create_logical_plan(sql)?;
-        ctx.prepare_plan(&logical_plan)
+        ctx.prepare_plan(&logical_plan).await
     }
 
     /// Prepare (optimize + plan) a pre-created logical plan for execution
-    pub fn prepare_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
+    pub async fn prepare_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
         let mut ctx = self.child_ctx("prepare_plan");
         debug!(text=%plan.display_indent_schema(), "prepare_plan: initial plan");
 
@@ -263,7 +267,7 @@ impl IOxExecutionContext {
         ctx.recorder.event("optimized plan");
         trace!(text=%plan.display_indent_schema(), graphviz=%plan.display_graphviz(), "optimized plan");
 
-        let physical_plan = ctx.inner.create_physical_plan(&plan)?;
+        let physical_plan = ctx.inner.create_physical_plan(&plan).await?;
 
         ctx.recorder.event("plan to run");
         debug!(text=%displayable(physical_plan.as_ref()).indent(), "prepare_plan: plan to run");
@@ -366,7 +370,7 @@ impl IOxExecutionContext {
 
                     let tag_columns = Arc::new(tag_columns);
 
-                    let physical_plan = ctx.prepare_plan(&plan)?;
+                    let physical_plan = ctx.prepare_plan(&plan).await?;
 
                     let it = ctx.execute_stream(physical_plan).await?;
 
@@ -411,7 +415,7 @@ impl IOxExecutionContext {
             .map(|plan| {
                 let ctx = self.child_ctx("to_field_list");
                 self.run(async move {
-                    let physical_plan = ctx.prepare_plan(&plan)?;
+                    let physical_plan = ctx.prepare_plan(&plan).await?;
 
                     // TODO: avoid this buffering
                     let field_list =
@@ -468,7 +472,7 @@ impl IOxExecutionContext {
             .map(|plan| {
                 let ctx = self.child_ctx("run_logical_plans");
                 self.run(async move {
-                    let physical_plan = ctx.prepare_plan(&plan)?;
+                    let physical_plan = ctx.prepare_plan(&plan).await?;
 
                     // TODO: avoid this buffering
                     ctx.collect(physical_plan).await

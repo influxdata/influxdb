@@ -26,7 +26,10 @@ macro_rules! run_sql_test_case {
             let planner = SqlQueryPlanner::default();
             let ctx = db.new_query_context(None);
 
-            let physical_plan = planner.query(&sql, &ctx).expect("built plan successfully");
+            let physical_plan = planner
+                .query(&sql, &ctx)
+                .await
+                .expect("built plan successfully");
 
             let results: Vec<RecordBatch> = ctx.collect(physical_plan).await.expect("Running plan");
             assert_batches_sorted_eq!($EXPECTED_LINES, &results);

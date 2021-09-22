@@ -40,7 +40,7 @@ impl Planner {
         let ctx = self.ctx.child_ctx("sql");
 
         self.ctx
-            .run(async move { planner.query(&query, &ctx) })
+            .run(async move { planner.query(&query, &ctx).await })
             .await
     }
 

@@ -277,7 +277,10 @@ impl<W: Write> Runner<W> {
                 .with_default_catalog(db)
                 .build();
 
-            let physical_plan = planner.query(sql, &ctx).expect("built plan successfully");
+            let physical_plan = planner
+                .query(sql, &ctx)
+                .await
+                .expect("built plan successfully");
 
             let results: Vec<RecordBatch> = ctx.collect(physical_plan).await.expect("Running plan");
 
