@@ -967,9 +967,10 @@ async fn sql_select_with_three_deletes_from_three_chunks() {
         "+-----+-----+--------------------------------+",
     ];
 
-    run_sql_test_case!(
+    run_sql_test_case(
         scenarios::delete::ThreeDeleteThreeChunks {},
         "SELECT * from cpu",
         &expected
-    );
+    )
+    .await;
 }
