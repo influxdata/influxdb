@@ -28,8 +28,6 @@ macro_rules! run_sql_test_case {
 
             let physical_plan = planner.query(&sql, &ctx).expect("built plan successfully");
 
-            //println!(" --- Physical plan: {:#?}", physical_plan);
-
             let results: Vec<RecordBatch> = ctx.collect(physical_plan).await.expect("Running plan");
             assert_batches_sorted_eq!($EXPECTED_LINES, &results);
         }
@@ -752,10 +750,8 @@ async fn sql_predicate_pushdown_correctness_13() {
 #[tokio::test]
 async fn sql_deduplicate_1() {
     // This current expected is wrong because deduplicate is not available yet
-    // let sql =
-    //     "select time, state, city, min_temp, max_temp, area from h2o order by time, state, city";
     let sql =
-        "select time, state, city, min_temp, max_temp, area from h2o order by state, city, time";
+        "select time, state, city, min_temp, max_temp, area from h2o order by time, state, city";
     let expected = vec![
         "+--------------------------------+-------+---------+----------+----------+------+",
         "| time                           | state | city    | min_temp | max_temp | area |",
