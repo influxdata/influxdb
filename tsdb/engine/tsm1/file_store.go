@@ -1059,16 +1059,16 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 
 // MakeSnapshotLinks creates hardlinks from the supplied TSMFiles to
 // corresponding files under a supplied directory.
-func (f *FileStore) MakeSnapshotLinks(destPath string, files []TSMFile) error {
+func (f *FileStore) MakeSnapshotLinks(destPath string, files []TSMFile) (returnErr error) {
 	for _, tsmf := range files {
 		newpath := filepath.Join(destPath, filepath.Base(tsmf.Path()))
-		if err := os.Link(tsmf.Path(), newpath); err != nil {
-			return fmt.Errorf("error creating tsm hard link: %q", err)
+		if err := copyOrLink(tsmf.Path(), newpath); err != nil {
+			return err
 		}
 		if tf := tsmf.TombstoneStats(); tf.TombstoneExists {
 			newpath := filepath.Join(destPath, filepath.Base(tf.Path))
-			if err := os.Link(tf.Path, newpath); err != nil {
-				return fmt.Errorf("error creating tombstone hard link: %q", err)
+			if err := copyOrLink(tf.Path, newpath); err != nil {
+				return err
 			}
 		}
 	}
