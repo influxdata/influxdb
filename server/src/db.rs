@@ -49,7 +49,6 @@ use write_buffer::core::{WriteBufferReading, WriteBufferWriting};
 pub(crate) use crate::db::chunk::DbChunk;
 use crate::{
     db::{
-        self,
         access::QueryCatalogAccess,
         catalog::{
             chunk::{CatalogChunk, ChunkStage},
@@ -120,9 +119,6 @@ pub enum Error {
         table_name: String,
         source: CatalogError,
     },
-
-    #[snafu(display("Internal error while adding predicate predicate to chunk: {}", source))]
-    AddDeletePredicateError { source: db::catalog::chunk::Error },
 
     #[snafu(display(
         "Storing sequenced entry failed with the following error(s), and possibly more: {}",
@@ -546,9 +542,7 @@ impl Db {
                 for chunk in chunks {
                     // save the delete predicate in the chunk
                     let mut chunk = chunk.write();
-                    chunk
-                        .add_delete_predicate(Arc::clone(&delete_predicate))
-                        .context(AddDeletePredicateError)?;
+                    chunk.add_delete_predicate(Arc::clone(&delete_predicate));
 
                     // We should only report persisted chunks or chunks that are currently being persisted, because the
                     // preserved catalog does not care about purely in-mem chunks.
