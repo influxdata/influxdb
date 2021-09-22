@@ -12,8 +12,8 @@ use snafu::{ResultExt, Snafu};
 use crate::catalog::{
     core::PreservedCatalog,
     interface::{
-        CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateDeletePredicateError,
-        CatalogStateRemoveError, ChunkAddrWithoutDatabase,
+        CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError,
+        ChunkAddrWithoutDatabase,
     },
 };
 
@@ -146,10 +146,9 @@ impl CatalogState for TracerCatalogState {
         &mut self,
         _predicate: Arc<Predicate>,
         _chunks: Vec<ChunkAddrWithoutDatabase>,
-    ) -> Result<(), CatalogStateDeletePredicateError> {
+    ) {
         // No need to track delete predicates, because the cleanup's job is to remove unreferenced parquet files. Delete
         // predicates however are stored directly within the preserved catalog and therefore don't need pruning.
-        Ok(())
     }
 }
 
