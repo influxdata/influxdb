@@ -970,7 +970,27 @@ async fn sql_select_with_three_deletes_from_three_chunks() {
     run_sql_test_case(
         scenarios::delete::ThreeDeleteThreeChunks {},
         "SELECT * from cpu",
-        &expected
+        &expected,
     )
     .await;
+
+    // Hmm: It seems a bug here. I am working on this next
+    // // Test with selection predicate
+    // let expected = vec![
+    //     "+-----+-----+--------------------------------+",
+    //     "| bar | foo | time                           |",
+    //     "+-----+-----+--------------------------------+",
+    //     "| 4   | me  | 1970-01-01T00:00:00.000000050Z |",
+    //     "| 5   | me  | 1970-01-01T00:00:00.000000060Z |",
+    //     "| 7   | me  | 1970-01-01T00:00:00.000000080Z |",
+    //     "+-----+-----+--------------------------------+",
+    // ];
+
+    // run_sql_test_case(
+    //     scenarios::delete::ThreeDeleteThreeChunks {},
+    //     "SELECT * from cpu where foo = 'me' and bar > 2",
+    //     &expected,
+    // )
+    // .await;
+
 }
