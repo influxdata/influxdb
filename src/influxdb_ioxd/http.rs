@@ -1484,7 +1484,8 @@ mod tests {
         let addr = AddrIncoming::bind(&bind_addr).expect("failed to bind server");
         let server_url = format!("http://{}", addr.local_addr());
 
-        let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
+        let trace_header_parser = trace_http::ctx::TraceHeaderParser::new()
+            .with_jaeger_trace_context_header_name("uber-trace-id");
 
         tokio::task::spawn(serve(
             addr,

@@ -62,7 +62,7 @@ pub struct TracingConfig {
     )]
     pub traces_exporter_jaeger_service_name: String,
 
-    /// Tracing: http request header that contains the Jaeger service name
+    /// Tracing: specifies the header name used for passing trace context
     ///
     /// Only used if `--traces-exporter` is "jaeger".
     #[structopt(
@@ -70,7 +70,17 @@ pub struct TracingConfig {
         env = "JAEGER_TRACE_CONTEXT_HEADER_NAME",
         default_value = "uber-trace-id"
     )]
-    pub jaeger_trace_context_header_name: String,
+    pub traces_jaeger_trace_context_header_name: String,
+
+    /// Tracing: specifies the header name used for force sampling
+    ///
+    /// Only used if `--traces-exporter` is "jaeger".
+    #[structopt(
+        long = "--traces-jaeger-debug-name",
+        env = "JAEGER_DEBUG_NAME",
+        default_value = "jaeger-debug-id"
+    )]
+    pub traces_jaeger_debug_name: String,
 }
 
 impl TracingConfig {

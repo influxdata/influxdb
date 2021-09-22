@@ -663,7 +663,7 @@ def run_test_battery(battery_name, router_id, writer_id, debug=False, do_trace=F
         headers = {}
         if do_trace:
             # TODO remove this after IOx can be configured to sample 100% of traces
-            headers['uber-trace-id'] = '%x:%x:0:1' % (random.randrange(0, 2 ** 64), random.randrange(0, 2 ** 64))
+            headers['jaeger-debug-id'] = 'from-perf'
         response = requests.get(url=query_url, params=params, headers=headers)
         time_delta = '%dms' % math.floor((time.time() - time_start) * 1000)
 

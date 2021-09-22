@@ -238,7 +238,12 @@ async fn serve(
     let frontend_shutdown = tokio_util::sync::CancellationToken::new();
 
     let trace_header_parser = TraceHeaderParser::new()
-        .with_jaeger_header_name(config.tracing_config.jaeger_trace_context_header_name);
+        .with_jaeger_trace_context_header_name(
+            config
+                .tracing_config
+                .traces_jaeger_trace_context_header_name,
+        )
+        .with_jaeger_debug_name(config.tracing_config.traces_jaeger_debug_name);
 
     // Construct and start up gRPC server
 
