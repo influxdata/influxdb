@@ -28,6 +28,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
 	tassert "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -1776,52 +1777,35 @@ func TestEngine_LastModified(t *testing.T) {
 			p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
 			e, err := NewEngine(t, index)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			// mock the planner so compactions don't run during the test
 			e.CompactionPlan = &mockPlanner{}
 			e.SetEnabled(false)
-			if err := e.Open(context.Background()); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, e.Open(context.Background()))
 			defer e.Close()
 
-			if err := e.writePoints(p1, p2, p3); err != nil {
-				t.Fatalf("failed to write points: %s", err.Error())
-			}
-
+			require.NoError(t, e.writePoints(p1, p2, p3))
 			lm := e.LastModified()
-			if lm.IsZero() {
-				t.Fatalf("expected non-zero time, got %v", lm.UTC())
-			}
+			require.Falsef(t, lm.IsZero(), "expected non-zero time, got %v", lm.UTC())
 			e.SetEnabled(true)
 
 			// Artificial sleep added due to filesystems caching the mod time
 			// of files.  This prevents the WAL last modified time from being
 			// returned and newer than the filestore's mod time.
-			time.Sleep(2 * time.Second) // Covers most filesystems.
+			time.Sleep(time.Second) // Covers most filesystems.
 
-			if err := e.WriteSnapshot(); err != nil {
-				t.Fatalf("failed to snapshot: %s", err.Error())
-			}
-
+			require.NoError(t, e.WriteSnapshot())
 			lm2 := e.LastModified()
+			require.NotEqual(t, lm, lm2)
 
-			if got, exp := lm.Equal(lm2), false; exp != got {
-				t.Fatalf("expected time change, got %v, exp %v: %s == %s", got, exp, lm.String(), lm2.String())
-			}
+			// Another arbitrary sleep.
+			time.Sleep(time.Second)
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-			if err := e.DeleteSeriesRange(context.Background(), itr, math.MinInt64, math.MaxInt64); err != nil {
-				t.Fatalf("failed to delete series: %v", err)
-			}
-
+			require.NoError(t, e.DeleteSeriesRange(context.Background(), itr, math.MinInt64, math.MaxInt64))
 			lm3 := e.LastModified()
-			if got, exp := lm2.Equal(lm3), false; exp != got {
-				t.Fatalf("expected time change, got %v, exp %v", got, exp)
-			}
+			require.NotEqual(t, lm2, lm3)
 		})
 	}
 }
