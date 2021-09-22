@@ -1801,7 +1801,7 @@ func TestEngine_LastModified(t *testing.T) {
 			// Artificial sleep added due to filesystems caching the mod time
 			// of files.  This prevents the WAL last modified time from being
 			// returned and newer than the filestore's mod time.
-			time.Sleep(2 * time.Second) // Covers most filesystems.
+			time.Sleep(time.Second) // Covers most filesystems.
 
 			if err := e.WriteSnapshot(); err != nil {
 				t.Fatalf("failed to snapshot: %s", err.Error())
@@ -1812,6 +1812,9 @@ func TestEngine_LastModified(t *testing.T) {
 			if got, exp := lm.Equal(lm2), false; exp != got {
 				t.Fatalf("expected time change, got %v, exp %v: %s == %s", got, exp, lm.String(), lm2.String())
 			}
+
+			// Another arbitrary sleep.
+			time.Sleep(time.Second)
 
 			itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
 			if err := e.DeleteSeriesRange(context.Background(), itr, math.MinInt64, math.MaxInt64); err != nil {
