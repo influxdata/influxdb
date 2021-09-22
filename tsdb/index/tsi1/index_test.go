@@ -528,10 +528,14 @@ func (idx Index) Open() error {
 // Close closes and removes the index directory.
 func (idx *Index) Close() error {
 	defer os.RemoveAll(idx.Path())
+	// Series file is opened first and must be closed last
+	if err := idx.Index.Close(); err != nil {
+		return err
+	}
 	if err := idx.SeriesFile.Close(); err != nil {
 		return err
 	}
-	return idx.Index.Close()
+	return nil
 }
 
 // Reopen closes and opens the index.
