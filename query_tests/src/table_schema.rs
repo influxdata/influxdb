@@ -2,7 +2,7 @@
 
 use arrow::datatypes::DataType;
 use internal_types::{
-    schema::{builder::SchemaBuilder, sort::SortKey, TIME_COLUMN_NAME},
+    schema::{builder::SchemaBuilder, sort::SortKey, Schema, TIME_COLUMN_NAME},
     selection::Selection,
 };
 use predicate::predicate::PredicateBuilder;
@@ -15,48 +15,50 @@ use super::scenarios::*;
 ///
 /// runs table_schema(predicate) and compares it to the expected
 /// output
-macro_rules! run_table_schema_test_case {
-    ($DB_SETUP:expr, $SELECTION:expr, $TABLE_NAME:expr, $EXPECTED_SCHEMA:expr) => {
-        test_helpers::maybe_start_logging();
-        let selection = $SELECTION;
-        let table_name = $TABLE_NAME;
-        let expected_schema = $EXPECTED_SCHEMA;
+async fn run_table_schema_test_case<D>(
+    db_setup: D,
+    selection: Selection<'_>,
+    table_name: &str,
+    expected_schema: Schema,
+) where
+    D: DbSetup,
+{
+    test_helpers::maybe_start_logging();
 
-        for scenario in $DB_SETUP.make().await {
-            let DbScenario {
-                scenario_name, db, ..
-            } = scenario;
-            println!("Running scenario '{}'", scenario_name);
-            println!(
-                "Getting schema for table '{}', selection {:?}",
-                table_name, selection
-            );
+    for scenario in db_setup.make().await {
+        let DbScenario {
+            scenario_name, db, ..
+        } = scenario;
+        println!("Running scenario '{}'", scenario_name);
+        println!(
+            "Getting schema for table '{}', selection {:?}",
+            table_name, selection
+        );
 
-            // Make sure at least one table has data
-            let mut chunks_with_table = 0;
-            let predicate = PredicateBuilder::new().table(table_name).build();
+        // Make sure at least one table has data
+        let mut chunks_with_table = 0;
+        let predicate = PredicateBuilder::new().table(table_name).build();
 
-            for chunk in db.chunks(&predicate) {
-                if chunk.table_name().as_ref() == table_name {
-                    chunks_with_table += 1;
-                    let actual_schema = chunk.schema().select(selection.clone()).unwrap();
+        for chunk in db.chunks(&predicate) {
+            if chunk.table_name().as_ref() == table_name {
+                chunks_with_table += 1;
+                let actual_schema = chunk.schema().select(selection).unwrap();
 
-                    assert_eq!(
-                        expected_schema,
-                        actual_schema,
-                        "Mismatch in chunk {}\nExpected:\n{:#?}\nActual:\n{:#?}\n",
-                        chunk.id(),
-                        expected_schema,
-                        actual_schema
-                    );
-                }
+                assert_eq!(
+                    expected_schema,
+                    actual_schema,
+                    "Mismatch in chunk {}\nExpected:\n{:#?}\nActual:\n{:#?}\n",
+                    chunk.id(),
+                    expected_schema,
+                    actual_schema
+                );
             }
-            assert!(
-                chunks_with_table > 0,
-                "Expected at least one chunk to have data, but none did"
-            );
         }
-    };
+        assert!(
+            chunks_with_table > 0,
+            "Expected at least one chunk to have data, but none did"
+        );
+    }
 }
 
 #[tokio::test]
@@ -69,12 +71,13 @@ async fn list_schema_cpu_all_mub() {
         .build()
         .unwrap();
 
-    run_table_schema_test_case!(
+    run_table_schema_test_case(
         TwoMeasurementsMubScenario {},
         Selection::All,
         "cpu",
-        expected_schema
-    );
+        expected_schema,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -92,12 +95,13 @@ async fn list_schema_cpu_all_rub() {
         .build_with_sort_key(&sort_key)
         .unwrap();
 
-    run_table_schema_test_case!(
+    run_table_schema_test_case(
         TwoMeasurementsRubScenario {},
         Selection::All,
         "cpu",
-        expected_schema
-    );
+        expected_schema,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -114,12 +118,13 @@ async fn list_schema_cpu_all_rub_set_sort_key() {
         .build_with_sort_key(&sort_key)
         .unwrap();
 
-    run_table_schema_test_case!(
+    run_table_schema_test_case(
         TwoMeasurementsRubScenario {},
         Selection::All,
         "cpu",
-        expected_schema
-    );
+        expected_schema,
+    )
+    .await;
 
     // Now set
 }
@@ -134,12 +139,13 @@ async fn list_schema_disk_all() {
         .build()
         .unwrap();
 
-    run_table_schema_test_case!(
+    run_table_schema_test_case(
         TwoMeasurementsMubScenario {},
         Selection::All,
         "disk",
-        expected_schema
-    );
+        expected_schema,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -153,12 +159,13 @@ async fn list_schema_cpu_selection() {
     // Pick an order that is not lexographic
     let selection = Selection::Some(&["user", "region"]);
 
-    run_table_schema_test_case!(
+    run_table_schema_test_case(
         TwoMeasurementsMubScenario {},
         selection,
         "cpu",
-        expected_schema
-    );
+        expected_schema,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -173,12 +180,13 @@ async fn list_schema_disk_selection() {
     // Pick an order that is not lexographic
     let selection = Selection::Some(&["time", "bytes"]);
 
-    run_table_schema_test_case!(
+    run_table_schema_test_case(
         TwoMeasurementsMubScenario {},
         selection,
         "disk",
-        expected_schema
-    );
+        expected_schema,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -191,12 +199,13 @@ async fn list_schema_location_all() {
         .build()
         .unwrap();
 
-    run_table_schema_test_case!(
+    run_table_schema_test_case(
         TwoMeasurementsUnsignedTypeMubScenario {},
         Selection::All,
         "restaurant",
-        expected_schema
-    );
+        expected_schema,
+    )
+    .await;
 }
 
 #[tokio::test]

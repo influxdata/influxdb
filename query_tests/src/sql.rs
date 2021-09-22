@@ -10,31 +10,33 @@ use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
 use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner};
 
-/// runs table_names(predicate) and compares it to the expected
-/// output
-macro_rules! run_sql_test_case {
-    ($DB_SETUP:expr, $SQL:expr, $EXPECTED_LINES:expr) => {
-        test_helpers::maybe_start_logging();
-        let sql = $SQL.to_string();
-        for scenario in $DB_SETUP.make().await {
-            let DbScenario {
-                scenario_name, db, ..
-            } = scenario;
+/// Runs table_names(predicate) and compares it to the expected
+/// output.
+async fn run_sql_test_case<D>(db_setup: D, sql: &str, expected_lines: &[&str])
+where
+    D: DbSetup,
+{
+    test_helpers::maybe_start_logging();
 
-            println!("Running scenario '{}'", scenario_name);
-            println!("SQL: '{:#?}'", sql);
-            let planner = SqlQueryPlanner::default();
-            let ctx = db.new_query_context(None);
+    let sql = sql.to_string();
+    for scenario in db_setup.make().await {
+        let DbScenario {
+            scenario_name, db, ..
+        } = scenario;
 
-            let physical_plan = planner
-                .query(&sql, &ctx)
-                .await
-                .expect("built plan successfully");
+        println!("Running scenario '{}'", scenario_name);
+        println!("SQL: '{:#?}'", sql);
+        let planner = SqlQueryPlanner::default();
+        let ctx = db.new_query_context(None);
 
-            let results: Vec<RecordBatch> = ctx.collect(physical_plan).await.expect("Running plan");
-            assert_batches_sorted_eq!($EXPECTED_LINES, &results);
-        }
-    };
+        let physical_plan = planner
+            .query(&sql, &ctx)
+            .await
+            .expect("built plan successfully");
+
+        let results: Vec<RecordBatch> = ctx.collect(physical_plan).await.expect("Running plan");
+        assert_batches_sorted_eq!(expected_lines, &results);
+    }
 }
 
 #[tokio::test]
@@ -47,7 +49,7 @@ async fn sql_select_from_cpu() {
         "| west   | 1970-01-01T00:00:00.000000150Z | 21   |",
         "+--------+--------------------------------+------+",
     ];
-    run_sql_test_case!(TwoMeasurements {}, "SELECT * from cpu", &expected);
+    run_sql_test_case(TwoMeasurements {}, "SELECT * from cpu", &expected).await;
 }
 
 #[tokio::test]
@@ -60,11 +62,12 @@ async fn sql_select_from_cpu_2021() {
         "| west   | 2021-07-20T19:30:30Z | 21   |",
         "+--------+----------------------+------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         OneMeasurementRealisticTimes {},
         "SELECT * from cpu",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -77,26 +80,29 @@ async fn sql_select_from_cpu_with_timestamp_predicate_explicit_utc() {
         "+--------+----------------------+------+",
     ];
 
-    run_sql_test_case!(
+    run_sql_test_case(
         OneMeasurementRealisticTimes {},
         "SELECT * FROM cpu WHERE time  > to_timestamp('2021-07-20 19:28:50+00:00')",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 
     // Use RCF3339 format
-    run_sql_test_case!(
+    run_sql_test_case(
         OneMeasurementRealisticTimes {},
         "SELECT * FROM cpu WHERE time  > to_timestamp('2021-07-20T19:28:50Z')",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 
     // use cast workaround
-    run_sql_test_case!(
+    run_sql_test_case(
         OneMeasurementRealisticTimes {},
         "SELECT * FROM cpu WHERE \
          CAST(time AS BIGINT) > CAST(to_timestamp('2021-07-20T19:28:50Z') AS BIGINT)",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -110,11 +116,12 @@ async fn sql_select_from_cpu_with_projection() {
         "| 21   | west   |",
         "+------+--------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurements {},
         "SELECT user, region from cpu",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -126,11 +133,12 @@ async fn sql_select_from_cpu_pred() {
         "| west   | 1970-01-01T00:00:00.000000150Z | 21   |",
         "+--------+--------------------------------+------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurements {},
         "SELECT * from cpu where time > to_timestamp('1970-01-01T00:00:00.000000120+00:00')",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -143,11 +151,11 @@ async fn sql_select_from_cpu_with_projection_and_pred() {
         "| 21   | west   |",
         "+------+--------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurements {},
         "SELECT user, region from cpu where time > to_timestamp('1970-01-01T00:00:00.000000120+00:00')",
         &expected
-    );
+    ).await;
 }
 
 #[tokio::test]
@@ -159,11 +167,12 @@ async fn sql_select_from_cpu_group() {
         "| 2               |",
         "+-----------------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurements {},
         "SELECT count(*) from cpu group by region",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -175,7 +184,7 @@ async fn sql_select_from_disk() {
         "| 99    | east   | 1970-01-01T00:00:00.000000200Z |",
         "+-------+--------+--------------------------------+",
     ];
-    run_sql_test_case!(TwoMeasurements {}, "SELECT * from disk", &expected);
+    run_sql_test_case(TwoMeasurements {}, "SELECT * from disk", &expected).await;
 }
 
 #[tokio::test]
@@ -190,7 +199,7 @@ async fn sql_select_with_schema_merge() {
         "| foo  | east   |        | 1970-01-01T00:00:00.000000100Z | 23.2 |",
         "+------+--------+--------+--------------------------------+------+",
     ];
-    run_sql_test_case!(MultiChunkSchemaMerge {}, "SELECT * from cpu", &expected);
+    run_sql_test_case(MultiChunkSchemaMerge {}, "SELECT * from cpu", &expected).await;
 }
 
 #[tokio::test]
@@ -203,11 +212,12 @@ async fn sql_select_from_restaurant() {
         "| reading | 632   |",
         "+---------+-------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsUnsignedType {},
         "SELECT town, count from restaurant",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -220,11 +230,12 @@ async fn sql_select_from_school() {
         "| andover | 25    |",
         "+---------+-------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsUnsignedType {},
         "SELECT town, count from school",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -246,12 +257,13 @@ async fn sql_select_from_information_schema_tables() {
         "| public        | system             | persistence_windows | BASE TABLE |",
         "+---------------+--------------------+---------------------+------------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsManyFields {},
         "SELECT * from information_schema.tables",
-        &expected
-    );
-    run_sql_test_case!(TwoMeasurementsManyFields {}, "SHOW TABLES", &expected);
+        &expected,
+    )
+    .await;
+    run_sql_test_case(TwoMeasurementsManyFields {}, "SHOW TABLES", &expected).await;
 }
 
 #[tokio::test]
@@ -275,11 +287,12 @@ async fn sql_select_from_information_schema_columns() {
         "| public        | iox          | o2         | time        | 4                |                | NO          | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
         "+---------------+--------------+------------+-------------+------------------+----------------+-------------+-----------------------------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsManyFields {},
         "SELECT * from information_schema.columns where table_name = 'h2o' OR table_name = 'o2'",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -298,11 +311,12 @@ async fn sql_show_columns() {
         "| public        | iox          | h2o        | time        | Timestamp(Nanosecond, None) | NO          |",
         "+---------------+--------------+------------+-------------+-----------------------------+-------------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsManyFields {},
         "SHOW COLUMNS FROM h2o",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -321,11 +335,12 @@ async fn sql_select_from_system_chunks() {
         "| 0  | 1970-01-01T00 | o2         | OpenMutableBuffer | 1635         | 2         |",
         "+----+---------------+------------+-------------------+--------------+-----------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsManyFieldsOneChunk {},
         "SELECT id, partition_key, table_name, storage, memory_bytes, row_count from system.chunks",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -352,11 +367,12 @@ async fn sql_select_from_system_columns() {
         "| 1970-01-01T00 | o2         | time        | I64         | Timestamp     |",
         "+---------------+------------+-------------+-------------+---------------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsManyFieldsOneChunk {},
         "SELECT * from system.columns",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -384,11 +400,12 @@ async fn sql_select_from_system_chunk_columns() {
         "| 1970-01-01T00 | 1        | h2o        | time        | OpenMutableBuffer | 1         | 0          | 350       | 350       | 297          |",
         "+---------------+----------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsManyFieldsTwoChunks {},
         "SELECT * from system.chunk_columns",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -406,11 +423,11 @@ async fn sql_select_from_system_operations() {
 
     // Check that the cpu time used reported is greater than zero as it isn't
     // repeatable
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsManyFieldsLifecycle {},
         "SELECT id, status, CAST(start_time as BIGINT) > 0 as start_time, CAST(cpu_time_used AS BIGINT) > 0 as took_cpu_time, CAST(wall_time_used AS BIGINT) > 0 as took_wall_time, table_name, partition_key, chunk_ids, description from system.operations",
         &expected
-    );
+    ).await;
 }
 
 #[tokio::test]
@@ -430,11 +447,12 @@ async fn sql_union_all() {
         "| Boston |",
         "+--------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsManyFields {},
         "select state as name from h2o UNION ALL select city as name from h2o",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -448,11 +466,12 @@ async fn sql_distinct_aggregates() {
         "| 2                       |",
         "+-------------------------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsManyNulls {},
         "select count(distinct city) from o2",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -468,11 +487,12 @@ async fn sql_aggregate_on_tags() {
         "| 2               | NYC    |",
         "+-----------------+--------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsManyNulls {},
         "select count(*), city from o2 group by city",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -487,11 +507,12 @@ async fn sql_select_with_schema_merge_subset() {
         "| bar  | west   |        |",
         "+------+--------+--------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         MultiChunkSchemaMerge {},
         "SELECT host, region, system from cpu",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -510,11 +531,12 @@ async fn sql_predicate_pushdown_correctness_1() {
         "| 872   | 6      | 1970-01-01T00:00:00.000000110Z | lawrence  |",
         "+-------+--------+--------------------------------+-----------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsPredicatePushDown {},
         "SELECT * from restaurant",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -532,11 +554,12 @@ async fn sql_predicate_pushdown_correctness_2() {
         "| 872   | 6      | 1970-01-01T00:00:00.000000110Z | lawrence  |",
         "+-------+--------+--------------------------------+-----------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsPredicatePushDown {},
         "SELECT * from restaurant where count > 200",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -553,11 +576,12 @@ async fn sql_predicate_pushdown_correctness_3() {
         "| 872   | 6      | 1970-01-01T00:00:00.000000110Z | lawrence  |",
         "+-------+--------+--------------------------------+-----------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsPredicatePushDown {},
         "SELECT * from restaurant where count > 200 and town != 'tewsbury'",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -574,11 +598,11 @@ async fn sql_predicate_pushdown_correctness_4() {
         "| 872   | 6      | 1970-01-01T00:00:00.000000110Z | lawrence  |",
         "+-------+--------+--------------------------------+-----------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsPredicatePushDown {},
         "SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence')",
         &expected
-    );
+    ).await;
 }
 
 #[tokio::test]
@@ -593,11 +617,11 @@ async fn sql_predicate_pushdown_correctness_5() {
         "| 872   | 6      | 1970-01-01T00:00:00.000000110Z | lawrence  |",
         "+-------+--------+--------------------------------+-----------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsPredicatePushDown {},
         "SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence') and count < 40000",
         &expected
-    );
+    ).await;
 }
 
 #[tokio::test]
@@ -614,11 +638,12 @@ async fn sql_predicate_pushdown_correctness_6() {
         "| 872   | 6      | 1970-01-01T00:00:00.000000110Z | lawrence  |",
         "+-------+--------+--------------------------------+-----------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsPredicatePushDown {},
         "SELECT * from restaurant where count > 200  and count < 40000",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -636,11 +661,12 @@ async fn sql_predicate_pushdown_correctness_7() {
         "| 872   | 6      | 1970-01-01T00:00:00.000000110Z | lawrence  |",
         "+-------+--------+--------------------------------+-----------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsPredicatePushDown {},
         "SELECT * from restaurant where system > 4.0 and system < 7.0",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -655,11 +681,12 @@ async fn sql_predicate_pushdown_correctness_8() {
         "| 872   | 6      | 1970-01-01T00:00:00.000000110Z | lawrence |",
         "+-------+--------+--------------------------------+----------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsPredicatePushDown {},
         "SELECT * from restaurant where system > 5.0 and system < 7.0",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -673,11 +700,12 @@ async fn sql_predicate_pushdown_correctness_9() {
         "| 872   | 6      | 1970-01-01T00:00:00.000000110Z | lawrence |",
         "+-------+--------+--------------------------------+----------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsPredicatePushDown {},
         "SELECT * from restaurant where system > 5.0 and town != 'tewsbury' and 7.0 > system",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -691,11 +719,11 @@ async fn sql_predicate_pushdown_correctness_10() {
         "| 632   | 6      | 1970-01-01T00:00:00.000000130Z | reading |",
         "+-------+--------+--------------------------------+---------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsPredicatePushDown {},
         "SELECT * from restaurant where system > 5.0 and 'tewsbury' != town and system < 7.0 and (count = 632 or town = 'reading')",
         &expected
-    );
+    ).await;
 }
 
 #[tokio::test]
@@ -704,11 +732,11 @@ async fn sql_predicate_pushdown_correctness_11() {
     // time > to_timestamp('1970-01-01T00:00:00.000000120+00:00') (rewritten to time GT int(130))
     //
     let expected = vec!["++", "++"];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsPredicatePushDown {},
         "SELECT * from restaurant where 5.0 < system and town != 'tewsbury' and system < 7.0 and (count = 632 or town = 'reading') and time > to_timestamp('1970-01-01T00:00:00.000000130+00:00')",
         &expected
-    );
+    ).await;
 }
 
 #[tokio::test]
@@ -743,11 +771,12 @@ async fn sql_predicate_pushdown_correctness_13() {
         "| 632   | 6      | 1970-01-01T00:00:00.000000130Z | reading |",
         "+-------+--------+--------------------------------+---------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         TwoMeasurementsPredicatePushDown {},
         "SELECT * from restaurant where system > 5.0 and system < 7.0 and town = 'reading'",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -779,7 +808,7 @@ async fn sql_deduplicate_1() {
         "| 1970-01-01T00:00:00.000000700Z | CA    | SJ      | 75.5     | 84.08    |      |",
         "+--------------------------------+-------+---------+----------+----------+------+",
     ];
-    run_sql_test_case!(OneMeasurementThreeChunksWithDuplicates {}, sql, &expected);
+    run_sql_test_case(OneMeasurementThreeChunksWithDuplicates {}, sql, &expected).await;
 }
 
 #[tokio::test]
@@ -788,11 +817,12 @@ async fn sql_select_non_keys() {
         "+------+", "| temp |", "+------+", "|      |", "|      |", "| 53.4 |", "| 70.4 |",
         "+------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         OneMeasurementTwoChunksDifferentTagSet {},
         "SELECT temp from h2o",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -807,17 +837,16 @@ async fn sql_select_all_different_tags_chunks() {
         "| Boston | 72.4       |         |       |      | 1970-01-01T00:00:00.000000350Z |",
         "+--------+------------+---------+-------+------+--------------------------------+",
     ];
-    run_sql_test_case!(
+    run_sql_test_case(
         OneMeasurementTwoChunksDifferentTagSet {},
         "SELECT * from h2o",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
 async fn sql_select_with_deleted_data_from_one_expr() {
-    test_helpers::maybe_start_logging();
-
     let expected = vec![
         "+-----+--------------------------------+",
         "| bar | time                           |",
@@ -827,25 +856,28 @@ async fn sql_select_with_deleted_data_from_one_expr() {
     ];
 
     // Data deleted when it is in MUB, and then moved to RUB and OS
-    run_sql_test_case!(
+    run_sql_test_case(
         scenarios::delete::DeleteFromMubOneMeasurementOneChunk {},
         "SELECT * from cpu",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 
     // Data deleted when it is in RUB, and then moved OS
-    run_sql_test_case!(
+    run_sql_test_case(
         scenarios::delete::DeleteFromRubOneMeasurementOneChunk {},
         "SELECT * from cpu",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 
     // Data deleted when it is in OS
-    run_sql_test_case!(
+    run_sql_test_case(
         scenarios::delete::DeleteFromOsOneMeasurementOneChunk {},
         "SELECT * from cpu",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -860,25 +892,28 @@ async fn sql_select_with_deleted_data_from_multi_exprs() {
     ];
 
     // Data deleted when it is in MUB, and then moved to RUB and OS
-    run_sql_test_case!(
+    run_sql_test_case(
         scenarios::delete::DeleteMultiExprsFromMubOneMeasurementOneChunk {},
         "SELECT * from cpu",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 
     // Data deleted when it is in RUB, and then moved OS
-    run_sql_test_case!(
+    run_sql_test_case(
         scenarios::delete::DeleteMultiExprsFromRubOneMeasurementOneChunk {},
         "SELECT * from cpu",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 
     // Data deleted when it is in OS
-    run_sql_test_case!(
+    run_sql_test_case(
         scenarios::delete::DeleteMultiExprsFromOsOneMeasurementOneChunk {},
         "SELECT * from cpu",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -892,23 +927,26 @@ async fn sql_select_with_two_deleted_data_from_multi_exprs() {
     ];
 
     // Data deleted when it is in MUB, and then moved to RUB and OS
-    run_sql_test_case!(
+    run_sql_test_case(
         scenarios::delete::TwoDeleteMultiExprsFromMubOneMeasurementOneChunk {},
         "SELECT * from cpu",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 
     // Data deleted when it is in RUB, and then moved OS
-    run_sql_test_case!(
+    run_sql_test_case(
         scenarios::delete::TwoDeleteMultiExprsFromRubOneMeasurementOneChunk {},
         "SELECT * from cpu",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 
     // Data deleted when it is in OS
-    run_sql_test_case!(
+    run_sql_test_case(
         scenarios::delete::TwoDeleteMultiExprsFromOsOneMeasurementOneChunk {},
         "SELECT * from cpu",
-        &expected
-    );
+        &expected,
+    )
+    .await;
 }
