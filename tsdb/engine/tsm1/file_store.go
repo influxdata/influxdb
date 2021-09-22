@@ -1074,6 +1074,24 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 	return locations
 }
 
+// MakeSnapshotLinks creates hardlinks from the supplied TSMFiles to
+// corresponding files under a supplied directory.
+func (f *FileStore) MakeSnapshotLinks(destPath string, files []TSMFile) (returnErr error) {
+	for _, tsmf := range files {
+		newpath := filepath.Join(destPath, filepath.Base(tsmf.Path()))
+		if err := copyOrLink(tsmf.Path(), newpath); err != nil {
+			return err
+		}
+		if tf := tsmf.TombstoneStats(); tf.TombstoneExists {
+			newpath := filepath.Join(destPath, filepath.Base(tf.Path))
+			if err := copyOrLink(tf.Path, newpath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // CreateSnapshot creates hardlinks for all tsm and tombstone files
 // in the path provided.
 func (f *FileStore) CreateSnapshot() (string, error) {
@@ -1103,17 +1121,10 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for _, tsmf := range files {
-		newpath := filepath.Join(tmpPath, filepath.Base(tsmf.Path()))
-		if err := os.Link(tsmf.Path(), newpath); err != nil {
-			return "", fmt.Errorf("error creating tsm hard link: %q", err)
-		}
-		if ts := tsmf.TombstoneStats(); ts.TombstoneExists {
-			newpath := filepath.Join(tmpPath, filepath.Base(ts.Path))
-			if err := os.Link(ts.Path, newpath); err != nil {
-				return "", fmt.Errorf("error creating tombstone hard link: %q", err)
-			}
-		}
+	if err := f.MakeSnapshotLinks(tmpPath, files); err != nil {
+		// remove temporary directory since we couldn't create our hard links.
+		_ = os.RemoveAll(tmpPath)
+		return "", fmt.Errorf("CreateSnapshot() failed to create links %v: %w", tmpPath, err)
 	}
 
 	return tmpPath, nil
