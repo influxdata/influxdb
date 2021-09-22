@@ -20,7 +20,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use ::lifecycle::{LifecycleChunk, LockableChunk, LockablePartition};
 use data_types::{
-    chunk_metadata::{ChunkId, ChunkOrder, ChunkSummary},
+    chunk_metadata::{ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkSummary},
     database_rules::DatabaseRules,
     partition_metadata::{PartitionSummary, TableSummary},
     server_id::ServerId,
@@ -166,6 +166,14 @@ pub enum Error {
 
     #[snafu(display("Cannot replay: {}", source))]
     ReplayError { source: crate::db::replay::Error },
+
+    #[snafu(display(
+        "Error while commiting delete predicate on preserved catalog: {}",
+        source
+    ))]
+    CommitDeletePredicateError {
+        source: parquet_file::catalog::core::Error,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -521,22 +529,51 @@ impl Db {
         table_name: &str,
         delete_predicate: Arc<Predicate>,
     ) -> Result<()> {
+        // collect delete predicates on preserved partitions for a catalog transaction
+        let mut affected_persisted_chunks = vec![];
+
         // get all partitions of this table
-        let table = self
-            .catalog
-            .table(table_name)
-            .context(DeleteFromTable { table_name })?;
-        let partitions = table.partitions();
-        for partition in partitions {
-            let partition = partition.write();
-            let chunks = partition.chunks();
-            for chunk in chunks {
-                // save the delete predicate in the chunk
-                let mut chunk = chunk.write();
-                chunk
-                    .add_delete_predicate(Arc::clone(&delete_predicate))
-                    .context(AddDeletePredicateError)?;
+        // Note: we need an additional scope here to convince rustc that the future produced by this function is sendable.
+        {
+            let table = self
+                .catalog
+                .table(table_name)
+                .context(DeleteFromTable { table_name })?;
+            let partitions = table.partitions();
+            for partition in partitions {
+                let partition = partition.write();
+                let chunks = partition.chunks();
+                for chunk in chunks {
+                    // save the delete predicate in the chunk
+                    let mut chunk = chunk.write();
+                    chunk
+                        .add_delete_predicate(Arc::clone(&delete_predicate))
+                        .context(AddDeletePredicateError)?;
+
+                    // We should only report persisted chunks or chunks that are currently being persisted, because the
+                    // preserved catalog does not care about purely in-mem chunks.
+                    if matches!(chunk.stage(), ChunkStage::Persisted { .. })
+                        || chunk.is_in_lifecycle(ChunkLifecycleAction::Persisting)
+                    {
+                        affected_persisted_chunks.push(ChunkAddrWithoutDatabase {
+                            table_name: Arc::clone(&chunk.addr().table_name),
+                            partition_key: Arc::clone(&chunk.addr().partition_key),
+                            chunk_id: chunk.addr().chunk_id,
+                        });
+                    }
+                }
             }
+        }
+
+        if !affected_persisted_chunks.is_empty() {
+            let mut transaction = self.preserved_catalog.open_transaction().await;
+            transaction
+                .delete_predicate(&delete_predicate, &affected_persisted_chunks)
+                .context(CommitDeletePredicateError)?;
+            transaction
+                .commit()
+                .await
+                .context(CommitDeletePredicateError)?;
         }
 
         Ok(())
@@ -1219,8 +1256,14 @@ pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData 
             };
 
             files.insert(path, m);
+        }
 
-            // capture delete predicates
+        // capture delete predicates
+        // We should only report persisted chunks or chunks that are currently being persisted, because the
+        // preserved catalog does not care about purely in-mem chunks.
+        if matches!(guard.stage(), ChunkStage::Persisted { .. })
+            || guard.is_in_lifecycle(ChunkLifecycleAction::Persisting)
+        {
             for predicate in guard.delete_predicates() {
                 let predicate_ref: &Predicate = predicate.as_ref();
                 let addr = (predicate_ref as *const Predicate) as usize;
@@ -1350,10 +1393,12 @@ mod tests {
     use arrow::record_batch::RecordBatch;
     use bytes::Bytes;
     use chrono::{DateTime, TimeZone};
+    use datafusion::logical_plan::{col, lit};
     use futures::{stream, StreamExt, TryStreamExt};
+    use predicate::predicate::PredicateBuilder;
     use tokio_util::sync::CancellationToken;
 
-    use ::test_helpers::assert_contains;
+    use ::test_helpers::{assert_contains, maybe_start_logging};
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use data_types::{
         chunk_metadata::{ChunkAddr, ChunkStorage},
@@ -3557,6 +3602,239 @@ mod tests {
         // ==================== do: stop background task loop ====================
         shutdown.cancel();
         join_handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn delete_predicate_preservation() {
+        // Test that delete predicates are stored within the preserved catalog
+        maybe_start_logging();
+
+        // ==================== setup ====================
+        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let server_id = ServerId::try_from(1).unwrap();
+        let db_name = "delete_predicate_preservation_test";
+
+        // ==================== do: create DB ====================
+        // Create a DB given a server id, an object store and a db name
+        let test_db = TestDb::builder()
+            .object_store(Arc::clone(&object_store))
+            .server_id(server_id)
+            .db_name(db_name)
+            .lifecycle_rules(LifecycleRules {
+                catalog_transactions_until_checkpoint: NonZeroU64::try_from(1).unwrap(),
+                late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
+                ..Default::default()
+            })
+            .partition_template(PartitionTemplate {
+                parts: vec![TemplatePart::Column("part".to_string())],
+            })
+            .build()
+            .await;
+        let db = Arc::new(test_db.db);
+
+        // ==================== do: create chunks ====================
+        let table_name = "cpu";
+
+        // 1: preserved
+        let partition_key = "part_a";
+        write_lp(&db, "cpu,part=a row=10,selector=0i 10").await;
+        write_lp(&db, "cpu,part=a row=11,selector=1i 11").await;
+        let chunk_id = {
+            let mb_chunk = db
+                .rollover_partition(table_name, partition_key)
+                .await
+                .unwrap()
+                .unwrap();
+            mb_chunk.id()
+        };
+        db.move_chunk_to_read_buffer(table_name, partition_key, chunk_id)
+            .await
+            .unwrap();
+        db.persist_partition(
+            table_name,
+            partition_key,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
+
+        // 2: RUB
+        let partition_key = "part_b";
+        write_lp(&db, "cpu,part=b row=20,selector=0i 20").await;
+        write_lp(&db, "cpu,part=b row=21,selector=1i 21").await;
+        let chunk_id = {
+            let mb_chunk = db
+                .rollover_partition(table_name, partition_key)
+                .await
+                .unwrap()
+                .unwrap();
+            mb_chunk.id()
+        };
+        db.move_chunk_to_read_buffer(table_name, partition_key, chunk_id)
+            .await
+            .unwrap();
+
+        // 3: MUB
+        let _partition_key = "part_c";
+        write_lp(&db, "cpu,part=c row=30,selector=0i 30").await;
+        write_lp(&db, "cpu,part=c row=31,selector=1i 31").await;
+
+        // 4: preserved and unloaded
+        let partition_key = "part_d";
+        write_lp(&db, "cpu,part=d row=40,selector=0i 40").await;
+        write_lp(&db, "cpu,part=d row=41,selector=1i 41").await;
+        let chunk_id = {
+            let mb_chunk = db
+                .rollover_partition(table_name, partition_key)
+                .await
+                .unwrap()
+                .unwrap();
+            mb_chunk.id()
+        };
+        db.move_chunk_to_read_buffer(table_name, partition_key, chunk_id)
+            .await
+            .unwrap();
+        let chunk_id = {
+            let chunk = db
+                .persist_partition(
+                    table_name,
+                    partition_key,
+                    Instant::now() + Duration::from_secs(1),
+                )
+                .await
+                .unwrap();
+            chunk.id()
+        };
+        db.unload_read_buffer(table_name, partition_key, chunk_id)
+            .unwrap();
+
+        // ==================== do: delete ====================
+        let expr = col("selector").eq(lit(1i64));
+        let pred = Arc::new(
+            PredicateBuilder::new()
+                .table("cpu")
+                .timestamp_range(0, 1_000)
+                .add_expr(expr)
+                .build(),
+        );
+        db.delete("cpu", Arc::clone(&pred)).await.unwrap();
+
+        // ==================== do: preserve another partition ====================
+        let partition_key = "part_b";
+        db.persist_partition(
+            table_name,
+            partition_key,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
+
+        // ==================== check: delete predicates ====================
+        let closure_check_delete_predicates = |db: &Db| {
+            for chunk in db.catalog.chunks() {
+                let chunk = chunk.read();
+                if chunk.addr().partition_key.as_ref() == "part_b" {
+                    // Strictly speaking not required because the chunk was persisted AFTER the delete predicate was
+                    // registered so we can get away with materializing it during persistence.
+                    continue;
+                }
+                let predicates = chunk.delete_predicates();
+                assert_eq!(predicates.len(), 1);
+                assert_eq!(predicates[0].as_ref(), pred.as_ref());
+            }
+        };
+        closure_check_delete_predicates(&db);
+
+        // ==================== check: query ====================
+        let expected = vec![
+            "+------+-----+----------+--------------------------------+",
+            "| part | row | selector | time                           |",
+            "+------+-----+----------+--------------------------------+",
+            "| a    | 10  | 0        | 1970-01-01T00:00:00.000000010Z |",
+            "| b    | 20  | 0        | 1970-01-01T00:00:00.000000020Z |",
+            "| c    | 30  | 0        | 1970-01-01T00:00:00.000000030Z |",
+            "| d    | 40  | 0        | 1970-01-01T00:00:00.000000040Z |",
+            "+------+-----+----------+--------------------------------+",
+        ];
+        let batches = run_query(Arc::clone(&db), "select * from cpu order by time").await;
+        assert_batches_sorted_eq!(&expected, &batches);
+
+        // ==================== do: re-load DB ====================
+        // Re-create database with same store, serverID, and DB name
+        drop(db);
+        let test_db = TestDb::builder()
+            .object_store(Arc::clone(&object_store))
+            .server_id(server_id)
+            .db_name(db_name)
+            .build()
+            .await;
+        let db = Arc::new(test_db.db);
+
+        // ==================== check: delete predicates ====================
+        closure_check_delete_predicates(&db);
+
+        // ==================== check: query ====================
+        // NOTE: partition "c" is gone here because it was not written to object store
+        let expected = vec![
+            "+------+-----+----------+--------------------------------+",
+            "| part | row | selector | time                           |",
+            "+------+-----+----------+--------------------------------+",
+            "| a    | 10  | 0        | 1970-01-01T00:00:00.000000010Z |",
+            "| b    | 20  | 0        | 1970-01-01T00:00:00.000000020Z |",
+            "| d    | 40  | 0        | 1970-01-01T00:00:00.000000040Z |",
+            "+------+-----+----------+--------------------------------+",
+        ];
+        let batches = run_query(Arc::clone(&db), "select * from cpu order by time").await;
+        assert_batches_sorted_eq!(&expected, &batches);
+
+        // ==================== do: remove checkpoint files ====================
+        let files = db
+            .iox_object_store
+            .catalog_transaction_files()
+            .await
+            .unwrap()
+            .try_concat()
+            .await
+            .unwrap();
+        let mut deleted_one = false;
+        for file in files {
+            if file.is_checkpoint() {
+                db.iox_object_store
+                    .delete_catalog_transaction_file(&file)
+                    .await
+                    .unwrap();
+                deleted_one = true;
+            }
+        }
+        assert!(deleted_one);
+
+        // ==================== do: re-load DB ====================
+        // Re-create database with same store, serverID, and DB name
+        drop(db);
+        let test_db = TestDb::builder()
+            .object_store(Arc::clone(&object_store))
+            .server_id(server_id)
+            .db_name(db_name)
+            .build()
+            .await;
+        let db = Arc::new(test_db.db);
+
+        // ==================== check: delete predicates ====================
+        closure_check_delete_predicates(&db);
+
+        // ==================== check: query ====================
+        // NOTE: partition "c" is gone here because it was not written to object store
+        let expected = vec![
+            "+------+-----+----------+--------------------------------+",
+            "| part | row | selector | time                           |",
+            "+------+-----+----------+--------------------------------+",
+            "| a    | 10  | 0        | 1970-01-01T00:00:00.000000010Z |",
+            "| b    | 20  | 0        | 1970-01-01T00:00:00.000000020Z |",
+            "| d    | 40  | 0        | 1970-01-01T00:00:00.000000040Z |",
+            "+------+-----+----------+--------------------------------+",
+        ];
+        let batches = run_query(Arc::clone(&db), "select * from cpu order by time").await;
+        assert_batches_sorted_eq!(&expected, &batches);
     }
 
     #[tokio::test]

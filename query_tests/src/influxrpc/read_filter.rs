@@ -34,33 +34,36 @@ impl DbSetup for TwoMeasurementsMultiSeries {
 
 /// runs read_filter(predicate) and compares it to the expected
 /// output
-macro_rules! run_read_filter_test_case {
-    ($DB_SETUP:expr, $PREDICATE:expr, $EXPECTED_RESULTS:expr) => {
-        test_helpers::maybe_start_logging();
-        let predicate = $PREDICATE;
-        let expected_results = $EXPECTED_RESULTS;
-        for scenario in $DB_SETUP.make().await {
-            let DbScenario {
-                scenario_name, db, ..
-            } = scenario;
-            println!("Running scenario '{}'", scenario_name);
-            println!("Predicate: '{:#?}'", predicate);
-            let planner = InfluxRpcPlanner::new();
+async fn run_read_filter_test_case<D>(
+    db_setup: D,
+    predicate: Predicate,
+    expected_results: Vec<&str>,
+) where
+    D: DbSetup,
+{
+    test_helpers::maybe_start_logging();
 
-            let plan = planner
-                .read_filter(db.as_ref(), predicate.clone())
-                .expect("built plan successfully");
+    for scenario in db_setup.make().await {
+        let DbScenario {
+            scenario_name, db, ..
+        } = scenario;
+        println!("Running scenario '{}'", scenario_name);
+        println!("Predicate: '{:#?}'", predicate);
+        let planner = InfluxRpcPlanner::new();
 
-            let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
-            let string_results = run_series_set_plan(&ctx, plan).await;
+        let plan = planner
+            .read_filter(db.as_ref(), predicate.clone())
+            .expect("built plan successfully");
 
-            assert_eq!(
-                expected_results, string_results,
-                "Error in  scenario '{}'\n\nexpected:\n{:#?}\n\nactual:\n{:#?}",
-                scenario_name, expected_results, string_results
-            );
-        }
-    };
+        let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
+        let string_results = run_series_set_plan(&ctx, plan).await;
+
+        assert_eq!(
+            expected_results, string_results,
+            "Error in  scenario '{}'\n\nexpected:\n{:#?}\n\nactual:\n{:#?}",
+            scenario_name, expected_results, string_results
+        );
+    }
 }
 
 #[tokio::test]
@@ -68,7 +71,7 @@ async fn test_read_filter_no_data_no_pred() {
     let predicate = EMPTY_PREDICATE;
     let expected_results = vec![] as Vec<&str>;
 
-    run_read_filter_test_case!(NoData {}, predicate, expected_results);
+    run_read_filter_test_case(NoData {}, predicate, expected_results).await;
 }
 
 #[tokio::test]
@@ -130,7 +133,7 @@ async fn test_read_filter_data_no_pred() {
         "+--------+-------+---------+------+--------------------------------+",
     ];
 
-    run_read_filter_test_case!(TwoMeasurementsMultiSeries {}, predicate, expected_results);
+    run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
 }
 
 #[tokio::test]
@@ -159,11 +162,12 @@ async fn test_read_filter_data_filter() {
         "+------+-------+------+--------------------------------+",
     ];
 
-    run_read_filter_test_case!(
+    run_read_filter_test_case(
         TwoMeasurementsMultiSeries {},
         predicate,
-        expected_results.clone()
-    );
+        expected_results.clone(),
+    )
+    .await;
 
     // Same results via a != predicate.
     let predicate = PredicateBuilder::default()
@@ -171,7 +175,7 @@ async fn test_read_filter_data_filter() {
         .add_expr(col("state").not_eq(lit("MA"))) // state=CA
         .build();
 
-    run_read_filter_test_case!(TwoMeasurementsMultiSeries {}, predicate, expected_results);
+    run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
 }
 
 #[tokio::test]
@@ -214,7 +218,7 @@ async fn test_read_filter_data_filter_fields() {
         "+------+-------+--------------------------------+",
     ];
 
-    run_read_filter_test_case!(TwoMeasurementsManyFields {}, predicate, expected_results);
+    run_read_filter_test_case(TwoMeasurementsManyFields {}, predicate, expected_results).await;
 }
 
 #[tokio::test]
@@ -225,7 +229,7 @@ async fn test_read_filter_data_pred_refers_to_non_existent_column() {
 
     let expected_results = vec![] as Vec<&str>;
 
-    run_read_filter_test_case!(TwoMeasurements {}, predicate, expected_results);
+    run_read_filter_test_case(TwoMeasurements {}, predicate, expected_results).await;
 }
 
 #[tokio::test]
@@ -267,7 +271,7 @@ async fn test_read_filter_data_pred_no_columns() {
         "+--------+-------+--------------------------------+",
     ];
 
-    run_read_filter_test_case!(TwoMeasurements {}, predicate, expected_results);
+    run_read_filter_test_case(TwoMeasurements {}, predicate, expected_results).await;
 }
 
 #[tokio::test]
@@ -280,7 +284,7 @@ async fn test_read_filter_data_pred_refers_to_good_and_non_existent_columns() {
 
     let expected_results = vec![] as Vec<&str>;
 
-    run_read_filter_test_case!(TwoMeasurements {}, predicate, expected_results);
+    run_read_filter_test_case(TwoMeasurements {}, predicate, expected_results).await;
 }
 
 #[tokio::test]
@@ -309,7 +313,7 @@ async fn test_read_filter_data_pred_using_regex_match() {
         "+------+-------+------+--------------------------------+",
     ];
 
-    run_read_filter_test_case!(TwoMeasurementsMultiSeries {}, predicate, expected_results);
+    run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
 }
 
 #[tokio::test]
@@ -354,7 +358,7 @@ async fn test_read_filter_data_pred_using_regex_not_match() {
         "+--------+-------+---------+------+--------------------------------+",
     ];
 
-    run_read_filter_test_case!(TwoMeasurementsMultiSeries {}, predicate, expected_results);
+    run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
 }
 
 #[tokio::test]
@@ -391,7 +395,7 @@ async fn test_read_filter_data_pred_unsupported_in_scan() {
         "+--------+-------+---------+------+--------------------------------+",
     ];
 
-    run_read_filter_test_case!(TwoMeasurementsMultiSeries {}, predicate, expected_results);
+    run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
 }
 
 #[derive(Debug)]
@@ -523,5 +527,5 @@ async fn test_read_filter_data_plan_order() {
         "+----------+-------+--------+-------+------+--------------------------------+",
     ];
 
-    run_read_filter_test_case!(MeasurementsSortableTags {}, predicate, expected_results);
+    run_read_filter_test_case(MeasurementsSortableTags {}, predicate, expected_results).await;
 }

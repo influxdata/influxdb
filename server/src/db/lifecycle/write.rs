@@ -165,6 +165,10 @@ where
             };
             transaction.add_parquet(&info);
 
+            // We do NOT need to report delete predicates here because they were either materialized during the write
+            // query above or if they were added after the query they where added to a transaction (or checkpoint)
+            // because the chunk here was marked as "persisting".
+
             // preserved commit
             let ckpt_handle = transaction.commit().await.context(CommitError)?;
 
