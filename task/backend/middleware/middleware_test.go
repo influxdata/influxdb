@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
-	pmock "github.com/influxdata/influxdb/v2/mock"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
+	pmock "github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/backend/coordinator"

@@ -8,9 +8,10 @@ package fluxinit
 
 import (
 	"github.com/influxdata/flux/runtime"
-
 	_ "github.com/influxdata/flux/stdlib"
-	_ "github.com/influxdata/influxdb/v2/query/stdlib" // Import the stdlib
+
+	// Import the stdlib
+	_ "github.com/influxdata/influxdb/v2/query/stdlib"
 )
 
 // The FluxInit() function prepares the runtime for compilation and execution

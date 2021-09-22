@@ -9,9 +9,8 @@ import (
 
 	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	influxdb "github.com/influxdata/influxdb/v2/v1"
-	"github.com/influxdata/influxql"
-
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
+	"github.com/influxdata/influxql"
 )
 
 func init() {

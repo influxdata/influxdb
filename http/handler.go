@@ -90,6 +90,19 @@ func WithMetrics(reg *prom.Registry, exposed bool) HandlerOptFn {
 	}
 }
 
+type AddHeader struct {
+	WriteHeader func(header http.Header)
+}
+
+// Middleware is a middleware that mutates the header of all responses
+func (h *AddHeader) Middleware(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		h.WriteHeader(w.Header())
+		next.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(fn)
+}
+
 // NewRootHandler creates a new handler with the given name and registers any root-level
 // (non-API) routes enabled by the caller.
 func NewRootHandler(name string, opts ...HandlerOptFn) *Handler {
@@ -112,6 +125,13 @@ func NewRootHandler(name string, opts ...HandlerOptFn) *Handler {
 	h.initMetrics()
 
 	r := chi.NewRouter()
+	buildHeader := &AddHeader{
+		WriteHeader: func(header http.Header) {
+			header.Add("X-Influxdb-Build", "OSS")
+			header.Add("X-Influxdb-Version", influxdb.GetBuildInfo().Version)
+		},
+	}
+	r.Use(buildHeader.Middleware)
 	// only gather metrics for system handlers
 	r.Group(func(r chi.Router) {
 		r.Use(
