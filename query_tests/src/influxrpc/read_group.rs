@@ -9,70 +9,73 @@ use query::{frontend::influxrpc::InfluxRpcPlanner, group_by::Aggregate};
 
 /// runs read_group(predicate) and compares it to the expected
 /// output
-macro_rules! run_read_group_test_case {
-    ($DB_SETUP:expr, $PREDICATE:expr, $AGG:expr, $GROUP_COLUMNS:expr, $EXPECTED_RESULTS:expr) => {
-        test_helpers::maybe_start_logging();
-        let predicate = $PREDICATE;
-        let agg = $AGG;
-        let group_columns = $GROUP_COLUMNS;
-        let expected_results = $EXPECTED_RESULTS;
-        for scenario in $DB_SETUP.make().await {
-            let DbScenario {
-                scenario_name, db, ..
-            } = scenario;
-            println!("Running scenario '{}'", scenario_name);
-            println!("Predicate: '{:#?}'", predicate);
-            let planner = InfluxRpcPlanner::new();
-            let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
+async fn run_read_group_test_case<D>(
+    db_setup: D,
+    predicate: Predicate,
+    agg: Aggregate,
+    group_columns: Vec<&str>,
+    expected_results: Vec<&str>,
+) where
+    D: DbSetup,
+{
+    test_helpers::maybe_start_logging();
 
-            let plans = planner
-                .read_group(db.as_ref(), predicate.clone(), agg, &group_columns)
-                .expect("built plan successfully");
+    for scenario in db_setup.make().await {
+        let DbScenario {
+            scenario_name, db, ..
+        } = scenario;
+        println!("Running scenario '{}'", scenario_name);
+        println!("Predicate: '{:#?}'", predicate);
+        let planner = InfluxRpcPlanner::new();
+        let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
-            let plans = plans.into_inner();
+        let plans = planner
+            .read_group(db.as_ref(), predicate.clone(), agg, &group_columns)
+            .expect("built plan successfully");
 
-            for (i, plan) in plans.iter().enumerate() {
-                assert_eq!(
-                    plan.num_prefix_tag_group_columns,
-                    Some(group_columns.len()),
-                    "Mismatch in plan index {}",
-                    i
-                );
-            }
+        let plans = plans.into_inner();
 
-            let mut string_results = vec![];
-            for plan in plans.into_iter() {
-                let batches = ctx
-                    .run_logical_plan(plan.plan)
-                    .await
-                    .expect("ok running plan");
-
-                string_results.extend(
-                    pretty_format_batches(&batches)
-                        .expect("formatting results")
-                        .trim()
-                        .split('\n')
-                        .map(|s| s.to_string()),
-                );
-            }
-
+        for (i, plan) in plans.iter().enumerate() {
             assert_eq!(
-                expected_results, string_results,
-                "Error in  scenario '{}'\n\nexpected:\n\n{:#?}\nactual:\n\n{:#?}",
-                scenario_name, expected_results, string_results
+                plan.num_prefix_tag_group_columns,
+                Some(group_columns.len()),
+                "Mismatch in plan index {}",
+                i
             );
         }
-    };
+
+        let mut string_results = vec![];
+        for plan in plans.into_iter() {
+            let batches = ctx
+                .run_logical_plan(plan.plan)
+                .await
+                .expect("ok running plan");
+
+            string_results.extend(
+                pretty_format_batches(&batches)
+                    .expect("formatting results")
+                    .trim()
+                    .split('\n')
+                    .map(|s| s.to_string()),
+            );
+        }
+
+        assert_eq!(
+            expected_results, string_results,
+            "Error in  scenario '{}'\n\nexpected:\n\n{:#?}\nactual:\n\n{:#?}",
+            scenario_name, expected_results, string_results
+        );
+    }
 }
 
 #[tokio::test]
 async fn test_read_group_no_data_no_pred() {
     let predicate = Predicate::default();
     let agg = Aggregate::Mean;
-    let group_columns = vec![] as Vec<String>;
+    let group_columns = vec![] as Vec<&str>;
     let expected_results = vec![] as Vec<&str>;
 
-    run_read_group_test_case!(NoData {}, predicate, agg, group_columns, expected_results);
+    run_read_group_test_case(NoData {}, predicate, agg, group_columns, expected_results).await;
 }
 
 struct OneMeasurementForAggs {}
@@ -110,13 +113,14 @@ async fn test_read_group_data_pred() {
         "+-------+------+------+--------------------------------+",
     ];
 
-    run_read_group_test_case!(
+    run_read_group_test_case(
         OneMeasurementForAggs {},
         predicate,
         agg,
         group_columns,
-        expected_results
-    );
+        expected_results,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -136,13 +140,14 @@ async fn test_read_group_data_field_restriction() {
         "+-------+--------+-------+--------------------------------+",
     ];
 
-    run_read_group_test_case!(
+    run_read_group_test_case(
         OneMeasurementForAggs {},
         predicate,
         agg,
         group_columns,
-        expected_results
-    );
+        expected_results,
+    )
+    .await;
 }
 
 struct AnotherMeasurementForAggs {}
@@ -194,13 +199,14 @@ async fn test_grouped_series_set_plan_sum() {
         "+-------+-----------+----------+------+--------------------------------+",
     ];
 
-    run_read_group_test_case!(
+    run_read_group_test_case(
         AnotherMeasurementForAggs {},
         predicate,
         agg,
         group_columns,
-        expected_results
-    );
+        expected_results,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -228,13 +234,14 @@ async fn test_grouped_series_set_plan_count() {
         "+-------+-----------+----------+------+--------------------------------+",
     ];
 
-    run_read_group_test_case!(
+    run_read_group_test_case(
         AnotherMeasurementForAggs {},
         predicate,
         agg,
         group_columns,
-        expected_results
-    );
+        expected_results,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -262,13 +269,14 @@ async fn test_grouped_series_set_plan_mean() {
         "+-------+-----------+----------+------+--------------------------------+",
     ];
 
-    run_read_group_test_case!(
+    run_read_group_test_case(
         AnotherMeasurementForAggs {},
         predicate,
         agg,
         group_columns,
-        expected_results
-    );
+        expected_results,
+    )
+    .await;
 }
 
 struct MeasurementForSelectors {}
@@ -306,13 +314,14 @@ async fn test_grouped_series_set_plan_first() {
         "+-------+-----------+------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
     ];
 
-    run_read_group_test_case!(
+    run_read_group_test_case(
         MeasurementForSelectors {},
         predicate,
         agg,
         group_columns,
-        expected_results
-    );
+        expected_results,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -333,13 +342,14 @@ async fn test_grouped_series_set_plan_last() {
         "+-------+-----------+-------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
     ];
 
-    run_read_group_test_case!(
+    run_read_group_test_case(
         MeasurementForSelectors {},
         predicate,
         agg,
         group_columns,
-        expected_results
-    );
+        expected_results,
+    )
+    .await;
 }
 
 struct MeasurementForMin {}
@@ -379,13 +389,14 @@ async fn test_grouped_series_set_plan_min() {
         "+-------+-----------+-------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
     ];
 
-    run_read_group_test_case!(
+    run_read_group_test_case(
         MeasurementForMin {},
         predicate,
         agg,
         group_columns,
-        expected_results
-    );
+        expected_results,
+    )
+    .await;
 }
 
 struct MeasurementForMax {}
@@ -423,13 +434,14 @@ async fn test_grouped_series_set_plan_max() {
         "+-------+-----------+------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
     ];
 
-    run_read_group_test_case!(
+    run_read_group_test_case(
         MeasurementForMax {},
         predicate,
         agg,
         group_columns,
-        expected_results
-    );
+        expected_results,
+    )
+    .await;
 }
 
 struct MeasurementForGroupKeys {}
@@ -472,13 +484,14 @@ async fn test_grouped_series_set_plan_group_by_state_city() {
         "+-------+-----------+----------+------+--------------------------------+",
     ];
 
-    run_read_group_test_case!(
+    run_read_group_test_case(
         MeasurementForGroupKeys {},
         predicate,
         agg,
         group_columns,
-        expected_results
-    );
+        expected_results,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -500,13 +513,14 @@ async fn test_grouped_series_set_plan_group_by_city_state() {
         "+-----------+-------+----------+------+--------------------------------+",
     ];
 
-    run_read_group_test_case!(
+    run_read_group_test_case(
         MeasurementForGroupKeys {},
         predicate,
         agg,
         group_columns,
-        expected_results
-    );
+        expected_results,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -532,11 +546,12 @@ async fn test_grouped_series_set_plan_group_aggregate_none() {
         "+-----------+-------+----------+------+--------------------------------+",
     ];
 
-    run_read_group_test_case!(
+    run_read_group_test_case(
         MeasurementForGroupKeys {},
         predicate,
         agg,
         group_columns,
-        expected_results
-    );
+        expected_results,
+    )
+    .await;
 }
