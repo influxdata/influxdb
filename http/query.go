@@ -356,6 +356,8 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 	return qr, nil
 }
 
+const fluxContentType = "application/vnd.flux"
+
 func decodeQueryRequest(ctx context.Context, r *http.Request, svc influxdb.OrganizationService) (*QueryRequest, int, error) {
 	var req QueryRequest
 	body := &countReader{Reader: r.Body}
@@ -369,7 +371,7 @@ func decodeQueryRequest(ctx context.Context, r *http.Request, svc influxdb.Organ
 		return nil, body.bytesRead, err
 	}
 	switch mt {
-	case "application/vnd.flux":
+	case fluxContentType:
 		octets, err := ioutil.ReadAll(body)
 		if err != nil {
 			return nil, body.bytesRead, err
@@ -379,7 +381,8 @@ func decodeQueryRequest(ctx context.Context, r *http.Request, svc influxdb.Organ
 		fallthrough
 	default:
 		if err := json.NewDecoder(body).Decode(&req); err != nil {
-			return nil, body.bytesRead, err
+			return nil, body.bytesRead,
+				fmt.Errorf("failed parsing request body as JSON; if sending a raw Flux script, set 'Content-Type: %s' in your request headers: %w", fluxContentType, err)
 		}
 	}
 
