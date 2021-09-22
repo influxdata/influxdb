@@ -677,7 +677,7 @@ dependencies = [
  "criterion-plot",
  "csv",
  "futures",
- "itertools 0.10.1",
+ "itertools",
  "lazy_static",
  "num-traits",
  "oorandom",
@@ -700,7 +700,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d00996de9f2f7559f7f4dc286073197f83e92256a59ed395f9aac01fe717da57"
 dependencies = [
  "cast",
- "itertools 0.10.1",
+ "itertools",
 ]
 
 [[package]]
@@ -1674,7 +1674,7 @@ dependencies = [
  "influxdb_storage_client",
  "internal_types",
  "iox_object_store",
- "itertools 0.10.1",
+ "itertools",
  "libc",
  "log",
  "logfmt",
@@ -1813,7 +1813,7 @@ dependencies = [
  "futures",
  "hashbrown 0.11.2",
  "indexmap",
- "itertools 0.10.1",
+ "itertools",
  "snafu",
  "tokio",
 ]
@@ -1833,7 +1833,7 @@ dependencies = [
  "humantime",
  "influxdb2_client",
  "influxdb_iox_client",
- "itertools 0.9.0",
+ "itertools",
  "packers",
  "rand",
  "rand_core",
@@ -1871,15 +1871,6 @@ name = "ipnet"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68f2d64f2edebec4ce84ad108148e67e1064789bee435edc5b60ad398714a3a9"
-
-[[package]]
-name = "itertools"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
-dependencies = [
- "either",
-]
 
 [[package]]
 name = "itertools"
@@ -2508,7 +2499,7 @@ dependencies = [
  "futures",
  "futures-test",
  "indexmap",
- "itertools 0.10.1",
+ "itertools",
  "percent-encoding",
  "reqwest",
  "rusoto_core",
@@ -2763,7 +2754,7 @@ name = "pbjson_build"
 version = "0.1.0"
 dependencies = [
  "heck",
- "itertools 0.10.1",
+ "itertools",
  "pbjson_test",
  "prost",
  "prost-types",
@@ -2997,7 +2988,7 @@ checksum = "c143348f141cc87aab5b950021bac6145d0e5ae754b0591de23244cee42c9308"
 dependencies = [
  "difflib",
  "float-cmp",
- "itertools 0.10.1",
+ "itertools",
  "normalize-line-endings",
  "predicates-core",
  "regex",
@@ -3120,7 +3111,7 @@ checksum = "355f634b43cdd80724ee7848f95770e7e70eefa6dcf14fea676216573b8fd603"
 dependencies = [
  "bytes",
  "heck",
- "itertools 0.10.1",
+ "itertools",
  "log",
  "multimap",
  "petgraph",
@@ -3137,7 +3128,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "600d2f334aa05acb02a755e217ef1ab6dea4d51b58b7846588b747edec04efba"
 dependencies = [
  "anyhow",
- "itertools 0.10.1",
+ "itertools",
  "proc-macro2",
  "quote",
  "syn",
@@ -3168,7 +3159,7 @@ dependencies = [
  "futures",
  "hashbrown 0.11.2",
  "internal_types",
- "itertools 0.10.1",
+ "itertools",
  "libc",
  "observability_deps",
  "parking_lot",
@@ -3372,7 +3363,7 @@ dependencies = [
  "either",
  "hashbrown 0.11.2",
  "internal_types",
- "itertools 0.10.1",
+ "itertools",
  "metric",
  "observability_deps",
  "packers",
@@ -3854,7 +3845,7 @@ dependencies = [
  "influxdb_line_protocol",
  "internal_types",
  "iox_object_store",
- "itertools 0.10.1",
+ "itertools",
  "lifecycle",
  "metric",
  "mutable_buffer",
@@ -4543,7 +4534,7 @@ dependencies = [
  "hashbrown 0.11.2",
  "http",
  "http-body",
- "itertools 0.10.1",
+ "itertools",
  "metric",
  "observability_deps",
  "parking_lot",
