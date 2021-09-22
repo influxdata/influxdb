@@ -992,5 +992,4 @@ async fn sql_select_with_three_deletes_from_three_chunks() {
     //     &expected,
     // )
     // .await;
-
 }
