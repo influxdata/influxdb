@@ -2781,7 +2781,6 @@ dependencies = [
  "thrift",
  "tokio",
  "tokio-stream",
- "tracker",
  "uuid",
  "zstd",
 ]
