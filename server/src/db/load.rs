@@ -8,9 +8,8 @@ use parquet_file::{
     catalog::{
         core::PreservedCatalog,
         interface::{
-            CatalogParquetInfo, CatalogState, CatalogStateAddError,
-            CatalogStateDeletePredicateError, CatalogStateRemoveError, ChunkAddrWithoutDatabase,
-            ChunkCreationFailed,
+            CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError,
+            ChunkAddrWithoutDatabase, ChunkCreationFailed,
         },
     },
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
@@ -276,21 +275,20 @@ impl CatalogState for Loader {
         &mut self,
         predicate: Arc<Predicate>,
         chunks: Vec<ChunkAddrWithoutDatabase>,
-    ) -> Result<(), CatalogStateDeletePredicateError> {
+    ) {
         for addr in chunks {
-            let (chunk, _order) = self
-                .catalog
-                .chunk(&addr.table_name, &addr.partition_key, addr.chunk_id)
-                .map_err(|_| CatalogStateDeletePredicateError::ChunkDoesNotExist {
-                    chunk: addr.clone(),
-                })?;
-            let mut chunk = chunk.write();
-            chunk
-                .add_delete_predicate(Arc::clone(&predicate))
-                .expect("this should not fail for persisted chunks");
+            // The chunk might not exist because it might have been marked as "persisting" but either the persistence
+            // action never finished before the server restarted or failed.
+            if let Ok((chunk, _order)) =
+                self.catalog
+                    .chunk(&addr.table_name, &addr.partition_key, addr.chunk_id)
+            {
+                let mut chunk = chunk.write();
+                chunk
+                    .add_delete_predicate(Arc::clone(&predicate))
+                    .expect("this should not fail for persisted chunks");
+            }
         }
-
-        Ok(())
     }
 }
 

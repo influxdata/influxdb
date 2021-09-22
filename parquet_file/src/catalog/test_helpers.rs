@@ -10,15 +10,14 @@ use std::{
 use data_types::chunk_metadata::ChunkId;
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
 use predicate::predicate::Predicate;
-use snafu::{OptionExt, ResultExt};
+use snafu::ResultExt;
 
 use crate::{
     catalog::{
         core::PreservedCatalog,
         interface::{
-            CatalogParquetInfo, CatalogState, CatalogStateAddError,
-            CatalogStateDeletePredicateError, CatalogStateRemoveError, CheckpointData,
-            ChunkAddrWithoutDatabase,
+            CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError,
+            CheckpointData, ChunkAddrWithoutDatabase,
         },
         internals::{
             proto_io::{load_transaction_proto, store_transaction_proto},
@@ -200,30 +199,19 @@ impl CatalogState for TestCatalogState {
         &mut self,
         predicate: Arc<Predicate>,
         chunks: Vec<ChunkAddrWithoutDatabase>,
-    ) -> Result<(), CatalogStateDeletePredicateError> {
-        use crate::catalog::interface::ChunkDoesNotExist;
-
+    ) {
         for addr in chunks {
-            self.tables
+            if let Some(chunk) = self
+                .tables
                 .get_mut(&addr.table_name)
-                .context(ChunkDoesNotExist {
-                    chunk: addr.clone(),
-                })?
-                .partitions
-                .get_mut(&addr.partition_key)
-                .context(ChunkDoesNotExist {
-                    chunk: addr.clone(),
-                })?
-                .chunks
-                .get_mut(&addr.chunk_id)
-                .context(ChunkDoesNotExist {
-                    chunk: addr.clone(),
-                })?
-                .delete_predicates
-                .push(Arc::clone(&predicate));
+                .map(|table| table.partitions.get_mut(&addr.partition_key))
+                .flatten()
+                .map(|partition| partition.chunks.get_mut(&addr.chunk_id))
+                .flatten()
+            {
+                chunk.delete_predicates.push(Arc::clone(&predicate));
+            }
         }
-
-        Ok(())
     }
 }
 
@@ -535,17 +523,13 @@ where
         // first predicate used only a single chunk
         let predicate_1 = create_delete_predicate(&chunk_addr_1.table_name, 1);
         let chunks_1 = vec![chunk_addr_1.clone().into()];
-        state
-            .delete_predicate(Arc::clone(&predicate_1), chunks_1.clone())
-            .unwrap();
+        state.delete_predicate(Arc::clone(&predicate_1), chunks_1.clone());
         expected_predicates.push((predicate_1, chunks_1));
 
         // second predicate uses both chunks (but not the older chunks)
         let predicate_2 = create_delete_predicate(&chunk_addr_2.table_name, 2);
         let chunks_2 = vec![chunk_addr_1.into(), chunk_addr_2.into()];
-        state
-            .delete_predicate(Arc::clone(&predicate_2), chunks_2.clone())
-            .unwrap();
+        state.delete_predicate(Arc::clone(&predicate_2), chunks_2.clone());
         expected_predicates.push((predicate_2, chunks_2));
 
         // chunks created afterwards are unaffected
@@ -588,7 +572,8 @@ where
     }
     assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
-    // registering predicates for unknown chunks errors
+    // Registering predicates for unknown chunks is just ignored because chunks might been in "persisting" intermediate
+    // state while the predicate was reported.
     {
         let predicate = create_delete_predicate("some_table", 1);
         let chunks = vec![ChunkAddrWithoutDatabase {
@@ -596,14 +581,9 @@ where
             partition_key: Arc::from("part"),
             chunk_id: ChunkId::new(1000),
         }];
-        let err = state
-            .delete_predicate(Arc::clone(&predicate), chunks)
-            .unwrap_err();
-        assert!(matches!(
-            err,
-            CatalogStateDeletePredicateError::ChunkDoesNotExist { .. }
-        ));
+        state.delete_predicate(Arc::clone(&predicate), chunks);
     }
+    assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 }
 
 /// Assert that tracked files and their linked metadata are equal.

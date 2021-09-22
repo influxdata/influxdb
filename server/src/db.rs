@@ -1219,8 +1219,14 @@ pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData 
             };
 
             files.insert(path, m);
+        }
 
-            // capture delete predicates
+        // capture delete predicates
+        // We should only report persisted chunks or chunks that are currently being persisted, because the
+        // preserved catalog does not care about purely in-mem chunks.
+        if matches!(guard.stage(), ChunkStage::Persisted { .. })
+            || guard.is_in_lifecycle(ChunkLifecycleAction::Persisting)
+        {
             for predicate in guard.delete_predicates() {
                 let predicate_ref: &Predicate = predicate.as_ref();
                 let addr = (predicate_ref as *const Predicate) as usize;
