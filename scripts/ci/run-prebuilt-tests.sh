@@ -37,7 +37,6 @@ function main () {
     fi
     local -r bin_dir="$1" result_dir="$2"
 
-    rm -rf "$result_dir"
     mkdir -p "$result_dir"
 
     local -r test_packages="$(cat "${bin_dir}/tests.list" | circleci tests split --split-by=timings --timings-type=classname)"

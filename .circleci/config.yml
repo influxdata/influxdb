@@ -6,6 +6,9 @@ orbs:
 executors:
   cross-builder:
     docker:
+      # NOTE: To upgrade the Go version, first push the upgrade to the cross-builder Dockerfile in the edge repo,
+      # then update the version here to match. Until we finish the migration to using the cross-builder image,
+      # you'll also need to update references to `cimg/go` and `GO_VERSION` in this file.
       - image: quay.io/influxdb/cross-builder:go1.17.1-41d944d749b2c130119eff7efaaa9883ccffe5a7
     resource_class: large
   linux-amd64:
@@ -16,7 +19,7 @@ executors:
     machine:
       image: ubuntu-2004:202101-01
       resource_class: arm.large
-  mac:
+  darwin:
     macos:
       xcode: 12.4.0
       resource_class: medium
@@ -74,8 +77,8 @@ workflows:
           requires:
             - test-build-arm64-linux
       - test-prebuilt:
-          name: test-mac
-          executor: mac
+          name: test-darwin
+          executor: darwin
           requires:
             - test-build-amd64-darwin
       - test-prebuilt:
@@ -200,8 +203,8 @@ workflows:
           requires:
             - test-build-arm64-linux
       - test-prebuilt:
-          name: test-mac
-          executor: mac
+          name: test-darwin
+          executor: darwin
           requires:
             - test-build-amd64-darwin
       - test-prebuilt:
