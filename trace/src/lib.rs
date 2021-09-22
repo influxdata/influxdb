@@ -20,6 +20,7 @@ pub mod span;
 
 /// A TraceCollector is a sink for completed `Span`
 pub trait TraceCollector: std::fmt::Debug + Send + Sync {
+    /// Exports the specified `Span` for collection by the sink
     fn export(&self, span: Span);
 }
 

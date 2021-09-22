@@ -7,6 +7,7 @@ use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::sync::CancellationToken;
 use tonic::codegen::InterceptedService;
 use tonic::transport::NamedService;
+use trace_http::ctx::TraceHeaderParser;
 
 use crate::influxdb_ioxd::serving_readiness::ServingReadiness;
 use server::{ApplicationState, ConnectionManager, Server};
@@ -88,6 +89,7 @@ pub async fn serve<M>(
     socket: TcpListener,
     application: Arc<ApplicationState>,
     server: Arc<Server<M>>,
+    trace_header_parser: TraceHeaderParser,
     trace_collector: Option<Arc<dyn TraceCollector>>,
     shutdown: CancellationToken,
     serving_readiness: ServingReadiness,
@@ -105,6 +107,7 @@ where
 
     let builder = tonic::transport::Server::builder();
     let mut builder = builder.layer(trace_http::tower::TraceLayer::new(
+        trace_header_parser,
         Arc::clone(application.metric_registry()),
         trace_collector,
         true,

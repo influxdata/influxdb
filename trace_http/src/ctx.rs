@@ -15,25 +15,22 @@ const B3_TRACE_ID_HEADER: &str = "X-B3-TraceId";
 const B3_PARENT_SPAN_ID_HEADER: &str = "X-B3-ParentSpanId";
 const B3_SPAN_ID_HEADER: &str = "X-B3-SpanId";
 
-const JAEGER_TRACE_HEADER: &str = "uber-trace-id";
+const DEFAULT_JAEGER_TRACE_HEADER: &str = "uber-trace-id";
 
 /// Error decoding SpanContext from transport representation
 #[derive(Debug, Snafu)]
 pub enum ContextError {
     #[snafu(display("header '{}' not found", header))]
-    Missing { header: &'static str },
+    Missing { header: String },
 
     #[snafu(display("header '{}' has non-UTF8 content: {}", header, source))]
     InvalidUtf8 {
-        header: &'static str,
+        header: String,
         source: http::header::ToStrError,
     },
 
     #[snafu(display("error decoding header '{}': {}", header, source))]
-    HeaderDecodeError {
-        header: &'static str,
-        source: DecodeError,
-    },
+    HeaderDecodeError { header: String, source: DecodeError },
 }
 
 /// Error decoding a specific header value
@@ -68,34 +65,52 @@ fn parse_span(s: &str) -> Result<SpanId, DecodeError> {
     ))
 }
 
-/// Create a SpanContext for the trace described in the request's headers
-pub fn parse_span_ctx(
-    collector: &Arc<dyn TraceCollector>,
-    headers: &HeaderMap,
-) -> Result<Option<SpanContext>, ContextError> {
-    match ContextCodec::detect(headers) {
-        None => Ok(None),
-        Some(ContextCodec::B3) => decode_b3(collector, headers),
-        Some(ContextCodec::Jaeger) => decode_jaeger(collector, headers),
+/// Extracts tracing information such as the `SpanContext`s , if any,
+/// from http request headers.
+#[derive(Debug, Clone)]
+pub struct TraceHeaderParser {
+    jaeger_header_name: Arc<str>,
+}
+
+impl Default for TraceHeaderParser {
+    fn default() -> Self {
+        Self {
+            jaeger_header_name: DEFAULT_JAEGER_TRACE_HEADER.into(),
+        }
     }
 }
 
-/// The codec used to encode trace context
-enum ContextCodec {
-    /// <https://github.com/openzipkin/b3-propagation#multiple-headers>
-    B3,
-    /// <https://www.jaegertracing.io/docs/1.21/client-libraries/#propagation-format>
-    Jaeger,
-}
+impl TraceHeaderParser {
+    /// Create a new span context parser with default Jaeger trace
+    /// header name
+    pub fn new() -> Self {
+        Default::default()
+    }
 
-impl ContextCodec {
-    fn detect(headers: &HeaderMap) -> Option<Self> {
-        if headers.contains_key(JAEGER_TRACE_HEADER) {
-            Some(Self::Jaeger)
+    /// specify a custom jaeger_trace_context_header_name
+    pub fn with_jaeger_header_name(mut self, name: impl AsRef<str>) -> Self {
+        self.jaeger_header_name = name.as_ref().into();
+        self
+    }
+
+    /// Create a SpanContext for the trace described in the request's
+    /// headers, if any
+    ///
+    /// Currently support the following formats:
+    /// * <https://github.com/openzipkin/b3-propagation#multiple-headers>
+    /// * <https://www.jaegertracing.io/docs/1.21/client-libraries/#propagation-format>
+    pub fn parse(
+        &self,
+        collector: &Arc<dyn TraceCollector>,
+        headers: &HeaderMap,
+    ) -> Result<Option<SpanContext>, ContextError> {
+        let jaeger_header = self.jaeger_header_name.as_ref();
+        if headers.contains_key(jaeger_header) {
+            decode_jaeger(collector, headers, jaeger_header)
         } else if headers.contains_key(B3_TRACE_ID_HEADER) {
-            Some(Self::B3)
+            decode_b3(collector, headers)
         } else {
-            None
+            Ok(None)
         }
     }
 }
@@ -171,8 +186,9 @@ impl FromStr for JaegerCtx {
 fn decode_jaeger(
     collector: &Arc<dyn TraceCollector>,
     headers: &HeaderMap,
+    jaeger_header: &str,
 ) -> Result<Option<SpanContext>, ContextError> {
-    let decoded: JaegerCtx = required_header(headers, JAEGER_TRACE_HEADER, FromStr::from_str)?;
+    let decoded: JaegerCtx = required_header(headers, jaeger_header, FromStr::from_str)?;
     if decoded.flags & 0x01 == 0 {
         return Ok(None);
     }
@@ -192,14 +208,15 @@ fn decode_jaeger(
 /// - Returns Ok(Some(_)) otherwise
 fn decoded_header<'a>(
     headers: &'a HeaderMap,
-    header: &'static str,
+    header: &str,
 ) -> Result<Option<&'a str>, ContextError> {
     headers
         .get(header)
         .map(|value| {
-            value
-                .to_str()
-                .map_err(|source| ContextError::InvalidUtf8 { header, source })
+            value.to_str().map_err(|source| ContextError::InvalidUtf8 {
+                header: header.to_string(),
+                source,
+            })
         })
         .transpose()
 }
@@ -211,13 +228,16 @@ fn decoded_header<'a>(
 /// - Returns Ok(Some(_)) otherwise
 fn parsed_header<T, F: FnOnce(&str) -> Result<T, DecodeError>>(
     headers: &HeaderMap,
-    header: &'static str,
+    header: &str,
     parse: F,
 ) -> Result<Option<T>, ContextError> {
     decoded_header(headers, header)?
         .map(parse)
         .transpose()
-        .map_err(|source| ContextError::HeaderDecodeError { source, header })
+        .map_err(|source| ContextError::HeaderDecodeError {
+            source,
+            header: header.to_string(),
+        })
 }
 
 /// Decodes and parses a given required header from the provided HeaderMap
@@ -226,10 +246,12 @@ fn parsed_header<T, F: FnOnce(&str) -> Result<T, DecodeError>>(
 /// - Returns Ok(str) otherwise
 fn required_header<T, F: FnOnce(&str) -> Result<T, DecodeError>>(
     headers: &HeaderMap,
-    header: &'static str,
+    header: &str,
     parse: F,
 ) -> Result<T, ContextError> {
-    parsed_header(headers, header, parse)?.ok_or(ContextError::Missing { header })
+    parsed_header(headers, header, parse)?.ok_or(ContextError::Missing {
+        header: header.to_string(),
+    })
 }
 
 #[cfg(test)]
@@ -240,31 +262,31 @@ mod tests {
 
     #[test]
     fn test_decode_b3() {
+        let parser = TraceHeaderParser::new();
         let collector: Arc<dyn TraceCollector> = Arc::new(trace::LogTraceCollector::new());
+
         let mut headers = HeaderMap::new();
 
         // No headers should be None
-        assert!(parse_span_ctx(&collector, &headers).unwrap().is_none());
+        assert!(parser.parse(&collector, &headers).unwrap().is_none());
 
         headers.insert(B3_TRACE_ID_HEADER, HeaderValue::from_static("ee25f"));
         headers.insert(B3_SAMPLED_HEADER, HeaderValue::from_static("0"));
 
         // Not sampled
-        assert!(parse_span_ctx(&collector, &headers).unwrap().is_none());
+        assert!(parser.parse(&collector, &headers).unwrap().is_none());
 
         headers.insert(B3_SAMPLED_HEADER, HeaderValue::from_static("1"));
 
         // Missing required headers
         assert_eq!(
-            parse_span_ctx(&collector, &headers)
-                .unwrap_err()
-                .to_string(),
+            parser.parse(&collector, &headers).unwrap_err().to_string(),
             "header 'X-B3-SpanId' not found"
         );
 
         headers.insert(B3_SPAN_ID_HEADER, HeaderValue::from_static("34e"));
 
-        let span = parse_span_ctx(&collector, &headers).unwrap().unwrap();
+        let span = parser.parse(&collector, &headers).unwrap().unwrap();
 
         assert_eq!(span.span_id.0.get(), 0x34e);
         assert_eq!(span.trace_id.0.get(), 0xee25f);
@@ -275,7 +297,7 @@ mod tests {
             HeaderValue::from_static("4595945"),
         );
 
-        let span = parse_span_ctx(&collector, &headers).unwrap().unwrap();
+        let span = parser.parse(&collector, &headers).unwrap().unwrap();
 
         assert_eq!(span.span_id.0.get(), 0x34e);
         assert_eq!(span.trace_id.0.get(), 0xee25f);
@@ -284,7 +306,7 @@ mod tests {
         headers.insert(B3_SPAN_ID_HEADER, HeaderValue::from_static("not a number"));
 
         assert_eq!(
-            parse_span_ctx(&collector, &headers)
+            parser.parse(&collector, &headers)
                 .unwrap_err()
                 .to_string(),
             "error decoding header 'X-B3-SpanId': value decode error: invalid digit found in string"
@@ -293,22 +315,24 @@ mod tests {
         headers.insert(B3_SPAN_ID_HEADER, HeaderValue::from_static("0"));
 
         assert_eq!(
-            parse_span_ctx(&collector, &headers)
-                .unwrap_err()
-                .to_string(),
+            parser.parse(&collector, &headers).unwrap_err().to_string(),
             "error decoding header 'X-B3-SpanId': value cannot be 0"
         );
     }
 
     #[test]
     fn test_decode_jaeger() {
+        let parser = TraceHeaderParser::new();
         let collector: Arc<dyn TraceCollector> = Arc::new(trace::LogTraceCollector::new());
         let mut headers = HeaderMap::new();
 
         // Invalid format
-        headers.insert(JAEGER_TRACE_HEADER, HeaderValue::from_static("invalid"));
+        headers.insert(
+            DEFAULT_JAEGER_TRACE_HEADER,
+            HeaderValue::from_static("invalid"),
+        );
         assert_eq!(
-            parse_span_ctx(&collector, &headers)
+            parser.parse(&collector, &headers)
                 .unwrap_err()
                 .to_string(),
             "error decoding header 'uber-trace-id': Expected \"trace-id:span-id:parent-span-id:flags\""
@@ -316,17 +340,17 @@ mod tests {
 
         // Not sampled
         headers.insert(
-            JAEGER_TRACE_HEADER,
+            DEFAULT_JAEGER_TRACE_HEADER,
             HeaderValue::from_static("343:4325345:0:0"),
         );
-        assert!(parse_span_ctx(&collector, &headers).unwrap().is_none());
+        assert!(parser.parse(&collector, &headers).unwrap().is_none());
 
         // Sampled
         headers.insert(
-            JAEGER_TRACE_HEADER,
+            DEFAULT_JAEGER_TRACE_HEADER,
             HeaderValue::from_static("3a43:432e345:0:1"),
         );
-        let span = parse_span_ctx(&collector, &headers).unwrap().unwrap();
+        let span = parser.parse(&collector, &headers).unwrap().unwrap();
 
         assert_eq!(span.trace_id.0.get(), 0x3a43);
         assert_eq!(span.span_id.0.get(), 0x432e345);
@@ -334,10 +358,10 @@ mod tests {
 
         // Parent span
         headers.insert(
-            JAEGER_TRACE_HEADER,
+            DEFAULT_JAEGER_TRACE_HEADER,
             HeaderValue::from_static("343:4325345:3434:F"),
         );
-        let span = parse_span_ctx(&collector, &headers).unwrap().unwrap();
+        let span = parser.parse(&collector, &headers).unwrap().unwrap();
 
         assert_eq!(span.trace_id.0.get(), 0x343);
         assert_eq!(span.span_id.0.get(), 0x4325345);
@@ -345,25 +369,46 @@ mod tests {
 
         // Invalid trace id
         headers.insert(
-            JAEGER_TRACE_HEADER,
+            DEFAULT_JAEGER_TRACE_HEADER,
             HeaderValue::from_static("0:4325345:3434:1"),
         );
         assert_eq!(
-            parse_span_ctx(&collector, &headers)
-                .unwrap_err()
-                .to_string(),
+            parser.parse(&collector, &headers).unwrap_err().to_string(),
             "error decoding header 'uber-trace-id': value cannot be 0"
         );
 
         headers.insert(
-            JAEGER_TRACE_HEADER,
+            DEFAULT_JAEGER_TRACE_HEADER,
             HeaderValue::from_static("008e813572f53b3a:008e813572f53b3a:0000000000000000:1"),
         );
 
-        let span = parse_span_ctx(&collector, &headers).unwrap().unwrap();
+        let span = parser.parse(&collector, &headers).unwrap().unwrap();
 
         assert_eq!(span.trace_id.0.get(), 0x008e813572f53b3a);
         assert_eq!(span.span_id.0.get(), 0x008e813572f53b3a);
         assert!(span.parent_span_id.is_none());
+    }
+
+    #[test]
+    fn test_decode_jaeger_custom_header() {
+        let parser = TraceHeaderParser::new().with_jaeger_header_name("my-awesome-header");
+
+        let collector: Arc<dyn TraceCollector> = Arc::new(trace::LogTraceCollector::new());
+        let mut headers = HeaderMap::new();
+
+        let value = HeaderValue::from_static("1:2:3:1");
+
+        // Default header is ignored
+        headers.insert(DEFAULT_JAEGER_TRACE_HEADER, value.clone());
+        assert!(parser.parse(&collector, &headers).unwrap().is_none());
+
+        // custom header is parsed
+        let mut headers = HeaderMap::new();
+        headers.insert("my-awesome-header", value);
+        let span = parser.parse(&collector, &headers).unwrap().unwrap();
+
+        assert_eq!(span.trace_id.0.get(), 1);
+        assert_eq!(span.span_id.0.get(), 2);
+        assert_eq!(span.parent_span_id.unwrap().get(), 3);
     }
 }
