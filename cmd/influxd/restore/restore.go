@@ -167,6 +167,10 @@ func (cmd *Command) parseFlags(args []string) error {
 		return fmt.Errorf("backup path should be a valid directory: %s", cmd.backupFilesPath)
 	}
 
+	if cmd.destinationDatabase != "" && cmd.sourceDatabase == "" {
+		return fmt.Errorf("must specify a database to be restored into new database %s", cmd.destinationDatabase)
+	}
+
 	if cmd.portable || cmd.online {
 		// validate the arguments
 
@@ -184,6 +188,7 @@ func (cmd *Command) parseFlags(args []string) error {
 
 		if cmd.portable {
 			var err error
+
 			cmd.manifestMeta, cmd.manifestFiles, err = backup_util.LoadIncremental(cmd.backupFilesPath)
 			if err != nil {
 				return fmt.Errorf("restore failed while processing manifest files: %s", err.Error())
