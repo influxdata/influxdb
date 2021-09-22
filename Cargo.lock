@@ -1270,7 +1270,6 @@ dependencies = [
  "prost-build",
  "regex",
  "serde",
- "serde_json",
  "thiserror",
  "tonic",
  "tonic-build",
