@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
+
 	// "github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"go.uber.org/zap"

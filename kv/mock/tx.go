@@ -6,9 +6,10 @@ package mock
 
 import (
 	context "context"
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	kv "github.com/influxdata/influxdb/v2/kv"
-	reflect "reflect"
 )
 
 // MockTx is a mock of Tx interface

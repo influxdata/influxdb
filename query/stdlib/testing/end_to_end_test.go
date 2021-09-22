@@ -15,7 +15,6 @@ import (
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/stdlib"
-
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
@@ -25,7 +24,9 @@ import (
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
 	_ "github.com/influxdata/influxdb/v2/query/stdlib"
-	itesting "github.com/influxdata/influxdb/v2/query/stdlib/testing" // Import the stdlib
+
+	// Import the stdlib
+	itesting "github.com/influxdata/influxdb/v2/query/stdlib/testing"
 )
 
 // Flagger for end-to-end test cases. This flagger contains a pointer to a

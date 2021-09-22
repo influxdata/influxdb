@@ -8,8 +8,8 @@ import (
 
 func TestEncodingFormatFromMimeType(t *testing.T) {
 	tests := []struct {
-		s    string
-		exp  EncodingFormat
+		s   string
+		exp EncodingFormat
 	}{
 		{s: "application/csv", exp: EncodingFormatAppCSV},
 		{s: "text/csv", exp: EncodingFormatTextCSV},

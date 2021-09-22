@@ -9,13 +9,12 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/uber/jaeger-client-go"
-
 	"github.com/influxdata/httprouter"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/opentracing/opentracing-go/log"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/uber/jaeger-client-go"
 )
 
 // LogError adds a span log for an error.

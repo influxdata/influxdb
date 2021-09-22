@@ -7,9 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/cron"
-
 	"github.com/benbjohnson/clock"
+	"github.com/influxdata/cron"
 )
 
 type mockExecutor struct {
