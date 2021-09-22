@@ -286,7 +286,7 @@ For IOx to emit traces, the request must have a span context set. You can use th
 ./target/debug/influxdb_iox database create my_db
 # load data
 ./target/debug/influxdb_iox database write my_db tests/fixtures/lineproto/metrics.lp
-# run a query and include a span context
+# run a query and start a new trace 
 ./target/debug/influxdb_iox database query my_db  'show tables' --header jaeger-debug-id:tracing-is-a-great-idea
 ```
 
