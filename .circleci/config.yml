@@ -148,7 +148,7 @@ jobs:
       - cache_restore
       - run:
           name: Cargo test
-          command: cargo test --features=jaeger --workspace
+          command: cargo test --workspace
       - cache_save
 
   # end to end tests with Heappy (heap profiling enabled)
@@ -275,7 +275,7 @@ jobs:
           command: cargo test --workspace --benches --no-run
       - run:
           name: Build with object store + exporter support + HEAP profiling
-          command: cargo build --no-default-features --features="aws,gcp,azure,jaeger,heappy,pprof"
+          command: cargo build --no-default-features --features="aws,gcp,azure,heappy,pprof"
       - cache_save
 
   # Lint protobufs.
@@ -334,10 +334,10 @@ jobs:
       - cache_restore
       - run:
           name: Print rustc target CPU options
-          command: cargo run --release --no-default-features --features="aws,gcp,azure,jaeger,heappy" --bin print_cpu
+          command: cargo run --release --no-default-features --features="aws,gcp,azure,heappy" --bin print_cpu
       - run:
           name: Cargo release build with target arch set for CRoaring
-          command: cargo build --release --no-default-features --features="aws,gcp,azure,jaeger,heappy"
+          command: cargo build --release --no-default-features --features="aws,gcp,azure,heappy"
       - run: |
           echo sha256sum after build is
           sha256sum target/release/influxdb_iox

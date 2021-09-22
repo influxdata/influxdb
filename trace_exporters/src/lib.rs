@@ -7,13 +7,34 @@
     clippy::future_not_send
 )]
 
+use crate::export::AsyncExporter;
+use crate::jaeger::JaegerAgentExporter;
 use snafu::Snafu;
 use std::num::NonZeroU16;
 use std::sync::Arc;
 use structopt::StructOpt;
-use trace::TraceCollector;
 
-pub mod otel;
+pub mod export;
+
+mod jaeger;
+
+/// Auto-generated thrift code
+#[allow(
+    dead_code,
+    deprecated,
+    clippy::redundant_field_names,
+    clippy::unused_unit,
+    clippy::use_self,
+    clippy::too_many_arguments,
+    clippy::type_complexity
+)]
+mod thrift {
+    pub mod agent;
+
+    pub mod zipkincore;
+
+    pub mod jaeger;
+}
 
 /// CLI config for distributed tracing options
 #[derive(Debug, StructOpt, Clone)]
@@ -84,7 +105,7 @@ pub struct TracingConfig {
 }
 
 impl TracingConfig {
-    pub fn build(&self) -> Result<Option<Arc<dyn TraceCollector>>> {
+    pub fn build(&self) -> Result<Option<Arc<AsyncExporter>>> {
         match self.traces_exporter {
             TracesExporter::None => Ok(None),
             TracesExporter::Jaeger => Ok(Some(jaeger_exporter(self)?)),
@@ -115,23 +136,16 @@ impl std::str::FromStr for TracesExporter {
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("failed to construct trace exporter: {}", source))]
-    TraceExporter {
-        source: opentelemetry::trace::TraceError,
-    },
+    #[snafu(display("Failed to resolve address: {}", address))]
+    ResolutionError { address: String },
 
-    #[snafu(display(
-        "'jaeger' not supported with this build. Hint: recompile with appropriate features"
-    ))]
-    JaegerNotBuilt {},
+    #[snafu(context(false))]
+    IOError { source: std::io::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[cfg(feature = "jaeger")]
-fn jaeger_exporter(config: &TracingConfig) -> Result<Arc<dyn TraceCollector>> {
-    use observability_deps::tracing::info;
-
+fn jaeger_exporter(config: &TracingConfig) -> Result<Arc<AsyncExporter>> {
     let agent_endpoint = format!(
         "{}:{}",
         config.traces_exporter_jaeger_agent_host.trim(),
@@ -139,18 +153,7 @@ fn jaeger_exporter(config: &TracingConfig) -> Result<Arc<dyn TraceCollector>> {
     );
 
     let service_name = &config.traces_exporter_jaeger_service_name;
-    info!(%agent_endpoint, %service_name, "Creating jaeger tracing exporter");
+    let jaeger = JaegerAgentExporter::new(service_name.clone(), agent_endpoint)?;
 
-    let exporter = opentelemetry_jaeger::new_pipeline()
-        .with_agent_endpoint(agent_endpoint)
-        .with_service_name(&config.traces_exporter_jaeger_service_name)
-        .init_sync_exporter()
-        .map_err(|source| Error::TraceExporter { source })?;
-
-    Ok(Arc::new(otel::OtelExporter::new(exporter)))
-}
-
-#[cfg(not(feature = "jaeger"))]
-fn jaeger_exporter(_config: &TracingConfig) -> Result<Arc<dyn TraceCollector>> {
-    Err(Error::JaegerNotBuilt {})
+    Ok(Arc::new(AsyncExporter::new(jaeger)))
 }

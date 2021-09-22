@@ -79,8 +79,7 @@ def main():
     try:
         if not args.skip_build:
             build_with_aws = args.object_store == 's3'
-            build_with_jaeger = do_trace
-            cargo_build_iox(args.debug, build_with_aws, build_with_jaeger)
+            cargo_build_iox(args.debug, build_with_aws)
 
         docker_create_network(dc)
         if args.kafka_zookeeper:
@@ -382,15 +381,13 @@ def docker_run_jaeger(dc):
     return container
 
 
-def cargo_build_iox(debug=False, build_with_aws=True, build_with_jaeger=True):
+def cargo_build_iox(debug=False, build_with_aws=True):
     t = time.time()
     print('building IOx')
 
     features = []
     if build_with_aws:
         features.append('aws')
-    if build_with_jaeger:
-        features.append('jaeger')
     features = ','.join(features)
 
     env = os.environ.copy()

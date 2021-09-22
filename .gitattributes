@@ -1,3 +1,4 @@
 generated_types/protos/google/ linguist-generated=true
 generated_types/protos/grpc/ linguist-generated=true
 generated_types/src/wal_generated.rs linguist-generated=true
+trace_exporters/src/thrift/ linguist-generated=true

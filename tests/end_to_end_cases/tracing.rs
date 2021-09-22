@@ -6,18 +6,6 @@ use crate::common::{
 use futures::TryStreamExt;
 use generated_types::{storage_client::StorageClient, ReadFilterRequest};
 
-// cfg at this level so IDE can resolve code even when jaeger feature is not active
-#[cfg(feature = "jaeger")]
-fn run_test() -> bool {
-    true
-}
-
-#[cfg(not(feature = "jaeger"))]
-fn run_test() -> bool {
-    println!("Skipping test because jaeger feature not enabled");
-    false
-}
-
 async fn setup() -> (UdpCapture, ServerFixture) {
     let udp_capture = UdpCapture::new().await;
 
@@ -59,10 +47,6 @@ async fn run_sql_query(server_fixture: &ServerFixture) {
 
 #[tokio::test]
 pub async fn test_tracing_sql() {
-    if !run_test() {
-        return;
-    }
-
     let (udp_capture, server_fixture) = setup().await;
     run_sql_query(&server_fixture).await;
 
@@ -80,10 +64,6 @@ pub async fn test_tracing_sql() {
 
 #[tokio::test]
 pub async fn test_tracing_storage_api() {
-    if !run_test() {
-        return;
-    }
-
     let (udp_capture, server_fixture) = setup().await;
 
     let scenario = Scenario::new();
@@ -127,9 +107,6 @@ pub async fn test_tracing_storage_api() {
 
 #[tokio::test]
 pub async fn test_tracing_create_trace() {
-    if !run_test() {
-        return;
-    }
     let udp_capture = UdpCapture::new().await;
 
     let test_config = TestConfig::new()
