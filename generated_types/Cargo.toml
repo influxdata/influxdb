@@ -7,7 +7,6 @@ edition = "2018"
 [dependencies] # In alphabetical order
 bytes = "1.0"
 data_types = { path = "../data_types" }
-futures = "0.3"
 google_types = { path = "../google_types" }
 observability_deps = { path = "../observability_deps" }
 pbjson = { path = "../pbjson" }

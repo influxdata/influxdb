@@ -1259,7 +1259,6 @@ dependencies = [
  "bytes",
  "chrono",
  "data_types",
- "futures",
  "google_types",
  "num_cpus",
  "observability_deps",
