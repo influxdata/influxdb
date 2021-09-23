@@ -144,6 +144,11 @@ You can also run in release mode with one step:
 cargo run --release -- run
 ```
 
+To run all available tests in debug mode, you may want to set min stack size to avoid the current known stack overflow issue:
+
+```shell
+RUST_MIN_STACK=10485760 cargo test --all
+```
 ### Build a Docker image (optional)
 
 Building the Docker image requires:
