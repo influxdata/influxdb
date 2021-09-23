@@ -13,7 +13,7 @@ use persistence_windows::{
     min_max_sequence::OptionalMinMaxSequence, persistence_windows::PersistenceWindows,
 };
 use predicate::predicate::Predicate;
-use snafu::Snafu;
+use snafu::{OptionExt, Snafu};
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     fmt::Display,
@@ -284,8 +284,13 @@ impl Partition {
     }
 
     /// Drop the specified chunk even if it has an in-progress lifecycle action
-    pub fn force_drop_chunk(&mut self, chunk_id: ChunkId) {
-        self.chunks.remove(&chunk_id);
+    pub fn force_drop_chunk(&mut self, chunk_id: ChunkId) -> Result<Arc<RwLock<CatalogChunk>>> {
+        self.chunks
+            .remove(&chunk_id)
+            .map(|(_order, chunk)| chunk)
+            .context(ChunkNotFound {
+                chunk: ChunkAddr::new(&self.addr, chunk_id),
+            })
     }
 
     /// Return the first currently open chunk, if any

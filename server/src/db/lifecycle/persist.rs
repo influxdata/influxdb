@@ -133,7 +133,9 @@ where
             let partition = LockableCatalogPartition::new(Arc::clone(&db), partition);
             let mut partition_write = partition.write();
             for id in chunk_ids {
-                partition_write.force_drop_chunk(id)
+                partition_write.force_drop_chunk(id).expect(
+                    "There was a lifecycle action attached to this chunk, who deleted it?!",
+                );
             }
 
             // Upsert remainder to catalog
