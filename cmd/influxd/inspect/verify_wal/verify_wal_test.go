@@ -16,7 +16,6 @@ type testInfo struct {
 	path        string
 	expectedOut string
 	expectErr   bool
-	withStdErr  bool
 }
 
 func TestVerifies_InvalidFileType(t *testing.T) {
@@ -55,7 +54,6 @@ func TestVerifies_InvalidEmptyFile(t *testing.T) {
 		t:           t,
 		path:        path,
 		expectedOut: "no WAL entries found",
-		withStdErr:  true,
 	})
 }
 
@@ -67,7 +65,6 @@ func TestVerifies_Invalid(t *testing.T) {
 		t:           t,
 		path:        path,
 		expectedOut: "corrupt entry found at position",
-		withStdErr:  true,
 	})
 }
 
@@ -79,7 +76,6 @@ func TestVerifies_Valid(t *testing.T) {
 		t:           t,
 		path:        path,
 		expectedOut: "clean",
-		withStdErr:  true,
 	})
 }
 
@@ -89,9 +85,7 @@ func runCommand(args testInfo) {
 
 	b := bytes.NewBufferString("")
 	verify.SetOut(b)
-	if args.withStdErr {
-		verify.SetErr(b)
-	}
+	verify.SetErr(b)
 
 	if args.expectErr {
 		require.Error(args.t, verify.Execute())

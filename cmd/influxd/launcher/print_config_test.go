@@ -69,8 +69,8 @@ map-var:
     baz: qux
     foo: bar
 slice-var:
-  - hello
-  - world
+    - hello
+    - world
 string-var: string-value
 `
 

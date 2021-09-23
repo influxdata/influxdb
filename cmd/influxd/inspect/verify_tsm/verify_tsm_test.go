@@ -18,6 +18,7 @@ func TestInvalidChecksum(t *testing.T) {
 	verify := NewTSMVerifyCommand()
 	b := bytes.NewBufferString("")
 	verify.SetOut(b)
+	verify.SetErr(b)
 	verify.SetArgs([]string{"--engine-path", path})
 	require.NoError(t, verify.Execute())
 
@@ -33,6 +34,7 @@ func TestValidChecksum(t *testing.T) {
 	verify := NewTSMVerifyCommand()
 	b := bytes.NewBufferString("")
 	verify.SetOut(b)
+	verify.SetErr(b)
 	verify.SetArgs([]string{"--engine-path", path})
 	require.NoError(t, verify.Execute())
 
@@ -47,6 +49,7 @@ func TestInvalidUTF8(t *testing.T) {
 
 	verify := NewTSMVerifyCommand()
 	verify.SetOut(bytes.NewBufferString(""))
+	verify.SetErr(bytes.NewBufferString(""))
 	verify.SetArgs([]string{"--engine-path", path, "--check-utf8"})
 	require.Error(t, verify.Execute())
 }
@@ -58,6 +61,7 @@ func TestValidUTF8(t *testing.T) {
 	verify := NewTSMVerifyCommand()
 	b := bytes.NewBufferString("")
 	verify.SetOut(b)
+	verify.SetErr(b)
 	verify.SetArgs([]string{"--engine-path", path, "--check-utf8"})
 	require.NoError(t, verify.Execute())
 
