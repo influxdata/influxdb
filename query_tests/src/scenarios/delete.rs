@@ -1441,7 +1441,7 @@ async fn make_2mub_rub_deletes(
         .unwrap();
     write_lp(&db, &lp_data[2].join("\n")).await;
 
-    // 1 MUB, 1 RUB, 1 OS
+    // 3 MUB, 1 RUB, 0 OS
     assert_eq!(count_mutable_buffer_chunks(&db), 2);
     assert_eq!(count_read_buffer_chunks(&db), 1);
     assert_eq!(count_object_store_chunks(&db), 0);
