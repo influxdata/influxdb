@@ -1,8 +1,8 @@
 package telemetry
 
 import (
-	"github.com/golang/protobuf/proto"
 	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/proto"
 )
 
 func NewCounter(name string, v float64, ls ...*dto.LabelPair) *dto.MetricFamily {

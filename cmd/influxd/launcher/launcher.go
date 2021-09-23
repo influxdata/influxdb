@@ -89,7 +89,7 @@ import (
 	"github.com/influxdata/influxdb/v2/vault"
 	pzap "github.com/influxdata/influxdb/v2/zap"
 	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
 )
@@ -217,7 +217,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.initTracing(opts)
 
 	m.reg = prom.NewRegistry(m.log.With(zap.String("service", "prom_registry")))
-	m.reg.MustRegister(prometheus.NewGoCollector())
+	m.reg.MustRegister(collectors.NewGoCollector())
 
 	// Open KV and SQL stores.
 	procID, err := m.openMetaStores(ctx, opts)
