@@ -225,7 +225,7 @@ impl ObjectStoreApi for AmazonS3 {
         prefix: Option<&'a Self::Path>,
     ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
         Ok(self
-            .list_objects_v2(prefix)
+            .list_objects_v2(prefix, None)
             .await?
             .map_ok(|list_objects_v2_result| {
                 let contents = list_objects_v2_result.contents.unwrap_or_default();
@@ -241,7 +241,61 @@ impl ObjectStoreApi for AmazonS3 {
     }
 
     async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
-        self.list_with_delimiter_and_token(prefix, &None).await
+        Ok(self
+            .list_objects_v2(Some(prefix), Some(DELIMITER.to_string()))
+            .await?
+            .try_fold(
+                ListResult {
+                    next_token: None,
+                    common_prefixes: vec![],
+                    objects: vec![],
+                },
+                |acc, list_objects_v2_result| async move {
+                    let mut res = acc;
+                    let contents = list_objects_v2_result.contents.unwrap_or_default();
+                    let mut objects = contents
+                        .into_iter()
+                        .map(|object| {
+                            let location = CloudPath::raw(
+                                object.key.expect("object doesn't exist without a key"),
+                            );
+                            let last_modified = match object.last_modified {
+                                Some(lm) => DateTime::parse_from_rfc3339(&lm)
+                                    .context(UnableToParseLastModified {
+                                        bucket: &self.bucket_name,
+                                    })?
+                                    .with_timezone(&Utc),
+                                None => Utc::now(),
+                            };
+                            let size = usize::try_from(object.size.unwrap_or(0))
+                                .expect("unsupported size on this platform");
+
+                            Ok(ObjectMeta {
+                                location,
+                                last_modified,
+                                size,
+                            })
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+
+                    res.objects.append(&mut objects);
+
+                    res.common_prefixes.extend(
+                        list_objects_v2_result
+                            .common_prefixes
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|p| {
+                                CloudPath::raw(
+                                    p.prefix.expect("can't have a prefix without a value"),
+                                )
+                            }),
+                    );
+
+                    Ok(res)
+                },
+            )
+            .await?)
     }
 }
 
@@ -314,6 +368,7 @@ impl AmazonS3 {
     async fn list_objects_v2(
         &self,
         prefix: Option<&CloudPath>,
+        delimiter: Option<String>,
     ) -> Result<BoxStream<'_, Result<rusoto_s3::ListObjectsV2Output>>> {
         #[derive(Clone)]
         enum ListState {
@@ -328,6 +383,7 @@ impl AmazonS3 {
         let request_factory = move || rusoto_s3::ListObjectsV2Request {
             bucket: self.bucket_name.clone(),
             prefix: raw_prefix.clone(),
+            delimiter: delimiter.clone(),
             ..Default::default()
         };
 
@@ -376,77 +432,6 @@ impl AmazonS3 {
             }
         })
         .boxed())
-    }
-
-    /// List objects with the given prefix and a set delimiter of `/`. Returns
-    /// common prefixes (directories) in addition to object metadata. Optionally
-    /// takes a continuation token for paging.
-    pub async fn list_with_delimiter_and_token<'a>(
-        &'a self,
-        prefix: &'a CloudPath,
-        next_token: &Option<String>,
-    ) -> Result<ListResult<CloudPath>> {
-        let converted_prefix = prefix.to_raw();
-
-        let mut list_request = rusoto_s3::ListObjectsV2Request {
-            bucket: self.bucket_name.clone(),
-            prefix: Some(converted_prefix),
-            delimiter: Some(DELIMITER.to_string()),
-            ..Default::default()
-        };
-
-        if let Some(t) = next_token {
-            list_request.continuation_token = Some(t.clone());
-        }
-
-        let resp = self
-            .client
-            .list_objects_v2(list_request)
-            .await
-            .context(UnableToListData {
-                bucket: &self.bucket_name,
-            })?;
-
-        let contents = resp.contents.unwrap_or_default();
-
-        let objects = contents
-            .into_iter()
-            .map(|object| {
-                let location =
-                    CloudPath::raw(object.key.expect("object doesn't exist without a key"));
-                let last_modified = match object.last_modified {
-                    Some(lm) => DateTime::parse_from_rfc3339(&lm)
-                        .context(UnableToParseLastModified {
-                            bucket: &self.bucket_name,
-                        })?
-                        .with_timezone(&Utc),
-                    None => Utc::now(),
-                };
-                let size = usize::try_from(object.size.unwrap_or(0))
-                    .expect("unsupported size on this platform");
-
-                Ok(ObjectMeta {
-                    location,
-                    last_modified,
-                    size,
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        let common_prefixes = resp
-            .common_prefixes
-            .unwrap_or_default()
-            .into_iter()
-            .map(|p| CloudPath::raw(p.prefix.expect("can't have a prefix without a value")))
-            .collect();
-
-        let result = ListResult {
-            objects,
-            common_prefixes,
-            next_token: resp.next_continuation_token,
-        };
-
-        Ok(result)
     }
 }
 
