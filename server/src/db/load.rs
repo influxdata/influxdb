@@ -287,9 +287,7 @@ impl CatalogState for Loader {
                     .chunk(&addr.table_name, &addr.partition_key, addr.chunk_id)
             {
                 let mut chunk = chunk.write();
-                chunk
-                    .add_delete_predicate(Arc::clone(&predicate))
-                    .expect("this should not fail for persisted chunks");
+                chunk.add_delete_predicate(Arc::clone(&predicate));
             }
         }
     }
