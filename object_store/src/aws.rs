@@ -224,64 +224,20 @@ impl ObjectStoreApi for AmazonS3 {
         &'a self,
         prefix: Option<&'a Self::Path>,
     ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
-        #[derive(Clone)]
-        enum ListState {
-            Start,
-            HasMore(String),
-            Done,
-        }
-        use ListState::*;
+        Ok(self
+            .list_objects_v2(prefix)
+            .await?
+            .map_ok(|list_objects_v2_result| {
+                let contents = list_objects_v2_result.contents.unwrap_or_default();
 
-        Ok(stream::unfold(ListState::Start, move |state| async move {
-            let mut list_request = rusoto_s3::ListObjectsV2Request {
-                bucket: self.bucket_name.clone(),
-                prefix: prefix.map(|p| p.to_raw()),
-                ..Default::default()
-            };
+                let names = contents
+                    .into_iter()
+                    .flat_map(|object| object.key.map(CloudPath::raw))
+                    .collect();
 
-            match state.clone() {
-                HasMore(continuation_token) => {
-                    list_request.continuation_token = Some(continuation_token);
-                }
-                Done => {
-                    return None;
-                }
-                // If this is the first request we've made, we don't need to make any modifications
-                // to the request
-                Start => {}
-            }
-
-            let resp = self
-                .client
-                .list_objects_v2(list_request)
-                .await
-                .context(UnableToListData {
-                    bucket: &self.bucket_name,
-                });
-            let resp = match resp {
-                Ok(resp) => resp,
-                Err(e) => return Some((Err(e), state)),
-            };
-
-            let contents = resp.contents.unwrap_or_default();
-            let names = contents
-                .into_iter()
-                .flat_map(|object| object.key.map(CloudPath::raw))
-                .collect();
-
-            // The AWS response contains a field named `is_truncated` as well as
-            // `next_continuation_token`, and we're assuming that `next_continuation_token`
-            // is only set when `is_truncated` is true (and therefore not
-            // checking `is_truncated`).
-            let next_state = if let Some(next_continuation_token) = resp.next_continuation_token {
-                ListState::HasMore(next_continuation_token)
-            } else {
-                ListState::Done
-            };
-
-            Some((Ok(names), next_state))
-        })
-        .boxed())
+                names
+            })
+            .boxed())
     }
 
     async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
@@ -355,6 +311,73 @@ pub(crate) fn new_failing_s3() -> Result<AmazonS3> {
 }
 
 impl AmazonS3 {
+    async fn list_objects_v2(
+        &self,
+        prefix: Option<&CloudPath>,
+    ) -> Result<BoxStream<'_, Result<rusoto_s3::ListObjectsV2Output>>> {
+        #[derive(Clone)]
+        enum ListState {
+            Start,
+            HasMore(String),
+            Done,
+        }
+        use ListState::*;
+
+        let raw_prefix = prefix.map(|p| p.to_raw());
+
+        let request_factory = move || rusoto_s3::ListObjectsV2Request {
+            bucket: self.bucket_name.clone(),
+            prefix: raw_prefix.clone(),
+            ..Default::default()
+        };
+
+        Ok(stream::unfold(ListState::Start, move |state| {
+            let request_factory = request_factory.clone();
+
+            async move {
+                let mut list_request = request_factory();
+
+                match state.clone() {
+                    HasMore(continuation_token) => {
+                        list_request.continuation_token = Some(continuation_token);
+                    }
+                    Done => {
+                        return None;
+                    }
+                    // If this is the first request we've made, we don't need to make any
+                    // modifications to the request
+                    Start => {}
+                }
+
+                let resp =
+                    self.client
+                        .list_objects_v2(list_request)
+                        .await
+                        .context(UnableToListData {
+                            bucket: &self.bucket_name,
+                        });
+                let resp = match resp {
+                    Ok(resp) => resp,
+                    Err(e) => return Some((Err(e), state)),
+                };
+
+                // The AWS response contains a field named `is_truncated` as well as
+                // `next_continuation_token`, and we're assuming that `next_continuation_token`
+                // is only set when `is_truncated` is true (and therefore not
+                // checking `is_truncated`).
+                let next_state =
+                    if let Some(next_continuation_token) = &resp.next_continuation_token {
+                        ListState::HasMore(next_continuation_token.to_string())
+                    } else {
+                        ListState::Done
+                    };
+
+                Some((Ok(resp), next_state))
+            }
+        })
+        .boxed())
+    }
+
     /// List objects with the given prefix and a set delimiter of `/`. Returns
     /// common prefixes (directories) in addition to object metadata. Optionally
     /// takes a continuation token for paging.
