@@ -184,7 +184,7 @@ start_time() {
 
 end_time() {
   case $1 in
-    iot|window-agg|group-agg|bare-agg|group-window-transpose-low-card)
+    iot|window-agg|group-agg|bare-agg|ungrouped-agg|group-window-transpose-low-card)
       echo 2018-01-01T12:00:00Z
       ;;
     multi-measurement|metaquery|group-window-transpose-high-card)
@@ -199,7 +199,7 @@ end_time() {
 
 query_types() {
   case $1 in
-    window-agg|group-agg|bare-agg|group-window-transpose-low-card|group-window-transpose-high-card)
+    window-agg|group-agg|bare-agg|ungrouped-agg|group-window-transpose-low-card|group-window-transpose-high-card)
       echo min mean max first last count sum
       ;;
     iot)
@@ -224,7 +224,7 @@ query_types() {
 # queries against this dataset use case".
 query_usecase_alias() {
   case $1 in
-    window-agg|group-agg|bare-agg|group-window-transpose|iot|group-window-transpose-low-card)
+    window-agg|group-agg|bare-agg|ungrouped-agg|group-window-transpose|iot|group-window-transpose-low-card)
       echo iot
       ;;
     metaquery|group-window-transpose-high-card|cardinality)
@@ -267,7 +267,7 @@ curl -XPOST -H "Authorization: Token ${TEST_TOKEN}" \
 
 # Generate queries to test.
 query_files=""
-for usecase in window-agg group-agg bare-agg group-window-transpose-low-card group-window-transpose-high-card iot metaquery multi-measurement; do
+for usecase in window-agg group-agg bare-agg ungrouped-agg group-window-transpose-low-card group-window-transpose-high-card iot metaquery multi-measurement; do
   for type in $(query_types $usecase); do
     query_fname="${TEST_FORMAT}_${usecase}_${type}"
     $GOPATH/bin/bulk_query_gen \
