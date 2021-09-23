@@ -975,62 +975,63 @@ async fn sql_select_with_three_deletes_from_three_chunks() {
     .await;
 }
 
-// #[tokio::test]
-// async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate() {
-// Hmm: It seems a bug here. I am working on this next
-// BUG:
-// let expected = vec![
-//     "+-----+-----+--------------------------------+",
-//     "| bar | foo | time                           |",
-//     "+-----+-----+--------------------------------+",
-//     "| 7   | me  | 1970-01-01T00:00:00.000000080Z |",
-//     "+-----+-----+--------------------------------+",
-// ];
+#[tokio::test]
+async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate() {
+    test_helpers::maybe_start_logging();
 
-// Correct results should be:
-// let expected = vec![]
-//     "+-----+-----+--------------------------------+",
-//     "| bar | foo | time                           |",
-//     "+-----+-----+--------------------------------+",
-//     "| 4   | me  | 1970-01-01T00:00:00.000000050Z |",
-//     "| 5   | me  | 1970-01-01T00:00:00.000000060Z |",
-//     "| 7   | me  | 1970-01-01T00:00:00.000000080Z |",
-//     "+-----+-----+--------------------------------+",
-// ];
+    let expected = vec![
+        "+-----+-----+--------------------------------+",
+        "| bar | foo | time                           |",
+        "+-----+-----+--------------------------------+",
+        "| 3   | you | 1970-01-01T00:00:00.000000070Z |",
+        "| 4   | me  | 1970-01-01T00:00:00.000000050Z |",
+        "| 5   | me  | 1970-01-01T00:00:00.000000060Z |",
+        "| 7   | me  | 1970-01-01T00:00:00.000000080Z |",
+        "+-----+-----+--------------------------------+",
+    ];
 
-// run_sql_test_case(
-//     scenarios::delete::ThreeDeleteThreeChunks {},
-//     "SELECT * from cpu where foo = 'me' and bar > 2",
-//     &expected,
-// )
-// .await;
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT * from cpu where bar != 1.0",
+        &expected,
+    )
+    .await;
 
-// // BUG
-// let expected = vec![
-//     "+-----+-----+--------------------------------+",
-//     "| bar | foo | time                           |",
-//     "+-----+-----+--------------------------------+",
-//     "| 1   | me  | 1970-01-01T00:00:00.000000040Z |",
-//     "| 1   | me  | 1970-01-01T00:00:00.000000062Z |",
-//     "+-----+-----+--------------------------------+",
-//  ];
+    //--------------------
 
-// Correct output
-// let expected = vec![
-// "+-----+-----+--------------------------------+",
-// "| bar | foo | time                           |",
-// "+-----+-----+--------------------------------+",
-// "| 1   | me  | 1970-01-01T00:00:00.000000040Z |",
-// "| 1   | me  | 1970-01-01T00:00:00.000000042Z |",
-// "| 1   | me  | 1970-01-01T00:00:00.000000062Z |",
-// "+-----+-----+--------------------------------+",
-// ];
+    let expected = vec![
+        "+-----+-----+--------------------------------+",
+        "| bar | foo | time                           |",
+        "+-----+-----+--------------------------------+",
+        "| 4   | me  | 1970-01-01T00:00:00.000000050Z |",
+        "| 5   | me  | 1970-01-01T00:00:00.000000060Z |",
+        "| 7   | me  | 1970-01-01T00:00:00.000000080Z |",
+        "+-----+-----+--------------------------------+",
+    ];
 
-//     run_sql_test_case(
-//         scenarios::delete::ThreeDeleteThreeChunks {},
-//         "SELECT * from cpu where bar = 1",
-//         &expected,
-//     )
-//     .await;
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT * from cpu where foo = 'me' and bar > 2.0",
+        &expected,
+    )
+    .await;
 
-// }
+    //--------------------
+
+    let expected = vec![
+        "+-----+-----+--------------------------------+",
+        "| bar | foo | time                           |",
+        "+-----+-----+--------------------------------+",
+        "| 1   | me  | 1970-01-01T00:00:00.000000040Z |",
+        "| 1   | me  | 1970-01-01T00:00:00.000000042Z |",
+        "| 1   | me  | 1970-01-01T00:00:00.000000062Z |",
+        "+-----+-----+--------------------------------+",
+    ];
+
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT * from cpu where bar = 1.0",
+        &expected,
+    )
+    .await;
+}
