@@ -469,7 +469,7 @@ impl CatalogChunk {
         }
     }
 
-    pub fn add_delete_predicate(&mut self, delete_predicate: Arc<Predicate>) -> Result<()> {
+    pub fn add_delete_predicate(&mut self, delete_predicate: Arc<Predicate>) {
         debug!(
             ?delete_predicate,
             "Input delete predicate to CatalogChunk add_delete_predicate"
@@ -477,7 +477,9 @@ impl CatalogChunk {
         match &mut self.stage {
             ChunkStage::Open { mb_chunk: _ } => {
                 // Freeze/close this chunk and add delete_predicate to its frozen one
-                self.freeze_with_predicate(delete_predicate)?;
+                self.freeze_with_predicate(delete_predicate).expect(
+                    "chunk stage was just checked to be 'Open', why can the chunk not be frozen?!",
+                );
             }
             ChunkStage::Frozen { meta, .. } | ChunkStage::Persisted { meta, .. } => {
                 // Add the delete_predicate into the chunk's metadata
@@ -490,8 +492,6 @@ impl CatalogChunk {
                 });
             }
         }
-
-        Ok(())
     }
 
     pub fn delete_predicates(&self) -> &[Arc<Predicate>] {
@@ -1161,7 +1161,7 @@ mod tests {
         expected_exprs1.push(e);
 
         // Add a delete predicate into a chunk the open chunk = delete simulation for open chunk
-        chunk.add_delete_predicate(Arc::new(del_pred1)).unwrap();
+        chunk.add_delete_predicate(Arc::new(del_pred1));
         // chunk must be in frozen stage now
         assert_eq!(chunk.stage().name(), "Frozen");
         // chunk must have a delete predicate
@@ -1192,7 +1192,7 @@ mod tests {
         let mut expected_exprs2 = vec![];
         let e = col("cost").not_eq(lit(15));
         expected_exprs2.push(e);
-        chunk.add_delete_predicate(Arc::new(del_pred2)).unwrap();
+        chunk.add_delete_predicate(Arc::new(del_pred2));
         // chunk still must be in frozen stage now
         assert_eq!(chunk.stage().name(), "Frozen");
         // chunk must have 2 delete predicates
