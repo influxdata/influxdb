@@ -21,6 +21,7 @@ mod message;
 #[derive(Debug, Default)]
 pub struct Builder {
     descriptors: descriptor::DescriptorSet,
+    exclude: Vec<String>,
     out_dir: Option<PathBuf>,
 }
 
@@ -29,6 +30,7 @@ impl Builder {
     pub fn new() -> Self {
         Self {
             descriptors: DescriptorSet::new(),
+            exclude: Default::default(),
             out_dir: None,
         }
     }
@@ -37,6 +39,15 @@ impl Builder {
     pub fn register_descriptors(&mut self, descriptors: &[u8]) -> Result<&mut Self> {
         self.descriptors.register_encoded(descriptors)?;
         Ok(self)
+    }
+
+    /// Don't generate code for the following type prefixes
+    pub fn exclude<S: Into<String>, I: IntoIterator<Item = S>>(
+        &mut self,
+        prefixes: I,
+    ) -> &mut Self {
+        self.exclude.extend(prefixes.into_iter().map(Into::into));
+        self
     }
 
     /// Generates code for all registered types where `prefixes` contains a prefix of
@@ -63,51 +74,58 @@ impl Builder {
             Ok(BufWriter::new(file))
         };
 
-        let writers = generate(&self.descriptors, prefixes, write_factory)?;
+        let writers = self.generate(prefixes, write_factory)?;
         for (_, mut writer) in writers {
             writer.flush()?;
         }
 
         Ok(())
     }
-}
 
-fn generate<S: AsRef<str>, W: Write, F: FnMut(&Package) -> Result<W>>(
-    descriptors: &DescriptorSet,
-    prefixes: &[S],
-    mut write_factory: F,
-) -> Result<Vec<(Package, W)>> {
-    let config = Config {
-        extern_types: Default::default(),
-    };
-
-    let iter = descriptors.iter().filter(move |(t, _)| {
-        prefixes
-            .iter()
-            .any(|prefix| t.matches_prefix(prefix.as_ref()))
-    });
-
-    // Exploit the fact descriptors is ordered to group together types from the same package
-    let mut ret: Vec<(Package, W)> = Vec::new();
-    for (type_path, descriptor) in iter {
-        let writer = match ret.last_mut() {
-            Some((package, writer)) if package == type_path.package() => writer,
-            _ => {
-                let package = type_path.package();
-                ret.push((package.clone(), write_factory(package)?));
-                &mut ret.last_mut().unwrap().1
-            }
+    fn generate<S: AsRef<str>, W: Write, F: FnMut(&Package) -> Result<W>>(
+        &self,
+        prefixes: &[S],
+        mut write_factory: F,
+    ) -> Result<Vec<(Package, W)>> {
+        let config = Config {
+            extern_types: Default::default(),
         };
 
-        match descriptor {
-            Descriptor::Enum(descriptor) => generate_enum(&config, type_path, descriptor, writer)?,
-            Descriptor::Message(descriptor) => {
-                if let Some(message) = resolve_message(descriptors, descriptor) {
-                    generate_message(&config, &message, writer)?
+        let iter = self.descriptors.iter().filter(move |(t, _)| {
+            let exclude = self
+                .exclude
+                .iter()
+                .any(|prefix| t.matches_prefix(prefix.as_ref()));
+            let include = prefixes
+                .iter()
+                .any(|prefix| t.matches_prefix(prefix.as_ref()));
+            include && !exclude
+        });
+
+        // Exploit the fact descriptors is ordered to group together types from the same package
+        let mut ret: Vec<(Package, W)> = Vec::new();
+        for (type_path, descriptor) in iter {
+            let writer = match ret.last_mut() {
+                Some((package, writer)) if package == type_path.package() => writer,
+                _ => {
+                    let package = type_path.package();
+                    ret.push((package.clone(), write_factory(package)?));
+                    &mut ret.last_mut().unwrap().1
+                }
+            };
+
+            match descriptor {
+                Descriptor::Enum(descriptor) => {
+                    generate_enum(&config, type_path, descriptor, writer)?
+                }
+                Descriptor::Message(descriptor) => {
+                    if let Some(message) = resolve_message(&self.descriptors, descriptor) {
+                        generate_message(&config, &message, writer)?
+                    }
                 }
             }
         }
-    }
 
-    Ok(ret)
+        Ok(ret)
+    }
 }
