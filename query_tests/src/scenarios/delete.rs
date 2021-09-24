@@ -5,6 +5,9 @@ use datafusion::logical_plan::{col, lit};
 use predicate::predicate::{Predicate, PredicateBuilder};
 
 use async_trait::async_trait;
+use query::QueryChunk;
+use server::Db;
+//use core::slice::SlicePattern;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -519,103 +522,103 @@ impl DbSetup for TwoDeleteMultiExprsFromOsOneMeasurementOneChunk {
     }
 }
 
-// Three different delete on three different chunks
-#[derive(Debug)]
-/// Setup for three different delete on three different chunks
-pub struct ThreeDeleteThreeChunks {}
-#[async_trait]
-impl DbSetup for ThreeDeleteThreeChunks {
-    async fn make(&self) -> Vec<DbScenario> {
-        // General setup for all scenarios
-        let partition_key = "1970-01-01T00";
-        let table_name = "cpu";
+// // Three different delete on three different chunks
+// #[derive(Debug)]
+// /// Setup for three different delete on three different chunks
+// pub struct ThreeDeleteThreeChunks {}
+// #[async_trait]
+// impl DbSetup for ThreeDeleteThreeChunks {
+//     async fn make(&self) -> Vec<DbScenario> {
+//         // General setup for all scenarios
+//         let partition_key = "1970-01-01T00";
+//         let table_name = "cpu";
 
-        // chunk1 data
-        let lp_lines_1 = vec![
-            "cpu,foo=me bar=1 10",  // deleted by pred1
-            "cpu,foo=you bar=2 20", // deleted by pred2
-            "cpu,foo=me bar=1 30",  // deleted by pred1
-            "cpu,foo=me bar=1 40",
-        ];
-        // delete predicate on chunk 1
-        //let i: f64 = 1.0;
-        let expr1 = col("bar").eq(lit(1f64));
-        let expr2 = col("foo").eq(lit("me"));
-        let pred1 = PredicateBuilder::new()
-            .table("cpu")
-            .timestamp_range(0, 32)
-            .add_expr(expr1)
-            .add_expr(expr2)
-            .build();
+//         // chunk1 data
+//         let lp_lines_1 = vec![
+//             "cpu,foo=me bar=1 10",  // deleted by pred1
+//             "cpu,foo=you bar=2 20", // deleted by pred2
+//             "cpu,foo=me bar=1 30",  // deleted by pred1
+//             "cpu,foo=me bar=1 40",
+//         ];
+//         // delete predicate on chunk 1
+//         //let i: f64 = 1.0;
+//         let expr1 = col("bar").eq(lit(1f64));
+//         let expr2 = col("foo").eq(lit("me"));
+//         let pred1 = PredicateBuilder::new()
+//             .table("cpu")
+//             .timestamp_range(0, 32)
+//             .add_expr(expr1)
+//             .add_expr(expr2)
+//             .build();
 
-        //chunk 2 data
-        let lp_lines_2 = vec![
-            "cpu,foo=me bar=1 42",
-            "cpu,foo=you bar=3 42", // deleted by pred2
-            "cpu,foo=me bar=4 50",
-            "cpu,foo=me bar=5 60",
-        ];
-        // delete predicate on chunk 1 & chunk 2
-        let expr = col("foo").eq(lit("you"));
-        let pred2 = PredicateBuilder::new()
-            .table("cpu")
-            .timestamp_range(20, 45)
-            .add_expr(expr)
-            .build();
+//         //chunk 2 data
+//         let lp_lines_2 = vec![
+//             "cpu,foo=me bar=1 42",
+//             "cpu,foo=you bar=3 42", // deleted by pred2
+//             "cpu,foo=me bar=4 50",
+//             "cpu,foo=me bar=5 60",
+//         ];
+//         // delete predicate on chunk 1 & chunk 2
+//         let expr = col("foo").eq(lit("you"));
+//         let pred2 = PredicateBuilder::new()
+//             .table("cpu")
+//             .timestamp_range(20, 45)
+//             .add_expr(expr)
+//             .build();
 
-        // chunk 3 data
-        let lp_lines_3 = vec![
-            "cpu,foo=me bar=1 62",
-            "cpu,foo=you bar=3 70",
-            "cpu,foo=me bar=7 80",
-            "cpu,foo=me bar=8 90", // deleted by pred3
-        ];
-        // delete predicate on chunk 3
-        let i: f64 = 7.0;
-        let expr = col("bar").not_eq(lit(i));
-        let pred3 = PredicateBuilder::new()
-            .table("cpu")
-            .timestamp_range(75, 95)
-            .add_expr(expr)
-            .build();
+//         // chunk 3 data
+//         let lp_lines_3 = vec![
+//             "cpu,foo=me bar=1 62",
+//             "cpu,foo=you bar=3 70",
+//             "cpu,foo=me bar=7 80",
+//             "cpu,foo=me bar=8 90", // deleted by pred3
+//         ];
+//         // delete predicate on chunk 3
+//         let i: f64 = 7.0;
+//         let expr = col("bar").not_eq(lit(i));
+//         let pred3 = PredicateBuilder::new()
+//             .table("cpu")
+//             .timestamp_range(75, 95)
+//             .add_expr(expr)
+//             .build();
 
-        let lp_data = vec![lp_lines_1, lp_lines_2, lp_lines_3];
-        let preds = vec![pred1, pred2, pred3];
+//         let lp_data = vec![lp_lines_1, lp_lines_2, lp_lines_3];
+//         let preds = vec![pred1, pred2, pred3];
 
-        // 3 chunks: MUB, RUB, OS
-        let scenario_mub_rub_os =
-            make_mub_rub_os_deletes(&lp_data, &preds, table_name, partition_key).await;
+//         // 3 chunks: MUB, RUB, OS
+//         let scenario_mub_rub_os =
+//             make_mub_rub_os_deletes(&lp_data, &preds, table_name, partition_key).await;
 
-        // 3 chunks: 2 MUB, 1 RUB
-        let scenario_2mub_rub =
-            make_2mub_rub_deletes(&lp_data, &preds, table_name, partition_key).await;
+//         // 3 chunks: 2 MUB, 1 RUB
+//         let scenario_2mub_rub =
+//             make_2mub_rub_deletes(&lp_data, &preds, table_name, partition_key).await;
 
-        // 3 chunks: 2 MUB, 1 OS
-        let scenario_2mub_os =
-            make_2mub_os_deletes(&lp_data, &preds, table_name, partition_key).await;
+//         // 3 chunks: 2 MUB, 1 OS
+//         let scenario_2mub_os =
+//             make_2mub_os_deletes(&lp_data, &preds, table_name, partition_key).await;
 
-        // 3 chunks: 2 RUB, 1 OS
-        let scenario_2rub_os =
-            make_2rub_os_deletes(&lp_data, &preds, table_name, partition_key).await;
+//         // 3 chunks: 2 RUB, 1 OS
+//         let scenario_2rub_os =
+//             make_2rub_os_deletes(&lp_data, &preds, table_name, partition_key).await;
 
-        // 3 chunks:  RUB, 2 OS
-        let scenario_rub_2os =
-            make_rub_2os_deletes(&lp_data, &preds, table_name, partition_key).await;
+//         // 3 chunks:  RUB, 2 OS
+//         let scenario_rub_2os =
+//             make_rub_2os_deletes(&lp_data, &preds, table_name, partition_key).await;
 
-        // 3 chunks:  3 OS
-        let scenario_3os = make_3os_deletes(&lp_data, &preds, table_name, partition_key).await;
+//         // 3 chunks:  3 OS
+//         let scenario_3os = make_3os_deletes(&lp_data, &preds, table_name, partition_key).await;
 
-        // return scenarios to run queries
-        vec![
-            scenario_mub_rub_os,
-            scenario_2mub_rub,
-            scenario_2mub_os,
-            scenario_2rub_os,
-            scenario_rub_2os,
-            scenario_3os,
-        ]
-    }
-}
+//         // return scenarios to run queries
+//         vec![
+//             scenario_mub_rub_os,
+//             scenario_2mub_rub,
+//             scenario_2mub_os,
+//             scenario_2rub_os,
+//             scenario_rub_2os,
+//             scenario_3os,
+//         ]
+//     }
+// }
 
 // -----------------------------------------------------------------------------
 // Helper functions
@@ -1363,99 +1366,99 @@ async fn make_delete_os_delete(
     }
 }
 
-async fn make_mub_rub_os_deletes(
-    lp_data: &[Vec<&str>],
-    preds: &[Predicate],
-    table_name: &str,
-    partition_key: &str,
-) -> DbScenario {
-    let db = make_db().await.db;
+// async fn make_mub_rub_os_deletes(
+//     lp_data: &[Vec<&str>],
+//     preds: &[Predicate],
+//     table_name: &str,
+//     partition_key: &str,
+// ) -> DbScenario {
+//     let db = make_db().await.db;
 
-    // chunk 1 is an OS chunk
-    write_lp(&db, &lp_data[0].join("\n")).await;
-    db.rollover_partition(table_name, partition_key)
-        .await
-        .unwrap();
-    db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
-        .await
-        .unwrap();
-    db.persist_partition(
-        table_name,
-        partition_key,
-        Instant::now() + Duration::from_secs(1),
-    )
-    .await
-    .unwrap();
-    db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
-        .unwrap();
+//     // chunk 1 is an OS chunk
+//     write_lp(&db, &lp_data[0].join("\n")).await;
+//     db.rollover_partition(table_name, partition_key)
+//         .await
+//         .unwrap();
+//     db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
+//         .await
+//         .unwrap();
+//     db.persist_partition(
+//         table_name,
+//         partition_key,
+//         Instant::now() + Duration::from_secs(1),
+//     )
+//     .await
+//     .unwrap();
+//     db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
+//         .unwrap();
 
-    // Chunk 2 is a RUB
-    write_lp(&db, &lp_data[1].join("\n")).await;
-    db.rollover_partition(table_name, partition_key)
-        .await
-        .unwrap();
-    db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(2))
-        .await
-        .unwrap();
+//     // Chunk 2 is a RUB
+//     write_lp(&db, &lp_data[1].join("\n")).await;
+//     db.rollover_partition(table_name, partition_key)
+//         .await
+//         .unwrap();
+//     db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(2))
+//         .await
+//         .unwrap();
 
-    // Chunk 3 is a MUB
-    write_lp(&db, &lp_data[2].join("\n")).await;
+//     // Chunk 3 is a MUB
+//     write_lp(&db, &lp_data[2].join("\n")).await;
 
-    // 1 MUB, 1 RUB, 1 OS
-    assert_eq!(count_mutable_buffer_chunks(&db), 1);
-    assert_eq!(count_read_buffer_chunks(&db), 1);
-    assert_eq!(count_object_store_chunks(&db), 1);
+//     // 1 MUB, 1 RUB, 1 OS
+//     assert_eq!(count_mutable_buffer_chunks(&db), 1);
+//     assert_eq!(count_read_buffer_chunks(&db), 1);
+//     assert_eq!(count_object_store_chunks(&db), 1);
 
-    // Let issue 3 deletes
-    db.delete("cpu", Arc::new(preds[0].clone())).await.unwrap();
-    db.delete("cpu", Arc::new(preds[1].clone())).await.unwrap();
-    db.delete("cpu", Arc::new(preds[2].clone())).await.unwrap();
+//     // Let issue 3 deletes
+//     db.delete("cpu", Arc::new(preds[0].clone())).await.unwrap();
+//     db.delete("cpu", Arc::new(preds[1].clone())).await.unwrap();
+//     db.delete("cpu", Arc::new(preds[2].clone())).await.unwrap();
 
-    DbScenario {
-        scenario_name: "Deleted data from MUB, RUB, and OS".into(),
-        db,
-    }
-}
+//     DbScenario {
+//         scenario_name: "Deleted data from MUB, RUB, and OS".into(),
+//         db,
+//     }
+// }
 
-async fn make_2mub_rub_deletes(
-    lp_data: &[Vec<&str>],
-    preds: &[Predicate],
-    table_name: &str,
-    partition_key: &str,
-) -> DbScenario {
-    let db = make_db().await.db;
+// async fn make_2mub_rub_deletes(
+//     lp_data: &[Vec<&str>],
+//     preds: &[Predicate],
+//     table_name: &str,
+//     partition_key: &str,
+// ) -> DbScenario {
+//     let db = make_db().await.db;
 
-    // Chunk 1 is a RUB
-    write_lp(&db, &lp_data[0].join("\n")).await;
-    db.rollover_partition(table_name, partition_key)
-        .await
-        .unwrap();
-    db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
-        .await
-        .unwrap();
+//     // Chunk 1 is a RUB
+//     write_lp(&db, &lp_data[0].join("\n")).await;
+//     db.rollover_partition(table_name, partition_key)
+//         .await
+//         .unwrap();
+//     db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
+//         .await
+//         .unwrap();
 
-    // Chunk 2 is an frozen MUB and chunk 3 is an open MUB
-    write_lp(&db, &lp_data[1].join("\n")).await;
-    db.rollover_partition(table_name, partition_key)
-        .await
-        .unwrap();
-    write_lp(&db, &lp_data[2].join("\n")).await;
+//     // Chunk 2 is an frozen MUB and chunk 3 is an open MUB
+//     write_lp(&db, &lp_data[1].join("\n")).await;
+//     db.rollover_partition(table_name, partition_key)
+//         .await
+//         .unwrap();
+//     write_lp(&db, &lp_data[2].join("\n")).await;
 
-    // 3 MUB, 1 RUB, 0 OS
-    assert_eq!(count_mutable_buffer_chunks(&db), 2);
-    assert_eq!(count_read_buffer_chunks(&db), 1);
-    assert_eq!(count_object_store_chunks(&db), 0);
+//     // 3 MUB, 1 RUB, 0 OS
+//     assert_eq!(count_mutable_buffer_chunks(&db), 2);
+//     assert_eq!(count_read_buffer_chunks(&db), 1);
+//     assert_eq!(count_object_store_chunks(&db), 0);
 
-    // Let issue 3 deletes
-    db.delete("cpu", Arc::new(preds[0].clone())).await.unwrap();
-    db.delete("cpu", Arc::new(preds[1].clone())).await.unwrap();
-    db.delete("cpu", Arc::new(preds[2].clone())).await.unwrap();
+//     // Let issue 3 deletes
+//     db.delete("cpu", Arc::new(preds[0].clone())).await.unwrap();
+//     db.delete("cpu", Arc::new(preds[1].clone())).await.unwrap();
+//     db.delete("cpu", Arc::new(preds[2].clone())).await.unwrap();
 
-    DbScenario {
-        scenario_name: "Deleted data from 2 MUB, 1 RUB".into(),
-        db,
-    }
-}
+//     DbScenario {
+//         scenario_name: "Deleted data from 2 MUB, 1 RUB".into(),
+//         db,
+//     }
+// }
 
 async fn make_2mub_os_deletes(
     lp_data: &[Vec<&str>],
@@ -1709,5 +1712,300 @@ async fn make_3os_deletes(
     DbScenario {
         scenario_name: "Deleted data from 3 OS".into(),
         db,
+    }
+}
+
+
+// -----------------------
+async fn build_chunks (
+    db: &Arc<Db>,
+    lp_data: Vec<Vec<&str>>,
+    chunk_type: ChunkType,
+    //preds: &[Predicate],
+    table_name: &str,
+    partition_key: &str,
+)  {
+
+    // pub enum ChunkType {
+    //     Mubo,
+    //     Mubf,
+    //     Rub,
+    //     RubOs,
+    //     Os,
+    //     MubToRub,
+    //     MubToRubOs,
+    //     RubToRubOs,
+    //     MubToOs,
+    //     RubToOs,
+    // }
+
+    for lp_lines in lp_data {
+        // Make an open MUB
+        write_lp(&db, &lp_lines.join("\n")).await;
+        // 0 does not represent the real chunk id. It is here just to initialize the chunk_id  variable for later assignment
+        let mut chunk_id  = ChunkId::new(0); 
+
+        // freeze MUB
+        match chunk_type {
+            ChunkType::Mubf | ChunkType::Rub | ChunkType::RubOs | ChunkType::Os => { // todo: add more here
+                let chunk =  db.rollover_partition(table_name, partition_key)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                chunk_id  = chunk.id();
+            },
+            _ => {}
+        }
+
+        // Move MUB to RUB
+        match chunk_type {
+            ChunkType::Rub | ChunkType::RubOs | ChunkType::Os => { // todo: add more here
+                let chunk = db.move_chunk_to_read_buffer(table_name, partition_key, chunk_id)
+                    .await
+                    .unwrap();    
+                chunk_id  = chunk.id();        
+            },
+            _ => {}
+        }
+
+        // Move RUB to OS
+        match chunk_type {
+            ChunkType::RubOs | ChunkType::Os => { // todo: add more here
+                let chunk  = db.persist_partition(
+                            table_name,
+                            partition_key,
+                            Instant::now() + Duration::from_secs(1),
+                        )
+                        .await
+                        .unwrap();     
+                chunk_id  = chunk.id();  
+            },
+            _ => {}
+        }
+
+        // Unload RUB
+        match chunk_type {
+            ChunkType::Os => { // todo: add more here
+                db.unload_read_buffer(table_name, partition_key,chunk_id)
+                    .unwrap();      
+            },
+            _ => {}
+        }
+    }
+}
+
+
+// ----------------------------
+
+#[derive(Debug, Clone)]
+pub struct ChunkData<'a> {
+    lp_lines: Vec<&'a str>,
+    chunk_type: ChunkType,
+}
+
+#[derive(Debug, Clone)]
+pub enum ChunkType {
+    Mubo, // open MUB
+    Mubf, // frozen MUB
+    Rub,
+    RubOs,
+    Os,
+    MubToRub,
+    MubToRubOs,
+    MubToOs,
+    RubToRubOs,
+    RubToOs,
+}
+
+#[derive(Debug, Clone)]
+pub struct Pred<'a> {
+    predicate: &'a Predicate,
+    delete_time: DeleteTime,
+}
+
+
+#[derive(Debug, Clone)]
+pub enum DeleteTime {
+    /// delete predicate happens after all chunks created
+    End, 
+
+    /// delete predicate applies to MubToRub chunks and
+    /// the delete happens when chunks were in Mub stage
+    MubToRub,
+
+    /// delete predicate applies to MubToRubOs chunks and
+    /// the delete happens when chunks were in Mub stage
+    MubToRubOs,
+
+    /// delete predicate applies to MubToOs chunks and
+    /// the delete happens when chunks were in Mub stage
+    MubToOs,
+
+    /// delete predicate applies to RubToRubOs chunks and
+    /// the delete happens when chunks were in Rub stage
+    RubToRubOs,
+
+    /// delete predicate applies to RubToOs chunks and
+    /// the delete happens when chunks were in Rub stage
+    RubToOs,
+}
+
+
+
+async fn make_chunks_with_deletes_scenario(
+    data: Vec<ChunkData<'_>>,
+    preds: Vec<Pred<'_>>,
+    table_name: &str,
+    partition_key: &str,
+) -> DbScenario {
+
+    let db = make_db().await.db;
+
+    let mut chunks_mubo = vec![];
+    let mut chunks_mubf = vec![];
+    let mut chunks_rub = vec![];
+    let mut chunks_os = vec![];
+    for chunk_data in data {
+        match chunk_data.chunk_type {
+            ChunkType::Mubo => chunks_mubo.push(chunk_data.lp_lines.clone()), 
+            ChunkType::Mubf => chunks_mubf.push(chunk_data.lp_lines.clone()), 
+            ChunkType::Rub => chunks_rub.push(chunk_data.lp_lines.clone()), 
+            ChunkType::Os => chunks_os.push(chunk_data.lp_lines.clone()),
+            _ => {}  // todo
+        }
+    }
+    build_chunks(&db, chunks_mubo, ChunkType::Mubo, table_name, partition_key).await;
+    build_chunks(&db, chunks_mubf, ChunkType::Mubf, table_name, partition_key).await;
+    build_chunks(&db, chunks_rub, ChunkType::Rub, table_name, partition_key).await;
+    build_chunks(&db, chunks_os, ChunkType::Os, table_name, partition_key).await;
+
+
+    for pred in preds {
+        db.delete(table_name, Arc::new(pred.predicate.clone())).await.unwrap();
+    }
+
+    DbScenario {
+        scenario_name: "Deleted data from <auto_define_name_here>".into(),
+        db,
+    }
+}
+
+
+
+// Three different delete on three different chunks
+#[derive(Debug)]
+/// Setup for three different delete on three different chunks
+pub struct ThreeDeleteThreeChunks {}
+#[async_trait]
+impl DbSetup for ThreeDeleteThreeChunks {
+    async fn make(&self) -> Vec<DbScenario> {
+        // General setup for all scenarios
+        let partition_key = "1970-01-01T00";
+        let table_name = "cpu";
+
+        // chunk1 data
+        let lp_lines_1 = vec![
+            "cpu,foo=me bar=1 10",  // deleted by pred1
+            "cpu,foo=you bar=2 20", // deleted by pred2
+            "cpu,foo=me bar=1 30",  // deleted by pred1
+            "cpu,foo=me bar=1 40",
+        ];
+        // delete predicate on chunk 1
+        //let i: f64 = 1.0;
+        let expr1 = col("bar").eq(lit(1f64));
+        let expr2 = col("foo").eq(lit("me"));
+        let pred1 = PredicateBuilder::new()
+            .table("cpu")
+            .timestamp_range(0, 32)
+            .add_expr(expr1)
+            .add_expr(expr2)
+            .build();
+
+        //chunk 2 data
+        let lp_lines_2 = vec![
+            "cpu,foo=me bar=1 42",
+            "cpu,foo=you bar=3 42", // deleted by pred2
+            "cpu,foo=me bar=4 50",
+            "cpu,foo=me bar=5 60",
+        ];
+        // delete predicate on chunk 1 & chunk 2
+        let expr = col("foo").eq(lit("you"));
+        let pred2 = PredicateBuilder::new()
+            .table("cpu")
+            .timestamp_range(20, 45)
+            .add_expr(expr)
+            .build();
+
+        // chunk 3 data
+        let lp_lines_3 = vec![
+            "cpu,foo=me bar=1 62",
+            "cpu,foo=you bar=3 70",
+            "cpu,foo=me bar=7 80",
+            "cpu,foo=me bar=8 90", // deleted by pred3
+        ];
+        // delete predicate on chunk 3
+        let i: f64 = 7.0;
+        let expr = col("bar").not_eq(lit(i));
+        let pred3 = PredicateBuilder::new()
+            .table("cpu")
+            .timestamp_range(75, 95)
+            .add_expr(expr)
+            .build();
+        
+        //
+        let lp_data = vec![lp_lines_1.clone(), lp_lines_2.clone(), lp_lines_3.clone()];
+        let preds = vec![pred1.clone(), pred2.clone(), pred3.clone()];
+
+        // ----------------------
+        // 3 chunks: MUB, RUB, OS
+        let lp = vec![
+            ChunkData { lp_lines: lp_lines_1.clone(), chunk_type: ChunkType::Os },
+            ChunkData { lp_lines: lp_lines_2.clone(), chunk_type: ChunkType::Rub },
+            ChunkData { lp_lines: lp_lines_3.clone(), chunk_type: ChunkType::Mubo }
+        ];
+        let prds = vec![
+            Pred { predicate: &pred1, delete_time: DeleteTime::End },
+            Pred { predicate: &pred2, delete_time: DeleteTime::End },
+            Pred { predicate: &pred3, delete_time: DeleteTime::End },
+        ];
+        let scenario_mub_rub_os = make_chunks_with_deletes_scenario(lp, prds.clone(), table_name, partition_key).await;
+
+        // ----------------------
+        // 3 chunks: 1 MUB open, 1 MUB frozen, 1 RUB
+        let lp = vec![
+            ChunkData { lp_lines: lp_lines_1, chunk_type: ChunkType::Rub },
+            ChunkData { lp_lines: lp_lines_2, chunk_type: ChunkType::Mubf },
+            ChunkData { lp_lines: lp_lines_3, chunk_type: ChunkType::Mubo }
+        ];
+        let scenario_2mub_rub = make_chunks_with_deletes_scenario(lp, prds, table_name, partition_key).await;
+
+        // ----------------------
+        // 3 chunks: 2 MUB, 1 OS
+        let scenario_2mub_os =
+            make_2mub_os_deletes(&lp_data, &preds, table_name, partition_key).await;
+
+        // ----------------------
+        // 3 chunks: 2 RUB, 1 OS
+        let scenario_2rub_os =
+            make_2rub_os_deletes(&lp_data, &preds, table_name, partition_key).await;
+
+        // ----------------------
+        // 3 chunks:  RUB, 2 OS
+        let scenario_rub_2os =
+            make_rub_2os_deletes(&lp_data, &preds, table_name, partition_key).await;
+
+        // ----------------------
+        // 3 chunks:  3 OS
+        let scenario_3os = make_3os_deletes(&lp_data, &preds, table_name, partition_key).await;
+
+        // return scenarios to run queries
+        vec![
+            scenario_mub_rub_os,
+            scenario_2mub_rub,
+            scenario_2mub_os,
+            scenario_2rub_os,
+            scenario_rub_2os,
+            scenario_3os,
+        ]
     }
 }
