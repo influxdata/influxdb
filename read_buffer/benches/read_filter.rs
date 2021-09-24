@@ -47,7 +47,9 @@ fn read_filter_no_pred_vary_proj(c: &mut Criterion, chunk: &RBChunk) {
             &exp_card,
             |b, _| {
                 b.iter(|| {
-                    let result = chunk.read_filter(Predicate::default(), projection, vec![]);
+                    let result = chunk
+                        .read_filter(Predicate::default(), projection, vec![])
+                        .unwrap();
                     let rbs = result.collect::<Vec<_>>();
                     assert_eq!(rbs.len(), 1);
                     assert_eq!(rbs[0].num_rows(), 200_000);
@@ -82,7 +84,9 @@ fn read_filter_with_pred_vary_proj(c: &mut Criterion, chunk: &RBChunk) {
             &exp_rows,
             |b, _| {
                 b.iter(|| {
-                    let result = chunk.read_filter(predicate.clone(), Selection::All, vec![]);
+                    let result = chunk
+                        .read_filter(predicate.clone(), Selection::All, vec![])
+                        .unwrap();
                     let rbs = result.collect::<Vec<_>>();
                     assert_eq!(rbs.len(), 1);
                     assert!(rbs[0].num_rows() > 0); // data randomly generated so row numbers not exact

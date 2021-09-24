@@ -183,9 +183,10 @@ impl Chunk {
         predicate: Predicate,
         select_columns: Selection<'_>,
         negated_predicates: Vec<Predicate>,
-    ) -> table::ReadFilterResults {
+    ) -> Result<table::ReadFilterResults> {
         self.table
             .read_filter(&select_columns, &predicate, negated_predicates.as_slice())
+            .context(TableError)
     }
 
     /// Returns an iterable collection of data in group columns and aggregate
@@ -213,7 +214,8 @@ impl Chunk {
     /// match the provided predicate.
     ///
     /// If the provided table does not exist then `could_pass_predicate` returns
-    /// `false`.
+    /// `false`. If the predicate is incompatible with chunk's schema
+    /// `could_pass_predicate` returns false.
     pub fn could_pass_predicate(&self, predicate: Predicate) -> bool {
         self.table.could_pass_predicate(&predicate)
     }
@@ -279,7 +281,9 @@ impl Chunk {
         only_columns: Selection<'_>,
         dst: BTreeSet<String>,
     ) -> Result<BTreeSet<String>> {
-        Ok(self.table.column_names(&predicate, only_columns, dst))
+        self.table
+            .column_names(&predicate, only_columns, dst)
+            .context(TableError)
     }
 
     /// Returns the distinct set of column values for each provided column,
@@ -1024,7 +1028,9 @@ mod test {
         let predicate =
             Predicate::with_time_range(&[BinaryExpr::from(("env", "=", "us-west"))], 100, 205); // filter on time
 
-        let mut itr = chunk.read_filter(predicate, Selection::All, vec![]);
+        let mut itr = chunk
+            .read_filter(predicate, Selection::All, vec![])
+            .unwrap();
 
         let exp_env_values = Values::Dictionary(vec![0], vec![Some("us-west")]);
         let exp_region_values = Values::Dictionary(vec![0], vec![Some("west")]);
@@ -1058,6 +1064,13 @@ mod test {
         assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
         assert_rb_column_equals(&second_row_group, "time", &Values::I64(vec![200])); // first row from second record batch
 
+        // Error when predicate is invalid
+        let predicate =
+            Predicate::with_time_range(&[BinaryExpr::from(("env", "=", 22.3))], 100, 205);
+        assert!(chunk
+            .read_filter(predicate, Selection::All, vec![])
+            .is_err());
+
         // No more data
         assert!(itr.next().is_none());
     }
@@ -1079,7 +1092,9 @@ mod test {
         let delete_predicates = vec![Predicate::new(vec![BinaryExpr::from((
             "region", "=", "west",
         ))])];
-        let mut itr = chunk.read_filter(predicate, Selection::All, delete_predicates);
+        let mut itr = chunk
+            .read_filter(predicate, Selection::All, delete_predicates)
+            .unwrap();
 
         let exp_env_values = Values::Dictionary(vec![0], vec![Some("us-west")]);
         let exp_region_values = Values::Dictionary(vec![0], vec![Some("east")]);
@@ -1127,6 +1142,16 @@ mod test {
 
         // No more data
         assert!(itr.next().is_none());
+
+        // Error when one of the negated predicates is invalid
+        let predicate = Predicate::new(vec![BinaryExpr::from(("env", "=", "us-west"))]);
+        let delete_predicates = vec![
+            Predicate::new(vec![BinaryExpr::from(("region", "=", "west"))]),
+            Predicate::new(vec![BinaryExpr::from(("time", "=", "not a number"))]),
+        ];
+        assert!(chunk
+            .read_filter(predicate, Selection::All, delete_predicates)
+            .is_err());
     }
 
     #[test]
@@ -1170,6 +1195,13 @@ mod test {
         assert!(
             !chunk.satisfies_predicate(&Predicate::new(vec![BinaryExpr::from((
                 "region", ">", "west"
+            ))]),)
+        );
+
+        // invalid predicate so no rows can match
+        assert!(
+            !chunk.satisfies_predicate(&Predicate::new(vec![BinaryExpr::from((
+                "region", "=", 33.2
             ))]),)
         );
     }
@@ -1231,6 +1263,16 @@ mod test {
         // sketchy_sensor won't be returned because it has a NULL value for the
         // only matching row.
         assert_eq!(result, to_set(&["counter", "region", "time"]));
+
+        // Error when invalid predicate provided.
+        assert!(matches!(
+            chunk.column_names(
+                Predicate::new(vec![BinaryExpr::from(("time", "=", "not a number"))]),
+                Selection::Some(&["region", "env"]),
+                BTreeSet::new()
+            ),
+            Err(Error::TableError { .. })
+        ));
     }
 
     fn to_map(arr: Vec<(&str, &[&str])>) -> BTreeMap<String, BTreeSet<String>> {
@@ -1321,6 +1363,16 @@ mod test {
         assert!(matches!(
             chunk.column_values(Predicate::default(), Selection::All, BTreeMap::new()),
             Err(Error::UnsupportedOperation { .. })
+        ));
+
+        // Error when invalid predicate provided.
+        assert!(matches!(
+            chunk.column_values(
+                Predicate::new(vec![BinaryExpr::from(("time", "=", "not a number"))]),
+                Selection::Some(&["region", "env"]),
+                BTreeMap::new()
+            ),
+            Err(Error::TableError { .. })
         ));
     }
 }
