@@ -388,9 +388,8 @@ impl AmazonS3 {
             ..Default::default()
         };
 
-        let bucket = self.bucket_name.clone();
         Ok(stream::unfold(ListState::Start, move |state| {
-            let (bucket, request_factory) = (bucket.clone(), request_factory.clone());
+            let request_factory = request_factory.clone();
             let s3 = self.client.clone();
 
             async move {
@@ -405,9 +404,8 @@ impl AmazonS3 {
                 };
 
                 let resp = s3_request(move || {
-                    let (s3, bucket, request_factory, continuation_token) = (
+                    let (s3, request_factory, continuation_token) = (
                         s3.clone(),
-                        bucket.clone(),
                         request_factory.clone(),
                         continuation_token.clone(),
                     );
@@ -419,7 +417,6 @@ impl AmazonS3 {
                                 ..request_factory()
                             })
                             .await
-                            .context(UnableToListData { bucket })
                         })
                     }
                 })
@@ -444,15 +441,19 @@ impl AmazonS3 {
                 Some((Ok(resp), next_state))
             }
         })
+        .map_err(move |e| Error::UnableToListData {
+            source: e,
+            bucket: self.bucket_name.clone(),
+        })
         .boxed())
     }
 }
 
-async fn s3_request<F, G, H, R>(future_factory: F) -> Result<R>
+async fn s3_request<E, F, G, H, R>(future_factory: F) -> Result<R, rusoto_core::RusotoError<E>>
 where
     F: Fn() -> G + Unpin + Clone + Send + Sync + 'static,
-    G: Future<Output = Result<H, Error>> + Send,
-    H: Future<Output = Result<R>> + Send,
+    G: Future<Output = Result<H, rusoto_core::RusotoError<E>>> + Send,
+    H: Future<Output = Result<R, rusoto_core::RusotoError<E>>> + Send,
 {
     let mut attempts = 0;
     // TODO: configurable
@@ -473,7 +474,13 @@ where
         {
             move |e| {
                 attempts += 1;
-                if attempts > n_retries {
+                let should_retry = matches!(
+                    e,
+                    rusoto_core::RusotoError::Unknown(ref response)
+                        if response.status.is_server_error()
+                );
+
+                if attempts > n_retries || !should_retry {
                     RetryPolicy::ForwardError(e)
                 } else {
                     RetryPolicy::WaitRetry(Duration::from_millis(200))
