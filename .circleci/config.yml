@@ -54,9 +54,8 @@ workflows:
       not: << pipeline.parameters.aws_teardown >>
     jobs:
       - godeps
-      - gotest:
-          requires:
-            - godeps
+      - test-race:
+          name: gotest # TODO: Rename to something more descriptive?
       - test-build:
           matrix:
             parameters:
@@ -180,9 +179,8 @@ workflows:
     jobs:
       - changelog
       - godeps
-      - gotest:
-          requires:
-            - godeps
+      - test-race:
+          name: gotest # TODO: Rename to something more descriptive?
       - test-build:
           matrix:
             parameters:
@@ -486,33 +484,19 @@ jobs:
       - run: go install honnef.co/go/tools/cmd/staticcheck
       - run: staticcheck ./...
 
-  gotest:
-    docker:
-      - image: cimg/go:1.17.1
-    resource_class: large
-    environment:
-      TMPDIR: /mnt/ramdisk
-    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+  test-race:
+    executor: cross-builder
     parallelism: 8
     steps:
       - checkout
-      - restore_cache:
-          name: Restore GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - run: mkdir -p /tmp/test-results
-      - install_core_deps
       - run:
-          name: run parallel race tests
-          command: |
-            GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -p=4"
-            TESTFILES=($(go list ./... | circleci tests split --split-by=timings))
-            make GO_TEST_CMD="$GO_TEST_CMD" GO_TEST_PATHS="${TESTFILES[*]}" test-go-race
-      - store_artifacts:
-          path: /tmp/test-results
-          destination: raw-test-output
+          name: Run race tests
+          command: ./scripts/ci/run-race-tests.sh $(pwd)/test-results
       - store_test_results:
-          path: /tmp/test-results
+          path: ./test-results
+      - store_artifacts:
+          path: ./test-results
+          destination: raw-test-results
 
   test-build:
     executor: cross-builder
