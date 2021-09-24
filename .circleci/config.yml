@@ -329,8 +329,7 @@ commands:
             - run:
                 name: Import GPG key
                 command: |
-                  echo -e "$GPG_PRIVATE_KEY" > private.key
-                  gpg --batch --import private.key
+                  echo -e "$GPG_PRIVATE_KEY" | gpg --batch --import --
             - run:
                 name: Log in to Quay
                 command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
