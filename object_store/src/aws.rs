@@ -448,11 +448,11 @@ impl AmazonS3 {
     }
 }
 
-async fn s3_request<F, G, H>(future_factory: F) -> Result<rusoto_s3::ListObjectsV2Output>
+async fn s3_request<F, G, H, R>(future_factory: F) -> Result<R>
 where
     F: Fn() -> G + Unpin + Clone + Send + Sync + 'static,
     G: Future<Output = Result<H, Error>> + Send,
-    H: Future<Output = Result<rusoto_s3::ListObjectsV2Output>> + Send,
+    H: Future<Output = Result<R>> + Send,
 {
     let mut attempts = 0;
     // TODO: configurable
