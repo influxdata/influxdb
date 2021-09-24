@@ -495,6 +495,7 @@ impl Table {
         mut dst: BTreeMap<String, BTreeSet<String>>,
     ) -> Result<BTreeMap<String, BTreeSet<String>>> {
         let (meta, row_groups) = self.filter_row_groups(predicate);
+        meta.validate_exprs(predicate.iter())?;
 
         // Validate that only supported columns present in `columns`.
         for (name, (ct, _)) in columns.iter().zip(meta.schema_for_column_names(columns)) {

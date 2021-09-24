@@ -1255,6 +1255,16 @@ mod test {
         // sketchy_sensor won't be returned because it has a NULL value for the
         // only matching row.
         assert_eq!(result, to_set(&["counter", "region", "time"]));
+
+        // Error when invalid predicate provided.
+        assert!(matches!(
+            chunk.column_names(
+                Predicate::new(vec![BinaryExpr::from(("time", "=", "not a number"))]),
+                Selection::Some(&["region", "env"]),
+                BTreeSet::new()
+            ),
+            Err(Error::TableError { .. })
+        ));
     }
 
     fn to_map(arr: Vec<(&str, &[&str])>) -> BTreeMap<String, BTreeSet<String>> {
@@ -1345,6 +1355,16 @@ mod test {
         assert!(matches!(
             chunk.column_values(Predicate::default(), Selection::All, BTreeMap::new()),
             Err(Error::UnsupportedOperation { .. })
+        ));
+
+        // Error when invalid predicate provided.
+        assert!(matches!(
+            chunk.column_values(
+                Predicate::new(vec![BinaryExpr::from(("time", "=", "not a number"))]),
+                Selection::Some(&["region", "env"]),
+                BTreeMap::new()
+            ),
+            Err(Error::TableError { .. })
         ));
     }
 }
