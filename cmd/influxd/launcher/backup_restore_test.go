@@ -27,7 +27,7 @@ func TestBackupRestore_Full(t *testing.T) {
 	l1 := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
 		o.StoreType = "bolt"
 		o.Testing = false
-		o.LogLevel = zap.InfoLevel
+		//o.LogLevel = zap.InfoLevel
 	})
 	l1.WritePointsOrFail(t, "m,k=v1 f=100i 946684800000000000\nm,k=v2 f=200i 946684800000000001")
 	l1.BackupOrFail(t, ctx, backup.Params{Path: backupDir})

@@ -364,8 +364,8 @@ github.com/influxdata/flux v0.131.0 h1:b6vCQyJorkbUEv25eHbNL1XIjSQ4/XMNFW8p9Uytm
 github.com/influxdata/flux v0.131.0/go.mod h1:CKvnYe6FHpTj/E0YGI7TcOZdGiYHoToOPSnoa12RtKI=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69 h1:WQsmW0fXO4ZE/lFGIE84G6rIV5SJN3P3sjIXAP1a8eU=
 github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69/go.mod h1:pwymjR6SrP3gD3pRj9RJwdl1j5s3doEEV8gS4X9qSzA=
-github.com/influxdata/influx-cli/v2 v2.1.1-0.20210924153529-f17f21410c45 h1:iXIi00SSlVAtVCBDR6WL+ZZoSN8kjVH6UWQCTxdklSY=
-github.com/influxdata/influx-cli/v2 v2.1.1-0.20210924153529-f17f21410c45/go.mod h1:piIN/dAOSRqdZZc2sHO7CORuWUQ0UXdNrjugF3cEr8k=
+github.com/influxdata/influx-cli/v2 v2.1.1-0.20210924182719-d0640ad6c4d4 h1:brA9egXkPF/ZGKbPu2Vt7GXJ4cv5Oo6eSff4ykhnwTE=
+github.com/influxdata/influx-cli/v2 v2.1.1-0.20210924182719-d0640ad6c4d4/go.mod h1:piIN/dAOSRqdZZc2sHO7CORuWUQ0UXdNrjugF3cEr8k=
 github.com/influxdata/influxdb-client-go/v2 v2.3.1-0.20210518120617-5d1fff431040 h1:MBLCfcSsUyFPDJp6T7EoHp/Ph3Jkrm4EuUKLD2rUWHg=
 github.com/influxdata/influxdb-client-go/v2 v2.3.1-0.20210518120617-5d1fff431040/go.mod h1:vLNHdxTJkIf2mSLvGrpj8TCcISApPoXkaxP8g9uRlW8=
 github.com/influxdata/influxql v1.1.1-0.20210223160523-b6ab99450c93 h1:4t/8PcmLnI2vrcaHcEKeeLsGxC0WMRaOQdPX9b7DF8Y=

@@ -1,16 +1,17 @@
-package launcher
+package launcher_test
 
 import (
 	"testing"
 
 	"github.com/influxdata/influx-cli/v2/api"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/stretchr/testify/require"
 )
 
 func TestValidateReplication_Valid(t *testing.T) {
-	l := RunAndSetupNewLauncherOrFail(ctx, t, func(o *InfluxdOpts) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
 		o.FeatureFlags = map[string]string{feature.ReplicationStreamBackend().Key(): "true"}
 	})
 	defer l.ShutdownOrFail(t, ctx)
@@ -75,7 +76,7 @@ func TestValidateReplication_Valid(t *testing.T) {
 }
 
 func TestValidateReplication_Invalid(t *testing.T) {
-	l := RunAndSetupNewLauncherOrFail(ctx, t, func(o *InfluxdOpts) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
 		o.FeatureFlags = map[string]string{feature.ReplicationStreamBackend().Key(): "true"}
 	})
 	defer l.ShutdownOrFail(t, ctx)
