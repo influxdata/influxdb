@@ -374,7 +374,11 @@ impl QueryChunk for DbChunk {
                     "Negated Predicate pushed down to RUB"
                 );
 
-                let read_results = chunk.read_filter(rb_predicate, selection, negated_delete_exprs);
+                let read_results = chunk
+                    .read_filter(rb_predicate, selection, negated_delete_exprs)
+                    .context(ReadBufferChunkError {
+                        chunk_id: self.id(),
+                    })?;
                 let schema =
                     chunk
                         .read_filter_table_schema(selection)

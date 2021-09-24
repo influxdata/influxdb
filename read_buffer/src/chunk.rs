@@ -183,9 +183,10 @@ impl Chunk {
         predicate: Predicate,
         select_columns: Selection<'_>,
         negated_predicates: Vec<Predicate>,
-    ) -> table::ReadFilterResults {
+    ) -> Result<table::ReadFilterResults> {
         self.table
             .read_filter(&select_columns, &predicate, negated_predicates.as_slice())
+            .context(TableError)
     }
 
     /// Returns an iterable collection of data in group columns and aggregate
@@ -1024,7 +1025,9 @@ mod test {
         let predicate =
             Predicate::with_time_range(&[BinaryExpr::from(("env", "=", "us-west"))], 100, 205); // filter on time
 
-        let mut itr = chunk.read_filter(predicate, Selection::All, vec![]);
+        let mut itr = chunk
+            .read_filter(predicate, Selection::All, vec![])
+            .unwrap();
 
         let exp_env_values = Values::Dictionary(vec![0], vec![Some("us-west")]);
         let exp_region_values = Values::Dictionary(vec![0], vec![Some("west")]);
@@ -1058,6 +1061,13 @@ mod test {
         assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
         assert_rb_column_equals(&second_row_group, "time", &Values::I64(vec![200])); // first row from second record batch
 
+        // Error when predicate is invalid
+        let predicate =
+            Predicate::with_time_range(&[BinaryExpr::from(("env", "=", 22.3))], 100, 205);
+        assert!(chunk
+            .read_filter(predicate, Selection::All, vec![])
+            .is_err());
+
         // No more data
         assert!(itr.next().is_none());
     }
@@ -1079,7 +1089,9 @@ mod test {
         let delete_predicates = vec![Predicate::new(vec![BinaryExpr::from((
             "region", "=", "west",
         ))])];
-        let mut itr = chunk.read_filter(predicate, Selection::All, delete_predicates);
+        let mut itr = chunk
+            .read_filter(predicate, Selection::All, delete_predicates)
+            .unwrap();
 
         let exp_env_values = Values::Dictionary(vec![0], vec![Some("us-west")]);
         let exp_region_values = Values::Dictionary(vec![0], vec![Some("east")]);
@@ -1127,6 +1139,16 @@ mod test {
 
         // No more data
         assert!(itr.next().is_none());
+
+        // Error when one of the negated predicates is invalid
+        let predicate = Predicate::new(vec![BinaryExpr::from(("env", "=", "us-west"))]);
+        let delete_predicates = vec![
+            Predicate::new(vec![BinaryExpr::from(("region", "=", "west"))]),
+            Predicate::new(vec![BinaryExpr::from(("time", "=", "not a number"))]),
+        ];
+        assert!(chunk
+            .read_filter(predicate, Selection::All, delete_predicates)
+            .is_err());
     }
 
     #[test]

@@ -3,10 +3,10 @@ use crate::{
     row_group::{self, ColumnName, Literal, Predicate, RowGroup},
     schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema},
     value::{OwnedValue, Scalar, Value},
+    BinaryExpr,
 };
 use arrow::record_batch::RecordBatch;
 use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
-use datafusion::physical_plan::expressions::BinaryExpr;
 use internal_types::selection::Selection;
 use parking_lot::RwLock;
 use snafu::{ensure, Snafu};
@@ -247,12 +247,14 @@ impl Table {
     // Identify set of row groups that might satisfy the predicate.
     //
     // Produce a set of these row groups along with a snapshot of the table meta
-    // data associated with them.
+    // data associated with them. Returns an error if the provided predicate
+    // cannot be applied to the row groups with respect to the schema.
     //
     // N.B the table read lock is only held as long as it takes to determine
     // with meta data whether each row group may satisfy the predicate.
     fn filter_row_groups(&self, predicate: &Predicate) -> (Arc<MetaData>, Vec<Arc<RowGroup>>) {
         let table_data = self.table_data.read();
+
         let mut row_groups = Vec::with_capacity(table_data.data.len());
 
         'rowgroup: for rg in table_data.data.iter() {
@@ -282,10 +284,15 @@ impl Table {
         columns: &Selection<'_>,
         predicate: &Predicate,
         negated_predicates: &[Predicate],
-    ) -> ReadFilterResults {
+    ) -> Result<ReadFilterResults> {
         // identify row groups where time range and predicates match could match
-        // the predicate. Get a snapshot of those and the meta-data.
+        // the predicate. Get a snapshot of those and the meta-data. Finally,
+        // validate that the predicate can be applied to the row groups.
         let (meta, row_groups) = self.filter_row_groups(predicate);
+        meta.validate_exprs(predicate.iter())?;
+        for pred in negated_predicates {
+            meta.validate_exprs(pred.iter())?;
+        }
 
         let schema = ResultSchema {
             select_columns: match columns {
@@ -296,12 +303,12 @@ impl Table {
         };
 
         // TODO(edd): I think I can remove `predicates` from the results
-        ReadFilterResults {
+        Ok(ReadFilterResults {
             predicate: predicate.clone(),
             negated_predicates: negated_predicates.to_vec(),
             schema,
             row_groups,
-        }
+        })
     }
 
     /// Returns an iterable collection of data in group columns and aggregate
@@ -1461,11 +1468,13 @@ mod test {
 
         // Get all the results
         let predicate = Predicate::with_time_range(&[], 1, 31);
-        let results = table.read_filter(
-            &Selection::Some(&["time", "count", "region"]),
-            &predicate,
-            &[],
-        );
+        let results = table
+            .read_filter(
+                &Selection::Some(&["time", "count", "region"]),
+                &predicate,
+                &[],
+            )
+            .unwrap();
 
         // check the column types
         let exp_schema = ResultSchema {
@@ -1511,7 +1520,9 @@ mod test {
             Predicate::with_time_range(&[BinaryExpr::from(("region", "!=", "south"))], 1, 25);
 
         // Apply a predicate `WHERE "region" != "south"`
-        let results = table.read_filter(&Selection::Some(&["time", "region"]), &predicate, &[]);
+        let results = table
+            .read_filter(&Selection::Some(&["time", "region"]), &predicate, &[])
+            .unwrap();
 
         let exp_schema = ResultSchema {
             select_columns: vec![
