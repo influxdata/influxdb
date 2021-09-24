@@ -284,6 +284,7 @@ impl Partition {
     }
 
     /// Drop the specified chunk even if it has an in-progress lifecycle action
+    /// returning the dropped chunk
     pub fn force_drop_chunk(&mut self, chunk_id: ChunkId) -> Result<Arc<RwLock<CatalogChunk>>> {
         self.chunks
             .remove(&chunk_id)
