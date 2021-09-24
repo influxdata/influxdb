@@ -230,6 +230,9 @@ func (s service) ValidateUpdatedReplication(ctx context.Context, id platform.ID,
 	if err != nil {
 		return err
 	}
+	if request.RemoteBucketID != nil {
+		baseConfig.RemoteBucketID = *request.RemoteBucketID
+	}
 
 	if request.RemoteID != nil {
 		if err := s.populateRemoteHTTPConfig(ctx, *request.RemoteID, baseConfig); err != nil {
@@ -295,7 +298,7 @@ func (s service) ValidateReplication(ctx context.Context, id platform.ID) error 
 	if err := s.validator.ValidateReplication(ctx, config); err != nil {
 		return &ierrors.Error{
 			Code: ierrors.EInvalid,
-			Msg:  "remote failed validation",
+			Msg:  "replication failed validation",
 			Err:  err,
 		}
 	}
