@@ -140,35 +140,48 @@ impl ObjectStoreApi for AmazonS3 {
         CloudPath::default()
     }
 
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: Option<usize>) -> Result<()>
+    async fn put<F, S>(&self, location: &Self::Path, bytes: F, length: Option<usize>) -> Result<()>
     where
+        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
-        let bytes = match length {
-            Some(length) => ByteStream::new_with_size(bytes, length),
-            None => {
-                let bytes = slurp_stream_tempfile(bytes)
-                    .await
-                    .context(UnableToBufferStream)?;
-                let length = bytes.size();
-                ByteStream::new_with_size(bytes, length)
+        let bucket_name = self.bucket_name.clone();
+        let key = location.to_raw();
+        let request_factory = move || {
+            let bytes = bytes.clone();
+            async move {
+                let bytes = bytes();
+                let bytes = match length {
+                    Some(length) => ByteStream::new_with_size(bytes, length),
+                    None => {
+                        let bytes = slurp_stream_tempfile(bytes).await.unwrap();
+                        let length = bytes.size();
+                        ByteStream::new_with_size(bytes, length)
+                    }
+                };
+
+                rusoto_s3::PutObjectRequest {
+                    bucket: bucket_name.clone(),
+                    key: key.clone(),
+                    body: Some(bytes),
+                    ..Default::default()
+                }
             }
         };
 
-        let put_request = rusoto_s3::PutObjectRequest {
-            bucket: self.bucket_name.clone(),
-            key: location.to_raw(),
-            body: Some(bytes),
-            ..Default::default()
-        };
+        let s3 = self.client.clone();
 
-        self.client
-            .put_object(put_request)
-            .await
-            .context(UnableToPutData {
-                bucket: &self.bucket_name,
-                location: location.to_raw(),
-            })?;
+        s3_request(move || {
+            let (s3, request_factory) = (s3.clone(), request_factory.clone());
+
+            async move { Ok(async move { s3.put_object(request_factory().await).await.map(drop) }) }
+        })
+        .await
+        .context(UnableToPutData {
+            bucket: &self.bucket_name,
+            location: location.to_raw(),
+        })?;
+
         Ok(())
     }
 
@@ -760,15 +773,16 @@ mod tests {
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
+
         let data = Bytes::from("arbitrary data");
-        let stream_data = std::io::Result::Ok(data.clone());
+        let data_len = data.len();
+        let stream_fn = move || {
+            let stream_data = std::io::Result::Ok(data.clone());
+            futures::stream::once(async move { stream_data })
+        };
 
         let err = integration
-            .put(
-                &location,
-                futures::stream::once(async move { stream_data }),
-                Some(data.len()),
-            )
+            .put(&location, stream_fn, Some(data_len))
             .await
             .unwrap_err();
 
@@ -806,15 +820,17 @@ mod tests {
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
+
         let data = Bytes::from("arbitrary data");
-        let stream_data = std::io::Result::Ok(data.clone());
+        let data_len = data.len();
+
+        let stream_fn = move || {
+            let stream_data = std::io::Result::Ok(data.clone());
+            futures::stream::once(async move { stream_data })
+        };
 
         let err = integration
-            .put(
-                &location,
-                futures::stream::once(async move { stream_data }),
-                Some(data.len()),
-            )
+            .put(&location, stream_fn, Some(data_len))
             .await
             .unwrap_err();
 

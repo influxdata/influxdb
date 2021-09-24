@@ -86,11 +86,12 @@ impl ObjectStoreApi for GoogleCloudStorage {
         CloudPath::default()
     }
 
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: Option<usize>) -> Result<()>
+    async fn put<F, S>(&self, location: &Self::Path, bytes: F, length: Option<usize>) -> Result<()>
     where
+        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
-        let temporary_non_streaming = bytes
+        let temporary_non_streaming = bytes()
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
             .try_concat()
             .await

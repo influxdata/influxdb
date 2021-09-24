@@ -114,13 +114,14 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
         self.inner.new_path()
     }
 
-    async fn put<S>(
+    async fn put<F, S>(
         &self,
         location: &Self::Path,
-        bytes: S,
+        bytes: F,
         length: Option<usize>,
     ) -> Result<(), Self::Error>
     where
+        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
         sleep(self.config.wait_put_per_call).await;
@@ -129,26 +130,29 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
         let wait_put_per_byte = self.config.wait_put_per_byte;
         let length_remaining = Arc::new(Mutex::new(length));
 
-        let bytes = bytes.then(move |bytes_result| {
+        let bytes = move || {
             let length_remaining = Arc::clone(&length_remaining);
+            bytes().then(move |bytes_result| {
+                let length_remaining = Arc::clone(&length_remaining);
 
-            async move {
-                match bytes_result {
-                    Ok(bytes) => {
-                        let mut bytes_len = bytes.len();
-                        let mut length_remaining_inner2 = length_remaining.lock().await;
-                        if let Some(length) = length_remaining_inner2.as_mut() {
-                            let length_new = length.saturating_sub(bytes_len);
-                            bytes_len = bytes_len.min(*length);
-                            *length = length_new;
-                        };
-                        sleep(wait_put_per_byte * usize_to_u32_saturate(bytes_len)).await;
-                        Ok(bytes)
+                async move {
+                    match bytes_result {
+                        Ok(bytes) => {
+                            let mut bytes_len = bytes.len();
+                            let mut length_remaining_inner2 = length_remaining.lock().await;
+                            if let Some(length) = length_remaining_inner2.as_mut() {
+                                let length_new = length.saturating_sub(bytes_len);
+                                bytes_len = bytes_len.min(*length);
+                                *length = length_new;
+                            };
+                            sleep(wait_put_per_byte * usize_to_u32_saturate(bytes_len)).await;
+                            Ok(bytes)
+                        }
+                        Err(err) => Err(err),
                     }
-                    Err(err) => Err(err),
                 }
-            }
-        });
+            })
+        };
 
         self.inner.put(location, bytes, length).await
     }
@@ -379,10 +383,12 @@ mod tests {
         path.set_file_name("foo");
 
         if let Some(n_bytes) = n_bytes {
-            let data = std::iter::repeat(1u8).take(n_bytes).collect();
-            let stream_data = std::io::Result::Ok(data);
-            let stream = futures::stream::once(async move { stream_data });
-            store.put(&path, stream, None).await.unwrap();
+            let stream_fn = move || {
+                let data = std::iter::repeat(1u8).take(n_bytes).collect();
+                let stream_data = std::io::Result::Ok(data);
+                futures::stream::once(async move { stream_data })
+            };
+            store.put(&path, stream_fn, None).await.unwrap();
         } else {
             // ensure object is absent
             store.delete(&path).await.unwrap();
@@ -415,10 +421,13 @@ mod tests {
             let mut path = prefix.clone();
             path.set_file_name(&i.to_string());
 
-            let data = Bytes::from("bar");
-            let stream_data = std::io::Result::Ok(data);
-            let stream = futures::stream::once(async move { stream_data });
-            store.put(&path, stream, None).await.unwrap();
+            let stream_fn = move || {
+                let data = Bytes::from("bar");
+                let stream_data = std::io::Result::Ok(data);
+                futures::stream::once(async move { stream_data })
+            };
+
+            store.put(&path, stream_fn, None).await.unwrap();
         }
 
         prefix
@@ -483,12 +492,14 @@ mod tests {
         let mut path = store.new_path();
         path.set_file_name("foo");
 
-        let data = std::iter::repeat(1u8).take(n_bytes).collect();
-        let stream_data = std::io::Result::Ok(data);
-        let stream = futures::stream::once(async move { stream_data });
+        let stream_fn = move || {
+            let data = std::iter::repeat(1u8).take(n_bytes).collect();
+            let stream_data = std::io::Result::Ok(data);
+            futures::stream::once(async move { stream_data })
+        };
 
         let t0 = Instant::now();
-        store.put(&path, stream, None).await.unwrap();
+        store.put(&path, stream_fn, None).await.unwrap();
 
         t0.elapsed()
     }

@@ -73,13 +73,14 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
     fn new_path(&self) -> Self::Path;
 
     /// Save the provided bytes to the specified location.
-    async fn put<S>(
+    async fn put<F, S>(
         &self,
         location: &Self::Path,
-        bytes: S,
+        bytes: F,
         length: Option<usize>,
     ) -> Result<(), Self::Error>
     where
+        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static;
 
     /// Return the bytes that are stored at the specified location.
@@ -239,8 +240,9 @@ impl ObjectStoreApi for ObjectStore {
         }
     }
 
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: Option<usize>) -> Result<()>
+    async fn put<F, S>(&self, location: &Self::Path, bytes: F, length: Option<usize>) -> Result<()>
     where
+        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
         use ObjectStoreIntegration::*;
@@ -677,19 +679,18 @@ mod tests {
             content_list
         );
 
-        let data = Bytes::from("arbitrary data");
         let mut location = storage.new_path();
         location.push_dir("test_dir");
         location.set_file_name("test_file.json");
 
-        let stream_data = std::io::Result::Ok(data.clone());
-        storage
-            .put(
-                &location,
-                futures::stream::once(async move { stream_data }),
-                Some(data.len()),
-            )
-            .await?;
+        let data = Bytes::from("arbitrary data");
+        let expected_data = data.clone();
+        let data_len = data.len();
+        let stream_fn = move || {
+            let stream_data = std::io::Result::Ok(data.clone());
+            futures::stream::once(async move { stream_data })
+        };
+        storage.put(&location, stream_fn, Some(data_len)).await?;
 
         // List everything
         let content_list = flatten_list_stream(storage, None).await?;
@@ -713,7 +714,7 @@ mod tests {
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
             .try_concat()
             .await?;
-        assert_eq!(&*read_data, data);
+        assert_eq!(&*read_data, expected_data);
 
         storage.delete(&location).await?;
 
@@ -732,6 +733,7 @@ mod tests {
 
         // ==================== do: create files ====================
         let data = Bytes::from("arbitrary data");
+        let data_len = data.len();
 
         let files: Vec<_> = [
             "test_file",
@@ -748,15 +750,12 @@ mod tests {
         .collect();
 
         for f in &files {
-            let stream_data = std::io::Result::Ok(data.clone());
-            storage
-                .put(
-                    f,
-                    futures::stream::once(async move { stream_data }),
-                    Some(data.len()),
-                )
-                .await
-                .unwrap();
+            let data = data.clone();
+            let stream_fn = move || {
+                let stream_data = std::io::Result::Ok(data.clone());
+                futures::stream::once(async move { stream_data })
+            };
+            storage.put(f, stream_fn, Some(data_len)).await.unwrap();
         }
 
         // ==================== check: prefix-list `mydb/wb` (directory) ====================

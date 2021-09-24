@@ -42,13 +42,14 @@ impl ObjectStoreApi for DummyObjectStore {
         CloudPath::default()
     }
 
-    async fn put<S>(
+    async fn put<F, S>(
         &self,
         _location: &Self::Path,
-        _bytes: S,
+        _bytes: F,
         _length: Option<usize>,
     ) -> crate::Result<(), Self::Error>
     where
+        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
         S: futures::Stream<Item = std::io::Result<bytes::Bytes>> + Send + Sync + 'static,
     {
         NotSupported { name: &self.name }.fail()

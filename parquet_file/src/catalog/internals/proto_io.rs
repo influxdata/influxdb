@@ -41,7 +41,10 @@ pub async fn store_transaction_proto(
     iox_object_store
         .put_catalog_transaction_file(
             path,
-            futures::stream::once(async move { Ok(data) }),
+            move || {
+                let data = data.clone();
+                futures::stream::once(async move { Ok(data) })
+            },
             Some(len),
         )
         .await

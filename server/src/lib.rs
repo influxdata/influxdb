@@ -1949,7 +1949,7 @@ mod tests {
             .object_store()
             .put(
                 &fake_db_path,
-                futures::stream::once(async move { Ok(Bytes::new()) }),
+                move || futures::stream::once(async move { Ok(Bytes::new()) }),
                 None,
             )
             .await

@@ -43,11 +43,12 @@ impl ObjectStoreApi for InMemory {
         DirsAndFileName::default()
     }
 
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: Option<usize>) -> Result<()>
+    async fn put<F, S>(&self, location: &Self::Path, bytes: F, length: Option<usize>) -> Result<()>
     where
+        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
-        let content = bytes
+        let content = bytes()
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
             .try_concat()
             .await
@@ -193,9 +194,11 @@ mod tests {
     async fn length_mismatch_is_an_error() {
         let integration = ObjectStore::new_in_memory();
 
-        let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
         let mut location = integration.new_path();
         location.set_file_name("junk");
+
+        let bytes = move || stream::once(async { Ok(Bytes::from("hello world")) });
+
         let res = integration.put(&location, bytes, Some(0)).await;
 
         assert!(matches!(
@@ -213,19 +216,17 @@ mod tests {
     async fn unknown_length() {
         let integration = ObjectStore::new_in_memory();
 
-        let data = Bytes::from("arbitrary data");
-        let stream_data = std::io::Result::Ok(data.clone());
-
         let mut location = integration.new_path();
         location.set_file_name("some_file");
-        integration
-            .put(
-                &location,
-                futures::stream::once(async move { stream_data }),
-                None,
-            )
-            .await
-            .unwrap();
+
+        let data = Bytes::from("arbitrary data");
+        let expected_data = data.clone();
+        let stream_fn = move || {
+            let stream_data = std::io::Result::Ok(data.clone());
+            futures::stream::once(async move { stream_data })
+        };
+
+        integration.put(&location, stream_fn, None).await.unwrap();
 
         let read_data = integration
             .get(&location)
@@ -235,6 +236,6 @@ mod tests {
             .try_concat()
             .await
             .unwrap();
-        assert_eq!(&*read_data, data);
+        assert_eq!(&*read_data, expected_data);
     }
 }
