@@ -111,7 +111,9 @@ pub(crate) fn compact_chunks(
         let (_id, new_chunk) = {
             let mut partition = partition.write();
             for id in chunk_ids {
-                partition.force_drop_chunk(id)
+                partition.force_drop_chunk(id).expect(
+                    "There was a lifecycle action attached to this chunk, who deleted it?!",
+                );
             }
             partition.create_rub_chunk(
                 rb_chunk,
