@@ -217,19 +217,27 @@ impl ObjectStoreApi for AmazonS3 {
 
     async fn delete(&self, location: &Self::Path) -> Result<()> {
         let key = location.to_raw();
-        let delete_request = rusoto_s3::DeleteObjectRequest {
-            bucket: self.bucket_name.clone(),
+        let bucket_name = self.bucket_name.clone();
+
+        let request_factory = move || rusoto_s3::DeleteObjectRequest {
+            bucket: bucket_name.clone(),
             key: key.clone(),
             ..Default::default()
         };
 
-        self.client
-            .delete_object(delete_request)
-            .await
-            .context(UnableToDeleteData {
-                bucket: self.bucket_name.to_owned(),
-                location: key,
-            })?;
+        let s3 = self.client.clone();
+
+        s3_request(move || {
+            let (s3, request_factory) = (s3.clone(), request_factory.clone());
+
+            async move { Ok(async move { s3.delete_object(request_factory()).await }) }
+        })
+        .await
+        .context(UnableToDeleteData {
+            bucket: &self.bucket_name,
+            location: location.to_raw(),
+        })?;
+
         Ok(())
     }
 
