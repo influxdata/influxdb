@@ -226,7 +226,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 			},
 		},
 		{
-			name: "empty request body returns 400 error",
+			name: "empty request body is ok",
 			request: request{
 				org:    "043e0780ee2b1000",
 				bucket: "04504b356e23b000",
@@ -237,8 +237,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 				bucket: testBucket("043e0780ee2b1000", "04504b356e23b000"),
 			},
 			wants: wants{
-				code: 400,
-				body: `{"code":"invalid","message":"writing requires points"}`,
+				code: 204,
 			},
 		},
 		{

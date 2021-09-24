@@ -25,9 +25,8 @@ var (
 )
 
 const (
-	opPointsWriter           = "http/pointsWriter"
-	msgUnableToReadData      = "unable to read data"
-	msgWritingRequiresPoints = "writing requires points"
+	opPointsWriter      = "http/pointsWriter"
+	msgUnableToReadData = "unable to read data"
 )
 
 // ParsedPoints contains the points parsed as well as the total number of bytes
@@ -67,15 +66,6 @@ func (pw *Parser) parsePoints(ctx context.Context, orgID, bucketID platform.ID, 
 		}
 	}
 
-	requestBytes := len(data)
-	if requestBytes == 0 {
-		return nil, &errors2.Error{
-			Op:   opPointsWriter,
-			Code: errors2.EInvalid,
-			Msg:  msgWritingRequiresPoints,
-		}
-	}
-
 	span, _ := tracing.StartSpanFromContextWithOperationName(ctx, "encoding and parsing")
 
 	points, err := models.ParsePointsWithPrecision(data, time.Now().UTC(), pw.Precision)
@@ -102,7 +92,7 @@ func (pw *Parser) parsePoints(ctx context.Context, orgID, bucketID platform.ID, 
 
 	return &ParsedPoints{
 		Points:  points,
-		RawSize: requestBytes,
+		RawSize: len(data),
 	}, nil
 }
 
