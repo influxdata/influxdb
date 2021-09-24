@@ -239,6 +239,10 @@ impl Table {
     pub fn could_pass_predicate(&self, predicate: &Predicate) -> bool {
         let table_data = self.table_data.read();
 
+        if table_data.meta.validate_exprs(predicate.iter()).is_err() {
+            return false;
+        }
+
         table_data.data.iter().any(|row_group| {
             row_group.could_satisfy_conjunctive_binary_expressions(predicate.iter())
         })
@@ -523,6 +527,10 @@ impl Table {
             let table_data = self.table_data.read();
             (Arc::clone(&table_data.meta), table_data.data.to_vec())
         };
+
+        if meta.validate_exprs(predicate.iter()).is_err() {
+            return false;
+        }
 
         // if the table doesn't have a column for one of the predicate's
         // expressions then the table cannot satisfy the predicate.
@@ -1421,6 +1429,10 @@ mod test {
             BinaryExpr::from(("region", "=", "east")),
             BinaryExpr::from(("count", "<=", 0_u64)),
         ]);
+        assert!(!table.could_pass_predicate(&predicate));
+
+        // the predicate is invalid
+        let predicate = Predicate::new(vec![BinaryExpr::from(("region", ">", 32.3))]);
         assert!(!table.could_pass_predicate(&predicate));
     }
 

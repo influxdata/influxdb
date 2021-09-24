@@ -214,7 +214,8 @@ impl Chunk {
     /// match the provided predicate.
     ///
     /// If the provided table does not exist then `could_pass_predicate` returns
-    /// `false`.
+    /// `false`. If the predicate is incompatible with chunk's schema
+    /// `could_pass_predicate` returns false.
     pub fn could_pass_predicate(&self, predicate: Predicate) -> bool {
         self.table.could_pass_predicate(&predicate)
     }
@@ -1194,6 +1195,13 @@ mod test {
         assert!(
             !chunk.satisfies_predicate(&Predicate::new(vec![BinaryExpr::from((
                 "region", ">", "west"
+            ))]),)
+        );
+
+        // invalid predicate so no rows can match
+        assert!(
+            !chunk.satisfies_predicate(&Predicate::new(vec![BinaryExpr::from((
+                "region", "=", 33.2
             ))]),)
         );
     }
