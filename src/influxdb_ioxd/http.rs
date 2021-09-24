@@ -16,6 +16,8 @@ mod heappy;
 #[cfg(feature = "pprof")]
 mod pprof;
 
+mod tower;
+
 mod metrics;
 
 // Influx crates
@@ -36,13 +38,13 @@ use futures::{self, StreamExt};
 use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use hyper::{http::HeaderValue, Body, Method, Request, Response, StatusCode};
 use observability_deps::tracing::{self, debug, error};
+use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 use trace_http::ctx::TraceHeaderParser;
 
 use crate::influxdb_ioxd::http::metrics::LineProtocolMetrics;
-use hyper::server::conn::{AddrIncoming, AddrStream};
-use std::convert::Infallible;
+use hyper::server::conn::AddrIncoming;
 use std::num::NonZeroI32;
 use std::{
     fmt::Debug,
@@ -50,9 +52,7 @@ use std::{
     sync::Arc,
 };
 use tokio_util::sync::CancellationToken;
-use tower::Layer;
 use trace::TraceCollector;
-use trace_http::tower::TraceLayer;
 
 /// Constants used in API error codes.
 ///
@@ -350,56 +350,79 @@ impl From<server::Error> for ApplicationError {
     }
 }
 
-#[derive(Debug)]
 struct Server<M>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    application: Arc<ApplicationState>,
     app_server: Arc<AppServer<M>>,
     lp_metrics: Arc<LineProtocolMetrics>,
     max_request_size: usize,
 }
 
-async fn route_request<M>(
-    server: Arc<Server<M>>,
-    mut req: Request<Body>,
-) -> Result<Response<Body>, Infallible>
+fn router<M>(
+    application: Arc<ApplicationState>,
+    app_server: Arc<AppServer<M>>,
+    max_request_size: usize,
+) -> Router<Body, ApplicationError>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    // we don't need the authorization header and we don't want to accidentally log it.
-    req.headers_mut().remove("authorization");
-    debug!(request = ?req,"Processing request");
-
-    let method = req.method().clone();
-    let uri = req.uri().clone();
-    let content_length = req.headers().get("content-length").cloned();
-
-    let response = match (method.clone(), uri.path()) {
-        (Method::GET, "/health") => health(),
-        (Method::GET, "/metrics") => handle_metrics(server.application.as_ref()),
-        (Method::POST, "/api/v2/write") => write(req, server.as_ref()).await,
-        (Method::GET, "/api/v3/query") => query(req, server.as_ref()).await,
-        (Method::GET, "/debug/pprof") => pprof_home(req).await,
-        (Method::GET, "/debug/pprof/profile") => pprof_profile(req).await,
-        (Method::GET, "/debug/pprof/allocs") => pprof_heappy_profile(req).await,
-
-        (method, path) => Err(ApplicationError::RouteNotFound {
-            method,
-            path: path.to_string(),
-        }),
+    let server = Server {
+        app_server,
+        max_request_size,
+        lp_metrics: Arc::new(LineProtocolMetrics::new(
+            application.metric_registry().as_ref(),
+        )),
     };
 
-    // TODO: Move logging to TraceLayer
-    match response {
-        Ok(response) => {
-            debug!(?response, "Successfully processed request");
-            Ok(response)
-        }
-        Err(error) => {
-            error!(%error, %method, %uri, ?content_length, "Error while handling request");
-            Ok(error.response())
+    // Create a router and specify the the handlers.
+    Router::builder()
+        .data(server)
+        .data(application)
+        .middleware(Middleware::pre(|mut req| async move {
+            // we don't need the authorization header and we don't want to accidentally log it.
+            req.headers_mut().remove("authorization");
+            debug!(request = ?req,"Processing request");
+            Ok(req)
+        }))
+        .middleware(Middleware::post(|res| async move {
+            debug!(response = ?res, "Successfully processed request");
+            Ok(res)
+        })) // this endpoint is for API backward compatibility with InfluxDB 2.x
+        .post("/api/v2/write", write::<M>)
+        .get("/health", health::<M>)
+        .get("/metrics", handle_metrics::<M>)
+        .get("/api/v3/query", query::<M>)
+        .get("/debug/pprof", pprof_home::<M>)
+        .get("/debug/pprof/profile", pprof_profile::<M>)
+        .get("/debug/pprof/allocs", pprof_heappy_profile::<M>)
+        // Specify the error handler to handle any errors caused by
+        // a route or any middleware.
+        .err_handler_with_info(error_handler)
+        .build()
+        .unwrap()
+}
+
+// The API-global error handler, handles ApplicationErrors originating from
+// individual routes and middlewares, along with errors from the router itself
+async fn error_handler(err: RouterError<ApplicationError>, req: RequestInfo) -> Response<Body> {
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+    let span_id = req.headers().get("x-b3-spanid");
+    let content_length = req.headers().get("content-length");
+    error!(error = ?err, error_message = ?err.to_string(), method = ?method, uri = ?uri, ?span_id, ?content_length, "Error while handling request");
+
+    match err {
+        RouterError::HandleRequest(e, _)
+        | RouterError::HandlePreMiddlewareRequest(e)
+        | RouterError::HandlePostMiddlewareWithInfoRequest(e)
+        | RouterError::HandlePostMiddlewareWithoutInfoRequest(e) => e.response(),
+        _ => {
+            let json = serde_json::json!({"error": err.to_string()}).to_string();
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::from(json))
+                .unwrap()
         }
     }
 }
@@ -464,10 +487,7 @@ async fn parse_body(req: hyper::Request<Body>, max_size: usize) -> Result<Bytes,
 }
 
 #[observability_deps::instrument(level = "debug")]
-async fn write<M>(
-    req: Request<Body>,
-    server: &Server<M>,
-) -> Result<Response<Body>, ApplicationError>
+async fn write<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
@@ -475,8 +495,7 @@ where
         app_server: server,
         lp_metrics,
         max_request_size,
-        ..
-    } = server;
+    } = req.data::<Server<M>>().expect("server state");
 
     let max_request_size = *max_request_size;
     let server = Arc::clone(server);
@@ -558,9 +577,8 @@ fn default_format() -> String {
 #[tracing::instrument(level = "debug")]
 async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
-    server: &Server<M>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let server = &server.app_server;
+    let server = Arc::clone(&req.data::<Server<M>>().expect("server state").app_server);
 
     let uri_query = req.uri().query().context(ExpectedQueryString {})?;
 
@@ -602,13 +620,21 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
 }
 
 #[tracing::instrument(level = "debug")]
-fn health() -> Result<Response<Body>, ApplicationError> {
+async fn health<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
     let response_body = "OK";
     Ok(Response::new(Body::from(response_body.to_string())))
 }
 
 #[tracing::instrument(level = "debug")]
-fn handle_metrics(application: &ApplicationState) -> Result<Response<Body>, ApplicationError> {
+async fn handle_metrics<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let application = req
+        .data::<Arc<ApplicationState>>()
+        .expect("application state");
+
     let mut body: Vec<u8> = Default::default();
     let mut reporter = metric_exporters::PrometheusTextEncoder::new(&mut body);
     application.metric_registry().report(&mut reporter);
@@ -616,8 +642,19 @@ fn handle_metrics(application: &ApplicationState) -> Result<Response<Body>, Appl
     Ok(Response::new(Body::from(body)))
 }
 
+#[derive(Deserialize, Debug)]
+/// Arguments in the query string of the request to /snapshot
+struct SnapshotInfo {
+    org: String,
+    bucket: String,
+    partition: String,
+    table_name: String,
+}
+
 #[tracing::instrument(level = "debug")]
-async fn pprof_home(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
+async fn pprof_home<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
     let default_host = HeaderValue::from_static("localhost");
     let host = req
         .headers()
@@ -684,7 +721,9 @@ impl PProfAllocsArgs {
 
 #[cfg(feature = "pprof")]
 #[tracing::instrument(level = "debug")]
-async fn pprof_profile(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
+async fn pprof_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
     use ::pprof::protos::Message;
     let query_string = req.uri().query().unwrap_or_default();
     let query: PProfArgs =
@@ -726,14 +765,18 @@ async fn pprof_profile(req: Request<Body>) -> Result<Response<Body>, Application
 
 #[cfg(not(feature = "pprof"))]
 #[tracing::instrument(level = "debug")]
-async fn pprof_profile(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
+async fn pprof_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
     PProfIsNotCompiled {}.fail()
 }
 
 // If heappy support is enabled, call it
 #[cfg(feature = "heappy")]
 #[tracing::instrument(level = "debug")]
-async fn pprof_heappy_profile(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
+async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
     let query_string = req.uri().query().unwrap_or_default();
     let query: PProfAllocsArgs =
         serde_urlencoded::from_str(query_string).context(InvalidQueryString { query_string })?;
@@ -768,14 +811,16 @@ async fn pprof_heappy_profile(req: Request<Body>) -> Result<Response<Body>, Appl
 //  Return error if heappy not enabled
 #[cfg(not(feature = "heappy"))]
 #[tracing::instrument(level = "debug")]
-async fn pprof_heappy_profile(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
+async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
     HeappyIsNotCompiled {}.fail()
 }
 
 pub async fn serve<M>(
     addr: AddrIncoming,
     application: Arc<ApplicationState>,
-    app_server: Arc<AppServer<M>>,
+    server: Arc<AppServer<M>>,
     shutdown: CancellationToken,
     max_request_size: usize,
     trace_header_parser: TraceHeaderParser,
@@ -785,29 +830,16 @@ where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
     let metric_registry = Arc::clone(application.metric_registry());
-
-    let trace_layer = TraceLayer::new(trace_header_parser, metric_registry, trace_collector, false);
-    let lp_metrics = Arc::new(LineProtocolMetrics::new(
-        application.metric_registry().as_ref(),
-    ));
-
-    let server = Arc::new(Server {
-        application,
-        app_server,
-        lp_metrics,
-        max_request_size,
-    });
+    let router = router(application, server, max_request_size);
+    let new_service = tower::MakeService::new(
+        router,
+        trace_header_parser,
+        trace_collector,
+        metric_registry,
+    );
 
     hyper::Server::builder(addr)
-        .serve(hyper::service::make_service_fn(|_conn: &AddrStream| {
-            let server = Arc::clone(&server);
-            let service = hyper::service::service_fn(move |request: Request<_>| {
-                route_request(Arc::clone(&server), request)
-            });
-
-            let service = trace_layer.layer(service);
-            futures::future::ready(Ok::<_, Infallible>(service))
-        }))
+        .serve(new_service)
         .with_graceful_shutdown(shutdown.cancelled())
         .await
 }
