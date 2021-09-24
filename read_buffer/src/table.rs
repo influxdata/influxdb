@@ -452,7 +452,7 @@ impl Table {
         predicate: &Predicate,
         columns: Selection<'_>,
         mut dst: BTreeSet<String>,
-    ) -> BTreeSet<String> {
+    ) -> Result<BTreeSet<String>> {
         let table_data = self.table_data.read();
 
         // Short circuit execution if we have already got all of this table's
@@ -463,7 +463,7 @@ impl Table {
             .keys()
             .all(|name| dst.contains(name))
         {
-            return dst;
+            return Ok(dst);
         }
 
         // Identify row groups where time range and predicates match could match
@@ -473,12 +473,14 @@ impl Table {
         // ok, but if it turns out it's not then we can move the
         // `filter_row_groups` logic into here and not take the second read
         // lock.
-        let (_, row_groups) = self.filter_row_groups(predicate);
+        let (meta, row_groups) = self.filter_row_groups(predicate);
+        meta.validate_exprs(predicate.iter())?;
+
         for row_group in row_groups {
             row_group.column_names(predicate, columns, &mut dst);
         }
 
-        dst
+        Ok(dst)
     }
 
     /// Returns the distinct set of column values for each provided column,
@@ -1736,7 +1738,9 @@ west,host-b,100
         // NULL,   400
 
         let mut dst: BTreeSet<String> = BTreeSet::new();
-        dst = table.column_names(&Predicate::default(), Selection::All, dst);
+        dst = table
+            .column_names(&Predicate::default(), Selection::All, dst)
+            .unwrap();
 
         assert_eq!(
             dst.iter().cloned().collect::<Vec<_>>(),
@@ -1744,7 +1748,9 @@ west,host-b,100
         );
 
         // re-run and get the same answer
-        dst = table.column_names(&Predicate::default(), Selection::All, dst);
+        dst = table
+            .column_names(&Predicate::default(), Selection::All, dst)
+            .unwrap();
         assert_eq!(
             dst.iter().cloned().collect::<Vec<_>>(),
             vec!["region".to_owned(), "time".to_owned()],
@@ -1752,26 +1758,39 @@ west,host-b,100
 
         // include a predicate that doesn't match any region rows and still get
         // region from previous results.
-        dst = table.column_names(
-            &Predicate::new(vec![BinaryExpr::from(("time", ">=", 300_i64))]),
-            Selection::All,
-            dst,
-        );
+        dst = table
+            .column_names(
+                &Predicate::new(vec![BinaryExpr::from(("time", ">=", 300_i64))]),
+                Selection::All,
+                dst,
+            )
+            .unwrap();
         assert_eq!(
             dst.iter().cloned().collect::<Vec<_>>(),
             vec!["region".to_owned(), "time".to_owned()],
         );
 
         // wipe the destination buffer and region won't show up
-        dst = table.column_names(
-            &Predicate::new(vec![BinaryExpr::from(("time", ">=", 300_i64))]),
-            Selection::All,
-            BTreeSet::new(),
-        );
+        dst = table
+            .column_names(
+                &Predicate::new(vec![BinaryExpr::from(("time", ">=", 300_i64))]),
+                Selection::All,
+                BTreeSet::new(),
+            )
+            .unwrap();
         assert_eq!(
             dst.iter().cloned().collect::<Vec<_>>(),
             vec!["time".to_owned()],
         );
+
+        // invalid predicate
+        assert!(table
+            .column_names(
+                &Predicate::new(vec![BinaryExpr::from(("time", ">=", "not a number"))]),
+                Selection::All,
+                dst,
+            )
+            .is_err());
     }
 
     #[test]

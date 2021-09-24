@@ -280,7 +280,9 @@ impl Chunk {
         only_columns: Selection<'_>,
         dst: BTreeSet<String>,
     ) -> Result<BTreeSet<String>> {
-        Ok(self.table.column_names(&predicate, only_columns, dst))
+        self.table
+            .column_names(&predicate, only_columns, dst)
+            .context(TableError)
     }
 
     /// Returns the distinct set of column values for each provided column,
