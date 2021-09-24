@@ -13,7 +13,10 @@ async fn setup() -> (UdpCapture, ServerFixture) {
         .with_env("TRACES_EXPORTER", "jaeger")
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_HOST", udp_capture.ip())
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_PORT", udp_capture.port())
-        .with_env("JAEGER_TRACE_CONTEXT_HEADER_NAME", "custom-trace-header")
+        .with_env(
+            "TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME",
+            "custom-trace-header",
+        )
         .with_client_header("custom-trace-header", "4:3:2:1");
 
     let server_fixture = ServerFixture::create_single_use_with_config(test_config).await;
@@ -114,7 +117,7 @@ pub async fn test_tracing_create_trace() {
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_HOST", udp_capture.ip())
         .with_env("TRACES_EXPORTER_JAEGER_AGENT_PORT", udp_capture.port())
         // setup a custom debug name (to ensure it gets plumbed through)
-        .with_env("JAEGER_DEBUG_NAME", "force-trace")
+        .with_env("TRACES_EXPORTER_JAEGER_DEBUG_NAME", "force-trace")
         .with_client_header("force-trace", "some-debug-id");
 
     let server_fixture = ServerFixture::create_single_use_with_config(test_config).await;
