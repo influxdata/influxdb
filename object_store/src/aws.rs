@@ -477,9 +477,8 @@ where
     H: Future<Output = Result<R, rusoto_core::RusotoError<E>>> + Send,
 {
     let mut attempts = 0;
-    // TODO: configurable
+    // TODO: make the number of retries configurable
     let n_retries = 10;
-    // TODO: let backoff =
 
     FutureRetry::new(
         move || {
@@ -504,7 +503,7 @@ where
                 if attempts > n_retries || !should_retry {
                     RetryPolicy::ForwardError(e)
                 } else {
-                    RetryPolicy::WaitRetry(Duration::from_millis(200))
+                    RetryPolicy::WaitRetry(Duration::from_millis(2u64.pow(attempts) * 50))
                 }
             }
         },
