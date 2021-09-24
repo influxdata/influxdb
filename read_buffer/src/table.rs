@@ -327,6 +327,7 @@ impl Table {
         aggregates: &'input [(ColumnName<'input>, AggregateType)],
     ) -> Result<ReadAggregateResults> {
         let (meta, row_groups) = self.filter_row_groups(&predicate);
+        meta.validate_exprs(predicate.iter())?;
 
         // Filter out any column names that we do not have data for.
         let schema = ResultSchema {
