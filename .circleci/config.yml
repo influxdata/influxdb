@@ -4,10 +4,31 @@ orbs:
   terraform: circleci/terraform@2.1.0
 
 executors:
-  linux-machine:
+  cross-builder:
+    docker:
+      # NOTE: To upgrade the Go version, first push the upgrade to the cross-builder Dockerfile in the edge repo,
+      # then update the version here to match. Until we finish the migration to using the cross-builder image,
+      # you'll also need to update references to `cimg/go` and `GO_VERSION` in this file.
+      - image: quay.io/influxdb/cross-builder:go1.17.1-41d944d749b2c130119eff7efaaa9883ccffe5a7
+    resource_class: large
+  linux-amd64:
     machine:
       image: ubuntu-2004:202107-02
       resource_class: large
+  linux-arm64:
+    machine:
+      image: ubuntu-2004:202101-01
+      resource_class: arm.large
+  darwin:
+    macos:
+      xcode: 12.4.0
+      resource_class: medium
+    shell: /bin/bash -eo pipefail
+  windows:
+    machine:
+      image: windows-server-2019-vs2019:stable
+      resource_class: windows.medium
+    shell: bash.exe -eo pipefail
 
 parameters:
   aws_teardown:
@@ -36,6 +57,35 @@ workflows:
       - gotest:
           requires:
             - godeps
+      - test-build:
+          matrix:
+            parameters:
+              os: [ linux, darwin, windows ]
+              arch: [ amd64, arm64 ]
+            exclude:
+              - os: darwin
+                arch: arm64
+              - os: windows
+                arch: arm64
+              # linux/amd64 can be tested directly from our cross-builder image
+              # to save time & enable running with the race detector.
+              - os: linux
+                arch: amd64
+      - test-prebuilt:
+          name: test-linux-arm64
+          executor: linux-arm64
+          requires:
+            - test-build-arm64-linux
+      - test-prebuilt:
+          name: test-darwin
+          executor: darwin
+          requires:
+            - test-build-amd64-darwin
+      - test-prebuilt:
+          name: test-windows
+          executor: windows
+          requires:
+            - test-build-amd64-windows
       - fluxtest:
           requires:
             - godeps
@@ -133,6 +183,35 @@ workflows:
       - gotest:
           requires:
             - godeps
+      - test-build:
+          matrix:
+            parameters:
+              os: [ linux, darwin, windows ]
+              arch: [ amd64, arm64 ]
+            exclude:
+              - os: darwin
+                arch: arm64
+              - os: windows
+                arch: arm64
+              # linux/amd64 can be tested directly from our cross-builder image
+              # to save time & enable running with the race detector.
+              - os: linux
+                arch: amd64
+      - test-prebuilt:
+          name: test-linux-arm64
+          executor: linux-arm64
+          requires:
+            - test-build-arm64-linux
+      - test-prebuilt:
+          name: test-darwin
+          executor: darwin
+          requires:
+            - test-build-amd64-darwin
+      - test-prebuilt:
+          name: test-windows
+          executor: windows
+          requires:
+            - test-build-amd64-windows
       - golint:
           requires:
             - godeps
@@ -435,6 +514,46 @@ jobs:
       - store_test_results:
           path: /tmp/test-results
 
+  test-build:
+    executor: cross-builder
+    resource_class: large
+    parameters:
+      os:
+        type: string
+      arch:
+        type: string
+    steps:
+      - checkout
+      - run:
+          name: Build test binaries
+          command: |
+            export GOOS=<< parameters.os >>
+            export GOARCH=<< parameters.arch >>
+            ./scripts/ci/build-tests.sh ./test-bin
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ./test-bin
+
+  test-prebuilt:
+    parameters:
+      executor:
+        type: executor
+    executor: << parameters.executor >>
+    parallelism: 8
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run tests
+          command: ./scripts/ci/run-prebuilt-tests.sh $(pwd)/test-bin $(pwd)/test-results
+      - store_test_results:
+          path: ./test-results
+      - store_artifacts:
+          path: ./test-results
+          destination: raw-test-results
+
   fluxtest:
     docker:
       - image: cimg/go:1.17.1
@@ -520,7 +639,7 @@ jobs:
           command: docker push quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
 
   cross_build:
-    executor: linux-machine
+    executor: linux-amd64
     environment:
       TMPDIR: /mnt/ramdisk
     steps:
@@ -612,7 +731,7 @@ jobs:
 
 
   perf_test:
-    executor: linux-machine
+    executor: linux-amd64
     parameters:
       format:
         type: string
@@ -636,7 +755,7 @@ jobs:
             scripts/ci/perf_test.sh
 
   aws_destroy_by_date:
-    executor: linux-machine
+    executor: linux-amd64
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -666,7 +785,7 @@ jobs:
               fi
             done
   aws_destroy_by_name:
-    executor: linux-machine
+    executor: linux-amd64
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -684,7 +803,7 @@ jobs:
             AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
 
   deploy_nightly:
-    executor: linux-machine
+    executor: linux-amd64
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -740,7 +859,7 @@ jobs:
           destination: test_artifacts/results/shared
 
   litmus_daily:
-    executor: linux-machine
+    executor: linux-amd64
     steps:
       - attach_workspace:
           at: ~/project
@@ -761,7 +880,7 @@ jobs:
           path: ~/project
 
   litmus_integration:
-    executor: linux-machine
+    executor: linux-amd64
     steps:
       - attach_workspace:
           at: ~/project
@@ -781,7 +900,7 @@ jobs:
           path: ~/project
 
   grace_daily:
-    executor: linux-machine
+    executor: linux-amd64
     steps:
       - attach_workspace:
           at: ~/project
@@ -809,7 +928,7 @@ jobs:
           path: ~/project/results
 
   share-testing-image:
-    executor: linux-machine
+    executor: linux-amd64
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - attach_workspace:
