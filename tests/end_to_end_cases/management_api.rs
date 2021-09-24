@@ -1539,12 +1539,9 @@ async fn test_delete() {
         .await
         .unwrap();
 
-    // todo: should add different tests for different stages of chunks, too
-    // next PR
-
     // query to verify data deleted
     let mut query_results = flight_client
-        .perform_query(db_name, "select * from cpu")
+        .perform_query(db_name.clone(), "select * from cpu")
         .await
         .unwrap();
     let batches = query_results.to_batches().await.unwrap();
@@ -1557,8 +1554,71 @@ async fn test_delete() {
     ];
     assert_batches_sorted_eq!(&expected, &batches);
 
+    // Query cpu again with a selection predicate
+    let mut query_results = flight_client
+        .perform_query(
+            db_name.clone(),
+            r#"select * from cpu where cpu.region='west';"#,
+        )
+        .await
+        .unwrap();
+    let batches = query_results.to_batches().await.unwrap();
+    // result should be as above
+    assert_batches_sorted_eq!(&expected, &batches);
+
+    // Query cpu again with a differentselection predicate
+    let mut query_results = flight_client
+        .perform_query(db_name.clone(), "select * from cpu where user!=21")
+        .await
+        .unwrap();
+    let batches = query_results.to_batches().await.unwrap();
+    // result should be nothing
+    let expected = ["++", "++"];
+    assert_batches_sorted_eq!(&expected, &batches);
+
+    // ------------------------------------------
     // Negative Delete test to get error messages
-    // todo
+
+    // Delete from non-existing table
+    let table = "notable";
+    let start = "100";
+    let stop = "120";
+    let pred = "region = west";
+    let del = management_client
+        .delete(db_name.clone(), table, start, stop, pred)
+        .await;
+    assert!(del.is_err());
+
+    // Verify both existing tables still have the same data
+    // query to verify data deleted
+    // cpu
+    let mut query_results = flight_client
+        .perform_query(db_name.clone(), "select * from cpu")
+        .await
+        .unwrap();
+    let batches = query_results.to_batches().await.unwrap();
+    let cpu_expected = [
+        "+--------+--------------------------------+------+",
+        "| region | time                           | user |",
+        "+--------+--------------------------------+------+",
+        "| west   | 1970-01-01T00:00:00.000000150Z | 21   |",
+        "+--------+--------------------------------+------+",
+    ];
+    assert_batches_sorted_eq!(&cpu_expected, &batches);
+    // disk
+    let mut query_results = flight_client
+        .perform_query(db_name.clone(), "select * from disk")
+        .await
+        .unwrap();
+    let batches = query_results.to_batches().await.unwrap();
+    let disk_expected = [
+        "+-------+--------+--------------------------------+",
+        "| bytes | region | time                           |",
+        "+-------+--------+--------------------------------+",
+        "| 99    | east   | 1970-01-01T00:00:00.000000200Z |",
+        "+-------+--------+--------------------------------+",
+    ];
+    assert_batches_sorted_eq!(&disk_expected, &batches);
 }
 
 #[tokio::test]
