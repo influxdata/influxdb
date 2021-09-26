@@ -223,17 +223,14 @@ impl Database {
         let db_name = &self.shared.config.name;
         info!(%db_name, "marking database deleted");
 
-        let handle = {
-            let state = self.shared.state.read();
+        let handle = self.shared.state.read().freeze();
+        let handle = handle.await;
 
+        {
+            let state = self.shared.state.read();
             // Can't delete an already deleted database.
             ensure!(state.is_active(), NoActiveDatabaseToDelete { db_name });
-
-            state.try_freeze().context(TransitionInProgress {
-                db_name,
-                state: state.state_code(),
-            })?
-        };
+        }
 
         // If there is an object store for this database, write out a tombstone file.
         // If there isn't an object store, something is wrong and we shouldn't switch the
@@ -250,16 +247,13 @@ impl Database {
             .await
             .context(CannotMarkDatabaseDeleted { db_name })?;
 
-        let shared = Arc::clone(&self.shared);
-
-        {
-            let mut state = shared.state.write();
-            *state.unfreeze(handle) = DatabaseState::NoActiveDatabase(
-                DatabaseStateKnown {},
-                Arc::new(InitError::NoActiveDatabase),
-            );
-            shared.state_notify.notify_waiters();
-        }
+        let mut state = self.shared.state.write();
+        let mut state = state.unfreeze(handle);
+        *state = DatabaseState::NoActiveDatabase(
+            DatabaseStateKnown {},
+            Arc::new(InitError::NoActiveDatabase),
+        );
+        self.shared.state_notify.notify_waiters();
 
         Ok(())
     }
@@ -269,17 +263,14 @@ impl Database {
         let db_name = &self.shared.config.name;
         info!(%db_name, %generation_id, "restoring database");
 
-        let handle = {
-            let state = self.shared.state.read();
+        let handle = self.shared.state.read().freeze();
+        let handle = handle.await;
 
+        {
+            let state = self.shared.state.read();
             // Can't restore an already active database.
             ensure!(!state.is_active(), CannotRestoreActiveDatabase { db_name });
-
-            state.try_freeze().context(TransitionInProgress {
-                db_name,
-                state: state.state_code(),
-            })?
-        };
+        }
 
         IoxObjectStore::restore_database(
             Arc::clone(self.shared.application.object_store()),
@@ -292,15 +283,12 @@ impl Database {
         .await
         .context(CannotRestoreDatabaseInObjectStorage)?;
 
-        let shared = Arc::clone(&self.shared);
-
-        {
-            // Reset the state
-            let mut state = shared.state.write();
-            *state.unfreeze(handle) = DatabaseState::Known(DatabaseStateKnown {});
-            shared.state_notify.notify_waiters();
-            info!(%db_name, "set database state to object store found");
-        }
+        // Reset the state
+        let mut state = self.shared.state.write();
+        let mut state = state.unfreeze(handle);
+        *state = DatabaseState::Known(DatabaseStateKnown {});
+        self.shared.state_notify.notify_waiters();
+        info!(%db_name, "set database state to object store found");
 
         Ok(())
     }
@@ -504,11 +492,15 @@ impl Database {
     }
 
     /// Recover from a ReplayError by skipping replay
-    pub fn skip_replay(&self) -> Result<impl Future<Output = Result<(), Error>>, Error> {
+    pub async fn skip_replay(&self) -> Result<(), Error> {
         let db_name = &self.shared.config.name;
-        let (mut current_state, handle) = {
+
+        let handle = self.shared.state.read().freeze();
+        let handle = handle.await;
+
+        let mut current_state = {
             let state = self.shared.state.read();
-            let current_state = match &**state {
+            match &**state {
                 DatabaseState::ReplayError(rules_loaded, _) => rules_loaded.clone(),
                 _ => {
                     return InvalidState {
@@ -518,34 +510,20 @@ impl Database {
                     }
                     .fail()
                 }
-            };
-
-            let handle = state.try_freeze().context(TransitionInProgress {
-                db_name,
-                state: state.state_code(),
-            })?;
-
-            (current_state, handle)
+            }
         };
 
-        let shared = Arc::clone(&self.shared);
+        current_state.replay_plan = Arc::new(None);
+        let current_state = current_state
+            .advance(self.shared.as_ref())
+            .await
+            .map_err(Box::new)
+            .context(SkipReplay { db_name })?;
 
-        Ok(async move {
-            let db_name = &shared.config.name;
-            current_state.replay_plan = Arc::new(None);
-            let current_state = current_state
-                .advance(shared.as_ref())
-                .await
-                .map_err(Box::new)
-                .context(SkipReplay { db_name })?;
+        let mut state = self.shared.state.write();
+        *state.unfreeze(handle) = DatabaseState::Initialized(current_state);
 
-            {
-                let mut state = shared.state.write();
-                *state.unfreeze(handle) = DatabaseState::Initialized(current_state);
-            }
-
-            Ok(())
-        })
+        Ok(())
     }
 
     /// Writes an entry to this `Database` this will either:
@@ -1486,7 +1464,7 @@ mod tests {
         assert!(matches!(err.as_ref(), InitError::Replay { .. }));
 
         // skip replay
-        database.skip_replay().unwrap().await.unwrap();
+        database.skip_replay().await.unwrap();
         database.wait_for_init().await.unwrap();
 
         // wait for ingest
@@ -1515,7 +1493,7 @@ mod tests {
         assert!(db.partition_summary("table_1", "partition_by_c").is_none());
 
         // cannot skip when database is initialized
-        let res = database.skip_replay();
+        let res = database.skip_replay().await;
         assert!(matches!(res, Err(Error::InvalidState { .. })));
 
         // clean up
