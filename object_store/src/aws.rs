@@ -22,7 +22,7 @@ use std::{convert::TryFrom, fmt, time::Duration};
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// The maximum number of times a request will be retried in the case of an AWS server error
-pub const MAX_NUM_RETRIES: u32 = 10;
+pub const MAX_NUM_RETRIES: u32 = 3;
 
 /// A specialized `Error` for object store-related errors
 #[derive(Debug, Snafu)]
