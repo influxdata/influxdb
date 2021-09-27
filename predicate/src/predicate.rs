@@ -296,7 +296,7 @@ impl fmt::Display for Predicate {
 ///
 /// assert_eq!(
 ///   p.to_string(),
-///   "Predicate range: [1 - 100] exprs: [#foo Eq Int32(42)]"
+///   "Predicate range: [1 - 100] exprs: [#foo = Int32(42)]"
 /// );
 /// ```
 pub struct PredicateBuilder {
@@ -837,7 +837,7 @@ mod tests {
 
         assert_eq!(
             p.to_string(),
-            "Predicate range: [1 - 100] exprs: [#foo Eq Int32(42) And #bar Lt Int32(11)]"
+            "Predicate range: [1 - 100] exprs: [#foo = Int32(42) AND #bar < Int32(11)]"
         );
     }
 
@@ -851,7 +851,7 @@ mod tests {
             .partition_key("the_key")
             .build();
 
-        assert_eq!(p.to_string(), "Predicate table_names: {my_table} field_columns: {f1, f2} partition_key: 'the_key' range: [1 - 100] exprs: [#foo Eq Int32(42)]");
+        assert_eq!(p.to_string(), "Predicate table_names: {my_table} field_columns: {f1, f2} partition_key: 'the_key' range: [1 - 100] exprs: [#foo = Int32(42)]");
     }
 
     // The delete predicate
