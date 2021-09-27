@@ -36,17 +36,9 @@ pub async fn store_transaction_proto(
     let mut data = Vec::new();
     proto.encode(&mut data).context(Serialization {})?;
     let data = Bytes::from(data);
-    let len = data.len();
 
     iox_object_store
-        .put_catalog_transaction_file(
-            path,
-            move || {
-                let data = data.clone();
-                futures::stream::once(async move { Ok(data) })
-            },
-            Some(len),
-        )
+        .put_catalog_transaction_file(path, data)
         .await
         .context(Write {})?;
 

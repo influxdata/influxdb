@@ -4,10 +4,10 @@ use crate::{path::parsed::DirsAndFileName, ListResult, ObjectMeta, ObjectStoreAp
 use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
-use futures::{stream::BoxStream, Stream, StreamExt, TryStreamExt};
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use futures::{stream::BoxStream, StreamExt};
+use snafu::{OptionExt, Snafu};
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
-use std::{collections::BTreeMap, io};
 use tokio::sync::RwLock;
 
 /// A specialized `Result` for in-memory object store-related errors
@@ -17,12 +17,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[snafu(display("Expected streamed data to have length {}, got {}", expected, actual))]
-    DataDoesNotMatchLength { expected: usize, actual: usize },
-
-    #[snafu(display("Unable to stream data from the request into memory: {}", source))]
-    UnableToStreamDataIntoMemory { source: std::io::Error },
-
     #[snafu(display("No data in memory found. Location: {}", location))]
     NoDataInMemory { location: String },
 }
@@ -43,33 +37,11 @@ impl ObjectStoreApi for InMemory {
         DirsAndFileName::default()
     }
 
-    async fn put<F, S>(&self, location: &Self::Path, bytes: F, length: Option<usize>) -> Result<()>
-    where
-        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
-        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
-    {
-        let content = bytes()
-            .map_ok(|b| bytes::BytesMut::from(&b[..]))
-            .try_concat()
-            .await
-            .context(UnableToStreamDataIntoMemory)?;
-
-        if let Some(length) = length {
-            ensure!(
-                content.len() == length,
-                DataDoesNotMatchLength {
-                    actual: content.len(),
-                    expected: length,
-                }
-            );
-        }
-
-        let content = content.freeze();
-
+    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
         self.storage
             .write()
             .await
-            .insert(location.to_owned(), content);
+            .insert(location.to_owned(), bytes);
         Ok(())
     }
 
@@ -178,9 +150,9 @@ mod tests {
 
     use crate::{
         tests::{list_with_delimiter, put_get_delete_list},
-        Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
+        ObjectStore, ObjectStoreApi, ObjectStorePath,
     };
-    use futures::stream;
+    use futures::TryStreamExt;
 
     #[tokio::test]
     async fn in_memory_test() {
@@ -188,28 +160,6 @@ mod tests {
 
         put_get_delete_list(&integration).await.unwrap();
         list_with_delimiter(&integration).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn length_mismatch_is_an_error() {
-        let integration = ObjectStore::new_in_memory();
-
-        let mut location = integration.new_path();
-        location.set_file_name("junk");
-
-        let bytes = move || stream::once(async { Ok(Bytes::from("hello world")) });
-
-        let res = integration.put(&location, bytes, Some(0)).await;
-
-        assert!(matches!(
-            res.err().unwrap(),
-            ObjectStoreError::InMemoryObjectStoreError {
-                source: Error::DataDoesNotMatchLength {
-                    expected: 0,
-                    actual: 11,
-                }
-            }
-        ));
     }
 
     #[tokio::test]
@@ -221,12 +171,8 @@ mod tests {
 
         let data = Bytes::from("arbitrary data");
         let expected_data = data.clone();
-        let stream_fn = move || {
-            let stream_data = std::io::Result::Ok(data.clone());
-            futures::stream::once(async move { stream_data })
-        };
 
-        integration.put(&location, stream_fn, None).await.unwrap();
+        integration.put(&location, data).await.unwrap();
 
         let read_data = integration
             .get(&location)

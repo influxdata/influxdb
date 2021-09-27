@@ -22,17 +22,14 @@ use data_types::{
     server_id::ServerId,
     DatabaseName,
 };
-use futures::{
-    stream::{self, BoxStream},
-    Stream, StreamExt, TryStreamExt,
-};
+use futures::{stream::BoxStream, StreamExt, TryStreamExt};
 use object_store::{
     path::{parsed::DirsAndFileName, ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi, Result,
 };
 use observability_deps::tracing::warn;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use std::{collections::BTreeMap, io, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -382,12 +379,7 @@ impl IoxObjectStore {
     /// Write the file in the database directory that indicates this database is marked as deleted,
     /// without yet actually deleting this directory or any files it contains in object storage.
     pub async fn write_tombstone(&self) -> Result<()> {
-        let stream = move || stream::once(async move { Ok(Bytes::new()) });
-        let len = 0;
-
-        self.inner
-            .put(&self.tombstone_path(), stream, Some(len))
-            .await
+        self.inner.put(&self.tombstone_path(), Bytes::new()).await
     }
 
     /// Remove the tombstone file to restore a database generation. Will return an error if this
@@ -472,19 +464,14 @@ impl IoxObjectStore {
     }
 
     /// Store the data for this parquet file in this database's object store.
-    pub async fn put_catalog_transaction_file<F, S>(
+    pub async fn put_catalog_transaction_file(
         &self,
         location: &TransactionFilePath,
-        bytes: F,
-        length: Option<usize>,
-    ) -> Result<()>
-    where
-        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
-        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
-    {
+        bytes: Bytes,
+    ) -> Result<()> {
         let full_path = self.transactions_path.join(location);
 
-        self.inner.put(&full_path, bytes, length).await
+        self.inner.put(&full_path, bytes).await
     }
 
     /// Delete all catalog transaction files for this database.
@@ -539,19 +526,10 @@ impl IoxObjectStore {
     }
 
     /// Store the data for this parquet file in this database's object store.
-    pub async fn put_parquet_file<F, S>(
-        &self,
-        location: &ParquetFilePath,
-        bytes: F,
-        length: Option<usize>,
-    ) -> Result<()>
-    where
-        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
-        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
-    {
+    pub async fn put_parquet_file(&self, location: &ParquetFilePath, bytes: Bytes) -> Result<()> {
         let full_path = self.data_path.join(location);
 
-        self.inner.put(&full_path, bytes, length).await
+        self.inner.put(&full_path, bytes).await
     }
 
     /// Remove the data for this parquet file from this database's object store
@@ -586,15 +564,7 @@ impl IoxObjectStore {
 
     /// Store the data for the database rules
     pub async fn put_database_rules_file(&self, bytes: Bytes) -> Result<()> {
-        let len = bytes.len();
-        let stream = move || {
-            let bytes = bytes.clone();
-            stream::once(async move { Ok(bytes) })
-        };
-
-        self.inner
-            .put(&self.db_rules_path(), stream, Some(len))
-            .await
+        self.inner.put(&self.db_rules_path(), bytes).await
     }
 
     /// Delete the data for the database rules
@@ -653,12 +623,8 @@ mod tests {
 
     async fn add_file(object_store: &ObjectStore, location: &Path) {
         let data = Bytes::from("arbitrary data");
-        let stream_fn = move || {
-            let stream_data = std::io::Result::Ok(data.clone());
-            futures::stream::once(async move { stream_data })
-        };
 
-        object_store.put(location, stream_fn, None).await.unwrap();
+        object_store.put(location, data).await.unwrap();
     }
 
     async fn parquet_files(iox_object_store: &IoxObjectStore) -> Vec<ParquetFilePath> {
@@ -676,13 +642,9 @@ mod tests {
 
     async fn add_parquet_file(iox_object_store: &IoxObjectStore, location: &ParquetFilePath) {
         let data = Bytes::from("arbitrary data");
-        let stream_fn = move || {
-            let stream_data = std::io::Result::Ok(data.clone());
-            futures::stream::once(async move { stream_data })
-        };
 
         iox_object_store
-            .put_parquet_file(location, stream_fn, None)
+            .put_parquet_file(location, data)
             .await
             .unwrap();
     }
@@ -778,13 +740,9 @@ mod tests {
         location: &TransactionFilePath,
     ) {
         let data = Bytes::from("arbitrary data");
-        let stream_fn = move || {
-            let stream_data = std::io::Result::Ok(data.clone());
-            futures::stream::once(async move { stream_data })
-        };
 
         iox_object_store
-            .put_catalog_transaction_file(location, stream_fn, None)
+            .put_catalog_transaction_file(location, data)
             .await
             .unwrap();
     }
@@ -898,14 +856,9 @@ mod tests {
         // GET
         let updated_file_content = Bytes::from("goodbye moon");
         let expected_content = updated_file_content.clone();
-        let updated_file_stream = move || {
-            stream::once({
-                let bytes = updated_file_content.clone();
-                async move { Ok(bytes) }
-            })
-        };
+
         object_store
-            .put(&rules_path, updated_file_stream, None)
+            .put(&rules_path, updated_file_content)
             .await
             .unwrap();
 
@@ -1068,11 +1021,7 @@ mod tests {
         not_rules_path.push_all_dirs(&[&server_id.to_string(), not_a_db.as_str(), "0"]);
         not_rules_path.set_file_name("not_rules.txt");
         object_store
-            .put(
-                &not_rules_path,
-                move || stream::once(async move { Ok(Bytes::new()) }),
-                None,
-            )
+            .put(&not_rules_path, Bytes::new())
             .await
             .unwrap();
 
@@ -1082,11 +1031,7 @@ mod tests {
         invalid_db_name_rules_path.push_all_dirs(&[&server_id.to_string(), &invalid_db_name, "0"]);
         invalid_db_name_rules_path.set_file_name("rules.pb");
         object_store
-            .put(
-                &invalid_db_name_rules_path,
-                move || stream::once(async move { Ok(Bytes::new()) }),
-                None,
-            )
+            .put(&invalid_db_name_rules_path, Bytes::new())
             .await
             .unwrap();
 
@@ -1126,11 +1071,7 @@ mod tests {
         not_rules_path.push_all_dirs(&[&server_id.to_string(), not_a_db.as_str(), "0"]);
         not_rules_path.set_file_name("not_rules.txt");
         object_store
-            .put(
-                &not_rules_path,
-                move || stream::once(async move { Ok(Bytes::new()) }),
-                None,
-            )
+            .put(&not_rules_path, Bytes::new())
             .await
             .unwrap();
 
@@ -1140,11 +1081,7 @@ mod tests {
         invalid_db_name_rules_path.push_all_dirs(&[&server_id.to_string(), &invalid_db_name, "0"]);
         invalid_db_name_rules_path.set_file_name("rules.pb");
         object_store
-            .put(
-                &invalid_db_name_rules_path,
-                move || stream::once(async move { Ok(Bytes::new()) }),
-                None,
-            )
+            .put(&invalid_db_name_rules_path, Bytes::new())
             .await
             .unwrap();
 
@@ -1160,11 +1097,7 @@ mod tests {
         ]);
         no_generations_path.set_file_name("not_rules.txt");
         object_store
-            .put(
-                &no_generations_path,
-                move || stream::once(async move { Ok(Bytes::new()) }),
-                None,
-            )
+            .put(&no_generations_path, Bytes::new())
             .await
             .unwrap();
 
@@ -1258,11 +1191,7 @@ mod tests {
         not_rules_path.push_all_dirs(&[&server_id.to_string(), not_a_db.as_str(), "0"]);
         not_rules_path.set_file_name("not_rules.txt");
         object_store
-            .put(
-                &not_rules_path,
-                move || stream::once(async move { Ok(Bytes::new()) }),
-                None,
-            )
+            .put(&not_rules_path, Bytes::new())
             .await
             .unwrap();
 
@@ -1272,11 +1201,7 @@ mod tests {
         invalid_db_name_rules_path.push_all_dirs(&[&server_id.to_string(), &invalid_db_name, "0"]);
         invalid_db_name_rules_path.set_file_name("rules.pb");
         object_store
-            .put(
-                &invalid_db_name_rules_path,
-                move || stream::once(async move { Ok(Bytes::new()) }),
-                None,
-            )
+            .put(&invalid_db_name_rules_path, Bytes::new())
             .await
             .unwrap();
 
@@ -1291,11 +1216,7 @@ mod tests {
         ]);
         no_generations_path.set_file_name("not_rules.txt");
         object_store
-            .put(
-                &no_generations_path,
-                move || stream::once(async move { Ok(Bytes::new()) }),
-                None,
-            )
+            .put(&no_generations_path, Bytes::new())
             .await
             .unwrap();
 

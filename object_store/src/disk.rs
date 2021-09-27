@@ -7,9 +7,9 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{
     stream::{self, BoxStream},
-    Stream, StreamExt, TryStreamExt,
+    StreamExt, TryStreamExt,
 };
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use std::{collections::BTreeSet, convert::TryFrom, io, path::PathBuf};
 use tokio::fs;
@@ -23,9 +23,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[snafu(display("Expected streamed data to have length {}, got {}", expected, actual))]
-    DataDoesNotMatchLength { expected: usize, actual: usize },
-
     #[snafu(display("File size for {} did not fit in a usize: {}", path.display(), source))]
     FileSizeOverflowedUsize {
         source: std::num::TryFromIntError,
@@ -58,9 +55,6 @@ pub enum Error {
 
     #[snafu(display("Unable to read data from file {}: {}", path.display(), source))]
     UnableToReadBytes { source: io::Error, path: PathBuf },
-
-    #[snafu(display("Unable to stream data from the request into memory: {}", source))]
-    UnableToStreamDataIntoMemory { source: std::io::Error },
 }
 
 /// Local filesystem storage suitable for testing or for opting out of using a
@@ -79,26 +73,8 @@ impl ObjectStoreApi for File {
         FilePath::default()
     }
 
-    async fn put<F, S>(&self, location: &Self::Path, bytes: F, length: Option<usize>) -> Result<()>
-    where
-        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
-        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
-    {
-        let content = bytes()
-            .map_ok(|b| bytes::BytesMut::from(&b[..]))
-            .try_concat()
-            .await
-            .context(UnableToStreamDataIntoMemory)?;
-
-        if let Some(length) = length {
-            ensure!(
-                content.len() == length,
-                DataDoesNotMatchLength {
-                    actual: content.len(),
-                    expected: length,
-                }
-            );
-        }
+    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
+        let content = bytes::BytesMut::from(&*bytes);
 
         let path = self.path(location);
 
@@ -323,9 +299,8 @@ mod tests {
 
     use crate::{
         tests::{list_with_delimiter, put_get_delete_list},
-        Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
+        ObjectStore, ObjectStoreApi, ObjectStorePath,
     };
-    use futures::stream;
     use tempfile::TempDir;
 
     #[tokio::test]
@@ -338,29 +313,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn length_mismatch_is_an_error() {
-        let root = TempDir::new().unwrap();
-        let integration = ObjectStore::new_file(root.path());
-
-        let bytes = move || stream::once(async { Ok(Bytes::from("hello world")) });
-
-        let mut location = integration.new_path();
-        location.set_file_name("junk");
-
-        let res = integration.put(&location, bytes, Some(0)).await;
-
-        assert!(matches!(
-            res.err().unwrap(),
-            ObjectStoreError::FileObjectStoreError {
-                source: Error::DataDoesNotMatchLength {
-                    expected: 0,
-                    actual: 11,
-                }
-            }
-        ));
-    }
-
-    #[tokio::test]
     async fn creates_dir_if_not_present() {
         let root = TempDir::new().unwrap();
         let integration = ObjectStore::new_file(root.path());
@@ -370,16 +322,8 @@ mod tests {
 
         let data = Bytes::from("arbitrary data");
         let expected_data = data.clone();
-        let data_len = data.len();
-        let stream_fn = move || {
-            let stream_data = std::io::Result::Ok(data.clone());
-            futures::stream::once(async move { stream_data })
-        };
 
-        integration
-            .put(&location, stream_fn, Some(data_len))
-            .await
-            .unwrap();
+        integration.put(&location, data).await.unwrap();
 
         let read_data = integration
             .get(&location)
@@ -402,12 +346,8 @@ mod tests {
 
         let data = Bytes::from("arbitrary data");
         let expected_data = data.clone();
-        let stream_fn = move || {
-            let stream_data = std::io::Result::Ok(data.clone());
-            futures::stream::once(async move { stream_data })
-        };
 
-        integration.put(&location, stream_fn, None).await.unwrap();
+        integration.put(&location, data).await.unwrap();
 
         let read_data = integration
             .get(&location)

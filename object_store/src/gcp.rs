@@ -7,9 +7,9 @@ use crate::{
 use async_trait::async_trait;
 use bytes::Bytes;
 use cloud_storage::Client;
-use futures::{stream::BoxStream, Stream, StreamExt, TryStreamExt};
-use snafu::{ensure, ResultExt, Snafu};
-use std::{convert::TryFrom, env, io};
+use futures::{stream::BoxStream, StreamExt, TryStreamExt};
+use snafu::{ResultExt, Snafu};
+use std::{convert::TryFrom, env};
 
 /// A specialized `Result` for Google Cloud Storage object store-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -86,28 +86,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
         CloudPath::default()
     }
 
-    async fn put<F, S>(&self, location: &Self::Path, bytes: F, length: Option<usize>) -> Result<()>
-    where
-        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
-        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
-    {
-        let temporary_non_streaming = bytes()
-            .map_ok(|b| bytes::BytesMut::from(&b[..]))
-            .try_concat()
-            .await
-            .expect("Should have been able to collect streaming data")
-            .to_vec();
-
-        if let Some(length) = length {
-            ensure!(
-                temporary_non_streaming.len() == length,
-                DataDoesNotMatchLength {
-                    actual: temporary_non_streaming.len(),
-                    expected: length,
-                }
-            );
-        }
-
+    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
         let location = location.to_raw();
         let location_copy = location.clone();
         let bucket_name = self.bucket_name.clone();
@@ -116,7 +95,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
             .object()
             .create(
                 &bucket_name,
-                temporary_non_streaming,
+                bytes.to_vec(),
                 &location_copy,
                 "application/octet-stream",
             )
@@ -462,18 +441,9 @@ mod test {
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
-
         let data = Bytes::from("arbitrary data");
-        let stream_data = std::io::Result::Ok(data.clone());
 
-        let err = integration
-            .put(
-                &location,
-                futures::stream::once(async move { stream_data }),
-                Some(data.len()),
-            )
-            .await
-            .unwrap_err();
+        let err = integration.put(&location, data).await.unwrap_err();
 
         if let ObjectStoreError::GcsObjectStoreError {
             source:

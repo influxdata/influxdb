@@ -1,7 +1,6 @@
 //! This module contains the IOx implementation for using S3 as the object
 //! store.
 use crate::{
-    buffer::slurp_stream_tempfile,
     path::{cloud::CloudPath, DELIMITER},
     ListResult, ObjectMeta, ObjectStoreApi,
 };
@@ -10,14 +9,14 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{
     stream::{self, BoxStream},
-    Future, Stream, StreamExt, TryStreamExt,
+    Future, StreamExt, TryStreamExt,
 };
 use observability_deps::tracing::{debug, warn};
 use rusoto_core::ByteStream;
 use rusoto_credential::{InstanceMetadataProvider, StaticProvider};
 use rusoto_s3::S3;
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::{convert::TryFrom, fmt, io, time::Duration};
+use std::{convert::TryFrom, fmt, time::Duration};
 
 /// A specialized `Result` for object store-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -143,30 +142,21 @@ impl ObjectStoreApi for AmazonS3 {
         CloudPath::default()
     }
 
-    async fn put<F, S>(&self, location: &Self::Path, bytes: F, length: Option<usize>) -> Result<()>
-    where
-        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
-        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
-    {
+    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
         let bucket_name = self.bucket_name.clone();
         let key = location.to_raw();
         let request_factory = move || {
             let bytes = bytes.clone();
             async move {
-                let bytes = bytes();
-                let bytes = match length {
-                    Some(length) => ByteStream::new_with_size(bytes, length),
-                    None => {
-                        let bytes = slurp_stream_tempfile(bytes).await.unwrap();
-                        let length = bytes.size();
-                        ByteStream::new_with_size(bytes, length)
-                    }
-                };
+                let length = bytes.len();
+                let stream_data = std::io::Result::Ok(bytes);
+                let stream = futures::stream::once(async move { stream_data });
+                let byte_stream = ByteStream::new_with_size(stream, length);
 
                 rusoto_s3::PutObjectRequest {
                     bucket: bucket_name.clone(),
                     key: key.clone(),
-                    body: Some(bytes),
+                    body: Some(byte_stream),
                     ..Default::default()
                 }
             }
@@ -783,18 +773,9 @@ mod tests {
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
-
         let data = Bytes::from("arbitrary data");
-        let data_len = data.len();
-        let stream_fn = move || {
-            let stream_data = std::io::Result::Ok(data.clone());
-            futures::stream::once(async move { stream_data })
-        };
 
-        let err = integration
-            .put(&location, stream_fn, Some(data_len))
-            .await
-            .unwrap_err();
+        let err = integration.put(&location, data).await.unwrap_err();
 
         if let ObjectStoreError::AwsObjectStoreError {
             source:
@@ -830,19 +811,9 @@ mod tests {
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
-
         let data = Bytes::from("arbitrary data");
-        let data_len = data.len();
 
-        let stream_fn = move || {
-            let stream_data = std::io::Result::Ok(data.clone());
-            futures::stream::once(async move { stream_data })
-        };
-
-        let err = integration
-            .put(&location, stream_fn, Some(data_len))
-            .await
-            .unwrap_err();
+        let err = integration.put(&location, data).await.unwrap_err();
 
         if let ObjectStoreError::AwsObjectStoreError {
             source:

@@ -1947,11 +1947,7 @@ mod tests {
         fake_db_path.set_file_name("not-a-generation");
         application
             .object_store()
-            .put(
-                &fake_db_path,
-                move || futures::stream::once(async move { Ok(Bytes::new()) }),
-                None,
-            )
+            .put(&fake_db_path, Bytes::new())
             .await
             .unwrap();
 

@@ -1,78 +1,75 @@
 //! This module contains the IOx implementation for wrapping existing object store types into an artificial "sleep" wrapper.
-use std::{convert::TryInto, io, sync::Arc};
+use std::convert::TryInto;
 
 use crate::{ListResult, ObjectStoreApi, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::{stream::BoxStream, Stream, StreamExt};
-use tokio::{
-    sync::Mutex,
-    time::{sleep, Duration},
-};
+use futures::{stream::BoxStream, StreamExt};
+use tokio::time::{sleep, Duration};
 
 /// Configuration settings for throttled store
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ThrottleConfig {
     /// Sleep duration for every call to [`delete`](ThrottledStore::delete).
     ///
-    /// Sleeping is done before the underlying store is called and independently of the success of the operation.
+    /// Sleeping is done before the underlying store is called and independently of the success of
+    /// the operation.
     pub wait_delete_per_call: Duration,
 
     /// Sleep duration for every byte received during [`get`](ThrottledStore::get).
     ///
-    /// Sleeping is performed after the underlying store returned and only for successful gets. The sleep duration is
-    /// additive to [`wait_get_per_call`](Self::wait_get_per_call).
+    /// Sleeping is performed after the underlying store returned and only for successful gets. The
+    /// sleep duration is additive to [`wait_get_per_call`](Self::wait_get_per_call).
     ///
-    /// Note that the per-byte sleep only happens as the user consumes the output bytes. Should there be an
-    /// intermediate failure (i.e. after partly consuming the output bytes), the resulting sleep time will be partial as well.
+    /// Note that the per-byte sleep only happens as the user consumes the output bytes. Should
+    /// there be an intermediate failure (i.e. after partly consuming the output bytes), the
+    /// resulting sleep time will be partial as well.
     pub wait_get_per_byte: Duration,
 
     /// Sleep duration for every call to [`get`](ThrottledStore::get).
     ///
-    /// Sleeping is done before the underlying store is called and independently of the success of the operation. The
-    /// sleep duration is additive to [`wait_get_per_byte`](Self::wait_get_per_byte).
+    /// Sleeping is done before the underlying store is called and independently of the success of
+    /// the operation. The sleep duration is additive to
+    /// [`wait_get_per_byte`](Self::wait_get_per_byte).
     pub wait_get_per_call: Duration,
 
     /// Sleep duration for every call to [`list`](ThrottledStore::list).
     ///
-    /// Sleeping is done before the underlying store is called and independently of the success of the operation. The
-    /// sleep duration is additive to [`wait_list_per_entry`](Self::wait_list_per_entry).
+    /// Sleeping is done before the underlying store is called and independently of the success of
+    /// the operation. The sleep duration is additive to
+    /// [`wait_list_per_entry`](Self::wait_list_per_entry).
     pub wait_list_per_call: Duration,
 
     /// Sleep duration for every entry received during [`list`](ThrottledStore::list).
     ///
-    /// Sleeping is performed after the underlying store returned and only for successful lists. The sleep duration is
-    /// additive to [`wait_list_per_call`](Self::wait_list_per_call).
+    /// Sleeping is performed after the underlying store returned and only for successful lists.
+    /// The sleep duration is additive to [`wait_list_per_call`](Self::wait_list_per_call).
     ///
-    /// Note that the per-entry sleep only happens as the user consumes the output entries. Should there be an
-    /// intermediate failure (i.e. after partly consuming the output entries), the resulting sleep time will be partial as well.
+    /// Note that the per-entry sleep only happens as the user consumes the output entries. Should
+    /// there be an intermediate failure (i.e. after partly consuming the output entries), the
+    /// resulting sleep time will be partial as well.
     pub wait_list_per_entry: Duration,
 
-    /// Sleep duration for every call to [`list_with_delimiter`](ThrottledStore::list_with_delimiter).
+    /// Sleep duration for every call to
+    /// [`list_with_delimiter`](ThrottledStore::list_with_delimiter).
     ///
-    /// Sleeping is done before the underlying store is called and independently of the success of the operation. The
-    /// sleep duration is additive to [`wait_list_with_delimiter_per_entry`](Self::wait_list_with_delimiter_per_entry).
+    /// Sleeping is done before the underlying store is called and independently of the success of
+    /// the operation. The sleep duration is additive to
+    /// [`wait_list_with_delimiter_per_entry`](Self::wait_list_with_delimiter_per_entry).
     pub wait_list_with_delimiter_per_call: Duration,
 
-    /// Sleep duration for every entry received during [`list_with_delimiter`](ThrottledStore::list_with_delimiter).
+    /// Sleep duration for every entry received during
+    /// [`list_with_delimiter`](ThrottledStore::list_with_delimiter).
     ///
-    /// Sleeping is performed after the underlying store returned and only for successful gets. The sleep duration is
-    /// additive to [`wait_list_with_delimiter_per_call`](Self::wait_list_with_delimiter_per_call).
+    /// Sleeping is performed after the underlying store returned and only for successful gets. The
+    /// sleep duration is additive to
+    /// [`wait_list_with_delimiter_per_call`](Self::wait_list_with_delimiter_per_call).
     pub wait_list_with_delimiter_per_entry: Duration,
-
-    /// Sleep duration for every byte send during [`put`](ThrottledStore::put).
-    ///
-    /// Sleeping is done before the underlying store is called and independently of the complete success of the operation. The
-    /// sleep duration is additive to [`wait_put_per_call`](Self::wait_put_per_call).
-    ///
-    /// Note that the per-byte sleep only happens as the underlying store consumes the bytes. Should there be an
-    /// intermediate failure (i.e. after partly consuming the input bytes), the resulting sleep time will be partial as well.
-    pub wait_put_per_byte: Duration,
 
     /// Sleep duration for every call to [`put`](ThrottledStore::put).
     ///
-    /// Sleeping is done before the underlying store is called and independently of the success of the operation. The
-    /// sleep duration is additive to [`wait_put_per_byte`](Self::wait_put_per_byte).
+    /// Sleeping is done before the underlying store is called and independently of the success of
+    /// the operation.
     pub wait_put_per_call: Duration,
 }
 
@@ -80,7 +77,8 @@ pub struct ThrottleConfig {
 ///
 /// This can be used for performance testing.
 ///
-/// **Note that the behavior of the wrapper is deterministic and might not reflect real-world conditions!**
+/// **Note that the behavior of the wrapper is deterministic and might not reflect real-world
+/// conditions!**
 #[derive(Debug)]
 pub struct ThrottledStore<T: ObjectStoreApi> {
     inner: T,
@@ -114,47 +112,10 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
         self.inner.new_path()
     }
 
-    async fn put<F, S>(
-        &self,
-        location: &Self::Path,
-        bytes: F,
-        length: Option<usize>,
-    ) -> Result<(), Self::Error>
-    where
-        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
-        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
-    {
+    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error> {
         sleep(self.config.wait_put_per_call).await;
 
-        // need to copy to avoid moving / referencing `self`
-        let wait_put_per_byte = self.config.wait_put_per_byte;
-        let length_remaining = Arc::new(Mutex::new(length));
-
-        let bytes = move || {
-            let length_remaining = Arc::clone(&length_remaining);
-            bytes().then(move |bytes_result| {
-                let length_remaining = Arc::clone(&length_remaining);
-
-                async move {
-                    match bytes_result {
-                        Ok(bytes) => {
-                            let mut bytes_len = bytes.len();
-                            let mut length_remaining_inner2 = length_remaining.lock().await;
-                            if let Some(length) = length_remaining_inner2.as_mut() {
-                                let length_new = length.saturating_sub(bytes_len);
-                                bytes_len = bytes_len.min(*length);
-                                *length = length_new;
-                            };
-                            sleep(wait_put_per_byte * usize_to_u32_saturate(bytes_len)).await;
-                            Ok(bytes)
-                        }
-                        Err(err) => Err(err),
-                    }
-                }
-            })
-        };
-
-        self.inner.put(location, bytes, length).await
+        self.inner.put(location, bytes).await
     }
 
     async fn get(
@@ -367,12 +328,7 @@ mod tests {
         assert_bounds!(measure_put(&store, 10).await, 1);
 
         store.config_mut().wait_put_per_call = ZERO;
-        store.config_mut().wait_put_per_byte = WAIT_TIME;
-        assert_bounds!(measure_put(&store, 2).await, 2);
-
-        store.config_mut().wait_put_per_call = WAIT_TIME;
-        store.config_mut().wait_put_per_byte = WAIT_TIME;
-        assert_bounds!(measure_put(&store, 2).await, 3);
+        assert_bounds!(measure_put(&store, 0).await, 0);
     }
 
     async fn place_test_object(
@@ -383,12 +339,9 @@ mod tests {
         path.set_file_name("foo");
 
         if let Some(n_bytes) = n_bytes {
-            let stream_fn = move || {
-                let data = std::iter::repeat(1u8).take(n_bytes).collect();
-                let stream_data = std::io::Result::Ok(data);
-                futures::stream::once(async move { stream_data })
-            };
-            store.put(&path, stream_fn, None).await.unwrap();
+            let data: Vec<_> = std::iter::repeat(1u8).take(n_bytes).collect();
+            let bytes = Bytes::from(data);
+            store.put(&path, bytes).await.unwrap();
         } else {
             // ensure object is absent
             store.delete(&path).await.unwrap();
@@ -421,13 +374,8 @@ mod tests {
             let mut path = prefix.clone();
             path.set_file_name(&i.to_string());
 
-            let stream_fn = move || {
-                let data = Bytes::from("bar");
-                let stream_data = std::io::Result::Ok(data);
-                futures::stream::once(async move { stream_data })
-            };
-
-            store.put(&path, stream_fn, None).await.unwrap();
+            let data = Bytes::from("bar");
+            store.put(&path, data).await.unwrap();
         }
 
         prefix
@@ -492,14 +440,11 @@ mod tests {
         let mut path = store.new_path();
         path.set_file_name("foo");
 
-        let stream_fn = move || {
-            let data = std::iter::repeat(1u8).take(n_bytes).collect();
-            let stream_data = std::io::Result::Ok(data);
-            futures::stream::once(async move { stream_data })
-        };
+        let data: Vec<_> = std::iter::repeat(1u8).take(n_bytes).collect();
+        let bytes = Bytes::from(data);
 
         let t0 = Instant::now();
-        store.put(&path, stream_fn, None).await.unwrap();
+        store.put(&path, bytes).await.unwrap();
 
         t0.elapsed()
     }

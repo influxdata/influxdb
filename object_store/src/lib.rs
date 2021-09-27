@@ -50,15 +50,16 @@ use throttle::ThrottledStore;
 /// Publically expose throttling configuration
 pub use throttle::ThrottleConfig;
 
-use crate::cache::{Cache, LocalFSCache};
-use crate::path::Path;
+use crate::{
+    cache::{Cache, LocalFSCache},
+    path::Path,
+};
 use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use futures::{stream::BoxStream, Stream, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{stream::BoxStream, StreamExt, TryFutureExt, TryStreamExt};
 use snafu::{ResultExt, Snafu};
-use std::sync::Arc;
-use std::{io, path::PathBuf};
+use std::{path::PathBuf, sync::Arc};
 
 /// Universal API to multiple object store services.
 #[async_trait]
@@ -73,15 +74,7 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
     fn new_path(&self) -> Self::Path;
 
     /// Save the provided bytes to the specified location.
-    async fn put<F, S>(
-        &self,
-        location: &Self::Path,
-        bytes: F,
-        length: Option<usize>,
-    ) -> Result<(), Self::Error>
-    where
-        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
-        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static;
+    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error>;
 
     /// Return the bytes that are stored at the specified location.
     async fn get(
@@ -240,32 +233,26 @@ impl ObjectStoreApi for ObjectStore {
         }
     }
 
-    async fn put<F, S>(&self, location: &Self::Path, bytes: F, length: Option<usize>) -> Result<()>
-    where
-        F: Fn() -> S + Clone + Send + Sync + Unpin + 'static,
-        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
-    {
+    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
         use ObjectStoreIntegration::*;
         match (&self.integration, location) {
-            (AmazonS3(s3), path::Path::AmazonS3(location)) => {
-                s3.put(location, bytes, length).await?
-            }
+            (AmazonS3(s3), path::Path::AmazonS3(location)) => s3.put(location, bytes).await?,
             (GoogleCloudStorage(gcs), path::Path::GoogleCloudStorage(location)) => gcs
-                .put(location, bytes, length)
+                .put(location, bytes)
                 .await
                 .context(GcsObjectStoreError)?,
             (InMemory(in_mem), path::Path::InMemory(location)) => {
-                in_mem.put(location, bytes, length).await?
+                in_mem.put(location, bytes).await?
             }
             (InMemoryThrottled(in_mem_throttled), path::Path::InMemory(location)) => {
-                in_mem_throttled.put(location, bytes, length).await?
+                in_mem_throttled.put(location, bytes).await?
             }
             (File(file), path::Path::File(location)) => file
-                .put(location, bytes, length)
+                .put(location, bytes)
                 .await
                 .context(FileObjectStoreError)?,
             (MicrosoftAzure(azure), path::Path::MicrosoftAzure(location)) => {
-                azure.put(location, bytes, length).await?
+                azure.put(location, bytes).await?
             }
             _ => unreachable!(),
         }
@@ -685,12 +672,7 @@ mod tests {
 
         let data = Bytes::from("arbitrary data");
         let expected_data = data.clone();
-        let data_len = data.len();
-        let stream_fn = move || {
-            let stream_data = std::io::Result::Ok(data.clone());
-            futures::stream::once(async move { stream_data })
-        };
-        storage.put(&location, stream_fn, Some(data_len)).await?;
+        storage.put(&location, data).await?;
 
         // List everything
         let content_list = flatten_list_stream(storage, None).await?;
@@ -733,7 +715,6 @@ mod tests {
 
         // ==================== do: create files ====================
         let data = Bytes::from("arbitrary data");
-        let data_len = data.len();
 
         let files: Vec<_> = [
             "test_file",
@@ -751,11 +732,7 @@ mod tests {
 
         for f in &files {
             let data = data.clone();
-            let stream_fn = move || {
-                let stream_data = std::io::Result::Ok(data.clone());
-                futures::stream::once(async move { stream_data })
-            };
-            storage.put(f, stream_fn, Some(data_len)).await.unwrap();
+            storage.put(f, data).await.unwrap();
         }
 
         // ==================== check: prefix-list `mydb/wb` (directory) ====================
