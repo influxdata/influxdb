@@ -108,21 +108,22 @@ pub(crate) fn compact_chunks(
             .expect("chunk has zero rows");
         let rb_row_groups = rb_chunk.row_groups();
 
-        let (_id, new_chunk) = {
+        let new_chunk = {
             let mut partition = partition.write();
             for id in chunk_ids {
                 partition.force_drop_chunk(id).expect(
                     "There was a lifecycle action attached to this chunk, who deleted it?!",
                 );
             }
-            partition.create_rub_chunk(
+            let (_, chunk) = partition.create_rub_chunk(
                 rb_chunk,
                 time_of_first_write,
                 time_of_last_write,
                 schema,
                 delete_predicates,
                 min_order,
-            )
+            );
+            Arc::clone(chunk)
         };
 
         let guard = new_chunk.read();
