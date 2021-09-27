@@ -12,6 +12,7 @@ use futures::{
     stream::{self, BoxStream},
     Future, Stream, StreamExt, TryStreamExt,
 };
+use observability_deps::tracing::{debug, warn};
 use rusoto_core::ByteStream;
 use rusoto_credential::{InstanceMetadataProvider, StaticProvider};
 use rusoto_s3::S3;
@@ -474,6 +475,7 @@ impl AmazonS3 {
 
 async fn s3_request<E, F, G, H, R>(future_factory: F) -> Result<R, rusoto_core::RusotoError<E>>
 where
+    E: std::error::Error,
     F: Fn() -> G + Unpin + Clone + Send + Sync + 'static,
     G: Future<Output = Result<H, rusoto_core::RusotoError<E>>> + Send,
     H: Future<Output = Result<R, rusoto_core::RusotoError<E>>> + Send,
@@ -488,18 +490,25 @@ where
 
         match result {
             Ok(r) => return Ok(r),
-            Err(e) => {
+            Err(error) => {
                 attempts += 1;
 
                 let should_retry = matches!(
-                    e,
+                    error,
                     rusoto_core::RusotoError::Unknown(ref response)
                         if response.status.is_server_error()
                 );
 
-                if attempts > MAX_NUM_RETRIES || !should_retry {
-                    return Err(e);
+                if attempts > MAX_NUM_RETRIES {
+                    warn!(
+                        ?error,
+                        attempts, "maximum number of retries exceeded for AWS S3 request"
+                    );
+                    return Err(error);
+                } else if !should_retry {
+                    return Err(error);
                 } else {
+                    debug!(?error, attempts, "retrying AWS S3 request");
                     let wait_time = Duration::from_millis(2u64.pow(attempts) * 50);
                     tokio::time::sleep(wait_time).await;
                 }
