@@ -15,7 +15,6 @@ chrono = "0.4"
 # Google Cloud Storage integration
 cloud-storage = {version = "0.10.2", optional = true}
 futures = "0.3"
-futures-retry = "0.6"
 # https://github.com/tkaitchuck/aHash/issues/95
 indexmap = { version = "~1.6.2", optional = true }
 itertools = "0.10.1"

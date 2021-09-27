@@ -12,7 +12,6 @@ use futures::{
     stream::{self, BoxStream},
     Future, Stream, StreamExt, TryStreamExt,
 };
-use futures_retry::{FutureRetry, RetryPolicy};
 use rusoto_core::ByteStream;
 use rusoto_credential::{InstanceMetadataProvider, StaticProvider};
 use rusoto_s3::S3;
@@ -480,20 +479,17 @@ where
     // TODO: make the number of retries configurable
     let n_retries = 10;
 
-    FutureRetry::new(
-        move || {
-            let future_factory = future_factory.clone();
+    loop {
+        let future_factory = future_factory.clone();
+        let request = future_factory().await?;
 
-            async move {
-                let request = future_factory().await?;
+        let result = request.await;
 
-                request.await
-            }
-        },
-        // retry
-        {
-            move |e| {
+        match result {
+            Ok(r) => return Ok(r),
+            Err(e) => {
                 attempts += 1;
+
                 let should_retry = matches!(
                     e,
                     rusoto_core::RusotoError::Unknown(ref response)
@@ -501,17 +497,14 @@ where
                 );
 
                 if attempts > n_retries || !should_retry {
-                    RetryPolicy::ForwardError(e)
+                    return Err(e);
                 } else {
-                    RetryPolicy::WaitRetry(Duration::from_millis(2u64.pow(attempts) * 50))
+                    let wait_time = Duration::from_millis(2u64.pow(attempts) * 50);
+                    tokio::time::sleep(wait_time).await;
                 }
             }
-        },
-    )
-    .await
-    // TODO: log number of attempts?
-    .map(|(response, _attempts)| response)
-    .map_err(|(err, _attempts)| err)
+        }
+    }
 }
 
 impl Error {
