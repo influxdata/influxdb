@@ -460,6 +460,21 @@ impl AmazonS3 {
     }
 }
 
+/// Handles retrying a request to S3 up to `MAX_NUM_RETRIES` times if S3 returns 5xx server errors.
+///
+/// The `future_factory` argument is a function `F` that takes no arguments and, when called, will
+/// return a `Future` (type `G`) that, when `await`ed, will perform a request to S3 through
+/// `rusoto` and return a `Result` that returns some type `R` on success and some
+/// `rusoto_core::RusotoError<E>` on error.
+///
+/// If the executed `Future` returns success, this function will return that success.
+/// If the executed `Future` returns a 5xx server error, this function will wait an amount of
+/// time that increases exponentially with the number of times it has retried, get a new `Future` by
+/// calling `future_factory` again, and retry the request by `await`ing the `Future` again.
+/// The retries will continue until the maximum number of retries has been attempted. In that case,
+/// this function will return the last encountered error.
+///
+/// Client errors (4xx) will never be retried by this function.
 async fn s3_request<E, F, G, R>(future_factory: F) -> Result<R, rusoto_core::RusotoError<E>>
 where
     E: std::error::Error,
