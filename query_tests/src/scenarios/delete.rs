@@ -7,8 +7,6 @@ use predicate::predicate::{Predicate, PredicateBuilder};
 use async_trait::async_trait;
 use query::QueryChunk;
 use std::fmt::Display;
-//use server::Db;
-//use core::slice::SlicePattern;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
