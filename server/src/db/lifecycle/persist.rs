@@ -164,7 +164,7 @@ where
             );
             let to_persist = LockableCatalogChunk {
                 db,
-                chunk: new_chunk,
+                chunk: Arc::clone(new_chunk),
                 id: new_chunk_id,
                 order: min_order,
             };
