@@ -342,7 +342,11 @@ mod test {
                 },
         }) = err.downcast_ref::<ObjectStoreError>()
         {
-            assert!(matches!(source, cloud_storage::Error::Reqwest(_)));
+            assert!(
+                matches!(source, cloud_storage::Error::Other(_)),
+                "got: {:?}",
+                source
+            );
             assert_eq!(bucket, &config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
