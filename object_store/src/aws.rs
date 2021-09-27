@@ -147,18 +147,17 @@ impl ObjectStoreApi for AmazonS3 {
         let key = location.to_raw();
         let request_factory = move || {
             let bytes = bytes.clone();
-            async move {
-                let length = bytes.len();
-                let stream_data = std::io::Result::Ok(bytes);
-                let stream = futures::stream::once(async move { stream_data });
-                let byte_stream = ByteStream::new_with_size(stream, length);
 
-                rusoto_s3::PutObjectRequest {
-                    bucket: bucket_name.clone(),
-                    key: key.clone(),
-                    body: Some(byte_stream),
-                    ..Default::default()
-                }
+            let length = bytes.len();
+            let stream_data = std::io::Result::Ok(bytes);
+            let stream = futures::stream::once(async move { stream_data });
+            let byte_stream = ByteStream::new_with_size(stream, length);
+
+            rusoto_s3::PutObjectRequest {
+                bucket: bucket_name.clone(),
+                key: key.clone(),
+                body: Some(byte_stream),
+                ..Default::default()
             }
         };
 
@@ -167,7 +166,7 @@ impl ObjectStoreApi for AmazonS3 {
         s3_request(move || {
             let (s3, request_factory) = (s3.clone(), request_factory.clone());
 
-            async move { Ok(async move { s3.put_object(request_factory().await).await.map(drop) }) }
+            async move { s3.put_object(request_factory()).await }
         })
         .await
         .context(UnableToPutData {
@@ -223,7 +222,7 @@ impl ObjectStoreApi for AmazonS3 {
         s3_request(move || {
             let (s3, request_factory) = (s3.clone(), request_factory.clone());
 
-            async move { Ok(async move { s3.delete_object(request_factory()).await }) }
+            async move { s3.delete_object(request_factory()).await }
         })
         .await
         .context(UnableToDeleteData {
@@ -425,13 +424,11 @@ impl AmazonS3 {
                     );
 
                     async move {
-                        Ok(async move {
-                            s3.list_objects_v2(rusoto_s3::ListObjectsV2Request {
-                                continuation_token,
-                                ..request_factory()
-                            })
-                            .await
+                        s3.list_objects_v2(rusoto_s3::ListObjectsV2Request {
+                            continuation_token,
+                            ..request_factory()
                         })
+                        .await
                     }
                 })
                 .await;
@@ -463,18 +460,16 @@ impl AmazonS3 {
     }
 }
 
-async fn s3_request<E, F, G, H, R>(future_factory: F) -> Result<R, rusoto_core::RusotoError<E>>
+async fn s3_request<E, F, G, R>(future_factory: F) -> Result<R, rusoto_core::RusotoError<E>>
 where
     E: std::error::Error,
-    F: Fn() -> G + Unpin + Clone + Send + Sync + 'static,
-    G: Future<Output = Result<H, rusoto_core::RusotoError<E>>> + Send,
-    H: Future<Output = Result<R, rusoto_core::RusotoError<E>>> + Send,
+    F: Fn() -> G,
+    G: Future<Output = Result<R, rusoto_core::RusotoError<E>>> + Send,
 {
     let mut attempts = 0;
 
     loop {
-        let future_factory = future_factory.clone();
-        let request = future_factory().await?;
+        let request = future_factory();
 
         let result = request.await;
 
