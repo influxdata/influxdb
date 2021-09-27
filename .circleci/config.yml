@@ -967,7 +967,7 @@ jobs:
               --commit-range "$LAST_COMMIT..$NEWEST_COMMIT" \
               --prepend CHANGELOG.md \
               -- \
-              --tag $TIMESTAMP
+              --tag $TIMESTAMP > CHANGELOG.md
             echo ${CIRCLE_SHA1} > $COMMIT_FILE_PATH
 
             mkdir changelog_artifacts
