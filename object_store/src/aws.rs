@@ -21,6 +21,9 @@ use std::{convert::TryFrom, fmt, io, time::Duration};
 /// A specialized `Result` for object store-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// The maximum number of times a request will be retried in the case of an AWS server error
+pub const MAX_NUM_RETRIES: u32 = 10;
+
 /// A specialized `Error` for object store-related errors
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
@@ -476,8 +479,6 @@ where
     H: Future<Output = Result<R, rusoto_core::RusotoError<E>>> + Send,
 {
     let mut attempts = 0;
-    // TODO: make the number of retries configurable
-    let n_retries = 10;
 
     loop {
         let future_factory = future_factory.clone();
@@ -496,7 +497,7 @@ where
                         if response.status.is_server_error()
                 );
 
-                if attempts > n_retries || !should_retry {
+                if attempts > MAX_NUM_RETRIES || !should_retry {
                     return Err(e);
                 } else {
                     let wait_time = Duration::from_millis(2u64.pow(attempts) * 50);
