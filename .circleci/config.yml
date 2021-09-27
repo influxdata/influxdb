@@ -148,13 +148,17 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
       - jsdeps:
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
       - gotest:
           requires:
             - godeps
@@ -162,7 +166,9 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
       - golint:
           requires:
             - godeps
@@ -170,7 +176,9 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
       - fluxtest:
           requires:
             - godeps
@@ -178,7 +186,9 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
       - tlstest:
           requires:
             - godeps
@@ -186,7 +196,9 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
       - changelog:
           nightly: false
           requires:
@@ -198,7 +210,9 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
       - release:
           requires:
             - changelog
@@ -206,7 +220,9 @@ workflows:
             branches:
               ignore: /.*/
             tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
 
 orbs:
   # Needed to install chrome for e2e testing.
@@ -407,12 +423,43 @@ commands:
                 # As opposed to `goreleaser build`, which stops before building Dockers.
                 command: S3_FOLDER="influxdb/releases/" VERSION="$(git describe | sed 's/^v//')" goreleaser --debug release --skip-publish --skip-sign -p 1 --rm-dist --skip-validate
       - when:
-          condition: << parameters.publish_release >>
+          condition:
+            and:
+              - << parameters.publish_release >>
+              - not:
+                  matches:
+                    pattern: "^.*test$"
+                    value: << pipeline.git.tag >>
           steps:
             - run:
                 name: Publish release
                 command: |
+                  case "${CIRCLE_TAG}" in
+                    *test )
+                      exit 1;;
+                    *)
+                      ;;
+                  esac
                   S3_FOLDER="influxdb/releases/" \
+                  VERSION=${CIRCLE_TAG} \
+                  goreleaser \
+                    --debug \
+                    release \
+                      -p 1 \
+                      --rm-dist \
+                      --skip-validate
+      - when:
+          condition:
+            and:
+              - << parameters.publish_release >>
+              - matches:
+                  pattern: "^.*test$"
+                  value: << pipeline.git.tag >>
+          steps:
+            - run:
+                name: Publish release
+                command: |
+                  S3_FOLDER="platform/nightlies/test" \
                   VERSION=${CIRCLE_TAG} \
                   goreleaser \
                     --debug \
