@@ -14,7 +14,7 @@ internal_types = { path = "../internal_types" }
 observability_deps = { path = "../observability_deps" }
 regex = "1"
 snafu = "0.6.9"
-sqlparser = "0.10.0"
+sqlparser = "0.11.0"
 
 [dev-dependencies]
 test_helpers = { path = "../test_helpers" }

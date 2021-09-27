@@ -741,22 +741,21 @@ async fn sql_predicate_pushdown_correctness_11() {
 
 #[tokio::test]
 async fn sql_predicate_pushdown_correctness_12() {
-    // TODO: Hit stackoverflow in DF. Ticket https://github.com/apache/arrow-datafusion/issues/419
-    // // Test 12: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0 and town = 'reading'
-    // //
-    // // Check correctness
-    // let expected = vec![
-    //     "+-------+--------+-------------------------------+---------+",
-    //     "| count | system | time                          | town    |",
-    //     "+-------+--------+-------------------------------+---------+",
-    //     "| 632   | 6      | 1970-01-01 00:00:00.000000130 | reading |",
-    //     "+-------+--------+-------------------------------+---------+",
-    // ];
-    // run_sql_test_case!(
-    //     TwoMeasurementsPredicatePushDown {},
-    //     "SELECT * from restaurant where system > 5.0 and 'tewsbury' != town and system < 7.0 and town = 'reading'",
-    //     &expected
-    // );
+    // Test 12: three push-down expression: system > 5.0 and town != 'tewsbury' and system < 7.0 and town = 'reading'
+    //
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+--------------------------------+---------+",
+        "| count | system | time                           | town    |",
+        "+-------+--------+--------------------------------+---------+",
+        "| 632   | 6      | 1970-01-01T00:00:00.000000130Z | reading |",
+        "+-------+--------+--------------------------------+---------+",
+    ];
+    run_sql_test_case(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where system > 5.0 and 'tewsbury' != town and system < 7.0 and town = 'reading'",
+        &expected
+    ).await;
 }
 
 #[tokio::test]

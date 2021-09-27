@@ -550,7 +550,6 @@ where
 
         database
             .skip_replay()
-            .map_err(default_database_error_handler)?
             .await
             .map_err(default_database_error_handler)?;
 

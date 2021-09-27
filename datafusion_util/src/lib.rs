@@ -209,7 +209,7 @@ mod tests {
 
         let ts_predicate_expr = make_range_expr(101, 202, "time");
         let expected_string =
-            "TimestampNanosecond(101) LtEq #time And #time Lt TimestampNanosecond(202)";
+            "TimestampNanosecond(101) <= #time AND #time < TimestampNanosecond(202)";
         let actual_string = format!("{:?}", ts_predicate_expr);
 
         assert_eq!(actual_string, expected_string);

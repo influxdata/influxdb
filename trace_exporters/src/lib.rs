@@ -88,7 +88,7 @@ pub struct TracingConfig {
     /// Only used if `--traces-exporter` is "jaeger".
     #[structopt(
         long = "--traces-exporter-jaeger-trace-context-header-name",
-        env = "JAEGER_TRACE_CONTEXT_HEADER_NAME",
+        env = "TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME",
         default_value = "uber-trace-id"
     )]
     pub traces_jaeger_trace_context_header_name: String,
@@ -98,7 +98,7 @@ pub struct TracingConfig {
     /// Only used if `--traces-exporter` is "jaeger".
     #[structopt(
         long = "--traces-jaeger-debug-name",
-        env = "JAEGER_DEBUG_NAME",
+        env = "TRACES_EXPORTER_JAEGER_DEBUG_NAME",
         default_value = "jaeger-debug-id"
     )]
     pub traces_jaeger_debug_name: String,

@@ -38,7 +38,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Manage long-running IOx operations
+/// Interrogate internal database data
 #[derive(Debug, StructOpt)]
 pub struct Config {
     #[structopt(subcommand)]

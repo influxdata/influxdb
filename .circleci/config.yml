@@ -142,9 +142,6 @@ jobs:
       # "1" means line tables only, which is useful for panic tracebacks.
       RUSTFLAGS: "-C debuginfo=1"
       RUST_BACKTRACE: "1"
-      # set min stack size as a workaround to avoid stack overflow bug in DF
-      # https://github.com/apache/arrow-datafusion/issues/419
-      RUST_MIN_STACK: "10485760"
     steps:
       - checkout
       - rust_components
@@ -337,10 +334,10 @@ jobs:
       - cache_restore
       - run:
           name: Print rustc target CPU options
-          command: cargo run --release --no-default-features --features="aws,gcp,azure,heappy" --bin print_cpu
+          command: cargo run --release --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc" --bin print_cpu
       - run:
           name: Cargo release build with target arch set for CRoaring
-          command: cargo build --release --no-default-features --features="aws,gcp,azure,heappy"
+          command: cargo build --release --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc"
       - run: |
           echo sha256sum after build is
           sha256sum target/release/influxdb_iox
