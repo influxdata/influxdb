@@ -15,6 +15,14 @@ use server::utils::make_db;
 
 use super::{DbScenario, DbSetup};
 
+// #[derive(Debug)]
+// /// Set up different test scenarios that delete all rows from different stages of chunk
+// pub struct DeleteAllSoftRows {}
+// #[async_trait]
+// impl DbSetup for DeleteAllSoftRows {
+
+// }
+
 #[derive(Debug)]
 /// Setup for delete query test with one table and one chunk moved from MUB to RUB to OS
 pub struct DeleteFromMubOneMeasurementOneChunk {}
@@ -38,57 +46,13 @@ impl DbSetup for DeleteFromMubOneMeasurementOneChunk {
             .add_expr(expr)
             .build();
 
-        // delete happens when data in open MUB
         let preds = vec![Pred {
             predicate: &pred,
             delete_time: DeleteTime::Mubo,
         }];
-        let scenario_mub = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Mubo,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
 
-        // delete happens when data in open MUB then moved to RUB
-        let scenario_mub_to_rub = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Rub,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // delete happens when data in open MUB then moved to RUB and then persisted
-        let scenario_mub_to_rub_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::RubOs,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // delete happens when data in MUB then moved to RUB, then persisted, and then RUB is unloaded
-        let scenario_mub_to_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Os,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // return scenarios to run queries
-        vec![
-            scenario_mub,
-            scenario_mub_to_rub,
-            scenario_mub_to_rub_os,
-            scenario_mub_to_os,
-        ]
+        // delete happens when data in open MUB
+        delete_from_mub(lp_lines, preds, table_name, partition_key).await
     }
 }
 
@@ -115,42 +79,13 @@ impl DbSetup for DeleteFromRubOneMeasurementOneChunk {
             .add_expr(expr)
             .build();
 
-        // delete happens to data in RUB
         let preds = vec![Pred {
             predicate: &pred,
             delete_time: DeleteTime::Rub,
         }];
-        let scenario_rub = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Rub,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
 
-        // delete happens to data in RUB then persisted
-        let scenario_rub_to_rub_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::RubOs,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // delete happens to data in RUB then persisted then RUB unloaded
-        let scenario_rub_to_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Os,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // return scenarios to run queries
-        vec![scenario_rub, scenario_rub_to_rub_os, scenario_rub_to_os]
+        // delete happens when data in RUB
+        delete_from_rub(lp_lines, preds, table_name, partition_key).await
     }
 }
 
@@ -181,41 +116,18 @@ impl DbSetup for DeleteFromOsOneMeasurementOneChunk {
             predicate: &pred,
             delete_time: DeleteTime::RubOs,
         }];
-        let scenario_rub_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::RubOs,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
+        let mut scenarios =
+            delete_from_rub_os(lp_lines.clone(), preds, table_name, partition_key).await;
 
-        // delete happens after data is persisted but still in RUB and then unload RUB
-        let scenario_rub_os_to_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Os,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // delete happens after data is persisted and RUB is unloaded
+        // delete happens after data is persisted and unloaded from RUB
         let preds = vec![Pred {
             predicate: &pred,
             delete_time: DeleteTime::Os,
         }];
-        let scenario_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Os,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
+        let mut scenarios_os = delete_from_os(lp_lines, preds, table_name, partition_key).await;
+        scenarios.append(&mut scenarios_os);
 
-        // return scenarios to run queries
-        vec![scenario_rub_os, scenario_rub_os_to_os, scenario_os]
+        scenarios
     }
 }
 
@@ -249,57 +161,13 @@ impl DbSetup for DeleteMultiExprsFromMubOneMeasurementOneChunk {
             .add_expr(expr2)
             .build();
 
-        // delete happens when data in open MUB
         let preds = vec![Pred {
             predicate: &pred,
             delete_time: DeleteTime::Mubo,
         }];
-        let scenario_mub = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Mubo,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
 
-        // delete happens when data in open MUB then moved to RUB
-        let scenario_mub_to_rub = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Rub,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // delete happens when data in open MUB then moved to RUB and then persisted
-        let scenario_mub_to_rub_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::RubOs,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // delete happens when data in MUB then moved to RUB, then persisted, and then RUB is unloaded
-        let scenario_mub_to_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Os,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // return scenarios to run queries
-        vec![
-            scenario_mub,
-            scenario_mub_to_rub,
-            scenario_mub_to_rub_os,
-            scenario_mub_to_os,
-        ]
+        // delete happens when data in open MUB
+        delete_from_mub(lp_lines, preds, table_name, partition_key).await
     }
 }
 
@@ -333,42 +201,13 @@ impl DbSetup for DeleteMultiExprsFromRubOneMeasurementOneChunk {
             .add_expr(expr2)
             .build();
 
-        // delete happens to data in RUB
         let preds = vec![Pred {
             predicate: &pred,
             delete_time: DeleteTime::Rub,
         }];
-        let scenario_rub = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Rub,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
 
-        // delete happens to data in RUB then persisted
-        let scenario_rub_to_rub_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::RubOs,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // delete happens to data in RUB then persisted then RUB unloaded
-        let scenario_rub_to_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Os,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // return scenarios to run queries
-        vec![scenario_rub, scenario_rub_to_rub_os, scenario_rub_to_os]
+        // delete happens when data in RUB
+        delete_from_rub(lp_lines, preds, table_name, partition_key).await
     }
 }
 
@@ -407,41 +246,18 @@ impl DbSetup for DeleteMultiExprsFromOsOneMeasurementOneChunk {
             predicate: &pred,
             delete_time: DeleteTime::RubOs,
         }];
-        let scenario_rub_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::RubOs,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
+        let mut scenarios =
+            delete_from_rub_os(lp_lines.clone(), preds, table_name, partition_key).await;
 
-        // delete happens after data is persisted but still in RUB and then unload RUB
-        let scenario_rub_os_to_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Os,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // delete happens after data is persisted and RUB is unloaded
+        // delete happens after data is persisted and unloaded from RUB
         let preds = vec![Pred {
             predicate: &pred,
             delete_time: DeleteTime::Os,
         }];
-        let scenario_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Os,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
+        let mut scenarios_os = delete_from_os(lp_lines, preds, table_name, partition_key).await;
+        scenarios.append(&mut scenarios_os);
 
-        // return scenarios to run queries
-        vec![scenario_rub_os, scenario_rub_os_to_os, scenario_os]
+        scenarios
     }
 }
 
@@ -483,7 +299,7 @@ impl DbSetup for TwoDeleteMultiExprsFromMubOneMeasurementOneChunk {
             .add_expr(expr3)
             .build();
 
-        // delete happens when data in MUB
+        // delete happens when data in MUB and at end
         let preds = vec![
             Pred {
                 predicate: &pred1,
@@ -494,52 +310,9 @@ impl DbSetup for TwoDeleteMultiExprsFromMubOneMeasurementOneChunk {
                 delete_time: DeleteTime::End,
             },
         ];
-        let scenario_mub = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Mubo,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
 
-        // delete happens when data in MUB then moved to RUB
-        let scenario_mub_to_rub = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Rub,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // delete happens when data in MUB then moved to RUB and then persisted
-        let scenario_mub_to_rub_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::RubOs,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // delete happens when data in MUB then moved to RUB, then persisted, and then RUB is unloaded
-        let scenario_mub_to_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Os,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // return scenarios to run queries
-        vec![
-            scenario_mub,
-            scenario_mub_to_rub,
-            scenario_mub_to_rub_os,
-            scenario_mub_to_os,
-        ]
+        // delete happens when data in open MUB
+        delete_from_mub(lp_lines, preds, table_name, partition_key).await
     }
 }
 
@@ -581,7 +354,6 @@ impl DbSetup for TwoDeleteMultiExprsFromRubOneMeasurementOneChunk {
             .add_expr(expr3)
             .build();
 
-        // delete happens when data in RUB
         let preds = vec![
             Pred {
                 predicate: &pred1,
@@ -592,37 +364,9 @@ impl DbSetup for TwoDeleteMultiExprsFromRubOneMeasurementOneChunk {
                 delete_time: DeleteTime::End,
             },
         ];
-        let scenario_rub = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Rub,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
 
-        // delete happens when data in RUB then moved to OS but still in RUB
-        let scenario_rub_to_rub_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::RubOs,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // delete happens when data in RUB then moved to RUB and then persisted, then unload RUB
-        let scenario_rub_to_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Os,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // return scenarios to run queries
-        vec![scenario_rub, scenario_rub_to_rub_os, scenario_rub_to_os]
+        // delete happens when data in RUB and at end
+        delete_from_rub(lp_lines, preds, table_name, partition_key).await
     }
 }
 
@@ -673,47 +417,24 @@ impl DbSetup for TwoDeleteMultiExprsFromOsOneMeasurementOneChunk {
                 delete_time: DeleteTime::End,
             },
         ];
-        let scenario_rub_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::RubOs,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
+        let mut scenarios =
+            delete_from_rub_os(lp_lines.clone(), preds, table_name, partition_key).await;
 
-        // delete happens after data is persisted but still in RUB and then unload RUB
-        let scenario_rub_os_to_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Os,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
-
-        // delete happens after data is persisted and unload RUB
+        // delete happens after data is persisted and unloaded from RUB
         let preds = vec![
             Pred {
                 predicate: &pred1,
-                delete_time: DeleteTime::End,
+                delete_time: DeleteTime::Os,
             },
             Pred {
                 predicate: &pred2,
                 delete_time: DeleteTime::End,
             },
         ];
-        let scenario_os = make_chunk_with_deletes_at_different_stages(
-            lp_lines.clone(),
-            ChunkType::Os,
-            preds.clone(),
-            table_name,
-            partition_key,
-        )
-        .await;
+        let mut scenarios_os = delete_from_os(lp_lines, preds, table_name, partition_key).await;
+        scenarios.append(&mut scenarios_os);
 
-        // return scenarios to run queries
-        vec![scenario_rub_os, scenario_rub_os_to_os, scenario_os]
+        scenarios
     }
 }
 // Three different delete on three different chunks
@@ -940,8 +661,10 @@ pub struct ChunkData<'a> {
 
 #[derive(Debug, Clone)]
 pub enum ChunkType {
-    Mubo, // open MUB
-    Mubf, // frozen MUB
+    /// Open MUB
+    Mubo,
+    /// Frozen MUB
+    Mubf,
     Rub,
     RubOs,
     Os,
@@ -1217,4 +940,149 @@ async fn make_different_stage_chunks_with_deletes_scenario(
         preds.len()
     );
     DbScenario { scenario_name, db }
+}
+
+async fn delete_from_mub(
+    lp_lines: Vec<&str>,
+    preds: Vec<Pred<'_>>,
+    table_name: &str,
+    partition_key: &str,
+) -> Vec<DbScenario> {
+    // delete happens when data in open MUB
+    let scenario_mub = make_chunk_with_deletes_at_different_stages(
+        lp_lines.clone(),
+        ChunkType::Mubo,
+        preds.clone(),
+        table_name,
+        partition_key,
+    )
+    .await;
+
+    // delete happens when data in open MUB then moved to RUB
+    let scenario_mub_to_rub = make_chunk_with_deletes_at_different_stages(
+        lp_lines.clone(),
+        ChunkType::Rub,
+        preds.clone(),
+        table_name,
+        partition_key,
+    )
+    .await;
+
+    // delete happens when data in open MUB then moved to RUB and then persisted
+    let scenario_mub_to_rub_os = make_chunk_with_deletes_at_different_stages(
+        lp_lines.clone(),
+        ChunkType::RubOs,
+        preds.clone(),
+        table_name,
+        partition_key,
+    )
+    .await;
+
+    // delete happens when data in MUB then moved to RUB, then persisted, and then RUB is unloaded
+    let scenario_mub_to_os = make_chunk_with_deletes_at_different_stages(
+        lp_lines.clone(),
+        ChunkType::Os,
+        preds.clone(),
+        table_name,
+        partition_key,
+    )
+    .await;
+
+    // return scenarios to run queries
+    vec![
+        scenario_mub,
+        scenario_mub_to_rub,
+        scenario_mub_to_rub_os,
+        scenario_mub_to_os,
+    ]
+}
+
+async fn delete_from_rub(
+    lp_lines: Vec<&str>,
+    preds: Vec<Pred<'_>>,
+    table_name: &str,
+    partition_key: &str,
+) -> Vec<DbScenario> {
+    // delete happens when data in RUB
+    let scenario_rub = make_chunk_with_deletes_at_different_stages(
+        lp_lines.clone(),
+        ChunkType::Rub,
+        preds.clone(),
+        table_name,
+        partition_key,
+    )
+    .await;
+
+    // delete happens to data in RUB then persisted
+    let scenario_rub_to_rub_os = make_chunk_with_deletes_at_different_stages(
+        lp_lines.clone(),
+        ChunkType::RubOs,
+        preds.clone(),
+        table_name,
+        partition_key,
+    )
+    .await;
+
+    // delete happens to data in RUB then persisted then RUB unloaded
+    let scenario_rub_to_os = make_chunk_with_deletes_at_different_stages(
+        lp_lines.clone(),
+        ChunkType::Os,
+        preds.clone(),
+        table_name,
+        partition_key,
+    )
+    .await;
+
+    // return scenarios to run queries
+    vec![scenario_rub, scenario_rub_to_rub_os, scenario_rub_to_os]
+}
+
+async fn delete_from_rub_os(
+    lp_lines: Vec<&str>,
+    preds: Vec<Pred<'_>>,
+    table_name: &str,
+    partition_key: &str,
+) -> Vec<DbScenario> {
+    // delete happens after data is persisted but still in RUB
+    let scenario_rub_os = make_chunk_with_deletes_at_different_stages(
+        lp_lines.clone(),
+        ChunkType::RubOs,
+        preds.clone(),
+        table_name,
+        partition_key,
+    )
+    .await;
+
+    // delete happens after data is persisted but still in RUB and then unload RUB
+    let scenario_rub_os_to_os = make_chunk_with_deletes_at_different_stages(
+        lp_lines.clone(),
+        ChunkType::Os,
+        preds.clone(),
+        table_name,
+        partition_key,
+    )
+    .await;
+
+    // return scenarios to run queries
+    vec![scenario_rub_os, scenario_rub_os_to_os]
+}
+
+async fn delete_from_os(
+    lp_lines: Vec<&str>,
+    preds: Vec<Pred<'_>>,
+    table_name: &str,
+    partition_key: &str,
+) -> Vec<DbScenario> {
+    // delete happens after data is persisted and RUB is unloaded
+    let scenario_os = make_chunk_with_deletes_at_different_stages(
+        lp_lines.clone(),
+        ChunkType::Os,
+        preds.clone(),
+        table_name,
+        partition_key,
+    )
+    .await;
+
+    // return scenarios to run queries
+    vec![scenario_os]
 }
