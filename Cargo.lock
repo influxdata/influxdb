@@ -1259,11 +1259,11 @@ dependencies = [
  "bytes",
  "chrono",
  "data_types",
- "google_types",
  "num_cpus",
  "observability_deps",
  "pbjson",
- "pbjson_build",
+ "pbjson-build",
+ "pbjson-types",
  "proc-macro2",
  "prost",
  "prost-build",
@@ -1328,20 +1328,6 @@ name = "glob"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
-
-[[package]]
-name = "google_types"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "chrono",
- "pbjson",
- "pbjson_build",
- "prost",
- "prost-build",
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "grpc-router"
@@ -1700,7 +1686,6 @@ dependencies = [
  "rdkafka",
  "read_buffer",
  "reqwest",
- "routerify",
  "rustyline",
  "serde",
  "serde_json",
@@ -2714,7 +2699,6 @@ dependencies = [
  "datafusion_util",
  "futures",
  "generated_types",
- "google_types",
  "internal_types",
  "iox_object_store",
  "metric",
@@ -2723,6 +2707,7 @@ dependencies = [
  "parking_lot",
  "parquet",
  "parquet-format",
+ "pbjson-types",
  "persistence_windows",
  "predicate",
  "prost",
@@ -2745,34 +2730,38 @@ checksum = "acbf547ad0c65e31259204bd90935776d1c693cec2f4ff7abb7a1bbbd40dfe58"
 [[package]]
 name = "pbjson"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbde1ff33a3aac655835d29a136e02935d4fa15f969268dbc97936159eb81d98"
 dependencies = [
  "base64 0.13.0",
- "bytes",
  "serde",
 ]
 
 [[package]]
-name = "pbjson_build"
+name = "pbjson-build"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64eb98c480df4f6ea0f4befb7b6b61be8de3098337016acec79d3dd7d6d219ff"
 dependencies = [
  "heck",
  "itertools",
- "pbjson_test",
  "prost",
  "prost-types",
- "tempfile",
 ]
 
 [[package]]
-name = "pbjson_test"
+name = "pbjson-types"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "89d20cbdd9993508f3c3420a6133bddd267c540fbe23821887dc5af1d53a0d52"
 dependencies = [
+ "bytes",
+ "chrono",
  "pbjson",
- "pbjson_build",
+ "pbjson-build",
  "prost",
  "prost-build",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -3508,19 +3497,6 @@ dependencies = [
  "untrusted",
  "web-sys",
  "winapi",
-]
-
-[[package]]
-name = "routerify"
-version = "2.0.0-beta-2"
-source = "git+https://github.com/influxdata/routerify?rev=274e250#274e250e556b968ad02259282c0433e445db4200"
-dependencies = [
- "http",
- "hyper",
- "lazy_static",
- "percent-encoding",
- "regex",
- "thiserror",
 ]
 
 [[package]]

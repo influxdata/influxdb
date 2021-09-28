@@ -39,7 +39,6 @@ members = [
     "datafusion_util",
     "entry",
     "generated_types",
-    "google_types",
     "influxdb2_client",
     "influxdb_iox_client",
     "influxdb_line_protocol",
@@ -57,9 +56,6 @@ members = [
     "observability_deps",
     "packers",
     "panic_logging",
-    "pbjson",
-    "pbjson_build",
-    "pbjson_test",
     "persistence_windows",
     "predicate",
     "query",
@@ -142,8 +138,6 @@ prettytable-rs = "0.8"
 pprof = { version = "^0.5", default-features = false, features = ["flamegraph", "protobuf"], optional = true }
 prost = "0.8"
 rustyline = { version = "9.0", default-features = false }
-# Forked to upgrade hyper and tokio
-routerify = { git = "https://github.com/influxdata/routerify", rev = "274e250" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.67"
 serde_urlencoded = "0.7.0"
@@ -200,3 +194,4 @@ aws = ["object_store/aws"] # Optional AWS / S3 object store support
 # Cargo cannot currently implement mutually exclusive features so let's force every build
 # to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
 jemalloc_replacing_malloc = ["tikv-jemalloc-sys"]
+

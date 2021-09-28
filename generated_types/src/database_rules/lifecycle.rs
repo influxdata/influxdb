@@ -129,7 +129,7 @@ mod tests {
                 management::lifecycle_rules::MaxActiveCompactionsCfg::MaxActiveCompactions(8),
             ),
             catalog_transactions_until_checkpoint: 10,
-            catalog_transaction_prune_age: Some(google_types::protobuf::Duration {
+            catalog_transaction_prune_age: Some(pbjson_types::Duration {
                 seconds: 11,
                 nanos: 22,
             }),

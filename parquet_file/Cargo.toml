@@ -14,7 +14,6 @@ datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3.7"
 generated_types = { path = "../generated_types" }
-google_types = { path = "../google_types" }
 internal_types = { path = "../internal_types" }
 iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }
@@ -23,6 +22,7 @@ observability_deps = { path = "../observability_deps" }
 parquet = "5.0"
 parquet-format = "2.6"
 parking_lot = "0.11.1"
+pbjson-types = "0.1"
 persistence_windows = { path = "../persistence_windows" }
 predicate = { path = "../predicate" }
 prost = "0.8"

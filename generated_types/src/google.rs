@@ -1,7 +1,9 @@
 //! Protobuf types for errors from the google standards and
 //! conversions to `tonic::Status`
 
-pub use google_types::*;
+pub mod protobuf {
+    pub use pbjson_types::*;
+}
 
 pub mod rpc {
     include!(concat!(env!("OUT_DIR"), "/google.rpc.rs"));
