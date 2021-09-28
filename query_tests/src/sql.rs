@@ -845,7 +845,7 @@ async fn sql_select_all_different_tags_chunks() {
 }
 
 #[tokio::test]
-async fn sql_select_with_deleted_data_from_one_expr() {
+async fn sql_select_with_delete_from_one_expr() {
     let expected = vec![
         "+-----+--------------------------------+",
         "| bar | time                           |",
@@ -880,7 +880,7 @@ async fn sql_select_with_deleted_data_from_one_expr() {
 }
 
 #[tokio::test]
-async fn sql_select_with_deleted_data_from_multi_exprs() {
+async fn sql_select_with_delete_from_multi_exprs() {
     let expected = vec![
         "+-----+-----+--------------------------------+",
         "| bar | foo | time                           |",
@@ -916,7 +916,7 @@ async fn sql_select_with_deleted_data_from_multi_exprs() {
 }
 
 #[tokio::test]
-async fn sql_select_with_two_deleted_data_from_multi_exprs() {
+async fn sql_select_with_two_deletes_from_multi_exprs() {
     let expected = vec![
         "+-----+-----+--------------------------------+",
         "| bar | foo | time                           |",
