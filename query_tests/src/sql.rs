@@ -854,25 +854,8 @@ async fn sql_select_with_delete_from_one_expr() {
         "+-----+--------------------------------+",
     ];
 
-    // Data deleted when it is in MUB, and then moved to RUB and OS
     run_sql_test_case(
-        scenarios::delete::DeleteFromMubOneMeasurementOneChunk {},
-        "SELECT * from cpu",
-        &expected,
-    )
-    .await;
-
-    // Data deleted when it is in RUB, and then moved OS
-    run_sql_test_case(
-        scenarios::delete::DeleteFromRubOneMeasurementOneChunk {},
-        "SELECT * from cpu",
-        &expected,
-    )
-    .await;
-
-    // Data deleted when it is in OS
-    run_sql_test_case(
-        scenarios::delete::DeleteFromOsOneMeasurementOneChunk {},
+        scenarios::delete::OneDeleteSimpleExprOneChunk {},
         "SELECT * from cpu",
         &expected,
     )
@@ -890,25 +873,8 @@ async fn sql_select_with_delete_from_multi_exprs() {
         "+-----+-----+--------------------------------+",
     ];
 
-    // Data deleted when it is in MUB, and then moved to RUB and OS
     run_sql_test_case(
-        scenarios::delete::DeleteMultiExprsFromMubOneMeasurementOneChunk {},
-        "SELECT * from cpu",
-        &expected,
-    )
-    .await;
-
-    // Data deleted when it is in RUB, and then moved OS
-    run_sql_test_case(
-        scenarios::delete::DeleteMultiExprsFromRubOneMeasurementOneChunk {},
-        "SELECT * from cpu",
-        &expected,
-    )
-    .await;
-
-    // Data deleted when it is in OS
-    run_sql_test_case(
-        scenarios::delete::DeleteMultiExprsFromOsOneMeasurementOneChunk {},
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
         "SELECT * from cpu",
         &expected,
     )
@@ -927,23 +893,7 @@ async fn sql_select_with_two_deletes_from_multi_exprs() {
 
     // Data deleted when it is in MUB, and then moved to RUB and OS
     run_sql_test_case(
-        scenarios::delete::TwoDeleteMultiExprsFromMubOneMeasurementOneChunk {},
-        "SELECT * from cpu",
-        &expected,
-    )
-    .await;
-
-    // Data deleted when it is in RUB, and then moved OS
-    run_sql_test_case(
-        scenarios::delete::TwoDeleteMultiExprsFromRubOneMeasurementOneChunk {},
-        "SELECT * from cpu",
-        &expected,
-    )
-    .await;
-
-    // Data deleted when it is in OS
-    run_sql_test_case(
-        scenarios::delete::TwoDeleteMultiExprsFromOsOneMeasurementOneChunk {},
+        scenarios::delete::TwoDeletesMultiExprsOneChunk {},
         "SELECT * from cpu",
         &expected,
     )
