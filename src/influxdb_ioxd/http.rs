@@ -37,7 +37,7 @@ use chrono::Utc;
 use futures::{self, StreamExt};
 use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use hyper::{http::HeaderValue, Body, Method, Request, Response, StatusCode};
-use observability_deps::tracing::{self, debug, error};
+use observability_deps::tracing::{debug, error};
 use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -486,7 +486,6 @@ async fn parse_body(req: hyper::Request<Body>, max_size: usize) -> Result<Bytes,
     }
 }
 
-#[observability_deps::instrument(level = "debug")]
 async fn write<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
@@ -574,7 +573,6 @@ fn default_format() -> String {
     QueryOutputFormat::default().to_string()
 }
 
-#[tracing::instrument(level = "debug")]
 async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
@@ -619,15 +617,13 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     Ok(response)
 }
 
-#[tracing::instrument(level = "debug")]
 async fn health<M: ConnectionManager + Send + Sync + Debug + 'static>(
-    req: Request<Body>,
+    _req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
     let response_body = "OK";
     Ok(Response::new(Body::from(response_body.to_string())))
 }
 
-#[tracing::instrument(level = "debug")]
 async fn handle_metrics<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
@@ -651,7 +647,6 @@ struct SnapshotInfo {
     table_name: String,
 }
 
-#[tracing::instrument(level = "debug")]
 async fn pprof_home<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
@@ -720,7 +715,6 @@ impl PProfAllocsArgs {
 }
 
 #[cfg(feature = "pprof")]
-#[tracing::instrument(level = "debug")]
 async fn pprof_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
@@ -764,16 +758,14 @@ async fn pprof_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
 }
 
 #[cfg(not(feature = "pprof"))]
-#[tracing::instrument(level = "debug")]
 async fn pprof_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
-    req: Request<Body>,
+    _req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
     PProfIsNotCompiled {}.fail()
 }
 
 // If heappy support is enabled, call it
 #[cfg(feature = "heappy")]
-#[tracing::instrument(level = "debug")]
 async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
@@ -810,9 +802,8 @@ async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'stat
 
 //  Return error if heappy not enabled
 #[cfg(not(feature = "heappy"))]
-#[tracing::instrument(level = "debug")]
 async fn pprof_heappy_profile<M: ConnectionManager + Send + Sync + Debug + 'static>(
-    req: Request<Body>,
+    _req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
     HeappyIsNotCompiled {}.fail()
 }
