@@ -844,6 +844,25 @@ async fn sql_select_all_different_tags_chunks() {
     .await;
 }
 
+// ----------------------------------------------
+// Delete tests
+
+// reproduce of https://github.com/influxdata/influxdb_iox/issues/2546
+// Not throw error when all of rows of a OS or RUB chunk are soft deleted
+// ignore until we have a fix that I am actively working on
+#[ignore]
+#[tokio::test]
+async fn sql_select_with_delete_from_one_expr_delete_all() {
+    let expected = vec!["++", "++"];
+
+    run_sql_test_case(
+        scenarios::delete::OneDeleteSimpleExprOneChunkDeleteAll {},
+        "SELECT * from cpu",
+        &expected,
+    )
+    .await;
+}
+
 #[tokio::test]
 async fn sql_select_with_delete_from_one_expr() {
     let expected = vec![
@@ -857,6 +876,35 @@ async fn sql_select_with_delete_from_one_expr() {
     run_sql_test_case(
         scenarios::delete::OneDeleteSimpleExprOneChunk {},
         "SELECT * from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_delete_from_one_expr_with_select_predicate() {
+    // Select predicate does not eliminate extra rows
+    let expected = vec![
+        "+-----+--------------------------------+",
+        "| bar | time                           |",
+        "+-----+--------------------------------+",
+        "| 2   | 1970-01-01T00:00:00.000000020Z |",
+        "+-----+--------------------------------+",
+    ];
+
+    run_sql_test_case(
+        scenarios::delete::OneDeleteSimpleExprOneChunk {},
+        "SELECT * from cpu where bar = 2.0",
+        &expected,
+    )
+    .await;
+
+    // Select predicate eliminates rows
+    let expected = vec!["++", "++"];
+
+    run_sql_test_case(
+        scenarios::delete::OneDeleteSimpleExprOneChunk {},
+        "SELECT * from cpu where bar != 2.0",
         &expected,
     )
     .await;
@@ -882,6 +930,51 @@ async fn sql_select_with_delete_from_multi_exprs() {
 }
 
 #[tokio::test]
+async fn sql_select_with_delete_from_multi_exprs_with_select_predicate() {
+    // not eliminate extra row
+    let expected = vec![
+        "+-----+-----+--------------------------------+",
+        "| bar | foo | time                           |",
+        "+-----+-----+--------------------------------+",
+        "| 1   | me  | 1970-01-01T00:00:00.000000040Z |",
+        "| 2   | you | 1970-01-01T00:00:00.000000020Z |",
+        "+-----+-----+--------------------------------+",
+    ];
+
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT * from cpu where bar >= 1.0",
+        &expected,
+    )
+    .await;
+
+    // eliminate something
+    let expected = vec![
+        "+-----+-----+--------------------------------+",
+        "| bar | foo | time                           |",
+        "+-----+-----+--------------------------------+",
+        "| 2   | you | 1970-01-01T00:00:00.000000020Z |",
+        "+-----+-----+--------------------------------+",
+    ];
+
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT * from cpu where foo = 'you'",
+        &expected,
+    )
+    .await;
+
+    // eliminate all
+    let expected = vec!["++", "++"];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT * from cpu where foo = 'you' and bar > 2.0",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn sql_select_with_two_deletes_from_multi_exprs() {
     let expected = vec![
         "+-----+-----+--------------------------------+",
@@ -891,10 +984,38 @@ async fn sql_select_with_two_deletes_from_multi_exprs() {
         "+-----+-----+--------------------------------+",
     ];
 
-    // Data deleted when it is in MUB, and then moved to RUB and OS
     run_sql_test_case(
         scenarios::delete::TwoDeletesMultiExprsOneChunk {},
         "SELECT * from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_two_deletes_from_multi_exprs_with_select_predicate() {
+    // no extra eliminated
+    let expected = vec![
+        "+-----+-----+--------------------------------+",
+        "| bar | foo | time                           |",
+        "+-----+-----+--------------------------------+",
+        "| 1   | me  | 1970-01-01T00:00:00.000000040Z |",
+        "+-----+-----+--------------------------------+",
+    ];
+
+    run_sql_test_case(
+        scenarios::delete::TwoDeletesMultiExprsOneChunk {},
+        "SELECT * from cpu where cast(time as bigint) > 30",
+        &expected,
+    )
+    .await;
+
+    // all eliminated
+    let expected = vec!["++", "++"];
+
+    run_sql_test_case(
+        scenarios::delete::TwoDeletesMultiExprsOneChunk {},
+        "SELECT * from cpu where cast(time as bigint) > 40",
         &expected,
     )
     .await;
@@ -980,6 +1101,39 @@ async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate()
     run_sql_test_case(
         scenarios::delete::ThreeDeleteThreeChunks {},
         "SELECT * from cpu where bar = 1.0",
+        &expected,
+    )
+    .await;
+
+    //--------------------
+    // Multi select expressions and eliminate something
+    let expected = vec![
+        "+-----+-----+--------------------------------+",
+        "| bar | foo | time                           |",
+        "+-----+-----+--------------------------------+",
+        "| 1   | me  | 1970-01-01T00:00:00.000000040Z |",
+        "| 1   | me  | 1970-01-01T00:00:00.000000042Z |",
+        "| 1   | me  | 1970-01-01T00:00:00.000000062Z |",
+        "| 4   | me  | 1970-01-01T00:00:00.000000050Z |",
+        "| 5   | me  | 1970-01-01T00:00:00.000000060Z |",
+        "| 7   | me  | 1970-01-01T00:00:00.000000080Z |",
+        "+-----+-----+--------------------------------+",
+    ];
+
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT * from cpu where foo = 'me' and (bar > 2.0 or bar = 1.0)",
+        &expected,
+    )
+    .await;
+
+    //--------------------
+    // Multi select expressions and eliminate everything
+    let expected = vec!["++", "++"];
+
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT * from cpu where foo = 'you' and (bar > 3.0 or bar = 1.0)",
         &expected,
     )
     .await;
