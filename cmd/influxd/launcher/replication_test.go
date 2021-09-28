@@ -143,10 +143,10 @@ func TestValidateReplication_Invalid(t *testing.T) {
 
 	// Create a new bucket.
 	bucket2 := influxdb.Bucket{
-		OrgID:               l.Org.ID,
-		Name:                "bucket2",
-		RetentionPeriod:     0,
-		ShardGroupDuration:  0,
+		OrgID:              l.Org.ID,
+		Name:               "bucket2",
+		RetentionPeriod:    0,
+		ShardGroupDuration: 0,
 	}
 	require.NoError(t, l.BucketService(t).CreateBucket(ctx, &bucket2))
 	bucket2Id := bucket2.ID.String()
