@@ -74,19 +74,18 @@ impl TryFrom<management::Chunk> for ChunkSummary {
     type Error = FieldViolation;
 
     fn try_from(proto: management::Chunk) -> Result<Self, Self::Error> {
-        let convert_timestamp = |t: google_types::protobuf::Timestamp, field: &'static str| {
+        let convert_timestamp = |t: pbjson_types::Timestamp, field: &'static str| {
             t.try_into().map_err(|_| FieldViolation {
                 field: field.to_string(),
                 description: "Timestamp must be positive".to_string(),
             })
         };
 
-        let timestamp = |t: Option<google_types::protobuf::Timestamp>, field: &'static str| {
+        let timestamp = |t: Option<pbjson_types::Timestamp>, field: &'static str| {
             t.map(|t| convert_timestamp(t, field)).transpose()
         };
 
-        let required_timestamp = |t: Option<google_types::protobuf::Timestamp>,
-                                  field: &'static str| {
+        let required_timestamp = |t: Option<pbjson_types::Timestamp>, field: &'static str| {
             t.ok_or_else(|| FieldViolation {
                 field: field.to_string(),
                 description: "Timestamp is required".to_string(),
@@ -186,7 +185,7 @@ mod test {
             time_of_first_write: Some(now.into()),
             time_of_last_write: Some(now.into()),
             time_closed: None,
-            time_of_last_access: Some(google_types::protobuf::Timestamp {
+            time_of_last_access: Some(pbjson_types::Timestamp {
                 seconds: 50,
                 nanos: 7,
             }),
@@ -250,7 +249,7 @@ mod test {
             time_of_first_write: Some(now.into()),
             time_of_last_write: Some(now.into()),
             time_closed: None,
-            time_of_last_access: Some(google_types::protobuf::Timestamp {
+            time_of_last_access: Some(pbjson_types::Timestamp {
                 seconds: 12,
                 nanos: 100_007,
             }),

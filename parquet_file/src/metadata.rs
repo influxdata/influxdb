@@ -441,7 +441,7 @@ impl IoxMetadata {
 }
 
 fn decode_timestamp_from_field(
-    value: Option<google_types::protobuf::Timestamp>,
+    value: Option<pbjson_types::Timestamp>,
     field: &'static str,
 ) -> Result<DateTime<Utc>> {
     value
