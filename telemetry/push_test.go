@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/proto" //lint:ignore SA1019 this deprecated package will be removed by https://github.com/influxdata/influxdb/pull/22571
 	"github.com/google/go-cmp/cmp"
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"

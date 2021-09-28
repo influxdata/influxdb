@@ -1,7 +1,7 @@
 package telemetry
 
 import (
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/proto" //lint:ignore SA1019 this deprecated package will be removed by https://github.com/influxdata/influxdb/pull/22571
 	dto "github.com/prometheus/client_model/go"
 )
 
