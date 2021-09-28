@@ -20,6 +20,7 @@ use super::{DbScenario, DbSetup};
 
 #[derive(Debug)]
 /// Setup for delete query test with one table and one chunk moved from MUB to RUB to OS
+/// All data will be soft deleted in this setup
 pub struct OneDeleteSimpleExprOneChunkDeleteAll {}
 #[async_trait]
 impl DbSetup for OneDeleteSimpleExprOneChunkDeleteAll {
