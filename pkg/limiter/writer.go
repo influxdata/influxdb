@@ -62,10 +62,10 @@ func (s *Writer) Write(b []byte) (int, error) {
 		}
 
 		wroteN, err := s.w.Write(b[n : n+wantToWriteN])
+		n += wroteN
 		if err != nil {
 			return n, err
 		}
-		n += wroteN
 
 		if err := s.limiter.WaitN(s.ctx, wroteN); err != nil {
 			return n, err
