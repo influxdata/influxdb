@@ -32,7 +32,7 @@ message ParseDelete {
     // start time in nanosecond of a range to be deleted
     int64 start_time = 1;
 
-    // stop time in nanosecodn of a range to be deleted
+    // stop time in nanosecond of a range to be deleted
     int64 stop_time = 2;
 
     // list of delete predicate binary expressions

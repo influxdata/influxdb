@@ -107,10 +107,12 @@ service ManagementService {
 message GetServerIdRequest {}
 
 message GetServerIdResponse {
+  // Must be non-zero
   uint32 id = 1;
 }
 
 message UpdateServerIdRequest {
+  // Must be non-zero
   uint32 id = 1;
 }
 
@@ -124,7 +126,7 @@ message SetServingReadinessRequest {
 message SetServingReadinessResponse {}
 
 message ListDatabasesRequest {
-  // If true, returns only explciitly defined values. See additional
+  // If true, returns only explicitly defined values. See additional
   // details on `GetDatabaseRequest`.
   bool omit_defaults = 1;
 }
@@ -141,8 +143,8 @@ message GetDatabaseRequest {
   // The name of the database to retrieve
   string name = 1;
 
-  // If false, or unspecified: return the current configuration that is being used by
-  // the server, with all default values filled in.
+  // If false: return the current configuration that is being used by
+  // the server, with all server-side default values filled in.
   //
   // If true, returns only the persisted configuration (aka only
   // fields which were was supplied when the database was created or
@@ -418,7 +420,7 @@ message DatabaseStatus {
 }
 
 message Error {
-  // Message descripting the error.
+  // Message describing the error.
   string message = 1;
 }
 

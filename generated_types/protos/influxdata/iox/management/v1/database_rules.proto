@@ -35,10 +35,14 @@ message PartitionTemplate {
 message LifecycleRules {
   // Once the total amount of buffered data in memory reaches this size start
   // dropping data from memory
+  //
+  // If 0, no limit
   uint64 buffer_size_soft = 4;
 
   // Once the amount of data in memory reaches this size start
   // rejecting writes
+  //
+  // If 0, no limit
   uint64 buffer_size_hard = 5;
 
   // 7 once was `drop_non_persisted`
@@ -69,21 +73,30 @@ message LifecycleRules {
   // Defaults to 1 day.
   google.protobuf.Duration catalog_transaction_prune_age = 19;
 
-  /// Once a partition hasn't received a write for this period of time,
-  /// it will be compacted and, if set, persisted. Writers will generally
-  /// have this amount of time to send late arriving writes or this could
-  /// be their clock skew.
+  // Once a partition hasn't received a write for this period of time,
+  // it will be compacted and, if set, persisted. Writers will generally
+  // have this amount of time to send late arriving writes or this could
+  // be their clock skew.
+  //
+  // If 0, a server-side default is used
   uint32 late_arrive_window_seconds = 12;
 
   // Maximum number of rows before triggering persistence
+  //
+  // If 0, a server-side default is used
   uint64 persist_row_threshold = 13;
 
   // Maximum age of a write before triggering persistence
+  //
+  // If 0, a server-side default is used
   uint32 persist_age_threshold_seconds = 14;
 
   // Maximum number of rows to buffer in a MUB chunk before compacting it
+  //
+  // If 0, a server-side default is used
   uint64 mub_row_threshold = 15;
 
+  // If not specified a server-side default is used
   oneof max_active_compactions_cfg {
     // The maximum number of concurrent active compactions that can run.
     uint32 max_active_compactions = 16;
@@ -100,14 +113,21 @@ message LifecycleRules {
 
 message DatabaseRules {
   // The unencoded name of the database
+  //
+  // Must be a non-empty string containing no control characters
   string name = 1;
 
   // Template that generates a partition key for each row inserted into the database
+  //
+  // If not specified, a server-side default is used
   PartitionTemplate partition_template = 2;
 
   // Configures how data flows through the system
+  //
+  // If not specified, a server-side default is used
   LifecycleRules lifecycle_rules = 3;
 
+  // If not specified, does not configure any routing
   oneof routing_rules {
     // Shard config
     ShardConfig shard_config = 8;
@@ -124,6 +144,8 @@ message DatabaseRules {
   reserved 11, 12;
 
   // Optionally, the connection for the write buffer for writing or reading/restoring data.
+  //
+  // If not specified, does not configure a write buffer
   WriteBufferConnection write_buffer_connection = 13;
 }
 
@@ -169,14 +191,16 @@ message WriteBufferConnection {
 message WriteBufferCreationConfig {
   // Number of sequencers.
   //
-  // Defaults to 1.
-  //
   // How they are implemented depends on `type`, e.g. for Kafka this is mapped to the number of partitions.
+  //
+  // If 0, a server-side default is used
   uint32 n_sequencers = 1;
 
   // Special configs to by applied when sequencers are created.
   //
   // This depends on `type` and can setup parameters like retention policy.
+  //
+  // Contains 0 or more key value pairs
   map<string, string> options = 2;
 }
 

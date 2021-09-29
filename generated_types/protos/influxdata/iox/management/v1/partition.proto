@@ -7,6 +7,6 @@ option go_package = "github.com/influxdata/iox/management/v1";
 // TODO: add additional information to this structure (e.g. partition
 // names, stats, etc)
 message Partition {
-  // The partitition key of this partition
+  // The partition key of this partition
   string key = 1;
 }
