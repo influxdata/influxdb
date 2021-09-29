@@ -14,6 +14,22 @@ ignore = [
     # why needed: used by `mockito`
     # upstream issue: https://github.com/lipanski/mockito/issues/132
     "RUSTSEC-2020-0095",
+
+    # title: BinaryArray does not perform bound checks on reading values and offsets
+    # why needed: part of `arrow`
+    # upstream issue: https://github.com/apache/arrow-rs/issues/772
+    "RUSTSEC-2021-0116",
+
+    # title: DecimalArray does not perform bound checks on accessing values and offsets
+    # why needed: part of `arrow`
+    # upstream issue: https://github.com/apache/arrow-rs/issues/775
+    "RUSTSEC-2021-0117",
+
+    # title: FixedSizeBinaryArray does not perform bound checks on accessing values and offsets
+    # why needed: part of `arrow`
+    # upstream issue: https://github.com/apache/arrow-rs/issues/774
+    "RUSTSEC-2021-0118",
+
 ]
 
 [output]
