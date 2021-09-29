@@ -20,6 +20,31 @@ use super::{DbScenario, DbSetup};
 
 #[derive(Debug)]
 /// Setup for delete query test with one table and one chunk moved from MUB to RUB to OS
+/// All data will be soft deleted in this setup
+pub struct OneDeleteSimpleExprOneChunkDeleteAll {}
+#[async_trait]
+impl DbSetup for OneDeleteSimpleExprOneChunkDeleteAll {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+        let table_name = "cpu";
+
+        // chunk data
+        let lp_lines = vec!["cpu bar=1 10", "cpu bar=2 20"];
+
+        // delete predicate
+        let pred = PredicateBuilder::new()
+            .table(table_name)
+            .timestamp_range(0, 25)
+            .build();
+
+        // this returns 15 scenarios
+        all_delete_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key)
+            .await
+    }
+}
+
+#[derive(Debug)]
+/// Setup for delete query test with one table and one chunk moved from MUB to RUB to OS
 pub struct OneDeleteSimpleExprOneChunk {}
 #[async_trait]
 impl DbSetup for OneDeleteSimpleExprOneChunk {
