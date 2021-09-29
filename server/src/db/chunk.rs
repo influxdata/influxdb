@@ -228,6 +228,11 @@ impl DbChunk {
         self.time_of_last_write
     }
 
+    /// NOTE: valid Read Buffer predicates are not guaranteed to be applicable
+    /// to an arbitrary Read Buffer chunk, because the applicability of a
+    /// predicate depends on the schema of the chunk. Callers should validate
+    /// predicates against chunks they are to be executed against using
+    /// `read_buffer::Chunk::validate_predicate`
     pub fn to_rub_negated_predicates(
         delete_predicates: &[Arc<Predicate>],
     ) -> Result<Vec<read_buffer::Predicate>> {
@@ -360,15 +365,21 @@ impl QueryChunk for DbChunk {
             }
             State::ReadBuffer { chunk, .. } => {
                 // Only apply pushdownable predicates
-                let rb_predicate =
-                    match to_read_buffer_predicate(predicate).context(PredicateConversion) {
-                        Ok(predicate) => predicate,
-                        Err(_) => read_buffer::Predicate::default(),
-                    };
+                let rb_predicate = chunk
+                    // A predicate unsupported by the Read Buffer or against
+                    // this chunk's schema is replaced with a default empty
+                    // predicate.
+                    .validate_predicate(to_read_buffer_predicate(predicate).unwrap_or_default())
+                    .unwrap_or_default();
                 debug!(?rb_predicate, "Predicate pushed down to RUB");
 
                 // combine all delete expressions to RUB's negated ones
-                let negated_delete_exprs = Self::to_rub_negated_predicates(delete_predicates)?;
+                let negated_delete_exprs = Self::to_rub_negated_predicates(delete_predicates)?
+                    .into_iter()
+                    // Any delete predicates unsupported by the Read Buffer will be elided.
+                    .filter_map(|p| chunk.validate_predicate(p).ok())
+                    .collect::<Vec<_>>();
+
                 debug!(
                     ?negated_delete_exprs,
                     "Negated Predicate pushed down to RUB"

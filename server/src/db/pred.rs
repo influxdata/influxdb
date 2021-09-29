@@ -16,6 +16,13 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Converts a [`predicate::predicate::Predicate`] into [`read_buffer::Predicate`],
 /// suitable for evaluating on the ReadBuffer.
+///
+/// NOTE: a valid Read Buffer predicate is not guaranteed to be applicable to an
+/// arbitrary Read Buffer chunk, because the applicability of a predicate
+/// depends on the schema of the chunk.
+///
+/// Callers should validate predicates against chunks they are to be executed
+/// against using `read_buffer::Chunk::validate_predicate`
 pub fn to_read_buffer_predicate(predicate: &Predicate) -> Result<read_buffer::Predicate> {
     // Try to convert non-time column expressions into binary expressions
     // that are compatible with the read buffer.
