@@ -779,6 +779,28 @@ async fn sql_predicate_pushdown_correctness_13() {
 }
 
 #[tokio::test]
+async fn sql_predicate_pushdown_correctness_14() {
+    // Test 14: on push-down expression with a literal type different from the
+    // column type.
+    //
+    // Check correctness
+    let expected = vec![
+        "+-------+--------+--------------------------------+---------+",
+        "| count | system | time                           | town    |",
+        "+-------+--------+--------------------------------+---------+",
+        "| 632   | 5      | 1970-01-01T00:00:00.000000120Z | reading |",
+        "| 632   | 6      | 1970-01-01T00:00:00.000000130Z | reading |",
+        "+-------+--------+--------------------------------+---------+",
+    ];
+    run_sql_test_case(
+        TwoMeasurementsPredicatePushDown {},
+        "SELECT * from restaurant where count > 500.76 and count < 640.0",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn sql_deduplicate_1() {
     // This current expected is wrong because deduplicate is not available yet
     let sql =
