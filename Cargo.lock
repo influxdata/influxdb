@@ -2487,6 +2487,7 @@ dependencies = [
  "futures-test",
  "indexmap",
  "itertools",
+ "observability_deps",
  "percent-encoding",
  "reqwest",
  "rusoto_core",

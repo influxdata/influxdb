@@ -210,16 +210,10 @@ impl Storage {
 
     /// Put the given vector of bytes to the specified location
     pub async fn to_object_store(&self, data: Vec<u8>, path: &ParquetFilePath) -> Result<()> {
-        let len = data.len();
         let data = Bytes::from(data);
-        let stream_data = Result::Ok(data);
 
         self.iox_object_store
-            .put_parquet_file(
-                path,
-                futures::stream::once(async move { stream_data }),
-                Some(len),
-            )
+            .put_parquet_file(path, data)
             .await
             .context(WritingToObjectStore)
     }

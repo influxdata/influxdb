@@ -1325,13 +1325,9 @@ mod tests {
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let data = Bytes::from("foo");
-        let len = data.len();
+
         iox_object_store
-            .put_catalog_transaction_file(
-                &path,
-                futures::stream::once(async move { Ok(data) }),
-                Some(len),
-            )
+            .put_catalog_transaction_file(&path, data)
             .await
             .unwrap();
 
@@ -2186,13 +2182,9 @@ mod tests {
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let data = Bytes::from("foo");
-        let len = data.len();
+
         iox_object_store
-            .put_catalog_transaction_file(
-                &path,
-                futures::stream::once(async move { Ok(data) }),
-                Some(len),
-            )
+            .put_catalog_transaction_file(&path, data)
             .await
             .unwrap();
 

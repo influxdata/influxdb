@@ -1,7 +1,6 @@
 //! This module contains the IOx implementation for using S3 as the object
 //! store.
 use crate::{
-    buffer::slurp_stream_tempfile,
     path::{cloud::CloudPath, DELIMITER},
     ListResult, ObjectMeta, ObjectStoreApi,
 };
@@ -10,17 +9,20 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{
     stream::{self, BoxStream},
-    Stream, StreamExt, TryStreamExt,
+    Future, StreamExt, TryStreamExt,
 };
+use observability_deps::tracing::{debug, warn};
 use rusoto_core::ByteStream;
 use rusoto_credential::{InstanceMetadataProvider, StaticProvider};
 use rusoto_s3::S3;
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::convert::TryFrom;
-use std::{fmt, io};
+use std::{convert::TryFrom, fmt, time::Duration};
 
 /// A specialized `Result` for object store-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// The maximum number of times a request will be retried in the case of an AWS server error
+pub const MAX_NUM_RETRIES: u32 = 3;
 
 /// A specialized `Error` for object store-related errors
 #[derive(Debug, Snafu)]
@@ -140,35 +142,38 @@ impl ObjectStoreApi for AmazonS3 {
         CloudPath::default()
     }
 
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: Option<usize>) -> Result<()>
-    where
-        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
-    {
-        let bytes = match length {
-            Some(length) => ByteStream::new_with_size(bytes, length),
-            None => {
-                let bytes = slurp_stream_tempfile(bytes)
-                    .await
-                    .context(UnableToBufferStream)?;
-                let length = bytes.size();
-                ByteStream::new_with_size(bytes, length)
+    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
+        let bucket_name = self.bucket_name.clone();
+        let key = location.to_raw();
+        let request_factory = move || {
+            let bytes = bytes.clone();
+
+            let length = bytes.len();
+            let stream_data = std::io::Result::Ok(bytes);
+            let stream = futures::stream::once(async move { stream_data });
+            let byte_stream = ByteStream::new_with_size(stream, length);
+
+            rusoto_s3::PutObjectRequest {
+                bucket: bucket_name.clone(),
+                key: key.clone(),
+                body: Some(byte_stream),
+                ..Default::default()
             }
         };
 
-        let put_request = rusoto_s3::PutObjectRequest {
-            bucket: self.bucket_name.clone(),
-            key: location.to_raw(),
-            body: Some(bytes),
-            ..Default::default()
-        };
+        let s3 = self.client.clone();
 
-        self.client
-            .put_object(put_request)
-            .await
-            .context(UnableToPutData {
-                bucket: &self.bucket_name,
-                location: location.to_raw(),
-            })?;
+        s3_request(move || {
+            let (s3, request_factory) = (s3.clone(), request_factory.clone());
+
+            async move { s3.put_object(request_factory()).await }
+        })
+        .await
+        .context(UnableToPutData {
+            bucket: &self.bucket_name,
+            location: location.to_raw(),
+        })?;
+
         Ok(())
     }
 
@@ -204,19 +209,27 @@ impl ObjectStoreApi for AmazonS3 {
 
     async fn delete(&self, location: &Self::Path) -> Result<()> {
         let key = location.to_raw();
-        let delete_request = rusoto_s3::DeleteObjectRequest {
-            bucket: self.bucket_name.clone(),
+        let bucket_name = self.bucket_name.clone();
+
+        let request_factory = move || rusoto_s3::DeleteObjectRequest {
+            bucket: bucket_name.clone(),
             key: key.clone(),
             ..Default::default()
         };
 
-        self.client
-            .delete_object(delete_request)
-            .await
-            .context(UnableToDeleteData {
-                bucket: self.bucket_name.to_owned(),
-                location: key,
-            })?;
+        let s3 = self.client.clone();
+
+        s3_request(move || {
+            let (s3, request_factory) = (s3.clone(), request_factory.clone());
+
+            async move { s3.delete_object(request_factory()).await }
+        })
+        .await
+        .context(UnableToDeleteData {
+            bucket: &self.bucket_name,
+            location: location.to_raw(),
+        })?;
+
         Ok(())
     }
 
@@ -224,68 +237,78 @@ impl ObjectStoreApi for AmazonS3 {
         &'a self,
         prefix: Option<&'a Self::Path>,
     ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
-        #[derive(Clone)]
-        enum ListState {
-            Start,
-            HasMore(String),
-            Done,
-        }
-        use ListState::*;
+        Ok(self
+            .list_objects_v2(prefix, None)
+            .await?
+            .map_ok(|list_objects_v2_result| {
+                let contents = list_objects_v2_result.contents.unwrap_or_default();
 
-        Ok(stream::unfold(ListState::Start, move |state| async move {
-            let mut list_request = rusoto_s3::ListObjectsV2Request {
-                bucket: self.bucket_name.clone(),
-                prefix: prefix.map(|p| p.to_raw()),
-                ..Default::default()
-            };
+                let names = contents
+                    .into_iter()
+                    .flat_map(|object| object.key.map(CloudPath::raw))
+                    .collect();
 
-            match state.clone() {
-                HasMore(continuation_token) => {
-                    list_request.continuation_token = Some(continuation_token);
-                }
-                Done => {
-                    return None;
-                }
-                // If this is the first request we've made, we don't need to make any modifications
-                // to the request
-                Start => {}
-            }
-
-            let resp = self
-                .client
-                .list_objects_v2(list_request)
-                .await
-                .context(UnableToListData {
-                    bucket: &self.bucket_name,
-                });
-            let resp = match resp {
-                Ok(resp) => resp,
-                Err(e) => return Some((Err(e), state)),
-            };
-
-            let contents = resp.contents.unwrap_or_default();
-            let names = contents
-                .into_iter()
-                .flat_map(|object| object.key.map(CloudPath::raw))
-                .collect();
-
-            // The AWS response contains a field named `is_truncated` as well as
-            // `next_continuation_token`, and we're assuming that `next_continuation_token`
-            // is only set when `is_truncated` is true (and therefore not
-            // checking `is_truncated`).
-            let next_state = if let Some(next_continuation_token) = resp.next_continuation_token {
-                ListState::HasMore(next_continuation_token)
-            } else {
-                ListState::Done
-            };
-
-            Some((Ok(names), next_state))
-        })
-        .boxed())
+                names
+            })
+            .boxed())
     }
 
     async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
-        self.list_with_delimiter_and_token(prefix, &None).await
+        Ok(self
+            .list_objects_v2(Some(prefix), Some(DELIMITER.to_string()))
+            .await?
+            .try_fold(
+                ListResult {
+                    next_token: None,
+                    common_prefixes: vec![],
+                    objects: vec![],
+                },
+                |acc, list_objects_v2_result| async move {
+                    let mut res = acc;
+                    let contents = list_objects_v2_result.contents.unwrap_or_default();
+                    let mut objects = contents
+                        .into_iter()
+                        .map(|object| {
+                            let location = CloudPath::raw(
+                                object.key.expect("object doesn't exist without a key"),
+                            );
+                            let last_modified = match object.last_modified {
+                                Some(lm) => DateTime::parse_from_rfc3339(&lm)
+                                    .context(UnableToParseLastModified {
+                                        bucket: &self.bucket_name,
+                                    })?
+                                    .with_timezone(&Utc),
+                                None => Utc::now(),
+                            };
+                            let size = usize::try_from(object.size.unwrap_or(0))
+                                .expect("unsupported size on this platform");
+
+                            Ok(ObjectMeta {
+                                location,
+                                last_modified,
+                                size,
+                            })
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+
+                    res.objects.append(&mut objects);
+
+                    res.common_prefixes.extend(
+                        list_objects_v2_result
+                            .common_prefixes
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|p| {
+                                CloudPath::raw(
+                                    p.prefix.expect("can't have a prefix without a value"),
+                                )
+                            }),
+                    );
+
+                    Ok(res)
+                },
+            )
+            .await?)
     }
 }
 
@@ -355,75 +378,142 @@ pub(crate) fn new_failing_s3() -> Result<AmazonS3> {
 }
 
 impl AmazonS3 {
-    /// List objects with the given prefix and a set delimiter of `/`. Returns
-    /// common prefixes (directories) in addition to object metadata. Optionally
-    /// takes a continuation token for paging.
-    pub async fn list_with_delimiter_and_token<'a>(
-        &'a self,
-        prefix: &'a CloudPath,
-        next_token: &Option<String>,
-    ) -> Result<ListResult<CloudPath>> {
-        let converted_prefix = prefix.to_raw();
+    async fn list_objects_v2(
+        &self,
+        prefix: Option<&CloudPath>,
+        delimiter: Option<String>,
+    ) -> Result<BoxStream<'_, Result<rusoto_s3::ListObjectsV2Output>>> {
+        #[derive(Clone)]
+        enum ListState {
+            Start,
+            HasMore(String),
+            Done,
+        }
+        use ListState::*;
 
-        let mut list_request = rusoto_s3::ListObjectsV2Request {
-            bucket: self.bucket_name.clone(),
-            prefix: Some(converted_prefix),
-            delimiter: Some(DELIMITER.to_string()),
+        let raw_prefix = prefix.map(|p| p.to_raw());
+        let bucket = self.bucket_name.clone();
+
+        let request_factory = move || rusoto_s3::ListObjectsV2Request {
+            bucket,
+            prefix: raw_prefix.clone(),
+            delimiter: delimiter.clone(),
             ..Default::default()
         };
 
-        if let Some(t) = next_token {
-            list_request.continuation_token = Some(t.clone());
-        }
+        Ok(stream::unfold(ListState::Start, move |state| {
+            let request_factory = request_factory.clone();
+            let s3 = self.client.clone();
 
-        let resp = self
-            .client
-            .list_objects_v2(list_request)
-            .await
-            .context(UnableToListData {
-                bucket: &self.bucket_name,
-            })?;
-
-        let contents = resp.contents.unwrap_or_default();
-
-        let objects = contents
-            .into_iter()
-            .map(|object| {
-                let location =
-                    CloudPath::raw(object.key.expect("object doesn't exist without a key"));
-                let last_modified = match object.last_modified {
-                    Some(lm) => DateTime::parse_from_rfc3339(&lm)
-                        .context(UnableToParseLastModified {
-                            bucket: &self.bucket_name,
-                        })?
-                        .with_timezone(&Utc),
-                    None => Utc::now(),
+            async move {
+                let continuation_token = match state.clone() {
+                    HasMore(continuation_token) => Some(continuation_token),
+                    Done => {
+                        return None;
+                    }
+                    // If this is the first request we've made, we don't need to make any
+                    // modifications to the request
+                    Start => None,
                 };
-                let size = usize::try_from(object.size.unwrap_or(0))
-                    .expect("unsupported size on this platform");
 
-                Ok(ObjectMeta {
-                    location,
-                    last_modified,
-                    size,
+                let resp = s3_request(move || {
+                    let (s3, request_factory, continuation_token) = (
+                        s3.clone(),
+                        request_factory.clone(),
+                        continuation_token.clone(),
+                    );
+
+                    async move {
+                        s3.list_objects_v2(rusoto_s3::ListObjectsV2Request {
+                            continuation_token,
+                            ..request_factory()
+                        })
+                        .await
+                    }
                 })
-            })
-            .collect::<Result<Vec<_>>>()?;
+                .await;
 
-        let common_prefixes = resp
-            .common_prefixes
-            .unwrap_or_default()
-            .into_iter()
-            .map(|p| CloudPath::raw(p.prefix.expect("can't have a prefix without a value")))
-            .collect();
+                let resp = match resp {
+                    Ok(resp) => resp,
+                    Err(e) => return Some((Err(e), state)),
+                };
 
-        let result = ListResult {
-            objects,
-            common_prefixes,
-            next_token: resp.next_continuation_token,
-        };
+                // The AWS response contains a field named `is_truncated` as well as
+                // `next_continuation_token`, and we're assuming that `next_continuation_token`
+                // is only set when `is_truncated` is true (and therefore not
+                // checking `is_truncated`).
+                let next_state =
+                    if let Some(next_continuation_token) = &resp.next_continuation_token {
+                        ListState::HasMore(next_continuation_token.to_string())
+                    } else {
+                        ListState::Done
+                    };
 
-        Ok(result)
+                Some((Ok(resp), next_state))
+            }
+        })
+        .map_err(move |e| Error::UnableToListData {
+            source: e,
+            bucket: self.bucket_name.clone(),
+        })
+        .boxed())
+    }
+}
+
+/// Handles retrying a request to S3 up to `MAX_NUM_RETRIES` times if S3 returns 5xx server errors.
+///
+/// The `future_factory` argument is a function `F` that takes no arguments and, when called, will
+/// return a `Future` (type `G`) that, when `await`ed, will perform a request to S3 through
+/// `rusoto` and return a `Result` that returns some type `R` on success and some
+/// `rusoto_core::RusotoError<E>` on error.
+///
+/// If the executed `Future` returns success, this function will return that success.
+/// If the executed `Future` returns a 5xx server error, this function will wait an amount of
+/// time that increases exponentially with the number of times it has retried, get a new `Future` by
+/// calling `future_factory` again, and retry the request by `await`ing the `Future` again.
+/// The retries will continue until the maximum number of retries has been attempted. In that case,
+/// this function will return the last encountered error.
+///
+/// Client errors (4xx) will never be retried by this function.
+async fn s3_request<E, F, G, R>(future_factory: F) -> Result<R, rusoto_core::RusotoError<E>>
+where
+    E: std::error::Error,
+    F: Fn() -> G,
+    G: Future<Output = Result<R, rusoto_core::RusotoError<E>>> + Send,
+{
+    let mut attempts = 0;
+
+    loop {
+        let request = future_factory();
+
+        let result = request.await;
+
+        match result {
+            Ok(r) => return Ok(r),
+            Err(error) => {
+                attempts += 1;
+
+                let should_retry = matches!(
+                    error,
+                    rusoto_core::RusotoError::Unknown(ref response)
+                        if response.status.is_server_error()
+                );
+
+                if attempts > MAX_NUM_RETRIES {
+                    warn!(
+                        ?error,
+                        attempts, "maximum number of retries exceeded for AWS S3 request"
+                    );
+                    return Err(error);
+                } else if !should_retry {
+                    return Err(error);
+                } else {
+                    debug!(?error, attempts, "retrying AWS S3 request");
+                    let wait_time = Duration::from_millis(2u64.pow(attempts) * 50);
+                    tokio::time::sleep(wait_time).await;
+                }
+            }
+        }
     }
 }
 
@@ -694,16 +784,8 @@ mod tests {
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
         let data = Bytes::from("arbitrary data");
-        let stream_data = std::io::Result::Ok(data.clone());
 
-        let err = integration
-            .put(
-                &location,
-                futures::stream::once(async move { stream_data }),
-                Some(data.len()),
-            )
-            .await
-            .unwrap_err();
+        let err = integration.put(&location, data).await.unwrap_err();
 
         if let ObjectStoreError::AwsObjectStoreError {
             source:
@@ -740,16 +822,8 @@ mod tests {
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
         let data = Bytes::from("arbitrary data");
-        let stream_data = std::io::Result::Ok(data.clone());
 
-        let err = integration
-            .put(
-                &location,
-                futures::stream::once(async move { stream_data }),
-                Some(data.len()),
-            )
-            .await
-            .unwrap_err();
+        let err = integration.put(&location, data).await.unwrap_err();
 
         if let ObjectStoreError::AwsObjectStoreError {
             source:

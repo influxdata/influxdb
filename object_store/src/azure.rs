@@ -14,11 +14,10 @@ use azure_storage::{
 use bytes::Bytes;
 use futures::{
     stream::{self, BoxStream},
-    FutureExt, Stream, StreamExt, TryStreamExt,
+    FutureExt, StreamExt,
 };
-use snafu::{ensure, ResultExt, Snafu};
-use std::sync::Arc;
-use std::{convert::TryInto, io};
+use snafu::{ResultExt, Snafu};
+use std::{convert::TryInto, sync::Arc};
 
 /// A specialized `Result` for Azure object store-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -27,9 +26,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[snafu(display("Expected streamed data to have length {}, got {}", expected, actual))]
-    DataDoesNotMatchLength { expected: usize, actual: usize },
-
     #[snafu(display("Unable to DELETE data. Location: {}, Error: {}", location, source,))]
     UnableToDeleteData {
         source: Box<dyn std::error::Error + Send + Sync>,
@@ -70,30 +66,14 @@ impl ObjectStoreApi for MicrosoftAzure {
         CloudPath::default()
     }
 
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: Option<usize>) -> Result<()>
-    where
-        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
-    {
+    async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
         let location = location.to_raw();
-        let temporary_non_streaming = bytes
-            .map_ok(|b| bytes::BytesMut::from(&b[..]))
-            .try_concat()
-            .await
-            .expect("Should have been able to collect streaming data");
 
-        if let Some(length) = length {
-            ensure!(
-                temporary_non_streaming.len() == length,
-                DataDoesNotMatchLength {
-                    actual: temporary_non_streaming.len(),
-                    expected: length,
-                }
-            );
-        }
+        let bytes = bytes::BytesMut::from(&*bytes);
 
         self.container_client
             .as_blob_client(&location)
-            .put_block_blob(temporary_non_streaming)
+            .put_block_blob(bytes)
             .execute()
             .await
             .context(UnableToPutData {
