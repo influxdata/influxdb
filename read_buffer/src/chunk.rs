@@ -210,6 +210,13 @@ impl Chunk {
     // ---- Schema queries
     //
 
+    /// Validates if the predicate can be applied to the table based on the
+    /// schema and the predicate's expressions. Returns an error if the
+    /// predicate cannot be applied.
+    pub fn validate_predicate(&self, predicate: Predicate) -> Result<Predicate, Error> {
+        self.table.validate_predicate(predicate).context(TableError)
+    }
+
     /// Determines if one of more rows in the provided table could possibly
     /// match the provided predicate.
     ///

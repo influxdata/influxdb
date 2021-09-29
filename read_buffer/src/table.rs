@@ -234,6 +234,14 @@ impl Table {
         Arc::clone(&self.table_data.read().meta)
     }
 
+    /// Validates if the predicate can be applied to the table based on the
+    /// schema and the predicate's expressions. Returns an error if the
+    /// predicate cannot be applied.
+    pub fn validate_predicate(&self, predicate: Predicate) -> Result<Predicate, Error> {
+        let table_data = self.table_data.read();
+        Ok(table_data.meta.validate_exprs(predicate)?.into())
+    }
+
     /// Determines if one of more row groups in the `Table` could possibly
     /// contain one or more rows that satisfy the provided predicate.
     pub fn could_pass_predicate(&self, predicate: &Predicate) -> bool {
