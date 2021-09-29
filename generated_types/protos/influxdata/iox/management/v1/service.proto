@@ -3,11 +3,9 @@ package influxdata.iox.management.v1;
 option go_package = "github.com/influxdata/iox/management/v1";
 
 import "google/longrunning/operations.proto";
-import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
 import "influxdata/iox/management/v1/database_rules.proto";
 import "influxdata/iox/management/v1/chunk.proto";
-import "influxdata/iox/management/v1/parse_delete.proto";
 import "influxdata/iox/management/v1/partition.proto";
 
 service ManagementService {
