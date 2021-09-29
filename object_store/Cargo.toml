@@ -18,6 +18,7 @@ futures = "0.3"
 # https://github.com/tkaitchuck/aHash/issues/95
 indexmap = { version = "~1.6.2", optional = true }
 itertools = "0.10.1"
+observability_deps = { path = "../observability_deps" }
 percent-encoding = "2.1"
 # rusoto crates are for Amazon S3 integration
 rusoto_core = { version = "0.47.0", optional = true}

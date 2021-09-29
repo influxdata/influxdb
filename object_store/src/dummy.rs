@@ -1,6 +1,7 @@
 //! Crate that mimics the interface of the the various object stores
 //! but does nothing if they are not enabled.
 use async_trait::async_trait;
+use bytes::Bytes;
 use snafu::Snafu;
 
 use crate::{path::cloud::CloudPath, ObjectStoreApi};
@@ -42,15 +43,7 @@ impl ObjectStoreApi for DummyObjectStore {
         CloudPath::default()
     }
 
-    async fn put<S>(
-        &self,
-        _location: &Self::Path,
-        _bytes: S,
-        _length: Option<usize>,
-    ) -> crate::Result<(), Self::Error>
-    where
-        S: futures::Stream<Item = std::io::Result<bytes::Bytes>> + Send + Sync + 'static,
-    {
+    async fn put(&self, _location: &Self::Path, _bytes: Bytes) -> crate::Result<(), Self::Error> {
         NotSupported { name: &self.name }.fail()
     }
 

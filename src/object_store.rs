@@ -218,7 +218,6 @@ impl TryFrom<&ObjectStoreConfig> for ObjectStore {
 
                     // for upload/download: assume 1GByte/s
                     wait_get_per_byte: Duration::from_secs(1) / 1_000_000_000,
-                    wait_put_per_byte: Duration::from_secs(1) / 1_000_000_000,
                 };
 
                 Ok(Self::new_in_memory_throttled(config))

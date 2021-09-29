@@ -19,7 +19,7 @@ use datafusion::{
     },
 };
 use internal_types::schema::{merge::SchemaMerger, sort::SortKey, Schema};
-use observability_deps::tracing::{debug, info, trace};
+use observability_deps::tracing::{debug, trace};
 use predicate::predicate::{Predicate, PredicateBuilder};
 
 use crate::{
@@ -823,14 +823,14 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             } else {
                 // The chunk is sorted but not on different order with super sort key.
                 // Log it for investigating data set to improve performance further
-                info!(chunk_type=?chunk.chunk_type(),
+                debug!(chunk_type=?chunk.chunk_type(),
                     chunk_ID=?chunk.id(),
                     chunk_current_sort_order=?chunk_sort_key,
                     chunk_super_sort_key=?output_sort_key,
                     "Chunk will get resorted in build_sort_plan due to new cardinality rate between key columns");
             }
         } else {
-            info!(chunk_type=?chunk.chunk_type(),
+            debug!(chunk_type=?chunk.chunk_type(),
                 chunk_ID=?chunk.id(),
                 "Chunk is not yet sorted and will get sorted in build_sort_plan");
         }
@@ -844,7 +844,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         // Now get the key subset of the super key that includes the chunk's pk columns
         let chunk_sort_key = output_sort_key.selected_sort_key(key_columns.clone());
 
-        info!(chunk_type=?chunk.chunk_type(),
+        debug!(chunk_type=?chunk.chunk_type(),
             chunk_ID=?chunk.id(),
             pk_columns=?key_columns,
             sort_key=?chunk_sort_key,

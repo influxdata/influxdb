@@ -4087,15 +4087,8 @@ mod tests {
     }
 
     async fn create_empty_file(iox_object_store: &IoxObjectStore, path: &ParquetFilePath) {
-        let data = Bytes::default();
-        let len = data.len();
-
         iox_object_store
-            .put_parquet_file(
-                path,
-                futures::stream::once(async move { Ok(data) }),
-                Some(len),
-            )
+            .put_parquet_file(path, Bytes::new())
             .await
             .unwrap();
     }
