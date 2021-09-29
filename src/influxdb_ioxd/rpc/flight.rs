@@ -198,7 +198,6 @@ where
         let mut flights = vec![schema_flight_data];
 
         for batch in results {
-            warn!("batch {}", batch.num_rows());
             let batch = optimize_record_batch(&batch, Arc::clone(&schema))?;
 
             let (flight_dictionaries, flight_batch) =
