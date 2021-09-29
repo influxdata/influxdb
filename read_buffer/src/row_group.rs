@@ -1355,6 +1355,21 @@ impl Predicate {
     }
 }
 
+impl From<Vec<BinaryExpr>> for Predicate {
+    fn from(arr: Vec<BinaryExpr>) -> Self {
+        Self(arr)
+    }
+}
+
+impl IntoIterator for Predicate {
+    type Item = BinaryExpr;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 /// Supported literal values for expressions. These map to a sub-set of logical
 /// datatypes supported by the `ReadBuffer`.
 #[derive(Clone, Debug, PartialEq)]

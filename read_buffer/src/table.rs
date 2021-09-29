@@ -25,7 +25,7 @@ pub enum Error {
     #[snafu(display("table does not have InfluxDB timestamp column"))]
     NoTimestampColumn {},
 
-    #[snafu(display("unsupported column operation on {}: {}", column_name, msg))]
+    #[snafu(display("unsupported column operation on column \"{}\": {}", column_name, msg))]
     UnsupportedColumnOperation { msg: String, column_name: String },
 }
 
@@ -239,39 +239,36 @@ impl Table {
     pub fn could_pass_predicate(&self, predicate: &Predicate) -> bool {
         let table_data = self.table_data.read();
 
-        if table_data.meta.validate_exprs(predicate.iter()).is_err() {
-            return false;
-        }
+        let predicate = match table_data.meta.validate_exprs(predicate.clone()) {
+            Ok(exprs) => Predicate::new(exprs),
+            Err(_) => return false,
+        };
 
         table_data.data.iter().any(|row_group| {
             row_group.could_satisfy_conjunctive_binary_expressions(predicate.iter())
         })
     }
 
-    // Identify set of row groups that might satisfy the predicate.
-    //
-    // Produce a set of these row groups along with a snapshot of the table meta
-    // data associated with them. Returns an error if the provided predicate
-    // cannot be applied to the row groups with respect to the schema.
-    //
-    // N.B the table read lock is only held as long as it takes to determine
-    // with meta data whether each row group may satisfy the predicate.
-    fn filter_row_groups(&self, predicate: &Predicate) -> (Arc<MetaData>, Vec<Arc<RowGroup>>) {
-        let table_data = self.table_data.read();
+    // Filters out table row groups that we can prove do not contain at least
+    // one row satisfying the predicate.
+    fn filter_row_groups(
+        &self,
+        predicate: &Predicate,
+        row_groups: Vec<Arc<RowGroup>>,
+    ) -> Vec<Arc<RowGroup>> {
+        let mut filtered_row_groups = Vec::with_capacity(row_groups.len());
 
-        let mut row_groups = Vec::with_capacity(table_data.data.len());
-
-        'rowgroup: for rg in table_data.data.iter() {
+        'rowgroup: for rg in row_groups.iter() {
             // check all expressions in predicate
             if !rg.could_satisfy_conjunctive_binary_expressions(predicate.iter()) {
                 continue 'rowgroup;
             }
 
             // row group could potentially satisfy predicate
-            row_groups.push(Arc::clone(rg));
+            filtered_row_groups.push(Arc::clone(rg));
         }
 
-        (Arc::clone(&table_data.meta), row_groups)
+        filtered_row_groups
     }
 
     /// Select data for the specified column selections with the provided
@@ -289,13 +286,19 @@ impl Table {
         predicate: &Predicate,
         negated_predicates: &[Predicate],
     ) -> Result<ReadFilterResults> {
-        // identify row groups where time range and predicates match could match
-        // the predicate. Get a snapshot of those and the meta-data. Finally,
-        // validate that the predicate can be applied to the row groups.
-        let (meta, row_groups) = self.filter_row_groups(predicate);
-        meta.validate_exprs(predicate.iter())?;
+        let (meta, row_groups) = {
+            let table_data = self.table_data.read();
+            (Arc::clone(&table_data.meta), table_data.data.clone())
+        };
+
+        // Determine if predicate can be applied to table.
+        let predicate: Predicate = meta.validate_exprs(predicate.clone())?.into();
+
+        // Determine if the negated predicates (deletes) can be applied to the
+        // table.
+        let mut n_predicates: Vec<Predicate> = vec![];
         for pred in negated_predicates {
-            meta.validate_exprs(pred.iter())?;
+            n_predicates.push(meta.validate_exprs(pred.clone())?.into());
         }
 
         let schema = ResultSchema {
@@ -306,10 +309,12 @@ impl Table {
             ..ResultSchema::default()
         };
 
-        // TODO(edd): I think I can remove `predicates` from the results
+        // filtered set of row groups to process
+        let row_groups = self.filter_row_groups(&predicate, row_groups);
+
         Ok(ReadFilterResults {
-            predicate: predicate.clone(),
-            negated_predicates: negated_predicates.to_vec(),
+            predicate,
+            negated_predicates: n_predicates,
             schema,
             row_groups,
         })
@@ -330,8 +335,16 @@ impl Table {
         group_columns: &'input Selection<'_>,
         aggregates: &'input [(ColumnName<'input>, AggregateType)],
     ) -> Result<ReadAggregateResults> {
-        let (meta, row_groups) = self.filter_row_groups(&predicate);
-        meta.validate_exprs(predicate.iter())?;
+        //
+        // TODO(edd): add delete support if/when aggregates can be pushed down.
+        //
+        let (meta, row_groups) = {
+            let table_data = self.table_data.read();
+            (Arc::clone(&table_data.meta), table_data.data.clone())
+        };
+
+        // Determine if predicate can be applied to table.
+        let predicate: Predicate = meta.validate_exprs(predicate)?.into();
 
         // Filter out any column names that we do not have data for.
         let schema = ResultSchema {
@@ -353,6 +366,9 @@ impl Table {
                 },
             )
         }
+
+        // Filtered set of row groups
+        let row_groups = self.filter_row_groups(&predicate, row_groups);
 
         // return the iterator to build the results.
         Ok(ReadAggregateResults {
@@ -457,31 +473,27 @@ impl Table {
         columns: Selection<'_>,
         mut dst: BTreeSet<String>,
     ) -> Result<BTreeSet<String>> {
-        let table_data = self.table_data.read();
+        // TODO(edd): add delete support
+        let (meta, row_groups) = {
+            let table_data = self.table_data.read();
+            (Arc::clone(&table_data.meta), table_data.data.clone())
+        };
 
         // Short circuit execution if we have already got all of this table's
         // columns in the results.
-        if table_data
-            .meta
-            .columns
-            .keys()
-            .all(|name| dst.contains(name))
-        {
+        if meta.columns.keys().all(|name| dst.contains(name)) {
             return Ok(dst);
         }
 
-        // Identify row groups where time range and predicates match could match
-        // the predicate. Get a snapshot of those, and the table meta-data.
-        //
-        // NOTE(edd): this takes another read lock on `self`. I think this is
-        // ok, but if it turns out it's not then we can move the
-        // `filter_row_groups` logic into here and not take the second read
-        // lock.
-        let (meta, row_groups) = self.filter_row_groups(predicate);
-        meta.validate_exprs(predicate.iter())?;
+        // Determine if predicate can be applied.
+        let predicate: Predicate = meta.validate_exprs(predicate.clone())?.into();
 
+        // Filter set of row groups to process using predicate.
+        let row_groups = self.filter_row_groups(&predicate, row_groups);
+
+        // Execute against each row group
         for row_group in row_groups {
-            row_group.column_names(predicate, columns, &mut dst);
+            row_group.column_names(&predicate, columns, &mut dst);
         }
 
         Ok(dst)
@@ -498,8 +510,11 @@ impl Table {
         columns: &[ColumnName<'_>],
         mut dst: BTreeMap<String, BTreeSet<String>>,
     ) -> Result<BTreeMap<String, BTreeSet<String>>> {
-        let (meta, row_groups) = self.filter_row_groups(predicate);
-        meta.validate_exprs(predicate.iter())?;
+        // TODO(edd): add delete support
+        let (meta, row_groups) = {
+            let table_data = self.table_data.read();
+            (Arc::clone(&table_data.meta), table_data.data.clone())
+        };
 
         // Validate that only supported columns present in `columns`.
         for (name, (ct, _)) in columns.iter().zip(meta.schema_for_column_names(columns)) {
@@ -512,8 +527,15 @@ impl Table {
             )
         }
 
+        // Determine if predicate can be applied.
+        let predicate: Predicate = meta.validate_exprs(predicate.clone())?.into();
+
+        // Filter set of row groups to process using predicate.
+        let row_groups = self.filter_row_groups(&predicate, row_groups);
+
+        // Execute against each row group
         for row_group in row_groups {
-            dst = row_group.column_values(predicate, columns, dst)
+            dst = row_group.column_values(&predicate, columns, dst)
         }
 
         Ok(dst)
@@ -525,12 +547,14 @@ impl Table {
         // Get a snapshot of the table data under a read lock.
         let (meta, row_groups) = {
             let table_data = self.table_data.read();
-            (Arc::clone(&table_data.meta), table_data.data.to_vec())
+            (Arc::clone(&table_data.meta), table_data.data.clone())
         };
 
-        if meta.validate_exprs(predicate.iter()).is_err() {
-            return false;
-        }
+        // Determine if predicate can be applied.
+        let predicate: Predicate = match meta.validate_exprs(predicate.clone()) {
+            Ok(exprs) => exprs.into(),
+            Err(_) => return false,
+        };
 
         // if the table doesn't have a column for one of the predicate's
         // expressions then the table cannot satisfy the predicate.
@@ -541,14 +565,11 @@ impl Table {
             return false;
         }
 
-        // Apply the predicate to all row groups. Each row group will do its own
-        // column pruning based on its column ranges.
-
         // The following could be expensive if row group data needs to be
         // processed but this operation is now lock-free.
         row_groups
             .iter()
-            .any(|row_group| row_group.satisfies_predicate(predicate))
+            .any(|row_group| row_group.satisfies_predicate(&predicate))
     }
 
     pub(crate) fn column_storage_statistics(&self) -> Vec<column::Statistics> {
@@ -704,31 +725,32 @@ impl MetaData {
         self.column_names.iter().map(|name| name.as_str()).collect()
     }
 
-    /// Determine, based on the table meta data, whether all of the provided
-    /// expressions can be applied, returning an error if any can't.
-    pub fn validate_exprs<'a>(&self, iter: impl IntoIterator<Item = &'a BinaryExpr>) -> Result<()> {
-        iter.into_iter()
-            .try_for_each(|expr| match self.columns.get(expr.column()) {
+    /// Determine, based on the table meta data, whether each provided expression
+    /// can be applied as is, or successfully rewritten to a form that can be
+    /// applied. If an expression cannot be applied then an error is returned.
+    pub fn validate_exprs(
+        &self,
+        iter: impl IntoIterator<Item = BinaryExpr>,
+    ) -> Result<Vec<BinaryExpr>, Error> {
+        iter.into_iter().try_fold(vec![], |mut arr, expr| {
+            match self.columns.get(expr.column()) {
                 Some(col_meta) => match (col_meta.logical_data_type, expr.literal()) {
                     (LogicalDataType::Integer, Literal::Integer(_))
-                    | (LogicalDataType::Integer, Literal::Unsigned(_))
-                    | (LogicalDataType::Integer, Literal::Float(_))
-                    | (LogicalDataType::Unsigned, Literal::Integer(_))
                     | (LogicalDataType::Unsigned, Literal::Unsigned(_))
-                    | (LogicalDataType::Unsigned, Literal::Float(_))
-                    | (LogicalDataType::Float, Literal::Integer(_))
-                    | (LogicalDataType::Float, Literal::Unsigned(_))
                     | (LogicalDataType::Float, Literal::Float(_))
                     | (LogicalDataType::String, Literal::String(_))
                     | (LogicalDataType::Binary, Literal::String(_))
-                    | (LogicalDataType::Boolean, Literal::Boolean(_)) => Ok(()),
+                    | (LogicalDataType::Boolean, Literal::Boolean(_)) => {
+                        arr.push(expr);
+                        Ok(arr)
+                    }
                     _ => {
                         return UnsupportedColumnOperation {
                             column_name: expr.column().to_owned(),
                             msg: format!(
                                 "cannot compare column type {} to expression literal {:?}",
                                 col_meta.logical_data_type,
-                                expr.literal()
+                                expr.literal(),
                             ),
                         }
                         .fail()
@@ -741,7 +763,8 @@ impl MetaData {
                     }
                     .fail()
                 }
-            })
+            }
+        })
     }
 
     pub fn to_summary(&self, table_name: impl Into<String>) -> TableSummary {
@@ -1196,7 +1219,7 @@ mod test {
         let table = Table::with_row_group("cpu", row_group);
 
         let predicate = Predicate::default();
-        assert!(table.meta().validate_exprs(predicate.iter()).is_ok());
+        assert!(table.meta().validate_exprs(predicate).is_ok());
 
         // valid predicates
         let predicates = vec![
@@ -1207,20 +1230,11 @@ mod test {
             BinaryExpr::from(("f64_col", "=", 100.0)),
             BinaryExpr::from(("str_col", "=", "hello")),
             BinaryExpr::from(("bool_col", "=", true)),
-            // compatible logical types
-            BinaryExpr::from(("time", "=", 100_u64)),
-            BinaryExpr::from(("time", "=", 100.0)),
-            BinaryExpr::from(("i64_col", "=", 100_u64)),
-            BinaryExpr::from(("i64_col", "=", 100.0)),
-            BinaryExpr::from(("u64_col", "=", 100_i64)),
-            BinaryExpr::from(("u64_col", "=", 100.0)),
-            BinaryExpr::from(("f64_col", "=", 100_i64)),
-            BinaryExpr::from(("f64_col", "=", 100_u64)),
         ];
 
-        for exprs in predicates {
-            let predicate = Predicate::new(vec![exprs]);
-            assert!(table.meta().validate_exprs(predicate.iter()).is_ok());
+        for expr in predicates {
+            let predicate = Predicate::new(vec![expr]);
+            assert!(table.meta().validate_exprs(predicate).is_ok());
         }
 
         // invalid predicates
@@ -1237,14 +1251,14 @@ mod test {
             vec![BinaryExpr::from(("bool_col", "=", "true"))],
             // mixture valid/invalid
             vec![
-                BinaryExpr::from(("time", "=", 100_u64)),
+                BinaryExpr::from(("time", "=", 100_i64)),
                 BinaryExpr::from(("i64_col", "=", "not good")),
             ],
         ];
 
         for exprs in predicates {
             let predicate = Predicate::new(exprs);
-            assert!(table.meta().validate_exprs(predicate.iter()).is_err());
+            assert!(table.meta().validate_exprs(predicate).is_err());
         }
     }
 
