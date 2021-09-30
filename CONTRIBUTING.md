@@ -118,6 +118,8 @@ can use all the features of that crate. For example, to disable the
 RUST_LOG=debug,hyper::proto::h1=info,h2=info cargo test --workspace
 ```
 
+See [logging.md](docs/logging.md) for more information on logging.
+
 ### End-to-End Tests
 
 There are end-to-end tests that spin up a server and make requests via the client library and API. They can be found in `tests/end_to_end_cases`
@@ -239,59 +241,6 @@ Instructions for updating the generated code are in [`docs/regenerating_flatbuff
 [`docs/regenerating_flatbuffers.md`]: docs/regenerating_flatbuffers.md
 
 
-## Running Jaeger / tracing locally
+## Distributed Tracing
 
-IOx fits into the distributed tracing ecosystem, as described in
-[tracing](docs/tracing.md). To use, develop, or debug the distributed
-tracing functionality locally you can do the following:
-
-### Step 1: Run Jaeger locally
-
-Follow instructions from https://www.jaegertracing.io/docs/1.26/getting-started/, which as of the time of this writing was:
-
-```shell
-docker run -d --name jaeger \
-  -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 \
-  -p 5775:5775/udp \
-  -p 6831:6831/udp \
-  -p 6832:6832/udp \
-  -p 5778:5778 \
-  -p 16686:16686 \
-  -p 14268:14268 \
-  -p 14250:14250 \
-  -p 9411:9411 \
-  jaegertracing/all-in-one:1.26
-```
-
-### Step 2: Run IOx configured to send traces to the local Jaeger instance
-
-Build IOx and run with the following environment variable set:
-```
-TRACES_EXPORTER=jaeger
-TRACES_EXPORTER_JAEGER_AGENT_HOST=localhost
-TRACES_EXPORTER_JAEGER_AGENT_PORT=6831
-```
-
-For example, a command such as this should do the trick:
-```shell
-TRACES_EXPORTER=jaeger TRACES_EXPORTER_JAEGER_AGENT_HOST=localhost TRACES_EXPORTER_JAEGER_AGENT_PORT=6831 cargo run -- run -v --server-id=42
-```
-
-### Step 3: Send a request with trace context
-
-For IOx to emit traces, the request must have a span context set. You can use the `--header` flag on the IOx CLI to do so. For example
-
-```shell
-# create db
-./target/debug/influxdb_iox database create my_db
-# load data
-./target/debug/influxdb_iox database write my_db tests/fixtures/lineproto/metrics.lp
-# run a query and start a new trace 
-./target/debug/influxdb_iox database query my_db  'show tables' --header jaeger-debug-id:tracing-is-a-great-idea
-```
-
-### Step 4: Explore Spans in the UI
-
-Navigate to the UI in your browser http://localhost:16686/search and then chose the "iox-conductor" service from the drop down.
-
-Enjoy!
+See [tracing.md](docs/tracing.md) for more information on the distributed tracing functionality within IOx

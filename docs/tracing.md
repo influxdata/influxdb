@@ -1,163 +1,107 @@
-# Tracing in IOx
+# Distributed Tracing in IOx
 
-IOx makes use of Rust's tracing ecosystem to output both application logs and
-tracing events to Jaeger for distributed request correlation.
+Not to be confused with the Rust [tracing](https://docs.rs/tracing) ecosystem, which we use for [logging](logging.md),
+distributed tracing refers to ability to capture information about where time is spent during a given transaction,
+potentially across service boundaries
 
-## The Components
+## Components
 
-The `tracing` framework aims to provide individual, pluggable crates that are
-composed together to build a feature set custom to the application's needs.
+### Trace (trace)
 
-### The `tracing` framework
+The `trace` crate contains the data model for distributed tracing and nothing else. It is an intentionally lightweight
+dependency, as it is needed by any code that wishes to produce trace spans.
 
-Rust has the excellent [`tracing` crate] to facilitate collection of application
-events with associated contextual information. 
+### Trace HTTP (trace_http)
 
-The most user visible components provided are the `debug!()`, `info!()`, etc
-function-like macros, and the `#[tracing::instrument]` attribute macro.
+The `trace_http` crate contains the logic to extract context information from HTTP requests, and use this to produce
+Spans. This takes the form of a tower [layer] called `TraceLayer` that attaches the `SpanContext` of this generated
+newly Span to the [Request] as an [extension]. This can then be accessed downstream and used to create new child spans.
 
-The `info!()` macro and friends emit an "event" - a point in time event tagged
-with relevant data.
+```rust
+async fn handle_request(req: Request<Body>) {
+    // Get SpanContext if this request is sampled
+    let maybe_span_ctx: Option<&SpanContext> = req.extensions().get();
 
-If you add the `instrument` macro to a function, the tracing framework records
-the function entry as a "span" that covers the duration of the call, and records
-the timestamp when it returns. Any events or sub-spans emitted further down the
-call stack inside this function's span are recorded as children of this span to
-track causality.
+    // Create a new span
+    let maybe_span = maybe_span_ctx.map(|x| x.child("foo"));
 
-The `tracing` crate focuses on providing a good API for emitting events & spans.
-Consumers of the tracing data are called `Subscribers` and they are implemented
-in other crates - there are subscribers that consume events and emit logs, some
-that use the function entry spans for timing/metric data, and more every day!
+    // Create a recorder that will record start and end times
+    let recorder = SpanRecorder::new(maybe_span);
+}
+```
 
-### OpenTelemetry
+[layer]: https://docs.rs/tower/0.4.8/tower/trait.Layer.html
 
-[OpenTelemetry] is a relatively new standard to encourage interoperability within
-the telemetry/tracing ecosystem. The `tracing-opentelemetry` crate subscribes to
-the data produced by the `tracing` crate.
+[Request]: https://docs.rs/http/0.2.5/http/request/struct.Request.html
 
-It's essentially an adaptor, consuming from `tracing` and converting them to
-OpenTelemetry compatible events.
+[extension]: https://docs.rs/http/0.2.5/http/request/struct.Request.html#method.extensions
 
-There are many [configuration options] supported at runtime.
+### Trace Exporters (trace_exporters)
 
-### Jaeger (`opentelemetry_jaeger`)
+The `trace_exporters` crate contains the logic to sink traces to upstream aggregators such as [Jaeger]. In the future,
+we may also add [OTLP] in order to allow using [OpenTelemetry Collector] to fanout to different aggregators
 
-[Jaeger] is a widely used telemetry collector with its own wire protocol,
-separate from OpenTelemetry. While they're working on adding support for the
-OpenTelemetry standard, it is not yet fully integrated (though I believe there
-are builds available.)
+[Jaeger]: https://www.jaegertracing.io
 
-The [`opentelemetry_jaeger` crate] sits at the end of the chain - the `tracing`
-events are converted to `tracing-opentelemetry` events, which dispatches them to
-this crate to be emitted to a listening Jaeger service.
+[OTLP]: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md
 
-## Using it
+[OpenTelemetry Collector]: https://github.com/open-telemetry/opentelemetry-collector
 
-### Running IOx
+## Running Jaeger / tracing locally
 
-First off, when running IOx you need to choose how much information you want.
-You do this by setting the `RUST_LOG="debug"` environment variable (or `info`,
-`error`, etc) or passing `-v` or `-vv` on the command line. The `RUST_LOG`
-environment variable provides [granular control] over what log verbosity is
-configured for individual internal components (tip: try `RUST_LOG="iox=debug"`!)
+To use, develop, or debug the distributed tracing functionality locally you can do the following:
 
-You can also choose to collect traces in Jaeger - this helps visualise
-request-scoped events and provides timing information, and is generally a pretty
-helpful tool when debugging. To enable Jaeger tracing output, set the following
-environment variables:
+### Step 1: Run Jaeger locally
+
+Follow instructions from https://www.jaegertracing.io/docs/1.26/getting-started/, which at the time of writing were:
 
 ```shell
-OTEL_SERVICE_NAME="iox" # Defaults to iox if not specified
-
-# No default, must be set
-OTEL_EXPORTER_JAEGER_AGENT_HOST="jaeger.influxdata.net"
-OTEL_EXPORTER_JAEGER_AGENT_PORT="6831"
+docker run -d --name jaeger \
+  -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 \
+  -p 5775:5775/udp \
+  -p 6831:6831/udp \
+  -p 6832:6832/udp \
+  -p 5778:5778 \
+  -p 16686:16686 \
+  -p 14268:14268 \
+  -p 14250:14250 \
+  -p 9411:9411 \
+  jaegertracing/all-in-one:1.26
 ```
 
-### Working on IOx
+### Step 2: Run IOx configured to send traces to the local Jaeger instance
 
-When you're writing code, you should liberally use `debug` level tracing, as
-well as `info` and above for information that is important to the user. This
-helps greatly when tracking down any problems or to simply understand where
-requests wind up in the codebase - this is particularly important when requests
-span multiple servers!
+Build IOx and run with the following environment variable set:
 
-Instrument your important functions at `info` - these provide a logical request
-call stack rather than a _function_ call stack, so you can construct meaningful
-traces without lots of noise.
-
-The `trace!()` level is useful to instrument areas of code for development or
-testing that should not wind up in the release binary - as such, the `trace`
-level is compiled at when building a "release" binary. As a guideline:
-
-* `trace!()` for debug builds and verbose messaging, used liberally as required.
-  Compiled out in release builds.
-* `debug!()` for events that would help tracking down bugs, but are not useful
-  to the user
-* `info!()` & above for info useful to the user
-
-Emit logs as you normally would, but [include contextual information] in them as
-**fields** rather than interpolated strings:
-
-```rust
-#[tracing::instrument]
-fn say_hello(name: &str) {
-	// This is good - fields come first!
-    info!(name, "hello there");
-
-	// This is alright, but less structured / useful
-    info!("hello there {}", name);
-}
+```
+TRACES_EXPORTER=jaeger
+TRACES_EXPORTER_JAEGER_AGENT_HOST=localhost
+TRACES_EXPORTER_JAEGER_AGENT_PORT=6831
 ```
 
-Instrumented functions wind up as distinct spans in the Jaeger trace, and all
-the events emitted within them are output to stdout as log lines (with the
-contextual information) as well as in the Jaeger span.
+For example, a command such as this should do the trick:
 
-Instrumented functions also record the call arguments automatically (though you
-can [control it]) with args printed using `Display` at `level=info` and above,
-or `Debug` being used for `level=debug`. For example:
-
-If your function returns a `Result<T, E>` and `E: Display` then you can record
-the error too:
-
-```rust
-#[tracing::instrument(err)]
-fn my_function(arg: usize) -> Result<(), std::io::Error> {
-    Ok(())
-}
+```shell
+TRACES_EXPORTER=jaeger TRACES_EXPORTER_JAEGER_AGENT_HOST=localhost TRACES_EXPORTER_JAEGER_AGENT_PORT=6831 cargo run -- run -v --server-id=42
 ```
 
-You can also instrument a function only at the "debug" level (`info` is the
-default):
+### Step 3: Send a request with trace context
 
-```rust
-#[tracing::instrument(level = "debug")]
-fn say_hello() {}
+For IOx to emit traces, the request must have a span context set. You can use the `--header` flag on the IOx CLI to do
+so. For example
+
+```shell
+# create db
+./target/debug/influxdb_iox database create my_db
+# load data
+./target/debug/influxdb_iox database write my_db tests/fixtures/lineproto/metrics.lp
+# run a query and start a new trace 
+./target/debug/influxdb_iox database query my_db  'show tables' --header jaeger-debug-id:tracing-is-a-great-idea
 ```
 
-## Good to Know
+### Step 4: Explore Spans in the UI
 
-* If you have an outer func that is instrumented with `level=debug`, and an
-  inner that is instrumented for `level=info`, the inner shows up when
-  `level=info` even if the outer does not (children are independent of their
-  parents).
+Navigate to the UI in your browser http://localhost:16686/search and then chose the "iox-conductor" service from the
+drop down.
 
-* You can control the log level of the Jaeger events with the OpenTelemetry
-  config envs, but ultimately the `RUST_LOG` env sets the log level filter - you
-  cannot configure telemetry to emit at a log level lower than `RUST_LOG`.
-
-* Be careful passing around sensitive arguments - instrumented functions will
-  record them! It's best to wrap them in some wrapper type that implements
-  neither `Display` nor `Debug` - then they can never be printed anywhere,
-  including in tracing!
-
-[configuration options]: https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/sdk-environment-variables.md#opentelemetry-environment-variable-specification
-[control it]: https://docs.rs/tracing/0.1.22/tracing/attr.instrument.html
-[granular control]: https://docs.rs/tracing-subscriber/0.2.15/tracing_subscriber/filter/struct.EnvFilter.html
-[`tracing` crate]: https://docs.rs/tracing/0.1.22/tracing/
-[OpenTelemetry]: https://opentelemetry.io/
-[Jaeger]: https://www.jaegertracing.io/
-[`opentelemetry_jaeger` crate]: https://docs.rs/opentelemetry/0.10.0/opentelemetry/
-[include contextual information]: https://docs.rs/tracing/0.1.22/tracing/#recording-fields
+Enjoy!

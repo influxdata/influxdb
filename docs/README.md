@@ -22,7 +22,8 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 ## Table of Contents:
 
 * Rust style and Idiom guide: [style_guide.md](style_guide.md)
-* Tracing and logging Guide: [tracing.md](tracing.md)
+* Distributed Tracing Guide: [tracing.md](tracing.md)
+* Logging Guide: [logging.md](logging.md)
 * Profiling Guide: [profiling.md](profiling.md)
 * How InfluxDB IOx manages the lifecycle of time series data: [data_management.md](data_management.md)
 * Thoughts on parquet encoding and compression for timeseries data: [encoding_thoughts.md](encoding_thoughts.md)
