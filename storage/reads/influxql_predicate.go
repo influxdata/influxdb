@@ -49,10 +49,10 @@ func (v *nodeToExprVisitor) Visit(n *datatypes.Node) NodeVisitor {
 	}
 
 	switch n.NodeType {
-	case datatypes.NodeTypeLogicalExpression:
+	case datatypes.Node_TypeLogicalExpression:
 		if len(n.Children) > 1 {
 			op := influxql.AND
-			if n.GetLogical() == datatypes.LogicalOr {
+			if n.GetLogical() == datatypes.Node_LogicalOr {
 				op = influxql.OR
 			}
 
@@ -76,7 +76,7 @@ func (v *nodeToExprVisitor) Visit(n *datatypes.Node) NodeVisitor {
 			return nil
 		}
 
-	case datatypes.NodeTypeParenExpression:
+	case datatypes.Node_TypeParenExpression:
 		if len(n.Children) != 1 {
 			v.err = errors.New("parenExpression expects one child")
 			return nil
@@ -93,7 +93,7 @@ func (v *nodeToExprVisitor) Visit(n *datatypes.Node) NodeVisitor {
 
 		return nil
 
-	case datatypes.NodeTypeComparisonExpression:
+	case datatypes.Node_TypeComparisonExpression:
 		WalkChildren(v, n)
 
 		if len(v.exprs) < 2 {
@@ -105,25 +105,25 @@ func (v *nodeToExprVisitor) Visit(n *datatypes.Node) NodeVisitor {
 
 		be := &influxql.BinaryExpr{LHS: lhs, RHS: rhs}
 		switch n.GetComparison() {
-		case datatypes.ComparisonEqual:
+		case datatypes.Node_ComparisonEqual:
 			be.Op = influxql.EQ
-		case datatypes.ComparisonNotEqual:
+		case datatypes.Node_ComparisonNotEqual:
 			be.Op = influxql.NEQ
-		case datatypes.ComparisonStartsWith:
+		case datatypes.Node_ComparisonStartsWith:
 			// TODO(sgc): rewrite to anchored RE, as index does not support startsWith yet
 			v.err = errors.New("startsWith not implemented")
 			return nil
-		case datatypes.ComparisonRegex:
+		case datatypes.Node_ComparisonRegex:
 			be.Op = influxql.EQREGEX
-		case datatypes.ComparisonNotRegex:
+		case datatypes.Node_ComparisonNotRegex:
 			be.Op = influxql.NEQREGEX
-		case datatypes.ComparisonLess:
+		case datatypes.Node_ComparisonLess:
 			be.Op = influxql.LT
-		case datatypes.ComparisonLessEqual:
+		case datatypes.Node_ComparisonLessEqual:
 			be.Op = influxql.LTE
-		case datatypes.ComparisonGreater:
+		case datatypes.Node_ComparisonGreater:
 			be.Op = influxql.GT
-		case datatypes.ComparisonGreaterEqual:
+		case datatypes.Node_ComparisonGreaterEqual:
 			be.Op = influxql.GTE
 		default:
 			v.err = errors.New("invalid comparison operator")
@@ -134,7 +134,7 @@ func (v *nodeToExprVisitor) Visit(n *datatypes.Node) NodeVisitor {
 
 		return nil
 
-	case datatypes.NodeTypeTagRef:
+	case datatypes.Node_TypeTagRef:
 		ref := n.GetTagRefValue()
 		if v.remap != nil {
 			if nk, ok := v.remap[ref]; ok {
@@ -145,11 +145,11 @@ func (v *nodeToExprVisitor) Visit(n *datatypes.Node) NodeVisitor {
 		v.exprs = append(v.exprs, &influxql.VarRef{Val: ref, Type: influxql.Tag})
 		return nil
 
-	case datatypes.NodeTypeFieldRef:
+	case datatypes.Node_TypeFieldRef:
 		v.exprs = append(v.exprs, &influxql.VarRef{Val: fieldRef})
 		return nil
 
-	case datatypes.NodeTypeLiteral:
+	case datatypes.Node_TypeLiteral:
 		switch val := n.Value.(type) {
 		case *datatypes.Node_StringValue:
 			v.exprs = append(v.exprs, &influxql.StringLiteral{Val: val.StringValue})

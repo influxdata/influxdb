@@ -43,10 +43,10 @@ type predicateExpressionPrinter struct {
 
 func (v *predicateExpressionPrinter) Visit(n *datatypes.Node) NodeVisitor {
 	switch n.NodeType {
-	case datatypes.NodeTypeLogicalExpression:
+	case datatypes.Node_TypeLogicalExpression:
 		if len(n.Children) > 0 {
 			var op string
-			if n.GetLogical() == datatypes.LogicalAnd {
+			if n.GetLogical() == datatypes.Node_LogicalAnd {
 				op = " AND "
 			} else {
 				op = " OR "
@@ -60,7 +60,7 @@ func (v *predicateExpressionPrinter) Visit(n *datatypes.Node) NodeVisitor {
 
 		return nil
 
-	case datatypes.NodeTypeParenExpression:
+	case datatypes.Node_TypeParenExpression:
 		if len(n.Children) == 1 {
 			v.Buffer.WriteString("( ")
 			WalkNode(v, n.Children[0])
@@ -69,27 +69,27 @@ func (v *predicateExpressionPrinter) Visit(n *datatypes.Node) NodeVisitor {
 
 		return nil
 
-	case datatypes.NodeTypeComparisonExpression:
+	case datatypes.Node_TypeComparisonExpression:
 		WalkNode(v, n.Children[0])
 		v.Buffer.WriteByte(' ')
 		switch n.GetComparison() {
-		case datatypes.ComparisonEqual:
+		case datatypes.Node_ComparisonEqual:
 			v.Buffer.WriteByte('=')
-		case datatypes.ComparisonNotEqual:
+		case datatypes.Node_ComparisonNotEqual:
 			v.Buffer.WriteString("!=")
-		case datatypes.ComparisonStartsWith:
+		case datatypes.Node_ComparisonStartsWith:
 			v.Buffer.WriteString("startsWith")
-		case datatypes.ComparisonRegex:
+		case datatypes.Node_ComparisonRegex:
 			v.Buffer.WriteString("=~")
-		case datatypes.ComparisonNotRegex:
+		case datatypes.Node_ComparisonNotRegex:
 			v.Buffer.WriteString("!~")
-		case datatypes.ComparisonLess:
+		case datatypes.Node_ComparisonLess:
 			v.Buffer.WriteByte('<')
-		case datatypes.ComparisonLessEqual:
+		case datatypes.Node_ComparisonLessEqual:
 			v.Buffer.WriteString("<=")
-		case datatypes.ComparisonGreater:
+		case datatypes.Node_ComparisonGreater:
 			v.Buffer.WriteByte('>')
-		case datatypes.ComparisonGreaterEqual:
+		case datatypes.Node_ComparisonGreaterEqual:
 			v.Buffer.WriteString(">=")
 		}
 
@@ -97,17 +97,17 @@ func (v *predicateExpressionPrinter) Visit(n *datatypes.Node) NodeVisitor {
 		WalkNode(v, n.Children[1])
 		return nil
 
-	case datatypes.NodeTypeTagRef:
+	case datatypes.Node_TypeTagRef:
 		v.Buffer.WriteByte('\'')
 		v.Buffer.WriteString(n.GetTagRefValue())
 		v.Buffer.WriteByte('\'')
 		return nil
 
-	case datatypes.NodeTypeFieldRef:
+	case datatypes.Node_TypeFieldRef:
 		v.Buffer.WriteByte('$')
 		return nil
 
-	case datatypes.NodeTypeLiteral:
+	case datatypes.Node_TypeLiteral:
 		switch val := n.Value.(type) {
 		case *datatypes.Node_StringValue:
 			v.Buffer.WriteString(strconv.Quote(val.StringValue))

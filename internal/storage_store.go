@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/storage/reads"
@@ -12,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 // TSDBStoreMock is a mockable implementation of storage.Store.
