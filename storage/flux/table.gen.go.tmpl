@@ -870,11 +870,11 @@ func (a *{{.name}}AggregateAccumulator) Result() (int64, {{.Type}}, [][]byte) {
 // aggregate the aggregates.
 func make{{.Name}}AggregateAccumulator(agg datatypes.Aggregate_AggregateType) ({{.Name}}AggregateAccumulator, error){
  	switch agg {
-	case datatypes.AggregateTypeFirst:
+	case datatypes.Aggregate_AggregateTypeFirst:
 		return &{{.name}}SelectorAccumulator{selector: selectorFirstGroups{{.Name}}}, nil
-	case datatypes.AggregateTypeLast:
+	case datatypes.Aggregate_AggregateTypeLast:
 		return &{{.name}}SelectorAccumulator{selector: selectorLastGroups{{.Name}}}, nil
-	case datatypes.AggregateTypeCount:
+	case datatypes.Aggregate_AggregateTypeCount:
 		{{if eq .Name "Integer"}}
 		return &{{.name}}AggregateAccumulator{aggregate: aggregateCountGroups{{.Name}}}, nil
 		{{else}}
@@ -883,7 +883,7 @@ func make{{.Name}}AggregateAccumulator(agg datatypes.Aggregate_AggregateType) ({
 			Msg: "unsupported for aggregate count: {{.Name}}",
 		}
 		{{end}}
-	case datatypes.AggregateTypeSum:
+	case datatypes.Aggregate_AggregateTypeSum:
 		{{if and (ne .Name "Boolean") (ne .Name "String")}}
 		return &{{.name}}AggregateAccumulator{aggregate: aggregateSumGroups{{.Name}}}, nil
 		{{else}}
@@ -892,7 +892,7 @@ func make{{.Name}}AggregateAccumulator(agg datatypes.Aggregate_AggregateType) ({
 			Msg: "unsupported for aggregate sum: {{.Name}}",
 		}
 		{{end}}
-	case datatypes.AggregateTypeMin:
+	case datatypes.Aggregate_AggregateTypeMin:
 		{{if and (ne .Name "Boolean") (ne .Name "String")}}
 		return &{{.name}}SelectorAccumulator{selector: selectorMinGroups{{.Name}}}, nil
 		{{else}}
@@ -901,7 +901,7 @@ func make{{.Name}}AggregateAccumulator(agg datatypes.Aggregate_AggregateType) ({
 			Msg: "unsupported for aggregate min: {{.Name}}",
 		}
 		{{end}}
-	case datatypes.AggregateTypeMax:
+	case datatypes.Aggregate_AggregateTypeMax:
 		{{if and (ne .Name "Boolean") (ne .Name "String")}}
 		return &{{.name}}SelectorAccumulator{selector: selectorMaxGroups{{.Name}}}, nil
 		{{else}}

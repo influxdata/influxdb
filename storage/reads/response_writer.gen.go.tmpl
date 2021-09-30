@@ -3,6 +3,8 @@ package reads
 import (
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
+
+	"google.golang.org/protobuf/proto"
 )
 
 {{with $types := .}}
@@ -55,11 +57,11 @@ func (w *ResponseWriter) put{{$k.Name}}Values(f *datatypes.ReadResponse_AnyPoint
 }
 
 func (w *ResponseWriter) stream{{$k.Name}}ArraySeries(cur cursors.{{$k.Name}}ArrayCursor) {
-	w.sf.DataType = datatypes.DataType{{$k.Name}}
+	w.sf.DataType = datatypes.ReadResponse_DataType{{$k.Name}}
 	ss := len(w.res.Frames) - 1
 	a := cur.Next()
 	if len(a.Timestamps) == 0 {
-		w.sz -= w.sf.Size()
+		w.sz -= proto.Size(w.sf)
 		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
@@ -68,12 +70,12 @@ func (w *ResponseWriter) stream{{$k.Name}}ArraySeries(cur cursors.{{$k.Name}}Arr
 }
 
 func (w *ResponseWriter) stream{{$k.Name}}ArrayPoints(cur cursors.{{$k.Name}}ArrayCursor) {
-	w.sf.DataType = datatypes.DataType{{$k.Name}}
+	w.sf.DataType = datatypes.ReadResponse_DataType{{$k.Name}}
 	ss := len(w.res.Frames) - 1
 
 	p := w.get{{$k.Name}}PointsFrame()
 	frame := p.{{$k.Name}}Points
-	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
 
 	var seriesValueCount = 0
 	for {
@@ -118,13 +120,13 @@ func (w *ResponseWriter) stream{{$k.Name}}ArrayPoints(cur cursors.{{$k.Name}}Arr
 			// to a minimum of batchSize length to reduce further allocations.
 			p = w.get{{$k.Name}}PointsFrame()
 			frame = p.{{$k.Name}}Points
-			w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
 		}
 	}
 
 	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
-		w.sz -= w.sf.Size()
+		w.sz -= proto.Size(w.sf)
 		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
