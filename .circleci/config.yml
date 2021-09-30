@@ -22,12 +22,21 @@ parameters:
   aws_teardown_query_format:
     default: "n/a"
     type: string
+  build_and_sign:
+    default: false
+    type: boolean
+  build_and_sign_tag:
+    default: ""
+    type: string
 
 workflows:
   version: 2
   build:
     when:
-      not: << pipeline.parameters.aws_teardown >>
+      not:
+        or:
+          - << pipeline.parameters.aws_teardown >>
+          - << pipeline.parameters.build_and_sign >>
     jobs:
       - godeps
       - jsdeps
@@ -140,7 +149,17 @@ workflows:
             - golint
             - fluxtest
             - tlstest
-
+  build_and_sign_workflow:
+    when:
+      and:
+        - << pipeline.parameters.build_and_sign >>
+        - << pipeline.parameters.build_and_sign_tag >>
+    jobs:
+      - changelog:
+          nightly: false
+      - build_and_sign_job:
+          requires:
+            - changelog
   release:
     jobs:
       - godeps:
@@ -338,6 +357,9 @@ commands:
       nightly:
         type: boolean
         default: false
+      build_tag:
+        default: ""
+        type: string
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -434,8 +456,13 @@ commands:
             - run:
                 name: Publish release
                 command: |
+                  VERSION_TAG="${CIRCLE_TAG}"
+                  if [ -n "<< parameters.build_tag >>" ]; then
+                    VERSION_TAG="<< parameters.build_tag >>"
+                  fi
+
                   S3_FOLDER="influxdb/releases/" \
-                  VERSION=${CIRCLE_TAG##v} \
+                  VERSION=${VERSION_TAG##v} \
                   goreleaser \
                     --debug \
                     release \
@@ -825,6 +852,43 @@ jobs:
             instance_id=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 describe-instances --filters "Name=tag:Name,Values=$name" --query 'Reservations[].Instances[].InstanceId' --output text)
             AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
 
+  build_and_sign_job:
+    machine:
+      image: ubuntu-2004:202010-01
+    resource_class: large
+    environment:
+      TMPDIR: /mnt/ramdisk
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - run:
+          name: checkout by tag
+          command: |
+            git fetch --all --tags
+            git checkout tags/<< pipeline.parameters.build_and_sign_tag >> -b << pipeline.parameters.build_and_sign_tag >>
+      - run:
+          name: Create RAM disk
+          command: |
+            sudo mkdir -p ${TMPDIR}
+            sudo mount -t tmpfs -o size=4G tmpfs ${TMPDIR}
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
+      - restore_cache:
+          name: Restore Yarn Cache
+          keys:
+            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
+      - install_core_deps
+      - upgrade_go
+      - run_goreleaser:
+          publish_release: true
+          build_tag: << pipeline.parameters.build_and_sign_tag >>
+      - persist_to_workspace:
+          root: .
+          paths:
+            - etc/litmus_success_notify.sh
+            - etc/litmus_fail_notify.sh
   release:
     machine:
       image: ubuntu-2004:202010-01
@@ -993,12 +1057,24 @@ jobs:
                 name: Nightly Changelog
                 command: |
                   set -x
-                  CHANGELOG_FILENAME="CHANGELOG.md"
-                  cat \<< EOF >> env_vars.sh
                   S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/platform/nightlies/2.0"
+                  CHANGELOG_FILENAME="CHANGELOG.md"
+                  COMMIT_FILE_PATH="changelog-commit.txt"
+
+                  curl -o ${CHANGELOG_FILENAME} ${S3_PATH}/${CHANGELOG_FILENAME}
+                  curl -o ${COMMIT_FILE_PATH} ${S3_PATH}/${COMMIT_FILE_PATH}
+
+                  LAST_COMMIT=$(cat $COMMIT_FILE_PATH)
+                  NEWEST_COMMIT=${CIRCLE_SHA1}
+
+                  cat \<< EOF >> env_vars.sh
+                  S3_PATH=${S3_PATH}
                   CHANGELOG_FILENAME=${CHANGELOG_FILENAME}
+                  COMMIT_RANGE="${LAST_COMMIT}..${NEWEST_COMMIT}"
+                  COMMIT_FILE_PATH=$COMMIT_FILE_PATH
                   SCRIPT_OPTIONS="--prepend ${CHANGELOG_FILENAME}"
                   EOF
+
       - unless:
           condition: << parameters.nightly >>
           steps:
@@ -1006,25 +1082,37 @@ jobs:
                 name: Release Changelog
                 command: |
                   set -x
-                  LAST_RELEASE_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags=v2* --skip=1 --max-count=1))
+                  S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/influxdb/releases"
+                  CHANGELOG_FILENAME="CHANGELOG-${CIRCLE_TAG}.md"
+                  COMMIT_FILE_PATH="changelog-commit.txt"
+
+                  curl -o ${COMMIT_FILE_PATH} ${S3_PATH}/${COMMIT_FILE_PATH}
+
+                  LAST_COMMIT=$(git rev-list --tags=v2* --skip=1 --max-count=1)
+                  NEWEST_COMMIT=${CIRCLE_SHA1}
+
+                  if [ -n "<< pipeline.parameters.build_and_sign_tag >>" ]; then
+                    git fetch --all --tags
+                    CIRCLE_TAG=<< pipeline.parameters.build_and_sign_tag >>
+                    LAST_COMMIT=$(git tag -l --sort=-version:refname v2* | grep -A 1 << pipeline.parameters.build_and_sign_tag >> | tail -n 1)
+                    NEWEST_COMMIT=${CIRCLE_TAG}
+                    CHANGELOG_FILENAME="CHANGELOG-${CIRCLE_TAG}.md"
+                  fi
 
                   cat \<< EOF >> env_vars.sh
-                  S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/influxdb/releases"
-                  CHANGELOG_FILENAME="CHANGELOG-${LAST_RELEASE_TAG}.md"
+                  S3_PATH=${S3_PATH}
+                  CHANGELOG_FILENAME="${CHANGELOG_FILENAME}"
+                  COMMIT_RANGE="${LAST_COMMIT}..${NEWEST_COMMIT}"
+                  COMMIT_FILE_PATH=${COMMIT_FILE_PATH}
                   SCRIPT_OPTIONS=""
+                  CIRCLE_TAG=${CIRCLE_TAG}
                   EOF
       - run:
           name: Changelog
           command: |
             set -x
             source env_vars.sh
-            COMMIT_FILE_PATH="changelog-commit.txt"
 
-            curl -o ${CHANGELOG_FILENAME} ${S3_PATH}/${CHANGELOG_FILENAME}
-            curl -o ${COMMIT_FILE_PATH} ${S3_PATH}/${COMMIT_FILE_PATH}
-
-            LAST_COMMIT=$(cat $COMMIT_FILE_PATH)
-            NEWEST_COMMIT=${CIRCLE_SHA1}
             TIMESTAMP="$(date -u '+%Y%m%d')"
             TAG=${TIMESTAMP}
             if [ -n "${CIRCLE_TAG}" ]; then
@@ -1032,12 +1120,15 @@ jobs:
             fi
 
             ./scripts/ci/update-changelog.sh \
-              --commit-range "$LAST_COMMIT..$NEWEST_COMMIT" \
+              --commit-range "${COMMIT_RANGE}" \
               ${SCRIPT_OPTIONS} \
               -- \
-              --tag ${TAG}
+              --tag ${TAG} > $CHANGELOG_FILENAME
 
-            echo "${CIRCLE_SHA1}" > "${COMMIT_FILE_PATH}"
+
+            if [ -z "<< pipeline.parameters.build_and_sign >>" ]; then
+              echo "${CIRCLE_SHA1}" > "${COMMIT_FILE_PATH}"
+            fi
 
             mkdir changelog_artifacts
             cp $CHANGELOG_FILENAME changelog_artifacts
