@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
@@ -9811,7 +9811,7 @@ func TestServer_Prometheus_Read(t *testing.T) {
 			EndTimestampMs:   120010,
 		}},
 	}
-	data, err := proto.Marshal(req)
+	data, err := gogoproto.Marshal(req)
 	if err != nil {
 		t.Fatal("couldn't marshal prometheus request")
 	}
@@ -9834,7 +9834,7 @@ func TestServer_Prometheus_Read(t *testing.T) {
 	}
 
 	var promResp prompb.ReadResponse
-	if err := proto.Unmarshal(reqBuf, &promResp); err != nil {
+	if err := gogoproto.Unmarshal(reqBuf, &promResp); err != nil {
 		t.Fatal(err.Error())
 	}
 
@@ -9911,7 +9911,7 @@ func TestServer_Prometheus_Write(t *testing.T) {
 		},
 	}
 
-	data, err := proto.Marshal(req)
+	data, err := gogoproto.Marshal(req)
 	if err != nil {
 		t.Fatal("couldn't marshal prometheus request")
 	}

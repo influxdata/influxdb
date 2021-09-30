@@ -6,12 +6,12 @@ import (
 	"math"
 	"time"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/prompb"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const (
@@ -104,14 +104,14 @@ func ReadRequestToInfluxStorageRequest(req *prompb.ReadRequest, db, rp string) (
 	}
 	q := req.Queries[0]
 
-	src, err := types.MarshalAny(&storage.ReadSource{Database: db, RetentionPolicy: rp})
+	src, err := anypb.New(&storage.ReadSource{Database: db, RetentionPolicy: rp})
 	if err != nil {
 		return nil, err
 	}
 
 	sreq := &datatypes.ReadFilterRequest{
 		ReadSource: src,
-		Range: datatypes.TimestampRange{
+		Range: &datatypes.TimestampRange{
 			Start: time.Unix(0, q.StartTimestampMs*int64(time.Millisecond)).UnixNano(),
 			End:   time.Unix(0, q.EndTimestampMs*int64(time.Millisecond)).UnixNano(),
 		},
@@ -151,8 +151,8 @@ func predicateFromMatchers(matchers []*prompb.LabelMatcher) (*datatypes.Predicat
 
 	return &datatypes.Predicate{
 		Root: &datatypes.Node{
-			NodeType: datatypes.NodeTypeLogicalExpression,
-			Value:    &datatypes.Node_Logical_{Logical: datatypes.LogicalAnd},
+			NodeType: datatypes.Node_TypeLogicalExpression,
+			Value:    &datatypes.Node_Logical_{Logical: datatypes.Node_LogicalAnd},
 			Children: []*datatypes.Node{left, right},
 		},
 	}, nil
@@ -163,13 +163,13 @@ func predicateFromMatchers(matchers []*prompb.LabelMatcher) (*datatypes.Predicat
 func fieldNode() *datatypes.Node {
 	children := []*datatypes.Node{
 		&datatypes.Node{
-			NodeType: datatypes.NodeTypeTagRef,
+			NodeType: datatypes.Node_TypeTagRef,
 			Value: &datatypes.Node_TagRefValue{
 				TagRefValue: fieldTagKey,
 			},
 		},
 		&datatypes.Node{
-			NodeType: datatypes.NodeTypeLiteral,
+			NodeType: datatypes.Node_TypeLiteral,
 			Value: &datatypes.Node_StringValue{
 				StringValue: fieldName,
 			},
@@ -177,8 +177,8 @@ func fieldNode() *datatypes.Node {
 	}
 
 	return &datatypes.Node{
-		NodeType: datatypes.NodeTypeComparisonExpression,
-		Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+		NodeType: datatypes.Node_TypeComparisonExpression,
+		Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonEqual},
 		Children: children,
 	}
 }
@@ -202,8 +202,8 @@ func nodeFromMatchers(matchers []*prompb.LabelMatcher) (*datatypes.Node, error) 
 
 	children := []*datatypes.Node{left, right}
 	return &datatypes.Node{
-		NodeType: datatypes.NodeTypeLogicalExpression,
-		Value:    &datatypes.Node_Logical_{Logical: datatypes.LogicalAnd},
+		NodeType: datatypes.Node_TypeLogicalExpression,
+		Value:    &datatypes.Node_Logical_{Logical: datatypes.Node_LogicalAnd},
 		Children: children,
 	}, nil
 }
@@ -212,13 +212,13 @@ func nodeFromMatcher(m *prompb.LabelMatcher) (*datatypes.Node, error) {
 	var op datatypes.Node_Comparison
 	switch m.Type {
 	case prompb.LabelMatcher_EQ:
-		op = datatypes.ComparisonEqual
+		op = datatypes.Node_ComparisonEqual
 	case prompb.LabelMatcher_NEQ:
-		op = datatypes.ComparisonNotEqual
+		op = datatypes.Node_ComparisonNotEqual
 	case prompb.LabelMatcher_RE:
-		op = datatypes.ComparisonRegex
+		op = datatypes.Node_ComparisonRegex
 	case prompb.LabelMatcher_NRE:
-		op = datatypes.ComparisonNotRegex
+		op = datatypes.Node_ComparisonNotRegex
 	default:
 		return nil, fmt.Errorf("unknown match type %v", m.Type)
 	}
@@ -229,7 +229,7 @@ func nodeFromMatcher(m *prompb.LabelMatcher) (*datatypes.Node, error) {
 	}
 
 	left := &datatypes.Node{
-		NodeType: datatypes.NodeTypeTagRef,
+		NodeType: datatypes.Node_TypeTagRef,
 		Value: &datatypes.Node_TagRefValue{
 			TagRefValue: name,
 		},
@@ -237,9 +237,9 @@ func nodeFromMatcher(m *prompb.LabelMatcher) (*datatypes.Node, error) {
 
 	var right *datatypes.Node
 
-	if op == datatypes.ComparisonRegex || op == datatypes.ComparisonNotRegex {
+	if op == datatypes.Node_ComparisonRegex || op == datatypes.Node_ComparisonNotRegex {
 		right = &datatypes.Node{
-			NodeType: datatypes.NodeTypeLiteral,
+			NodeType: datatypes.Node_TypeLiteral,
 			Value: &datatypes.Node_RegexValue{
 				// To comply with PromQL, see
 				// https://github.com/prometheus/prometheus/blob/daf382e4a9f5ca380b2b662c8e60755a56675f14/pkg/labels/regexp.go#L30
@@ -248,7 +248,7 @@ func nodeFromMatcher(m *prompb.LabelMatcher) (*datatypes.Node, error) {
 		}
 	} else {
 		right = &datatypes.Node{
-			NodeType: datatypes.NodeTypeLiteral,
+			NodeType: datatypes.Node_TypeLiteral,
 			Value: &datatypes.Node_StringValue{
 				StringValue: m.Value,
 			},
@@ -257,7 +257,7 @@ func nodeFromMatcher(m *prompb.LabelMatcher) (*datatypes.Node, error) {
 
 	children := []*datatypes.Node{left, right}
 	return &datatypes.Node{
-		NodeType: datatypes.NodeTypeComparisonExpression,
+		NodeType: datatypes.Node_TypeComparisonExpression,
 		Value:    &datatypes.Node_Comparison_{Comparison: op},
 		Children: children,
 	}, nil
