@@ -1,55 +1,48 @@
 syntax = "proto3";
 package influxdata.platform.storage;
-option go_package = "datatypes";
-
-import "gogoproto/gogo.proto";
+option go_package = ".;datatypes";
 
 message Node {
   enum Type {
-    option (gogoproto.goproto_enum_prefix) = false;
-
-    LOGICAL_EXPRESSION = 0 [(gogoproto.enumvalue_customname) = "NodeTypeLogicalExpression"];
-    COMPARISON_EXPRESSION = 1 [(gogoproto.enumvalue_customname) = "NodeTypeComparisonExpression"];
-    PAREN_EXPRESSION = 2 [(gogoproto.enumvalue_customname) = "NodeTypeParenExpression"];
-    TAG_REF = 3 [(gogoproto.enumvalue_customname) = "NodeTypeTagRef"];
-    LITERAL = 4 [(gogoproto.enumvalue_customname) = "NodeTypeLiteral"];
-    FIELD_REF = 5 [(gogoproto.enumvalue_customname) = "NodeTypeFieldRef"];
+    TypeLogicalExpression = 0;
+    TypeComparisonExpression = 1;
+    TypeParenExpression = 2;
+    TypeTagRef = 3;
+    TypeLiteral = 4;
+    TypeFieldRef = 5;
   }
 
   enum Comparison {
-    option (gogoproto.goproto_enum_prefix) = false;
-    EQUAL = 0 [(gogoproto.enumvalue_customname) = "ComparisonEqual"];
-    NOT_EQUAL = 1 [(gogoproto.enumvalue_customname) = "ComparisonNotEqual"];
-    STARTS_WITH = 2 [(gogoproto.enumvalue_customname) = "ComparisonStartsWith"];
-    REGEX = 3 [(gogoproto.enumvalue_customname) = "ComparisonRegex"];
-    NOT_REGEX = 4 [(gogoproto.enumvalue_customname) = "ComparisonNotRegex"];
-    LT = 5 [(gogoproto.enumvalue_customname) = "ComparisonLess"];
-    LTE = 6 [(gogoproto.enumvalue_customname) = "ComparisonLessEqual"];
-    GT = 7 [(gogoproto.enumvalue_customname) = "ComparisonGreater"];
-    GTE = 8 [(gogoproto.enumvalue_customname) = "ComparisonGreaterEqual"];
+    ComparisonEqual = 0;
+    ComparisonNotEqual = 1;
+    ComparisonStartsWith = 2;
+    ComparisonRegex = 3;
+    ComparisonNotRegex = 4;
+    ComparisonLess = 5;
+    ComparisonLessEqual = 6;
+    ComparisonGreater = 7;
+    ComparisonGreaterEqual = 8;
   }
 
   // Logical operators apply to boolean values and combine to produce a single boolean result.
   enum Logical {
-    option (gogoproto.goproto_enum_prefix) = false;
-
-    AND = 0 [(gogoproto.enumvalue_customname) = "LogicalAnd"];
-    OR = 1 [(gogoproto.enumvalue_customname) = "LogicalOr"];
+    LogicalAnd = 0;
+    LogicalOr = 1;
   }
 
 
-  Type node_type = 1 [(gogoproto.customname) = "NodeType", (gogoproto.jsontag) = "nodeType"];
+  Type node_type = 1;
   repeated Node children = 2;
 
   oneof value {
-    string string_value = 3 [(gogoproto.customname) = "StringValue"];
-    bool bool_value = 4 [(gogoproto.customname) = "BooleanValue"];
-    int64 int_value = 5 [(gogoproto.customname) = "IntegerValue"];
-    uint64 uint_value = 6 [(gogoproto.customname) = "UnsignedValue"];
-    double float_value = 7 [(gogoproto.customname) = "FloatValue"];
-    string regex_value = 8 [(gogoproto.customname) = "RegexValue"];
-    string tag_ref_value = 9 [(gogoproto.customname) = "TagRefValue"];
-    string field_ref_value = 10 [(gogoproto.customname) = "FieldRefValue"];
+    string StringValue = 3;
+    bool BooleanValue = 4;
+    int64 IntegerValue = 5;
+    uint64 UnsignedValue = 6;
+    double FloatValue = 7;
+    string RegexValue = 8;
+    string TagRefValue = 9;
+    string FieldRefValue = 10;
     Logical logical = 11;
     Comparison comparison = 12;
   }
