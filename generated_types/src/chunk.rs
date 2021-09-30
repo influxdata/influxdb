@@ -60,7 +60,6 @@ impl From<ChunkStorage> for management::ChunkStorage {
 impl From<Option<ChunkLifecycleAction>> for management::ChunkLifecycleAction {
     fn from(lifecycle_action: Option<ChunkLifecycleAction>) -> Self {
         match lifecycle_action {
-            Some(ChunkLifecycleAction::Moving) => Self::Moving,
             Some(ChunkLifecycleAction::Persisting) => Self::Persisting,
             Some(ChunkLifecycleAction::Compacting) => Self::Compacting,
             Some(ChunkLifecycleAction::Dropping) => Self::Dropping,
@@ -150,7 +149,6 @@ impl TryFrom<management::ChunkLifecycleAction> for Option<ChunkLifecycleAction> 
 
     fn try_from(proto: management::ChunkLifecycleAction) -> Result<Self, Self::Error> {
         match proto {
-            management::ChunkLifecycleAction::Moving => Ok(Some(ChunkLifecycleAction::Moving)),
             management::ChunkLifecycleAction::Persisting => {
                 Ok(Some(ChunkLifecycleAction::Persisting))
             }
@@ -181,7 +179,7 @@ mod test {
             row_count: 321,
 
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
-            lifecycle_action: management::ChunkLifecycleAction::Moving.into(),
+            lifecycle_action: management::ChunkLifecycleAction::Compacting.into(),
             time_of_first_write: Some(now.into()),
             time_of_last_write: Some(now.into()),
             time_closed: None,
@@ -201,7 +199,7 @@ mod test {
             object_store_bytes: 567,
             row_count: 321,
             storage: ChunkStorage::ObjectStoreOnly,
-            lifecycle_action: Some(ChunkLifecycleAction::Moving),
+            lifecycle_action: Some(ChunkLifecycleAction::Compacting),
             time_of_first_write: now,
             time_of_last_write: now,
             time_closed: None,

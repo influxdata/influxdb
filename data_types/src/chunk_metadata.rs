@@ -87,9 +87,6 @@ impl ChunkStorage {
 /// Any lifecycle action currently in progress for this chunk
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ChunkLifecycleAction {
-    /// Chunk is in the process of being moved to the read buffer
-    Moving,
-
     /// Chunk is in the process of being written to object storage
     Persisting,
 
@@ -109,7 +106,6 @@ impl std::fmt::Display for ChunkLifecycleAction {
 impl ChunkLifecycleAction {
     pub fn name(&self) -> &'static str {
         match self {
-            Self::Moving => "Moving to the Read Buffer",
             Self::Persisting => "Persisting to Object Storage",
             Self::Compacting => "Compacting",
             Self::Dropping => "Dropping",
@@ -126,6 +122,9 @@ pub struct ChunkSummary {
 
     /// The table of this chunk
     pub table_name: Arc<str>,
+
+    /// Order of this chunk relative to other overlapping chunks.
+    pub order: ChunkOrder,
 
     /// The id of this chunk
     pub id: ChunkId,
@@ -161,9 +160,6 @@ pub struct ChunkSummary {
     /// Time at which this chunk was marked as closed. Note this is
     /// not the same as the timestamps on the data itself
     pub time_closed: Option<DateTime<Utc>>,
-
-    /// Order of this chunk relative to other overlapping chunks.
-    pub order: ChunkOrder,
 }
 
 /// Represents metadata about the physical storage of a column in a chunk

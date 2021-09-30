@@ -18,9 +18,6 @@ pub enum Job {
         nanos: Vec<u64>,
     },
 
-    /// Move a chunk from mutable buffer to read buffer
-    CompactChunk { chunk: ChunkAddr },
-
     /// Write a chunk from read buffer to object store
     WriteChunk { chunk: ChunkAddr },
 
@@ -51,7 +48,6 @@ impl Job {
     pub fn db_name(&self) -> Option<&Arc<str>> {
         match self {
             Self::Dummy { db_name, .. } => db_name.as_ref(),
-            Self::CompactChunk { chunk, .. } => Some(&chunk.db_name),
             Self::WriteChunk { chunk, .. } => Some(&chunk.db_name),
             Self::CompactChunks { partition, .. } => Some(&partition.db_name),
             Self::PersistChunks { partition, .. } => Some(&partition.db_name),
@@ -65,7 +61,6 @@ impl Job {
     pub fn partition_key(&self) -> Option<&Arc<str>> {
         match self {
             Self::Dummy { .. } => None,
-            Self::CompactChunk { chunk, .. } => Some(&chunk.partition_key),
             Self::WriteChunk { chunk, .. } => Some(&chunk.partition_key),
             Self::CompactChunks { partition, .. } => Some(&partition.partition_key),
             Self::PersistChunks { partition, .. } => Some(&partition.partition_key),
@@ -79,7 +74,6 @@ impl Job {
     pub fn table_name(&self) -> Option<&Arc<str>> {
         match self {
             Self::Dummy { .. } => None,
-            Self::CompactChunk { chunk, .. } => Some(&chunk.table_name),
             Self::WriteChunk { chunk, .. } => Some(&chunk.table_name),
             Self::CompactChunks { partition, .. } => Some(&partition.table_name),
             Self::PersistChunks { partition, .. } => Some(&partition.table_name),
@@ -93,7 +87,6 @@ impl Job {
     pub fn chunk_ids(&self) -> Option<Vec<ChunkId>> {
         match self {
             Self::Dummy { .. } => None,
-            Self::CompactChunk { chunk, .. } => Some(vec![chunk.chunk_id]),
             Self::WriteChunk { chunk, .. } => Some(vec![chunk.chunk_id]),
             Self::CompactChunks { chunks, .. } => Some(chunks.clone()),
             Self::PersistChunks { chunks, .. } => Some(chunks.clone()),
@@ -107,7 +100,6 @@ impl Job {
     pub fn description(&self) -> &'static str {
         match self {
             Self::Dummy { .. } => "Dummy Job, for testing",
-            Self::CompactChunk { .. } => "Compacting chunk to ReadBuffer",
             Self::WriteChunk { .. } => "Writing chunk to Object Storage",
             Self::CompactChunks { .. } => "Compacting chunks to ReadBuffer",
             Self::PersistChunks { .. } => "Persisting chunks to object storage",

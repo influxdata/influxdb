@@ -6,13 +6,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use data_types::chunk_metadata::ChunkId;
 use once_cell::sync::OnceCell;
 
 use query::QueryChunk;
 
 use async_trait::async_trait;
 
+use server::db::LockablePartition;
 use server::utils::{
     count_mutable_buffer_chunks, count_object_store_chunks, count_read_buffer_chunks, make_db,
 };
@@ -52,7 +52,7 @@ pub fn get_all_setups() -> &'static HashMap<String, Arc<dyn DbSetup>> {
             register_setup!(TwoMeasurements),
             register_setup!(TwoMeasurementsPredicatePushDown),
             register_setup!(TwoMeasurementsManyFieldsOneChunk),
-            register_setup!(OneMeasurementThreeChunksWithDuplicates),
+            register_setup!(OneMeasurementFourChunksWithDuplicates),
             register_setup!(OneMeasurementAllChunksDropped),
             register_setup!(ChunkOrder),
         ]
@@ -104,28 +104,25 @@ impl DbSetup for NoData {
         let data = "cpu,region=west user=23.2 100";
         write_lp(&db, data).await;
         // move data out of open chunk
-        assert_eq!(
-            db.rollover_partition(table_name, partition_key)
-                .await
-                .unwrap()
-                .unwrap()
-                .id(),
-            ChunkId::new(0),
-        );
+        db.rollover_partition(table_name, partition_key)
+            .await
+            .unwrap();
         assert_eq!(count_mutable_buffer_chunks(&db), 1); //
         assert_eq!(count_read_buffer_chunks(&db), 0); // nothing yet
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
         // Now load the closed chunk into the RB
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
+        let chunk_id = db
+            .compact_partition(table_name, partition_key)
             .await
-            .unwrap();
+            .unwrap()
+            .id();
         assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
         assert_eq!(count_read_buffer_chunks(&db), 1); // close chunk only
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
-        // drop chunk 0
-        db.drop_chunk(table_name, partition_key, ChunkId::new(0))
+        // drop chunk
+        db.drop_chunk(table_name, partition_key, chunk_id)
             .await
             .unwrap();
 
@@ -144,20 +141,15 @@ impl DbSetup for NoData {
         let data = "cpu,region=west user=23.2 100";
         write_lp(&db, data).await;
         // move data out of open chunk
-        assert_eq!(
-            db.rollover_partition(table_name, partition_key)
-                .await
-                .unwrap()
-                .unwrap()
-                .id(),
-            ChunkId::new(0),
-        );
+        db.rollover_partition(table_name, partition_key)
+            .await
+            .unwrap();
         assert_eq!(count_mutable_buffer_chunks(&db), 1); // 1 open chunk
         assert_eq!(count_read_buffer_chunks(&db), 0); // nothing yet
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
         // Now load the closed chunk into the RB
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
+        db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
         assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
@@ -165,20 +157,21 @@ impl DbSetup for NoData {
         assert_eq!(count_object_store_chunks(&db), 0); // nothing yet
 
         // Now write the data in RB to object store but keep it in RB
-        db.persist_partition(
-            "cpu",
-            partition_key,
-            Instant::now() + Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
-        // it should be the same chunk!
+        let chunk_id = db
+            .persist_partition(
+                "cpu",
+                partition_key,
+                Instant::now() + Duration::from_secs(1),
+            )
+            .await
+            .unwrap()
+            .id();
         assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
         assert_eq!(count_read_buffer_chunks(&db), 1); // closed chunk only
         assert_eq!(count_object_store_chunks(&db), 1); // close chunk only
 
-        // drop chunk 1 (the persisted one)
-        db.drop_chunk(table_name, partition_key, ChunkId::new(1))
+        // drop chunk
+        db.drop_chunk(table_name, partition_key, chunk_id)
             .await
             .unwrap();
 
@@ -428,10 +421,7 @@ impl DbSetup for TwoMeasurementsManyFieldsTwoChunks {
             "h2o,state=MA,city=Boston other_temp=70.4 250",
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
-        db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(0))
-            .await
-            .unwrap();
+        db.compact_partition("h2o", partition_key).await.unwrap();
 
         let lp_lines = vec![
             "h2o,state=CA,city=Boston other_temp=72.4 350",
@@ -440,8 +430,12 @@ impl DbSetup for TwoMeasurementsManyFieldsTwoChunks {
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
 
+        assert_eq!(count_mutable_buffer_chunks(&db), 2);
+        assert_eq!(count_read_buffer_chunks(&db), 1);
+        assert_eq!(count_object_store_chunks(&db), 0);
+
         vec![DbScenario {
-            scenario_name: "Data in open chunk of mutable buffer and read buffer".into(),
+            scenario_name: "Data in two open mutable buffer chunks and read buffer".into(),
             db,
         }]
     }
@@ -463,10 +457,7 @@ impl DbSetup for OneMeasurementTwoChunksDifferentTagSet {
             "h2o,state=MA other_temp=70.4 250",
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
-        db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(0))
-            .await
-            .unwrap();
+        db.compact_partition("h2o", partition_key).await.unwrap();
 
         // tag: city
         let lp_lines = vec![
@@ -474,10 +465,11 @@ impl DbSetup for OneMeasurementTwoChunksDifferentTagSet {
             "h2o,city=Boston temp=53.4,reading=51 50",
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
-        db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(1))
-            .await
-            .unwrap();
+        db.compact_open_chunk("h2o", partition_key).await.unwrap();
+
+        assert_eq!(count_mutable_buffer_chunks(&db), 0);
+        assert_eq!(count_read_buffer_chunks(&db), 2);
+        assert_eq!(count_object_store_chunks(&db), 0);
 
         vec![DbScenario {
             scenario_name: "2 chunks in read buffer".into(),
@@ -488,9 +480,9 @@ impl DbSetup for OneMeasurementTwoChunksDifferentTagSet {
 
 #[derive(Debug)]
 /// Setup for four chunks with duplicates for deduplicate tests
-pub struct OneMeasurementThreeChunksWithDuplicates {}
+pub struct OneMeasurementFourChunksWithDuplicates {}
 #[async_trait]
-impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
+impl DbSetup for OneMeasurementFourChunksWithDuplicates {
     async fn make(&self) -> Vec<DbScenario> {
         let db = make_db().await.db;
 
@@ -506,10 +498,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
             "h2o,state=MA,city=Andover max_temp=69.2, 250",
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
-        db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(0))
-            .await
-            .unwrap();
+        db.compact_open_chunk("h2o", partition_key).await.unwrap();
 
         // Chunk 2: overlaps with chunk 1
         //  . time range: 150 - 300
@@ -523,10 +512,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
             "h2o,state=CA,city=SJ min_temp=75.5,max_temp=84.08 350",
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
-        db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(1))
-            .await
-            .unwrap();
+        db.compact_open_chunk("h2o", partition_key).await.unwrap();
 
         // Chunk 3: no overlap
         //  . time range: 400 - 500
@@ -540,10 +526,7 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
             "h2o,state=CA,city=SJ min_temp=69.5,max_temp=88.2 500",
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
-        db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(2))
-            .await
-            .unwrap();
+        db.compact_open_chunk("h2o", partition_key).await.unwrap();
 
         // Chunk 4: no overlap
         //  . time range: 600 - 700
@@ -557,13 +540,14 @@ impl DbSetup for OneMeasurementThreeChunksWithDuplicates {
             "h2o,state=CA,city=SJ min_temp=75.5,max_temp=84.08 700",
         ];
         write_lp(&db, &lp_lines.join("\n")).await;
-        db.rollover_partition("h2o", partition_key).await.unwrap();
-        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(3))
-            .await
-            .unwrap();
+        db.compact_open_chunk("h2o", partition_key).await.unwrap();
+
+        assert_eq!(count_mutable_buffer_chunks(&db), 0);
+        assert_eq!(count_read_buffer_chunks(&db), 4);
+        assert_eq!(count_object_store_chunks(&db), 0);
 
         vec![DbScenario {
-            scenario_name: "Data in open chunk of mutable buffer and read buffer".into(),
+            scenario_name: "Data in four chunks with duplicates".into(),
             db,
         }]
     }
@@ -590,18 +574,7 @@ impl DbSetup for TwoMeasurementsManyFieldsLifecycle {
         )
         .await;
 
-        // Use a background task to do the work note when I used
-        // TaskTracker::join, it ended up hanging for reasons I don't
-        // now
-        db.move_chunk_to_read_buffer("h2o", partition_key, ChunkId::new(0))
-            .await
-            .unwrap();
-
-        write_lp(
-            &db,
-            &vec!["h2o,state=CA,city=Boston other_temp=72.4 350"].join("\n"),
-        )
-        .await;
+        db.compact_open_chunk("h2o", partition_key).await.unwrap();
 
         db.persist_partition(
             "h2o",
@@ -611,8 +584,18 @@ impl DbSetup for TwoMeasurementsManyFieldsLifecycle {
         .await
         .unwrap();
 
+        write_lp(
+            &db,
+            &vec!["h2o,state=CA,city=Boston other_temp=72.4 350"].join("\n"),
+        )
+        .await;
+
+        assert_eq!(count_mutable_buffer_chunks(&db), 1);
+        assert_eq!(count_read_buffer_chunks(&db), 1);
+        assert_eq!(count_object_store_chunks(&db), 1);
+
         vec![DbScenario {
-            scenario_name: "Data in parquet, and MUB".into(),
+            scenario_name: "Data in parquet, RUB, and MUB".into(),
             db,
         }]
     }
@@ -696,7 +679,7 @@ pub(crate) async fn make_one_chunk_rub_scenario(
         db.rollover_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
+        db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
     }
@@ -721,13 +704,12 @@ impl DbSetup for OneMeasurementAllChunksDropped {
 
         let lp_lines = vec!["h2o,state=MA temp=70.4 50"];
         write_lp(&db, &lp_lines.join("\n")).await;
-        db.rollover_partition(table_name, partition_key)
+        let chunk_id = db
+            .compact_open_chunk(table_name, partition_key)
             .await
-            .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
-            .await
-            .unwrap();
-        db.drop_chunk(table_name, partition_key, ChunkId::new(0))
+            .unwrap()
+            .id();
+        db.drop_chunk(table_name, partition_key, chunk_id)
             .await
             .unwrap();
 
@@ -767,10 +749,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
+        db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
     }
@@ -783,10 +762,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
+        db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
 
@@ -807,20 +783,20 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
     let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
+        db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
+
+        let id = db
+            .persist_partition(
+                table_name,
+                partition_key,
+                Instant::now() + Duration::from_secs(1),
+            )
             .await
-            .unwrap();
-        db.persist_partition(
-            table_name,
-            partition_key,
-            Instant::now() + Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
-        db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
+            .unwrap()
+            .id();
+        db.unload_read_buffer(table_name, partition_key, id)
             .unwrap();
     }
     let scenario5 = DbScenario {
@@ -868,10 +844,7 @@ pub async fn make_two_chunk_scenarios(
     let db = make_db().await.db;
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
+        db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
     }
@@ -885,21 +858,14 @@ pub async fn make_two_chunk_scenarios(
     let db = make_db().await.db;
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
+        db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
     }
     let table_names = write_lp(&db, data2).await;
     for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap();
-
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
-            .await
-            .unwrap();
-
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(1))
+        // Compact just the last chunk
+        db.compact_open_chunk(table_name, partition_key)
             .await
             .unwrap();
     }
@@ -912,12 +878,6 @@ pub async fn make_two_chunk_scenarios(
     let db = make_db().await.db;
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
-            .await
-            .unwrap();
         db.persist_partition(
             table_name,
             partition_key,
@@ -928,12 +888,6 @@ pub async fn make_two_chunk_scenarios(
     }
     let table_names = write_lp(&db, data2).await;
     for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(2))
-            .await
-            .unwrap();
         db.persist_partition(
             table_name,
             partition_key,
@@ -951,38 +905,31 @@ pub async fn make_two_chunk_scenarios(
     let db = make_db().await.db;
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
+        let id = db
+            .persist_partition(
+                table_name,
+                partition_key,
+                Instant::now() + Duration::from_secs(1),
+            )
             .await
-            .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
-            .await
-            .unwrap();
-        db.persist_partition(
-            table_name,
-            partition_key,
-            Instant::now() + Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
-        db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
+            .unwrap()
+            .id();
+        db.unload_read_buffer(table_name, partition_key, id)
             .unwrap();
     }
     let table_names = write_lp(&db, data2).await;
     for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
+        let id = db
+            .persist_partition(
+                table_name,
+                partition_key,
+                Instant::now() + Duration::from_secs(1),
+            )
             .await
-            .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(2))
-            .await
-            .unwrap();
-        db.persist_partition(
-            table_name,
-            partition_key,
-            Instant::now() + Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
-        db.unload_read_buffer(table_name, partition_key, ChunkId::new(3))
+            .unwrap()
+            .id();
+
+        db.unload_read_buffer(table_name, partition_key, id)
             .unwrap();
     }
     let scenario6 = DbScenario {
@@ -995,10 +942,7 @@ pub async fn make_two_chunk_scenarios(
     let table_names = write_lp(&db, data1).await;
     for table_name in &table_names {
         // put chunk 1 into RUB
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
+        db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
     }
@@ -1021,12 +965,6 @@ pub async fn make_two_chunk_scenarios(
 
 /// Rollover the mutable buffer and load chunk 0 to the read buffer and object store
 pub async fn rollover_and_load(db: &Arc<Db>, partition_key: &str, table_name: &str) {
-    db.rollover_partition(table_name, partition_key)
-        .await
-        .unwrap();
-    db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
-        .await
-        .unwrap();
     db.persist_partition(
         table_name,
         partition_key,
@@ -1045,10 +983,7 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
     let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
+        db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
     }
@@ -1061,20 +996,16 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
     let db = make_db().await.db;
     let table_names = write_lp(&db, data).await;
     for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
+        let id = db
+            .persist_partition(
+                table_name,
+                partition_key,
+                Instant::now() + Duration::from_secs(1),
+            )
             .await
-            .unwrap();
-        db.move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
-            .await
-            .unwrap();
-        db.persist_partition(
-            table_name,
-            partition_key,
-            Instant::now() + Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
-        db.unload_read_buffer(table_name, partition_key, ChunkId::new(1))
+            .unwrap()
+            .id();
+        db.unload_read_buffer(table_name, partition_key, id)
             .unwrap();
     }
     let scenario2 = DbScenario {
@@ -1135,33 +1066,34 @@ impl DbSetup for ChunkOrder {
 
         let db = make_db().await.db;
 
-        // create chunk 0: data->MUB->RUB
+        // create first chunk: data->MUB->RUB
         write_lp(&db, "cpu,region=west user=1 100").await;
         assert_eq!(count_mutable_buffer_chunks(&db), 1);
         assert_eq!(count_read_buffer_chunks(&db), 0);
         assert_eq!(count_object_store_chunks(&db), 0);
-        let chunk = db
-            .move_chunk_to_read_buffer(table_name, partition_key, ChunkId::new(0))
+        db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
-        assert_eq!(chunk.id(), ChunkId::new(0));
         assert_eq!(count_mutable_buffer_chunks(&db), 0);
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 0);
 
-        // create chunk 1: data->MUB
+        // create second chunk: data->MUB
         write_lp(&db, "cpu,region=west user=2 100").await;
         assert_eq!(count_mutable_buffer_chunks(&db), 1);
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 0);
 
-        // prevent chunk 1 from being part of the persistence
+        // prevent the second chunk from being part of the persistence
         // NOTE: In "real life" that could happen when writes happen while a persistence is in progress, but it's easier
         //       to trigger w/ this tiny locking trick.
-        let lockable_chunk = db
-            .lockable_chunk(table_name, partition_key, ChunkId::new(1))
-            .unwrap();
-        assert_eq!(lockable_chunk.id, ChunkId::new(1));
+        let lockable_chunk = {
+            let partition = db.lockable_partition(table_name, partition_key).unwrap();
+            let partition = partition.read();
+            let mut chunks = LockablePartition::chunks(&partition);
+            assert_eq!(chunks.len(), 2);
+            chunks.remove(1)
+        };
         lockable_chunk
             .chunk
             .write()
@@ -1169,7 +1101,7 @@ impl DbSetup for ChunkOrder {
             .unwrap();
 
         // transform chunk 0 into chunk 2 by persisting
-        let chunk = db
+        let new_chunk = db
             .persist_partition(
                 "cpu",
                 partition_key,
@@ -1177,7 +1109,7 @@ impl DbSetup for ChunkOrder {
             )
             .await
             .unwrap();
-        assert_eq!(chunk.id(), ChunkId::new(2));
+        assert!(lockable_chunk.id < new_chunk.id());
         assert_eq!(count_mutable_buffer_chunks(&db), 1);
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 1);

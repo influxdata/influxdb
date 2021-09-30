@@ -381,28 +381,28 @@ async fn sql_select_from_system_chunk_columns() {
     // with different chunk configurations.
 
     let expected = vec![
-        "+---------------+----------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+",
-        "| partition_key | chunk_id | table_name | column_name | storage           | row_count | null_count | min_value | max_value | memory_bytes |",
-        "+---------------+----------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+",
-        "| 1970-01-01T00 | 0        | h2o        | city        | ReadBuffer        | 2         | 0          | Boston    | Boston    | 359          |",
-        "| 1970-01-01T00 | 0        | h2o        | other_temp  | ReadBuffer        | 2         | 1          | 70.4      | 70.4      | 471          |",
-        "| 1970-01-01T00 | 0        | h2o        | state       | ReadBuffer        | 2         | 0          | MA        | MA        | 347          |",
-        "| 1970-01-01T00 | 0        | h2o        | temp        | ReadBuffer        | 2         | 1          | 70.4      | 70.4      | 471          |",
-        "| 1970-01-01T00 | 0        | h2o        | time        | ReadBuffer        | 2         | 0          | 50        | 250       | 110          |",
-        "| 1970-01-01T00 | 0        | o2         | city        | OpenMutableBuffer | 2         | 1          | Boston    | Boston    | 309          |",
-        "| 1970-01-01T00 | 0        | o2         | reading     | OpenMutableBuffer | 2         | 1          | 51        | 51        | 297          |",
-        "| 1970-01-01T00 | 0        | o2         | state       | OpenMutableBuffer | 2         | 0          | CA        | MA        | 313          |",
-        "| 1970-01-01T00 | 0        | o2         | temp        | OpenMutableBuffer | 2         | 0          | 53.4      | 79        | 297          |",
-        "| 1970-01-01T00 | 0        | o2         | time        | OpenMutableBuffer | 2         | 0          | 50        | 300       | 297          |",
-        "| 1970-01-01T00 | 1        | h2o        | city        | OpenMutableBuffer | 1         | 0          | Boston    | Boston    | 309          |",
-        "| 1970-01-01T00 | 1        | h2o        | other_temp  | OpenMutableBuffer | 1         | 0          | 72.4      | 72.4      | 297          |",
-        "| 1970-01-01T00 | 1        | h2o        | state       | OpenMutableBuffer | 1         | 0          | CA        | CA        | 309          |",
-        "| 1970-01-01T00 | 1        | h2o        | time        | OpenMutableBuffer | 1         | 0          | 350       | 350       | 297          |",
-        "+---------------+----------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+",
+        "+---------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+",
+        "| partition_key | table_name | column_name | storage           | row_count | null_count | min_value | max_value | memory_bytes |",
+        "+---------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+",
+        "| 1970-01-01T00 | h2o        | city        | OpenMutableBuffer | 1         | 0          | Boston    | Boston    | 309          |",
+        "| 1970-01-01T00 | h2o        | city        | ReadBuffer        | 2         | 0          | Boston    | Boston    | 359          |",
+        "| 1970-01-01T00 | h2o        | other_temp  | OpenMutableBuffer | 1         | 0          | 72.4      | 72.4      | 297          |",
+        "| 1970-01-01T00 | h2o        | other_temp  | ReadBuffer        | 2         | 1          | 70.4      | 70.4      | 471          |",
+        "| 1970-01-01T00 | h2o        | state       | OpenMutableBuffer | 1         | 0          | CA        | CA        | 309          |",
+        "| 1970-01-01T00 | h2o        | state       | ReadBuffer        | 2         | 0          | MA        | MA        | 347          |",
+        "| 1970-01-01T00 | h2o        | temp        | ReadBuffer        | 2         | 1          | 70.4      | 70.4      | 471          |",
+        "| 1970-01-01T00 | h2o        | time        | OpenMutableBuffer | 1         | 0          | 350       | 350       | 297          |",
+        "| 1970-01-01T00 | h2o        | time        | ReadBuffer        | 2         | 0          | 50        | 250       | 110          |",
+        "| 1970-01-01T00 | o2         | city        | OpenMutableBuffer | 2         | 1          | Boston    | Boston    | 309          |",
+        "| 1970-01-01T00 | o2         | reading     | OpenMutableBuffer | 2         | 1          | 51        | 51        | 297          |",
+        "| 1970-01-01T00 | o2         | state       | OpenMutableBuffer | 2         | 0          | CA        | MA        | 313          |",
+        "| 1970-01-01T00 | o2         | temp        | OpenMutableBuffer | 2         | 0          | 53.4      | 79        | 297          |",
+        "| 1970-01-01T00 | o2         | time        | OpenMutableBuffer | 2         | 0          | 50        | 300       | 297          |",
+        "+---------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+",
     ];
     run_sql_test_case(
         TwoMeasurementsManyFieldsTwoChunks {},
-        "SELECT * from system.chunk_columns",
+        "SELECT partition_key, table_name, column_name, storage, row_count, null_count, min_value, max_value, memory_bytes from system.chunk_columns",
         &expected,
     )
     .await;
@@ -412,20 +412,20 @@ async fn sql_select_from_system_chunk_columns() {
 async fn sql_select_from_system_operations() {
     test_helpers::maybe_start_logging();
     let expected = vec![
-        "+----+---------+------------+---------------+----------------+------------+---------------+-----------+-------------------------------------+",
-        "| id | status  | start_time | took_cpu_time | took_wall_time | table_name | partition_key | chunk_ids | description                         |",
-        "+----+---------+------------+---------------+----------------+------------+---------------+-----------+-------------------------------------+",
-        "| 0  | Success | true       | true          | true           | h2o        | 1970-01-01T00 | 0         | Compacting chunk to ReadBuffer      |",
-        "| 1  | Success | true       | true          | true           | h2o        | 1970-01-01T00 | 0, 1      | Persisting chunks to object storage |",
-        "| 2  | Success | true       | true          | true           | h2o        | 1970-01-01T00 | 2         | Writing chunk to Object Storage     |",
-        "+----+---------+------------+---------------+----------------+------------+---------------+-----------+-------------------------------------+",
+        "+----+---------+------------+---------------+----------------+------------+---------------+-------------------------------------+",
+        "| id | status  | start_time | took_cpu_time | took_wall_time | table_name | partition_key | description                         |",
+        "+----+---------+------------+---------------+----------------+------------+---------------+-------------------------------------+",
+        "| 0  | Success | true       | true          | true           | h2o        | 1970-01-01T00 | Compacting chunks to ReadBuffer     |",
+        "| 1  | Success | true       | true          | true           | h2o        | 1970-01-01T00 | Persisting chunks to object storage |",
+        "| 2  | Success | true       | true          | true           | h2o        | 1970-01-01T00 | Writing chunk to Object Storage     |",
+        "+----+---------+------------+---------------+----------------+------------+---------------+-------------------------------------+",
     ];
 
     // Check that the cpu time used reported is greater than zero as it isn't
     // repeatable
     run_sql_test_case(
         TwoMeasurementsManyFieldsLifecycle {},
-        "SELECT id, status, CAST(start_time as BIGINT) > 0 as start_time, CAST(cpu_time_used AS BIGINT) > 0 as took_cpu_time, CAST(wall_time_used AS BIGINT) > 0 as took_wall_time, table_name, partition_key, chunk_ids, description from system.operations",
+        "SELECT id, status, CAST(start_time as BIGINT) > 0 as start_time, CAST(cpu_time_used AS BIGINT) > 0 as took_cpu_time, CAST(wall_time_used AS BIGINT) > 0 as took_wall_time, table_name, partition_key, description from system.operations",
         &expected
     ).await;
 }
@@ -829,7 +829,7 @@ async fn sql_deduplicate_1() {
         "| 1970-01-01T00:00:00.000000700Z | CA    | SJ      | 75.5     | 84.08    |      |",
         "+--------------------------------+-------+---------+----------+----------+------+",
     ];
-    run_sql_test_case(OneMeasurementThreeChunksWithDuplicates {}, sql, &expected).await;
+    run_sql_test_case(OneMeasurementFourChunksWithDuplicates {}, sql, &expected).await;
 }
 
 #[tokio::test]

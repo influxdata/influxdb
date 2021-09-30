@@ -87,7 +87,7 @@ use hashbrown::HashMap;
 use influxdb_line_protocol::ParsedLine;
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
-use lifecycle::LockableChunk;
+use lifecycle::{LockableChunk, LockablePartition};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use rand::seq::SliceRandom;
@@ -171,8 +171,20 @@ pub enum Error {
     #[snafu(display("database error: {}", source))]
     UnknownDatabaseError { source: DatabaseError },
 
-    #[snafu(display("chunk not found: {}", source))]
-    ChunkNotFound { source: db::catalog::Error },
+    #[snafu(display("partition not found: {}", source))]
+    PartitionNotFound { source: db::catalog::Error },
+
+    #[snafu(display(
+        "chunk: {} not found in partition '{}' and table '{}'",
+        chunk_id,
+        partition,
+        table
+    ))]
+    ChunkNotFound {
+        chunk_id: ChunkId,
+        partition: String,
+        table: String,
+    },
 
     #[snafu(display("getting mutable buffer chunk: {}", source))]
     MutableBufferChunk { source: DatabaseError },
@@ -973,14 +985,25 @@ where
         let partition_key = partition_key.into();
         let table_name = table_name.into();
 
-        let chunk = db
-            .lockable_chunk(&table_name, &partition_key, chunk_id)
-            .context(ChunkNotFound)?;
+        let partition = db
+            .lockable_partition(&table_name, &partition_key)
+            .context(PartitionNotFound)?;
 
-        let guard = chunk.write();
+        let partition = partition.read();
+        let chunk =
+            LockablePartition::chunk(&partition, chunk_id).ok_or_else(|| Error::ChunkNotFound {
+                chunk_id,
+                partition: partition_key.to_string(),
+                table: table_name.to_string(),
+            })?;
 
-        LockableChunk::move_to_read_buffer(guard).map_err(|e| Error::UnknownDatabaseError {
-            source: Box::new(e),
+        let partition = partition.upgrade();
+        let chunk = chunk.write();
+
+        LockablePartition::compact_chunks(partition, vec![chunk]).map_err(|e| {
+            Error::UnknownDatabaseError {
+                source: Box::new(e),
+            }
         })
     }
 
@@ -1210,6 +1233,7 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use bytes::Bytes;
     use connection::test_helpers::{TestConnectionManager, TestRemoteServer};
+    use data_types::chunk_metadata::ChunkStorage;
     use data_types::{
         chunk_metadata::ChunkAddr,
         database_rules::{
@@ -1690,8 +1714,9 @@ mod tests {
             .unwrap();
 
         let metadata = tracker.metadata();
-        let expected_metadata = Job::CompactChunk {
-            chunk: chunk_addr.clone(),
+        let expected_metadata = Job::CompactChunks {
+            partition: chunk_addr.clone().into_partition(),
+            chunks: vec![chunk_addr.chunk_id],
         };
         assert_eq!(metadata, &expected_metadata);
 
@@ -1702,21 +1727,9 @@ mod tests {
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).unwrap();
 
-        let mut chunk_summaries = db.chunk_summaries().unwrap();
-        chunk_summaries.sort_unstable();
-
-        let actual = chunk_summaries
-            .into_iter()
-            .map(|s| format!("{:?} {}", s.storage, s.id.get()))
-            .collect::<Vec<_>>();
-
-        let expected = vec!["ReadBuffer 0"];
-
-        assert_eq!(
-            expected, actual,
-            "expected:\n{:#?}\n\nactual:{:#?}\n\n",
-            expected, actual
-        );
+        let chunk_summaries = db.chunk_summaries().unwrap();
+        assert_eq!(chunk_summaries.len(), 1);
+        assert_eq!(chunk_summaries[0].storage, ChunkStorage::ReadBuffer);
     }
 
     #[tokio::test]

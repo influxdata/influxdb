@@ -1,5 +1,5 @@
 -- Test for predicate push down explains
--- IOX_SETUP: OneMeasurementThreeChunksWithDuplicates
+-- IOX_SETUP: OneMeasurementFourChunksWithDuplicates
 
 -- Plan with order by
 explain select time, state, city, min_temp, max_temp, area from h2o order by time, state, city;

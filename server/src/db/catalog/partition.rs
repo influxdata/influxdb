@@ -1,6 +1,6 @@
 //! The catalog representation of a Partition
 
-use super::chunk::{CatalogChunk, ChunkStage, Error as ChunkError};
+use super::chunk::{CatalogChunk, Error as ChunkError};
 use crate::db::catalog::metrics::PartitionMetrics;
 use chrono::{DateTime, Utc};
 use data_types::{
@@ -337,10 +337,7 @@ impl Partition {
     pub fn open_chunk(&self) -> Option<Arc<RwLock<CatalogChunk>>> {
         self.chunks
             .values()
-            .find(|chunk| {
-                let chunk = chunk.read();
-                matches!(chunk.stage(), ChunkStage::Open { .. })
-            })
+            .find(|chunk| chunk.read().stage().is_open())
             .cloned()
     }
 

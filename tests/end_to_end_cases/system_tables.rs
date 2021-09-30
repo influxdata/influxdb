@@ -48,11 +48,11 @@ async fn test_operations() {
     // parameterize on db_name1
 
     let expected_read_data = vec![
-        "+-----------+---------+--------------------------------+",
-        "| chunk_ids | status  | description                    |",
-        "+-----------+---------+--------------------------------+",
-        "| 0         | Success | Compacting chunk to ReadBuffer |",
-        "+-----------+---------+--------------------------------+",
+        "+-----------+---------+---------------------------------+",
+        "| chunk_ids | status  | description                     |",
+        "+-----------+---------+---------------------------------+",
+        "| 0         | Success | Compacting chunks to ReadBuffer |",
+        "+-----------+---------+---------------------------------+",
     ];
 
     assert_batches_eq!(expected_read_data, &batches);

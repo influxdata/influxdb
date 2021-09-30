@@ -27,12 +27,12 @@ message OperationMetadata {
   // The number of tasks that did not run to completion (e.g. panic)
   uint64 dropped_count = 16;
 
-  reserved 6;
+  // Operations that are no longer supported
+  reserved 6, 7;
 
   // What kind of job is it?
   oneof job {
     Dummy dummy = 5;
-    CloseChunk close_chunk = 7;
     WriteChunk write_chunk = 8;
     WipePreservedCatalog wipe_preserved_catalog = 9;
     CompactChunks compact_chunks = 10;
@@ -49,21 +49,6 @@ message Dummy {
 
   // Name of the database, if any
   string db_name = 2;
-}
-
-// Move a chunk from mutable buffer to read buffer
-message CloseChunk {
-  // name of the database
-  string db_name = 1;
-
-  // partition key
-  string partition_key = 2;
-
-  // table name
-  string table_name = 4;
-
-  // chunk_id
-  uint32 chunk_id = 3;
 }
 
 // Write a chunk from read buffer to object store

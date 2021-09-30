@@ -958,14 +958,6 @@ mod tests {
             LifecycleWriteGuard::new(self.clone(), &self.chunk)
         }
 
-        fn move_to_read_buffer(
-            _s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
-        ) -> Result<TaskTracker<Self::Job>, Self::Error> {
-            // Isn't used by the lifecycle policy
-            // TODO: Remove this
-            unreachable!()
-        }
-
         fn unload_read_buffer(
             mut s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
         ) -> Result<(), Self::Error> {
@@ -1304,7 +1296,7 @@ mod tests {
         let db = TestDb::new(rules, vec![]);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        let (tracker, registration) = registry.register(ChunkLifecycleAction::Moving);
+        let (tracker, registration) = registry.register(ChunkLifecycleAction::Compacting);
 
         // Manually add the tracker to the policy as if a previous invocation
         // of check_for_work had started a background move task
@@ -1827,7 +1819,7 @@ mod tests {
         let chunk = Arc::clone(&db.partitions.read()[0].read().chunks[&ChunkId::new(0)].1);
 
         let r0 = TaskRegistration::default();
-        let tracker = TaskTracker::new(TaskId(0), &r0, ChunkLifecycleAction::Moving);
+        let tracker = TaskTracker::new(TaskId(0), &r0, ChunkLifecycleAction::Compacting);
         chunk.write().lifecycle_action = Some(tracker.clone());
 
         // Shouldn't do anything

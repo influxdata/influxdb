@@ -28,11 +28,11 @@ enum ChunkStorage {
 
 // Is there any lifecycle action currently outstanding for this chunk?
 enum ChunkLifecycleAction {
+  // Actions that are no longer supported
+  reserved 1;
+
   // No lifecycle
   CHUNK_LIFECYCLE_ACTION_UNSPECIFIED = 0;
-
-  // Chunk is in the process of being moved to the read buffer
-  CHUNK_LIFECYCLE_ACTION_MOVING = 1;
 
   /// Chunk is in the process of being written to object storage
   CHUNK_LIFECYCLE_ACTION_PERSISTING = 2;

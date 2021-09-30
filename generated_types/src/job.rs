@@ -8,12 +8,6 @@ impl From<Job> for management::operation_metadata::Job {
                 nanos,
                 db_name: db_name.map(|x| x.to_string()).unwrap_or_default(),
             }),
-            Job::CompactChunk { chunk } => Self::CloseChunk(management::CloseChunk {
-                db_name: chunk.db_name.to_string(),
-                partition_key: chunk.partition_key.to_string(),
-                table_name: chunk.table_name.to_string(),
-                chunk_id: chunk.chunk_id.get(),
-            }),
             Job::WriteChunk { chunk } => Self::WriteChunk(management::WriteChunk {
                 db_name: chunk.db_name.to_string(),
                 partition_key: chunk.partition_key.to_string(),
