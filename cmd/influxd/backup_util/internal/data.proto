@@ -1,6 +1,7 @@
 syntax = "proto2";
 
 package backup_util;
+option go_package = ".;backup_util";
 
 //========================================================================
 //
