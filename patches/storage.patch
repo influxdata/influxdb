@@ -5,7 +5,7 @@ index 6df6b5c4a7..54b5a9699b 100644
 @@ -1,3 +1 @@
  package datatypes
 -
--//go:generate protoc -I ../../../internal -I . --plugin ../../../scripts/protoc-gen-gogofaster --gogofaster_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/any.proto=github.com/gogo/protobuf/types,plugins=grpc:. storage_common.proto predicate.proto
+-//go:generate protoc --go_out=. storage_common.proto predicate.proto
 diff --git b/storage/reads/flux_reader.go a/storage/reads/flux_reader.go
 index bb98c2918c..e10bf3eae7 100644
 --- b/storage/reads/flux_reader.go
