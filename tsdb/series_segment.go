@@ -212,10 +212,7 @@ func (s *SeriesSegment) Flush() error {
 	if s.w == nil {
 		return nil
 	}
-	if err := s.w.Flush(); err != nil {
-		return err
-	}
-	return s.file.Sync()
+	return s.w.Flush()
 }
 
 // AppendSeriesIDs appends all the segments ids to a slice. Returns the new slice.
