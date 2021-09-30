@@ -1122,7 +1122,7 @@ async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate()
 
     run_sql_test_case(
         scenarios::delete::ThreeDeleteThreeChunks {},
-        "SELECT * from cpu where bar = 1.0",
+        "SELECT * from cpu where bar = 1",
         &expected,
     )
     .await;
@@ -1144,7 +1144,7 @@ async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate()
 
     run_sql_test_case(
         scenarios::delete::ThreeDeleteThreeChunks {},
-        "SELECT * from cpu where foo = 'me' and (bar > 2.0 or bar = 1.0)",
+        "SELECT * from cpu where foo = 'me' and (bar > 2 or bar = 1.0)",
         &expected,
     )
     .await;
@@ -1155,7 +1155,7 @@ async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate()
 
     run_sql_test_case(
         scenarios::delete::ThreeDeleteThreeChunks {},
-        "SELECT * from cpu where foo = 'you' and (bar > 3.0 or bar = 1.0)",
+        "SELECT * from cpu where foo = 'you' and (bar > 3.0 or bar = 1)",
         &expected,
     )
     .await;
