@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/bmizerany/pat"
-	"github.com/gogo/protobuf/proto"
+	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/golang-jwt/jwt"
 	"github.com/golang/snappy"
 	"github.com/influxdata/flux"
@@ -1161,7 +1161,7 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 
 	// Convert the Prometheus remote write request to Influx Points
 	var req prompb.WriteRequest
-	if err := proto.Unmarshal(reqBuf, &req); err != nil {
+	if err := gogoproto.Unmarshal(reqBuf, &req); err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -1232,7 +1232,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	}
 
 	var req prompb.ReadRequest
-	if err := proto.Unmarshal(reqBuf, &req); err != nil {
+	if err := gogoproto.Unmarshal(reqBuf, &req); err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -1259,7 +1259,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	}
 
 	respond := func(resp *prompb.ReadResponse) {
-		data, err := proto.Marshal(resp)
+		data, err := gogoproto.Marshal(resp)
 		if err != nil {
 			h.httpError(w, err.Error(), http.StatusInternalServerError)
 			return

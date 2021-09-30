@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/golang-jwt/jwt"
 	"github.com/golang/snappy"
 	"github.com/google/go-cmp/cmp"
@@ -767,7 +767,7 @@ func TestHandler_PromWrite(t *testing.T) {
 		},
 	}
 
-	data, err := proto.Marshal(req)
+	data, err := gogoproto.Marshal(req)
 	if err != nil {
 		t.Fatal("couldn't marshal prometheus request")
 	}
@@ -856,7 +856,7 @@ func TestHandler_PromWrite_Dropped(t *testing.T) {
 		},
 	}
 
-	data, err := proto.Marshal(req)
+	data, err := gogoproto.Marshal(req)
 	if err != nil {
 		t.Fatal("couldn't marshal prometheus request")
 	}
@@ -940,7 +940,7 @@ func TestHandler_PromWrite_Error(t *testing.T) {
 		},
 	}
 
-	data, err := proto.Marshal(req)
+	data, err := gogoproto.Marshal(req)
 	if err != nil {
 		t.Fatal("couldn't marshal prometheus request")
 	}
@@ -989,7 +989,7 @@ func TestHandler_PromRead(t *testing.T) {
 			EndTimestampMs:   2,
 		}},
 	}
-	data, err := proto.Marshal(req)
+	data, err := gogoproto.Marshal(req)
 	if err != nil {
 		t.Fatal("couldn't marshal prometheus request")
 	}
@@ -1042,7 +1042,7 @@ func TestHandler_PromRead(t *testing.T) {
 	}
 
 	var resp prompb.ReadResponse
-	if err := proto.Unmarshal(reqBuf, &resp); err != nil {
+	if err := gogoproto.Unmarshal(reqBuf, &resp); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1092,7 +1092,7 @@ func TestHandler_PromRead_NoResults(t *testing.T) {
 		StartTimestampMs: 0,
 		EndTimestampMs:   models.MaxNanoTime / int64(time.Millisecond),
 	}}}
-	data, err := proto.Marshal(req)
+	data, err := gogoproto.Marshal(req)
 	if err != nil {
 		t.Fatal("couldn't marshal prometheus request")
 	}
@@ -1111,7 +1111,7 @@ func TestHandler_PromRead_NoResults(t *testing.T) {
 	}
 
 	var resp prompb.ReadResponse
-	if err := proto.Unmarshal(reqBuf, &resp); err != nil {
+	if err := gogoproto.Unmarshal(reqBuf, &resp); err != nil {
 		t.Fatal(err.Error())
 	}
 }
@@ -1128,7 +1128,7 @@ func TestHandler_PromRead_UnsupportedCursors(t *testing.T) {
 		StartTimestampMs: 0,
 		EndTimestampMs:   models.MaxNanoTime / int64(time.Millisecond),
 	}}}
-	data, err := proto.Marshal(req)
+	data, err := gogoproto.Marshal(req)
 	if err != nil {
 		t.Fatal("couldn't marshal prometheus request")
 	}
@@ -1167,7 +1167,7 @@ func TestHandler_PromRead_UnsupportedCursors(t *testing.T) {
 		}
 
 		var resp prompb.ReadResponse
-		if err := proto.Unmarshal(reqBuf, &resp); err != nil {
+		if err := gogoproto.Unmarshal(reqBuf, &resp); err != nil {
 			t.Fatal(err.Error())
 		}
 
@@ -1207,7 +1207,7 @@ func TestHandler_PromRead_NilResultSet(t *testing.T) {
 			EndTimestampMs:   2,
 		}},
 	}
-	data, err := proto.Marshal(req)
+	data, err := gogoproto.Marshal(req)
 	if err != nil {
 		log.Fatal("couldn't marshal prometheus request")
 	}
@@ -1241,7 +1241,7 @@ func TestHandler_PromRead_NilResultSet(t *testing.T) {
 	}
 
 	resp := new(prompb.ReadResponse)
-	err = proto.Unmarshal(decompressed, resp)
+	err = gogoproto.Unmarshal(decompressed, resp)
 	if err != nil {
 		t.Fatal(err)
 	}

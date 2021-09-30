@@ -6,8 +6,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
@@ -17,6 +15,8 @@ import (
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var (
@@ -25,9 +25,12 @@ var (
 
 // GetReadSource will attempt to unmarshal a ReadSource from the ReadRequest or
 // return an error if no valid resource is present.
-func GetReadSource(any types.Any) (*ReadSource, error) {
+func GetReadSource(any *anypb.Any) (*ReadSource, error) {
+	if any == nil {
+		return nil, ErrMissingReadSource
+	}
 	var source ReadSource
-	if err := types.UnmarshalAny(&any, &source); err != nil {
+	if err := any.UnmarshalTo(&source); err != nil {
 		return nil, err
 	}
 	return &source, nil
@@ -111,12 +114,12 @@ func (s *Store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 		return nil, errors.New("missing read source")
 	}
 
-	source, err := GetReadSource(*req.ReadSource)
+	source, err := GetReadSource(req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.GetStart(), req.Range.GetEnd())
 	if err != nil {
 		return nil, err
 	}
@@ -138,10 +141,12 @@ func (s *Store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 		cur = ic
 	}
 
-	req.Range.Start = start
-	req.Range.End = end
+	req.Range = &datatypes.TimestampRange{
+		Start: start,
+		End:   end,
+	}
 
-	return reads.NewFilteredResultSet(ctx, req.Range.Start, req.Range.End, cur), nil
+	return reads.NewFilteredResultSet(ctx, req.Range.GetStart(), req.Range.GetEnd(), cur), nil
 }
 
 func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
@@ -149,12 +154,12 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 		return nil, errors.New("missing read source")
 	}
 
-	source, err := GetReadSource(*req.ReadSource)
+	source, err := GetReadSource(req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.GetStart(), req.Range.GetEnd())
 	if err != nil {
 		return nil, err
 	}
@@ -173,8 +178,10 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 
 	shards := s.TSDBStore.Shards(shardIDs)
 
-	req.Range.Start = start
-	req.Range.End = end
+	req.Range = &datatypes.TimestampRange{
+		Start: start,
+		End:   end,
+	}
 
 	newCursor := func() (reads.SeriesCursor, error) {
 		cur, err := newIndexSeriesCursor(ctx, req.Predicate, shards)
@@ -197,12 +204,12 @@ func (s *Store) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAg
 		return nil, errors.New("missing read source")
 	}
 
-	source, err := GetReadSource(*req.ReadSource)
+	source, err := GetReadSource(req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.GetStart(), req.Range.GetEnd())
 	if err != nil {
 		return nil, err
 	}
@@ -236,12 +243,12 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 		return nil, errors.New("missing read source")
 	}
 
-	source, err := GetReadSource(*req.TagsSource)
+	source, err := GetReadSource(req.TagsSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.GetStart(), req.Range.GetEnd())
 	if err != nil {
 		return nil, err
 	}
@@ -311,12 +318,12 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 		return nil, errors.New("missing read source")
 	}
 
-	source, err := GetReadSource(*req.TagsSource)
+	source, err := GetReadSource(req.TagsSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.GetStart(), req.Range.GetEnd())
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +397,7 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 }
 
 type MeasurementNamesRequest struct {
-	MeasurementsSource *types.Any
+	MeasurementsSource *anypb.Any
 	Predicate          *datatypes.Predicate
 }
 
@@ -399,7 +406,7 @@ func (s *Store) MeasurementNames(ctx context.Context, req *MeasurementNamesReque
 		return nil, errors.New("missing read source")
 	}
 
-	source, err := GetReadSource(*req.MeasurementsSource)
+	source, err := GetReadSource(req.MeasurementsSource)
 	if err != nil {
 		return nil, err
 	}
