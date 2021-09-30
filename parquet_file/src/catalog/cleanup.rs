@@ -88,7 +88,9 @@ pub async fn get_unreferenced_parquet_files(
         }
     }
 
-    info!(n_files = to_remove.len(), "Found files to delete");
+    if !to_remove.is_empty() {
+        info!(n_files = to_remove.len(), "Found files to delete");
+    }
 
     Ok(to_remove)
 }
@@ -109,7 +111,9 @@ pub async fn delete_files(catalog: &PreservedCatalog, files: &[ParquetFilePath])
         store.delete_parquet_file(path).await.context(WriteError)?;
     }
 
-    info!(n_files = files.len(), "Finished deletion, removed files.");
+    if !files.is_empty() {
+        info!(n_files = files.len(), "Finished deletion, removed files.");
+    }
 
     Ok(())
 }
