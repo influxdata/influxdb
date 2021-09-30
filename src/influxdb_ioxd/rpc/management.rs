@@ -7,7 +7,7 @@ use data_types::chunk_metadata::ChunkId;
 use data_types::{server_id::ServerId, DatabaseName};
 use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound};
 use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
-use predicate::predicate::{ParseDeletePredicate, PredicateBuilder};
+use predicate::predicate::{ParseDeletePredicate};
 use query::QueryDatabase;
 use server::rules::ProvidedDatabaseRules;
 use server::{ApplicationState, ConnectionManager, Error, Server};
@@ -623,15 +623,10 @@ where
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        // parse time range and the predicate
-        let exprs_result = ParseDeletePredicate::try_new(
-            table_name.as_str(),
-            start_time.as_str(),
-            stop_time.as_str(),
-            predicate.as_str(),
+        let del_predicate_result = ParseDeletePredicate::build_delete_predicate(
+            table_name.clone(), start_time.clone(), stop_time.clone(), predicate.clone(),
         );
-
-        match exprs_result {
+        match del_predicate_result {
             Err(_) => {
                 return Err(default_server_error_handler(Error::DeleteExpression {
                     start_time,
@@ -639,18 +634,8 @@ where
                     predicate,
                 }))
             }
-            Ok(parse_delete_pred) => {
-                // Build the predicate
-                let mut del_predicate = PredicateBuilder::new()
-                    .table(table_name.clone())
-                    .timestamp_range(parse_delete_pred.start_time, parse_delete_pred.stop_time)
-                    .build();
-
-                // Add the predicate binary expressions
-                for expr in parse_delete_pred.predicate {
-                    del_predicate.exprs.push(expr);
-                }
-
+            Ok(del_predicate) => {
+                //execute delete
                 db.delete(&table_name, Arc::new(del_predicate))
                     .await
                     .map_err(default_db_error_handler)?;

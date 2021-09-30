@@ -592,6 +592,33 @@ impl ParseDeletePredicate {
         }
     }
 
+    pub fn build_delete_predicate(
+        table_name: String,
+        start_time: String,
+        stop_time: String,
+        predicate: String
+    ) -> Result<Predicate, Error> {
+        // parse time range and the predicate
+        let parse_delete_pred = ParseDeletePredicate::try_new(
+            table_name.as_str(),
+            start_time.as_str(),
+            stop_time.as_str(),
+            predicate.as_str(),
+        )?;
+    
+        let mut del_predicate = PredicateBuilder::new()
+            .table(table_name)
+            .timestamp_range(parse_delete_pred.start_time, parse_delete_pred.stop_time)
+            .build();
+    
+        // Add the predicate binary expressions
+        for expr in parse_delete_pred.predicate {
+            del_predicate.exprs.push(expr);
+        }
+    
+        Ok(del_predicate)
+    }
+
     /// Recursively split all "AND" expressions into smaller ones
     /// Example: "A AND B AND C" => [A, B, C]
     /// Return false if not all of them are AND of binary expression of

@@ -25,7 +25,8 @@ use data_types::{
     DatabaseName,
 };
 use influxdb_iox_client::format::QueryOutputFormat;
-use influxdb_line_protocol::parse_lines;
+use influxdb_line_protocol::{parse_delete, parse_lines};
+use predicate::predicate::ParseDeletePredicate;
 use query::exec::ExecutionContextProvider;
 use server::{ApplicationState, ConnectionManager, Error, Server as AppServer};
 
@@ -40,7 +41,7 @@ use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 use trace_http::ctx::TraceHeaderParser;
 
-use crate::influxdb_ioxd::http::metrics::LineProtocolMetrics;
+use crate::influxdb_ioxd::{http::metrics::LineProtocolMetrics};
 use hyper::server::conn::{AddrIncoming, AddrStream};
 use std::convert::Infallible;
 use std::num::NonZeroI32;
@@ -160,6 +161,24 @@ pub enum ApplicationError {
         source: influxdb_line_protocol::Error,
     },
 
+    #[snafu(display("Error parsing delete {}: {}", input, source))]
+    ParsingDelete {
+        source: influxdb_line_protocol::Error,
+        input: String,
+    },
+
+    #[snafu(display("Error building delete predicate {}: {}", input, source))]
+    BuildingDeletePredicate {
+        source: predicate::predicate::Error,
+        input: String,
+    },
+
+    #[snafu(display("Error executing delete {}: {}", input, source))]
+    ExecutingDelete {
+        source: server::db::Error,
+        input: String,
+    },
+
     #[snafu(display("Error decompressing body as gzip: {}", source))]
     ReadingBodyAsGzip { source: std::io::Error },
 
@@ -261,6 +280,9 @@ impl ApplicationError {
             Self::ReadingBody { .. } => self.bad_request(),
             Self::ReadingBodyAsUtf8 { .. } => self.bad_request(),
             Self::ParsingLineProtocol { .. } => self.bad_request(),
+            Self::ParsingDelete { .. } => self.bad_request(),
+            Self::BuildingDeletePredicate { .. } => self.bad_request(),
+            Self::ExecutingDelete  { .. } => self.internal_error(),
             Self::ReadingBodyAsGzip { .. } => self.bad_request(),
             Self::ClientHangup { .. } => self.bad_request(),
             Self::RouteNotFound { .. } => self.not_found(),
@@ -537,6 +559,64 @@ where
             })
         }
     }
+}
+
+async fn delete<M>(
+    req: Request<Body>,
+    server: &Server<M>,
+) -> Result<Response<Body>, ApplicationError>
+where
+    M: ConnectionManager + Send + Sync + Debug + 'static,
+{
+    let Server {
+        app_server: server,
+        max_request_size,
+        // lp_metrics,   NGA: this is for delete, no need lp metrics
+        ..
+    } = server;
+
+    let max_request_size = *max_request_size;
+    let server = Arc::clone(server);
+    // let lp_metrics = Arc::clone(lp_metrics);
+
+    // Extract the DB name from the request
+    // db_name = orrID_bucketID
+    let query = req.uri().query().context(ExpectedQueryString)?;
+    let delete_info: WriteInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
+        query_string: String::from(query),
+    })?;
+    let db_name = org_and_bucket_to_database(&delete_info.org, &delete_info.bucket)
+        .context(BucketMappingError)?;
+
+    // Parse body
+    let body = parse_body(req, max_request_size).await?;
+    let body = str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
+
+    // Parse and extract table name (which can be empty), start, stop, and predicate
+    let parsed_delete = parse_delete(body).context(ParsingDelete { input: body })?;
+
+    let table_name = parsed_delete.table_name;
+    let predicate = parsed_delete.predicate;
+    let start = parsed_delete.start_time;
+    let stop = parsed_delete.stop_time;
+    debug!(%table_name, %predicate, %start, %stop, body_size=body.len(), %db_name, org=%delete_info.org, bucket=%delete_info.bucket, "delete data from database");
+
+    // Validate that the database name is legit
+    let db = server.db(&db_name)?;
+
+    let del_predicate =
+        ParseDeletePredicate::build_delete_predicate(table_name.clone(), start, stop, predicate)
+            .context(BuildingDeletePredicate { input: body })?;
+
+    //execute delete
+    db.delete(&table_name, Arc::new(del_predicate))
+        .await
+        .context(ExecutingDelete { input: body })?;
+
+    Ok(Response::builder()
+        .status(StatusCode::NO_CONTENT)
+        .body(Body::empty())
+        .unwrap())
 }
 
 #[derive(Deserialize, Debug, PartialEq)]

@@ -1740,6 +1740,7 @@ version = "0.1.0"
 dependencies = [
  "nom 7.0.0",
  "observability_deps",
+ "serde_json",
  "smallvec",
  "snafu",
  "test_helpers",
