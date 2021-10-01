@@ -1,2 +1,0 @@
-#!/usr/bin/env bash
-env GO111MODULE=on go run github.com/gogo/protobuf/protoc-gen-gogo "$@"

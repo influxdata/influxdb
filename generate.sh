@@ -1,9 +1,6 @@
 #!/bin/bash -e
 
-# todo(dstrand1): remove the gogo installations when influx_tools is ported
 go install google.golang.org/protobuf/cmd/protoc-gen-go
-go install github.com/gogo/protobuf/protoc-gen-gogofaster
-go install github.com/gogo/protobuf/protoc-gen-gogo
 go install golang.org/x/tools/cmd/stringer
 go install github.com/benbjohnson/tmpl
 
