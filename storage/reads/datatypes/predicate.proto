@@ -41,7 +41,7 @@ message Node {
     uint64 UnsignedValue = 6;
     double FloatValue = 7;
     string RegexValue = 8;
-    string TagRefValue = 9;
+    bytes TagRefValue = 9;
     string FieldRefValue = 10;
     Logical logical = 11;
     Comparison comparison = 12;
