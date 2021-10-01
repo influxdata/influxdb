@@ -37,14 +37,12 @@ pub(crate) use compact::compact_chunks;
 use data_types::partition_metadata::PartitionAddr;
 pub(crate) use drop::{drop_chunk, drop_partition};
 pub(crate) use error::{Error, Result};
-pub(crate) use move_chunk::move_chunk_to_read_buffer;
 pub(crate) use persist::persist_chunks;
 pub(crate) use unload::unload_read_buffer_chunk;
 
 mod compact;
 mod drop;
 mod error;
-mod move_chunk;
 mod persist;
 mod unload;
 mod write;
@@ -81,15 +79,6 @@ impl LockableChunk for LockableCatalogChunk {
 
     fn write(&self) -> LifecycleWriteGuard<'_, Self::Chunk, Self> {
         LifecycleWriteGuard::new(self.clone(), self.chunk.as_ref())
-    }
-
-    fn move_to_read_buffer(
-        s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
-    ) -> Result<TaskTracker<Self::Job>, Self::Error> {
-        info!(chunk=%s.addr(), "move to read buffer");
-        let (tracker, fut) = move_chunk::move_chunk_to_read_buffer(s)?;
-        let _ = tokio::spawn(async move { fut.await.log_if_error("move to read buffer") });
-        Ok(tracker)
     }
 
     fn unload_read_buffer(

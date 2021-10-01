@@ -24,14 +24,7 @@ async fn setup() -> TestDb {
     write_lp(db, "cpu bar=2 20").await;
 
     let partition_key = "1970-01-01T00";
-    let mb_chunk = db
-        .rollover_partition("cpu", partition_key)
-        .await
-        .unwrap()
-        .unwrap();
-    db.move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
-        .await
-        .unwrap();
+    db.compact_open_chunk("cpu", partition_key).await.unwrap();
 
     // Chunk 1 has bar:[3-3] (going to get pruned)
     write_lp(db, "cpu bar=3 10").await;
@@ -39,14 +32,7 @@ async fn setup() -> TestDb {
     write_lp(db, "cpu bar=3 1000").await;
 
     let partition_key = "1970-01-01T00";
-    let mb_chunk = db
-        .rollover_partition("cpu", partition_key)
-        .await
-        .unwrap()
-        .unwrap();
-    db.move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
-        .await
-        .unwrap();
+    db.compact_open_chunk("cpu", partition_key).await.unwrap();
 
     test_db
 }

@@ -134,14 +134,6 @@ pub trait LockableChunk: Sized {
     /// Acquire an exclusive write lock on the chunk
     fn write(&self) -> LifecycleWriteGuard<'_, Self::Chunk, Self>;
 
-    /// Starts an operation to move a chunk to the read buffer
-    ///
-    /// TODO: Remove this function from the trait as it is
-    /// not called from the lifecycle manager
-    fn move_to_read_buffer(
-        s: LifecycleWriteGuard<'_, Self::Chunk, Self>,
-    ) -> Result<TaskTracker<Self::Job>, Self::Error>;
-
     /// Remove the copy of the Chunk's data from the read buffer.
     ///
     /// Note that this can only be called for persisted chunks

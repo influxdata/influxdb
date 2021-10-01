@@ -277,13 +277,15 @@ async fn create_readbuffer_chunk(fixture: &ServerFixture, db_name: &str) -> Chun
     let operation_id = iox_operation.operation.id();
 
     // ensure we got a legit job description back
-    if let Some(Job::CloseChunk(close_chunk)) = iox_operation.metadata.job {
-        assert_eq!(close_chunk.db_name, db_name);
-        assert_eq!(close_chunk.partition_key, partition_key);
-        assert_eq!(close_chunk.chunk_id, 0);
-    } else {
-        panic!("unexpected job returned")
-    };
+    match iox_operation.metadata.job {
+        Some(Job::CompactChunks(job)) => {
+            assert_eq!(job.chunks.len(), 1);
+            assert_eq!(&job.db_name, &db_name);
+            assert_eq!(job.partition_key.as_str(), partition_key);
+            assert_eq!(job.table_name.as_str(), table_name);
+        }
+        job => panic!("unexpected job returned {:#?}", job),
+    }
 
     // wait for the job to be done
     operations_client
@@ -296,7 +298,6 @@ async fn create_readbuffer_chunk(fixture: &ServerFixture, db_name: &str) -> Chun
     chunks.sort_by(|c1, c2| c1.id.cmp(&c2.id));
 
     assert_eq!(chunks.len(), 1, "Chunks: {:#?}", chunks);
-    assert_eq!(chunks[0].id, chunk_id);
     assert_eq!(chunks[0].storage, ChunkStorage::ReadBuffer);
 
     chunk_id

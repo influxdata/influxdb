@@ -1,3 +1,4 @@
+//! Query frontend for InfluxDB Storage gRPC requests
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,

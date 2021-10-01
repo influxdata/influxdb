@@ -18,7 +18,8 @@ use parking_lot::{Mutex, RwLock};
 use rand_distr::{Distribution, Poisson};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
-use ::lifecycle::{LifecycleChunk, LockableChunk, LockablePartition};
+pub use ::lifecycle::{LifecycleChunk, LockableChunk, LockablePartition};
+use data_types::partition_metadata::PartitionAddr;
 use data_types::{
     chunk_metadata::{ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkSummary},
     database_rules::DatabaseRules,
@@ -154,6 +155,9 @@ pub enum Error {
         table_name: String,
         partition_key: String,
     },
+
+    #[snafu(display("Partition {} has no open chunk", addr))]
+    NoOpenChunk { addr: PartitionAddr },
 
     #[snafu(display("Cannot create replay plan: {}", source))]
     ReplayPlanError {
@@ -477,6 +481,15 @@ impl Db {
         })
     }
 
+    pub fn lockable_partition(
+        self: &Arc<Self>,
+        table_name: &str,
+        partition_key: &str,
+    ) -> catalog::Result<LockableCatalogPartition> {
+        let partition = self.partition(table_name, partition_key)?;
+        Ok(LockableCatalogPartition::new(Arc::clone(self), partition))
+    }
+
     /// Drops the specified chunk from the catalog and all storage systems
     pub async fn drop_chunk(
         self: &Arc<Self>,
@@ -487,12 +500,18 @@ impl Db {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
-            let partition = self.partition(table_name, partition_key)?;
-            let partition = LockableCatalogPartition::new(Arc::clone(self), partition);
+            let partition = self.lockable_partition(table_name, partition_key)?;
 
             // Do lock dance to get a write lock on the partition as well
             // as on the to-be-dropped chunk.
             let partition = partition.read();
+            LockablePartition::chunk(&partition, chunk_id).ok_or(
+                catalog::Error::ChunkNotFound {
+                    chunk_id,
+                    partition: partition_key.to_string(),
+                    table: table_name.to_string(),
+                },
+            )?;
 
             let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
             let partition = partition.upgrade();
@@ -514,8 +533,7 @@ impl Db {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
-            let partition = self.partition(table_name, partition_key)?;
-            let partition = LockableCatalogPartition::new(Arc::clone(self), partition);
+            let partition = self.lockable_partition(table_name, partition_key)?;
             let partition = partition.write();
             let (_, fut) = lifecycle::drop_partition(partition).context(LifecycleError)?;
             fut
@@ -578,26 +596,16 @@ impl Db {
         Ok(())
     }
 
-    /// Copies a chunk in the Closed state into the ReadBuffer from
-    /// the mutable buffer and marks the chunk with `Moved` state
-    ///
-    /// This code does not do any checking of the read buffer against
-    /// memory limits, etc
-    ///
-    /// This (async) function returns when this process is complete,
-    /// but the process may take a long time
-    ///
-    /// Returns a handle to the newly loaded chunk in the read buffer
-    pub async fn move_chunk_to_read_buffer(
+    /// Compacts the open chunk to the read buffer
+    pub async fn compact_open_chunk(
         self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
-        chunk_id: ChunkId,
     ) -> Result<Arc<DbChunk>> {
-        let chunk = self.lockable_chunk(table_name, partition_key, chunk_id)?;
-        let (_, fut) =
-            lifecycle::move_chunk_to_read_buffer(chunk.write()).context(LifecycleError)?;
-        fut.await.context(TaskCancelled)?.context(LifecycleError)
+        // This is somewhat inefficient as it will acquire write locks on all chunks in the
+        // partition, however, it is currently only used for tests
+        self.compact_chunks(table_name, partition_key, |chunk| chunk.stage().is_open())
+            .await
     }
 
     /// Compacts all chunks in a partition to create a new chunk
@@ -614,6 +622,19 @@ impl Db {
         table_name: &str,
         partition_key: &str,
     ) -> Result<Arc<DbChunk>> {
+        self.compact_chunks(table_name, partition_key, |_| true)
+            .await
+    }
+
+    /// Compacts all chunks within a partition passing a predicate
+    ///
+    /// There is no lock gap between predicate evaluation and creation of the lifecycle action
+    pub async fn compact_chunks(
+        self: &Arc<Self>,
+        table_name: &str,
+        partition_key: &str,
+        predicate: impl Fn(&CatalogChunk) -> bool + Send,
+    ) -> Result<Arc<DbChunk>> {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
@@ -627,7 +648,11 @@ impl Db {
             // Get a list of all the chunks to compact
             let chunks = LockablePartition::chunks(&partition);
             let partition = partition.upgrade();
-            let chunks = chunks.iter().map(|chunk| chunk.write()).collect();
+            let chunks = chunks
+                .iter()
+                .map(|chunk| chunk.write())
+                .filter(|chunk| predicate(&*chunk))
+                .collect();
 
             let (_, fut) = lifecycle::compact_chunks(partition, chunks).context(LifecycleError)?;
             fut
@@ -666,8 +691,7 @@ impl Db {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
-            let partition = self.partition(table_name, partition_key)?;
-            let partition = LockableCatalogPartition::new(Arc::clone(self), partition);
+            let partition = self.lockable_partition(table_name, partition_key)?;
             let partition = partition.read();
 
             let chunks = LockablePartition::chunks(&partition);
@@ -1719,9 +1743,7 @@ mod tests {
 
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 1295);
 
-        db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", ChunkId::new(0))
-            .await
-            .unwrap();
+        db.compact_partition("cpu", "1970-01-01T00").await.unwrap();
 
         // A chunk is now in the read buffer
         assert_storage_gauge(registry, "catalog_loaded_chunks", "mutable_buffer", 0);
@@ -1737,17 +1759,19 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
 
         let t6_write = t5_write + chrono::Duration::seconds(1);
-        db.persist_partition_with_timestamp(
-            "cpu",
-            "1970-01-01T00",
-            Instant::now() + Duration::from_secs(1),
-            || t6_write,
-        )
-        .await
-        .unwrap();
+        let chunk_id = db
+            .persist_partition_with_timestamp(
+                "cpu",
+                "1970-01-01T00",
+                Instant::now() + Duration::from_secs(1),
+                || t6_write,
+            )
+            .await
+            .unwrap()
+            .id();
 
         // A chunk is now in the object store and still in read buffer
-        let expected_parquet_size = 1243;
+        let expected_parquet_size = 1244;
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", expected_parquet_size);
@@ -1759,7 +1783,7 @@ mod tests {
         assert_storage_gauge(registry, "catalog_loaded_rows", "read_buffer", 5);
         assert_storage_gauge(registry, "catalog_loaded_rows", "object_store", 5);
 
-        db.unload_read_buffer("cpu", "1970-01-01T00", ChunkId::new(1))
+        db.unload_read_buffer("cpu", "1970-01-01T00", chunk_id)
             .unwrap();
 
         // A chunk is now now in the "os-only" state.
@@ -1916,20 +1940,15 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        let rb_chunk = db
-            .move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
-            .await
-            .unwrap();
 
-        // it should be the same chunk!
-        assert_eq!(mb_chunk.id(), rb_chunk.id());
+        let rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
+
+        // it should be a new chunk
+        assert_ne!(mb_chunk.id(), rb_chunk.id());
 
         // we should have chunks in both the read buffer only
         assert!(mutable_chunk_ids(&db, partition_key).is_empty());
-        assert_eq!(
-            read_buffer_chunk_ids(&db, partition_key),
-            vec![ChunkId::new(0)]
-        );
+        assert_eq!(read_buffer_chunk_ids(&db, partition_key).len(), 1);
 
         // data should be readable
         let expected = vec![
@@ -1952,7 +1971,7 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
 
         // drop, the chunk from the read buffer
-        db.drop_chunk("cpu", partition_key, mb_chunk.id())
+        db.drop_chunk("cpu", partition_key, rb_chunk.id())
             .await
             .unwrap();
         assert_eq!(
@@ -1984,15 +2003,11 @@ mod tests {
         write_lp_with_time(db.as_ref(), "cpu bar=1 10", t_write1).await;
 
         let partition_key = "1970-01-01T00";
-        let mb_chunk = db
-            .rollover_partition("cpu", partition_key)
+        db.rollover_partition("cpu", partition_key)
             .await
             .unwrap()
             .unwrap();
-        let old_rb_chunk = db
-            .move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
-            .await
-            .unwrap();
+        let old_rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
 
         let first_old_rb_write = old_rb_chunk.time_of_first_write();
         let last_old_rb_write = old_rb_chunk.time_of_last_write();
@@ -2071,10 +2086,7 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 3607);
 
         // With the above data, cardinality of tag2 is 2 and tag1 is 5. Hence, RUB is sorted on (tag2, tag1)
-        let rb_chunk = db
-            .move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
-            .await
-            .unwrap();
+        let rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
 
         // MUB chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
@@ -2158,10 +2170,7 @@ mod tests {
             .unwrap()
             .unwrap();
         // Move that MB chunk to RB chunk and drop it from MB
-        let rb_chunk = db
-            .move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
-            .await
-            .unwrap();
+        let rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
         // Write the RB chunk to Object Store but keep it in RB
         let t3_persist = t2_write + chrono::Duration::seconds(1);
         let pq_chunk = db
@@ -2181,20 +2190,14 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1242);
 
-        // while MB and RB chunk are identical, the PQ chunk is a new one (split off)
-        assert_eq!(mb_chunk.id(), rb_chunk.id());
+        // All the chunks should have different IDs
+        assert_ne!(mb_chunk.id(), rb_chunk.id());
         assert_ne!(mb_chunk.id(), pq_chunk.id());
 
         // we should have chunks in both the read buffer only
         assert!(mutable_chunk_ids(&db, partition_key).is_empty());
-        assert_eq!(
-            read_buffer_chunk_ids(&db, partition_key),
-            vec![ChunkId::new(1)]
-        );
-        assert_eq!(
-            read_parquet_file_chunk_ids(&db, partition_key),
-            vec![ChunkId::new(1)]
-        );
+        assert_eq!(read_buffer_chunk_ids(&db, partition_key).len(), 1);
+        assert_eq!(parquet_file_chunk_ids(&db, partition_key).len(), 1);
 
         // Verify data written to the parquet file in object store
         //
@@ -2264,10 +2267,7 @@ mod tests {
             .unwrap()
             .unwrap();
         // Move that MB chunk to RB chunk and drop it from MB
-        let rb_chunk = db
-            .move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
-            .await
-            .unwrap();
+        let rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
         // Write the RB chunk to Object Store but keep it in RB
         let t3_persist = t2_write + chrono::Duration::seconds(1);
         let pq_chunk = db
@@ -2280,8 +2280,8 @@ mod tests {
             .await
             .unwrap();
 
-        // while MB and RB chunk are identical, the PQ chunk is a new one (split off)
-        assert_eq!(mb_chunk.id(), rb_chunk.id());
+        // All chunks should have different ids
+        assert_ne!(mb_chunk.id(), rb_chunk.id());
         assert_ne!(mb_chunk.id(), pq_chunk.id());
         let pq_chunk_id = pq_chunk.id();
 
@@ -2289,7 +2289,7 @@ mod tests {
         assert!(mutable_chunk_ids(&db, partition_key).is_empty());
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![pq_chunk_id]);
         assert_eq!(
-            read_parquet_file_chunk_ids(&db, partition_key),
+            parquet_file_chunk_ids(&db, partition_key),
             vec![pq_chunk_id]
         );
 
@@ -2306,14 +2306,13 @@ mod tests {
             .unwrap();
 
         // still should be the same chunk!
-        assert_eq!(mb_chunk.id(), rb_chunk.id());
         assert_eq!(pq_chunk_id, pq_chunk.id());
 
         // we should only have chunk in os
         assert!(mutable_chunk_ids(&db, partition_key).is_empty());
         assert!(read_buffer_chunk_ids(&db, partition_key).is_empty());
         assert_eq!(
-            read_parquet_file_chunk_ids(&db, partition_key),
+            parquet_file_chunk_ids(&db, partition_key),
             vec![pq_chunk_id]
         );
 
@@ -2530,25 +2529,12 @@ mod tests {
         // add a new chunk in mutable buffer, and move chunk1 (but
         // not chunk 0) to read buffer
         write_lp(&db, "cpu bar=1 30").await;
-        let mb_chunk = db
-            .rollover_partition("cpu", "1970-01-01T00")
-            .await
-            .unwrap()
-            .unwrap();
-        db.move_chunk_to_read_buffer("cpu", partition_key, mb_chunk.id())
-            .await
-            .unwrap();
+        db.compact_open_chunk("cpu", "1970-01-01T00").await.unwrap();
 
         write_lp(&db, "cpu bar=1 40").await;
 
-        assert_eq!(
-            mutable_chunk_ids(&db, partition_key),
-            vec![ChunkId::new(0), ChunkId::new(2)]
-        );
-        assert_eq!(
-            read_buffer_chunk_ids(&db, partition_key),
-            vec![ChunkId::new(1)]
-        );
+        assert_eq!(mutable_chunk_ids(&db, partition_key).len(), 2);
+        assert_eq!(read_buffer_chunk_ids(&db, partition_key).len(), 1);
     }
 
     #[tokio::test]
@@ -2712,9 +2698,11 @@ mod tests {
         assert_chunks_times_ordered(&open_mb_t4, &other_open_mb_t4);
 
         // Move closed mb chunk to rb
-        db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", ChunkId::new(0))
-            .await
-            .unwrap();
+        db.compact_chunks("cpu", "1970-01-01T00", |chunk| {
+            chunk.storage().1 == ChunkStorage::ClosedMutableBuffer
+        })
+        .await
+        .unwrap();
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2807,7 +2795,8 @@ mod tests {
             ChunkSummary {
                 partition_key: Arc::from("1970-01-01T00"),
                 table_name: Arc::from("cpu"),
-                id: ChunkId::new(2),
+                order: chunk_summaries[0].order,
+                id: chunk_summaries[0].id,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
                 memory_bytes: 4085,       // size of RB and OS chunks
@@ -2817,12 +2806,12 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
                 time_closed: None,
-                order: ChunkOrder::new(5),
             },
             ChunkSummary {
                 partition_key: Arc::from("1970-01-05T15"),
                 table_name: Arc::from("cpu"),
-                id: ChunkId::new(0),
+                order: chunk_summaries[1].order,
+                id: chunk_summaries[1].id,
                 storage: ChunkStorage::ClosedMutableBuffer,
                 lifecycle_action,
                 memory_bytes: 2486,
@@ -2832,12 +2821,12 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
                 time_closed: None,
-                order: ChunkOrder::new(6),
             },
             ChunkSummary {
                 partition_key: Arc::from("1970-01-05T15"),
                 table_name: Arc::from("cpu"),
-                id: ChunkId::new(1),
+                order: chunk_summaries[2].order,
+                id: chunk_summaries[2].id,
                 storage: ChunkStorage::OpenMutableBuffer,
                 lifecycle_action,
                 memory_bytes: 1303,
@@ -2847,7 +2836,6 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
                 time_closed: None,
-                order: ChunkOrder::new(5),
             },
         ];
 
@@ -2874,19 +2862,15 @@ mod tests {
         let db = make_db().await.db;
 
         write_lp(&db, "cpu bar=1 1").await;
-        let chunk_id = db
-            .rollover_partition("cpu", "1970-01-01T00")
+        db.rollover_partition("cpu", "1970-01-01T00")
             .await
             .unwrap()
-            .unwrap()
-            .id();
+            .unwrap();
         write_lp(&db, "cpu bar=2,baz=3.0 2").await;
         write_lp(&db, "mem foo=1 1").await;
 
         // load a chunk to the read buffer
-        db.move_chunk_to_read_buffer("cpu", "1970-01-01T00", chunk_id)
-            .await
-            .unwrap();
+        db.compact_partition("cpu", "1970-01-01T00").await.unwrap();
 
         // write the read buffer chunk to object store
         db.persist_partition(
@@ -3036,7 +3020,7 @@ mod tests {
         chunk_ids
     }
 
-    fn read_parquet_file_chunk_ids(db: &Db, partition_key: &str) -> Vec<ChunkId> {
+    fn parquet_file_chunk_ids(db: &Db, partition_key: &str) -> Vec<ChunkId> {
         let mut chunk_ids: Vec<ChunkId> = db
             .partition_chunk_summaries(partition_key)
             .into_iter()
@@ -3068,10 +3052,10 @@ mod tests {
             .unwrap()
             .unwrap();
         let rb_chunk = db
-            .move_chunk_to_read_buffer(table_name, partition_key, mb_chunk.id())
+            .compact_partition(table_name, partition_key)
             .await
             .unwrap();
-        assert_eq!(mb_chunk.id(), rb_chunk.id());
+        assert_ne!(mb_chunk.id(), rb_chunk.id());
 
         // RB => OS
         db.persist_partition(
@@ -3084,14 +3068,8 @@ mod tests {
 
         // we should have chunks in both the read buffer only
         assert!(mutable_chunk_ids(&db, partition_key).is_empty());
-        assert_eq!(
-            read_buffer_chunk_ids(&db, partition_key),
-            vec![ChunkId::new(1)]
-        );
-        assert_eq!(
-            read_parquet_file_chunk_ids(&db, partition_key),
-            vec![ChunkId::new(1)]
-        );
+        assert_eq!(read_buffer_chunk_ids(&db, partition_key).len(), 1);
+        assert_eq!(parquet_file_chunk_ids(&db, partition_key).len(), 1);
     }
 
     #[tokio::test]
@@ -3638,15 +3616,11 @@ mod tests {
         let partition_key = "part_a";
         write_lp(&db, "cpu,part=a row=10,selector=0i 10").await;
         write_lp(&db, "cpu,part=a row=11,selector=1i 11").await;
-        let chunk_id = {
-            let mb_chunk = db
-                .rollover_partition(table_name, partition_key)
-                .await
-                .unwrap()
-                .unwrap();
-            mb_chunk.id()
-        };
-        db.move_chunk_to_read_buffer(table_name, partition_key, chunk_id)
+        db.rollover_partition(table_name, partition_key)
+            .await
+            .unwrap()
+            .unwrap();
+        db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
         db.persist_partition(
@@ -3661,15 +3635,11 @@ mod tests {
         let partition_key = "part_b";
         write_lp(&db, "cpu,part=b row=20,selector=0i 20").await;
         write_lp(&db, "cpu,part=b row=21,selector=1i 21").await;
-        let chunk_id = {
-            let mb_chunk = db
-                .rollover_partition(table_name, partition_key)
-                .await
-                .unwrap()
-                .unwrap();
-            mb_chunk.id()
-        };
-        db.move_chunk_to_read_buffer(table_name, partition_key, chunk_id)
+        db.rollover_partition(table_name, partition_key)
+            .await
+            .unwrap()
+            .unwrap();
+        db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
 
@@ -3682,28 +3652,19 @@ mod tests {
         let partition_key = "part_d";
         write_lp(&db, "cpu,part=d row=40,selector=0i 40").await;
         write_lp(&db, "cpu,part=d row=41,selector=1i 41").await;
-        let chunk_id = {
-            let mb_chunk = db
-                .rollover_partition(table_name, partition_key)
-                .await
-                .unwrap()
-                .unwrap();
-            mb_chunk.id()
-        };
-        db.move_chunk_to_read_buffer(table_name, partition_key, chunk_id)
+        db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
-        let chunk_id = {
-            let chunk = db
-                .persist_partition(
-                    table_name,
-                    partition_key,
-                    Instant::now() + Duration::from_secs(1),
-                )
-                .await
-                .unwrap();
-            chunk.id()
-        };
+
+        let chunk_id = db
+            .persist_partition(
+                table_name,
+                partition_key,
+                Instant::now() + Duration::from_secs(1),
+            )
+            .await
+            .unwrap()
+            .id();
         db.unload_read_buffer(table_name, partition_key, chunk_id)
             .unwrap();
 
@@ -4061,17 +4022,8 @@ mod tests {
         let partition_key = "1970-01-01T00";
         let table_name = "cpu";
 
-        //Now mark the MB chunk close
-        let chunk_id = {
-            let mb_chunk = db
-                .rollover_partition(table_name, partition_key)
-                .await
-                .unwrap()
-                .unwrap();
-            mb_chunk.id()
-        };
         // Move that MB chunk to RB chunk and drop it from MB
-        db.move_chunk_to_read_buffer(table_name, partition_key, chunk_id)
+        db.compact_open_chunk(table_name, partition_key)
             .await
             .unwrap();
 

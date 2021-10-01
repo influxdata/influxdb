@@ -172,6 +172,10 @@ impl ChunkStage {
             Self::Persisted { .. } => "Persisted",
         }
     }
+
+    pub fn is_open(&self) -> bool {
+        matches!(self, ChunkStage::Open { .. })
+    }
 }
 
 /// The catalog representation of a Chunk in IOx. Note that a chunk
@@ -727,38 +731,6 @@ impl CatalogChunk {
         self.freeze_with_delete_predicates(vec![])
     }
 
-    /// Set the chunk to the Moving state, returning a handle to the underlying storage
-    ///
-    /// If called on an open chunk will first [`freeze`](Self::freeze) the chunk
-    pub fn set_moving(&mut self, registration: &TaskRegistration) -> Result<Arc<MBChunkSnapshot>> {
-        // This ensures the closing logic is consistent but doesn't break code that
-        // assumes a chunk can be moved from open
-        if matches!(self.stage, ChunkStage::Open { .. }) {
-            self.freeze()?;
-        }
-
-        match &self.stage {
-            ChunkStage::Frozen { representation, .. } => match &representation {
-                ChunkStageFrozenRepr::MutableBufferSnapshot(repr) => {
-                    let chunk = Arc::clone(repr);
-                    self.set_lifecycle_action(ChunkLifecycleAction::Moving, registration)?;
-
-                    Ok(chunk)
-                }
-                ChunkStageFrozenRepr::ReadBuffer(_) => InternalChunkState {
-                    chunk: self.addr.clone(),
-                    operation: "setting moving",
-                    expected: "Frozen with MutableBufferSnapshot",
-                    actual: "Frozen with ReadBuffer",
-                }
-                .fail(),
-            },
-            _ => {
-                unexpected_state!(self, "setting closed", "Open or Closed", &self.stage)
-            }
-        }
-    }
-
     /// Set the chunk to be compacting
     pub fn set_compacting(&mut self, registration: &TaskRegistration) -> Result<()> {
         match &self.stage {
@@ -769,44 +741,6 @@ impl CatalogChunk {
             }
             ChunkStage::Persisted { .. } => {
                 unexpected_state!(self, "setting compacting", "Open or Frozen", &self.stage)
-            }
-        }
-    }
-
-    /// Set the chunk in the Moved state, setting the underlying storage handle to db, and
-    /// discarding the underlying mutable buffer storage.
-    pub fn set_moved(&mut self, chunk: Arc<RBChunk>, schema: Arc<Schema>) -> Result<()> {
-        match &mut self.stage {
-            ChunkStage::Frozen {
-                meta,
-                representation,
-                ..
-            } => {
-                // after moved, the chunk is sorted and its schema needs to get updated
-                *meta = Arc::new(ChunkMetadata {
-                    table_summary: Arc::clone(&meta.table_summary),
-                    schema,
-                    delete_predicates: meta.delete_predicates.clone(),
-                });
-
-                match &representation {
-                    ChunkStageFrozenRepr::MutableBufferSnapshot(_) => {
-                        *representation = ChunkStageFrozenRepr::ReadBuffer(chunk);
-                        self.update_metrics();
-                        self.finish_lifecycle_action(ChunkLifecycleAction::Moving)?;
-                        Ok(())
-                    }
-                    ChunkStageFrozenRepr::ReadBuffer(_) => InternalChunkState {
-                        chunk: self.addr.clone(),
-                        operation: "setting moved",
-                        expected: "Frozen with MutableBufferSnapshot",
-                        actual: "Frozen with ReadBuffer",
-                    }
-                    .fail(),
-                }
-            }
-            _ => {
-                unexpected_state!(self, "setting moved", "Moving", self.stage)
             }
         }
     }
@@ -1062,46 +996,46 @@ mod tests {
 
         // set some action
         chunk
-            .set_lifecycle_action(ChunkLifecycleAction::Moving, &registration)
+            .set_lifecycle_action(ChunkLifecycleAction::Compacting, &registration)
             .unwrap();
         assert_eq!(
             *chunk.lifecycle_action().unwrap().metadata(),
-            ChunkLifecycleAction::Moving
+            ChunkLifecycleAction::Compacting
         );
 
         // setting an action while there is one running fails
         assert_eq!(
             chunk
-                .set_lifecycle_action(ChunkLifecycleAction::Moving, &registration)
+                .set_lifecycle_action(ChunkLifecycleAction::Compacting, &registration)
                 .unwrap_err()
                 .to_string(),
-            "Internal Error: A lifecycle action \'Moving to the Read Buffer\' is already in \
+            "Internal Error: A lifecycle action \'Compacting\' is already in \
             progress for Chunk('db':'table1':'part1':0)"
         );
 
         // finishing the wrong action fails
         assert_eq!(
             chunk
-                .finish_lifecycle_action(ChunkLifecycleAction::Compacting)
+                .finish_lifecycle_action(ChunkLifecycleAction::Persisting)
                 .unwrap_err()
                 .to_string(),
             "Internal Error: Unexpected chunk state for Chunk('db':'table1':'part1':0). Expected \
-            Compacting, got Moving to the Read Buffer"
+            Persisting to Object Storage, got Compacting"
         );
 
         // finish some action
         chunk
-            .finish_lifecycle_action(ChunkLifecycleAction::Moving)
+            .finish_lifecycle_action(ChunkLifecycleAction::Compacting)
             .unwrap();
 
         // finishing w/o any action in progress will fail
         assert_eq!(
             chunk
-                .finish_lifecycle_action(ChunkLifecycleAction::Moving)
+                .finish_lifecycle_action(ChunkLifecycleAction::Compacting)
                 .unwrap_err()
                 .to_string(),
             "Internal Error: Unexpected chunk state for Chunk('db':'table1':'part1':0). Expected \
-            Moving to the Read Buffer, got None"
+            Compacting, got None"
         );
 
         // now we can set another action
@@ -1124,13 +1058,13 @@ mod tests {
 
         // set some action
         chunk
-            .set_lifecycle_action(ChunkLifecycleAction::Moving, &registration)
+            .set_lifecycle_action(ChunkLifecycleAction::Compacting, &registration)
             .unwrap();
 
         // clearing now fails because task is still in progress
         assert_eq!(
             chunk.clear_lifecycle_action().unwrap_err().to_string(),
-            "Internal Error: Cannot clear a lifecycle action 'Moving to the Read Buffer' for chunk Chunk('db':'table1':'part1':0) that is still running",
+            "Internal Error: Cannot clear a lifecycle action 'Compacting' for chunk Chunk('db':'table1':'part1':0) that is still running",
         );
 
         // "finish" task
@@ -1143,7 +1077,6 @@ mod tests {
     #[test]
     fn test_add_delete_predicate_open_chunk() {
         let mut chunk = make_open_chunk();
-        let registration = TaskRegistration::new();
 
         // no delete_predicate yet
         let del_preds = chunk.delete_predicates();
@@ -1177,10 +1110,6 @@ mod tests {
         }
         assert_eq!(pred.exprs, expected_exprs1);
 
-        // Move the chunk
-        chunk.set_moving(&registration).unwrap();
-        // The chunk still should be frozen
-        assert_eq!(chunk.stage().name(), "Frozen");
         // let add more delete predicate = simulate second delete
         // Build delete predicate and expected output
         let expr2 = col("cost").not_eq(lit(15));

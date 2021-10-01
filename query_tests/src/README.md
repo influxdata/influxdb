@@ -27,7 +27,7 @@ Possibly helpful commands:
   # Update expected
   cp -f "/Users/alamb/Software/influxdb_iox/query_tests/cases/in/pushdown.out" "/Users/alamb/Software/influxdb_iox/query_tests/cases/out/pushdown.expected"
 
-# Cookbook: Adding a new test scenaroo
+# Cookbook: Adding a new test scenario
 
 Each test can be defined in terms of a "setup" (a set of actions taken to prepare the state of database)
 
@@ -36,7 +36,7 @@ In the future we envision more fine grained control of these setups (by implemen
 The SQL files refer to the setups with a specially formatted comment:
 
 ```sql
--- IOX_SETUP: OneMeasurementThreeChunksWithDuplicates
+-- IOX_SETUP: OneMeasurementFourChunksWithDuplicates
 ```
 
 To add a new setup, follow the pattern in scenario.rs of `get_all_setups`;

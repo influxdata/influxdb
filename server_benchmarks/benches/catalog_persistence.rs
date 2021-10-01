@@ -83,13 +83,7 @@ async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
         let table_names = write_lp(&db, &lp).await;
 
         for table_name in &table_names {
-            let chunk = db
-                .rollover_partition(table_name, partition_key)
-                .await
-                .unwrap()
-                .unwrap();
-
-            db.move_chunk_to_read_buffer(table_name, partition_key, chunk.id())
+            db.compact_open_chunk(table_name, partition_key)
                 .await
                 .unwrap();
 

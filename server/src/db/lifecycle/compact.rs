@@ -190,15 +190,17 @@ mod tests {
 
         chunk_summaries.sort_unstable();
 
-        let mub_summary = &chunk_summaries[0];
+        let mub_summary = &chunk_summaries[1];
         let first_mub_write = mub_summary.time_of_first_write;
         let last_mub_write = mub_summary.time_of_last_write;
+        assert_eq!(mub_summary.storage, ChunkStorage::OpenMutableBuffer);
         assert_eq!(first_mub_write, last_mub_write);
         assert_eq!(first_mub_write, t_later_write);
 
-        let rub_summary = &chunk_summaries[1];
+        let rub_summary = &chunk_summaries[0];
         let first_rub_write = rub_summary.time_of_first_write;
         let last_rub_write = rub_summary.time_of_last_write;
+        assert_eq!(rub_summary.storage, ChunkStorage::ReadBuffer);
         assert_eq!(first_rub_write, t_first_write);
         assert_eq!(last_rub_write, t_last_write);
 
@@ -210,8 +212,8 @@ mod tests {
         assert_eq!(
             summaries,
             vec![
+                (ChunkStorage::ReadBuffer, 5),
                 (ChunkStorage::OpenMutableBuffer, 1),
-                (ChunkStorage::ReadBuffer, 5)
             ]
         )
     }

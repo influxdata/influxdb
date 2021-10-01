@@ -586,7 +586,7 @@ async fn make_chunk_with_deletes_at_different_stages(
     match chunk_stage {
         ChunkStage::Rub | ChunkStage::RubOs | ChunkStage::Os => {
             let chunk = db
-                .move_chunk_to_read_buffer(table_name, partition_key, chunk_id)
+                .compact_chunks(table_name, partition_key, |chunk| chunk.id() == chunk_id)
                 .await
                 .unwrap();
             chunk_id = chunk.id();
@@ -712,7 +712,7 @@ async fn make_different_stage_chunks_with_deletes_scenario(
         match chunk_data.chunk_stage {
             ChunkStage::Rub | ChunkStage::RubOs | ChunkStage::Os => {
                 let chunk = db
-                    .move_chunk_to_read_buffer(table_name, partition_key, chunk_id)
+                    .compact_chunks(table_name, partition_key, |chunk| chunk.id() == chunk_id)
                     .await
                     .unwrap();
                 chunk_id = chunk.id();
