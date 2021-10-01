@@ -1181,9 +1181,10 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	window := func(dur values.Duration) universe.WindowProcedureSpec {
 		return universe.WindowProcedureSpec{
 			Window: plan.WindowSpec{
-				Every:  dur,
-				Period: dur,
-				Offset: dur0,
+				Every:    dur,
+				Period:   dur,
+				Offset:   dur0,
+				Location: "UTC",
 			},
 			TimeColumn:  "_time",
 			StartColumn: "_start",
@@ -1345,9 +1346,10 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before: simplePlanWithWindowAgg(universe.WindowProcedureSpec{
 			Window: plan.WindowSpec{
-				Every:  dur2m,
-				Period: dur2m,
-				Offset: dur1m,
+				Every:    dur2m,
+				Period:   dur2m,
+				Offset:   dur1m,
+				Location: "UTC",
 			},
 			TimeColumn:  "_time",
 			StartColumn: "_start",
@@ -2104,9 +2106,10 @@ func TestTransposeGroupToWindowAggregateRule(t *testing.T) {
 	window := func(dur values.Duration) universe.WindowProcedureSpec {
 		return universe.WindowProcedureSpec{
 			Window: plan.WindowSpec{
-				Every:  dur,
-				Period: dur,
-				Offset: dur0,
+				Every:    dur,
+				Period:   dur,
+				Offset:   dur0,
+				Location: "UTC",
 			},
 			TimeColumn:  "_time",
 			StartColumn: "_start",
@@ -2332,9 +2335,10 @@ func TestTransposeGroupToWindowAggregateRule(t *testing.T) {
 				plan.CreateLogicalNode("group", group(flux.GroupModeBy, "host")),
 				plan.CreateLogicalNode("window", &universe.WindowProcedureSpec{
 					Window: plan.WindowSpec{
-						Every:  dur2m,
-						Period: dur2m,
-						Offset: dur1m,
+						Every:    dur2m,
+						Period:   dur2m,
+						Offset:   dur1m,
+						Location: "UTC",
 					},
 					TimeColumn:  "_time",
 					StartColumn: "_start",
@@ -2410,6 +2414,11 @@ func TestTransposeGroupToWindowAggregateRule(t *testing.T) {
 	badWindow5 := window1m
 	badWindow5.StopColumn = "_stappp"
 	simpleMinUnchanged("BadStop", badWindow5)
+
+	// Condition not met: non-UTC location
+	badWindow6 := window1m
+	badWindow6.Window.Location = "America/Los_Angeles"
+	simpleMinUnchanged("BadLocation", badWindow6)
 
 	// Condition met: createEmpty is true.
 	windowCreateEmpty1m := window1m
