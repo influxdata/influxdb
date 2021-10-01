@@ -369,16 +369,48 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 		return nil
 	}
 
+	startTime := timestamp.Truncate(rpi.ShardGroupDuration).UTC()
+	endTime := startTime.Add(rpi.ShardGroupDuration).UTC()
+	if endTime.After(time.Unix(0, models.MaxNanoTime)) {
+		// Shard group range is [start, end) so add one to the max time.
+		endTime = time.Unix(0, models.MaxNanoTime+1)
+	}
+
+	for i := range rpi.ShardGroups {
+		if rpi.ShardGroups[i].Deleted() {
+			continue
+		}
+		startI := rpi.ShardGroups[i].StartTime
+		endI := rpi.ShardGroups[i].EndTime
+		if rpi.ShardGroups[i].Truncated() {
+			endI = rpi.ShardGroups[i].TruncatedAt
+		}
+
+		// shard_i covers range [start_i, end_i)
+		// We want the largest range [startTime, endTime) such that all of the following hold:
+		//   startTime <= timestamp < endTime
+		//   for all i, not { start_i < endTime && startTime < end_i }
+		// Assume the above conditions are true for shards index < i, we want to modify startTime,endTime so they are true
+		// also for shard_i
+
+		// It must be the case that either endI <= timestamp || timestamp < startI, because otherwise:
+		// startI <= timestamp < endI means timestamp is contained in shard I
+		if !timestamp.Before(endI) && endI.After(startTime) {
+			// startTime < endI <= timestamp
+			startTime = endI
+		}
+		if startI.After(timestamp) && startI.Before(endTime) {
+			// timestamp < startI < endTime
+			endTime = startI
+		}
+	}
+
 	// Create the shard group.
 	data.MaxShardGroupID++
 	sgi := ShardGroupInfo{}
 	sgi.ID = data.MaxShardGroupID
-	sgi.StartTime = timestamp.Truncate(rpi.ShardGroupDuration).UTC()
-	sgi.EndTime = sgi.StartTime.Add(rpi.ShardGroupDuration).UTC()
-	if sgi.EndTime.After(time.Unix(0, models.MaxNanoTime)) {
-		// Shard group range is [start, end) so add one to the max time.
-		sgi.EndTime = time.Unix(0, models.MaxNanoTime+1)
-	}
+	sgi.StartTime = startTime
+	sgi.EndTime = endTime
 
 	data.MaxShardID++
 	sgi.Shards = []ShardInfo{
