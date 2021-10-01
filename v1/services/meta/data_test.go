@@ -342,6 +342,61 @@ func TestData_TruncateShardGroups(t *testing.T) {
 	if sg1.TruncatedAt != sg1.StartTime {
 		t.Fatalf("Incorrect truncation of future shard group. Expected %v, got %v", sg1.StartTime, sg1.TruncatedAt)
 	}
+
+	groups := data.Databases[0].RetentionPolicies[0].ShardGroups
+	assert.Equal(t, 2, len(groups))
+	assert.Equal(t, "1970-01-01 00:00:00 +0000 UTC", groups[0].StartTime.String())
+	assert.Equal(t, "1970-01-02 00:00:00 +0000 UTC", groups[0].EndTime.String())
+	assert.Equal(t, "1970-01-01 23:59:00 +0000 UTC", groups[0].TruncatedAt.String())
+
+	assert.Equal(t, "1970-01-02 00:00:00 +0000 UTC", groups[1].StartTime.String())
+	assert.Equal(t, "1970-01-03 00:00:00 +0000 UTC", groups[1].EndTime.String())
+	assert.Equal(t, "1970-01-02 00:00:00 +0000 UTC", groups[1].TruncatedAt.String())
+
+	// Create some more shard groups and validate there is no overlap
+	// Add a shard starting at sg0's truncation time, until 01/02
+	must(data.CreateShardGroup("db", "rp", sg0.EndTime.Add(-time.Second)))
+	// Add a shard 01/02 - 01/03 (since sg1 is fully truncated)
+	must(data.CreateShardGroup("db", "rp", sg1.EndTime.Add(-time.Second)))
+	// Add a shard 01/06 - 01/07
+	must(data.CreateShardGroup("db", "rp", sg1.EndTime.Add(3*rp.ShardGroupDuration)))
+	newDuration := 10 * rp.ShardGroupDuration
+	data.UpdateRetentionPolicy("db", "rp", &meta.RetentionPolicyUpdate{
+		Name:               nil,
+		Duration:           nil,
+		ReplicaN:           nil,
+		ShardGroupDuration: &newDuration,
+	}, true)
+	// Add a shard 01/03 - 01/06
+	must(data.CreateShardGroup("db", "rp", sg1.EndTime.Add(1*rp.ShardGroupDuration)))
+	// Add a shard 01/07 - 01/09
+	must(data.CreateShardGroup("db", "rp", sg1.EndTime.Add(4*rp.ShardGroupDuration)))
+	// Add a shard 01/09 - 01/19
+	must(data.CreateShardGroup("db", "rp", sg1.EndTime.Add(10*rp.ShardGroupDuration)))
+	// No additional shard added
+	must(data.CreateShardGroup("db", "rp", sg1.EndTime.Add(11*rp.ShardGroupDuration)))
+
+	groups = data.Databases[0].RetentionPolicies[0].ShardGroups
+	assert.Equal(t, 8, len(groups))
+
+	expectTimes := []struct {
+		start, end, truncated string
+	}{
+		{"1970-01-01 00:00:00 +0000 UTC", "1970-01-02 00:00:00 +0000 UTC", "1970-01-01 23:59:00 +0000 UTC"},
+		{"1970-01-01 23:59:00 +0000 UTC", "1970-01-02 00:00:00 +0000 UTC", "0001-01-01 00:00:00 +0000 UTC"},
+		{"1970-01-02 00:00:00 +0000 UTC", "1970-01-03 00:00:00 +0000 UTC", "1970-01-02 00:00:00 +0000 UTC"},
+		{"1970-01-02 00:00:00 +0000 UTC", "1970-01-03 00:00:00 +0000 UTC", "0001-01-01 00:00:00 +0000 UTC"},
+		{"1970-01-03 00:00:00 +0000 UTC", "1970-01-06 00:00:00 +0000 UTC", "0001-01-01 00:00:00 +0000 UTC"},
+		{"1970-01-06 00:00:00 +0000 UTC", "1970-01-07 00:00:00 +0000 UTC", "0001-01-01 00:00:00 +0000 UTC"},
+		{"1970-01-07 00:00:00 +0000 UTC", "1970-01-09 00:00:00 +0000 UTC", "0001-01-01 00:00:00 +0000 UTC"},
+		{"1970-01-09 00:00:00 +0000 UTC", "1970-01-19 00:00:00 +0000 UTC", "0001-01-01 00:00:00 +0000 UTC"},
+	}
+
+	for i := range expectTimes {
+		assert.Equal(t, expectTimes[i].start, groups[i].StartTime.String(), "start time %d", i)
+		assert.Equal(t, expectTimes[i].end, groups[i].EndTime.String(), "end time %d", i)
+		assert.Equal(t, expectTimes[i].truncated, groups[i].TruncatedAt.String(), "truncate time %d", i)
+	}
 }
 
 func TestUserInfo_AuthorizeDatabase(t *testing.T) {
