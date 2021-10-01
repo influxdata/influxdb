@@ -6,6 +6,7 @@ use std::{collections::BTreeSet, sync::Arc};
 use arrow::{
     array::{
         ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray, TimestampNanosecondArray,
+        UInt64Array,
     },
     datatypes::DataType as ArrowDataType,
 };
@@ -20,7 +21,7 @@ use generated_types::{
     measurement_fields_response::{FieldType, MessageField},
     read_response::{
         frame::Data, BooleanPointsFrame, DataType, FloatPointsFrame, Frame, GroupFrame,
-        IntegerPointsFrame, SeriesFrame, StringPointsFrame,
+        IntegerPointsFrame, SeriesFrame, StringPointsFrame, UnsignedPointsFrame,
     },
     MeasurementFieldsResponse, ReadResponse, Tag,
 };
@@ -126,6 +127,7 @@ fn data_type(array: &ArrayRef) -> Result<DataType> {
         ArrowDataType::Utf8 => Ok(DataType::String),
         ArrowDataType::Float64 => Ok(DataType::Float),
         ArrowDataType::Int64 => Ok(DataType::Integer),
+        ArrowDataType::UInt64 => Ok(DataType::Unsigned),
         ArrowDataType::Boolean => Ok(DataType::Boolean),
         _ => UnsupportedDataType {
             type_name: format!("{:?}", array.data_type()),
@@ -204,6 +206,14 @@ fn field_to_data(
                 .extract_values(start_row, num_rows);
             Data::IntegerPoints(IntegerPointsFrame { timestamps, values })
         }
+        ArrowDataType::UInt64 => {
+            let values = array
+                .as_any()
+                .downcast_ref::<UInt64Array>()
+                .unwrap()
+                .extract_values(start_row, num_rows);
+            Data::UnsignedPoints(UnsignedPointsFrame { timestamps, values })
+        }
         ArrowDataType::Boolean => {
             let values = array
                 .as_any()
@@ -265,6 +275,13 @@ impl ExtractValues<String> for StringArray {
 
 impl ExtractValues<i64> for Int64Array {
     fn extract_values(&self, start_row: usize, num_rows: usize) -> Vec<i64> {
+        let end_row = start_row + num_rows;
+        (start_row..end_row).map(|row| self.value(row)).collect()
+    }
+}
+
+impl ExtractValues<u64> for UInt64Array {
+    fn extract_values(&self, start_row: usize, num_rows: usize) -> Vec<u64> {
         let end_row = start_row + num_rows;
         (start_row..end_row).map(|row| self.value(row)).collect()
     }
@@ -368,7 +385,7 @@ mod tests {
         let series_set = SeriesSet {
             table_name: Arc::from("the_table"),
             tags: vec![(Arc::from("tag1"), Arc::from("val1"))],
-            field_indexes: FieldIndexes::from_timestamp_and_value_indexes(4, &[0, 1, 2, 3]),
+            field_indexes: FieldIndexes::from_timestamp_and_value_indexes(5, &[0, 1, 2, 3, 4]),
             start_row: 1,
             num_rows: 2,
             batch: make_record_batch(),
@@ -376,8 +393,6 @@ mod tests {
 
         let response =
             series_set_to_read_response(series_set).expect("Correctly converted series set");
-
-        assert_eq!(response.frames.len(), 8); // 2 per field x 4 fields = 8
 
         let dumped_frames = response
             .frames
@@ -390,6 +405,8 @@ mod tests {
             "StringPointsFrame, timestamps: [2000, 3000], values: bar,baz",
             "SeriesFrame, tags: _field=int_field,_measurement=the_table,tag1=val1, type: 1",
             "IntegerPointsFrame, timestamps: [2000, 3000], values: \"2,3\"",
+            "SeriesFrame, tags: _field=uint_field,_measurement=the_table,tag1=val1, type: 2",
+            "UnsignedPointsFrame, timestamps: [2000, 3000], values: \"22,33\"",
             "SeriesFrame, tags: _field=float_field,_measurement=the_table,tag1=val1, type: 0",
             "FloatPointsFrame, timestamps: [2000, 3000], values: \"20.1,30.1\"",
             "SeriesFrame, tags: _field=boolean_field,_measurement=the_table,tag1=val1, type: 3",
@@ -700,6 +717,11 @@ mod tests {
                 timestamps,
                 dump_values(values)
             ),
+            Some(Data::UnsignedPoints(UnsignedPointsFrame { timestamps, values })) => format!(
+                "UnsignedPointsFrame, timestamps: {:?}, values: {:?}",
+                timestamps,
+                dump_values(values)
+            ),
             Some(Data::BooleanPoints(BooleanPointsFrame { timestamps, values })) => format!(
                 "BooleanPointsFrame, timestamps: {:?}, values: {}",
                 timestamps,
@@ -719,7 +741,6 @@ mod tests {
                 dump_u8_vec(partition_key_vals),
             ),
             None => "<NO data field>".into(),
-            _ => ":thinking_face: unknown frame type".into(),
         }
     }
 
@@ -757,6 +778,7 @@ mod tests {
     fn make_record_batch() -> RecordBatch {
         let string_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz", "foo"]));
         let int_array: ArrayRef = Arc::new(Int64Array::from(vec![1, 2, 3, 4]));
+        let uint_array: ArrayRef = Arc::new(UInt64Array::from(vec![11, 22, 33, 44]));
         let float_array: ArrayRef = Arc::new(Float64Array::from(vec![10.1, 20.1, 30.1, 40.1]));
         let bool_array: ArrayRef = Arc::new(BooleanArray::from(vec![true, false, true, false]));
 
@@ -768,6 +790,7 @@ mod tests {
         RecordBatch::try_from_iter_with_nullable(vec![
             ("string_field", string_array, true),
             ("int_field", int_array, true),
+            ("uint_field", uint_array, true),
             ("float_field", float_array, true),
             ("boolean_field", bool_array, true),
             ("time", timestamp_array, true),
