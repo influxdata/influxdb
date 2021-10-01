@@ -1147,6 +1147,7 @@ pub fn parse_delete(input: &str) -> Result<ParsedDelete> {
                     .replace("=", "")
                     .trim()
                     .to_string();
+                // Do not support white spaces in table name
                 if table_name.contains(' ') {
                     return Err(Error::DeleteTableInvalid {
                         value: input.to_string(),
@@ -1154,7 +1155,7 @@ pub fn parse_delete(input: &str) -> Result<ParsedDelete> {
                 }
                 parsed_delete.table_name = table_name;
             } else {
-                // This is a normal column comparison, put it back to to send to sqlparser later
+                // This is a normal column comparison, put it back to send to sqlparser later
                 if !predicate_no_table.is_empty() {
                     predicate_no_table.push_str(" and ")
                 }
