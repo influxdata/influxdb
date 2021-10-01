@@ -7,7 +7,7 @@ use data_types::chunk_metadata::ChunkId;
 use data_types::{server_id::ServerId, DatabaseName};
 use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound};
 use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
-use predicate::predicate::{ParseDeletePredicate};
+use predicate::predicate::ParseDeletePredicate;
 use query::QueryDatabase;
 use server::rules::ProvidedDatabaseRules;
 use server::{ApplicationState, ConnectionManager, Error, Server};
@@ -624,7 +624,10 @@ where
             .map_err(default_server_error_handler)?;
 
         let del_predicate_result = ParseDeletePredicate::build_delete_predicate(
-            table_name.clone(), start_time.clone(), stop_time.clone(), predicate.clone(),
+            table_name.clone(),
+            start_time.clone(),
+            stop_time.clone(),
+            predicate.clone(),
         );
         match del_predicate_result {
             Err(_) => {

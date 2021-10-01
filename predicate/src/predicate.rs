@@ -545,10 +545,16 @@ impl ParseDeletePredicate {
             return Ok(vec![]);
         }
 
+        // Since table-name can be empty, let assign it a random name to have sqlparser work
+        let mut table = "some_table";
+        if !table_name.is_empty() {
+            table = table_name;
+        }
+
         // Now add this predicate string into a DELETE SQL to user sqlparser to parse it
         // "DELETE FROM table_name WHERE predicate"
         let mut sql = "DELETE FROM ".to_string();
-        sql.push_str(table_name);
+        sql.push_str(table);
         sql.push_str(" WHERE ");
         sql.push_str(predicate);
 
@@ -596,7 +602,7 @@ impl ParseDeletePredicate {
         table_name: String,
         start_time: String,
         stop_time: String,
-        predicate: String
+        predicate: String,
     ) -> Result<Predicate, Error> {
         // parse time range and the predicate
         let parse_delete_pred = ParseDeletePredicate::try_new(
@@ -605,17 +611,17 @@ impl ParseDeletePredicate {
             stop_time.as_str(),
             predicate.as_str(),
         )?;
-    
+
         let mut del_predicate = PredicateBuilder::new()
             .table(table_name)
             .timestamp_range(parse_delete_pred.start_time, parse_delete_pred.stop_time)
             .build();
-    
+
         // Add the predicate binary expressions
         for expr in parse_delete_pred.predicate {
             del_predicate.exprs.push(expr);
         }
-    
+
         Ok(del_predicate)
     }
 
