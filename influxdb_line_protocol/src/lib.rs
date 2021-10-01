@@ -37,8 +37,6 @@ use std::{
     ops::Deref,
 };
 
-const FLUX_TABLE: &str = "_measurement";
-
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display(r#"Must not contain duplicate tags, but "{}" was repeated"#, tag_key))]
@@ -70,21 +68,6 @@ pub enum Error {
         source: std::num::ParseIntError,
         value: String,
     },
-
-    #[snafu(display(r#"Unable to parse delete string '{}'"#, value))]
-    DeleteInvalid {
-        source: serde_json::Error,
-        value: String,
-    },
-
-    #[snafu(display(r#"Invalid JSON format of delete string '{}'"#, value))]
-    DeleteObjectInvalid { value: String },
-
-    #[snafu(display(r#"Invalid table name in delete '{}'"#, value))]
-    DeleteTableInvalid { value: String },
-
-    #[snafu(display(r#"Delete must include a start time and a stop time'{}'"#, value))]
-    DeleteStartStopInvalid { value: String },
 
     // This error is for compatibility with the Go parser
     #[snafu(display(
@@ -1069,103 +1052,6 @@ fn escape_and_write_value(
     }
 
     f.write_str(&value[last..])
-}
-
-#[derive(Debug, Default, PartialEq, Clone)]
-/// data of a parsed delete
-pub struct ParsedDelete {
-    /// Empty string, "", if no table specified
-    pub table_name: String,
-    pub start_time: String,
-    pub stop_time: String,
-    pub predicate: String,
-}
-
-/// Return parsed data of an influx delete
-/// A few input examples and their parsed results:
-///   {"predicate":"_measurement=mytable AND host=\"Orient.local\"","start":"1970-01-01T00:00:00Z","stop":"2070-01-02T00:00:00Z"}
-///    => table_name="mytable", start_time="1970-01-01T00:00:00Z", end_time="2070-01-02T00:00:00Z", predicate="host=\"Orient.local\"""
-///   {"predicate":"host=Orient.local and val != 50","start":"1970-01-01T00:00:00Z","stop":"2070-01-02T00:00:00Z"}
-///    => start_time="1970-01-01T00:00:00Z", end_time="2070-01-02T00:00:00Z", predicate="host=Orient.local and val != 50"
-pub fn parse_delete(input: &str) -> Result<ParsedDelete> {
-    let parsed_obj: serde_json::Value =
-        serde_json::from_str(input).context(DeleteInvalid { value: input })?;
-    let mut parsed_delete = ParsedDelete::default();
-
-    if let serde_json::Value::Object(items) = parsed_obj {
-        for item in items {
-            // The value must be type String
-            if let Some(val) = item.1.as_str() {
-                match item.0.to_lowercase().as_str() {
-                    "start" => parsed_delete.start_time = val.to_string(),
-                    "stop" => parsed_delete.stop_time = val.to_string(),
-                    "predicate" => parsed_delete.predicate = val.to_string(),
-                    _ => {
-                        return Err(Error::DeleteObjectInvalid {
-                            value: input.to_string(),
-                        })
-                    }
-                }
-            } else {
-                return Err(Error::DeleteObjectInvalid {
-                    value: input.to_string(),
-                });
-            }
-        }
-    } else {
-        return Err(Error::DeleteObjectInvalid {
-            value: input.to_string(),
-        });
-    }
-
-    // Start or stop is empty
-    if parsed_delete.start_time.is_empty() || parsed_delete.stop_time.is_empty() {
-        return Err(Error::DeleteStartStopInvalid {
-            value: input.to_string(),
-        });
-    }
-
-    // Extract table from the predicate if any
-    if parsed_delete.predicate.contains(FLUX_TABLE) {
-        // since predicate is a conjunctive expression, split them by "and"
-        let predicate = parsed_delete
-            .predicate
-            .replace(" AND ", " and ")
-            .replace(" ANd ", " and ")
-            .replace(" And ", " and ")
-            .replace(" AnD ", " and ");
-
-        let split: Vec<&str> = predicate.split("and").collect();
-
-        let mut predicate_no_table = "".to_string();
-        for s in split {
-            if s.contains(FLUX_TABLE) {
-                // This should be in form "_measurement = <your_table_name>"
-                // only <keep your_table_name> by replacing the rest with ""
-                let table_name = s
-                    .replace(FLUX_TABLE, "")
-                    .replace("=", "")
-                    .trim()
-                    .to_string();
-                // Do not support white spaces in table name
-                if table_name.contains(' ') {
-                    return Err(Error::DeleteTableInvalid {
-                        value: input.to_string(),
-                    });
-                }
-                parsed_delete.table_name = table_name;
-            } else {
-                // This is a normal column comparison, put it back to send to sqlparser later
-                if !predicate_no_table.is_empty() {
-                    predicate_no_table.push_str(" and ")
-                }
-                predicate_no_table.push_str(s.trim());
-            }
-        }
-        parsed_delete.predicate = predicate_no_table;
-    }
-
-    Ok(parsed_delete)
 }
 
 #[cfg(test)]
@@ -2330,84 +2216,5 @@ her"#,
         let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].tag_value("asdf"), None);
-    }
-
-    #[test]
-    fn test_parse_delete_full() {
-        let delete_str = r#"{"predicate":"_measurement=mytable AND host=\"Orient.local\"","start":"1970-01-01T00:00:00Z","stop":"2070-01-02T00:00:00Z"}"#;
-
-        let expected = ParsedDelete {
-            table_name: "mytable".to_string(),
-            predicate: "host=\"Orient.local\"".to_string(),
-            start_time: "1970-01-01T00:00:00Z".to_string(),
-            stop_time: "2070-01-02T00:00:00Z".to_string(),
-        };
-
-        let result = parse_delete(delete_str).unwrap();
-        assert_eq!(expected, result);
-    }
-
-    #[test]
-    fn test_parse_delete_no_table() {
-        let delete_str = r#"{"start":"1970-01-01T00:00:00Z","stop":"2070-01-02T00:00:00Z", "predicate":"host=\"Orient.local\""}"#;
-
-        let expected = ParsedDelete {
-            table_name: "".to_string(),
-            predicate: "host=\"Orient.local\"".to_string(),
-            start_time: "1970-01-01T00:00:00Z".to_string(),
-            stop_time: "2070-01-02T00:00:00Z".to_string(),
-        };
-
-        let result = parse_delete(delete_str).unwrap();
-        assert_eq!(expected, result);
-    }
-
-    #[test]
-    fn test_parse_delete_empty_predicate() {
-        let delete_str =
-            r#"{"start":"1970-01-01T00:00:00Z","predicate":"","stop":"2070-01-02T00:00:00Z"}"#;
-
-        let expected = ParsedDelete {
-            table_name: "".to_string(),
-            predicate: "".to_string(),
-            start_time: "1970-01-01T00:00:00Z".to_string(),
-            stop_time: "2070-01-02T00:00:00Z".to_string(),
-        };
-
-        let result = parse_delete(delete_str).unwrap();
-        assert_eq!(expected, result);
-    }
-
-    #[test]
-    fn test_parse_delete_no_predicate() {
-        let delete_str = r#"{"start":"1970-01-01T00:00:00Z","stop":"2070-01-02T00:00:00Z"}"#;
-
-        let expected = ParsedDelete {
-            table_name: "".to_string(),
-            predicate: "".to_string(),
-            start_time: "1970-01-01T00:00:00Z".to_string(),
-            stop_time: "2070-01-02T00:00:00Z".to_string(),
-        };
-
-        let result = parse_delete(delete_str).unwrap();
-        assert_eq!(expected, result);
-    }
-
-    #[test]
-    fn test_parse_delete_negative() {
-        // invalid key
-        let delete_str = r#"{"invalid":"1970-01-01T00:00:00Z","stop":"2070-01-02T00:00:00Z"}"#;
-        let result = parse_delete(delete_str);
-        assert!(result.is_err());
-
-        // invalid timestamp value
-        let delete_str = r#"{"start":123,"stop":"2070-01-02T00:00:00Z"}"#;
-        let result = parse_delete(delete_str);
-        assert!(result.is_err());
-
-        // invalid JSON
-        let delete_str = r#"{"start":"1970-01-01T00:00:00Z",;"stop":"2070-01-02T00:00:00Z"}"#;
-        let result = parse_delete(delete_str);
-        assert!(result.is_err());
     }
 }

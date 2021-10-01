@@ -317,7 +317,7 @@ mod tests {
         let predicate = r#"city=Boston and cost!=100 and temp=87.5 and good=true"#;
 
         let parse_delete_pred =
-            ParseDeletePredicate::try_new(table_name, start_time, stop_time, predicate).unwrap();
+            ParseDeletePredicate::try_new(start_time, stop_time, predicate).unwrap();
 
         let mut del_predicate_builder = PredicateBuilder::new()
             .table(table_name)

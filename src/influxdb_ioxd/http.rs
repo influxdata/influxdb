@@ -25,8 +25,8 @@ use data_types::{
     DatabaseName,
 };
 use influxdb_iox_client::format::QueryOutputFormat;
-use influxdb_line_protocol::{parse_delete, parse_lines};
-use predicate::predicate::ParseDeletePredicate;
+use influxdb_line_protocol::parse_lines;
+use predicate::predicate::{parse_delete, ParseDeletePredicate};
 use query::exec::ExecutionContextProvider;
 use server::{ApplicationState, ConnectionManager, Error, Server as AppServer};
 
@@ -163,7 +163,7 @@ pub enum ApplicationError {
 
     #[snafu(display("Error parsing delete {}: {}", input, source))]
     ParsingDelete {
-        source: influxdb_line_protocol::Error,
+        source: predicate::predicate::Error,
         input: String,
     },
 
@@ -603,11 +603,13 @@ where
     let db = server.db(&db_name)?;
 
     // Build delete predicate
-    let del_predicate =
-        ParseDeletePredicate::build_delete_predicate(table_name.clone(), start, stop, predicate)
-            .context(BuildingDeletePredicate { input: body })?;
+    let del_predicate = ParseDeletePredicate::build_delete_predicate(start, stop, predicate)
+        .context(BuildingDeletePredicate { input: body })?;
 
     // Tables data will be deleted from
+    // Note for developer:  this the only place we support INFLUX DELETE that deletes
+    // data from many tables in one command. If you want to use general delete API to
+    // delete data from a specified table, use the one in the management API (src/influxdb_ioxd/rpc/management.rs) instead
     let mut tables = vec![];
     if table_name.is_empty() {
         tables = db.table_names();

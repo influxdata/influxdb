@@ -624,7 +624,6 @@ where
             .map_err(default_server_error_handler)?;
 
         let del_predicate_result = ParseDeletePredicate::build_delete_predicate(
-            table_name.clone(),
             start_time.clone(),
             stop_time.clone(),
             predicate.clone(),

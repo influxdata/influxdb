@@ -6,7 +6,6 @@ edition = "2018"
 
 [dependencies] # In alphabetical order
 nom = "7"
-serde_json = "1.0.67"
 smallvec = "1.2.0"
 snafu = "0.6.2"
 observability_deps = { path = "../observability_deps" }
