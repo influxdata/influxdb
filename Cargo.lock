@@ -2245,9 +2245,9 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.20.1"
+version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df8e5e343312e7fbeb2a52139114e9e702991ef9c2aea6817ff2440b35647d56"
+checksum = "f5e06129fb611568ef4e868c14b326274959aa70ff7776e9d55323531c374945"
 dependencies = [
  "bitflags",
  "cc",
@@ -2258,9 +2258,9 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.22.1"
+version = "0.22.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7555d6c7164cc913be1ce7f95cbecdabda61eb2ccd89008524af306fb7f5031"
+checksum = "d3bb9a13fa32bc5aeb64150cd3f32d6cf4c748f8f8a417cce5d2eb976a8370ba"
 dependencies = [
  "bitflags",
  "cc",
@@ -2937,7 +2937,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "log",
- "nix 0.20.1",
+ "nix 0.20.2",
  "parking_lot",
  "prost",
  "prost-build",
@@ -3641,7 +3641,7 @@ dependencies = [
  "libc",
  "log",
  "memchr",
- "nix 0.22.1",
+ "nix 0.22.2",
  "radix_trie",
  "scopeguard",
  "smallvec",
