@@ -157,7 +157,7 @@ workflows:
     jobs:
       - changelog:
           nightly: false
-      - build_and_sign_job:
+      - release:
           requires:
             - changelog
   release:
@@ -852,7 +852,7 @@ jobs:
             instance_id=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 describe-instances --filters "Name=tag:Name,Values=$name" --query 'Reservations[].Instances[].InstanceId' --output text)
             AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
 
-  build_and_sign_job:
+  release:
     machine:
       image: ubuntu-2004:202010-01
     resource_class: large
@@ -861,11 +861,14 @@ jobs:
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      - run:
-          name: checkout by tag
-          command: |
-            git fetch --all --tags
-            git checkout tags/<< pipeline.parameters.build_and_sign_tag >> -b << pipeline.parameters.build_and_sign_tag >>
+      - when:
+          condition: << pipeline.parameters.build_and_sign_tag >>
+          steps:
+            - run:
+                name: checkout by tag
+                command: |
+                  git fetch --all --tags
+                  git checkout tags/<< pipeline.parameters.build_and_sign_tag >> -b << pipeline.parameters.build_and_sign_tag >>
       - run:
           name: Create RAM disk
           command: |
@@ -884,37 +887,6 @@ jobs:
       - run_goreleaser:
           publish_release: true
           build_tag: << pipeline.parameters.build_and_sign_tag >>
-      - persist_to_workspace:
-          root: .
-          paths:
-            - etc/litmus_success_notify.sh
-            - etc/litmus_fail_notify.sh
-  release:
-    machine:
-      image: ubuntu-2004:202010-01
-    resource_class: large
-    environment:
-      TMPDIR: /mnt/ramdisk
-    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-      - run:
-          name: Create RAM disk
-          command: |
-            sudo mkdir -p ${TMPDIR}
-            sudo mount -t tmpfs -o size=4G tmpfs ${TMPDIR}
-      - restore_cache:
-          name: Restore GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - restore_cache:
-          name: Restore Yarn Cache
-          keys:
-            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-      - install_core_deps
-      - upgrade_go
-      - run_goreleaser:
-          publish_release: true
       - persist_to_workspace:
           root: .
           paths:
