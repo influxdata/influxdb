@@ -2966,6 +2966,7 @@ dependencies = [
  "internal_types",
  "observability_deps",
  "regex",
+ "serde_json",
  "snafu",
  "sqlparser",
  "test_helpers",

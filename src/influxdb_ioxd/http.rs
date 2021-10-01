@@ -26,6 +26,7 @@ use data_types::{
 };
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
+use predicate::predicate::{parse_delete, ParseDeletePredicate};
 use query::exec::ExecutionContextProvider;
 use server::{ApplicationState, ConnectionManager, Error, Server as AppServer};
 
@@ -160,6 +161,24 @@ pub enum ApplicationError {
         source: influxdb_line_protocol::Error,
     },
 
+    #[snafu(display("Error parsing delete {}: {}", input, source))]
+    ParsingDelete {
+        source: predicate::predicate::Error,
+        input: String,
+    },
+
+    #[snafu(display("Error building delete predicate {}: {}", input, source))]
+    BuildingDeletePredicate {
+        source: predicate::predicate::Error,
+        input: String,
+    },
+
+    #[snafu(display("Error executing delete {}: {}", input, source))]
+    ExecutingDelete {
+        source: server::db::Error,
+        input: String,
+    },
+
     #[snafu(display("Error decompressing body as gzip: {}", source))]
     ReadingBodyAsGzip { source: std::io::Error },
 
@@ -261,6 +280,9 @@ impl ApplicationError {
             Self::ReadingBody { .. } => self.bad_request(),
             Self::ReadingBodyAsUtf8 { .. } => self.bad_request(),
             Self::ParsingLineProtocol { .. } => self.bad_request(),
+            Self::ParsingDelete { .. } => self.bad_request(),
+            Self::BuildingDeletePredicate { .. } => self.bad_request(),
+            Self::ExecutingDelete { .. } => self.internal_error(),
             Self::ReadingBodyAsGzip { .. } => self.bad_request(),
             Self::ClientHangup { .. } => self.bad_request(),
             Self::RouteNotFound { .. } => self.not_found(),
@@ -380,6 +402,7 @@ where
         (Method::GET, "/health") => health(),
         (Method::GET, "/metrics") => handle_metrics(server.application.as_ref()),
         (Method::POST, "/api/v2/write") => write(req, server.as_ref()).await,
+        (Method::POST, "/api/v2/delete") => delete(req, server.as_ref()).await,
         (Method::GET, "/api/v3/query") => query(req, server.as_ref()).await,
         (Method::GET, "/debug/pprof") => pprof_home(req).await,
         (Method::GET, "/debug/pprof/profile") => pprof_profile(req).await,
@@ -537,6 +560,74 @@ where
             })
         }
     }
+}
+
+async fn delete<M>(
+    req: Request<Body>,
+    server: &Server<M>,
+) -> Result<Response<Body>, ApplicationError>
+where
+    M: ConnectionManager + Send + Sync + Debug + 'static,
+{
+    let Server {
+        app_server: server,
+        max_request_size,
+        ..
+    } = server;
+    let max_request_size = *max_request_size;
+    let server = Arc::clone(server);
+
+    // Extract the DB name from the request
+    // db_name = orrID_bucketID
+    let query = req.uri().query().context(ExpectedQueryString)?;
+    let delete_info: WriteInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
+        query_string: String::from(query),
+    })?;
+    let db_name = org_and_bucket_to_database(&delete_info.org, &delete_info.bucket)
+        .context(BucketMappingError)?;
+
+    // Parse body
+    let body = parse_body(req, max_request_size).await?;
+    let body = str::from_utf8(&body).context(ReadingBodyAsUtf8)?;
+
+    // Parse and extract table name (which can be empty), start, stop, and predicate
+    let parsed_delete = parse_delete(body).context(ParsingDelete { input: body })?;
+
+    let table_name = parsed_delete.table_name;
+    let predicate = parsed_delete.predicate;
+    let start = parsed_delete.start_time;
+    let stop = parsed_delete.stop_time;
+    debug!(%table_name, %predicate, %start, %stop, body_size=body.len(), %db_name, org=%delete_info.org, bucket=%delete_info.bucket, "delete data from database");
+
+    // Validate that the database name is legit
+    let db = server.db(&db_name)?;
+
+    // Build delete predicate
+    let del_predicate = ParseDeletePredicate::build_delete_predicate(start, stop, predicate)
+        .context(BuildingDeletePredicate { input: body })?;
+
+    // Tables data will be deleted from
+    // Note for developer:  this the only place we support INFLUX DELETE that deletes
+    // data from many tables in one command. If you want to use general delete API to
+    // delete data from a specified table, use the one in the management API (src/influxdb_ioxd/rpc/management.rs) instead
+    let mut tables = vec![];
+    if table_name.is_empty() {
+        tables = db.table_names();
+    } else {
+        tables.push(table_name);
+    }
+
+    // Execute delete
+    for table in tables {
+        db.delete(&table, Arc::new(del_predicate.clone()))
+            .await
+            .context(ExecutingDelete { input: body })?;
+    }
+
+    Ok(Response::builder()
+        .status(StatusCode::NO_CONTENT)
+        .body(Body::empty())
+        .unwrap())
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
@@ -964,6 +1055,88 @@ mod tests {
             .db(&DatabaseName::new("MyOrg_MyBucket").unwrap())
             .expect("Database exists");
 
+        let batches = run_query(test_db, "select * from h2o_temperature").await;
+        let expected = vec![
+            "+----------------+--------------+-------+-----------------+----------------------+",
+            "| bottom_degrees | location     | state | surface_degrees | time                 |",
+            "+----------------+--------------+-------+-----------------+----------------------+",
+            "| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01T14:10:24Z |",
+            "+----------------+--------------+-------+-----------------+----------------------+",
+        ];
+        assert_batches_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn test_delete() {
+        // Set up server
+        let application = make_application();
+        let app_server = make_server(Arc::clone(&application));
+        app_server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        app_server.wait_for_init().await.unwrap();
+        app_server
+            .create_database(make_rules("MyOrg_MyBucket"))
+            .await
+            .unwrap();
+        let server_url = test_server(application, Arc::clone(&app_server), None);
+
+        // Set up client
+        let client = Client::new();
+        let bucket_name = "MyBucket";
+        let org_name = "MyOrg";
+
+        // Client requests delete something from an empty DB
+        let delete_line = r#"{"start":"1970-01-01T00:00:00Z","stop":"2070-01-02T00:00:00Z", "predicate":"host=\"Orient.local\""}"#;
+        let response = client
+            .post(&format!(
+                "{}/api/v2/delete?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
+            .body(delete_line)
+            .send()
+            .await;
+        check_response("delete", response, StatusCode::NO_CONTENT, Some("")).await;
+
+        // Client writes data to the server
+        let lp_data = r#"h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1617286224000000000
+               h2o_temperature,location=Boston,state=MA surface_degrees=47.5,bottom_degrees=35 1617286224000000123"#;
+        let response = client
+            .post(&format!(
+                "{}/api/v2/write?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
+            .body(lp_data)
+            .send()
+            .await;
+        check_response("write", response, StatusCode::NO_CONTENT, Some("")).await;
+
+        // Check that the data got into the right bucket
+        let test_db = app_server
+            .db(&DatabaseName::new("MyOrg_MyBucket").unwrap())
+            .expect("Database exists");
+        let batches = run_query(Arc::clone(&test_db), "select * from h2o_temperature").await;
+        let expected = vec![
+            "+----------------+--------------+-------+-----------------+--------------------------------+",
+            "| bottom_degrees | location     | state | surface_degrees | time                           |",
+            "+----------------+--------------+-------+-----------------+--------------------------------+",
+            "| 35             | Boston       | MA    | 47.5            | 2021-04-01T14:10:24.000000123Z |",
+            "| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01T14:10:24Z           |",
+            "+----------------+--------------+-------+-----------------+--------------------------------+",
+        ];
+        assert_batches_eq!(expected, &batches);
+
+        // Now delete something
+        let delete_line = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"location=Boston"}"#;
+        let response = client
+            .post(&format!(
+                "{}/api/v2/delete?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
+            .body(delete_line)
+            .send()
+            .await;
+        check_response("delete", response, StatusCode::NO_CONTENT, Some("")).await;
+
+        // query again and should not get the deleted data
         let batches = run_query(test_db, "select * from h2o_temperature").await;
         let expected = vec![
             "+----------------+--------------+-------+-----------------+----------------------+",

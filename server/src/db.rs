@@ -359,6 +359,11 @@ impl Db {
         this
     }
 
+    /// Return all table names of the DB
+    pub fn table_names(&self) -> Vec<String> {
+        self.catalog.table_names()
+    }
+
     /// Allow persistence if database rules all it.
     pub async fn unsuppress_persistence(&self) {
         let mut guard = self.lifecycle_policy.lock().await;
