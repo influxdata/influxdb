@@ -137,12 +137,12 @@ func (v *nodeToExprVisitor) Visit(n *datatypes.Node) NodeVisitor {
 	case datatypes.Node_TypeTagRef:
 		ref := n.GetTagRefValue()
 		if v.remap != nil {
-			if nk, ok := v.remap[ref]; ok {
-				ref = nk
+			if nk, ok := v.remap[string(ref)]; ok {
+				ref = []byte(nk)
 			}
 		}
 
-		v.exprs = append(v.exprs, &influxql.VarRef{Val: ref, Type: influxql.Tag})
+		v.exprs = append(v.exprs, &influxql.VarRef{Val: string(ref), Type: influxql.Tag})
 		return nil
 
 	case datatypes.Node_TypeFieldRef:

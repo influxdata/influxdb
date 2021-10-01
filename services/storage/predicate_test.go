@@ -78,7 +78,7 @@ func TestRewriteExprRemoveFieldKeyAndValue(t *testing.T) {
 				NodeType: datatypes.Node_TypeComparisonExpression,
 				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonEqual},
 				Children: []*datatypes.Node{
-					{NodeType: datatypes.Node_TypeTagRef, Value: &datatypes.Node_TagRefValue{TagRefValue: "host"}},
+					{NodeType: datatypes.Node_TypeTagRef, Value: &datatypes.Node_TagRefValue{TagRefValue: []byte("host")}},
 					{NodeType: datatypes.Node_TypeLiteral, Value: &datatypes.Node_StringValue{StringValue: "host1"}},
 				},
 			},
@@ -86,7 +86,7 @@ func TestRewriteExprRemoveFieldKeyAndValue(t *testing.T) {
 				NodeType: datatypes.Node_TypeComparisonExpression,
 				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonRegex},
 				Children: []*datatypes.Node{
-					{NodeType: datatypes.Node_TypeTagRef, Value: &datatypes.Node_TagRefValue{TagRefValue: "_field"}},
+					{NodeType: datatypes.Node_TypeTagRef, Value: &datatypes.Node_TagRefValue{TagRefValue: []byte("_field")}},
 					{NodeType: datatypes.Node_TypeLiteral, Value: &datatypes.Node_RegexValue{RegexValue: "^us-west"}},
 				},
 			},

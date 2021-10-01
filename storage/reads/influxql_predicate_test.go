@@ -44,7 +44,7 @@ func TestHasFieldValueKey(t *testing.T) {
 						{
 							NodeType: datatypes.Node_TypeTagRef,
 							Value: &datatypes.Node_TagRefValue{
-								TagRefValue: "_measurement",
+								TagRefValue: []byte("_measurement"),
 							},
 						},
 						{

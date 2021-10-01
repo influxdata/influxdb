@@ -238,7 +238,7 @@ func hasFieldRef(node *datatypes.Node) bool {
 		return false
 	}
 	// NodeType should imply the type, panic if it doesn't
-	if node.NodeType == datatypes.Node_TypeTagRef && node.Value.(*datatypes.Node_TagRefValue).TagRefValue == models.FieldKeyTagKey {
+	if node.NodeType == datatypes.Node_TypeTagRef && string(node.Value.(*datatypes.Node_TagRefValue).TagRefValue) == models.FieldKeyTagKey {
 		return true
 	}
 	for _, c := range node.Children {

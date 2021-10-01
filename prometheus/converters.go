@@ -165,7 +165,7 @@ func fieldNode() *datatypes.Node {
 		&datatypes.Node{
 			NodeType: datatypes.Node_TypeTagRef,
 			Value: &datatypes.Node_TagRefValue{
-				TagRefValue: fieldTagKey,
+				TagRefValue: []byte(fieldTagKey),
 			},
 		},
 		&datatypes.Node{
@@ -231,7 +231,7 @@ func nodeFromMatcher(m *prompb.LabelMatcher) (*datatypes.Node, error) {
 	left := &datatypes.Node{
 		NodeType: datatypes.Node_TypeTagRef,
 		Value: &datatypes.Node_TagRefValue{
-			TagRefValue: name,
+			TagRefValue: []byte(name),
 		},
 	}
 

@@ -151,14 +151,14 @@ func toStoragePredicateHelper(n semantic.Expression, objectName string) (*dataty
 			return &datatypes.Node{
 				NodeType: datatypes.Node_TypeTagRef,
 				Value: &datatypes.Node_TagRefValue{
-					TagRefValue: models.FieldKeyTagKey,
+					TagRefValue: []byte(models.FieldKeyTagKey),
 				},
 			}, nil
 		case measurementKey:
 			return &datatypes.Node{
 				NodeType: datatypes.Node_TypeTagRef,
 				Value: &datatypes.Node_TagRefValue{
-					TagRefValue: models.MeasurementTagKey,
+					TagRefValue: []byte(models.MeasurementTagKey),
 				},
 			}, nil
 		case valueKey:
@@ -173,7 +173,7 @@ func toStoragePredicateHelper(n semantic.Expression, objectName string) (*dataty
 		return &datatypes.Node{
 			NodeType: datatypes.Node_TypeTagRef,
 			Value: &datatypes.Node_TagRefValue{
-				TagRefValue: n.Property,
+				TagRefValue: []byte(n.Property),
 			},
 		}, nil
 	case *semantic.DurationLiteral:

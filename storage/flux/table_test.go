@@ -2708,7 +2708,7 @@ func getStorageEqPred(lhsTagKey, rhsTagValue string) *storageproto.Predicate {
 				{
 					NodeType: storageproto.Node_TypeTagRef,
 					Value: &storageproto.Node_TagRefValue{
-						TagRefValue: lhsTagKey,
+						TagRefValue: []byte(lhsTagKey),
 					},
 				},
 				{

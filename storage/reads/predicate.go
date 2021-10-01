@@ -99,7 +99,7 @@ func (v *predicateExpressionPrinter) Visit(n *datatypes.Node) NodeVisitor {
 
 	case datatypes.Node_TypeTagRef:
 		v.Buffer.WriteByte('\'')
-		v.Buffer.WriteString(n.GetTagRefValue())
+		v.Buffer.WriteString(string(n.GetTagRefValue()))
 		v.Buffer.WriteByte('\'')
 		return nil
 
