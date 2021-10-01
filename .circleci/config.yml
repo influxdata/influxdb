@@ -1060,13 +1060,13 @@ jobs:
 
                   curl -o ${COMMIT_FILE_PATH} ${S3_PATH}/${COMMIT_FILE_PATH}
 
-                  LAST_COMMIT=$(git rev-list --tags=v2* --skip=1 --max-count=1)
+                  LAST_COMMIT=$(git describe --abbrev=0 --tags --exclude='*[rc]*' $(git rev-list --tags='v2*' --skip=1 --max-count=1))
                   NEWEST_COMMIT=${CIRCLE_SHA1}
 
                   if [ -n "<< pipeline.parameters.build_and_sign_tag >>" ]; then
                     git fetch --all --tags
                     CIRCLE_TAG=<< pipeline.parameters.build_and_sign_tag >>
-                    LAST_COMMIT=$(git tag -l --sort=-version:refname v2* | grep -A 1 << pipeline.parameters.build_and_sign_tag >> | tail -n 1)
+                    LAST_COMMIT=$(git tag -l --sort=-version:refname 'v2*[!-rc].[0-9]' | grep -A 1 << pipeline.parameters.build_and_sign_tag >> | tail -n 1)
                     NEWEST_COMMIT=${CIRCLE_TAG}
                     CHANGELOG_FILENAME="CHANGELOG-${CIRCLE_TAG}.md"
                   fi
