@@ -24,8 +24,8 @@ func (s *SpanContext) UnmarshalBinary(data []byte) error {
 	err := proto.Unmarshal(data, &ws)
 	if err == nil {
 		*s = SpanContext{
-			TraceID: ws.TraceID,
-			SpanID:  ws.SpanID,
+			TraceID: ws.GetTraceID(),
+			SpanID:  ws.GetSpanID(),
 		}
 	}
 	return err

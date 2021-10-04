@@ -64,7 +64,7 @@ func labelsToWire(set labels.Labels) []string {
 func (t *Trace) MarshalBinary() ([]byte, error) {
 	wt := wire.Trace{}
 	for _, sp := range t.spans {
-		wt.Spans = append(wt.Spans, &wire.Span{
+		wt.Spans = append(wt.GetSpans(), &wire.Span{
 			Context: &wire.SpanContext{
 				TraceID: sp.Context.TraceID,
 				SpanID:  sp.Context.SpanID,
@@ -83,28 +83,28 @@ func (t *Trace) MarshalBinary() ([]byte, error) {
 func wireToFields(wfs []*wire.Field) fields.Fields {
 	var fs []fields.Field
 	for _, wf := range wfs {
-		switch wf.FieldType {
+		switch wf.GetFieldType() {
 		case wire.FieldType_FieldTypeString:
-			fs = append(fs, fields.String(wf.Key, wf.GetStringVal()))
+			fs = append(fs, fields.String(wf.GetKey(), wf.GetStringVal()))
 
 		case wire.FieldType_FieldTypeBool:
 			var boolVal bool
 			if wf.GetNumericVal() != 0 {
 				boolVal = true
 			}
-			fs = append(fs, fields.Bool(wf.Key, boolVal))
+			fs = append(fs, fields.Bool(wf.GetKey(), boolVal))
 
 		case wire.FieldType_FieldTypeInt64:
-			fs = append(fs, fields.Int64(wf.Key, wf.GetNumericVal()))
+			fs = append(fs, fields.Int64(wf.GetKey(), wf.GetNumericVal()))
 
 		case wire.FieldType_FieldTypeUint64:
-			fs = append(fs, fields.Uint64(wf.Key, uint64(wf.GetNumericVal())))
+			fs = append(fs, fields.Uint64(wf.GetKey(), uint64(wf.GetNumericVal())))
 
 		case wire.FieldType_FieldTypeDuration:
-			fs = append(fs, fields.Duration(wf.Key, time.Duration(wf.GetNumericVal())))
+			fs = append(fs, fields.Duration(wf.GetKey(), time.Duration(wf.GetNumericVal())))
 
 		case wire.FieldType_FieldTypeFloat64:
-			fs = append(fs, fields.Float64(wf.Key, math.Float64frombits(uint64(wf.GetNumericVal()))))
+			fs = append(fs, fields.Float64(wf.GetKey(), math.Float64frombits(uint64(wf.GetNumericVal()))))
 		}
 	}
 
@@ -119,17 +119,17 @@ func (t *Trace) UnmarshalBinary(data []byte) error {
 
 	t.spans = make(map[uint64]RawSpan)
 
-	for _, sp := range wt.Spans {
-		t.spans[sp.Context.SpanID] = RawSpan{
+	for _, sp := range wt.GetSpans() {
+		t.spans[sp.Context.GetSpanID()] = RawSpan{
 			Context: SpanContext{
-				TraceID: sp.Context.TraceID,
-				SpanID:  sp.Context.SpanID,
+				TraceID: sp.Context.GetTraceID(),
+				SpanID:  sp.Context.GetSpanID(),
 			},
-			ParentSpanID: sp.ParentSpanID,
-			Name:         sp.Name,
-			Start:        sp.Start.AsTime(),
-			Labels:       labels.New(sp.Labels...),
-			Fields:       wireToFields(sp.Fields),
+			ParentSpanID: sp.GetParentSpanID(),
+			Name:         sp.GetName(),
+			Start:        sp.GetStart().AsTime(),
+			Labels:       labels.New(sp.GetLabels()...),
+			Fields:       wireToFields(sp.GetFields()),
 		}
 	}
 

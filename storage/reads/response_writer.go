@@ -174,17 +174,17 @@ func (w *ResponseWriter) getSeriesFrame(next models.Tags) *datatypes.ReadRespons
 		res = &datatypes.ReadResponse_Frame_Series{Series: &datatypes.ReadResponse_SeriesFrame{}}
 	}
 
-	if cap(res.Series.Tags) < len(next) {
+	if cap(res.Series.GetTags()) < len(next) {
 		res.Series.Tags = make([]*datatypes.Tag, len(next))
-	} else if len(res.Series.Tags) != len(next) {
-		res.Series.Tags = res.Series.Tags[:len(next)]
+	} else if len(res.Series.GetTags()) != len(next) {
+		res.Series.Tags = res.Series.GetTags()[:len(next)]
 	}
 
 	return res
 }
 
 func (w *ResponseWriter) putSeriesFrame(f *datatypes.ReadResponse_Frame_Series) {
-	tags := f.Series.Tags
+	tags := f.Series.GetTags()
 	for i := range tags {
 		tags[i].Key = nil
 		tags[i].Value = nil
@@ -322,7 +322,7 @@ func (w *ResponseWriter) getMultiPointsFrameForMeanCount() *datatypes.ReadRespon
 
 func (w *ResponseWriter) putMultiPointsFrame(f *datatypes.ReadResponse_Frame_MultiPoints) {
 	f.MultiPoints.Timestamps = f.MultiPoints.Timestamps[:0]
-	for _, v := range f.MultiPoints.ValueArrays {
+	for _, v := range f.MultiPoints.GetValueArrays() {
 		switch v := v.Data.(type) {
 		case *datatypes.ReadResponse_AnyPoints_Floats:
 			w.putFloatValues(v)
