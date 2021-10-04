@@ -45,7 +45,7 @@ message TimestampRange {
 
 // Single expression to be used as parts of a predicate.
 //
-// Only very simple expression of the type `<columng> <op> <scalar>` are supported.
+// Only very simple expression of the type `<column> <op> <scalar>` are supported.
 message Expr {
   // Column (w/o table name).
   string column = 1;
