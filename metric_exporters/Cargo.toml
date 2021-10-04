@@ -8,7 +8,7 @@ edition = "2018"
 
 observability_deps = { path = "../observability_deps" }
 metric = { path = "../metric" }
-prometheus = { version = "0.12", default-features = false }
+prometheus = { version = "0.13", default-features = false }
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }
