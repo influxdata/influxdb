@@ -3,13 +3,14 @@ package v1tests
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2"
-	"github.com/stretchr/testify/require"
 	"net/url"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2"
+	"github.com/stretchr/testify/require"
 
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/models"
@@ -4720,17 +4721,16 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 		fmt.Sprintf(`other,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
 	}
 
-
 	ctx := context.Background()
 
 	client := s.MustNewAdminClient()
 	bucket2 := influxdb.Bucket{
-		OrgID:               s.DefaultOrgID,
-		Name: "b2",
+		OrgID: s.DefaultOrgID,
+		Name:  "b2",
 	}
 	bucket3 := influxdb.Bucket{
-		OrgID:               s.DefaultOrgID,
-		Name: "b3",
+		OrgID: s.DefaultOrgID,
+		Name:  "b3",
 	}
 	require.NoError(t, client.CreateBucket(ctx, &bucket2))
 	require.NoError(t, client.CreateBucket(ctx, &bucket3))
@@ -4750,7 +4750,6 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 		OrganizationID:  s.DefaultOrgID,
 		BucketID:        bucket3.ID,
 	}))
-
 
 	rp1Writes := []string{
 		fmt.Sprintf(`other2,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
@@ -4773,15 +4772,15 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 			name:    `show measurements`,
 			command: "SHOW MEASUREMENTS",
 			// *unlike* 1.x, InfluxDB 2 shows measurements from the default retention policy when the rp is not specified, not all retention policies
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"],["other"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
+			exp:    `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"],["other"]]}]}]}`,
+			params: url.Values{"db": []string{"db0"}},
 		},
 		{
 			name:    `show measurements with rp parameter`,
 			command: "SHOW MEASUREMENTS",
 			// we ignore the rp parameter for show measurements
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"],["other"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp1"}},
+			exp:    `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"],["other"]]}]}]}`,
+			params: url.Values{"db": []string{"db0"}, "rp": []string{"rp1"}},
 		},
 		{
 			name:    `show measurements with on`,

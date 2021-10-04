@@ -387,12 +387,12 @@ func (e *StatementExecutor) executeDropMeasurementStatement(ctx context.Context,
 }
 
 type measurementRow struct {
-       name []byte
-       db, rp string
+	name   []byte
+	db, rp string
 }
 
 func (e *StatementExecutor) executeShowMeasurementsStatement(ctx context.Context, q *influxql.ShowMeasurementsStatement, ectx *query.ExecutionContext) error {
-	if q.Database == ""  && !q.WildcardDatabase {
+	if q.Database == "" && !q.WildcardDatabase {
 		return ErrDatabaseNameRequired
 	}
 
@@ -472,7 +472,6 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx context.Context
 			rows = rows[:q.Limit]
 		}
 	}
-
 
 	if len(rows) == 0 {
 		return ectx.Send(ctx, &query.Result{})
