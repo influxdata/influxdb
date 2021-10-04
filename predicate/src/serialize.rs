@@ -12,13 +12,13 @@ use data_types::timestamp::TimestampRange;
 use generated_types::influxdata::iox::catalog::v1 as proto;
 use snafu::{ResultExt, Snafu};
 
-use crate::{expr::Expr, predicate::Predicate};
+use crate::{delete_expr::DeleteExpr, predicate::Predicate};
 
 #[derive(Debug, Snafu)]
 pub enum SerializeError {
     #[snafu(display("cannot convert datafusion expr: {}", source))]
     CannotConvertDataFusionExpr {
-        source: crate::expr::DataFusionToExprError,
+        source: crate::delete_expr::DataFusionToExprError,
     },
 }
 
@@ -33,7 +33,7 @@ pub fn serialize(predicate: &Predicate) -> Result<proto::Predicate, SerializeErr
             .exprs
             .iter()
             .map(|expr| {
-                let expr: Expr = expr
+                let expr: DeleteExpr = expr
                     .clone()
                     .try_into()
                     .context(CannotConvertDataFusionExpr)?;
@@ -68,7 +68,7 @@ fn serialize_timestamp_range(r: &Option<TimestampRange>) -> Option<proto::Timest
 pub enum DeserializeError {
     #[snafu(display("cannot deserialize expr: {}", source))]
     CannotDeserializeExpr {
-        source: crate::expr::ProtoToExprError,
+        source: crate::delete_expr::ProtoToExprError,
     },
 }
 
@@ -83,7 +83,7 @@ pub fn deserialize(proto_predicate: &proto::Predicate) -> Result<Predicate, Dese
             .exprs
             .iter()
             .map(|expr| {
-                let expr: Expr = expr.clone().try_into().context(CannotDeserializeExpr)?;
+                let expr: DeleteExpr = expr.clone().try_into().context(CannotDeserializeExpr)?;
                 Ok(expr.into())
             })
             .collect::<Result<Vec<datafusion::logical_plan::Expr>, DeserializeError>>()?,

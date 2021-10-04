@@ -11,7 +11,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 ///
 /// Only very simple expression of the type `<column> <op> <scalar>` are supported.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Expr {
+pub struct DeleteExpr {
     /// Column (w/o table name).
     column: String,
 
@@ -22,7 +22,7 @@ pub struct Expr {
     scalar: Scalar,
 }
 
-impl Expr {
+impl DeleteExpr {
     /// Column (w/o table name).
     pub fn column(&self) -> &str {
         &self.column
@@ -39,14 +39,14 @@ impl Expr {
     }
 }
 
-impl std::fmt::Display for Expr {
+impl std::fmt::Display for DeleteExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}{}", self.column(), self.op(), self.scalar())
     }
 }
 
-impl From<Expr> for datafusion::logical_plan::Expr {
-    fn from(expr: Expr) -> Self {
+impl From<DeleteExpr> for datafusion::logical_plan::Expr {
+    fn from(expr: DeleteExpr) -> Self {
         let column = datafusion::logical_plan::Column {
             relation: None,
             name: expr.column,
@@ -63,7 +63,9 @@ impl From<Expr> for datafusion::logical_plan::Expr {
 #[derive(Debug, Snafu)]
 pub enum ProtoToExprError {
     #[snafu(display("cannot deserialize operator: {}", source))]
-    CannotDeserializeOperator { source: crate::expr::ProtoToOpError },
+    CannotDeserializeOperator {
+        source: crate::delete_expr::ProtoToOpError,
+    },
 
     #[snafu(display("illegal operator enum value: {}", value))]
     IllegalOperatorEnumValue { value: i32 },
@@ -73,11 +75,11 @@ pub enum ProtoToExprError {
 
     #[snafu(display("cannot deserialize scalar: {}", source))]
     CannotDeserializeScalar {
-        source: crate::expr::ProtoToScalarError,
+        source: crate::delete_expr::ProtoToScalarError,
     },
 }
 
-impl TryFrom<proto::Expr> for Expr {
+impl TryFrom<proto::Expr> for DeleteExpr {
     type Error = ProtoToExprError;
 
     fn try_from(expr: proto::Expr) -> Result<Self, Self::Error> {
@@ -93,7 +95,7 @@ impl TryFrom<proto::Expr> for Expr {
             .try_into()
             .context(CannotDeserializeScalar)?;
 
-        Ok(Expr {
+        Ok(DeleteExpr {
             column: expr.column,
             op,
             scalar,
@@ -116,16 +118,16 @@ pub enum DataFusionToExprError {
 
     #[snafu(display("cannot convert datafusion operator: {}", source))]
     CannotConvertDataFusionOperator {
-        source: crate::expr::DataFusionToOpError,
+        source: crate::delete_expr::DataFusionToOpError,
     },
 
     #[snafu(display("cannot convert datafusion scalar value: {}", source))]
     CannotConvertDataFusionScalarValue {
-        source: crate::expr::DataFusionToScalarError,
+        source: crate::delete_expr::DataFusionToScalarError,
     },
 }
 
-impl TryFrom<datafusion::logical_plan::Expr> for Expr {
+impl TryFrom<datafusion::logical_plan::Expr> for DeleteExpr {
     type Error = DataFusionToExprError;
 
     fn try_from(expr: datafusion::logical_plan::Expr) -> Result<Self, Self::Error> {
@@ -157,15 +159,15 @@ impl TryFrom<datafusion::logical_plan::Expr> for Expr {
 
                 let op: Op = op.try_into().context(CannotConvertDataFusionOperator)?;
 
-                Ok(Expr { column, op, scalar })
+                Ok(DeleteExpr { column, op, scalar })
             }
             other => Err(DataFusionToExprError::UnsupportedExpression { expr: other }),
         }
     }
 }
 
-impl From<Expr> for proto::Expr {
-    fn from(expr: Expr) -> Self {
+impl From<DeleteExpr> for proto::Expr {
+    fn from(expr: DeleteExpr) -> Self {
         let op: proto::Op = expr.op.into();
 
         proto::Expr {
@@ -352,7 +354,7 @@ mod tests {
     #[test]
     fn test_roundtrips() {
         assert_expr_works(
-            Expr {
+            DeleteExpr {
                 column: "foo".to_string(),
                 op: Op::Eq,
                 scalar: Scalar::Bool(true),
@@ -360,7 +362,7 @@ mod tests {
             "foo=true",
         );
         assert_expr_works(
-            Expr {
+            DeleteExpr {
                 column: "bar".to_string(),
                 op: Op::Ne,
                 scalar: Scalar::I64(-1),
@@ -368,7 +370,7 @@ mod tests {
             "bar!=-1",
         );
         assert_expr_works(
-            Expr {
+            DeleteExpr {
                 column: "baz".to_string(),
                 op: Op::Eq,
                 scalar: Scalar::F64((-1.1).into()),
@@ -376,7 +378,7 @@ mod tests {
             "baz=-1.1",
         );
         assert_expr_works(
-            Expr {
+            DeleteExpr {
                 column: "col".to_string(),
                 op: Op::Eq,
                 scalar: Scalar::String("foo".to_string()),
@@ -385,13 +387,13 @@ mod tests {
         );
     }
 
-    fn assert_expr_works(expr: Expr, display: &str) {
+    fn assert_expr_works(expr: DeleteExpr, display: &str) {
         let df_expr: datafusion::logical_plan::Expr = expr.clone().into();
-        let expr2: Expr = df_expr.try_into().unwrap();
+        let expr2: DeleteExpr = df_expr.try_into().unwrap();
         assert_eq!(expr2, expr);
 
         let proto_expr: proto::Expr = expr.clone().into();
-        let expr3: Expr = proto_expr.try_into().unwrap();
+        let expr3: DeleteExpr = proto_expr.try_into().unwrap();
         assert_eq!(expr3, expr);
 
         assert_eq!(expr.to_string(), display);
@@ -413,7 +415,7 @@ mod tests {
                 )),
             },
         ));
-        let res: Result<Expr, _> = expr.try_into();
+        let res: Result<DeleteExpr, _> = expr.try_into();
         assert_contains!(res.unwrap_err().to_string(), "unsupported expression:");
     }
 
@@ -434,7 +436,7 @@ mod tests {
                 },
             )),
         };
-        let res: Result<Expr, _> = expr.try_into();
+        let res: Result<DeleteExpr, _> = expr.try_into();
         assert_contains!(res.unwrap_err().to_string(), "unsupported operants:");
     }
 
@@ -465,7 +467,7 @@ mod tests {
                 ),
             )),
         };
-        let res: Result<Expr, _> = expr.try_into();
+        let res: Result<DeleteExpr, _> = expr.try_into();
         assert_contains!(res.unwrap_err().to_string(), "unsupported scalar value:");
     }
 
@@ -490,7 +492,7 @@ mod tests {
                 datafusion::scalar::ScalarValue::Utf8(Some("x".to_string())),
             )),
         };
-        let res: Result<Expr, _> = expr.try_into();
+        let res: Result<DeleteExpr, _> = expr.try_into();
         assert_contains!(res.unwrap_err().to_string(), "unsupported operator:");
     }
 }
