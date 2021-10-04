@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync/atomic"
 
 	"github.com/gogo/protobuf/proto"
 	internal "github.com/influxdata/influxdb/cmd/influxd/backup_util/internal"
@@ -209,8 +210,12 @@ type CountingWriter struct {
 
 func (w *CountingWriter) Write(p []byte) (n int, err error) {
 	n, err = w.Writer.Write(p)
-	w.Total += int64(n)
+	atomic.AddInt64(&w.Total, int64(n))
 	return
+}
+
+func (w *CountingWriter) BytesWritten() int64 {
+	return atomic.LoadInt64(&w.Total)
 }
 
 // retentionAndShardFromPath will take the shard relative path and split it into the
