@@ -911,14 +911,9 @@ impl Db {
 
     /// `Instant::now()` that is used by the background worker. Can be mocked for testing.
     fn background_worker_now(&self) -> Instant {
-        let mut guard = self.background_worker_now_override.lock();
-        match *guard {
-            Some(now) => {
-                *guard = Some(now + Duration::from_nanos(1));
-                now
-            }
-            None => Instant::now(),
-        }
+        self.background_worker_now_override
+            .lock()
+            .unwrap_or_else(Instant::now)
     }
 
     async fn cleanup_unreferenced_parquet_files(
