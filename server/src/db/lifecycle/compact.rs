@@ -24,7 +24,7 @@ pub(crate) fn compact_chunks(
     chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>>,
 ) -> Result<(
     TaskTracker<Job>,
-    TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
+    TrackedFuture<impl Future<Output = Result<Option<Arc<DbChunk>>>> + Send>,
 )> {
     assert!(
         !chunks.is_empty(),
@@ -35,6 +35,8 @@ pub(crate) fn compact_chunks(
     let db = Arc::clone(&partition.data().db);
     let addr = partition.addr().clone();
     let chunk_ids: Vec<_> = chunks.iter().map(|x| x.id()).collect();
+
+    info!(%addr, ?chunk_ids, "compacting chunks");
 
     let (tracker, registration) = db.jobs.register(Job::CompactChunks {
         partition: partition.addr().clone(),
@@ -103,45 +105,47 @@ pub(crate) fn compact_chunks(
 
         let physical_plan = ctx.prepare_plan(&plan).await?;
         let stream = ctx.execute_stream(physical_plan).await?;
-        let rb_chunk = collect_rub(stream, &addr, metric_registry.as_ref())
-            .await?
-            .expect("chunk has zero rows");
-        let rb_row_groups = rb_chunk.row_groups();
+        let maybe_rb_chunk = collect_rub(stream, &addr, metric_registry.as_ref()).await?;
 
-        let new_chunk = {
-            let mut partition = partition.write();
-            for id in chunk_ids {
-                partition.force_drop_chunk(id).expect(
-                    "There was a lifecycle action attached to this chunk, who deleted it?!",
-                );
+        let mut partition = partition.write();
+        for id in &chunk_ids {
+            // TODO: Reacquire chunk lock and check for "new" delete predicates (#2666)
+            partition
+                .force_drop_chunk(*id)
+                .expect("There was a lifecycle action attached to this chunk, who deleted it?!");
+        }
+
+        let rb_chunk = match maybe_rb_chunk {
+            Some(rb_chunk) => rb_chunk,
+            None => {
+                info!(%addr, ?chunk_ids, "no rows to persist, no chunk created");
+                return Ok(None);
             }
-            let (_, chunk) = partition.create_rub_chunk(
-                rb_chunk,
-                time_of_first_write,
-                time_of_last_write,
-                schema,
-                delete_predicates,
-                min_order,
-            );
-            Arc::clone(chunk)
         };
 
-        let guard = new_chunk.read();
-        let elapsed = now.elapsed();
-
-        assert!(
-            guard.table_summary().total_count() > 0,
-            "chunk has zero rows"
+        let rub_row_groups = rb_chunk.row_groups();
+        let output_rows = rb_chunk.rows();
+        let (_, chunk) = partition.create_rub_chunk(
+            rb_chunk,
+            time_of_first_write,
+            time_of_last_write,
+            schema,
+            // TODO: Filter out predicates applied by the query (#2666)
+            delete_predicates,
+            min_order,
         );
+
         // input rows per second
+        let elapsed = now.elapsed();
         let throughput = (input_rows as u128 * 1_000_000_000) / elapsed.as_nanos();
 
-        info!(input_chunks=query_chunks.len(), rub_row_groups=rb_row_groups,
-                input_rows=input_rows, output_rows=guard.table_summary().total_count(),
-                sort_key=%key_str, compaction_took = ?elapsed, fut_execution_duration= ?fut_now.elapsed(),
-                rows_per_sec=?throughput,  "chunk(s) compacted");
+        info!(input_chunks=chunk_ids.len(), %rub_row_groups,
+                        %input_rows, %output_rows,
+                        sort_key=%key_str, compaction_took = ?elapsed, fut_execution_duration= ?fut_now.elapsed(),
+                        rows_per_sec=?throughput,  "chunk(s) compacted");
 
-        Ok(DbChunk::snapshot(&guard))
+        let snapshot = DbChunk::snapshot(&chunk.read());
+        Ok(Some(snapshot))
     };
 
     Ok((tracker, fut.track(registration)))
@@ -150,15 +154,16 @@ pub(crate) fn compact_chunks(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::test_helpers::write_lp;
     use crate::{db::test_helpers::write_lp_with_time, utils::make_db};
     use data_types::chunk_metadata::ChunkStorage;
     use lifecycle::{LockableChunk, LockablePartition};
+    use predicate::predicate::PredicateBuilder;
     use query::QueryDatabase;
 
     #[tokio::test]
     async fn test_compact_freeze() {
-        let test_db = make_db().await;
-        let db = test_db.db;
+        let db = make_db().await.db;
 
         let t_first_write = Utc::now();
         write_lp_with_time(db.as_ref(), "cpu,tag1=cupcakes bar=1 10", t_first_write).await;
@@ -216,5 +221,32 @@ mod tests {
                 (ChunkStorage::OpenMutableBuffer, 1),
             ]
         )
+    }
+
+    #[tokio::test]
+    async fn test_compact_delete() {
+        let db = make_db().await.db;
+
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=3 23").await;
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=2 26").await;
+
+        let partition_keys = db.partition_keys().unwrap();
+        assert_eq!(partition_keys.len(), 1);
+
+        // Cannot simply use empty predicate (#2687)
+        let predicate = PredicateBuilder::new()
+            .table("cpu")
+            .timestamp_range(0, 1_000)
+            .build();
+
+        // Delete everything
+        db.delete("cpu", Arc::new(predicate)).await.unwrap();
+        let chunk = db
+            .compact_partition("cpu", partition_keys[0].as_str())
+            .await
+            .unwrap();
+
+        assert!(chunk.is_none());
     }
 }

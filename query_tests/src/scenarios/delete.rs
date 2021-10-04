@@ -588,6 +588,7 @@ async fn make_chunk_with_deletes_at_different_stages(
             let chunk = db
                 .compact_chunks(table_name, partition_key, |chunk| chunk.id() == chunk_id)
                 .await
+                .unwrap()
                 .unwrap();
             chunk_id = chunk.id();
         }
@@ -618,6 +619,7 @@ async fn make_chunk_with_deletes_at_different_stages(
                     Instant::now() + Duration::from_secs(1),
                 )
                 .await
+                .unwrap()
                 .unwrap();
             chunk_id = chunk.id();
         }
@@ -714,6 +716,7 @@ async fn make_different_stage_chunks_with_deletes_scenario(
                 let chunk = db
                     .compact_chunks(table_name, partition_key, |chunk| chunk.id() == chunk_id)
                     .await
+                    .unwrap()
                     .unwrap();
                 chunk_id = chunk.id();
             }
@@ -731,6 +734,7 @@ async fn make_different_stage_chunks_with_deletes_scenario(
                         Instant::now() + Duration::from_secs(1),
                     )
                     .await
+                    .unwrap()
                     .unwrap();
                 chunk_id = chunk.id();
             }

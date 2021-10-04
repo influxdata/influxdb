@@ -1113,7 +1113,11 @@ mod tests {
         let test_db = app_server
             .db(&DatabaseName::new("MyOrg_MyBucket").unwrap())
             .expect("Database exists");
-        let batches = run_query(Arc::clone(&test_db), "select * from h2o_temperature").await;
+        let batches = run_query(
+            Arc::clone(&test_db),
+            "select * from h2o_temperature order by location",
+        )
+        .await;
         let expected = vec![
             "+----------------+--------------+-------+-----------------+--------------------------------+",
             "| bottom_degrees | location     | state | surface_degrees | time                           |",

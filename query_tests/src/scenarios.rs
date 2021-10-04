@@ -116,6 +116,7 @@ impl DbSetup for NoData {
             .compact_partition(table_name, partition_key)
             .await
             .unwrap()
+            .unwrap()
             .id();
         assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
         assert_eq!(count_read_buffer_chunks(&db), 1); // close chunk only
@@ -164,6 +165,7 @@ impl DbSetup for NoData {
                 Instant::now() + Duration::from_secs(1),
             )
             .await
+            .unwrap()
             .unwrap()
             .id();
         assert_eq!(count_mutable_buffer_chunks(&db), 0); // open chunk only
@@ -708,6 +710,7 @@ impl DbSetup for OneMeasurementAllChunksDropped {
             .compact_open_chunk(table_name, partition_key)
             .await
             .unwrap()
+            .unwrap()
             .id();
         db.drop_chunk(table_name, partition_key, chunk_id)
             .await
@@ -794,6 +797,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
                 Instant::now() + Duration::from_secs(1),
             )
             .await
+            .unwrap()
             .unwrap()
             .id();
         db.unload_read_buffer(table_name, partition_key, id)
@@ -913,6 +917,7 @@ pub async fn make_two_chunk_scenarios(
             )
             .await
             .unwrap()
+            .unwrap()
             .id();
         db.unload_read_buffer(table_name, partition_key, id)
             .unwrap();
@@ -926,6 +931,7 @@ pub async fn make_two_chunk_scenarios(
                 Instant::now() + Duration::from_secs(1),
             )
             .await
+            .unwrap()
             .unwrap()
             .id();
 
@@ -1003,6 +1009,7 @@ pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
                 Instant::now() + Duration::from_secs(1),
             )
             .await
+            .unwrap()
             .unwrap()
             .id();
         db.unload_read_buffer(table_name, partition_key, id)
@@ -1101,15 +1108,13 @@ impl DbSetup for ChunkOrder {
             .unwrap();
 
         // transform chunk 0 into chunk 2 by persisting
-        let new_chunk = db
-            .persist_partition(
-                "cpu",
-                partition_key,
-                Instant::now() + Duration::from_secs(1),
-            )
-            .await
-            .unwrap();
-        assert!(lockable_chunk.id < new_chunk.id());
+        db.persist_partition(
+            "cpu",
+            partition_key,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .await
+        .unwrap();
         assert_eq!(count_mutable_buffer_chunks(&db), 1);
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 1);

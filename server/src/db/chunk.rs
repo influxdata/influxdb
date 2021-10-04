@@ -665,6 +665,7 @@ mod tests {
             )
             .await
             .unwrap()
+            .unwrap()
             .id;
 
         db.unload_read_buffer("cpu", "1970-01-01T00", id).unwrap();

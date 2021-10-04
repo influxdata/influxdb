@@ -601,7 +601,7 @@ impl Db {
         self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
-    ) -> Result<Arc<DbChunk>> {
+    ) -> Result<Option<Arc<DbChunk>>> {
         // This is somewhat inefficient as it will acquire write locks on all chunks in the
         // partition, however, it is currently only used for tests
         self.compact_chunks(table_name, partition_key, |chunk| chunk.stage().is_open())
@@ -621,7 +621,7 @@ impl Db {
         self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
-    ) -> Result<Arc<DbChunk>> {
+    ) -> Result<Option<Arc<DbChunk>>> {
         self.compact_chunks(table_name, partition_key, |_| true)
             .await
     }
@@ -634,7 +634,7 @@ impl Db {
         table_name: &str,
         partition_key: &str,
         predicate: impl Fn(&CatalogChunk) -> bool + Send,
-    ) -> Result<Arc<DbChunk>> {
+    ) -> Result<Option<Arc<DbChunk>>> {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
@@ -672,7 +672,7 @@ impl Db {
         table_name: &str,
         partition_key: &str,
         now: Instant,
-    ) -> Result<Arc<DbChunk>> {
+    ) -> Result<Option<Arc<DbChunk>>> {
         self.persist_partition_with_timestamp(table_name, partition_key, now, Utc::now)
             .await
     }
@@ -684,7 +684,7 @@ impl Db {
         partition_key: &str,
         now: Instant,
         f_parquet_creation_timestamp: F,
-    ) -> Result<Arc<DbChunk>>
+    ) -> Result<Option<Arc<DbChunk>>>
     where
         F: Fn() -> DateTime<Utc> + Send,
     {
@@ -1768,6 +1768,7 @@ mod tests {
             )
             .await
             .unwrap()
+            .unwrap()
             .id();
 
         // A chunk is now in the object store and still in read buffer
@@ -1941,7 +1942,11 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        let rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
+        let rb_chunk = db
+            .compact_partition("cpu", partition_key)
+            .await
+            .unwrap()
+            .unwrap();
 
         // it should be a new chunk
         assert_ne!(mb_chunk.id(), rb_chunk.id());
@@ -2007,7 +2012,12 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        let old_rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
+
+        let old_rb_chunk = db
+            .compact_partition("cpu", partition_key)
+            .await
+            .unwrap()
+            .unwrap();
 
         let first_old_rb_write = old_rb_chunk.time_of_first_write();
         let last_old_rb_write = old_rb_chunk.time_of_last_write();
@@ -2019,7 +2029,11 @@ mod tests {
         write_lp_with_time(db.as_ref(), "cpu bar=2 20", t_write2).await;
 
         // now, compact it
-        let compacted_rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
+        let compacted_rb_chunk = db
+            .compact_partition("cpu", partition_key)
+            .await
+            .unwrap()
+            .unwrap();
 
         // no other read buffer data should be present
         assert_eq!(
@@ -2086,7 +2100,11 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 3607);
 
         // With the above data, cardinality of tag2 is 2 and tag1 is 5. Hence, RUB is sorted on (tag2, tag1)
-        let rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
+        let rb_chunk = db
+            .compact_partition("cpu", partition_key)
+            .await
+            .unwrap()
+            .unwrap();
 
         // MUB chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
@@ -2170,7 +2188,11 @@ mod tests {
             .unwrap()
             .unwrap();
         // Move that MB chunk to RB chunk and drop it from MB
-        let rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
+        let rb_chunk = db
+            .compact_partition("cpu", partition_key)
+            .await
+            .unwrap()
+            .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
         let t3_persist = t2_write + chrono::Duration::seconds(1);
         let pq_chunk = db
@@ -2181,6 +2203,7 @@ mod tests {
                 || t3_persist,
             )
             .await
+            .unwrap()
             .unwrap();
 
         let registry = test_db.metric_registry.as_ref();
@@ -2267,7 +2290,11 @@ mod tests {
             .unwrap()
             .unwrap();
         // Move that MB chunk to RB chunk and drop it from MB
-        let rb_chunk = db.compact_partition("cpu", partition_key).await.unwrap();
+        let rb_chunk = db
+            .compact_partition("cpu", partition_key)
+            .await
+            .unwrap()
+            .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
         let t3_persist = t2_write + chrono::Duration::seconds(1);
         let pq_chunk = db
@@ -2278,6 +2305,7 @@ mod tests {
                 || t3_persist,
             )
             .await
+            .unwrap()
             .unwrap();
 
         // All chunks should have different ids
@@ -3054,6 +3082,7 @@ mod tests {
         let rb_chunk = db
             .compact_partition(table_name, partition_key)
             .await
+            .unwrap()
             .unwrap();
         assert_ne!(mb_chunk.id(), rb_chunk.id());
 
@@ -3616,13 +3645,6 @@ mod tests {
         let partition_key = "part_a";
         write_lp(&db, "cpu,part=a row=10,selector=0i 10").await;
         write_lp(&db, "cpu,part=a row=11,selector=1i 11").await;
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap()
-            .unwrap();
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
         db.persist_partition(
             table_name,
             partition_key,
@@ -3635,10 +3657,6 @@ mod tests {
         let partition_key = "part_b";
         write_lp(&db, "cpu,part=b row=20,selector=0i 20").await;
         write_lp(&db, "cpu,part=b row=21,selector=1i 21").await;
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap()
-            .unwrap();
         db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
@@ -3652,10 +3670,6 @@ mod tests {
         let partition_key = "part_d";
         write_lp(&db, "cpu,part=d row=40,selector=0i 40").await;
         write_lp(&db, "cpu,part=d row=41,selector=1i 41").await;
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
-
         let chunk_id = db
             .persist_partition(
                 table_name,
@@ -3664,7 +3678,9 @@ mod tests {
             )
             .await
             .unwrap()
+            .unwrap()
             .id();
+
         db.unload_read_buffer(table_name, partition_key, chunk_id)
             .unwrap();
 
@@ -4035,6 +4051,7 @@ mod tests {
                 Instant::now() + Duration::from_secs(1),
             )
             .await
+            .unwrap()
             .unwrap();
 
         // chunk ID changed during persistence
