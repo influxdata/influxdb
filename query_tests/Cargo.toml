@@ -17,7 +17,7 @@ query = { path = "../query" }
 server = { path = "../server" }
 
 [dev-dependencies]
-arrow = { version = "5.0", features = ["prettyprint"] }
+arrow = { version = "5.5", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 data_types = { path = "../data_types" }
 internal_types = { path = "../internal_types" }
