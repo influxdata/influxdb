@@ -35,7 +35,7 @@ pub enum Error {
     InvalidSemantics { value: String },
 
     /// Predicate include non supported expression
-    #[snafu(display("Delete predicate must be conjunctive expressions of binary 'column_name = literal' or 'column_ame != literal': ({})", value))]
+    #[snafu(display("Delete predicate must be conjunctive expressions of binary 'column_name = literal' or 'column_name != literal': ({})", value))]
     NotSupportPredicate { value: String },
 
     #[snafu(display(r#"Unable to parse delete string '{}'"#, value))]
