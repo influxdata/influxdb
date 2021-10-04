@@ -525,13 +525,13 @@ where
         expected_files.insert(chunk_addr_2.chunk_id, (path, Arc::new(metadata)));
 
         // first predicate used only a single chunk
-        let predicate_1 = create_delete_predicate(&chunk_addr_1.table_name, 1);
+        let predicate_1 = create_delete_predicate(1);
         let chunks_1 = vec![chunk_addr_1.clone().into()];
         state.delete_predicate(Arc::clone(&predicate_1), chunks_1.clone());
         expected_predicates.push((predicate_1, chunks_1));
 
         // second predicate uses both chunks (but not the older chunks)
-        let predicate_2 = create_delete_predicate(&chunk_addr_2.table_name, 2);
+        let predicate_2 = create_delete_predicate(2);
         let chunks_2 = vec![chunk_addr_1.into(), chunk_addr_2.into()];
         state.delete_predicate(Arc::clone(&predicate_2), chunks_2.clone());
         expected_predicates.push((predicate_2, chunks_2));
@@ -579,7 +579,7 @@ where
     // Registering predicates for unknown chunks is just ignored because chunks might been in "persisting" intermediate
     // state while the predicate was reported.
     {
-        let predicate = create_delete_predicate("some_table", 1);
+        let predicate = create_delete_predicate(1);
         let chunks = vec![ChunkAddrWithoutDatabase {
             table_name: Arc::from("some_table"),
             partition_key: Arc::from("part"),
@@ -638,14 +638,8 @@ fn get_sorted_keys<'a>(
 }
 
 /// Helper to create a simple delete predicate.
-pub fn create_delete_predicate(table_name: &str, value: i64) -> Arc<DeletePredicate> {
+pub fn create_delete_predicate(value: i64) -> Arc<DeletePredicate> {
     Arc::new(DeletePredicate {
-        table_names: Some(
-            IntoIterator::into_iter([table_name.to_string(), format!("not_{}", table_name)])
-                .collect(),
-        ),
-        field_columns: None,
-        partition_key: None,
         range: TimestampRange { start: 11, end: 22 },
         exprs: vec![DeleteExpr::new(
             "foo".to_string(),

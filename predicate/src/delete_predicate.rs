@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, convert::TryInto};
+use std::convert::TryInto;
 
 use chrono::DateTime;
 use data_types::timestamp::TimestampRange;
@@ -70,17 +70,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// query engine.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DeletePredicate {
-    /// Optional table restriction. If present, restricts the results
-    /// to only tables whose names are in `table_names`
-    pub table_names: Option<BTreeSet<String>>,
-
-    /// Optional field restriction. If present, restricts the results to only
-    /// tables which have *at least one* of the fields in field_columns.
-    pub field_columns: Option<BTreeSet<String>>,
-
-    /// Optional partition key filter
-    pub partition_key: Option<String>,
-
     /// Only rows within this range are included in
     /// results. Other rows are excluded.
     pub range: TimestampRange,
@@ -96,9 +85,9 @@ pub struct DeletePredicate {
 impl From<DeletePredicate> for crate::predicate::Predicate {
     fn from(pred: DeletePredicate) -> Self {
         Self {
-            table_names: pred.table_names,
-            field_columns: pred.field_columns,
-            partition_key: pred.partition_key,
+            table_names: None,
+            field_columns: None,
+            partition_key: None,
             range: Some(pred.range),
             exprs: pred.exprs.into_iter().map(|expr| expr.into()).collect(),
         }
@@ -329,9 +318,6 @@ impl ParseDeletePredicate {
 impl From<ParseDeletePredicate> for DeletePredicate {
     fn from(pred: ParseDeletePredicate) -> Self {
         Self {
-            table_names: None,
-            field_columns: None,
-            partition_key: None,
             range: TimestampRange {
                 start: pred.start_time,
                 end: pred.stop_time,

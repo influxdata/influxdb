@@ -3682,9 +3682,6 @@ mod tests {
 
         // ==================== do: delete ====================
         let pred = Arc::new(DeletePredicate {
-            table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
-            field_columns: None,
-            partition_key: None,
             range: TimestampRange {
                 start: 0,
                 end: 1_000,

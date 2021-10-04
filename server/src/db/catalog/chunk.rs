@@ -1084,9 +1084,6 @@ mod tests {
 
         // Build delete predicate and expected output
         let del_pred1 = Arc::new(DeletePredicate {
-            table_names: Some(IntoIterator::into_iter(["test".to_string()]).collect()),
-            field_columns: None,
-            partition_key: None,
             range: TimestampRange { start: 0, end: 100 },
             exprs: vec![DeleteExpr::new(
                 "city".to_string(),
@@ -1109,9 +1106,6 @@ mod tests {
         // let add more delete predicate = simulate second delete
         // Build delete predicate and expected output
         let del_pred2 = Arc::new(DeletePredicate {
-            table_names: Some(IntoIterator::into_iter(["test".to_string()]).collect()),
-            field_columns: None,
-            partition_key: None,
             range: TimestampRange { start: 20, end: 50 },
             exprs: vec![DeleteExpr::new(
                 "cost".to_string(),
