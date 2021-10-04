@@ -1162,7 +1162,7 @@ mod tests {
             mb_chunk,
             time_of_write,
             ChunkMetrics::new_unregistered(),
-            ChunkOrder::new(5),
+            ChunkOrder::new(5).unwrap(),
         )
     }
 
@@ -1180,7 +1180,7 @@ mod tests {
             now,
             ChunkMetrics::new_unregistered(),
             vec![],
-            ChunkOrder::new(6),
+            ChunkOrder::new(6).unwrap(),
         )
     }
 }

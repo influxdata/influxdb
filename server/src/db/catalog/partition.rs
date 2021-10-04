@@ -154,7 +154,7 @@ impl Partition {
             next_chunk_id: ChunkId::new(0),
             metrics: Arc::new(metrics),
             persistence_windows: None,
-            next_chunk_order: ChunkOrder::new(0),
+            next_chunk_order: ChunkOrder::MIN,
         }
     }
 

@@ -2,7 +2,7 @@
 use crate::partition_metadata::PartitionAddr;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{num::NonZeroU32, sync::Arc};
 
 /// Address of the chunk within the catalog
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -233,17 +233,19 @@ impl std::fmt::Display for ChunkId {
 /// 1. **upsert order:** chunks with higher order overwrite data in chunks with lower order
 /// 2. **locking order:** chunks must be locked in consistent (ascending) order
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct ChunkOrder(u32);
+pub struct ChunkOrder(NonZeroU32);
 
 impl ChunkOrder {
-    pub const MAX: Self = Self(u32::MAX);
+    // TODO: remove `unsafe` once https://github.com/rust-lang/rust/issues/51999 is fixed
+    pub const MIN: Self = Self(unsafe { NonZeroU32::new_unchecked(1) });
+    pub const MAX: Self = Self(unsafe { NonZeroU32::new_unchecked(u32::MAX) });
 
-    pub fn new(order: u32) -> Self {
-        Self(order)
+    pub fn new(order: u32) -> Option<Self> {
+        NonZeroU32::new(order).map(Self)
     }
 
     pub fn get(&self) -> u32 {
-        self.0
+        self.0.get()
     }
 
     /// Get next chunk order.
@@ -251,18 +253,15 @@ impl ChunkOrder {
     /// # Panic
     /// Panics if `self` is already [max](Self::MAX).
     pub fn next(&self) -> Self {
-        Self(self.0.checked_add(1).expect("chunk order overflow"))
+        Self(
+            NonZeroU32::new(self.0.get().checked_add(1).expect("chunk order overflow"))
+                .expect("did not overflow, so cannot be zero"),
+        )
     }
 }
 
 impl std::fmt::Display for ChunkOrder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("ChunkOrder").field(&self.0).finish()
-    }
-}
-
-impl From<u32> for ChunkOrder {
-    fn from(order: u32) -> Self {
-        Self(order)
+        f.debug_tuple("ChunkOrder").field(&self.0.get()).finish()
     }
 }

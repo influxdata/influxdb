@@ -754,7 +754,7 @@ mod tests {
                 time_of_last_write: from_secs(time_of_last_write),
                 lifecycle_action: None,
                 storage,
-                order: ChunkOrder::new(0),
+                order: ChunkOrder::MIN,
             }
         }
 
@@ -1517,23 +1517,23 @@ mod tests {
                 // blocked by action below
                 TestChunk::new(ChunkId::new(19), 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
-                    .with_order(ChunkOrder::new(4)),
+                    .with_order(ChunkOrder::new(5).unwrap()),
                 // has an action
                 TestChunk::new(ChunkId::new(20), 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
-                    .with_order(ChunkOrder::new(3))
+                    .with_order(ChunkOrder::new(4).unwrap())
                     .with_action(ChunkLifecycleAction::Compacting),
                 // closed => can compact
                 TestChunk::new(ChunkId::new(21), 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
-                    .with_order(ChunkOrder::new(2)),
+                    .with_order(ChunkOrder::new(3).unwrap()),
                 TestChunk::new(ChunkId::new(22), 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
-                    .with_order(ChunkOrder::new(1)),
+                    .with_order(ChunkOrder::new(2).unwrap()),
                 // has an action, but doesn't block because it's first
                 TestChunk::new(ChunkId::new(23), 20, ChunkStorage::ReadBuffer)
                     .with_row_count(400)
-                    .with_order(ChunkOrder::new(0))
+                    .with_order(ChunkOrder::new(1).unwrap())
                     .with_action(ChunkLifecycleAction::Compacting),
             ]),
         ];

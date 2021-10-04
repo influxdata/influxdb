@@ -2,7 +2,9 @@ use crate::{
     google::{FieldViolation, FromFieldOpt},
     influxdata::iox::management::v1 as management,
 };
-use data_types::chunk_metadata::{ChunkId, ChunkLifecycleAction, ChunkStorage, ChunkSummary};
+use data_types::chunk_metadata::{
+    ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkStorage, ChunkSummary,
+};
 use std::{
     convert::{TryFrom, TryInto},
     sync::Arc,
@@ -122,7 +124,10 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             time_of_first_write: required_timestamp(time_of_first_write, "time_of_first_write")?,
             time_of_last_write: required_timestamp(time_of_last_write, "time_of_last_write")?,
             time_closed: timestamp(time_closed, "time_closed")?,
-            order: order.into(),
+            order: ChunkOrder::new(order).ok_or_else(|| FieldViolation {
+                field: "order".to_string(),
+                description: "Order must be non-zero".to_string(),
+            })?,
         })
     }
 }
@@ -204,7 +209,7 @@ mod test {
             time_of_last_write: now,
             time_closed: None,
             time_of_last_access: Some(Utc.timestamp_nanos(50_000_000_007)),
-            order: ChunkOrder::new(5),
+            order: ChunkOrder::new(5).unwrap(),
         };
 
         assert_eq!(
@@ -230,7 +235,7 @@ mod test {
             time_of_last_write: now,
             time_closed: None,
             time_of_last_access: Some(Utc.timestamp_nanos(12_000_100_007)),
-            order: ChunkOrder::new(5),
+            order: ChunkOrder::new(5).unwrap(),
         };
 
         let proto = management::Chunk::try_from(summary).expect("conversion successful");

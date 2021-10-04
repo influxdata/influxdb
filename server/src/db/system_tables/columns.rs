@@ -321,7 +321,7 @@ mod tests {
                         time_of_first_write: Utc.timestamp_nanos(1),
                         time_of_last_write: Utc.timestamp_nanos(2),
                         time_closed: None,
-                        order: ChunkOrder::new(5),
+                        order: ChunkOrder::new(5).unwrap(),
                     },
                     columns: vec![
                         ChunkColumnSummary {
@@ -358,7 +358,7 @@ mod tests {
                         time_of_first_write: Utc.timestamp_nanos(1),
                         time_of_last_write: Utc.timestamp_nanos(2),
                         time_closed: None,
-                        order: ChunkOrder::new(6),
+                        order: ChunkOrder::new(6).unwrap(),
                     },
                     columns: vec![ChunkColumnSummary {
                         name: "c1".into(),
@@ -389,7 +389,7 @@ mod tests {
                         time_of_first_write: Utc.timestamp_nanos(1),
                         time_of_last_write: Utc.timestamp_nanos(2),
                         time_closed: None,
-                        order: ChunkOrder::new(5),
+                        order: ChunkOrder::new(5).unwrap(),
                     },
                     columns: vec![ChunkColumnSummary {
                         name: "c3".into(),
