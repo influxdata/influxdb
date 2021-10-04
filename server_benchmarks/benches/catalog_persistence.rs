@@ -94,6 +94,7 @@ async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
                     Instant::now() + Duration::from_secs(1),
                 )
                 .await
+                .unwrap()
                 .unwrap();
 
             db.unload_read_buffer(table_name, partition_key, chunk.id())

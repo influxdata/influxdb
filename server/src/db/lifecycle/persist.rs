@@ -26,7 +26,7 @@ pub fn persist_chunks<F>(
     f_parquet_creation_timestamp: F,
 ) -> Result<(
     TaskTracker<Job>,
-    TrackedFuture<impl Future<Output = Result<Arc<DbChunk>>> + Send>,
+    TrackedFuture<impl Future<Output = Result<Option<Arc<DbChunk>>>> + Send>,
 )>
 where
     F: Fn() -> DateTime<Utc> + Send,
@@ -132,27 +132,37 @@ where
         let persist_fut = {
             let partition = LockableCatalogPartition::new(Arc::clone(&db), partition);
             let mut partition_write = partition.write();
-            for id in chunk_ids {
-                partition_write.force_drop_chunk(id).expect(
+            for id in &chunk_ids {
+                // TODO: Reacquire chunk lock and check for "new" delete predicates (#2666)
+                partition_write.force_drop_chunk(*id).expect(
                     "There was a lifecycle action attached to this chunk, who deleted it?!",
                 );
             }
 
-            // Upsert remainder to catalog
+            // Upsert remainder to catalog if any
             if let Some(remainder) = remainder {
                 partition_write.create_rub_chunk(
                     remainder,
                     time_of_first_write,
                     time_of_last_write,
                     Arc::clone(&schema),
+                    // TODO: Filter out predicates applied by the query (#2666)
                     delete_predicates.clone(),
                     min_order,
                 );
             }
 
-            // NGA todo: we hit this error if there are rows but they are deleted
-            // Need to think a way to handle this (https://github.com/influxdata/influxdb_iox/issues/2546)
-            let to_persist = to_persist.expect("should be rows to persist");
+            let to_persist = match to_persist {
+                Some(to_persist) => to_persist,
+                None => {
+                    info!(%addr, ?chunk_ids, "no rows to persist, no chunk created");
+                    partition_write
+                        .persistence_windows_mut()
+                        .unwrap()
+                        .flush(flush_handle);
+                    return Ok(None);
+                }
+            };
 
             let (new_chunk_id, new_chunk) = partition_write.create_rub_chunk(
                 to_persist,
@@ -192,7 +202,7 @@ where
               ?max_persistable_timestamp,
               rows_per_sec=?throughput,  "chunk(s) persisted");
 
-        Ok(persisted_chunk)
+        Ok(Some(persisted_chunk))
     };
 
     Ok((tracker, fut.track(registration)))
@@ -201,18 +211,19 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{db::test_helpers::write_lp, utils::TestDb};
+    use crate::{db::test_helpers::write_lp, utils::TestDb, Db};
     use chrono::{TimeZone, Utc};
+    use data_types::chunk_metadata::ChunkStorage;
     use data_types::database_rules::LifecycleRules;
     use lifecycle::{LockableChunk, LockablePartition};
+    use predicate::predicate::PredicateBuilder;
     use query::QueryDatabase;
     use std::{
         num::{NonZeroU32, NonZeroU64},
-        time::Instant,
+        time::{Duration, Instant},
     };
 
-    #[tokio::test]
-    async fn test_flush_overlapping() {
+    async fn test_db() -> Arc<Db> {
         let test_db = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
                 late_arrive_window_seconds: NonZeroU32::new(1).unwrap(),
@@ -223,8 +234,12 @@ mod tests {
             .build()
             .await;
 
-        let db = test_db.db;
+        test_db.db
+    }
 
+    #[tokio::test]
+    async fn test_flush_overlapping() {
+        let db = test_db().await;
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
 
         let partition_keys = db.partition_keys().unwrap();
@@ -232,7 +247,7 @@ mod tests {
         let db_partition = db.partition("cpu", &partition_keys[0]).unwrap();
 
         // Wait for the persistence window to be closed
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_secs(2)).await;
 
         write_lp(db.as_ref(), "cpu,tag1=lagged bar=1 10").await;
 
@@ -264,5 +279,114 @@ mod tests {
             .unwrap()
             .minimum_unpersisted_age()
             .is_none());
+    }
+
+    #[tokio::test]
+    async fn test_persist_delete() {
+        let db = test_db().await;
+
+        let late_arrival = Duration::from_secs(1);
+
+        let t0 = Instant::now();
+        let t1 = t0 + late_arrival * 10;
+        let t2 = t1 + late_arrival * 10;
+
+        *db.background_worker_now_override.lock() = Some(t0);
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
+
+        *db.background_worker_now_override.lock() = Some(t1);
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=3 23").await;
+
+        let partition_keys = db.partition_keys().unwrap();
+        assert_eq!(partition_keys.len(), 1);
+        let partition_key = partition_keys.into_iter().next().unwrap();
+        let partition = db.partition("cpu", partition_key.as_str()).unwrap();
+
+        // Delete first row
+        let predicate = PredicateBuilder::new()
+            .table("cpu")
+            .timestamp_range(0, 20)
+            .build();
+
+        db.delete("cpu", Arc::new(predicate)).await.unwrap();
+
+        // Try to persist first write but it has been deleted
+        let maybe_chunk = db
+            .persist_partition("cpu", partition_key.as_str(), t0 + late_arrival)
+            .await
+            .unwrap();
+
+        assert!(maybe_chunk.is_none());
+
+        let chunks: Vec<_> = partition.read().chunk_summaries().collect();
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].storage, ChunkStorage::ReadBuffer);
+        assert_eq!(chunks[0].row_count, 1);
+
+        assert_eq!(
+            partition
+                .read()
+                .persistence_windows()
+                .unwrap()
+                .minimum_unpersisted_timestamp()
+                .unwrap(),
+            Utc.timestamp_nanos(23)
+        );
+
+        // Add a second set of writes one of which overlaps the above chunk
+        *db.background_worker_now_override.lock() = Some(t2);
+        write_lp(db.as_ref(), "cpu,tag1=foo bar=2 23").await;
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=2 26").await;
+
+        // Persist second write but not third
+        let maybe_chunk = db
+            .persist_partition("cpu", partition_key.as_str(), t2)
+            .await
+            .unwrap();
+        assert!(maybe_chunk.is_some());
+
+        assert_eq!(
+            partition
+                .read()
+                .persistence_windows()
+                .unwrap()
+                .minimum_unpersisted_timestamp()
+                .unwrap(),
+            // The persistence windows only know that all rows <= 23 have been persisted
+            // They do not know that the remaining row has timestamp 26, only that
+            // it is in the range 24..=26
+            Utc.timestamp_nanos(24)
+        );
+
+        let chunks: Vec<_> = partition.read().chunk_summaries().collect();
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].storage, ChunkStorage::ReadBuffer);
+        assert_eq!(chunks[0].row_count, 1);
+        assert_eq!(chunks[1].storage, ChunkStorage::ReadBufferAndObjectStore);
+        assert_eq!(chunks[1].row_count, 2);
+
+        // Delete everything
+        let predicate = PredicateBuilder::new()
+            .table("cpu")
+            .timestamp_range(0, 1000)
+            .build();
+
+        db.delete("cpu", Arc::new(predicate)).await.unwrap();
+
+        // Try to persist third set of writes
+        let maybe_chunk = db
+            .persist_partition("cpu", partition_key.as_str(), t2 + late_arrival)
+            .await
+            .unwrap();
+
+        assert!(maybe_chunk.is_none());
+
+        // The already persisted chunk should remain
+        let chunks: Vec<_> = partition.read().chunk_summaries().collect();
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].storage, ChunkStorage::ReadBufferAndObjectStore);
+        assert_eq!(chunks[0].row_count, 2);
+
+        assert!(partition.read().persistence_windows().unwrap().is_empty());
     }
 }
