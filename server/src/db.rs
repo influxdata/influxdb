@@ -1772,7 +1772,7 @@ mod tests {
             .id();
 
         // A chunk is now in the object store and still in read buffer
-        let expected_parquet_size = 1244;
+        let expected_parquet_size = 1243;
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", expected_parquet_size);
@@ -2211,7 +2211,7 @@ mod tests {
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1242);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1241);
 
         // All the chunks should have different IDs
         assert_ne!(mb_chunk.id(), rb_chunk.id());
@@ -2326,7 +2326,7 @@ mod tests {
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1242);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1241);
 
         // Unload RB chunk but keep it in OS
         let pq_chunk = db
@@ -2347,7 +2347,7 @@ mod tests {
         // Parquet chunk size only
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 0);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1242);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1241);
 
         // Verify data written to the parquet file in object store
         //
