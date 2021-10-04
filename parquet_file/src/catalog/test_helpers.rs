@@ -7,9 +7,12 @@ use std::{
     sync::Arc,
 };
 
-use data_types::chunk_metadata::ChunkId;
+use data_types::{chunk_metadata::ChunkId, timestamp::TimestampRange};
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
-use predicate::predicate::Predicate;
+use predicate::{
+    delete_expr::{DeleteExpr, Op, Scalar},
+    delete_predicate::DeletePredicate,
+};
 use snafu::ResultExt;
 
 use crate::{
@@ -41,7 +44,7 @@ pub struct Partition {
 #[derive(Clone, Debug)]
 pub struct Chunk {
     pub parquet_info: CatalogParquetInfo,
-    pub delete_predicates: Vec<Arc<Predicate>>,
+    pub delete_predicates: Vec<Arc<DeletePredicate>>,
 }
 
 /// In-memory catalog state, for testing.
@@ -74,16 +77,16 @@ impl TestCatalogState {
     }
 
     /// Return an iterator over all predicates in this catalog.
-    pub fn delete_predicates(&self) -> Vec<(Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)> {
-        let mut predicates: HashMap<usize, (Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)> =
+    pub fn delete_predicates(&self) -> Vec<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)> {
+        let mut predicates: HashMap<usize, (Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)> =
             Default::default();
 
         for (table_name, table) in &self.tables {
             for (partition_key, partition) in &table.partitions {
                 for (chunk_id, chunk) in &partition.chunks {
                     for predicate in &chunk.delete_predicates {
-                        let predicate_ref: &Predicate = predicate.as_ref();
-                        let addr = (predicate_ref as *const Predicate) as usize;
+                        let predicate_ref: &DeletePredicate = predicate.as_ref();
+                        let addr = (predicate_ref as *const DeletePredicate) as usize;
                         let pred_chunk_closure = || ChunkAddrWithoutDatabase {
                             table_name: Arc::clone(table_name),
                             partition_key: Arc::clone(partition_key),
@@ -197,7 +200,7 @@ impl CatalogState for TestCatalogState {
 
     fn delete_predicate(
         &mut self,
-        predicate: Arc<Predicate>,
+        predicate: Arc<DeletePredicate>,
         chunks: Vec<ChunkAddrWithoutDatabase>,
     ) {
         for addr in chunks {
@@ -256,7 +259,8 @@ where
     // The expected state of the catalog
     let mut expected_files: HashMap<ChunkId, (ParquetFilePath, Arc<IoxParquetMetaData>)> =
         HashMap::new();
-    let mut expected_predicates: Vec<(Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)> = vec![];
+    let mut expected_predicates: Vec<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)> =
+        vec![];
     assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // add files
@@ -591,7 +595,7 @@ fn assert_checkpoint<S, F>(
     state: &S,
     f: &F,
     expected_files: &HashMap<ChunkId, (ParquetFilePath, Arc<IoxParquetMetaData>)>,
-    expected_predicates: &[(Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)],
+    expected_predicates: &[(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)],
 ) where
     F: Fn(&S) -> CheckpointData,
 {
@@ -634,28 +638,20 @@ fn get_sorted_keys<'a>(
 }
 
 /// Helper to create a simple delete predicate.
-pub fn create_delete_predicate(table_name: &str, value: i64) -> Arc<Predicate> {
-    use datafusion::{
-        logical_plan::{Column, Expr, Operator},
-        scalar::ScalarValue,
-    };
-
-    Arc::new(Predicate {
+pub fn create_delete_predicate(table_name: &str, value: i64) -> Arc<DeletePredicate> {
+    Arc::new(DeletePredicate {
         table_names: Some(
             IntoIterator::into_iter([table_name.to_string(), format!("not_{}", table_name)])
                 .collect(),
         ),
         field_columns: None,
         partition_key: None,
-        range: None,
-        exprs: vec![Expr::BinaryExpr {
-            left: Box::new(Expr::Column(Column {
-                relation: None,
-                name: "foo".to_string(),
-            })),
-            op: Operator::Eq,
-            right: Box::new(Expr::Literal(ScalarValue::Int64(Some(value)))),
-        }],
+        range: TimestampRange { start: 11, end: 22 },
+        exprs: vec![DeleteExpr::new(
+            "foo".to_string(),
+            Op::Eq,
+            Scalar::I64(value),
+        )],
     })
 }
 

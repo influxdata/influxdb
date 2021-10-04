@@ -117,9 +117,13 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
         let selection = Selection::Some(&selection_cols);
 
         let del_preds = chunk.delete_predicates();
+        let del_preds: Vec<Arc<Predicate>> = del_preds
+            .iter()
+            .map(|pred| Arc::new(pred.as_ref().clone().into()))
+            .collect();
 
         let stream = chunk
-            .read_filter(&self.predicate, selection, del_preds)
+            .read_filter(&self.predicate, selection, &del_preds)
             .map_err(|e| {
                 DataFusionError::Execution(format!(
                     "Error creating scan for table {} chunk {}: {}",

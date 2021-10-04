@@ -774,8 +774,12 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
 
         // Add Filter operator, FilterExec, if the chunk has delete predicates
         let del_preds = chunk.delete_predicates();
+        let del_preds: Vec<Arc<Predicate>> = del_preds
+            .iter()
+            .map(|pred| Arc::new(pred.as_ref().clone().into()))
+            .collect();
         debug!(?del_preds, "Chunk delete predicates");
-        let negated_del_expr_val = Predicate::negated_expr(del_preds);
+        let negated_del_expr_val = Predicate::negated_expr(&del_preds[..]);
         if let Some(negated_del_expr) = negated_del_expr_val {
             debug!(?negated_del_expr, "Logical negated expressions");
 

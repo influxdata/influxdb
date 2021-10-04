@@ -7,7 +7,7 @@ use data_types::chunk_metadata::ChunkId;
 use data_types::{server_id::ServerId, DatabaseName};
 use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound};
 use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
-use predicate::predicate::ParseDeletePredicate;
+use predicate::delete_predicate::ParseDeletePredicate;
 use query::QueryDatabase;
 use server::rules::ProvidedDatabaseRules;
 use server::{ApplicationState, ConnectionManager, Error, Server};

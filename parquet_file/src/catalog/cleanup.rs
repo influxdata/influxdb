@@ -6,7 +6,7 @@ use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::{ObjectStore, ObjectStoreApi};
 use observability_deps::tracing::info;
 use parking_lot::Mutex;
-use predicate::predicate::Predicate;
+use predicate::delete_predicate::DeletePredicate;
 use snafu::{ResultExt, Snafu};
 
 use crate::catalog::{
@@ -148,7 +148,7 @@ impl CatalogState for TracerCatalogState {
 
     fn delete_predicate(
         &mut self,
-        _predicate: Arc<Predicate>,
+        _predicate: Arc<DeletePredicate>,
         _chunks: Vec<ChunkAddrWithoutDatabase>,
     ) {
         // No need to track delete predicates, because the cleanup's job is to remove unreferenced parquet files. Delete

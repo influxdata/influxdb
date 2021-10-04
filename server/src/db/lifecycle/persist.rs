@@ -11,7 +11,7 @@ use data_types::{chunk_metadata::ChunkOrder, job::Job};
 use lifecycle::{LifecycleWriteGuard, LockableChunk, LockablePartition};
 use observability_deps::tracing::info;
 use persistence_windows::persistence_windows::FlushHandle;
-use predicate::predicate::Predicate;
+use predicate::delete_predicate::DeletePredicate;
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
@@ -56,7 +56,7 @@ where
     let mut time_of_first_write: Option<DateTime<Utc>> = None;
     let mut time_of_last_write: Option<DateTime<Utc>> = None;
     let mut query_chunks = vec![];
-    let mut delete_predicates: Vec<Arc<Predicate>> = vec![];
+    let mut delete_predicates: Vec<Arc<DeletePredicate>> = vec![];
     let mut min_order = ChunkOrder::MAX;
     for mut chunk in chunks {
         // Sanity-check
@@ -213,10 +213,9 @@ mod tests {
     use super::*;
     use crate::{db::test_helpers::write_lp, utils::TestDb, Db};
     use chrono::{TimeZone, Utc};
-    use data_types::chunk_metadata::ChunkStorage;
     use data_types::database_rules::LifecycleRules;
+    use data_types::{chunk_metadata::ChunkStorage, timestamp::TimestampRange};
     use lifecycle::{LockableChunk, LockablePartition};
-    use predicate::predicate::PredicateBuilder;
     use query::QueryDatabase;
     use std::{
         num::{NonZeroU32, NonZeroU64},
@@ -303,12 +302,15 @@ mod tests {
         let partition = db.partition("cpu", partition_key.as_str()).unwrap();
 
         // Delete first row
-        let predicate = PredicateBuilder::new()
-            .table("cpu")
-            .timestamp_range(0, 20)
-            .build();
+        let predicate = Arc::new(DeletePredicate {
+            table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
+            field_columns: None,
+            partition_key: None,
+            range: TimestampRange { start: 0, end: 20 },
+            exprs: vec![],
+        });
 
-        db.delete("cpu", Arc::new(predicate)).await.unwrap();
+        db.delete("cpu", predicate).await.unwrap();
 
         // Try to persist first write but it has been deleted
         let maybe_chunk = db
@@ -366,12 +368,18 @@ mod tests {
         assert_eq!(chunks[1].row_count, 2);
 
         // Delete everything
-        let predicate = PredicateBuilder::new()
-            .table("cpu")
-            .timestamp_range(0, 1000)
-            .build();
+        let predicate = Arc::new(DeletePredicate {
+            table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
+            field_columns: None,
+            partition_key: None,
+            range: TimestampRange {
+                start: 0,
+                end: 1_000,
+            },
+            exprs: vec![],
+        });
 
-        db.delete("cpu", Arc::new(predicate)).await.unwrap();
+        db.delete("cpu", predicate).await.unwrap();
 
         // Try to persist third set of writes
         let maybe_chunk = db

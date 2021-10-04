@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use data_types::{chunk_metadata::ChunkOrder, job::Job};
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
-use predicate::predicate::Predicate;
+use predicate::delete_predicate::DeletePredicate;
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
@@ -47,7 +47,7 @@ pub(crate) fn compact_chunks(
     let mut input_rows = 0;
     let mut time_of_first_write: Option<DateTime<Utc>> = None;
     let mut time_of_last_write: Option<DateTime<Utc>> = None;
-    let mut delete_predicates: Vec<Arc<Predicate>> = vec![];
+    let mut delete_predicates: Vec<Arc<DeletePredicate>> = vec![];
     let mut min_order = ChunkOrder::MAX;
     let query_chunks = chunks
         .into_iter()
@@ -157,8 +157,8 @@ mod tests {
     use crate::db::test_helpers::write_lp;
     use crate::{db::test_helpers::write_lp_with_time, utils::make_db};
     use data_types::chunk_metadata::ChunkStorage;
+    use data_types::timestamp::TimestampRange;
     use lifecycle::{LockableChunk, LockablePartition};
-    use predicate::predicate::PredicateBuilder;
     use query::QueryDatabase;
 
     #[tokio::test]
@@ -235,13 +235,19 @@ mod tests {
         assert_eq!(partition_keys.len(), 1);
 
         // Cannot simply use empty predicate (#2687)
-        let predicate = PredicateBuilder::new()
-            .table("cpu")
-            .timestamp_range(0, 1_000)
-            .build();
+        let predicate = Arc::new(DeletePredicate {
+            table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
+            field_columns: None,
+            partition_key: None,
+            range: TimestampRange {
+                start: 0,
+                end: 1_000,
+            },
+            exprs: vec![],
+        });
 
         // Delete everything
-        db.delete("cpu", Arc::new(predicate)).await.unwrap();
+        db.delete("cpu", predicate).await.unwrap();
         let chunk = db
             .compact_partition("cpu", partition_keys[0].as_str())
             .await
