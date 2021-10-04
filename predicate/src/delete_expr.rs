@@ -56,10 +56,10 @@ impl From<DeleteExpr> for datafusion::logical_plan::Expr {
             name: expr.column,
         };
 
-        datafusion::logical_plan::Expr::BinaryExpr {
-            left: Box::new(datafusion::logical_plan::Expr::Column(column)),
+        Self::BinaryExpr {
+            left: Box::new(Self::Column(column)),
             op: expr.op.into(),
-            right: Box::new(datafusion::logical_plan::Expr::Literal(expr.scalar.into())),
+            right: Box::new(Self::Literal(expr.scalar.into())),
         }
     }
 }
@@ -99,7 +99,7 @@ impl TryFrom<proto::Expr> for DeleteExpr {
             .try_into()
             .context(CannotDeserializeScalar)?;
 
-        Ok(DeleteExpr {
+        Ok(Self {
             column: expr.column,
             op,
             scalar,
@@ -163,7 +163,7 @@ impl TryFrom<datafusion::logical_plan::Expr> for DeleteExpr {
 
                 let op: Op = op.try_into().context(CannotConvertDataFusionOperator)?;
 
-                Ok(DeleteExpr { column, op, scalar })
+                Ok(Self { column, op, scalar })
             }
             other => Err(DataFusionToExprError::UnsupportedExpression { expr: other }),
         }
@@ -174,7 +174,7 @@ impl From<DeleteExpr> for proto::Expr {
     fn from(expr: DeleteExpr) -> Self {
         let op: proto::Op = expr.op.into();
 
-        proto::Expr {
+        Self {
             column: expr.column,
             op: op.into(),
             scalar: Some(expr.scalar.into()),
@@ -204,13 +204,14 @@ impl std::fmt::Display for Op {
 impl From<Op> for datafusion::logical_plan::Operator {
     fn from(op: Op) -> Self {
         match op {
-            Op::Eq => datafusion::logical_plan::Operator::Eq,
-            Op::Ne => datafusion::logical_plan::Operator::NotEq,
+            Op::Eq => Self::Eq,
+            Op::Ne => Self::NotEq,
         }
     }
 }
 
 #[derive(Debug, Snafu)]
+#[allow(missing_copy_implementations)] // allow extensions
 pub enum DataFusionToOpError {
     #[snafu(display("unsupported operator: {:?}", op))]
     UnsupportedOperator {
@@ -223,8 +224,8 @@ impl TryFrom<datafusion::logical_plan::Operator> for Op {
 
     fn try_from(op: datafusion::logical_plan::Operator) -> Result<Self, Self::Error> {
         match op {
-            datafusion::logical_plan::Operator::Eq => Ok(Op::Eq),
-            datafusion::logical_plan::Operator::NotEq => Ok(Op::Ne),
+            datafusion::logical_plan::Operator::Eq => Ok(Self::Eq),
+            datafusion::logical_plan::Operator::NotEq => Ok(Self::Ne),
             other => Err(DataFusionToOpError::UnsupportedOperator { op: other }),
         }
     }
@@ -233,13 +234,14 @@ impl TryFrom<datafusion::logical_plan::Operator> for Op {
 impl From<Op> for proto::Op {
     fn from(op: Op) -> Self {
         match op {
-            Op::Eq => proto::Op::Eq,
-            Op::Ne => proto::Op::Ne,
+            Op::Eq => Self::Eq,
+            Op::Ne => Self::Ne,
         }
     }
 }
 
 #[derive(Debug, Snafu)]
+#[allow(missing_copy_implementations)] // allow extensions
 pub enum ProtoToOpError {
     #[snafu(display("unspecified operator"))]
     UnspecifiedOperator,
@@ -251,8 +253,8 @@ impl TryFrom<proto::Op> for Op {
     fn try_from(op: proto::Op) -> Result<Self, Self::Error> {
         match op {
             proto::Op::Unspecified => Err(ProtoToOpError::UnspecifiedOperator),
-            proto::Op::Eq => Ok(Op::Eq),
-            proto::Op::Ne => Ok(Op::Ne),
+            proto::Op::Eq => Ok(Self::Eq),
+            proto::Op::Ne => Ok(Self::Ne),
         }
     }
 }
@@ -280,15 +282,16 @@ impl std::fmt::Display for Scalar {
 impl From<Scalar> for datafusion::scalar::ScalarValue {
     fn from(scalar: Scalar) -> Self {
         match scalar {
-            Scalar::Bool(value) => datafusion::scalar::ScalarValue::Boolean(Some(value)),
-            Scalar::I64(value) => datafusion::scalar::ScalarValue::Int64(Some(value)),
-            Scalar::F64(value) => datafusion::scalar::ScalarValue::Float64(Some(value.into())),
-            Scalar::String(value) => datafusion::scalar::ScalarValue::Utf8(Some(value)),
+            Scalar::Bool(value) => Self::Boolean(Some(value)),
+            Scalar::I64(value) => Self::Int64(Some(value)),
+            Scalar::F64(value) => Self::Float64(Some(value.into())),
+            Scalar::String(value) => Self::Utf8(Some(value)),
         }
     }
 }
 
 #[derive(Debug, Snafu)]
+#[allow(missing_copy_implementations)] // allow extensions
 pub enum ProtoToScalarError {
     #[snafu(display("missing scalar value"))]
     MissingScalarValue,
@@ -299,10 +302,10 @@ impl TryFrom<proto::Scalar> for Scalar {
 
     fn try_from(scalar: proto::Scalar) -> Result<Self, Self::Error> {
         match scalar.value.context(MissingScalarValue)? {
-            proto::scalar::Value::ValueBool(value) => Ok(Scalar::Bool(value)),
-            proto::scalar::Value::ValueI64(value) => Ok(Scalar::I64(value)),
-            proto::scalar::Value::ValueF64(value) => Ok(Scalar::F64(value.into())),
-            proto::scalar::Value::ValueString(value) => Ok(Scalar::String(value)),
+            proto::scalar::Value::ValueBool(value) => Ok(Self::Bool(value)),
+            proto::scalar::Value::ValueI64(value) => Ok(Self::I64(value)),
+            proto::scalar::Value::ValueF64(value) => Ok(Self::F64(value.into())),
+            proto::scalar::Value::ValueString(value) => Ok(Self::String(value)),
         }
     }
 }
@@ -320,10 +323,10 @@ impl TryFrom<datafusion::scalar::ScalarValue> for Scalar {
 
     fn try_from(scalar: datafusion::scalar::ScalarValue) -> Result<Self, Self::Error> {
         match scalar {
-            datafusion::scalar::ScalarValue::Utf8(Some(value)) => Ok(Scalar::String(value)),
-            datafusion::scalar::ScalarValue::Int64(Some(value)) => Ok(Scalar::I64(value)),
-            datafusion::scalar::ScalarValue::Float64(Some(value)) => Ok(Scalar::F64(value.into())),
-            datafusion::scalar::ScalarValue::Boolean(Some(value)) => Ok(Scalar::Bool(value)),
+            datafusion::scalar::ScalarValue::Utf8(Some(value)) => Ok(Self::String(value)),
+            datafusion::scalar::ScalarValue::Int64(Some(value)) => Ok(Self::I64(value)),
+            datafusion::scalar::ScalarValue::Float64(Some(value)) => Ok(Self::F64(value.into())),
+            datafusion::scalar::ScalarValue::Boolean(Some(value)) => Ok(Self::Bool(value)),
             other => Err(DataFusionToScalarError::UnsupportedScalarValue { value: other }),
         }
     }
@@ -332,16 +335,16 @@ impl TryFrom<datafusion::scalar::ScalarValue> for Scalar {
 impl From<Scalar> for proto::Scalar {
     fn from(scalar: Scalar) -> Self {
         match scalar {
-            Scalar::Bool(value) => proto::Scalar {
+            Scalar::Bool(value) => Self {
                 value: Some(proto::scalar::Value::ValueBool(value)),
             },
-            Scalar::I64(value) => proto::Scalar {
+            Scalar::I64(value) => Self {
                 value: Some(proto::scalar::Value::ValueI64(value)),
             },
-            Scalar::F64(value) => proto::Scalar {
+            Scalar::F64(value) => Self {
                 value: Some(proto::scalar::Value::ValueF64(value.into())),
             },
-            Scalar::String(value) => proto::Scalar {
+            Scalar::String(value) => Self {
                 value: Some(proto::scalar::Value::ValueString(value)),
             },
         }
