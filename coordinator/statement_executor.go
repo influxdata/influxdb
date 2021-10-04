@@ -719,7 +719,7 @@ func (e *StatementExecutor) executeShowGrantsForUserStatement(q *influxql.ShowGr
 }
 
 type measurementRow struct {
-	name []byte
+	name   []byte
 	db, rp string
 }
 
@@ -730,7 +730,7 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.Executio
 
 	onlyPrintMeasurements := !(q.WildcardDatabase || q.WildcardRetentionPolicy || q.RetentionPolicy != "")
 
-	var sources []struct{
+	var sources []struct {
 		db, rp string
 	}
 	if q.WildcardDatabase {

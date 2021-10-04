@@ -1,3 +1,4 @@
+//go:build darwin || dragonfly || freebsd || linux || nacl || netbsd || openbsd
 // +build darwin dragonfly freebsd linux nacl netbsd openbsd
 
 // Copyright 2015 The Go Authors. All rights reserved.
