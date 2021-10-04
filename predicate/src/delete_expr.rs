@@ -315,7 +315,6 @@ impl TryFrom<datafusion::scalar::ScalarValue> for Scalar {
     type Error = DataFusionToScalarError;
 
     fn try_from(scalar: datafusion::scalar::ScalarValue) -> Result<Self, Self::Error> {
-        // see https://github.com/apache/arrow-datafusion/blob/195b69995db8044ce283d72fb78eb6b74b8842f5/datafusion/src/sql/planner.rs#L274-L295
         match scalar {
             datafusion::scalar::ScalarValue::Utf8(Some(value)) => Ok(Scalar::String(value)),
             datafusion::scalar::ScalarValue::Int64(Some(value)) => Ok(Scalar::I64(value)),
