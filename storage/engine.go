@@ -128,6 +128,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e.tsdbStore.EngineOptions.IndexVersion = c.Data.Index
 
 	pw := coordinator.NewPointsWriter()
+	pw.WriteTimeout = c.WriteTimeout
 	pw.TSDBStore = e.tsdbStore
 	pw.MetaClient = e.metaClient
 	e.pointsWriter = pw

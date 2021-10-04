@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"time"
+
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/v1/services/precreator"
 	"github.com/influxdata/influxdb/v2/v1/services/retention"
@@ -8,7 +10,8 @@ import (
 
 // Config holds the configuration for an Engine.
 type Config struct {
-	Data tsdb.Config
+	Data         tsdb.Config
+	WriteTimeout time.Duration
 
 	RetentionService retention.Config
 	PrecreatorConfig precreator.Config

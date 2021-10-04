@@ -457,6 +457,11 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 
 		// storage configuration
 		{
+			DestP: &o.StorageConfig.WriteTimeout,
+			Flag:  "storage-write-timeout",
+			Desc:  "The max amount of time the engine will spend completing a write request before cancelling with a timeout.",
+		},
+		{
 			DestP: &o.StorageConfig.Data.WALFsyncDelay,
 			Flag:  "storage-wal-fsync-delay",
 			Desc:  "The amount of time that a write will wait before fsyncing. A duration greater than 0 can be used to batch up multiple fsync calls. This is useful for slower disks or when WAL write contention is seen.",

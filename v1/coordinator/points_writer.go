@@ -29,6 +29,9 @@ const (
 	statSubWriteDrop       = "subWriteDrop"
 )
 
+// DefaultWriteTimeout is the default timeout for a complete write to succeed.
+const DefaultWriteTimeout = 10 * time.Second
+
 var (
 	// ErrTimeout is returned when a write times out.
 	ErrTimeout = errors.New("timeout")
