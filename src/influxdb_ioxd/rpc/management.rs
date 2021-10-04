@@ -1,4 +1,4 @@
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -122,9 +122,11 @@ where
             .rules
             .ok_or_else(|| FieldViolation::required("rules"))?;
 
-        let provided_rules: ProvidedDatabaseRules = rules
-            .try_into()
-            .map_err(|e: FieldViolation| e.scope("rules"))?;
+        let provided_rules =
+            ProvidedDatabaseRules::new_rules(rules).map_err(|e| FieldViolation {
+                field: "rules".to_string(),
+                description: e.to_string(),
+            })?;
 
         match self.server.create_database(provided_rules).await {
             Ok(_) => Ok(Response::new(CreateDatabaseResponse {})),
@@ -149,9 +151,11 @@ where
             .rules
             .ok_or_else(|| FieldViolation::required("rules"))?;
 
-        let provided_rules: ProvidedDatabaseRules = rules
-            .try_into()
-            .map_err(|e: FieldViolation| e.scope("rules"))?;
+        let provided_rules =
+            ProvidedDatabaseRules::new_rules(rules).map_err(|e| FieldViolation {
+                field: "rules".to_string(),
+                description: e.to_string(),
+            })?;
 
         let db_name = provided_rules.db_name().clone();
         let updated_rules = self
@@ -643,9 +647,8 @@ where
     }
 }
 
-/// returns [`DatabaseRules`] formated accordingo the omit_defaults
-/// flag. If omit_defaults is true, returns the stored config,
-/// otherwise returns the actual configu
+/// Returns [`DatabaseRules`] formated according to the `omit_defaults` flag. If `omit_defaults` is
+/// true, returns the stored config, otherwise returns the actual configuration.
 fn format_rules(provided_rules: Arc<ProvidedDatabaseRules>, omit_defaults: bool) -> DatabaseRules {
     if omit_defaults {
         // return rules as originally provided by the user

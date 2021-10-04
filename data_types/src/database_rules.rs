@@ -28,8 +28,9 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// DatabaseRules contains the rules for replicating data, sending data to
-/// subscribers, and querying data for a single database.
+/// `DatabaseRules` contains the rules for replicating data, sending data to
+/// subscribers, and querying data for a single database. This information is
+/// provided by and exposed to operators.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct DatabaseRules {
     /// The name of the database

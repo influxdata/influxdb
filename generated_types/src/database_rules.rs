@@ -134,17 +134,17 @@ pub enum ProstError {
     DecodeError(#[from] prost::DecodeError),
 }
 
-/// Decode datbase rules that were encoded using `encode_database_rules`
-pub fn decode_database_rules(
+/// Decode database rules that were encoded using `encode_persisted_database_rules`
+pub fn decode_persisted_database_rules(
     bytes: prost::bytes::Bytes,
-) -> Result<management::DatabaseRules, ProstError> {
+) -> Result<management::PersistedDatabaseRules, ProstError> {
     Ok(prost::Message::decode(bytes)?)
 }
 
 /// Encode database rules into a serialized format suitable for
 /// storage in objet store
-pub fn encode_database_rules(
-    rules: &management::DatabaseRules,
+pub fn encode_persisted_database_rules(
+    rules: &management::PersistedDatabaseRules,
     bytes: &mut prost::bytes::BytesMut,
 ) -> Result<(), ProstError> {
     Ok(prost::Message::encode(rules, bytes)?)

@@ -27,6 +27,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{future::Future, sync::Arc, time::Duration};
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
 const INIT_BACKOFF: Duration = Duration::from_secs(1);
 
@@ -149,6 +150,8 @@ pub struct Database {
 /// and how to perform startup activities.
 pub struct DatabaseConfig {
     pub name: DatabaseName<'static>,
+    // TODO: this should be required when UUID is used in the database's object store path
+    pub uuid: Option<Uuid>,
     pub server_id: ServerId,
     pub wipe_catalog_on_error: bool,
     pub skip_replay: bool,
@@ -186,6 +189,7 @@ impl Database {
     /// Create fresh database without any any state.
     pub async fn create(
         application: Arc<ApplicationState>,
+        uuid: Uuid,
         provided_rules: &ProvidedDatabaseRules,
         server_id: ServerId,
     ) -> Result<(), InitError> {
@@ -203,7 +207,7 @@ impl Database {
         );
 
         provided_rules
-            .persist(&iox_object_store)
+            .persist(uuid, &iox_object_store)
             .await
             .context(SavingRules)?;
 
@@ -337,8 +341,8 @@ impl Database {
     /// Update the database rules, panic'ing if the state is invalid
     pub async fn update_provided_rules(
         &self,
-        new_provided_rules: Arc<ProvidedDatabaseRules>,
-    ) -> Result<(), Error> {
+        new_provided_rules: ProvidedDatabaseRules,
+    ) -> Result<Arc<ProvidedDatabaseRules>, Error> {
         // get a handle to signal our intention to update the state
         let handle = self.shared.state.read().freeze();
 
@@ -352,13 +356,14 @@ impl Database {
         let iox_object_store = {
             let state = self.shared.state.read();
             let state_code = state.state_code();
+            let db_name = new_provided_rules.db_name();
 
             // A handle to the object store so we can update the rules
             // in object store prior to obtaining exclusive write
             // access to the `DatabaseState` (which we can't hold
             // across the await to write to the object store)
             let iox_object_store = state.iox_object_store().context(RulesNotUpdateable {
-                db_name: new_provided_rules.db_name(),
+                db_name,
                 state: state_code,
             })?;
 
@@ -367,7 +372,7 @@ impl Database {
             ensure!(
                 state_code == DatabaseStateCode::Initialized,
                 RulesNotUpdateable {
-                    db_name: new_provided_rules.db_name(),
+                    db_name,
                     state: state_code,
                 }
             );
@@ -380,7 +385,14 @@ impl Database {
         // Even though we don't hold a lock here, the freeze handle
         // ensures the state can not be modified.
         new_provided_rules
-            .persist(&iox_object_store)
+            .persist(
+                // TODO: this `expect` will go away once `uuid` can be read from the object store
+                // path; we'll always have it in that case
+                self.config()
+                    .uuid
+                    .expect("must have a uuid by now for this to work"),
+                &iox_object_store,
+            )
             .await
             .context(CannotPersistUpdatedRules)?;
 
@@ -395,8 +407,8 @@ impl Database {
         }) = &mut *state
         {
             db.update_rules(Arc::clone(new_provided_rules.rules()));
-            *provided_rules = new_provided_rules;
-            Ok(())
+            *provided_rules = Arc::new(new_provided_rules);
+            Ok(Arc::clone(provided_rules))
         } else {
             // The freeze handle should have prevented any changes to
             // the database state between when it was checked above
@@ -1088,7 +1100,7 @@ impl DatabaseStateRulesLoaded {
             server_id: shared.config.server_id,
             iox_object_store: Arc::clone(&self.iox_object_store),
             exec: Arc::clone(shared.application.executor()),
-            rules: Arc::clone(rules),
+            rules: Arc::clone(self.provided_rules.rules()),
             preserved_catalog,
             catalog,
             write_buffer_producer: producer,
@@ -1191,6 +1203,7 @@ mod tests {
         num::NonZeroU32,
         time::Instant,
     };
+    use uuid::Uuid;
     use write_buffer::{config::WriteBufferConfigFactory, mock::MockBufferSharedState};
 
     #[tokio::test]
@@ -1204,6 +1217,7 @@ mod tests {
             Arc::clone(&application),
             DatabaseConfig {
                 name: DatabaseName::new("test").unwrap(),
+                uuid: Some(Uuid::new_v4()),
                 server_id: ServerId::new(NonZeroU32::new(23).unwrap()),
                 wipe_catalog_on_error: false,
                 skip_replay: false,
@@ -1260,16 +1274,16 @@ mod tests {
         ));
 
         let db_name = DatabaseName::new("test").unwrap();
-        Database::create(
-            Arc::clone(&application),
-            &ProvidedDatabaseRules::new_empty(db_name.clone()),
-            server_id,
-        )
-        .await
-        .unwrap();
+        let uuid = Uuid::new_v4();
+        let provided_rules = ProvidedDatabaseRules::new_empty(db_name.clone());
+
+        Database::create(Arc::clone(&application), uuid, &provided_rules, server_id)
+            .await
+            .unwrap();
 
         let db_config = DatabaseConfig {
             name: db_name,
+            uuid: Some(uuid),
             server_id,
             wipe_catalog_on_error: false,
             skip_replay: false,
@@ -1384,6 +1398,7 @@ mod tests {
 
         // setup DB
         let db_name = DatabaseName::new("test_db").unwrap();
+        let uuid = Uuid::new_v4();
         let rules = data_types::database_rules::DatabaseRules {
             name: db_name.clone(),
             partition_template: partition_template.clone(),
@@ -1402,6 +1417,7 @@ mod tests {
         };
         Database::create(
             Arc::clone(&application),
+            uuid,
             &make_provided_rules(rules),
             server_id,
         )
@@ -1409,6 +1425,7 @@ mod tests {
         .unwrap();
         let db_config = DatabaseConfig {
             name: db_name,
+            uuid: Some(uuid),
             server_id,
             wipe_catalog_on_error: false,
             skip_replay: false,
@@ -1503,10 +1520,10 @@ mod tests {
     fn make_provided_rules(
         rules: data_types::database_rules::DatabaseRules,
     ) -> ProvidedDatabaseRules {
-        let rules: generated_types::influxdata::iox::management::v1::DatabaseRules =
-            rules.try_into().unwrap();
-
-        let provided_rules: ProvidedDatabaseRules = rules.try_into().unwrap();
-        provided_rules
+        let rules: generated_types::influxdata::iox::management::v1::DatabaseRules = rules
+            .try_into()
+            .expect("tests should construct valid DatabaseRules");
+        ProvidedDatabaseRules::new_rules(rules)
+            .expect("tests should construct valid ProvidedDatabaseRules")
     }
 }
