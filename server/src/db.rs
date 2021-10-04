@@ -3645,13 +3645,6 @@ mod tests {
         let partition_key = "part_a";
         write_lp(&db, "cpu,part=a row=10,selector=0i 10").await;
         write_lp(&db, "cpu,part=a row=11,selector=1i 11").await;
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap()
-            .unwrap();
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
         db.persist_partition(
             table_name,
             partition_key,
@@ -3664,10 +3657,6 @@ mod tests {
         let partition_key = "part_b";
         write_lp(&db, "cpu,part=b row=20,selector=0i 20").await;
         write_lp(&db, "cpu,part=b row=21,selector=1i 21").await;
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap()
-            .unwrap();
         db.compact_partition(table_name, partition_key)
             .await
             .unwrap();
@@ -3681,10 +3670,6 @@ mod tests {
         let partition_key = "part_d";
         write_lp(&db, "cpu,part=d row=40,selector=0i 40").await;
         write_lp(&db, "cpu,part=d row=41,selector=1i 41").await;
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
-
         let chunk_id = db
             .persist_partition(
                 table_name,
