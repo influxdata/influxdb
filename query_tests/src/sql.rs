@@ -868,11 +868,6 @@ async fn sql_select_all_different_tags_chunks() {
 
 // ----------------------------------------------
 // Delete tests
-
-// reproduce of https://github.com/influxdata/influxdb_iox/issues/2546
-// Not throw error when all of rows of a OS or RUB chunk are soft deleted
-// ignore until we have a fix that I am actively working on
-#[ignore]
 #[tokio::test]
 async fn sql_select_with_delete_from_one_expr_delete_all() {
     let expected = vec!["++", "++"];
