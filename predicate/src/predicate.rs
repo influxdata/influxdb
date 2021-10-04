@@ -163,9 +163,9 @@ impl Predicate {
         //   . Delete_1: WHERE city != "Boston"  AND temp = 70  AND time_range in [10, 30)
         //   . Delete 2: WHERE state = "NY" AND route != "I90" AND time_range in [20, 50)
         // The negated list will be "NOT(Delete_1)", NOT(Delete_2)" which means
-        //    NOT(city != "Boston"  AND temp = 70 AND time_range in [10, 30)),  NOT(state = "NY" AND route != "I90" AND time_range in [20, 50)) which means
-        //   [NOT(city = Boston") OR NOT(temp = 70) OR NOT(time_range in [10, 30))], [NOT(state = "NY") OR NOT(route != "I90") OR NOT(time_range in [20, 50))]
-        // Note that the "NOT(time_range in [20, 50))]" or "NOT(20 <= time < 50)"" is replaced with "time < 20 OR time >= 50"
+        //    NOT(city != "Boston"  AND temp = 70 AND time_range in [10, 30]),  NOT(state = "NY" AND route != "I90" AND time_range in [20, 50]) which means
+        //   [NOT(city = Boston") OR NOT(temp = 70) OR NOT(time_range in [10, 30])], [NOT(state = "NY") OR NOT(route != "I90") OR NOT(time_range in [20, 50])]
+        // Note that the "NOT(time_range in [20, 50])]" or "NOT(20 <= time <= 50)"" is replaced with "time < 20 OR time > 50"
 
         for pred in delete_predicates {
             let pred = pred.as_ref();
@@ -174,11 +174,11 @@ impl Predicate {
 
             // Time range
             if let Some(range) = pred.range {
-                // time_expr =  NOT(start <= time_range < end)
-                // Equivalent to: (time < start OR time >= end)
+                // time_expr =  NOT(start <= time_range <= end)
+                // Equivalent to: (time < start OR time > end)
                 let time_expr = col(TIME_COLUMN_NAME)
                     .lt(lit_timestamp_nano(range.start))
-                    .or(col(TIME_COLUMN_NAME).gt_eq(lit_timestamp_nano(range.end)));
+                    .or(col(TIME_COLUMN_NAME).gt(lit_timestamp_nano(range.end)));
 
                 match expr {
                     None => expr = Some(time_expr),
