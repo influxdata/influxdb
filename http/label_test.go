@@ -111,7 +111,7 @@ func TestService_handleGetLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.ErrorHandler(0))
+			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.NewErrorHandler(zaptest.NewLogger(t)))
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -219,7 +219,7 @@ func TestService_handleGetLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.ErrorHandler(0))
+			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.NewErrorHandler(zaptest.NewLogger(t)))
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -314,7 +314,7 @@ func TestService_handlePostLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.ErrorHandler(0))
+			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.NewErrorHandler(zaptest.NewLogger(t)))
 
 			l, err := json.Marshal(tt.args.label)
 			if err != nil {
@@ -405,7 +405,7 @@ func TestService_handleDeleteLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.ErrorHandler(0))
+			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.NewErrorHandler(zaptest.NewLogger(t)))
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -544,7 +544,7 @@ func TestService_handlePatchLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.ErrorHandler(0))
+			h := NewLabelHandler(zaptest.NewLogger(t), tt.fields.LabelService, kithttp.NewErrorHandler(zaptest.NewLogger(t)))
 
 			upd := platform.LabelUpdate{}
 			if len(tt.args.properties) > 0 {
@@ -622,7 +622,7 @@ func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.Lab
 		}
 	}
 
-	handler := NewLabelHandler(zaptest.NewLogger(t), labelService, kithttp.ErrorHandler(0))
+	handler := NewLabelHandler(zaptest.NewLogger(t), labelService, kithttp.NewErrorHandler(zaptest.NewLogger(t)))
 	server := httptest.NewServer(handler)
 	client := LabelService{
 		Client: mustNewHTTPClient(t, server.URL, ""),

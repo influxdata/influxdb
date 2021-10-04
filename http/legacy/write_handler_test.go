@@ -3,6 +3,7 @@ package legacy
 import (
 	"context"
 	"fmt"
+	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -415,7 +416,7 @@ func TestWriteHandler_MappingNotExists(t *testing.T) {
 	assert.Equal(t, `{"code":"not found","message":"unable to find DBRP"}`, w.Body.String())
 }
 
-var DefaultErrorHandler = kithttp.ErrorHandler(0)
+var DefaultErrorHandler = kithttp.NewErrorHandler(zap.NewNop())
 
 func parseLineProtocol(t *testing.T, line string) []models.Point {
 	t.Helper()

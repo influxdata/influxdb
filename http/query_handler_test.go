@@ -103,7 +103,7 @@ func TestFluxService_Query(t *testing.T) {
 				if reqID := r.URL.Query().Get(OrgID); reqID == "" {
 					if name := r.URL.Query().Get(Org); name == "" {
 						// Request must have org or orgID.
-						kithttp.ErrorHandler(0).HandleHTTPError(context.TODO(), influxdb.ErrInvalidOrgFilter, w)
+						kithttp.NewErrorHandler(zaptest.NewLogger(t)).HandleHTTPError(context.TODO(), influxdb.ErrInvalidOrgFilter, w)
 						return
 					}
 				}
@@ -261,7 +261,7 @@ func TestFluxHandler_postFluxAST(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &FluxHandler{
-				HTTPErrorHandler:    kithttp.ErrorHandler(0),
+				HTTPErrorHandler:    kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 				FluxLanguageService: fluxlang.DefaultService,
 			}
 			h.postFluxAST(tt.w, tt.r)
@@ -330,7 +330,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 	store := NewTestInmemStore(t)
 	orgSVC := tenant.NewService(tenant.NewStore(store))
 	b := &FluxBackend{
-		HTTPErrorHandler:    kithttp.ErrorHandler(0),
+		HTTPErrorHandler:    kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 		log:                 zaptest.NewLogger(t),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgSVC,
@@ -498,7 +498,7 @@ func TestFluxService_Query_gzip(t *testing.T) {
 	}
 
 	fluxBackend := &FluxBackend{
-		HTTPErrorHandler:    kithttp.ErrorHandler(0),
+		HTTPErrorHandler:    kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 		log:                 zaptest.NewLogger(t),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgService,
@@ -512,7 +512,7 @@ func TestFluxService_Query_gzip(t *testing.T) {
 	// fluxHandling expects authorization to be on the request context.
 	// AuthenticationHandler extracts the token from headers and places
 	// the auth on context.
-	auth := NewAuthenticationHandler(zaptest.NewLogger(t), kithttp.ErrorHandler(0))
+	auth := NewAuthenticationHandler(zaptest.NewLogger(t), kithttp.NewErrorHandler(zaptest.NewLogger(t)))
 	auth.AuthorizationService = authService
 	auth.Handler = fluxHandler
 	auth.UserService = &influxmock.UserService{
@@ -636,7 +636,7 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 	}
 
 	fluxBackend := &FluxBackend{
-		HTTPErrorHandler:    kithttp.ErrorHandler(0),
+		HTTPErrorHandler:    kithttp.NewErrorHandler(zaptest.NewLogger(b)),
 		log:                 zaptest.NewLogger(b),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgService,
@@ -650,7 +650,7 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 	// fluxHandling expects authorization to be on the request context.
 	// AuthenticationHandler extracts the token from headers and places
 	// the auth on context.
-	auth := NewAuthenticationHandler(zaptest.NewLogger(b), kithttp.ErrorHandler(0))
+	auth := NewAuthenticationHandler(zaptest.NewLogger(b), kithttp.NewErrorHandler(zaptest.NewLogger(b)))
 	auth.AuthorizationService = authService
 	auth.Handler = fluxHandler
 

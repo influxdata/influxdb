@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
+	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -419,7 +420,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 	}
 }
 
-var DefaultErrorHandler = kithttp.ErrorHandler(0)
+var DefaultErrorHandler = kithttp.NewErrorHandler(zap.NewNop())
 
 func bucketWritePermission(org, bucket string) *influxdb.Authorization {
 	oid := influxtesting.MustIDBase16(org)
