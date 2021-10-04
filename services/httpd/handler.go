@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/bmizerany/pat"
-	gogoproto "github.com/gogo/protobuf/proto"
+	gogoproto "github.com/gogo/protobuf/proto" // used for Prometheus only
 	"github.com/golang-jwt/jwt"
 	"github.com/golang/snappy"
 	"github.com/influxdata/flux"

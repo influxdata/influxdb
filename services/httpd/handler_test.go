@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	gogoproto "github.com/gogo/protobuf/proto"
+	gogoproto "github.com/gogo/protobuf/proto" // used for Prometheus only
 	"github.com/golang-jwt/jwt"
 	"github.com/golang/snappy"
 	"github.com/google/go-cmp/cmp"
