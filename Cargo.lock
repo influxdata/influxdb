@@ -117,9 +117,9 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 
 [[package]]
 name = "arrow"
-version = "5.4.0"
+version = "5.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ccbff9be24b395041803b16ff3a0e5059fcbb791a7b35479ce5969957069f67"
+checksum = "2678e86fcfd8084e23310a1ded1d4b355663d78b5e79561b014c3a66cc211231"
 dependencies = [
  "bitflags",
  "chrono",
