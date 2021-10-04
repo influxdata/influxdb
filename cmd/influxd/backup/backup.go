@@ -541,8 +541,14 @@ func (cmd *Command) download(req *snapshotter.Request, path string) error {
 			}
 
 			// Read snapshot from the connection
-			if n, err := io.Copy(f, conn); err != nil || n == 0 {
+			n, err := io.Copy(f, conn)
+			if err != nil {
 				return fmt.Errorf("copy backup to file: err=%v, n=%d", err, n)
+			}
+			if n == 0 {
+				// Unfortunately there is no out-of-band channel to actually return errors from the snapshot service, just
+				// 'data' or 'no data'.
+				return fmt.Errorf("copy backup to file: no data returned, check server logs for snapshot errors")
 			}
 			return nil
 		}(); err == nil {
