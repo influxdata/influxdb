@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
 };
 
-use data_types::chunk_metadata::ChunkId;
+use data_types::{chunk_metadata::ChunkId, timestamp::TimestampRange};
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
 use predicate::{
     delete_expr::{DeleteExpr, Op, Scalar},
@@ -646,7 +646,7 @@ pub fn create_delete_predicate(table_name: &str, value: i64) -> Arc<DeletePredic
         ),
         field_columns: None,
         partition_key: None,
-        range: None,
+        range: TimestampRange { start: 11, end: 22 },
         exprs: vec![DeleteExpr::new(
             "foo".to_string(),
             Op::Eq,

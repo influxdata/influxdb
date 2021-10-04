@@ -306,7 +306,7 @@ mod tests {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: Some(TimestampRange { start: 0, end: 20 }),
+            range: TimestampRange { start: 0, end: 20 },
             exprs: vec![],
         });
 
@@ -372,10 +372,10 @@ mod tests {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: Some(TimestampRange {
+            range: TimestampRange {
                 start: 0,
                 end: 1_000,
-            }),
+            },
             exprs: vec![],
         });
 

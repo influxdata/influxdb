@@ -1087,7 +1087,7 @@ mod tests {
             table_names: Some(IntoIterator::into_iter(["test".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: Some(TimestampRange { start: 0, end: 100 }),
+            range: TimestampRange { start: 0, end: 100 },
             exprs: vec![DeleteExpr::new(
                 "city".to_string(),
                 predicate::delete_expr::Op::Eq,
@@ -1112,7 +1112,7 @@ mod tests {
             table_names: Some(IntoIterator::into_iter(["test".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: Some(TimestampRange { start: 20, end: 50 }),
+            range: TimestampRange { start: 20, end: 50 },
             exprs: vec![DeleteExpr::new(
                 "cost".to_string(),
                 predicate::delete_expr::Op::Ne,

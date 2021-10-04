@@ -81,9 +81,9 @@ pub struct DeletePredicate {
     /// Optional partition key filter
     pub partition_key: Option<String>,
 
-    /// Optional timestamp range: only rows within this range are included in
-    /// results. Other rows are excluded
-    pub range: Option<TimestampRange>,
+    /// Only rows within this range are included in
+    /// results. Other rows are excluded.
+    pub range: TimestampRange,
 
     /// Optional arbitrary predicates, represented as list of
     /// expressions applied a logical conjunction (aka they
@@ -99,7 +99,7 @@ impl From<DeletePredicate> for crate::predicate::Predicate {
             table_names: pred.table_names,
             field_columns: pred.field_columns,
             partition_key: pred.partition_key,
-            range: pred.range,
+            range: Some(pred.range),
             exprs: pred.exprs.into_iter().map(|expr| expr.into()).collect(),
         }
     }
@@ -335,10 +335,10 @@ impl From<ParseDeletePredicate> for DeletePredicate {
             table_names: None,
             field_columns: None,
             partition_key: None,
-            range: Some(TimestampRange {
+            range: TimestampRange {
                 start: pred.start_time,
                 end: pred.stop_time,
-            }),
+            },
             exprs: pred.predicate,
         }
     }

@@ -20,7 +20,10 @@ pub fn serialize(predicate: &DeletePredicate) -> proto::Predicate {
         table_names: serialize_optional_string_set(&predicate.table_names),
         field_columns: serialize_optional_string_set(&predicate.field_columns),
         partition_key: serialize_optional_string(&predicate.partition_key),
-        range: serialize_timestamp_range(&predicate.range),
+        range: Some(proto::TimestampRange {
+            start: predicate.range.start,
+            end: predicate.range.end,
+        }),
         exprs: predicate
             .exprs
             .iter()
@@ -42,15 +45,11 @@ fn serialize_optional_string(s: &Option<String>) -> Option<proto::OptionalString
         .map(|s| proto::OptionalString { value: s.clone() })
 }
 
-fn serialize_timestamp_range(r: &Option<TimestampRange>) -> Option<proto::TimestampRange> {
-    r.as_ref().map(|r| proto::TimestampRange {
-        start: r.start,
-        end: r.end,
-    })
-}
-
 #[derive(Debug, Snafu)]
 pub enum DeserializeError {
+    #[snafu(display("timestamp range is missing"))]
+    RangeMissing,
+
     #[snafu(display("cannot deserialize expr: {}", source))]
     CannotDeserializeExpr {
         source: crate::delete_expr::ProtoToExprError,
@@ -65,7 +64,14 @@ pub fn deserialize(
         table_names: deserialize_optional_string_set(&proto_predicate.table_names),
         field_columns: deserialize_optional_string_set(&proto_predicate.field_columns),
         partition_key: deserialize_optional_string(&proto_predicate.partition_key),
-        range: deserialize_timestamp_range(&proto_predicate.range),
+        range: proto_predicate
+            .range
+            .as_ref()
+            .map(|r| TimestampRange {
+                start: r.start,
+                end: r.end,
+            })
+            .ok_or(DeserializeError::RangeMissing)?,
         exprs: proto_predicate
             .exprs
             .iter()
@@ -86,13 +92,6 @@ fn deserialize_optional_string_set(
 
 fn deserialize_optional_string(s: &Option<proto::OptionalString>) -> Option<String> {
     s.as_ref().map(|s| s.value.clone())
-}
-
-fn deserialize_timestamp_range(r: &Option<proto::TimestampRange>) -> Option<TimestampRange> {
-    r.as_ref().map(|r| TimestampRange {
-        start: r.start,
-        end: r.end,
-    })
 }
 
 #[cfg(test)]

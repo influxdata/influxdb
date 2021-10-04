@@ -37,7 +37,7 @@ impl DbSetup for OneDeleteSimpleExprOneChunkDeleteAll {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: Some(TimestampRange { start: 0, end: 25 }),
+            range: TimestampRange { start: 0, end: 25 },
             exprs: vec![],
         };
 
@@ -64,7 +64,7 @@ impl DbSetup for OneDeleteSimpleExprOneChunk {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: Some(TimestampRange { start: 0, end: 15 }),
+            range: TimestampRange { start: 0, end: 15 },
             exprs: vec![DeleteExpr::new(
                 "bar".to_string(),
                 predicate::delete_expr::Op::Eq,
@@ -98,7 +98,7 @@ impl DbSetup for OneDeleteMultiExprsOneChunk {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: Some(TimestampRange { start: 0, end: 32 }),
+            range: TimestampRange { start: 0, end: 32 },
             exprs: vec![
                 DeleteExpr::new(
                     "bar".to_string(),
@@ -145,7 +145,7 @@ impl DbSetup for TwoDeletesMultiExprsOneChunk {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: Some(TimestampRange { start: 0, end: 32 }),
+            range: TimestampRange { start: 0, end: 32 },
             exprs: vec![
                 DeleteExpr::new(
                     "bar".to_string(),
@@ -165,7 +165,7 @@ impl DbSetup for TwoDeletesMultiExprsOneChunk {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: Some(TimestampRange { start: 10, end: 45 }),
+            range: TimestampRange { start: 10, end: 45 },
             exprs: vec![DeleteExpr::new(
                 "bar".to_string(),
                 predicate::delete_expr::Op::Ne,
@@ -209,7 +209,7 @@ impl DbSetup for ThreeDeleteThreeChunks {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: Some(TimestampRange { start: 0, end: 32 }),
+            range: TimestampRange { start: 0, end: 32 },
             exprs: vec![
                 DeleteExpr::new(
                     "bar".to_string(),
@@ -236,7 +236,7 @@ impl DbSetup for ThreeDeleteThreeChunks {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: Some(TimestampRange { start: 20, end: 45 }),
+            range: TimestampRange { start: 20, end: 45 },
             exprs: vec![DeleteExpr::new(
                 "foo".to_string(),
                 predicate::delete_expr::Op::Eq,
@@ -256,7 +256,7 @@ impl DbSetup for ThreeDeleteThreeChunks {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: Some(TimestampRange { start: 75, end: 95 }),
+            range: TimestampRange { start: 75, end: 95 },
             exprs: vec![DeleteExpr::new(
                 "bar".to_string(),
                 predicate::delete_expr::Op::Ne,
