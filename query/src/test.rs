@@ -27,6 +27,7 @@ use internal_types::{
 };
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
+use predicate::delete_predicate::DeletePredicate;
 use snafu::Snafu;
 use std::num::NonZeroU64;
 use std::{collections::BTreeMap, fmt, sync::Arc};
@@ -175,7 +176,7 @@ pub struct TestChunk {
     predicate_match: Option<PredicateMatch>,
 
     /// Copy of delete predicates passed
-    delete_predicates: Vec<Arc<Predicate>>,
+    delete_predicates: Vec<Arc<DeletePredicate>>,
 
     /// Order of this chunk relative to other overlapping chunks.
     order: ChunkOrder,
@@ -914,7 +915,7 @@ impl QueryChunkMeta for TestChunk {
     }
 
     // return a reference to delete predicates of the chunk
-    fn delete_predicates(&self) -> &[Arc<Predicate>] {
+    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
         let pred = &self.delete_predicates;
         debug!(?pred, "Delete predicate in Test Chunk");
 

@@ -19,7 +19,10 @@ use internal_types::{
     selection::Selection,
 };
 use observability_deps::tracing::{debug, trace};
-use predicate::predicate::{Predicate, PredicateMatch};
+use predicate::{
+    delete_predicate::DeletePredicate,
+    predicate::{Predicate, PredicateMatch},
+};
 
 use hashbrown::HashMap;
 use std::{fmt::Debug, sync::Arc};
@@ -46,7 +49,7 @@ pub trait QueryChunkMeta: Sized {
     fn schema(&self) -> Arc<Schema>;
 
     // return a reference to delete predicates of the chunk
-    fn delete_predicates(&self) -> &[Arc<Predicate>];
+    fn delete_predicates(&self) -> &[Arc<DeletePredicate>];
 }
 
 /// A `Database` is the main trait implemented by the IOx subsystems
@@ -166,7 +169,7 @@ where
         self.as_ref().schema()
     }
 
-    fn delete_predicates(&self) -> &[Arc<Predicate>] {
+    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
         let pred = self.as_ref().delete_predicates();
         debug!(?pred, "Delete predicate in QueryChunkMeta");
         pred

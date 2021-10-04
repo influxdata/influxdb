@@ -1,8 +1,9 @@
 //! This module contains testing scenarios for Delete
 
 use data_types::chunk_metadata::ChunkId;
-use datafusion::logical_plan::{col, lit};
-use predicate::predicate::{Predicate, PredicateBuilder};
+use data_types::timestamp::TimestampRange;
+use predicate::delete_expr::DeleteExpr;
+use predicate::delete_predicate::DeletePredicate;
 
 use async_trait::async_trait;
 use query::QueryChunk;
@@ -32,10 +33,13 @@ impl DbSetup for OneDeleteSimpleExprOneChunkDeleteAll {
         let lp_lines = vec!["cpu bar=1 10", "cpu bar=2 20"];
 
         // delete predicate
-        let pred = PredicateBuilder::new()
-            .table(table_name)
-            .timestamp_range(0, 25)
-            .build();
+        let pred = DeletePredicate {
+            table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
+            field_columns: None,
+            partition_key: None,
+            range: Some(TimestampRange { start: 0, end: 25 }),
+            exprs: vec![],
+        };
 
         // this returns 15 scenarios
         all_delete_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key)
@@ -56,12 +60,17 @@ impl DbSetup for OneDeleteSimpleExprOneChunk {
         let lp_lines = vec!["cpu bar=1 10", "cpu bar=2 20"];
 
         // delete predicate
-        let expr = col("bar").eq(lit(1f64));
-        let pred = PredicateBuilder::new()
-            .table(table_name)
-            .timestamp_range(0, 15)
-            .add_expr(expr)
-            .build();
+        let pred = DeletePredicate {
+            table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
+            field_columns: None,
+            partition_key: None,
+            range: Some(TimestampRange { start: 0, end: 15 }),
+            exprs: vec![DeleteExpr::new(
+                "bar".to_string(),
+                predicate::delete_expr::Op::Eq,
+                predicate::delete_expr::Scalar::F64((1.0).into()),
+            )],
+        };
 
         // this returns 15 scenarios
         all_delete_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key)
@@ -85,14 +94,24 @@ impl DbSetup for OneDeleteMultiExprsOneChunk {
             "cpu,foo=me bar=1 40",
         ];
         // delete predicate
-        let expr1 = col("bar").eq(lit(1f64));
-        let expr2 = col("foo").eq(lit("me"));
-        let pred = PredicateBuilder::new()
-            .table("cpu")
-            .timestamp_range(0, 32)
-            .add_expr(expr1)
-            .add_expr(expr2)
-            .build();
+        let pred = DeletePredicate {
+            table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
+            field_columns: None,
+            partition_key: None,
+            range: Some(TimestampRange { start: 0, end: 32 }),
+            exprs: vec![
+                DeleteExpr::new(
+                    "bar".to_string(),
+                    predicate::delete_expr::Op::Eq,
+                    predicate::delete_expr::Scalar::F64((1.0).into()),
+                ),
+                DeleteExpr::new(
+                    "foo".to_string(),
+                    predicate::delete_expr::Op::Eq,
+                    predicate::delete_expr::Scalar::String("me".to_string()),
+                ),
+            ],
+        };
 
         // this returns 15 scenarios
         all_delete_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key)
@@ -122,22 +141,37 @@ impl DbSetup for TwoDeletesMultiExprsOneChunk {
         ];
         // delete predicate
         // pred1: delete from cpu where 0 <= time < 32 and bar = 1 and foo = 'me'
-        let expr1 = col("bar").eq(lit(1f64));
-        let expr2 = col("foo").eq(lit("me"));
-        let pred1 = PredicateBuilder::new()
-            .table("cpu")
-            .timestamp_range(0, 32)
-            .add_expr(expr1)
-            .add_expr(expr2)
-            .build();
+        let pred1 = DeletePredicate {
+            table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
+            field_columns: None,
+            partition_key: None,
+            range: Some(TimestampRange { start: 0, end: 32 }),
+            exprs: vec![
+                DeleteExpr::new(
+                    "bar".to_string(),
+                    predicate::delete_expr::Op::Eq,
+                    predicate::delete_expr::Scalar::F64((1.0).into()),
+                ),
+                DeleteExpr::new(
+                    "foo".to_string(),
+                    predicate::delete_expr::Op::Eq,
+                    predicate::delete_expr::Scalar::String("me".to_string()),
+                ),
+            ],
+        };
 
         // pred2: delete from cpu where 10 <= time < 45 and bar != 1
-        let expr3 = col("bar").not_eq(lit(1f64));
-        let pred2 = PredicateBuilder::new()
-            .table("cpu")
-            .timestamp_range(10, 45)
-            .add_expr(expr3)
-            .build();
+        let pred2 = DeletePredicate {
+            table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
+            field_columns: None,
+            partition_key: None,
+            range: Some(TimestampRange { start: 10, end: 45 }),
+            exprs: vec![DeleteExpr::new(
+                "bar".to_string(),
+                predicate::delete_expr::Op::Ne,
+                predicate::delete_expr::Scalar::F64((1.0).into()),
+            )],
+        };
 
         // build scenarios
         all_delete_scenarios_for_one_chunk(
@@ -171,14 +205,24 @@ impl DbSetup for ThreeDeleteThreeChunks {
         ];
         // delete predicate on chunk 1
         //let i: f64 = 1.0;
-        let expr1 = col("bar").eq(lit(1f64));
-        let expr2 = col("foo").eq(lit("me"));
-        let pred1 = PredicateBuilder::new()
-            .table("cpu")
-            .timestamp_range(0, 32)
-            .add_expr(expr1)
-            .add_expr(expr2)
-            .build();
+        let pred1 = DeletePredicate {
+            table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
+            field_columns: None,
+            partition_key: None,
+            range: Some(TimestampRange { start: 0, end: 32 }),
+            exprs: vec![
+                DeleteExpr::new(
+                    "bar".to_string(),
+                    predicate::delete_expr::Op::Eq,
+                    predicate::delete_expr::Scalar::F64((1.0).into()),
+                ),
+                DeleteExpr::new(
+                    "foo".to_string(),
+                    predicate::delete_expr::Op::Eq,
+                    predicate::delete_expr::Scalar::String("me".to_string()),
+                ),
+            ],
+        };
 
         //chunk 2 data
         let lp_lines_2 = vec![
@@ -188,12 +232,17 @@ impl DbSetup for ThreeDeleteThreeChunks {
             "cpu,foo=me bar=5 60",
         ];
         // delete predicate on chunk 1 & chunk 2
-        let expr = col("foo").eq(lit("you"));
-        let pred2 = PredicateBuilder::new()
-            .table("cpu")
-            .timestamp_range(20, 45)
-            .add_expr(expr)
-            .build();
+        let pred2 = DeletePredicate {
+            table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
+            field_columns: None,
+            partition_key: None,
+            range: Some(TimestampRange { start: 20, end: 45 }),
+            exprs: vec![DeleteExpr::new(
+                "foo".to_string(),
+                predicate::delete_expr::Op::Eq,
+                predicate::delete_expr::Scalar::String("you".to_string()),
+            )],
+        };
 
         // chunk 3 data
         let lp_lines_3 = vec![
@@ -203,13 +252,17 @@ impl DbSetup for ThreeDeleteThreeChunks {
             "cpu,foo=me bar=8 90", // deleted by pred3
         ];
         // delete predicate on chunk 3
-        let i: f64 = 7.0;
-        let expr = col("bar").not_eq(lit(i));
-        let pred3 = PredicateBuilder::new()
-            .table("cpu")
-            .timestamp_range(75, 95)
-            .add_expr(expr)
-            .build();
+        let pred3 = DeletePredicate {
+            table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
+            field_columns: None,
+            partition_key: None,
+            range: Some(TimestampRange { start: 75, end: 95 }),
+            exprs: vec![DeleteExpr::new(
+                "bar".to_string(),
+                predicate::delete_expr::Op::Ne,
+                predicate::delete_expr::Scalar::F64((7.0).into()),
+            )],
+        };
 
         // ----------------------
         // 3 chunks: MUB, RUB, OS
@@ -412,7 +465,7 @@ impl ChunkStage {
 #[derive(Debug, Clone)]
 pub struct Pred<'a> {
     /// Delete predicate
-    predicate: &'a Predicate,
+    predicate: &'a DeletePredicate,
     /// At which chunk stage this predicate is applied
     delete_time: DeleteTime,
 }
@@ -464,9 +517,9 @@ impl DeleteTime {
 /// Exhaust tests of chunk stages and their life cycle moves for given set of delete predicates
 async fn all_delete_scenarios_for_one_chunk(
     // These delete predicates are applied at all stages of the chunk life cycle
-    chunk_stage_preds: Vec<&Predicate>,
+    chunk_stage_preds: Vec<&DeletePredicate>,
     // These delete predicates are applied all chunks at their final stages
-    at_end_preds: Vec<&Predicate>,
+    at_end_preds: Vec<&DeletePredicate>,
     // Single chunk data
     lp_lines: Vec<&str>,
     // Table of the chunk
@@ -677,7 +730,7 @@ async fn make_chunk_with_deletes_at_different_stages(
 //  function will created a much more complicated cases to handle
 async fn make_different_stage_chunks_with_deletes_scenario(
     data: Vec<ChunkData<'_>>,
-    preds: Vec<&Predicate>,
+    preds: Vec<&DeletePredicate>,
     table_name: &str,
     partition_key: &str,
 ) -> DbScenario {

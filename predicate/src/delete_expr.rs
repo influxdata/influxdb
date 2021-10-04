@@ -23,6 +23,10 @@ pub struct DeleteExpr {
 }
 
 impl DeleteExpr {
+    pub fn new(column: String, op: Op, scalar: Scalar) -> Self {
+        Self { column, op, scalar }
+    }
+
     /// Column (w/o table name).
     pub fn column(&self) -> &str {
         &self.column

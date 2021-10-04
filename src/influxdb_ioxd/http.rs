@@ -26,7 +26,7 @@ use data_types::{
 };
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
-use predicate::predicate::{parse_delete, ParseDeletePredicate};
+use predicate::delete_predicate::{parse_delete, ParseDeletePredicate};
 use query::exec::ExecutionContextProvider;
 use server::{ApplicationState, ConnectionManager, Error, Server as AppServer};
 
@@ -163,13 +163,13 @@ pub enum ApplicationError {
 
     #[snafu(display("Error parsing delete {}: {}", input, source))]
     ParsingDelete {
-        source: predicate::predicate::Error,
+        source: predicate::delete_predicate::Error,
         input: String,
     },
 
     #[snafu(display("Error building delete predicate {}: {}", input, source))]
     BuildingDeletePredicate {
-        source: predicate::predicate::Error,
+        source: predicate::delete_predicate::Error,
         input: String,
     },
 

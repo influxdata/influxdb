@@ -15,7 +15,7 @@ use parquet_file::{
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
 };
 use persistence_windows::checkpoint::{ReplayPlan, ReplayPlanner};
-use predicate::predicate::Predicate;
+use predicate::delete_predicate::DeletePredicate;
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
 
@@ -228,7 +228,7 @@ impl CatalogState for Loader {
 
         // Delete predicates are loaded explicitely via `CatalogState::delete_predicates` AFTER the chunk is added, so
         // we leave this list empty (for now).
-        let delete_predicates: Vec<Arc<Predicate>> = vec![];
+        let delete_predicates: Vec<Arc<DeletePredicate>> = vec![];
 
         partition.insert_object_store_only_chunk(
             iox_md.chunk_id,
@@ -276,7 +276,7 @@ impl CatalogState for Loader {
 
     fn delete_predicate(
         &mut self,
-        predicate: Arc<Predicate>,
+        predicate: Arc<DeletePredicate>,
         chunks: Vec<ChunkAddrWithoutDatabase>,
     ) {
         for addr in chunks {

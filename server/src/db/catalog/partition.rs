@@ -13,7 +13,7 @@ use observability_deps::tracing::info;
 use persistence_windows::{
     min_max_sequence::OptionalMinMaxSequence, persistence_windows::PersistenceWindows,
 };
-use predicate::predicate::Predicate;
+use predicate::delete_predicate::DeletePredicate;
 use snafu::{OptionExt, Snafu};
 use std::{collections::BTreeMap, fmt::Display, sync::Arc};
 use tracker::RwLock;
@@ -231,7 +231,7 @@ impl Partition {
         time_of_first_write: DateTime<Utc>,
         time_of_last_write: DateTime<Utc>,
         schema: Arc<Schema>,
-        delete_predicates: Vec<Arc<Predicate>>,
+        delete_predicates: Vec<Arc<DeletePredicate>>,
         chunk_order: ChunkOrder,
     ) -> (ChunkId, &Arc<RwLock<CatalogChunk>>) {
         let chunk_id = self.next_chunk_id();
@@ -273,7 +273,7 @@ impl Partition {
         chunk: Arc<parquet_file::chunk::ParquetChunk>,
         time_of_first_write: DateTime<Utc>,
         time_of_last_write: DateTime<Utc>,
-        delete_predicates: Vec<Arc<Predicate>>,
+        delete_predicates: Vec<Arc<DeletePredicate>>,
         chunk_order: ChunkOrder,
     ) -> &Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name(), self.table_name());

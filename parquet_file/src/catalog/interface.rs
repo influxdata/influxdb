@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use data_types::chunk_metadata::{ChunkAddr, ChunkId};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
-use predicate::predicate::Predicate;
+use predicate::delete_predicate::DeletePredicate;
 use snafu::Snafu;
 
 use crate::metadata::IoxParquetMetaData;
@@ -118,7 +118,7 @@ pub trait CatalogState {
     /// The delete predicate will only be applied to the given chunks (by table name, partition key, and chunk ID).
     fn delete_predicate(
         &mut self,
-        predicate: Arc<Predicate>,
+        predicate: Arc<DeletePredicate>,
         chunks: Vec<ChunkAddrWithoutDatabase>,
     );
 }
@@ -142,5 +142,5 @@ pub struct CheckpointData {
     /// attached should be left out.
     ///
     /// The vector itself must be sorted by [`Predicate`]. The chunks list must also be sorted.
-    pub delete_predicates: Vec<(Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)>,
+    pub delete_predicates: Vec<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)>,
 }

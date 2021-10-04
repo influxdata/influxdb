@@ -20,7 +20,7 @@ use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
 use object_store::{ObjectStore, ObjectStoreApi};
 use observability_deps::tracing::{info, warn};
 use parking_lot::RwLock;
-use predicate::predicate::Predicate;
+use predicate::delete_predicate::DeletePredicate;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{
@@ -145,11 +145,6 @@ pub enum Error {
     #[snafu(display("Cannot remove parquet file during load: {}", source))]
     RemoveError {
         source: crate::catalog::interface::CatalogStateRemoveError,
-    },
-
-    #[snafu(display("Cannot serialize predicate: {}", source))]
-    CannotSerializePredicate {
-        source: predicate::serialize::SerializeError,
     },
 
     #[snafu(display("Delete predicate missing"))]
@@ -860,7 +855,7 @@ impl<'c> TransactionHandle<'c> {
     /// Register new delete predicate.
     pub fn delete_predicate(
         &mut self,
-        predicate: &Predicate,
+        predicate: &DeletePredicate,
         chunks: &[ChunkAddrWithoutDatabase],
     ) -> Result<()> {
         self.transaction
@@ -868,10 +863,7 @@ impl<'c> TransactionHandle<'c> {
             .expect("transaction handle w/o transaction?!")
             .record_action(proto::transaction::action::Action::DeletePredicate(
                 proto::DeletePredicate {
-                    predicate: Some(
-                        predicate::serialize::serialize(predicate)
-                            .context(CannotSerializePredicate)?,
-                    ),
+                    predicate: Some(predicate::serialize::serialize(predicate)),
                     chunks: chunks
                         .iter()
                         .map(|chunk| proto::ChunkAddr {
@@ -992,16 +984,13 @@ impl<'c> CheckpointHandle<'c> {
     }
 
     fn create_actions_for_delete_predicates(
-        delete_predicates: Vec<(Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)>,
+        delete_predicates: Vec<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)>,
     ) -> Result<Vec<proto::transaction::Action>, Error> {
         delete_predicates
             .into_iter()
             .map(|(predicate, chunks)| {
                 let action = proto::DeletePredicate {
-                    predicate: Some(
-                        predicate::serialize::serialize(&predicate)
-                            .context(CannotSerializePredicate)?,
-                    ),
+                    predicate: Some(predicate::serialize::serialize(&predicate)),
                     chunks: chunks
                         .iter()
                         .map(|chunk| proto::ChunkAddr {

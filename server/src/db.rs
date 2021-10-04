@@ -39,7 +39,7 @@ use parquet_file::catalog::{
     prune::prune_history as prune_catalog_transaction_history,
 };
 use persistence_windows::{checkpoint::ReplayPlan, persistence_windows::PersistenceWindows};
-use predicate::predicate::Predicate;
+use predicate::{delete_predicate::DeletePredicate, predicate::Predicate};
 use query::{
     exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
     QueryDatabase,
@@ -546,7 +546,7 @@ impl Db {
     pub async fn delete(
         self: &Arc<Self>,
         table_name: &str,
-        delete_predicate: Arc<Predicate>,
+        delete_predicate: Arc<DeletePredicate>,
     ) -> Result<()> {
         // collect delete predicates on preserved partitions for a catalog transaction
         let mut affected_persisted_chunks = vec![];
@@ -1263,8 +1263,10 @@ impl CatalogProvider for Db {
 
 pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData {
     let mut files = HashMap::new();
-    let mut delete_predicates: HashMap<usize, (Arc<Predicate>, Vec<ChunkAddrWithoutDatabase>)> =
-        Default::default();
+    let mut delete_predicates: HashMap<
+        usize,
+        (Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>),
+    > = Default::default();
 
     for chunk in catalog.chunks() {
         let guard = chunk.read();
@@ -1288,8 +1290,8 @@ pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData 
             || guard.is_in_lifecycle(ChunkLifecycleAction::Persisting)
         {
             for predicate in guard.delete_predicates() {
-                let predicate_ref: &Predicate = predicate.as_ref();
-                let addr = (predicate_ref as *const Predicate) as usize;
+                let predicate_ref: &DeletePredicate = predicate.as_ref();
+                let addr = (predicate_ref as *const DeletePredicate) as usize;
                 delete_predicates
                     .entry(addr)
                     .and_modify(|(_predicate, v)| v.push(guard.addr().clone().into()))
@@ -1415,10 +1417,8 @@ mod tests {
 
     use arrow::record_batch::RecordBatch;
     use bytes::Bytes;
-    use chrono::{DateTime, TimeZone};
-    use datafusion::logical_plan::{col, lit};
     use futures::{stream, StreamExt, TryStreamExt};
-    use predicate::predicate::PredicateBuilder;
+    use predicate::delete_expr::DeleteExpr;
     use tokio_util::sync::CancellationToken;
 
     use ::test_helpers::{assert_contains, maybe_start_logging};
@@ -1427,6 +1427,7 @@ mod tests {
         chunk_metadata::{ChunkAddr, ChunkStorage},
         database_rules::{LifecycleRules, PartitionTemplate, TemplatePart},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
+        timestamp::TimestampRange,
         write_summary::TimestampSummary,
     };
     use entry::test_helpers::lp_to_entry;
@@ -3685,14 +3686,20 @@ mod tests {
             .unwrap();
 
         // ==================== do: delete ====================
-        let expr = col("selector").eq(lit(1i64));
-        let pred = Arc::new(
-            PredicateBuilder::new()
-                .table("cpu")
-                .timestamp_range(0, 1_000)
-                .add_expr(expr)
-                .build(),
-        );
+        let pred = Arc::new(DeletePredicate {
+            table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
+            field_columns: None,
+            partition_key: None,
+            range: Some(TimestampRange {
+                start: 0,
+                end: 1_000,
+            }),
+            exprs: vec![DeleteExpr::new(
+                "selector".to_string(),
+                predicate::delete_expr::Op::Eq,
+                predicate::delete_expr::Scalar::I64(1),
+            )],
+        });
         db.delete("cpu", Arc::clone(&pred)).await.unwrap();
 
         // ==================== do: preserve another partition ====================

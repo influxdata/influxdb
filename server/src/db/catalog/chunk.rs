@@ -16,7 +16,7 @@ use internal_types::{access::AccessRecorder, schema::Schema};
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
-use predicate::predicate::Predicate;
+use predicate::delete_predicate::DeletePredicate;
 use read_buffer::RBChunk;
 use tracker::{TaskRegistration, TaskTracker};
 
@@ -80,7 +80,7 @@ pub struct ChunkMetadata {
     pub schema: Arc<Schema>,
 
     /// Delete predicates of this chunk
-    pub delete_predicates: Vec<Arc<Predicate>>,
+    pub delete_predicates: Vec<Arc<DeletePredicate>>,
 }
 
 /// Different memory representations of a frozen chunk.
@@ -311,7 +311,7 @@ impl CatalogChunk {
         time_of_last_write: DateTime<Utc>,
         schema: Arc<Schema>,
         metrics: ChunkMetrics,
-        delete_predicates: Vec<Arc<Predicate>>,
+        delete_predicates: Vec<Arc<DeletePredicate>>,
         order: ChunkOrder,
     ) -> Self {
         let stage = ChunkStage::Frozen {
@@ -346,7 +346,7 @@ impl CatalogChunk {
         time_of_first_write: DateTime<Utc>,
         time_of_last_write: DateTime<Utc>,
         metrics: ChunkMetrics,
-        delete_predicates: Vec<Arc<Predicate>>,
+        delete_predicates: Vec<Arc<DeletePredicate>>,
         order: ChunkOrder,
     ) -> Self {
         assert_eq!(chunk.table_name(), addr.table_name.as_ref());
@@ -473,7 +473,7 @@ impl CatalogChunk {
         }
     }
 
-    pub fn add_delete_predicate(&mut self, delete_predicate: Arc<Predicate>) {
+    pub fn add_delete_predicate(&mut self, delete_predicate: Arc<DeletePredicate>) {
         debug!(
             ?delete_predicate,
             "Input delete predicate to CatalogChunk add_delete_predicate"
@@ -498,7 +498,7 @@ impl CatalogChunk {
         }
     }
 
-    pub fn delete_predicates(&self) -> &[Arc<Predicate>] {
+    pub fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
         match &self.stage {
             ChunkStage::Open { mb_chunk: _ } => {
                 // no delete predicate for open chunk
@@ -686,13 +686,13 @@ impl CatalogChunk {
     ///
     /// This only works for chunks in the _open_ stage (chunk is converted) and the _frozen_ stage
     /// (no-op) and will fail for other stages.
-    pub fn freeze_with_predicate(&mut self, delete_predicate: Arc<Predicate>) -> Result<()> {
+    pub fn freeze_with_predicate(&mut self, delete_predicate: Arc<DeletePredicate>) -> Result<()> {
         self.freeze_with_delete_predicates(vec![delete_predicate])
     }
 
     fn freeze_with_delete_predicates(
         &mut self,
-        delete_predicates: Vec<Arc<Predicate>>,
+        delete_predicates: Vec<Arc<DeletePredicate>>,
     ) -> Result<()> {
         match &self.stage {
             ChunkStage::Open { mb_chunk, .. } => {
@@ -906,7 +906,7 @@ impl CatalogChunk {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use datafusion::logical_plan::{col, lit};
+    use data_types::timestamp::TimestampRange;
 
     use entry::test_helpers::lp_to_entry;
     use mutable_buffer::chunk::ChunkMetrics as MBChunkMetrics;
@@ -916,7 +916,7 @@ mod tests {
             make_chunk as make_parquet_chunk_with_store, make_iox_object_store, TestSize,
         },
     };
-    use predicate::predicate::PredicateBuilder;
+    use predicate::delete_expr::DeleteExpr;
 
     #[test]
     fn test_new_open() {
@@ -1083,18 +1083,20 @@ mod tests {
         assert_eq!(del_preds.len(), 0);
 
         // Build delete predicate and expected output
-        let expr1 = col("city").eq(lit("Boston"));
-        let del_pred1 = PredicateBuilder::new()
-            .table("test")
-            .timestamp_range(1, 100)
-            .add_expr(expr1)
-            .build();
-        let mut expected_exprs1 = vec![];
-        let e = col("city").eq(lit("Boston"));
-        expected_exprs1.push(e);
+        let del_pred1 = Arc::new(DeletePredicate {
+            table_names: Some(IntoIterator::into_iter(["test".to_string()]).collect()),
+            field_columns: None,
+            partition_key: None,
+            range: Some(TimestampRange { start: 0, end: 100 }),
+            exprs: vec![DeleteExpr::new(
+                "city".to_string(),
+                predicate::delete_expr::Op::Eq,
+                predicate::delete_expr::Scalar::String("Boston".to_string()),
+            )],
+        });
 
         // Add a delete predicate into a chunk the open chunk = delete simulation for open chunk
-        chunk.add_delete_predicate(Arc::new(del_pred1));
+        chunk.add_delete_predicate(Arc::clone(&del_pred1));
         // chunk must be in frozen stage now
         assert_eq!(chunk.stage().name(), "Frozen");
         // chunk must have a delete predicate
@@ -1102,26 +1104,22 @@ mod tests {
         assert_eq!(del_preds.len(), 1);
         // verify delete predicate value
         let pred = &del_preds[0];
-        if let Some(range) = pred.range {
-            assert_eq!(range.start, 1); // start time
-            assert_eq!(range.end, 100); // stop time
-        } else {
-            panic!("No time range set for delete predicate");
-        }
-        assert_eq!(pred.exprs, expected_exprs1);
+        assert_eq!(pred, &del_pred1);
 
         // let add more delete predicate = simulate second delete
         // Build delete predicate and expected output
-        let expr2 = col("cost").not_eq(lit(15));
-        let del_pred2 = PredicateBuilder::new()
-            .table("test")
-            .timestamp_range(20, 50)
-            .add_expr(expr2)
-            .build();
-        let mut expected_exprs2 = vec![];
-        let e = col("cost").not_eq(lit(15));
-        expected_exprs2.push(e);
-        chunk.add_delete_predicate(Arc::new(del_pred2));
+        let del_pred2 = Arc::new(DeletePredicate {
+            table_names: Some(IntoIterator::into_iter(["test".to_string()]).collect()),
+            field_columns: None,
+            partition_key: None,
+            range: Some(TimestampRange { start: 20, end: 50 }),
+            exprs: vec![DeleteExpr::new(
+                "cost".to_string(),
+                predicate::delete_expr::Op::Ne,
+                predicate::delete_expr::Scalar::I64(15),
+            )],
+        });
+        chunk.add_delete_predicate(Arc::clone(&del_pred2));
         // chunk still must be in frozen stage now
         assert_eq!(chunk.stage().name(), "Frozen");
         // chunk must have 2 delete predicates
@@ -1129,13 +1127,7 @@ mod tests {
         assert_eq!(del_preds.len(), 2);
         // verify the second delete predicate value
         let pred = &del_preds[1];
-        if let Some(range) = pred.range {
-            assert_eq!(range.start, 20); // start time
-            assert_eq!(range.end, 50); // stop time
-        } else {
-            panic!("No time range set for delete predicate");
-        }
-        assert_eq!(pred.exprs, expected_exprs2);
+        assert_eq!(pred, &del_pred2);
     }
 
     fn make_mb_chunk(table_name: &str) -> MBChunk {
