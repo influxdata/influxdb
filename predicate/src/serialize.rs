@@ -67,8 +67,6 @@ pub fn deserialize(
 
 #[cfg(test)]
 mod tests {
-    use crate::delete_predicate::ParseDeletePredicate;
-
     use super::*;
 
     #[test]
@@ -84,9 +82,6 @@ mod tests {
         let stop_time = "22";
         let predicate = r#"city=Boston and cost!=100 and temp=87.5 and good=true"#;
 
-        let parse_delete_pred =
-            ParseDeletePredicate::try_new(start_time, stop_time, predicate).unwrap();
-
-        parse_delete_pred.into()
+        DeletePredicate::try_new(start_time, stop_time, predicate).unwrap()
     }
 }
