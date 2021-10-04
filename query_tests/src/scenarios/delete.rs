@@ -37,7 +37,7 @@ impl DbSetup for OneDeleteSimpleExprOneChunkDeleteAll {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: TimestampRange { start: 0, end: 25 },
+            range: TimestampRange { start: 10, end: 20 },
             exprs: vec![],
         };
 
@@ -98,7 +98,7 @@ impl DbSetup for OneDeleteMultiExprsOneChunk {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: TimestampRange { start: 0, end: 32 },
+            range: TimestampRange { start: 0, end: 30 },
             exprs: vec![
                 DeleteExpr::new(
                     "bar".to_string(),
@@ -140,7 +140,7 @@ impl DbSetup for TwoDeletesMultiExprsOneChunk {
             "cpu,foo=me bar=1 40",
         ];
         // delete predicate
-        // pred1: delete from cpu where 0 <= time < 32 and bar = 1 and foo = 'me'
+        // pred1: delete from cpu where 0 <= time <= 32 and bar = 1 and foo = 'me'
         let pred1 = DeletePredicate {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
@@ -160,12 +160,12 @@ impl DbSetup for TwoDeletesMultiExprsOneChunk {
             ],
         };
 
-        // pred2: delete from cpu where 10 <= time < 45 and bar != 1
+        // pred2: delete from cpu where 10 <= time <= 40 and bar != 1
         let pred2 = DeletePredicate {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: TimestampRange { start: 10, end: 45 },
+            range: TimestampRange { start: 10, end: 40 },
             exprs: vec![DeleteExpr::new(
                 "bar".to_string(),
                 predicate::delete_expr::Op::Ne,
@@ -204,12 +204,11 @@ impl DbSetup for ThreeDeleteThreeChunks {
             "cpu,foo=me bar=1 40",
         ];
         // delete predicate on chunk 1
-        //let i: f64 = 1.0;
         let pred1 = DeletePredicate {
             table_names: Some(IntoIterator::into_iter(["cpu".to_string()]).collect()),
             field_columns: None,
             partition_key: None,
-            range: TimestampRange { start: 0, end: 32 },
+            range: TimestampRange { start: 0, end: 30 },
             exprs: vec![
                 DeleteExpr::new(
                     "bar".to_string(),
