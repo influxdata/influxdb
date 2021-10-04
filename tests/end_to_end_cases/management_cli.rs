@@ -709,7 +709,7 @@ async fn test_list_partition_chunks() {
     let expected = r#"
     "partition_key": "cpu",
     "table_name": "cpu",
-    "order": 0,
+    "order": 1,
     "id": 0,
     "storage": "OpenMutableBuffer",
 "#;

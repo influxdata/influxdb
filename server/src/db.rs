@@ -911,14 +911,9 @@ impl Db {
 
     /// `Instant::now()` that is used by the background worker. Can be mocked for testing.
     fn background_worker_now(&self) -> Instant {
-        let mut guard = self.background_worker_now_override.lock();
-        match *guard {
-            Some(now) => {
-                *guard = Some(now + Duration::from_nanos(1));
-                now
-            }
-            None => Instant::now(),
-        }
+        self.background_worker_now_override
+            .lock()
+            .unwrap_or_else(Instant::now)
     }
 
     async fn cleanup_unreferenced_parquet_files(
@@ -1773,7 +1768,7 @@ mod tests {
             .id();
 
         // A chunk is now in the object store and still in read buffer
-        let expected_parquet_size = 1243;
+        let expected_parquet_size = 1245;
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", expected_parquet_size);
@@ -2212,7 +2207,7 @@ mod tests {
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1241);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1243);
 
         // All the chunks should have different IDs
         assert_ne!(mb_chunk.id(), rb_chunk.id());
@@ -2327,7 +2322,7 @@ mod tests {
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1241);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1243);
 
         // Unload RB chunk but keep it in OS
         let pq_chunk = db
@@ -2348,7 +2343,7 @@ mod tests {
         // Parquet chunk size only
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 0);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1241);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1243);
 
         // Verify data written to the parquet file in object store
         //
@@ -2594,7 +2589,7 @@ mod tests {
             time_of_first_write: Utc.timestamp_nanos(1),
             time_of_last_write: Utc.timestamp_nanos(1),
             time_closed: None,
-            order: ChunkOrder::new(5),
+            order: ChunkOrder::new(5).unwrap(),
         }];
 
         let size: usize = db
@@ -2829,7 +2824,7 @@ mod tests {
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
                 memory_bytes: 4085,       // size of RB and OS chunks
-                object_store_bytes: 1533, // size of parquet file
+                object_store_bytes: 1537, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
                 time_of_first_write: Utc.timestamp_nanos(1),

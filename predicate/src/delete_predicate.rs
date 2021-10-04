@@ -195,11 +195,8 @@ impl ParseDeletePredicate {
         predicate: String,
     ) -> Result<DeletePredicate, Error> {
         // parse time range and the predicate
-        let parse_delete_pred = ParseDeletePredicate::try_new(
-            start_time.as_str(),
-            stop_time.as_str(),
-            predicate.as_str(),
-        )?;
+        let parse_delete_pred =
+            Self::try_new(start_time.as_str(), stop_time.as_str(), predicate.as_str())?;
 
         Ok(parse_delete_pred.into())
     }

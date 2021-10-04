@@ -121,7 +121,7 @@ use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputPro
 ///
 /// **Important: When changing this structure, consider bumping the
 ///   [catalog transaction version](crate::catalog::core::TRANSACTION_VERSION)!**
-pub const METADATA_VERSION: u32 = 7;
+pub const METADATA_VERSION: u32 = 8;
 
 /// File-level metadata key to store the IOx-specific data.
 ///
@@ -375,7 +375,11 @@ impl IoxMetadata {
             chunk_id: ChunkId::new(proto_msg.chunk_id),
             partition_checkpoint,
             database_checkpoint,
-            chunk_order: proto_msg.chunk_order.into(),
+            chunk_order: ChunkOrder::new(proto_msg.chunk_order).ok_or_else(|| {
+                Error::IoxMetadataFieldMissing {
+                    field: "chunk_order".to_string(),
+                }
+            })?,
         })
     }
 
@@ -1074,7 +1078,7 @@ mod tests {
             database_checkpoint,
             time_of_first_write: Utc::now(),
             time_of_last_write: Utc::now(),
-            chunk_order: ChunkOrder::new(5),
+            chunk_order: ChunkOrder::new(5).unwrap(),
         };
 
         let proto_bytes = metadata.to_protobuf().unwrap();
