@@ -254,7 +254,7 @@ impl TestChunk {
             saved_error: Default::default(),
             predicate_match: Default::default(),
             delete_predicates: Default::default(),
-            order: ChunkOrder::new(0),
+            order: ChunkOrder::MIN,
         }
     }
 

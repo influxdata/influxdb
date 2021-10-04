@@ -450,7 +450,7 @@ mod tests {
             database_checkpoint,
             time_of_first_write: Utc::now(),
             time_of_last_write: Utc::now(),
-            chunk_order: ChunkOrder::new(5),
+            chunk_order: ChunkOrder::new(5).unwrap(),
         };
 
         // create parquet file
@@ -525,7 +525,7 @@ mod tests {
             database_checkpoint,
             time_of_first_write: Utc::now(),
             time_of_last_write: Utc::now(),
-            chunk_order: ChunkOrder::new(5),
+            chunk_order: ChunkOrder::new(5).unwrap(),
         };
 
         let (path, _file_size_bytes, _metadata) = storage

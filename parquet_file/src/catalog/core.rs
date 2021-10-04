@@ -39,7 +39,7 @@ pub use crate::catalog::internals::proto_parse::Error as ProtoParseError;
 /// Current version for serialized transactions.
 ///
 /// For breaking changes, this will change.
-pub const TRANSACTION_VERSION: u32 = 15;
+pub const TRANSACTION_VERSION: u32 = 16;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

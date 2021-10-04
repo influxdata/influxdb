@@ -535,7 +535,7 @@ async fn test_chunk_get() {
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
-            order: 0,
+            order: 1,
         },
         Chunk {
             partition_key: "disk".into(),
@@ -550,7 +550,7 @@ async fn test_chunk_get() {
             time_of_first_write: None,
             time_of_last_write: None,
             time_closed: None,
-            order: 0,
+            order: 1,
         },
     ];
     assert_eq!(
@@ -722,7 +722,7 @@ async fn test_list_partition_chunks() {
         time_of_first_write: None,
         time_of_last_write: None,
         time_closed: None,
-        order: 0,
+        order: 1,
     }];
 
     assert_eq!(
