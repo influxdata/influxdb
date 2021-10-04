@@ -1,17 +1,20 @@
-use std::convert::{TryFrom, TryInto};
-use std::num::NonZeroU32;
-use std::time::Duration;
-
-use thiserror::Error;
-
-use data_types::database_rules::{
-    DatabaseRules, RoutingConfig, RoutingRules, WriteBufferConnection, WriteBufferCreationConfig,
-    WriteBufferDirection, DEFAULT_N_SEQUENCERS,
+use crate::{
+    google::{FieldViolation, FieldViolationExt, FromFieldOpt},
+    influxdata::iox::management::v1 as management,
 };
-use data_types::DatabaseName;
-
-use crate::google::{FieldViolation, FieldViolationExt, FromFieldOpt};
-use crate::influxdata::iox::management::v1 as management;
+use data_types::{
+    database_rules::{
+        DatabaseRules, RoutingConfig, RoutingRules, WriteBufferConnection,
+        WriteBufferCreationConfig, WriteBufferDirection, DEFAULT_N_SEQUENCERS,
+    },
+    DatabaseName,
+};
+use std::{
+    convert::{TryFrom, TryInto},
+    num::NonZeroU32,
+    time::Duration,
+};
+use thiserror::Error;
 
 mod lifecycle;
 mod partition;

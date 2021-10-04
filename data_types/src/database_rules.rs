@@ -1,19 +1,15 @@
-use std::convert::TryFrom;
-use std::num::NonZeroU64;
-use std::time::Duration;
-use std::{
-    collections::HashMap,
-    hash::{Hash, Hasher},
-    num::{NonZeroU32, NonZeroUsize},
-};
-
+use crate::{consistent_hasher::ConsistentHasher, server_id::ServerId, DatabaseName};
 use chrono::{TimeZone, Utc};
+use influxdb_line_protocol::ParsedLine;
 use regex::Regex;
 use snafu::{OptionExt, Snafu};
-
-use influxdb_line_protocol::ParsedLine;
-
-use crate::{consistent_hasher::ConsistentHasher, server_id::ServerId, DatabaseName};
+use std::{
+    collections::HashMap,
+    convert::TryFrom,
+    hash::{Hash, Hasher},
+    num::{NonZeroU32, NonZeroU64, NonZeroUsize},
+    time::Duration,
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {

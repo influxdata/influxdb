@@ -1,11 +1,10 @@
-use std::{convert::TryInto, sync::Arc};
-
 use data_types::{database_rules::DatabaseRules, DatabaseName};
 use generated_types::{
     database_rules::encode_database_rules, google::FieldViolation, influxdata::iox::management,
 };
 use iox_object_store::IoxObjectStore;
 use snafu::{ResultExt, Snafu};
+use std::{convert::TryInto, sync::Arc};
 
 #[derive(Debug, Snafu)]
 pub enum Error {

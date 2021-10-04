@@ -383,12 +383,13 @@ mod tests {
     use data_types::{database_rules::DatabaseRules, DatabaseName};
     use influxdb_iox_client::connection::Connection;
     use server::rules::ProvidedDatabaseRules;
-    use std::convert::TryInto;
-    use std::num::NonZeroU64;
+    use std::{convert::TryInto, num::NonZeroU64};
     use structopt::StructOpt;
     use tokio::task::JoinHandle;
-    use trace::span::{Span, SpanStatus};
-    use trace::RingBufferTraceCollector;
+    use trace::{
+        span::{Span, SpanStatus},
+        RingBufferTraceCollector,
+    };
     use trace_exporters::export::{AsyncExporter, TestAsyncExporter};
 
     fn test_config(server_id: Option<u32>) -> Config {
