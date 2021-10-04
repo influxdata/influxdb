@@ -1069,6 +1069,7 @@ jobs:
                     LAST_COMMIT=$(git tag -l --sort=-version:refname 'v2*[!-rc].[0-9]' | grep -A 1 << pipeline.parameters.build_and_sign_tag >> | tail -n 1)
                     NEWEST_COMMIT=${CIRCLE_TAG}
                     CHANGELOG_FILENAME="CHANGELOG-${CIRCLE_TAG}.md"
+                    COMMIT_FILE_PATH="changelog-commit-${CIRCLE_TAG}.txt"
                   fi
 
                   cat \<< EOF >> env_vars.sh
