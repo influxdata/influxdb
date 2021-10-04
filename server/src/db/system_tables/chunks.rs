@@ -165,7 +165,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(10_000_000_000),
                 time_of_last_write: Utc.timestamp_nanos(10_000_000_000),
                 time_closed: None,
-                order: ChunkOrder::new(5),
+                order: ChunkOrder::new(5).unwrap(),
             },
             ChunkSummary {
                 partition_key: Arc::from("p1"),
@@ -180,7 +180,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(80_000_000_000),
                 time_of_last_write: Utc.timestamp_nanos(80_000_000_000),
                 time_closed: None,
-                order: ChunkOrder::new(6),
+                order: ChunkOrder::new(6).unwrap(),
             },
             ChunkSummary {
                 partition_key: Arc::from("p1"),
@@ -195,7 +195,7 @@ mod tests {
                 time_of_first_write: Utc.timestamp_nanos(100_000_000_000),
                 time_of_last_write: Utc.timestamp_nanos(200_000_000_000),
                 time_closed: None,
-                order: ChunkOrder::new(7),
+                order: ChunkOrder::new(7).unwrap(),
             },
         ];
 
