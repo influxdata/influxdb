@@ -4,7 +4,6 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
-	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -20,6 +19,7 @@ import (
 	influxtesting "github.com/influxdata/influxdb/v2/testing"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 

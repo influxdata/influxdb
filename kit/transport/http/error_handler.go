@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
 	"io"
 	"mime"
 	"net/http"
 	"strings"
 
 	"github.com/influxdata/influxdb/v2"
+	"go.uber.org/zap"
 )
 
 // ErrorHandler is the error handler in http package.

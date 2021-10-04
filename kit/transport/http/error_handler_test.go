@@ -3,13 +3,13 @@ package http_test
 import (
 	"context"
 	"fmt"
-	"go.uber.org/zap/zaptest"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestEncodeError(t *testing.T) {
