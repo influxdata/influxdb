@@ -83,7 +83,7 @@ func TestPointsWriter_MapShards_AlterShardDuration(t *testing.T) {
 		return &sg, nil
 	}
 
-	c := coordinator.NewPointsWriter()
+	c := coordinator.NewPointsWriter(time.Second)
 	c.MetaClient = ms
 
 	pr := &coordinator.WritePointsRequest{
@@ -161,7 +161,7 @@ func TestPointsWriter_MapShards_Multiple(t *testing.T) {
 		panic("should not get here")
 	}
 
-	c := coordinator.NewPointsWriter()
+	c := coordinator.NewPointsWriter(time.Second)
 	c.MetaClient = ms
 	defer c.Close()
 	pr := &coordinator.WritePointsRequest{
@@ -217,7 +217,7 @@ func TestPointsWriter_MapShards_Invalid(t *testing.T) {
 		return &rp.ShardGroups[0], nil
 	}
 
-	c := coordinator.NewPointsWriter()
+	c := coordinator.NewPointsWriter(time.Second)
 	c.MetaClient = ms
 	defer c.Close()
 	pr := &coordinator.WritePointsRequest{
@@ -338,7 +338,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 			return subPoints
 		}
 
-		c := coordinator.NewPointsWriter()
+		c := coordinator.NewPointsWriter(time.Second)
 		c.MetaClient = ms
 		c.TSDBStore = store
 		c.AddWriteSubscriber(sub.Points())
@@ -414,7 +414,7 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 		return subPoints
 	}
 
-	c := coordinator.NewPointsWriter()
+	c := coordinator.NewPointsWriter(time.Second)
 	c.MetaClient = ms
 	c.TSDBStore = store
 	c.AddWriteSubscriber(sub.Points())

@@ -85,10 +85,10 @@ func (w *WritePointsRequest) AddPoint(name string, value interface{}, timestamp 
 }
 
 // NewPointsWriter returns a new instance of PointsWriter for a node.
-func NewPointsWriter() *PointsWriter {
+func NewPointsWriter(writeTimeout time.Duration) *PointsWriter {
 	return &PointsWriter{
 		closing:      make(chan struct{}),
-		WriteTimeout: DefaultWriteTimeout,
+		WriteTimeout: writeTimeout,
 		Logger:       zap.NewNop(),
 		stats:        &WriteStatistics{},
 	}
