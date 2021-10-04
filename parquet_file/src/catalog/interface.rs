@@ -141,6 +141,6 @@ pub struct CheckpointData {
     /// This must only contains chunks that are still present in the catalog. Predicates that do not have any chunks
     /// attached should be left out.
     ///
-    /// The vector itself must be sorted by [`Predicate`]. The chunks list must also be sorted.
+    /// The vector itself must be sorted by [`DeletePredicate`]. The chunks list must also be sorted.
     pub delete_predicates: Vec<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)>,
 }

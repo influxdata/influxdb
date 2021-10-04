@@ -57,7 +57,7 @@ pub enum DeserializeError {
     },
 }
 
-/// Deserialize IOx [`Predicate`] from a protobuf object.
+/// Deserialize IOx [`DeletePredicate`] from a protobuf object.
 pub fn deserialize(
     proto_predicate: &proto::Predicate,
 ) -> Result<DeletePredicate, DeserializeError> {
