@@ -638,12 +638,23 @@ async fn make_chunk_with_deletes_at_different_stages(
     // Move MUB to RUB
     match chunk_stage {
         ChunkStage::Rub | ChunkStage::RubOs | ChunkStage::Os => {
-            let chunk = db
+            let chunk_result = db
                 .compact_chunks(table_name, partition_key, |chunk| chunk.id() == chunk_id)
                 .await
-                .unwrap()
                 .unwrap();
-            chunk_id = chunk.id();
+
+            match chunk_result {
+                Some(chunk) => {
+                    chunk_id = chunk.id();
+                }
+                None => {
+                    // MUB has all soft deleted data, no RUB will be created
+                    // no more data to affect further delete
+                    let scenario_name =
+                        format!("Deleted data from one {} chunk{}", chunk_stage, display);
+                    return DbScenario { scenario_name, db };
+                }
+            }
         }
         _ => {}
     }
@@ -665,16 +676,27 @@ async fn make_chunk_with_deletes_at_different_stages(
     // Move RUB to OS
     match chunk_stage {
         ChunkStage::RubOs | ChunkStage::Os => {
-            let chunk = db
+            let chunk_result = db
                 .persist_partition(
                     table_name,
                     partition_key,
                     Instant::now() + Duration::from_secs(1),
                 )
                 .await
-                .unwrap()
                 .unwrap();
-            chunk_id = chunk.id();
+
+            match chunk_result {
+                Some(chunk) => {
+                    chunk_id = chunk.id();
+                }
+                None => {
+                    // RUB has all soft deleted data, no OS will be created
+                    // no more data to affect further delete
+                    let scenario_name =
+                        format!("Deleted data from one {} chunk{}", chunk_stage, display);
+                    return DbScenario { scenario_name, db };
+                }
+            }
         }
         _ => {}
     }
