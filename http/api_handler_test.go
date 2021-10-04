@@ -112,7 +112,7 @@ func TestAPIHandler_NotFound(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			b := &APIBackend{
-				HTTPErrorHandler: kithttp.ErrorHandler(0),
+				HTTPErrorHandler: kithttp.NewErrorHandler(zaptest.NewLogger(t)),
 				Logger:           zaptest.NewLogger(t),
 			}
 

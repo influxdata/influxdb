@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestCheckError(t *testing.T) {
@@ -23,7 +24,7 @@ func TestCheckError(t *testing.T) {
 		{
 			name: "platform error",
 			write: func(w *httptest.ResponseRecorder) {
-				h := kithttp.ErrorHandler(0)
+				h := kithttp.NewErrorHandler(zaptest.NewLogger(t))
 				err := &influxdb.Error{
 					Msg:  "expected",
 					Code: influxdb.EInvalid,

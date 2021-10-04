@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -415,7 +416,7 @@ func TestWriteHandler_MappingNotExists(t *testing.T) {
 	assert.Equal(t, `{"code":"not found","message":"unable to find DBRP"}`, w.Body.String())
 }
 
-var DefaultErrorHandler = kithttp.ErrorHandler(0)
+var DefaultErrorHandler = kithttp.NewErrorHandler(zap.NewNop())
 
 func parseLineProtocol(t *testing.T, line string) []models.Point {
 	t.Helper()
