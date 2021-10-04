@@ -1155,6 +1155,3 @@ async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate()
     )
     .await;
 }
-
-#[tokio::test]
-async fn delete_empty_predicate() {}
