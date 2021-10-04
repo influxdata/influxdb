@@ -457,9 +457,10 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 
 		// storage configuration
 		{
-			DestP: &o.StorageConfig.WriteTimeout,
-			Flag:  "storage-write-timeout",
-			Desc:  "The max amount of time the engine will spend completing a write request before cancelling with a timeout.",
+			DestP:   &o.StorageConfig.WriteTimeout,
+			Flag:    "storage-write-timeout",
+			Default: o.StorageConfig.WriteTimeout,
+			Desc:    "The max amount of time the engine will spend completing a write request before cancelling with a timeout.",
 		},
 		{
 			DestP: &o.StorageConfig.Data.WALFsyncDelay,

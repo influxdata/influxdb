@@ -29,9 +29,6 @@ const (
 	statSubWriteDrop       = "subWriteDrop"
 )
 
-// DefaultWriteTimeout is the default timeout for a complete write to succeed.
-const DefaultWriteTimeout = 10 * time.Second
-
 var (
 	// ErrTimeout is returned when a write times out.
 	ErrTimeout = errors.New("timeout")
@@ -88,10 +85,10 @@ func (w *WritePointsRequest) AddPoint(name string, value interface{}, timestamp 
 }
 
 // NewPointsWriter returns a new instance of PointsWriter for a node.
-func NewPointsWriter() *PointsWriter {
+func NewPointsWriter(writeTimeout time.Duration) *PointsWriter {
 	return &PointsWriter{
 		closing:      make(chan struct{}),
-		WriteTimeout: DefaultWriteTimeout,
+		WriteTimeout: writeTimeout,
 		Logger:       zap.NewNop(),
 		stats:        &WriteStatistics{},
 	}
