@@ -1,5 +1,5 @@
--- Test Setup: ThreeDeleteThreeChunks
--- SQL: EXPLAIN SELECT count(*) from cpu;
+-- Test Setup: TwoMeasurementsManyFieldsOneRubChunk
+-- SQL: EXPLAIN SELECT count(*) from h2o;
 +---------------+-------------------------------------------------------------+
 | plan_type     | plan                                                        |
 +---------------+-------------------------------------------------------------+

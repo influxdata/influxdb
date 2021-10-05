@@ -1060,13 +1060,6 @@ async fn sql_select_with_three_deletes_from_three_chunks() {
         &expected,
     )
     .await;
-
-    run_sql_test_case(
-        scenarios::delete::ThreeDeleteThreeChunks {},
-        "SELECT count(*) from cpu",
-        &expected,
-    )
-    .await;
 }
 
 // Bug: https://github.com/influxdata/influxdb_iox/issues/2745
