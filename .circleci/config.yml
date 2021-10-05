@@ -55,7 +55,8 @@ workflows:
     jobs:
       - godeps
       - test-race:
-          name: gotest # TODO: Rename to something more descriptive?
+          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
+          name: gotest
       - test-build:
           matrix:
             parameters:
@@ -92,7 +93,8 @@ workflows:
           requires:
             - godeps
       - lint:
-          name: golint # TODO: Remove this alias?
+          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
+          name: golint
       - build:
           requires:
             - godeps
