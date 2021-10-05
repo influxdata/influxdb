@@ -857,7 +857,7 @@ impl<'c> TransactionHandle<'c> {
         &mut self,
         predicate: &DeletePredicate,
         chunks: &[ChunkAddrWithoutDatabase],
-    ) -> Result<()> {
+    ) {
         self.transaction
             .as_mut()
             .expect("transaction handle w/o transaction?!")
@@ -874,8 +874,6 @@ impl<'c> TransactionHandle<'c> {
                         .collect(),
                 },
             ));
-
-        Ok(())
     }
 }
 
@@ -1716,12 +1714,12 @@ mod tests {
             // create two predicate
             let predicate_1 = create_delete_predicate(42);
             let chunks_1 = vec![chunk_addrs[0].clone().into()];
-            t.delete_predicate(&predicate_1, &chunks_1).unwrap();
+            t.delete_predicate(&predicate_1, &chunks_1);
             state.delete_predicate(predicate_1, chunks_1);
 
             let predicate_2 = create_delete_predicate(1337);
             let chunks_2 = vec![chunk_addrs[0].clone().into(), chunk_addrs[1].clone().into()];
-            t.delete_predicate(&predicate_2, &chunks_2).unwrap();
+            t.delete_predicate(&predicate_2, &chunks_2);
             state.delete_predicate(predicate_2, chunks_2);
 
             t.commit().await.unwrap();

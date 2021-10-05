@@ -584,9 +584,7 @@ impl Db {
 
         if !affected_persisted_chunks.is_empty() {
             let mut transaction = self.preserved_catalog.open_transaction().await;
-            transaction
-                .delete_predicate(&delete_predicate, &affected_persisted_chunks)
-                .context(CommitDeletePredicateError)?;
+            transaction.delete_predicate(&delete_predicate, &affected_persisted_chunks);
             transaction
                 .commit()
                 .await
