@@ -20,7 +20,7 @@ require (
 	github.com/google/go-cmp v0.5.5
 	github.com/influxdata/flux v0.131.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
-	github.com/influxdata/influxql v1.1.1-0.20210223160523-b6ab99450c93
+	github.com/influxdata/influxql v1.1.1-0.20211004132434-7e7d61973256
 	github.com/influxdata/pkg-config v0.2.8
 	github.com/influxdata/roaring v0.4.13-0.20180809181101-fc520f41fab6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368

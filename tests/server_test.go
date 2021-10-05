@@ -7713,15 +7713,43 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 		fmt.Sprintf(`cpu,host=server02,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
 		fmt.Sprintf(`gpu,host=server02,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
 		fmt.Sprintf(`gpu,host=server02,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+	}
+
+	rp1Writes := []string{
 		fmt.Sprintf(`other,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+	}
+
+	db1Writes := []string{
+		fmt.Sprintf(`cpu,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		fmt.Sprintf(`disk,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
 	}
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
 		&Write{data: strings.Join(writes, "\n")},
+		&Write{rp: "rp1", data: strings.Join(rp1Writes, "\n")},
+		&Write{db: "db1", data: strings.Join(db1Writes, "\n")},
 	}
 
 	test.addQueries([]*Query{
+		&Query{
+			name:    `show measurements`,
+			command: "SHOW MEASUREMENTS",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"],["other"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show measurements with rp parameter`,
+			command: "SHOW MEASUREMENTS",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"],["other"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+		},
+		&Query{
+			name:    `show measurements with on`,
+			command: "SHOW MEASUREMENTS on db0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"],["other"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+		},
 		&Query{
 			name:    `show measurements with limit 2`,
 			command: "SHOW MEASUREMENTS LIMIT 2",
@@ -7794,7 +7822,51 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"error":"SHOW MEASUREMENTS doesn't support time in WHERE clause"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
+		{
+			name:    `show measurements bad wildcard`,
+			command: "SHOW MEASUREMENTS on *",
+			exp:     `{"results":[{"statement_id":0,"error":"query 'SHOW MEASUREMENTS ON *' not supported. use 'ON *.*' or specify a database"}]}`,
+			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+		},
+		{
+			name:    `show measurements bad rp wildcard`,
+			command: "SHOW MEASUREMENTS on *.rp0",
+			exp:     `{"results":[{"statement_id":0,"error":"query 'SHOW MEASUREMENTS ON *.rp' not supported. use 'ON *.*' or specify a database"}]}`,
+			params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+		},
 	}...)
+
+	if indexType == tsdb.TSI1IndexName {
+		test.addQueries([]*Query{
+			{
+				name:    `show measurements on specific rp - tsi`,
+				command: "SHOW MEASUREMENTS on db0.rp0",
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name","database","retention policy"],"values":[["cpu","db0","rp0"],["gpu","db0","rp0"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+			},
+			{
+				name:    `show measurements on all rps - tsi`,
+				command: "SHOW MEASUREMENTS on db0.*",
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name","database","retention policy"],"values":[["cpu","db0","rp0"],["gpu","db0","rp0"],["other","db0","rp1"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+			},
+			{
+				name:    `show measurements on all dbs and rps - tsi`,
+				command: "SHOW MEASUREMENTS on *.*",
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"measurements","columns":["name","database","retention policy"],"values":[["cpu","db0","rp0"],["gpu","db0","rp0"],["other","db0","rp1"],["cpu","db1","rp0"],["disk","db1","rp0"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+			},
+		}...)
+	} else {
+		test.addQueries([]*Query{
+			{
+				name:    `show measurements on specific rp - inmem fails`,
+				command: "SHOW MEASUREMENTS on db0.rp0",
+				exp:     `{"results":[{"statement_id":0,"error":"retention policy filter for measurements not supported for index inmem"}]}`,
+				params:  url.Values{"db": []string{"db0"}, "rp": []string{"rp0"}},
+			},
+		}...)
+	}
 
 	for i, query := range test.queries {
 		if i == 0 {
