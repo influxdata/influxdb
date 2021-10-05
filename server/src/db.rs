@@ -84,7 +84,7 @@ pub enum Error {
     #[snafu(display("Lifecycle error: {}", source))]
     LifecycleError { source: lifecycle::Error },
 
-    #[snafu(display("Error freeinzing chunk while rolling over partition: {}", source))]
+    #[snafu(display("Error freezing chunk while rolling over partition: {}", source))]
     FreezingChunk { source: catalog::chunk::Error },
 
     #[snafu(display("Error sending entry to write buffer"))]
@@ -708,7 +708,7 @@ impl Db {
                 })?;
 
             // get chunks for persistence, break after first chunk that cannot be persisted due to lifecycle reasons
-            let chunks: Vec<_> = chunks
+            let chunks = chunks
                 .iter()
                 .filter_map(|chunk| {
                     let chunk = chunk.read();
@@ -720,24 +720,15 @@ impl Db {
                         Some(chunk)
                     }
                 })
-                .map(|chunk| {
-                    if chunk.lifecycle_action().is_some() {
-                        None
-                    } else {
-                        Some(chunk.upgrade())
+                .map(|chunk| match chunk.lifecycle_action() {
+                    Some(_) => CannotFlushPartition {
+                        table_name,
+                        partition_key,
                     }
+                    .fail(),
+                    None => Ok(chunk.upgrade()),
                 })
-                .fuse()
-                .flatten()
-                .collect();
-
-            ensure!(
-                !chunks.is_empty(),
-                CannotFlushPartition {
-                    table_name,
-                    partition_key
-                }
-            );
+                .collect::<Result<Vec<_>, _>>()?;
 
             let (_, fut) = lifecycle::persist_chunks(
                 partition,

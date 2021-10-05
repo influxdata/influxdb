@@ -438,11 +438,6 @@ where
             to_persist.push(chunk);
         }
 
-        if to_persist.is_empty() {
-            info!(%db_name, %partition, "expected to persist but found no eligible chunks");
-            return false;
-        }
-
         let chunks = to_persist
             .into_iter()
             .map(|chunk| chunk.upgrade())
@@ -1314,8 +1309,8 @@ mod tests {
             .expect("expect early return due to task completion");
     }
 
-    #[tokio::test]
-    async fn test_buffer_size_soft_drop_non_persisted() {
+    #[test]
+    fn test_buffer_size_soft_drop_non_persisted() {
         // test that chunk mover can drop non persisted chunks
         // if limit has been exceeded
 
@@ -1379,8 +1374,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_buffer_size_soft_dont_drop_non_persisted() {
+    #[test]
+    fn test_buffer_size_soft_dont_drop_non_persisted() {
         // test that chunk mover unloads written chunks and can't drop
         // unpersisted chunks when the persist flag is true
         let rules = LifecycleRules {
@@ -1709,6 +1704,32 @@ mod tests {
                 MoverEvents::Compact(vec![ChunkId::new(14), ChunkId::new(17)])
             ]
         );
+    }
+
+    #[test]
+    fn test_persist_empty() {
+        let rules = LifecycleRules {
+            persist: true,
+            late_arrive_window_seconds: NonZeroU32::new(10).unwrap(),
+            persist_age_threshold_seconds: NonZeroU32::new(20).unwrap(),
+            ..Default::default()
+        };
+        let now = Instant::now();
+
+        // This could occur if the in-memory contents of a partition are deleted, and
+        // compaction causes the chunks to be removed. In such a scenario the persistence
+        // windows will still think there are rows to be persisted
+        let partitions = vec![TestPartition::new(vec![]).with_persistence(
+            10,
+            now - Duration::from_secs(20),
+            from_secs(20),
+        )];
+
+        let db = TestDb::from_partitions(rules, partitions);
+        let mut lifecycle = LifecyclePolicy::new(&db);
+
+        lifecycle.check_for_work(from_secs(0), now);
+        assert_eq!(*db.events.read(), vec![MoverEvents::Persist(vec![]),]);
     }
 
     #[test]

@@ -12,7 +12,7 @@ use query::QueryChunk;
 
 use async_trait::async_trait;
 
-use server::db::LockablePartition;
+use server::db::{LockableChunk, LockablePartition};
 use server::utils::{
     count_mutable_buffer_chunks, count_object_store_chunks, count_read_buffer_chunks, make_db,
 };
@@ -1085,46 +1085,42 @@ impl DbSetup for ChunkOrder {
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 0);
 
+        // We prepare a persist, then drop the locks, perform another write, re-acquire locks
+        // and start a persist operation. In practice the lifecycle doesn't drop the locks
+        // before starting the persist operation, but this allows us to deterministically
+        // interleave a persist with a write
+        let partition = db.lockable_partition(table_name, partition_key).unwrap();
+        let (chunks, flush_handle) = {
+            let partition = partition.read();
+            let chunks = LockablePartition::chunks(&partition);
+            let mut partition = partition.upgrade();
+            let flush_handle = LockablePartition::prepare_persist(
+                &mut partition,
+                Instant::now() + Duration::from_secs(1),
+            )
+            .unwrap();
+
+            (chunks, flush_handle)
+        };
+
         // create second chunk: data->MUB
         write_lp(&db, "cpu,region=west user=2 100").await;
         assert_eq!(count_mutable_buffer_chunks(&db), 1);
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 0);
 
-        // prevent the second chunk from being part of the persistence
-        // NOTE: In "real life" that could happen when writes happen while a persistence is in progress, but it's easier
-        //       to trigger w/ this tiny locking trick.
-        let lockable_chunk = {
-            let partition = db.lockable_partition(table_name, partition_key).unwrap();
-            let partition = partition.read();
-            let mut chunks = LockablePartition::chunks(&partition);
-            assert_eq!(chunks.len(), 2);
-            chunks.remove(1)
+        let tracker = {
+            let partition = partition.write();
+            let chunks = chunks.iter().map(|chunk| chunk.write()).collect();
+            LockablePartition::persist_chunks(partition, chunks, flush_handle).unwrap()
         };
-        lockable_chunk
-            .chunk
-            .write()
-            .set_dropping(&Default::default())
-            .unwrap();
 
-        // transform chunk 0 into chunk 2 by persisting
-        db.persist_partition(
-            "cpu",
-            partition_key,
-            Instant::now() + Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
+        tracker.join().await;
+        assert!(tracker.get_status().result().unwrap().success());
+
         assert_eq!(count_mutable_buffer_chunks(&db), 1);
         assert_eq!(count_read_buffer_chunks(&db), 1);
         assert_eq!(count_object_store_chunks(&db), 1);
-
-        // unlock chunk again
-        lockable_chunk
-            .chunk
-            .write()
-            .clear_lifecycle_action()
-            .unwrap();
 
         // Now we have the the following chunks (same partition and table):
         //

@@ -16,3 +16,4 @@ tokio = { version = "1.11", features = ["macros", "time"] }
 tracker = { path = "../tracker" }
 [dev-dependencies]
 
+tokio = { version = "1.11", features = ["macros", "time", "rt"] }

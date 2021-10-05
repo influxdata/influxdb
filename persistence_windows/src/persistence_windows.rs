@@ -308,7 +308,7 @@ impl PersistenceWindows {
 
     /// Acquire a handle that prevents mutation of the persistable window until dropped
     ///
-    /// Returns `None` if there is an outstanding handle
+    /// Returns `None` if there is an outstanding handle or nothing to persist
     pub fn flush_handle(&mut self, now: Instant) -> Option<FlushHandle> {
         // Verify no active flush handles before closing open window
         self.persistable.get_mut()?;

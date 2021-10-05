@@ -31,11 +31,6 @@ pub fn persist_chunks<F>(
 where
     F: Fn() -> DateTime<Utc> + Send,
 {
-    assert!(
-        !chunks.is_empty(),
-        "must provide at least 1 chunk to persist"
-    );
-
     let now = std::time::Instant::now(); // time persist duration.
     let db = Arc::clone(&partition.data().db);
     let addr = partition.addr().clone();
@@ -87,13 +82,26 @@ where
     // drop partition lock guard
     let partition = partition.into_data().partition;
 
-    let time_of_first_write = time_of_first_write.expect("Should have had a first write somewhere");
-    let time_of_last_write = time_of_last_write.expect("Should have had a last write somewhere");
-
     let metric_registry = Arc::clone(&db.metric_registry);
     let ctx = db.exec.new_context(ExecutorType::Reorg);
 
     let fut = async move {
+        if query_chunks.is_empty() {
+            partition
+                .write()
+                .persistence_windows_mut()
+                .unwrap()
+                .flush(flush_handle);
+
+            return Ok(None);
+        }
+
+        let time_of_first_write =
+            time_of_first_write.expect("Should have had a first write somewhere");
+
+        let time_of_last_write =
+            time_of_last_write.expect("Should have had a last write somewhere");
+
         let key = compute_sort_key(query_chunks.iter().map(|x| x.summary()));
         let key_str = format!("\"{}\"", key); // for logging
 
@@ -389,6 +397,54 @@ mod tests {
         assert_eq!(chunks[0].storage, ChunkStorage::ReadBufferAndObjectStore);
         assert_eq!(chunks[0].row_count, 2);
 
+        assert!(partition.read().persistence_windows().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn persist_compacted_deletes() {
+        let db = test_db().await;
+
+        let late_arrival = Duration::from_secs(1);
+        let t0 = Instant::now();
+
+        *db.background_worker_now_override.lock() = Some(t0);
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
+
+        let partition_keys = db.partition_keys().unwrap();
+        assert_eq!(partition_keys.len(), 1);
+        let partition_key = partition_keys.into_iter().next().unwrap();
+
+        let partition = db.partition("cpu", partition_key.as_str()).unwrap();
+
+        // Cannot simply use empty predicate (#2687)
+        let predicate = Arc::new(DeletePredicate {
+            range: TimestampRange {
+                start: 0,
+                end: 1_000,
+            },
+            exprs: vec![],
+        });
+
+        // Delete everything
+        db.delete("cpu", predicate).await.unwrap();
+
+        // Compact deletes away
+        let chunk = db
+            .compact_partition("cpu", partition_key.as_str())
+            .await
+            .unwrap();
+
+        assert!(chunk.is_none());
+
+        // Persistence windows unaware rows have been deleted
+        assert!(!partition.read().persistence_windows().unwrap().is_empty());
+
+        let maybe_chunk = db
+            .persist_partition("cpu", partition_key.as_str(), t0 + late_arrival * 2)
+            .await
+            .unwrap();
+
+        assert!(maybe_chunk.is_none());
         assert!(partition.read().persistence_windows().unwrap().is_empty());
     }
 }
