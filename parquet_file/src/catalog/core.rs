@@ -25,7 +25,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{
         hash_map::Entry::{Occupied, Vacant},
-        HashMap,
+        HashMap, HashSet,
     },
     fmt::Debug,
     sync::Arc,
@@ -982,11 +982,25 @@ impl<'c> CheckpointHandle<'c> {
     }
 
     fn create_actions_for_delete_predicates(
-        delete_predicates: Vec<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)>,
+        delete_predicates: HashMap<Arc<DeletePredicate>, HashSet<ChunkAddrWithoutDatabase>>,
     ) -> Result<Vec<proto::transaction::Action>, Error> {
+        // sort by key (= path) for deterministic output
+        let delete_predicates = {
+            let mut tmp: Vec<_> = delete_predicates.into_iter().collect();
+            tmp.sort_by_key(|(predicate, _chunks)| Arc::clone(predicate));
+            tmp
+        };
+
         delete_predicates
             .into_iter()
             .map(|(predicate, chunks)| {
+                // sort chunks for deterministic output
+                let chunks = {
+                    let mut tmp: Vec<_> = chunks.into_iter().collect();
+                    tmp.sort();
+                    tmp
+                };
+
                 let action = proto::DeletePredicate {
                     predicate: Some(predicate::serialize::serialize(&predicate)),
                     chunks: chunks
