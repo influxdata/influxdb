@@ -3,15 +3,14 @@ package influxdata.iox.catalog.v1;
 
 // Represents a parsed predicate for evaluation by the InfluxDB IOx query engine.
 message Predicate {
-  // Optional table restriction. If present, restricts the results to only tables these tables.
-  OptionalStringSet table_names = 1;
+  // Was `table_names`.
+  reserved 1;
 
-  // Optional field restriction. If present, restricts the results to only tables which have *at least one* of the
-  // fields in field_columns.
-  OptionalStringSet field_columns = 2;
+  // Was `field_columns`.
+  reserved 2;
 
-  // Optional partition key filter
-  OptionalString partition_key = 3;
+  // Was `partition_key`.
+  reserved 3;
 
   // Optional timestamp range: only rows within this range are included in results. Other rows are excluded.
   TimestampRange range = 4;
