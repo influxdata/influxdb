@@ -1057,7 +1057,6 @@ impl Client {
                 _ => DeleteError::ServerError(status),
             })?;
 
-        // NGA todo: return a handle to the delete?
         Ok(())
     }
 

@@ -282,7 +282,7 @@ impl ApplicationError {
             Self::ParsingLineProtocol { .. } => self.bad_request(),
             Self::ParsingDelete { .. } => self.bad_request(),
             Self::BuildingDeletePredicate { .. } => self.bad_request(),
-            Self::ExecutingDelete { .. } => self.internal_error(),
+            Self::ExecutingDelete { .. } => self.bad_request(),
             Self::ReadingBodyAsGzip { .. } => self.bad_request(),
             Self::ClientHangup { .. } => self.bad_request(),
             Self::RouteNotFound { .. } => self.not_found(),
@@ -1150,6 +1150,44 @@ mod tests {
             "+----------------+--------------+-------+-----------------+----------------------+",
         ];
         assert_batches_eq!(expected, &batches);
+
+        // -------------------
+        // negative tests
+        // Not able to parse _measurement="not_a_table"  (it must be _measurement=\"not_a_table\" to work)
+        let delete_line = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement="not_a_table" and location=Boston"}"#;
+        let response = client
+            .post(&format!(
+                "{}/api/v2/delete?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
+            .body(delete_line)
+            .send()
+            .await;
+        check_response(
+            "delete",
+            response,
+            StatusCode::BAD_REQUEST,
+            Some("Unable to parse delete string"),
+        )
+        .await;
+
+        // delete from non-existing table
+        let delete_line = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=not_a_table and location=Boston"}"#;
+        let response = client
+            .post(&format!(
+                "{}/api/v2/delete?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
+            .body(delete_line)
+            .send()
+            .await;
+        check_response(
+            "delete",
+            response,
+            StatusCode::BAD_REQUEST,
+            Some("Cannot delete data from non-existing table"),
+        )
+        .await;
     }
 
     #[tokio::test]
@@ -1607,7 +1645,7 @@ mod tests {
 
             assert_eq!(status, expected_status);
             if let Some(expected_body) = expected_body {
-                assert_eq!(body, expected_body);
+                assert!(body.contains(expected_body));
             }
         } else {
             panic!("Unexpected error response: {:?}", response);

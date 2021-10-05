@@ -1587,8 +1587,10 @@ async fn test_delete() {
     let pred = "region = west";
     let del = management_client
         .delete(db_name.clone(), table, start, stop, pred)
-        .await;
-    assert!(del.is_err());
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(del.contains("Cannot delete data from table"));
 
     // Verify both existing tables still have the same data
     // query to verify data deleted
