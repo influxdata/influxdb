@@ -68,7 +68,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///     .expect("connection must succeed");
 /// # }
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Builder {
     user_agent: String,
     headers: Vec<(HeaderName, HeaderValue)>,
@@ -169,5 +169,17 @@ impl Builder {
     /// [`connect_timeout`]: Self::connect_timeout
     pub fn timeout(self, timeout: Duration) -> Self {
         Self { timeout, ..self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_builder_cloneable() {
+        // Clone is used by Conductor.
+        fn assert_clone<T: Clone>(_t: T) {}
+        assert_clone(Builder::default())
     }
 }

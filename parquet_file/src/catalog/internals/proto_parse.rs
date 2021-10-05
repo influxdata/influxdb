@@ -1,4 +1,4 @@
-use std::{convert::TryInto, num::TryFromIntError, str::FromStr};
+use std::{convert::TryInto, num::TryFromIntError};
 
 use chrono::{DateTime, Utc};
 use generated_types::influxdata::iox::catalog::v1 as proto;
@@ -33,19 +33,19 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Parse UUID from protobuf.
-pub fn parse_uuid(s: &str) -> Result<Option<Uuid>> {
-    if s.is_empty() {
+/// Parse big-endian UUID from protobuf.
+pub fn parse_uuid(bytes: &[u8]) -> Result<Option<Uuid>> {
+    if bytes.is_empty() {
         Ok(None)
     } else {
-        let uuid = Uuid::from_str(s).context(UuidParse {})?;
+        let uuid = Uuid::from_slice(bytes).context(UuidParse {})?;
         Ok(Some(uuid))
     }
 }
 
-/// Parse UUID from protobuf and fail if protobuf did not provide data.
-pub fn parse_uuid_required(s: &str) -> Result<Uuid> {
-    parse_uuid(s)?.context(UuidRequired {})
+/// Parse big-endian UUID from protobuf and fail if protobuf did not provide data.
+pub fn parse_uuid_required(bytes: &[u8]) -> Result<Uuid> {
+    parse_uuid(bytes)?.context(UuidRequired {})
 }
 
 /// Parse [`ParquetFilePath`](iox_object_store::ParquetFilePath) from protobuf.

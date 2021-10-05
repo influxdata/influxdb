@@ -13,3 +13,5 @@ updates:
       # Additionally the thrift-compiler version available in standard repos tends to lag
       # the latest release significantly, and so updating to the latest version adds friction
       - dependency-name: "thrift"
+      # https://github.com/influxdata/influxdb_iox/issues/2735
+      - dependency-name: "smallvec"

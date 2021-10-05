@@ -633,14 +633,13 @@ where
                 }))
             }
             Ok(del_predicate) => {
-                //execute delete
+                // execute delete
                 db.delete(&table_name, Arc::new(del_predicate))
                     .await
                     .map_err(default_db_error_handler)?;
             }
         }
 
-        // NGA todo: return a delete handle with the response?
         Ok(Response::new(DeleteResponse {}))
     }
 }

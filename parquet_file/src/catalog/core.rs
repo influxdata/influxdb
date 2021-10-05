@@ -39,7 +39,7 @@ pub use crate::catalog::internals::proto_parse::Error as ProtoParseError;
 /// Current version for serialized transactions.
 ///
 /// For breaking changes, this will change.
-pub const TRANSACTION_VERSION: u32 = 16;
+pub const TRANSACTION_VERSION: u32 = 17;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -492,15 +492,18 @@ impl OpenTransaction {
         start_timestamp: DateTime<Utc>,
     ) -> Self {
         let (revision_counter, previous_uuid) = match previous_tkey {
-            Some(tkey) => (tkey.revision_counter + 1, tkey.uuid.to_string()),
-            None => (0, String::new()),
+            Some(tkey) => (
+                tkey.revision_counter + 1,
+                tkey.uuid.as_bytes().to_vec().into(),
+            ),
+            None => (0, Bytes::new()),
         };
 
         Self {
             proto: proto::Transaction {
                 actions: vec![],
                 version: TRANSACTION_VERSION,
-                uuid: uuid.to_string(),
+                uuid: uuid.as_bytes().to_vec().into(),
                 revision_counter,
                 previous_uuid,
                 start_timestamp: Some(start_timestamp.into()),
@@ -512,7 +515,7 @@ impl OpenTransaction {
     fn tkey(&self) -> TransactionKey {
         TransactionKey {
             revision_counter: self.proto.revision_counter,
-            uuid: Uuid::parse_str(&self.proto.uuid).expect("UUID was checked before"),
+            uuid: Uuid::from_slice(&self.proto.uuid).expect("UUID was checked before"),
         }
     }
 
@@ -933,11 +936,11 @@ impl<'c> CheckpointHandle<'c> {
         let proto = proto::Transaction {
             actions,
             version: TRANSACTION_VERSION,
-            uuid: self.tkey.uuid.to_string(),
+            uuid: self.tkey.uuid.as_bytes().to_vec().into(),
             revision_counter: self.tkey.revision_counter,
             previous_uuid: self
                 .previous_tkey
-                .map_or_else(String::new, |tkey| tkey.uuid.to_string()),
+                .map_or_else(Bytes::new, |tkey| tkey.uuid.as_bytes().to_vec().into()),
             start_timestamp: Some(Utc::now().into()),
             encoding: proto::transaction::Encoding::Full.into(),
         };
@@ -1173,9 +1176,9 @@ mod tests {
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
-        let uuid_expected = Uuid::parse_str(&proto.uuid).unwrap();
+        let uuid_expected = Uuid::from_slice(&proto.uuid).unwrap();
         let uuid_actual = Uuid::nil();
-        proto.uuid = uuid_actual.to_string();
+        proto.uuid = uuid_actual.as_bytes().to_vec().into();
         store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
@@ -1204,7 +1207,7 @@ mod tests {
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
-        proto.uuid = String::new();
+        proto.uuid = Bytes::new();
         store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
@@ -1230,7 +1233,7 @@ mod tests {
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
-        proto.uuid = "foo".to_string();
+        proto.uuid = Bytes::from("foo");
         store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
@@ -1240,7 +1243,7 @@ mod tests {
             PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Internal: Error while parsing protobuf: Cannot parse UUID: invalid length: expected one of [36, 32], found 3"
+            "Internal: Error while parsing protobuf: Cannot parse UUID: invalid bytes length: expected 16, found 3"
         );
     }
 
@@ -1256,7 +1259,7 @@ mod tests {
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
-        proto.previous_uuid = Uuid::nil().to_string();
+        proto.previous_uuid = Uuid::nil().as_bytes().to_vec().into();
         store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
@@ -1279,7 +1282,7 @@ mod tests {
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
-        proto.previous_uuid = Uuid::nil().to_string();
+        proto.previous_uuid = Uuid::nil().as_bytes().to_vec().into();
         store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
@@ -1302,7 +1305,7 @@ mod tests {
         let mut proto = load_transaction_proto(&iox_object_store, &path)
             .await
             .unwrap();
-        proto.previous_uuid = "foo".to_string();
+        proto.previous_uuid = Bytes::from("foo");
         store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
@@ -1312,7 +1315,7 @@ mod tests {
             PreservedCatalog::load::<TestCatalogState>(Arc::clone(&iox_object_store), ()).await;
         assert_eq!(
             res.unwrap_err().to_string(),
-            "Internal: Error while parsing protobuf: Cannot parse UUID: invalid length: expected one of [36, 32], found 3"
+            "Internal: Error while parsing protobuf: Cannot parse UUID: invalid bytes length: expected 16, found 3"
         );
     }
 
@@ -1351,7 +1354,7 @@ mod tests {
         let mut t = catalog.open_transaction().await;
 
         // open transaction
-        t.transaction.as_mut().unwrap().proto.uuid = Uuid::nil().to_string();
+        t.transaction.as_mut().unwrap().proto.uuid = Uuid::nil().as_bytes().to_vec().into();
         assert_eq!(
             format!("{:?}", t),
             "TransactionHandle(open, 1.00000000-0000-0000-0000-000000000000)"
@@ -1379,7 +1382,7 @@ mod tests {
         let new_uuid = Uuid::new_v4();
         tkey.uuid = new_uuid;
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        proto.uuid = new_uuid.to_string();
+        proto.uuid = new_uuid.as_bytes().to_vec().into();
         store_transaction_proto(&iox_object_store, &path, &proto)
             .await
             .unwrap();
@@ -1412,7 +1415,7 @@ mod tests {
         let new_uuid = Uuid::new_v4();
         tkey.uuid = new_uuid;
         let path = TransactionFilePath::new_checkpoint(tkey.revision_counter, tkey.uuid);
-        proto.uuid = new_uuid.to_string();
+        proto.uuid = new_uuid.as_bytes().to_vec().into();
         proto.encoding = proto::transaction::Encoding::Full.into();
         store_transaction_proto(&iox_object_store, &path, &proto)
             .await
@@ -2087,7 +2090,7 @@ mod tests {
                 .unwrap();
         let mut t = catalog.open_transaction().await;
 
-        t.transaction.as_mut().unwrap().proto.uuid = Uuid::nil().to_string();
+        t.transaction.as_mut().unwrap().proto.uuid = Uuid::nil().as_bytes().to_vec().into();
         assert_eq!(t.uuid(), Uuid::nil());
     }
 

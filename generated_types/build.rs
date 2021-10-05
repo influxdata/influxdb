@@ -65,7 +65,11 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         .compile_well_known_types()
         .disable_comments(&[".google"])
         .extern_path(".google.protobuf", "::pbjson_types")
-        .bytes(&[".influxdata.iox.catalog.v1.AddParquet.metadata"])
+        .bytes(&[
+            ".influxdata.iox.catalog.v1.AddParquet.metadata",
+            ".influxdata.iox.catalog.v1.Transaction.previous_uuid",
+            ".influxdata.iox.catalog.v1.Transaction.uuid",
+        ])
         .btree_map(&[
             ".influxdata.iox.catalog.v1.DatabaseCheckpoint.sequencer_numbers",
             ".influxdata.iox.catalog.v1.PartitionCheckpoint.sequencer_numbers",

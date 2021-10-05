@@ -141,6 +141,11 @@ impl TaskResult {
             TaskResult::Error => "Error",
         }
     }
+
+    /// Returns true if `self == TaskResult::Success`
+    pub fn success(&self) -> bool {
+        matches!(self, TaskResult::Success)
+    }
 }
 
 /// The status of the tracked task

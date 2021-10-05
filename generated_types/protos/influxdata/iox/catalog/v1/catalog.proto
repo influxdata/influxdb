@@ -93,12 +93,19 @@ message Transaction {
     // Revision counter, must by "previous revision" + 1 or 0 for the first transaction.
     uint64 revision_counter = 3;
 
+    // Was string-formatted UUID and previous UUID.
+    reserved 4, 5;
+
     // UUID unique to this transaction. Used to detect concurrent transactions. For the first transaction this field is
     // empty.
-    string uuid = 4;
+    //
+    // UUID is stored as 16 bytes in big-endian order.
+    bytes uuid = 8;
 
     // UUID of last commit.
-    string previous_uuid = 5;
+    //
+    // UUID is stored as 16 bytes in big-endian order.
+    bytes previous_uuid = 9;
 
     // Start timestamp.
     //

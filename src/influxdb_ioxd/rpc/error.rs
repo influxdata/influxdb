@@ -177,6 +177,12 @@ pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
             ),
         }
         .into(),
+        Error::DeleteFromTable { source, table_name } => PreconditionViolation {
+            category: "database".to_string(),
+            subject: "influxdata.com/iox".to_string(),
+            description: format!("Cannot delete data from table: {} : {}", table_name, source),
+        }
+        .into(),
         Error::CatalogError { source } => default_catalog_error_handler(source),
         error => {
             error!(?error, "Unexpected error");
