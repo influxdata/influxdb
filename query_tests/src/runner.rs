@@ -277,6 +277,7 @@ impl<W: Write> Runner<W> {
                 .with_default_catalog(db)
                 .build();
 
+            println!("---- {}", sql);
             let physical_plan = planner
                 .query(sql, &ctx)
                 .await

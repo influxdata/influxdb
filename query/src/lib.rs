@@ -48,8 +48,16 @@ pub trait QueryChunkMeta: Sized {
     /// return a reference to the summary of the data held in this chunk
     fn schema(&self) -> Arc<Schema>;
 
-    // return a reference to delete predicates of the chunk
+    /// return a reference to delete predicates of the chunk
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>];
+
+    /// return true if the chunk has delete predicates
+    fn has_delete_predicates(&self) -> bool {
+        if self.delete_predicates().is_empty() {
+            return false;
+        }
+        true
+    }
 }
 
 /// A `Database` is the main trait implemented by the IOx subsystems

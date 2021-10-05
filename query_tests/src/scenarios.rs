@@ -12,6 +12,7 @@ use query::QueryChunk;
 
 use async_trait::async_trait;
 
+use delete::ThreeDeleteThreeChunks;
 use server::db::{LockableChunk, LockablePartition};
 use server::utils::{
     count_mutable_buffer_chunks, count_object_store_chunks, count_read_buffer_chunks, make_db,
@@ -52,9 +53,11 @@ pub fn get_all_setups() -> &'static HashMap<String, Arc<dyn DbSetup>> {
             register_setup!(TwoMeasurements),
             register_setup!(TwoMeasurementsPredicatePushDown),
             register_setup!(TwoMeasurementsManyFieldsOneChunk),
+            register_setup!(TwoMeasurementsManyFieldsOneRubChunk),
             register_setup!(OneMeasurementFourChunksWithDuplicates),
             register_setup!(OneMeasurementAllChunksDropped),
             register_setup!(ChunkOrder),
+            register_setup!(ThreeDeleteThreeChunks),
         ]
         .into_iter()
         .map(|(name, setup)| (name.to_string(), setup as Arc<dyn DbSetup>))
@@ -401,6 +404,35 @@ impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
         ];
 
         write_lp(&db, &lp_lines.join("\n")).await;
+        vec![DbScenario {
+            scenario_name: "Data in open chunk of mutable buffer".into(),
+            db,
+        }]
+    }
+}
+
+#[derive(Debug)]
+/// This has a single chunk for queries that check the state of the system
+pub struct TwoMeasurementsManyFieldsOneRubChunk {}
+#[async_trait]
+impl DbSetup for TwoMeasurementsManyFieldsOneRubChunk {
+    async fn make(&self) -> Vec<DbScenario> {
+        let db = make_db().await.db;
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 50",
+            "h2o,state=MA,city=Boston other_temp=70.4 250",
+            "h2o,state=CA,city=Boston other_temp=72.4 350",
+            "o2,state=MA,city=Boston temp=53.4,reading=51 50",
+            "o2,state=CA temp=79.0 300",
+        ];
+
+        write_lp(&db, &lp_lines.join("\n")).await;
+
+        // move all data to RUB
+        db.compact_open_chunk("h2o", partition_key).await.unwrap();
+
         vec![DbScenario {
             scenario_name: "Data in open chunk of mutable buffer".into(),
             db,
