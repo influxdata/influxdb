@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -exo pipefail
 
-declare -r SCRIPT_DIR=$(cd $(dirname ${0}) >/dev/null 2>&1 && pwd)
-
 function main () {
     if [[ $# != 1 ]]; then
         >&2 echo Usage: $0 '<output-dir>'

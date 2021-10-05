@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -exo pipefail
 
-declare -r SCRIPT_DIR=$(cd $(dirname ${0}) >/dev/null 2>&1 && pwd)
-
 function build_linux () {
     local tags=osusergo,netgo,sqlite_foreign_keys,sqlite_json,static_build
     local cc

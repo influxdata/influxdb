@@ -181,7 +181,8 @@ workflows:
       - changelog
       - godeps
       - test-race:
-          name: gotest # TODO: Rename to something more descriptive?
+          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
+          name: gotest
       - test-build:
           matrix:
             parameters:
@@ -212,7 +213,8 @@ workflows:
           requires:
             - test-build-amd64-windows
       - lint:
-          name: golint # TODO: Remove this alias?
+          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
+          name: golint
       - fluxtest:
           requires:
             - godeps
@@ -451,6 +453,10 @@ jobs:
     executor: cross-builder
     steps:
       - checkout
+      - run:
+          name: Check go version
+          command: ./scripts/ci/check-system-go-matches-go-mod.sh
+          when: always
       - run:
           name: Check flag generation
           command: ./scripts/ci/lint/flags.bash
