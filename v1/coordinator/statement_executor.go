@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -385,53 +386,125 @@ func (e *StatementExecutor) executeDropMeasurementStatement(ctx context.Context,
 	return e.TSDBStore.DeleteMeasurement(ctx, mapping.BucketID.String(), q.Name)
 }
 
+type measurementRow struct {
+	name   []byte
+	db, rp string
+}
+
 func (e *StatementExecutor) executeShowMeasurementsStatement(ctx context.Context, q *influxql.ShowMeasurementsStatement, ectx *query.ExecutionContext) error {
-	if q.Database == "" {
+	if q.Database == "" && !q.WildcardDatabase {
 		return ErrDatabaseNameRequired
 	}
 
-	mapping, err := e.getDefaultRP(ctx, q.Database, ectx)
-	if err != nil {
-		return err
+	if q.WildcardDatabase {
+		// We could support this but it doesn't seem very useful.
+		if q.RetentionPolicy != "" {
+			return ectx.Send(ctx, &query.Result{
+				Err: fmt.Errorf("query 'SHOW MEASUREMENTS ON *.rp' not supported. use 'ON *.*' or specify a database"),
+			})
+		}
+		// It is not clear how '*' should interact with the default retention policy, so reject it
+		if !q.WildcardRetentionPolicy {
+			return ectx.Send(ctx, &query.Result{
+				Err: fmt.Errorf("query 'SHOW MEASUREMENTS ON *' not supported. use 'ON *.*' or specify a database"),
+			})
+		}
 	}
 
-	names, err := e.TSDBStore.MeasurementNames(ctx, ectx.Authorizer, mapping.BucketID.String(), q.Condition)
-	if err != nil || len(names) == 0 {
-		return ectx.Send(ctx, &query.Result{
-			Err: err,
-		})
+	onlyPrintMeasurements := !(q.WildcardDatabase || q.WildcardRetentionPolicy || q.RetentionPolicy != "")
+
+	mappingsFilter := influxdb.DBRPMappingFilter{
+		OrgID: &ectx.OrgID,
+	}
+
+	if !q.WildcardDatabase {
+		mappingsFilter.Database = &q.Database
+	}
+	if !q.WildcardRetentionPolicy {
+		if q.RetentionPolicy == "" {
+			defaultRP := true
+			mappingsFilter.Default = &defaultRP
+		} else {
+			mappingsFilter.RetentionPolicy = &q.RetentionPolicy
+		}
+	}
+	mappings, _, err := e.DBRP.FindMany(ctx, mappingsFilter)
+	if err != nil {
+		return fmt.Errorf("finding DBRP mappings: %v", err)
+	}
+
+	rows := make([]measurementRow, 0)
+
+	// Sort the sources for consistent output
+	sort.Slice(mappings, func(i, j int) bool {
+		if mappings[i].Database != mappings[j].Database {
+			return mappings[i].Database < mappings[j].Database
+		}
+		return mappings[i].RetentionPolicy < mappings[j].RetentionPolicy
+	})
+
+	for _, mapping := range mappings {
+		names, err := e.TSDBStore.MeasurementNames(ctx, ectx.Authorizer, mapping.BucketID.String(), q.Condition)
+		if err != nil {
+			return ectx.Send(ctx, &query.Result{
+				Err: err,
+			})
+		}
+		for _, name := range names {
+			rows = append(rows, measurementRow{
+				name: name,
+				db:   mapping.Database,
+				rp:   mapping.RetentionPolicy,
+			})
+		}
 	}
 
 	if q.Offset > 0 {
-		if q.Offset >= len(names) {
-			names = nil
+		if q.Offset >= len(rows) {
+			rows = nil
 		} else {
-			names = names[q.Offset:]
+			rows = rows[q.Offset:]
 		}
 	}
 
 	if q.Limit > 0 {
-		if q.Limit < len(names) {
-			names = names[:q.Limit]
+		if q.Limit < len(rows) {
+			rows = rows[:q.Limit]
 		}
 	}
 
-	values := make([][]interface{}, len(names))
-	for i, name := range names {
-		values[i] = []interface{}{string(name)}
+	if len(rows) == 0 {
+		return ectx.Send(ctx, &query.Result{})
 	}
 
-	if len(values) == 0 {
-		return ectx.Send(ctx, &query.Result{})
+	if onlyPrintMeasurements {
+		values := make([][]interface{}, len(rows))
+		for i, r := range rows {
+			values[i] = []interface{}{string(r.name)}
+		}
+
+		return ectx.Send(ctx, &query.Result{
+			Series: []*models.Row{{
+				Name:    "measurements",
+				Columns: []string{"name"},
+				Values:  values,
+			}},
+		})
+	}
+
+	values := make([][]interface{}, len(rows))
+	for i, r := range rows {
+		values[i] = []interface{}{string(r.name), r.db, r.rp}
 	}
 
 	return ectx.Send(ctx, &query.Result{
 		Series: []*models.Row{{
 			Name:    "measurements",
-			Columns: []string{"name"},
+			Columns: []string{"name", "database", "retention policy"},
 			Values:  values,
 		}},
 	})
+
 }
 
 func (e *StatementExecutor) executeShowRetentionPoliciesStatement(ctx context.Context, q *influxql.ShowRetentionPoliciesStatement, ectx *query.ExecutionContext) (models.Rows, error) {
