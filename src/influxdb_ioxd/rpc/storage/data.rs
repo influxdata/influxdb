@@ -112,6 +112,16 @@ fn group_description_to_frames(group_description: GroupDescription) -> Vec<Frame
         .map(|(k, v)| (k.bytes().collect(), v.bytes().collect()))
         .unzip();
 
+    // Flux expects there to be `_field` and `_measurement` as the
+    // first two "tags". Note this means the lengths of tag_keys and
+    // partition_key_values is different.
+    //
+    // See https://github.com/influxdata/influxdb_iox/issues/2690 for gory details
+    let tag_keys = vec![b"_field".to_vec(), b"_measurement".to_vec()]
+        .into_iter()
+        .chain(tag_keys.into_iter())
+        .collect::<Vec<_>>();
+
     let group_frame = GroupFrame {
         tag_keys,
         partition_key_vals,
@@ -232,8 +242,8 @@ fn field_to_data(
     Ok(())
 }
 
-// Convert the tag=value pairs from the series set to the correct gRPC
-// format, and add the _f and _m tags for the field name and measurement
+/// Convert the tag=value pairs from the series set to the correct gRPC
+/// format, and add the _f and _m tags for the field name and measurement
 fn convert_tags(table_name: &str, field_name: &str, tags: &[(Arc<str>, Arc<str>)]) -> Vec<Tag> {
     // Special case "measurement" name which is modeled as a tag of
     // "_measurement" and "field" which is modeled as a tag of "_field"
@@ -548,8 +558,9 @@ mod tests {
             .map(|f| dump_frame(f))
             .collect::<Vec<_>>();
 
-        let expected_frames =
-            vec!["GroupFrame, tag_keys: tag1,tag2, partition_key_vals: val1,val2"];
+        let expected_frames = vec![
+            "GroupFrame, tag_keys: _field,_measurement,tag1,tag2, partition_key_vals: val1,val2",
+        ];
 
         assert_eq!(
             dumped_frames, expected_frames,

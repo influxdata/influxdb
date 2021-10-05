@@ -401,7 +401,7 @@ async fn test_read_group_none_agg(
     };
 
     let expected_group_frames = vec![
-        "GroupFrame, tag_keys: cpu, partition_key_vals: cpu1",
+        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu1",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"20,21\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
@@ -410,7 +410,7 @@ async fn test_read_group_none_agg(
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"10,11\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"71,72\"",
-        "GroupFrame, tag_keys: cpu, partition_key_vals: cpu2",
+        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu2",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"40,41\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
@@ -424,11 +424,9 @@ async fn test_read_group_none_agg(
     let actual_group_frames = do_read_group_request(storage_client, read_group_request).await;
 
     assert_eq!(
-        expected_group_frames,
-        actual_group_frames,
-        "Expected:\n{}\nActual:\n{}",
-        expected_group_frames.join("\n"),
-        actual_group_frames.join("\n")
+        expected_group_frames, actual_group_frames,
+        "Expected:\n{:#?}\nActual:\n{:#?}",
+        expected_group_frames, actual_group_frames
     );
 }
 
@@ -453,12 +451,12 @@ async fn test_read_group_none_agg_with_predicate(
     };
 
     let expected_group_frames = vec![
-        "GroupFrame, tag_keys: cpu, partition_key_vals: cpu1",
+        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu1",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [1000], values: \"20\"",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
         "FloatPointsFrame, timestamps: [1000], values: \"10\"",
-        "GroupFrame, tag_keys: cpu, partition_key_vals: cpu2",
+        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu2",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [1000], values: \"40\"",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=foo, type: 0",
@@ -468,11 +466,9 @@ async fn test_read_group_none_agg_with_predicate(
     let actual_group_frames = do_read_group_request(storage_client, read_group_request).await;
 
     assert_eq!(
-        expected_group_frames,
-        actual_group_frames,
-        "Expected:\n{}\nActual:\n{}",
-        expected_group_frames.join("\n"),
-        actual_group_frames.join("\n")
+        expected_group_frames, actual_group_frames,
+        "Expected:\n{:#?}\nActual:\n{:#?}",
+        expected_group_frames, actual_group_frames
     );
 }
 
@@ -500,7 +496,7 @@ async fn test_read_group_sum_agg(
     };
 
     let expected_group_frames = vec![
-        "GroupFrame, tag_keys: cpu, partition_key_vals: cpu1",
+        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu1",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"41\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
@@ -509,7 +505,7 @@ async fn test_read_group_sum_agg(
         "FloatPointsFrame, timestamps: [2000], values: \"21\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"143\"",
-        "GroupFrame, tag_keys: cpu, partition_key_vals: cpu2",
+        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu2",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"81\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
@@ -523,11 +519,9 @@ async fn test_read_group_sum_agg(
     let actual_group_frames = do_read_group_request(storage_client, read_group_request).await;
 
     assert_eq!(
-        expected_group_frames,
-        actual_group_frames,
-        "Expected:\n{}\nActual:\n{}",
-        expected_group_frames.join("\n"),
-        actual_group_frames.join("\n")
+        expected_group_frames, actual_group_frames,
+        "Expected:\n{:#?}\nActual:\n{:#?}",
+        expected_group_frames, actual_group_frames,
     );
 }
 
@@ -555,7 +549,7 @@ async fn test_read_group_last_agg(
     };
 
     let expected_group_frames = vec![
-        "GroupFrame, tag_keys: cpu, partition_key_vals: cpu1",
+        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu1",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"21\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
@@ -564,7 +558,7 @@ async fn test_read_group_last_agg(
         "FloatPointsFrame, timestamps: [2000], values: \"11\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"72\"",
-        "GroupFrame, tag_keys: cpu, partition_key_vals: cpu2",
+        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu2",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"41\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
@@ -578,11 +572,9 @@ async fn test_read_group_last_agg(
     let actual_group_frames = do_read_group_request(storage_client, read_group_request).await;
 
     assert_eq!(
-        expected_group_frames,
-        actual_group_frames,
-        "Expected:\n{}\nActual:\n{}",
-        expected_group_frames.join("\n"),
-        actual_group_frames.join("\n")
+        expected_group_frames, actual_group_frames,
+        "Expected:\n{:#?}\nActual:\n{:#?}",
+        expected_group_frames, actual_group_frames,
     );
 }
 
