@@ -1714,12 +1714,12 @@ mod tests {
             }
 
             // create two predicate
-            let predicate_1 = create_delete_predicate(&chunk_addrs[0].table_name, 42);
+            let predicate_1 = create_delete_predicate(42);
             let chunks_1 = vec![chunk_addrs[0].clone().into()];
             t.delete_predicate(&predicate_1, &chunks_1).unwrap();
             state.delete_predicate(predicate_1, chunks_1);
 
-            let predicate_2 = create_delete_predicate(&chunk_addrs[0].table_name, 1337);
+            let predicate_2 = create_delete_predicate(1337);
             let chunks_2 = vec![chunk_addrs[0].clone().into(), chunk_addrs[1].clone().into()];
             t.delete_predicate(&predicate_2, &chunks_2).unwrap();
             state.delete_predicate(predicate_2, chunks_2);
