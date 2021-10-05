@@ -445,7 +445,7 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx context.Context
 
 	for _, mapping := range mappings {
 		names, err := e.TSDBStore.MeasurementNames(ctx, ectx.Authorizer, mapping.BucketID.String(), q.Condition)
-		if err != nil || len(names) == 0 {
+		if err != nil {
 			return ectx.Send(ctx, &query.Result{
 				Err: err,
 			})
