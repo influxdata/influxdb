@@ -16,9 +16,6 @@ function main () {
     local -r out_dir="$1"
     mkdir -p "$out_dir"
 
-    # Install gotestsum.
-    "${SCRIPT_DIR}/install-gotestsum.sh" /go/bin
-
     # Get list of packages to test on this node according to Circle's timings.
     local -r test_packages="$(go list ./... | circleci tests split --split-by=timings --timings-type=classname)"
 

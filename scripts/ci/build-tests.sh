@@ -36,8 +36,12 @@ function build_windows () {
 }
 
 function build_test_tools () {
-    # Download gotestsum from its releases (faster than building it).
-    "${SCRIPT_DIR}/install-gotestsum.sh" "$1"
+    # Copy pre-built gotestsum out of the cross-builder.
+    local ext=""
+    if [ "$(go env GOOS)" = windows ]; then
+        ext=".exe"
+    fi
+    cp "/usr/local/bin/gotestsum_$(go env GOOS)_$(go env GOARCH)${ext}" "$1/gotestsum${ext}"
 
     # Build test2json from the installed Go distribution.
     CGO_ENABLED=0 go build -o "${1}/" -ldflags="-s -w" cmd/test2json
