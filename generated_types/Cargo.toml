@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies] # In alphabetical order
 bytes = "1.0"
-data_types = { path = "../data_types" }
+data_types = { path = "../data_types", optional = true }
 observability_deps = { path = "../observability_deps" }
 pbjson = "0.1"
 pbjson-types = "0.1"
@@ -26,3 +26,7 @@ proc-macro2 = "=1.0.27"
 tonic-build = "0.5"
 prost-build = "0.8"
 pbjson-build = "0.1"
+
+[features]
+default = []
+data_types_conversions = ["data_types"]

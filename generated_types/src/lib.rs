@@ -140,11 +140,17 @@ pub fn protobuf_type_url_eq(url: &str, protobuf_type: &str) -> bool {
 pub use com::github::influxdata::idpe::storage::read::*;
 pub use influxdata::platform::storage::*;
 
-pub mod chunk;
-pub mod database_rules;
-pub mod database_state;
-pub mod detailed_database;
 pub mod google;
+
+#[cfg(feature = "data_types_conversions")]
+pub mod chunk;
+#[cfg(feature = "data_types_conversions")]
+pub mod database_rules;
+#[cfg(feature = "data_types_conversions")]
+pub mod database_state;
+#[cfg(feature = "data_types_conversions")]
+pub mod detailed_database;
+#[cfg(feature = "data_types_conversions")]
 pub mod job;
 
 #[cfg(test)]
