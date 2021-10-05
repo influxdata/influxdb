@@ -705,7 +705,6 @@ mod tests {
         assert_eq!(expected, result);
     }
 
-    // NGA todo: check content of error messages
     #[test]
     fn test_parse_delete_negative() {
         // invalid key

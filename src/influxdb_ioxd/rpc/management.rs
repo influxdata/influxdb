@@ -623,6 +623,7 @@ where
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
+        // Parse input strings and build delete predicate
         let del_predicate_result = ParseDeletePredicate::build_delete_predicate(
             start_time.clone(),
             stop_time.clone(),
@@ -637,14 +638,13 @@ where
                 }))
             }
             Ok(del_predicate) => {
-                //execute delete
+                // execute delete
                 db.delete(&table_name, Arc::new(del_predicate))
                     .await
                     .map_err(default_db_error_handler)?;
             }
         }
 
-        // NGA todo: return a delete handle with the response?
         Ok(Response::new(DeleteResponse {}))
     }
 }

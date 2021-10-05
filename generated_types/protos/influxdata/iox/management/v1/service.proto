@@ -494,5 +494,4 @@ message DeleteRequest {
 }
 
 message DeleteResponse {
-  // NGA todo: define an appropriate response
 }
