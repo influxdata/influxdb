@@ -104,8 +104,16 @@ pub struct SeriesSet {
 /// pending on what is required for the gRPC layer.
 #[derive(Debug)]
 pub struct GroupDescription {
-    /// key = value  pairs that define the group
-    pub tags: Vec<(Arc<str>, Arc<str>)>,
+    /// the names of all tags (not just the tags used for grouping)
+    pub all_tags: Vec<Arc<str>>,
+
+    /// the values of the group tags that defined the group.
+    /// For example,
+    ///
+    /// If there were tags `t0`, `t1`, and `t2`, and the query had
+    /// group_keys of `[t1, t2]` then this list would have the values
+    /// of the t1 and t2 columns
+    pub gby_vals: Vec<Arc<str>>,
 }
 
 #[derive(Debug)]
@@ -415,9 +423,18 @@ impl GroupGenerator {
             if need_group_start {
                 let group_tags = series_set.tags[0..num_prefix_tag_group_columns].to_vec();
 
-                let group_desc = GroupDescription {
-                    tags: group_tags.clone(),
-                };
+                let all_tags = series_set
+                    .tags
+                    .iter()
+                    .map(|(tag, _value)| Arc::clone(tag))
+                    .collect::<Vec<_>>();
+
+                let gby_vals = group_tags
+                    .iter()
+                    .map(|(_tag, value)| Arc::clone(value))
+                    .collect::<Vec<_>>();
+
+                let group_desc = GroupDescription { all_tags, gby_vals };
 
                 self.last_group_tags = Some(group_tags);
                 return Some(group_desc);
@@ -780,10 +797,10 @@ mod tests {
         .await;
 
         // expect the output to be
-        // Group1 (tag_a = one)
+        // Group1 (tags: tag_a, tag_b, vals = one)
         // Series1 (tag_a = one, tag_b = ten)
         // Series2 (tag_a = one, tag_b = ten)
-        // Group2 (tag_a = two)
+        // Group2 (tags: tag_a, tag_b, vals = two)
         // Series3 (tag_a = two, tag_b = eleven)
 
         assert_eq!(results.len(), 5, "results were\n{:#?}", results); // 3 series, two groups (one and two)
@@ -794,7 +811,8 @@ mod tests {
         let group_2 = extract_group(&results[3]);
         let series_set3 = extract_series_set(&results[4]);
 
-        assert_eq!(group_1.tags, str_pair_vec_to_vec(&[("tag_a", "one")]));
+        assert_eq!(group_1.all_tags, str_vec_to_arc_vec(&["tag_a", "tag_b"]));
+        assert_eq!(group_1.gby_vals, str_vec_to_arc_vec(&["one"]));
 
         assert_eq!(series_set1.table_name.as_ref(), "foo");
         assert_eq!(
@@ -812,7 +830,8 @@ mod tests {
         assert_eq!(series_set2.start_row, 1);
         assert_eq!(series_set2.num_rows, 1);
 
-        assert_eq!(group_2.tags, str_pair_vec_to_vec(&[("tag_a", "two")]));
+        assert_eq!(group_2.all_tags, str_vec_to_arc_vec(&["tag_a", "tag_b"]));
+        assert_eq!(group_2.gby_vals, str_vec_to_arc_vec(&["two"]));
 
         assert_eq!(series_set3.table_name.as_ref(), "foo");
         assert_eq!(
@@ -844,8 +863,8 @@ mod tests {
         let field_columns = ["float_field"];
         let results = convert_groups(table_name, &tag_columns, 0, &field_columns, input).await;
 
-        // expect the output to be
-        // Group1 (tag_a = one)
+        // expect the output to be be (no vals, because no group columns are specified)
+        // Group1 (tags: tag_a, tag_b, vals = [])
         // Series1 (tag_a = one, tag_b = ten)
         // Series2 (tag_a = one, tag_b = ten)
 
@@ -855,7 +874,8 @@ mod tests {
         let series_set1 = extract_series_set(&results[1]);
         let series_set2 = extract_series_set(&results[2]);
 
-        assert_eq!(group_1.tags, &[]);
+        assert_eq!(group_1.all_tags, str_vec_to_arc_vec(&["tag_a", "tag_b"]));
+        assert_eq!(group_1.gby_vals, str_vec_to_arc_vec(&[]));
 
         assert_eq!(series_set1.table_name.as_ref(), "foo");
         assert_eq!(
@@ -898,7 +918,7 @@ mod tests {
         let mut converter = SeriesSetConverter::default();
 
         let table_name = Arc::from(table_name);
-        let tag_columns = str_vec_to_arc_vec(tag_columns);
+        let tag_columns = Arc::new(str_vec_to_arc_vec(tag_columns));
         let field_columns = FieldColumns::from(field_columns);
 
         converter
@@ -925,7 +945,7 @@ mod tests {
         let mut converter = SeriesSetConverter::default();
 
         let table_name = Arc::from(table_name);
-        let tag_columns = str_vec_to_arc_vec(tag_columns);
+        let tag_columns = Arc::new(str_vec_to_arc_vec(tag_columns));
         let field_columns = FieldColumns::from(field_columns);
 
         converter
