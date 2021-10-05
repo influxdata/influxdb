@@ -68,7 +68,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Represents a parsed delete predicate for evaluation by the InfluxDB IOx
 /// query engine.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeletePredicate {
     /// Only rows within this range are included in
     /// results. Other rows are excluded.

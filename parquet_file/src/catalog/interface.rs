@@ -1,5 +1,8 @@
 //! Abstract interfaces to make different users work with the perserved catalog.
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use data_types::chunk_metadata::{ChunkAddr, ChunkId};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
@@ -22,7 +25,7 @@ pub struct CatalogParquetInfo {
 }
 
 /// Same as [ChunkAddr] but w/o the database part.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChunkAddrWithoutDatabase {
     pub table_name: Arc<str>,
     pub partition_key: Arc<str>,
@@ -130,17 +133,15 @@ pub trait CatalogState {
 /// they refer.
 #[derive(Debug)]
 pub struct CheckpointData {
-    /// List of all Parquet files that are currently (i.e. by the current version) tracked by the
-    /// catalog.
+    /// Maps all Parquet file paths that are currently (i.e. by the current version) tracked by the
+    /// catalog to the associated metadata.
     ///
     /// If a file was once added but later removed it MUST NOT appear in the result.
     pub files: HashMap<ParquetFilePath, CatalogParquetInfo>,
 
-    /// List of active delete predicates together with their chunks (by table name, partition key, and chunk ID).
+    /// Maps active delete predicates to their chunks (by table name, partition key, and chunk ID).
     ///
     /// This must only contains chunks that are still present in the catalog. Predicates that do not have any chunks
     /// attached should be left out.
-    ///
-    /// The vector itself must be sorted by [`DeletePredicate`]. The chunks list must also be sorted.
-    pub delete_predicates: Vec<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)>,
+    pub delete_predicates: HashMap<Arc<DeletePredicate>, HashSet<ChunkAddrWithoutDatabase>>,
 }

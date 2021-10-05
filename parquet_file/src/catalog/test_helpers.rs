@@ -1,7 +1,7 @@
 use std::{
     collections::{
         hash_map::Entry::{Occupied, Vacant},
-        HashMap,
+        HashMap, HashSet,
     },
     fmt::Debug,
     sync::Arc,
@@ -77,42 +77,34 @@ impl TestCatalogState {
     }
 
     /// Return an iterator over all predicates in this catalog.
-    pub fn delete_predicates(&self) -> Vec<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)> {
-        let mut predicates: HashMap<usize, (Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)> =
+    pub fn delete_predicates(
+        &self,
+    ) -> HashMap<Arc<DeletePredicate>, HashSet<ChunkAddrWithoutDatabase>> {
+        let mut predicates: HashMap<Arc<DeletePredicate>, HashSet<ChunkAddrWithoutDatabase>> =
             Default::default();
 
         for (table_name, table) in &self.tables {
             for (partition_key, partition) in &table.partitions {
                 for (chunk_id, chunk) in &partition.chunks {
                     for predicate in &chunk.delete_predicates {
-                        let predicate_ref: &DeletePredicate = predicate.as_ref();
-                        let addr = (predicate_ref as *const DeletePredicate) as usize;
                         let pred_chunk_closure = || ChunkAddrWithoutDatabase {
                             table_name: Arc::clone(table_name),
                             partition_key: Arc::clone(partition_key),
                             chunk_id: *chunk_id,
                         };
                         predicates
-                            .entry(addr)
-                            .and_modify(|(_predicate, v)| v.push(pred_chunk_closure()))
-                            .or_insert_with(|| (Arc::clone(predicate), vec![pred_chunk_closure()]));
+                            .entry(Arc::clone(predicate))
+                            .and_modify(|chunks| {
+                                chunks.insert(pred_chunk_closure());
+                            })
+                            .or_insert_with(|| {
+                                IntoIterator::into_iter([pred_chunk_closure()]).collect()
+                            });
                     }
                 }
             }
         }
 
-        let mut predicates: Vec<_> = predicates
-            .into_values()
-            .map(|(predicate, mut chunks)| {
-                chunks.sort();
-                (predicate, chunks)
-            })
-            .collect();
-        predicates.sort_by(|(predicate_a, _chunks_a), (predicate_b, _chunks_b)| {
-            predicate_a
-                .partial_cmp(predicate_b)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
         predicates
     }
 
@@ -259,8 +251,8 @@ where
     // The expected state of the catalog
     let mut expected_files: HashMap<ChunkId, (ParquetFilePath, Arc<IoxParquetMetaData>)> =
         HashMap::new();
-    let mut expected_predicates: Vec<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)> =
-        vec![];
+    let mut expected_predicates: HashMap<Arc<DeletePredicate>, HashSet<ChunkAddrWithoutDatabase>> =
+        HashMap::new();
     assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // add files
@@ -528,13 +520,13 @@ where
         let predicate_1 = create_delete_predicate(1);
         let chunks_1 = vec![chunk_addr_1.clone().into()];
         state.delete_predicate(Arc::clone(&predicate_1), chunks_1.clone());
-        expected_predicates.push((predicate_1, chunks_1));
+        expected_predicates.insert(predicate_1, chunks_1.into_iter().collect());
 
         // second predicate uses both chunks (but not the older chunks)
         let predicate_2 = create_delete_predicate(2);
         let chunks_2 = vec![chunk_addr_1.into(), chunk_addr_2.into()];
         state.delete_predicate(Arc::clone(&predicate_2), chunks_2.clone());
-        expected_predicates.push((predicate_2, chunks_2));
+        expected_predicates.insert(predicate_2, chunks_2.into_iter().collect());
 
         // chunks created afterwards are unaffected
         let chunk_addr_3 = chunk_addr(10);
@@ -566,7 +558,7 @@ where
         expected_predicates = expected_predicates
             .into_iter()
             .filter_map(|(predicate, chunks)| {
-                let chunks: Vec<_> = chunks
+                let chunks: HashSet<_> = chunks
                     .into_iter()
                     .filter(|addr| addr.chunk_id != ChunkId::new(8))
                     .collect();
@@ -595,7 +587,7 @@ fn assert_checkpoint<S, F>(
     state: &S,
     f: &F,
     expected_files: &HashMap<ChunkId, (ParquetFilePath, Arc<IoxParquetMetaData>)>,
-    expected_predicates: &[(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)],
+    expected_predicates: &HashMap<Arc<DeletePredicate>, HashSet<ChunkAddrWithoutDatabase>>,
 ) where
     F: Fn(&S) -> CheckpointData,
 {
@@ -625,7 +617,7 @@ fn assert_checkpoint<S, F>(
         assert_eq!(stats_actual, stats_expected);
     }
 
-    assert_eq!(data.delete_predicates, expected_predicates);
+    assert_eq!(&data.delete_predicates, expected_predicates);
 }
 
 /// Get a sorted list of keys from an iterator.

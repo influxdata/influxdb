@@ -25,7 +25,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{
         hash_map::Entry::{Occupied, Vacant},
-        HashMap,
+        HashMap, HashSet,
     },
     fmt::Debug,
     sync::Arc,
@@ -860,7 +860,7 @@ impl<'c> TransactionHandle<'c> {
         &mut self,
         predicate: &DeletePredicate,
         chunks: &[ChunkAddrWithoutDatabase],
-    ) -> Result<()> {
+    ) {
         self.transaction
             .as_mut()
             .expect("transaction handle w/o transaction?!")
@@ -877,8 +877,6 @@ impl<'c> TransactionHandle<'c> {
                         .collect(),
                 },
             ));
-
-        Ok(())
     }
 }
 
@@ -987,11 +985,25 @@ impl<'c> CheckpointHandle<'c> {
     }
 
     fn create_actions_for_delete_predicates(
-        delete_predicates: Vec<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)>,
+        delete_predicates: HashMap<Arc<DeletePredicate>, HashSet<ChunkAddrWithoutDatabase>>,
     ) -> Result<Vec<proto::transaction::Action>, Error> {
+        // sort by key (= path) for deterministic output
+        let delete_predicates = {
+            let mut tmp: Vec<_> = delete_predicates.into_iter().collect();
+            tmp.sort_by_key(|(predicate, _chunks)| Arc::clone(predicate));
+            tmp
+        };
+
         delete_predicates
             .into_iter()
             .map(|(predicate, chunks)| {
+                // sort chunks for deterministic output
+                let chunks = {
+                    let mut tmp: Vec<_> = chunks.into_iter().collect();
+                    tmp.sort();
+                    tmp
+                };
+
                 let action = proto::DeletePredicate {
                     predicate: Some(predicate::serialize::serialize(&predicate)),
                     chunks: chunks
@@ -1719,12 +1731,12 @@ mod tests {
             // create two predicate
             let predicate_1 = create_delete_predicate(42);
             let chunks_1 = vec![chunk_addrs[0].clone().into()];
-            t.delete_predicate(&predicate_1, &chunks_1).unwrap();
+            t.delete_predicate(&predicate_1, &chunks_1);
             state.delete_predicate(predicate_1, chunks_1);
 
             let predicate_2 = create_delete_predicate(1337);
             let chunks_2 = vec![chunk_addrs[0].clone().into(), chunk_addrs[1].clone().into()];
-            t.delete_predicate(&predicate_2, &chunks_2).unwrap();
+            t.delete_predicate(&predicate_2, &chunks_2);
             state.delete_predicate(predicate_2, chunks_2);
 
             t.commit().await.unwrap();

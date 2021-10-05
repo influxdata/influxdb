@@ -3,7 +3,7 @@
 
 use std::{
     any::Any,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     num::NonZeroUsize,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -584,9 +584,7 @@ impl Db {
 
         if !affected_persisted_chunks.is_empty() {
             let mut transaction = self.preserved_catalog.open_transaction().await;
-            transaction
-                .delete_predicate(&delete_predicate, &affected_persisted_chunks)
-                .context(CommitDeletePredicateError)?;
+            transaction.delete_predicate(&delete_predicate, &affected_persisted_chunks);
             transaction
                 .commit()
                 .await
@@ -1249,10 +1247,8 @@ impl CatalogProvider for Db {
 
 pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData {
     let mut files = HashMap::new();
-    let mut delete_predicates: HashMap<
-        usize,
-        (Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>),
-    > = Default::default();
+    let mut delete_predicates: HashMap<Arc<DeletePredicate>, HashSet<ChunkAddrWithoutDatabase>> =
+        Default::default();
 
     for chunk in catalog.chunks() {
         let guard = chunk.read();
@@ -1276,28 +1272,17 @@ pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData 
             || guard.is_in_lifecycle(ChunkLifecycleAction::Persisting)
         {
             for predicate in guard.delete_predicates() {
-                let predicate_ref: &DeletePredicate = predicate.as_ref();
-                let addr = (predicate_ref as *const DeletePredicate) as usize;
                 delete_predicates
-                    .entry(addr)
-                    .and_modify(|(_predicate, v)| v.push(guard.addr().clone().into()))
-                    .or_insert_with(|| (Arc::clone(predicate), vec![guard.addr().clone().into()]));
+                    .entry(Arc::clone(predicate))
+                    .and_modify(|chunks| {
+                        chunks.insert(guard.addr().clone().into());
+                    })
+                    .or_insert_with(|| {
+                        IntoIterator::into_iter([guard.addr().clone().into()]).collect()
+                    });
             }
         }
     }
-
-    let mut delete_predicates: Vec<_> = delete_predicates
-        .into_values()
-        .map(|(predicate, mut chunks)| {
-            chunks.sort();
-            (predicate, chunks)
-        })
-        .collect();
-    delete_predicates.sort_by(|(predicate_a, _chunks_a), (predicate_b, _chunks_b)| {
-        predicate_a
-            .partial_cmp(predicate_b)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
 
     CheckpointData {
         files,
