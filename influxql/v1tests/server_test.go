@@ -4732,8 +4732,21 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 		OrgID: s.DefaultOrgID,
 		Name:  "b3",
 	}
+	bucket4 := influxdb.Bucket{
+		OrgID: s.DefaultOrgID,
+		Name:  "b4",
+	}
 	require.NoError(t, client.CreateBucket(ctx, &bucket2))
 	require.NoError(t, client.CreateBucket(ctx, &bucket3))
+	require.NoError(t, client.CreateBucket(ctx, &bucket4))
+
+	require.NoError(t, client.DBRPMappingService.Create(ctx, &influxdb.DBRPMapping{
+		Database:        "databaseEmpty",
+		RetentionPolicy: "rp0",
+		Default:         false,
+		OrganizationID:  s.DefaultOrgID,
+		BucketID:        bucket4.ID,
+	}))
 
 	require.NoError(t, client.DBRPMappingService.Create(ctx, &influxdb.DBRPMapping{
 		Database:        "db0",
