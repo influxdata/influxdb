@@ -272,11 +272,11 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 16,
+            version: 17,
             actions: [],
             revision_counter: 0,
-            uuid: "00000000-0000-0000-0000-000000000000",
-            previous_uuid: "",
+            uuid: b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
+            previous_uuid: b"",
             start_timestamp: Some(
                 Timestamp {
                     seconds: 10,
@@ -297,7 +297,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 16,
+            version: 17,
             actions: [
                 Action {
                     action: Some(
@@ -320,8 +320,8 @@ File {
                 },
             ],
             revision_counter: 1,
-            uuid: "00000000-0000-0000-0000-000000000000",
-            previous_uuid: "00000000-0000-0000-0000-000000000000",
+            uuid: b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
+            previous_uuid: b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
             start_timestamp: Some(
                 Timestamp {
                     seconds: 10,
@@ -396,11 +396,11 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 16,
+            version: 17,
             actions: [],
             revision_counter: 0,
-            uuid: "00000000-0000-0000-0000-000000000000",
-            previous_uuid: "",
+            uuid: b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
+            previous_uuid: b"",
             start_timestamp: Some(
                 Timestamp {
                     seconds: 10,
@@ -421,7 +421,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 16,
+            version: 17,
             actions: [
                 Action {
                     action: Some(
@@ -444,8 +444,8 @@ File {
                 },
             ],
             revision_counter: 1,
-            uuid: "00000000-0000-0000-0000-000000000000",
-            previous_uuid: "00000000-0000-0000-0000-000000000000",
+            uuid: b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
+            previous_uuid: b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
             start_timestamp: Some(
                 Timestamp {
                     seconds: 10,
