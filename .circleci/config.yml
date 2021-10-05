@@ -9,7 +9,7 @@ executors:
       # NOTE: To upgrade the Go version, first push the upgrade to the cross-builder Dockerfile in the edge repo,
       # then update the version here to match. Until we finish the migration to using the cross-builder image,
       # you'll also need to update references to `cimg/go` and `GO_VERSION` in this file.
-      - image: quay.io/influxdb/cross-builder:go1.17.1-41d944d749b2c130119eff7efaaa9883ccffe5a7
+      - image: quay.io/influxdb/cross-builder:go1.17.1-f8379e935394b78ab2977471b55974d0d617d289
     resource_class: large
   linux-amd64:
     machine:
@@ -54,9 +54,9 @@ workflows:
       not: << pipeline.parameters.aws_teardown >>
     jobs:
       - godeps
-      - gotest:
-          requires:
-            - godeps
+      - test-race:
+          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
+          name: gotest
       - test-build:
           matrix:
             parameters:
@@ -92,9 +92,9 @@ workflows:
       - tlstest:
           requires:
             - godeps
-      - golint:
-          requires:
-            - godeps
+      - lint:
+          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
+          name: golint
       - build:
           requires:
             - godeps
@@ -180,9 +180,9 @@ workflows:
     jobs:
       - changelog
       - godeps
-      - gotest:
-          requires:
-            - godeps
+      - test-race:
+          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
+          name: gotest
       - test-build:
           matrix:
             parameters:
@@ -212,9 +212,9 @@ workflows:
           executor: windows
           requires:
             - test-build-amd64-windows
-      - golint:
-          requires:
-            - godeps
+      - lint:
+          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
+          name: golint
       - fluxtest:
           requires:
             - godeps
@@ -449,70 +449,50 @@ jobs:
           paths:
             - /home/circleci/go/pkg/mod
 
-  golint:
-    docker:
-      - image: cimg/go:1.17.1
-    environment:
-      TMPDIR: /mnt/ramdisk
-    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+  lint:
+    executor: cross-builder
     steps:
       - checkout
-      - restore_cache:
-          keys:
-            - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - run: |
-          # this is not in a seperate bash script because it isn't meant to be run on local.
-          # it just checks to make sure that the same major/minor version of go is used in the mod file as on ci
-          # to prevent accidentally checking in a wrong go mod version.
-          gomodversiondiff=$( go mod edit -go=$( go version | sed -n 's/^.*go\([0-9]*.[0-9]*\).*$/\1/p') -print |diff - go.mod )
-          if [ "$gomodversiondiff" ]
-          then
-            echo unexpected go version $gomodversiondiff
-            exit 1
-          fi
-      - install_core_deps
+      - run:
+          name: Check go version
+          command: ./scripts/ci/check-system-go-matches-go-mod.sh
+          when: always
       - run:
           name: Check flag generation
           command: ./scripts/ci/lint/flags.bash
-      - run: make checkgenerate
+          when: always
       - run:
-          name: Check generation when vendoring deps
+          name: Check formatting
+          command: make checkfmt
+          when: always
+      - run:
+          name: Check codegen
+          command: make checkgenerate
+          when: always
+      - run:
+          name: vet
+          command: make vet
+          when: always
+      - run:
+          name: staticcheck
           command: |
-            go mod vendor
-            make checkgenerate
-            rm -rf vendor
-      - run: make vet
-      - run: make checkfmt
-      - run: go install honnef.co/go/tools/cmd/staticcheck
-      - run: staticcheck ./...
+            go install honnef.co/go/tools/cmd/staticcheck
+            staticcheck ./...
+          when: always
 
-  gotest:
-    docker:
-      - image: cimg/go:1.17.1
-    resource_class: large
-    environment:
-      TMPDIR: /mnt/ramdisk
-    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+  test-race:
+    executor: cross-builder
     parallelism: 8
     steps:
       - checkout
-      - restore_cache:
-          name: Restore GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - run: mkdir -p /tmp/test-results
-      - install_core_deps
       - run:
-          name: run parallel race tests
-          command: |
-            GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml -- -p=4"
-            TESTFILES=($(go list ./... | circleci tests split --split-by=timings))
-            make GO_TEST_CMD="$GO_TEST_CMD" GO_TEST_PATHS="${TESTFILES[*]}" test-go-race
-      - store_artifacts:
-          path: /tmp/test-results
-          destination: raw-test-output
+          name: Run race tests
+          command: ./scripts/ci/run-race-tests.sh $(pwd)/test-results
       - store_test_results:
-          path: /tmp/test-results
+          path: ./test-results
+      - store_artifacts:
+          path: ./test-results
+          destination: raw-test-results
 
   test-build:
     executor: cross-builder
