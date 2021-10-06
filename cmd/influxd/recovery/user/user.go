@@ -88,6 +88,7 @@ type userCreateCommand struct {
 	boltPath string
 	out      io.Writer
 	username string
+	password string
 }
 
 func NewUserCreateCommand() *cobra.Command {
@@ -112,6 +113,7 @@ func NewUserCreateCommand() *cobra.Command {
 	defaultPath := filepath.Join(os.Getenv("HOME"), ".influxdbv2", "influxd.bolt")
 	cmd.Flags().StringVar(&userCmd.boltPath, "bolt-path", defaultPath, "Path to the BoltDB file")
 	cmd.Flags().StringVar(&userCmd.username, "username", "", "Name of the user")
+	cmd.Flags().StringVar(&userCmd.password, "password", "", "Password for new user")
 
 	return cmd
 }
@@ -129,16 +131,23 @@ func (cmd *userCreateCommand) run() error {
 	if cmd.username == "" {
 		return fmt.Errorf("must provide --username")
 	}
-
-	// Find the user
-	user, err := tenantService.FindUser(ctx, influxdb.UserFilter{Name: &cmd.username})
-	if err == nil || user != nil {
-		return fmt.Errorf("cannot create existing user %s", cmd.username)
+	if cmd.password == "" {
+		return fmt.Errorf("must provide --password")
 	}
 
-	if err := tenantService.CreateUser(ctx, &influxdb.User{
+	user := influxdb.User{
 		Name: cmd.username,
-	}); err != nil {
+	}
+
+	if err := tenantService.CreateUser(ctx, &user); err != nil {
+		return err
+	}
+
+	if err := tenantService.SetPassword(ctx, user.ID, cmd.password); err != nil {
+		// attempt to delete new user because password failed
+		if delErr := tenantService.DeleteUser(ctx, user.ID); delErr != nil {
+			fmt.Fprintf(cmd.out, "Could not delete bad user %q after password set failed: %s", cmd.username, delErr)
+		}
 		return err
 	}
 

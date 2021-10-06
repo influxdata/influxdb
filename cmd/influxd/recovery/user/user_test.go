@@ -15,8 +15,13 @@ func Test_User_Basic(t *testing.T) {
 `,
 		testhelper.MustRunCommand(t, NewUserCommand(), "list", "--bolt-path", db.Name()))
 
-	// org name not created unless create argument given
-	assert.NoError(t, testhelper.RunCommand(t, NewUserCommand(), "create", "--bolt-path", db.Name(), "--username", "testuser2"))
+	// existing user must not be created
+	assert.EqualError(t, testhelper.RunCommand(t, NewUserCommand(), "create", "--bolt-path", db.Name(), "--username", "testuser", "--password", "foo"),
+		"user with name testuser already exists")
+
+	// user needs a long-ish password
+	assert.EqualError(t, testhelper.RunCommand(t, NewUserCommand(), "create", "--bolt-path", db.Name(), "--username", "testuser2", "--password", "foo"), "passwords must be at least 8 characters long")
+	assert.NoError(t, testhelper.RunCommand(t, NewUserCommand(), "create", "--bolt-path", db.Name(), "--username", "testuser2", "--password", "my_password"), "")
 
 	assert.Regexp(t, "\ttestuser2\n",
 		testhelper.MustRunCommand(t, NewUserCommand(), "list", "--bolt-path", db.Name()))

@@ -10,7 +10,6 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/internal/tabwriter"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
@@ -61,7 +60,7 @@ func NewOrgListCommand() *cobra.Command {
 
 	defaultPath := filepath.Join(os.Getenv("HOME"), ".influxdbv2", "influxd.bolt")
 
-	cmd.Flags().StringVar(&orgCmd.boltPath, "bolt-path", defaultPath, "Path to the TSM data directory.")
+	cmd.Flags().StringVar(&orgCmd.boltPath, "bolt-path", defaultPath, "Path to the BoltDB file")
 
 	return cmd
 }
@@ -129,33 +128,13 @@ func (cmd *orgCreateCommand) run() error {
 		return fmt.Errorf("must provide --org")
 	}
 
-	sanitizeNotFound := func(err error) error {
-		if err != nil {
-			if e, _ := err.(*errors.Error); e != nil && e.Code == errors.ENotFound {
-				return nil
-			}
-		}
-		return err
-	}
-
-	orgs, _, err := tenantService.FindOrganizations(ctx, influxdb.OrganizationFilter{
-		Name: &cmd.org,
-	})
-	err = sanitizeNotFound(err)
-	if err != nil {
-		return err
-	}
-	if len(orgs) > 0 {
-		return fmt.Errorf("organization already exists: %q", cmd.org)
-	}
-
 	if err := tenantService.CreateOrganization(ctx, &influxdb.Organization{
 		Name: cmd.org,
 	}); err != nil {
 		return err
 	}
 
-	orgs, _, err = tenantService.FindOrganizations(ctx, influxdb.OrganizationFilter{})
+	orgs, _, err := tenantService.FindOrganizations(ctx, influxdb.OrganizationFilter{})
 	if err != nil {
 		return err
 	}

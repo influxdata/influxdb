@@ -15,7 +15,10 @@ dd7cd2292f6e974a	myorg
 `,
 		testhelper.MustRunCommand(t, NewOrgCommand(), "list", "--bolt-path", db.Name()))
 
-	// org name not created unless create argument given
+	// org creation only works for new names
+	assert.EqualError(t, testhelper.RunCommand(t, NewOrgCommand(), "create", "--bolt-path", db.Name(), "--org", "myorg"), "organization with name myorg already exists")
+
+	// org creation works
 	assert.NoError(t, testhelper.RunCommand(t, NewOrgCommand(), "create", "--bolt-path", db.Name(), "--org", "neworg"))
 
 	// neworg shows up in list of orgs

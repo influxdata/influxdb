@@ -17,13 +17,13 @@ func Test_Auth_Basic(t *testing.T) {
 		testhelper.MustRunCommand(t, NewAuthCommand(), "list", "--bolt-path", db.Name()))
 
 	// org name not created
-	assert.EqualError(t, testhelper.RunCommand(t, NewAuthCommand(), "create-operator", "--bolt-path", db.Name(), "--org", "not-exist", "--username", "testuser"), "finding org \"not-exist\": organization name \"not-exist\" not found")
+	assert.EqualError(t, testhelper.RunCommand(t, NewAuthCommand(), "create-operator", "--bolt-path", db.Name(), "--org", "not-exist", "--username", "testuser"), "could not find org \"not-exist\": organization name \"not-exist\" not found")
 
 	// user not created
-	assert.EqualError(t, testhelper.RunCommand(t, NewAuthCommand(), "create-operator", "--bolt-path", db.Name(), "--org", "my-org", "--username", "testuser2"), "finding user \"testuser2\": user not found")
+	assert.EqualError(t, testhelper.RunCommand(t, NewAuthCommand(), "create-operator", "--bolt-path", db.Name(), "--org", "myorg", "--username", "testuser2"), "could not find user \"testuser2\": user not found")
 
 	// existing user creates properly
-	assert.NoError(t, testhelper.RunCommand(t, NewAuthCommand(), "create-operator", "--bolt-path", db.Name(), "--username", "testuser"))
+	assert.NoError(t, testhelper.RunCommand(t, NewAuthCommand(), "create-operator", "--bolt-path", db.Name(), "--username", "testuser", "--org", "myorg"))
 
 	assert.Regexp(t, ""+
 		`ID			User Name	User ID			Description			Token												Permissions`+"\n"+
