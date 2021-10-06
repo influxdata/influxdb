@@ -1062,6 +1062,26 @@ async fn sql_select_with_three_deletes_from_three_chunks() {
     .await;
 }
 
+// Bug: https://github.com/influxdata/influxdb_iox/issues/2745
+#[ignore]
+#[tokio::test]
+async fn sql_select_count_with_three_deletes_from_three_chunks() {
+    let expected = vec![
+        "+-----+-----+--------------------------------+",
+        "| bar | foo | time                           |",
+        "+-----+-----+--------------------------------+",
+        "| 7   | me  | 1970-01-01T00:00:00.000000080Z |",
+        "+-----+-----+--------------------------------+",
+    ];
+
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT count(*) from cpu",
+        &expected,
+    )
+    .await;
+}
+
 #[tokio::test]
 async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate() {
     test_helpers::maybe_start_logging();

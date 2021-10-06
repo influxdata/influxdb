@@ -3,6 +3,7 @@
 use std::{fmt, sync::Arc};
 
 use arrow::datatypes::SchemaRef;
+use data_types::partition_metadata::TableSummary;
 use datafusion::{
     error::DataFusionError,
     physical_plan::{
@@ -161,15 +162,24 @@ impl<C: QueryChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
     }
 
     fn statistics(&self) -> Statistics {
-        self.chunks
-            .iter()
-            .fold(None, |combined_summary, chunk| match combined_summary {
+        let mut combined_summary_option: Option<TableSummary> = None;
+        for chunk in &self.chunks {
+            if chunk.has_delete_predicates() || chunk.may_contain_pk_duplicates() {
+                // Not use statistics if there is at least one delete predicate or
+                // if chunk may have duplicates
+                return Statistics::default();
+            }
+
+            combined_summary_option = match combined_summary_option {
                 None => Some(chunk.summary().clone()),
                 Some(mut combined_summary) => {
                     combined_summary.update_from(chunk.summary());
                     Some(combined_summary)
                 }
-            })
+            }
+        }
+
+        combined_summary_option
             .map(|combined_summary| {
                 crate::statistics::df_from_iox(self.iox_schema.as_ref(), &combined_summary)
             })

@@ -1,0 +1,13 @@
+-- Test Setup: TwoMeasurementsManyFieldsOneRubChunk
+-- SQL: EXPLAIN SELECT count(*) from h2o;
++---------------+-------------------------------------------------------------+
+| plan_type     | plan                                                        |
++---------------+-------------------------------------------------------------+
+| logical_plan  | Projection: #COUNT(UInt8(1))                                |
+|               |   Aggregate: groupBy=[[]], aggr=[[COUNT(UInt8(1))]]         |
+|               |     TableScan: h2o projection=Some([0])                     |
+| physical_plan | ProjectionExec: expr=[COUNT(UInt8(1))@0 as COUNT(UInt8(1))] |
+|               |   RepartitionExec: partitioning=RoundRobinBatch(4)          |
+|               |     ProjectionExec: expr=[3 as COUNT(Uint8(1))]             |
+|               |       EmptyExec: produce_one_row=true                       |
++---------------+-------------------------------------------------------------+

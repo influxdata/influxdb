@@ -47,6 +47,20 @@ async fn test_cases_duplicates_sql() {
 }
 
 #[tokio::test]
+// Tests from "no_stats_plans.sql",
+async fn test_cases_no_stats_plans_sql() {
+    let input_path = Path::new("cases").join("in").join("no_stats_plans.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
 // Tests from "pushdown.sql",
 async fn test_cases_pushdown_sql() {
     let input_path = Path::new("cases").join("in").join("pushdown.sql");
