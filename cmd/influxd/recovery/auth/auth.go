@@ -7,10 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/influxdata/influx-cli/v2/pkg/tabwriter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/bolt"
-	"github.com/influxdata/influxdb/v2/internal/tabwriter"
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
