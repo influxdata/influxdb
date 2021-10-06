@@ -29,7 +29,6 @@ use std::{
     convert::TryInto,
     fmt::Display,
     sync::{Arc, Weak},
-    time::Instant,
 };
 use tracker::{RwLock, TaskTracker};
 
@@ -203,7 +202,7 @@ impl LockablePartition for LockableCatalogPartition {
 
     fn prepare_persist(
         partition: &mut LifecycleWriteGuard<'_, Self::Partition, Self>,
-        now: Instant,
+        now: DateTime<Utc>,
     ) -> Option<Self::PersistHandle> {
         let window = partition.persistence_windows_mut().unwrap();
         let handle = window.flush_handle(now);
@@ -217,7 +216,7 @@ impl LockablePartition for LockableCatalogPartition {
         handle: Self::PersistHandle,
     ) -> Result<TaskTracker<Job>, Self::Error> {
         info!(table=%partition.table_name(), partition=%partition.partition_key(), "persisting chunks");
-        let (tracker, fut) = persist::persist_chunks(partition, chunks, handle.0, Utc::now)?;
+        let (tracker, fut) = persist::persist_chunks(partition, chunks, handle.0)?;
         let _ = tokio::spawn(async move { fut.await.log_if_error("persisting chunks") });
         Ok(tracker)
     }
@@ -288,13 +287,13 @@ impl LifecyclePartition for Partition {
             .unwrap_or(true)
     }
 
-    fn persistable_row_count(&self, now: Instant) -> usize {
+    fn persistable_row_count(&self, now: DateTime<Utc>) -> usize {
         self.persistence_windows()
             .map(|w| w.persistable_row_count(now))
             .unwrap_or(0)
     }
 
-    fn minimum_unpersisted_age(&self) -> Option<Instant> {
+    fn minimum_unpersisted_age(&self) -> Option<DateTime<Utc>> {
         self.persistence_windows()
             .and_then(|w| w.minimum_unpersisted_age())
     }

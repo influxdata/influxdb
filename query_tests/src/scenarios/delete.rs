@@ -9,7 +9,6 @@ use async_trait::async_trait;
 use query::QueryChunk;
 use std::fmt::Display;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use server::db::test_helpers::write_lp;
 use server::utils::make_db;
@@ -652,11 +651,7 @@ async fn make_chunk_with_deletes_at_different_stages(
     match chunk_stage {
         ChunkStage::RubOs | ChunkStage::Os => {
             let chunk_result = db
-                .persist_partition(
-                    table_name,
-                    partition_key,
-                    Instant::now() + Duration::from_secs(1),
-                )
+                .persist_partition(table_name, partition_key, true)
                 .await
                 .unwrap();
 
@@ -778,11 +773,7 @@ async fn make_different_stage_chunks_with_deletes_scenario(
         match chunk_data.chunk_stage {
             ChunkStage::RubOs | ChunkStage::Os => {
                 let chunk = db
-                    .persist_partition(
-                        table_name,
-                        partition_key,
-                        Instant::now() + Duration::from_secs(1),
-                    )
+                    .persist_partition(table_name, partition_key, true)
                     .await
                     .unwrap()
                     .unwrap();

@@ -7,7 +7,7 @@ use std::{
     convert::TryFrom,
     num::{NonZeroU32, NonZeroU64},
     sync::Arc,
-    time::{Duration, Instant},
+    time::Duration,
 };
 use tokio::{
     runtime::{Handle, Runtime},
@@ -88,11 +88,7 @@ async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
                 .unwrap();
 
             let chunk = db
-                .persist_partition(
-                    table_name,
-                    partition_key,
-                    Instant::now() + Duration::from_secs(1),
-                )
+                .persist_partition(table_name, partition_key, true)
                 .await
                 .unwrap()
                 .unwrap();

@@ -3174,6 +3174,7 @@ dependencies = [
  "arrow",
  "arrow_util",
  "async-trait",
+ "chrono",
  "data_types",
  "datafusion 0.1.0",
  "internal_types",

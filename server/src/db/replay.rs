@@ -130,7 +130,7 @@ pub async fn seek_to_end(db: &Db, write_buffer: &mut dyn WriteBufferReading) -> 
                 let mut windows = PersistenceWindows::new(
                     partition.addr().clone(),
                     late_arrival_window,
-                    db.background_worker_now(),
+                    db.utc_now(),
                 );
                 windows.mark_seen_and_persisted(&dummy_checkpoint);
                 partition.set_persistence_windows(windows);
@@ -236,7 +236,7 @@ pub async fn perform_replay(
                         |sequence, partition_key, table_batch| {
                             filter_entry(sequence, partition_key, table_batch, replay_plan)
                         },
-                        Utc::now(),
+                        db.utc_now(),
                     ) {
                         Ok(_) => {
                             break;
@@ -289,7 +289,7 @@ pub async fn perform_replay(
                     let mut windows = PersistenceWindows::new(
                         partition.addr().clone(),
                         late_arrival_window,
-                        db.background_worker_now(),
+                        db.utc_now(),
                     );
                     windows.mark_seen_and_persisted(partition_checkpoint);
                     partition.set_persistence_windows(windows);
@@ -418,7 +418,7 @@ mod tests {
     };
 
     use arrow_util::assert_batches_eq;
-    use chrono::Utc;
+    use chrono::{DateTime, Utc};
     use data_types::{
         database_rules::{PartitionTemplate, Partitioner, TemplatePart},
         server_id::ServerId,
@@ -576,7 +576,7 @@ mod tests {
                 db_name,
                 partition_template.clone(),
                 self.catalog_transactions_until_checkpoint,
-                Instant::now(),
+                Utc::now(),
             )
             .await;
 
@@ -610,7 +610,7 @@ mod tests {
                         join_handle.await.unwrap();
 
                         // remember time
-                        let now = test_db.db.background_worker_now_override.lock().unwrap();
+                        let now = test_db.db.now_override.lock().unwrap();
 
                         // drop old DB
                         drop(test_db);
@@ -656,14 +656,7 @@ mod tests {
                         for (table_name, partition_key) in partitions {
                             println!("Persist {}:{}", table_name, partition_key);
                             loop {
-                                match db
-                                    .persist_partition(
-                                        table_name,
-                                        partition_key,
-                                        db.background_worker_now(),
-                                    )
-                                    .await
-                                {
+                                match db.persist_partition(table_name, partition_key, false).await {
                                     Ok(_) => break,
                                     Err(crate::db::Error::CannotFlushPartition { .. }) => {
                                         // cannot persist right now because of some lifecycle action, so wait a bit
@@ -700,8 +693,8 @@ mod tests {
                         }
                     }
                     Step::MakeWritesPersistable => {
-                        let mut guard = test_db.db.background_worker_now_override.lock();
-                        *guard = Some(guard.unwrap() + Duration::from_secs(60));
+                        let mut guard = test_db.db.now_override.lock();
+                        *guard = Some(guard.unwrap() + chrono::Duration::seconds(60));
                     }
                     Step::Assert(checks) => {
                         Self::eval_checks(&checks, true, &test_db).await;
@@ -768,7 +761,7 @@ mod tests {
             db_name: &'static str,
             partition_template: PartitionTemplate,
             catalog_transactions_until_checkpoint: NonZeroU64,
-            now: Instant,
+            now: DateTime<Utc>,
         ) -> (TestDb, CancellationToken, JoinHandle<()>) {
             let test_db = TestDb::builder()
                 .object_store(object_store)
@@ -786,7 +779,7 @@ mod tests {
                 .await;
 
             // Mock time
-            *test_db.db.background_worker_now_override.lock() = Some(now);
+            *test_db.db.now_override.lock() = Some(now);
 
             // start background worker
             let shutdown: CancellationToken = Default::default();

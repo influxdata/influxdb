@@ -1433,13 +1433,9 @@ mod tests {
         assert!(db.partition_summary("table_1", "partition_by_a").is_some());
 
         // persist one partition
-        db.persist_partition(
-            "table_1",
-            "partition_by_b",
-            Instant::now() + Duration::from_secs(2),
-        )
-        .await
-        .unwrap();
+        db.persist_partition("table_1", "partition_by_b", true)
+            .await
+            .unwrap();
 
         // shutdown first database
         database.shutdown();

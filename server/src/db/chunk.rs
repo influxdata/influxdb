@@ -568,7 +568,6 @@ mod tests {
         utils::make_db,
     };
     use data_types::chunk_metadata::ChunkStorage;
-    use std::time::{Duration, Instant};
 
     async fn test_chunk_access(chunk: &CatalogChunk) {
         let t1 = chunk.access_recorder().get_metrics();
@@ -661,11 +660,7 @@ mod tests {
         write_lp_with_time(&db, "cpu,tag=1 bar=1 1", creation_time).await;
 
         let id = db
-            .persist_partition(
-                "cpu",
-                "1970-01-01T00",
-                Instant::now() + Duration::from_secs(10000),
-            )
+            .persist_partition("cpu", "1970-01-01T00", true)
             .await
             .unwrap()
             .unwrap()
@@ -690,19 +685,14 @@ mod tests {
     async fn parquet_snapshot() {
         let db = make_db().await.db;
 
-        let before_creation = Utc::now();
-        write_lp(&db, "cpu,tag=1 bar=1 1").await;
-        let after_creation = Utc::now();
-        write_lp(&db, "cpu,tag=2 bar=2 2").await;
-        let after_write = Utc::now();
+        let w0 = Utc::now();
+        write_lp_with_time(&db, "cpu,tag=1 bar=1 1", w0).await;
+        let w1 = w0 + chrono::Duration::seconds(4);
+        write_lp_with_time(&db, "cpu,tag=2 bar=2 2", w1).await;
 
-        db.persist_partition(
-            "cpu",
-            "1970-01-01T00",
-            Instant::now() + Duration::from_secs(10000),
-        )
-        .await
-        .unwrap();
+        db.persist_partition("cpu", "1970-01-01T00", true)
+            .await
+            .unwrap();
 
         let chunks = db.catalog.chunks();
         assert_eq!(chunks.len(), 1);
@@ -713,9 +703,7 @@ mod tests {
 
         let first_write = snapshot.time_of_first_write();
         let last_write = snapshot.time_of_last_write();
-        assert!(before_creation < first_write);
-        assert!(first_write < after_creation);
-        assert!(first_write < last_write);
-        assert!(last_write < after_write);
+        assert_eq!(w0, first_write);
+        assert_eq!(w1, last_write);
     }
 }

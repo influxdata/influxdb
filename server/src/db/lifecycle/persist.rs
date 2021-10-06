@@ -18,19 +18,18 @@ use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 /// Split and then persist the provided chunks
 ///
+/// `flush_handle` describes both what to persist and also acts as a transaction
+/// on the persistence windows
+///
 /// TODO: Replace low-level locks with transaction object
-pub fn persist_chunks<F>(
+pub fn persist_chunks(
     partition: LifecycleWriteGuard<'_, Partition, LockableCatalogPartition>,
     chunks: Vec<LifecycleWriteGuard<'_, CatalogChunk, LockableCatalogChunk>>,
     flush_handle: FlushHandle,
-    f_parquet_creation_timestamp: F,
 ) -> Result<(
     TaskTracker<Job>,
     TrackedFuture<impl Future<Output = Result<Option<Arc<DbChunk>>>> + Send>,
-)>
-where
-    F: Fn() -> DateTime<Utc> + Send,
-{
+)> {
     let now = std::time::Instant::now(); // time persist duration.
     let db = Arc::clone(&partition.data().db);
     let addr = partition.addr().clone();
@@ -188,13 +187,7 @@ where
             };
             let to_persist = to_persist.write();
 
-            write_chunk_to_object_store(
-                partition_write,
-                to_persist,
-                flush_handle,
-                f_parquet_creation_timestamp,
-            )?
-            .1
+            write_chunk_to_object_store(partition_write, to_persist, flush_handle)?.1
         };
 
         // Wait for write operation to complete
@@ -227,7 +220,7 @@ mod tests {
     use query::QueryDatabase;
     use std::{
         num::{NonZeroU32, NonZeroU64},
-        time::{Duration, Instant},
+        time::Duration,
     };
 
     async fn test_db() -> Arc<Db> {
@@ -266,14 +259,14 @@ mod tests {
 
         let mut partition = partition.upgrade();
 
-        let handle = LockablePartition::prepare_persist(&mut partition, Instant::now())
+        let handle = LockablePartition::prepare_persist(&mut partition, Utc::now())
             .unwrap()
             .0;
 
         assert_eq!(handle.timestamp(), Utc.timestamp_nanos(10));
         let chunks: Vec<_> = chunks.map(|x| x.upgrade()).collect();
 
-        persist_chunks(partition, chunks, handle, Utc::now)
+        persist_chunks(partition, chunks, handle)
             .unwrap()
             .1
             .await
@@ -292,16 +285,16 @@ mod tests {
     async fn test_persist_delete() {
         let db = test_db().await;
 
-        let late_arrival = Duration::from_secs(1);
+        let late_arrival = chrono::Duration::seconds(1);
 
-        let t0 = Instant::now();
+        let t0 = Utc::now();
         let t1 = t0 + late_arrival * 10;
         let t2 = t1 + late_arrival * 10;
 
-        *db.background_worker_now_override.lock() = Some(t0);
+        *db.now_override.lock() = Some(t0);
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
 
-        *db.background_worker_now_override.lock() = Some(t1);
+        *db.now_override.lock() = Some(t1);
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=3 23").await;
 
         let partition_keys = db.partition_keys().unwrap();
@@ -318,8 +311,9 @@ mod tests {
         db.delete("cpu", predicate).await.unwrap();
 
         // Try to persist first write but it has been deleted
+        *db.now_override.lock() = Some(t0 + late_arrival);
         let maybe_chunk = db
-            .persist_partition("cpu", partition_key.as_str(), t0 + late_arrival)
+            .persist_partition("cpu", partition_key.as_str(), false)
             .await
             .unwrap();
 
@@ -341,13 +335,13 @@ mod tests {
         );
 
         // Add a second set of writes one of which overlaps the above chunk
-        *db.background_worker_now_override.lock() = Some(t2);
+        *db.now_override.lock() = Some(t2);
         write_lp(db.as_ref(), "cpu,tag1=foo bar=2 23").await;
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=2 26").await;
 
         // Persist second write but not third
         let maybe_chunk = db
-            .persist_partition("cpu", partition_key.as_str(), t2)
+            .persist_partition("cpu", partition_key.as_str(), false)
             .await
             .unwrap();
         assert!(maybe_chunk.is_some());
@@ -384,8 +378,9 @@ mod tests {
         db.delete("cpu", predicate).await.unwrap();
 
         // Try to persist third set of writes
+        *db.now_override.lock() = Some(t2 + late_arrival);
         let maybe_chunk = db
-            .persist_partition("cpu", partition_key.as_str(), t2 + late_arrival)
+            .persist_partition("cpu", partition_key.as_str(), false)
             .await
             .unwrap();
 
@@ -404,10 +399,10 @@ mod tests {
     async fn persist_compacted_deletes() {
         let db = test_db().await;
 
-        let late_arrival = Duration::from_secs(1);
-        let t0 = Instant::now();
+        let late_arrival = chrono::Duration::seconds(1);
+        let t0 = Utc::now();
 
-        *db.background_worker_now_override.lock() = Some(t0);
+        *db.now_override.lock() = Some(t0);
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
 
         let partition_keys = db.partition_keys().unwrap();
@@ -439,8 +434,9 @@ mod tests {
         // Persistence windows unaware rows have been deleted
         assert!(!partition.read().persistence_windows().unwrap().is_empty());
 
+        *db.now_override.lock() = Some(t0 + late_arrival);
         let maybe_chunk = db
-            .persist_partition("cpu", partition_key.as_str(), t0 + late_arrival * 2)
+            .persist_partition("cpu", partition_key.as_str(), false)
             .await
             .unwrap();
 
