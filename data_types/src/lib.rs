@@ -16,7 +16,6 @@ mod database_name;
 pub mod database_rules;
 pub mod detailed_database;
 pub mod error;
-pub mod instant;
 pub mod job;
 pub mod names;
 pub mod partition_metadata;

@@ -9,7 +9,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use async_trait::async_trait;
@@ -831,7 +831,7 @@ impl Db {
                     .as_mut()
                     .expect("lifecycle policy should be initialized");
 
-                policy.check_for_work(self.utc_now(), Instant::now()).await
+                policy.check_for_work(self.utc_now()).await
             }
         };
 

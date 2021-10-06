@@ -80,12 +80,10 @@
 //! etc... between threads as any such functionality must perform the necessary
 //! synchronisation to be well-formed.
 
-use std::{
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
-    time::Instant,
+use chrono::{DateTime, Utc};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
 };
 
 use tokio_util::sync::CancellationToken;
@@ -102,7 +100,7 @@ mod registry;
 /// The state shared between all sibling tasks
 #[derive(Debug)]
 struct TrackerState {
-    start_instant: Instant,
+    start_time: DateTime<Utc>,
     cancel_token: CancellationToken,
     cpu_nanos: AtomicUsize,
     wall_nanos: AtomicUsize,
@@ -376,8 +374,8 @@ where
     }
 
     /// Returns the instant the tracker was created
-    pub fn start_instant(&self) -> Instant {
-        self.state.start_instant
+    pub fn start_time(&self) -> DateTime<Utc> {
+        self.state.start_time
     }
 
     /// Returns if this tracker has been cancelled
@@ -433,7 +431,7 @@ impl Clone for TaskRegistration {
 impl Default for TaskRegistration {
     fn default() -> Self {
         let state = Arc::new(TrackerState {
-            start_instant: Instant::now(),
+            start_time: Utc::now(),
             cpu_nanos: AtomicUsize::new(0),
             wall_nanos: AtomicUsize::new(0),
             cancel_token: CancellationToken::new(),

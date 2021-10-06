@@ -11,15 +11,11 @@ use data_types::{
 use futures::future::BoxFuture;
 use internal_types::access::AccessMetrics;
 use observability_deps::tracing::{debug, info, trace, warn};
-use std::{
-    convert::TryInto,
-    fmt::Debug,
-    time::{Duration, Instant},
-};
+use std::{convert::TryInto, fmt::Debug};
 use tracker::TaskTracker;
 
-/// Number of seconds to wait before retying a failed lifecycle action
-pub const LIFECYCLE_ACTION_BACKOFF: Duration = Duration::from_secs(10);
+/// Number of seconds to wait before retrying a failed lifecycle action
+pub const LIFECYCLE_ACTION_BACKOFF_SECONDS: i64 = 10;
 
 /// A `LifecyclePolicy` is created with a `LifecycleDb`
 ///
@@ -459,7 +455,7 @@ where
         &mut self,
         db_name: &DatabaseName<'static>,
         partition: &P,
-        now: Instant,
+        now: DateTime<Utc>,
     ) {
         let partition = partition.read();
         for chunk in LockablePartition::chunks(&partition) {
@@ -467,9 +463,9 @@ where
             if let Some(lifecycle_action) = chunk.lifecycle_action() {
                 if lifecycle_action.is_complete()
                     && now
-                        .checked_duration_since(lifecycle_action.start_instant())
-                        .map(|x| x >= LIFECYCLE_ACTION_BACKOFF)
-                        .unwrap_or(false)
+                        .signed_duration_since(lifecycle_action.start_time())
+                        .num_seconds()
+                        >= LIFECYCLE_ACTION_BACKOFF_SECONDS
                 {
                     info!(%db_name, chunk=%chunk.addr(), action=?lifecycle_action.metadata(), "clearing failed lifecycle action");
                     chunk.upgrade().clear_lifecycle_action();
@@ -481,11 +477,7 @@ where
     /// The core policy logic
     ///
     /// Returns a future that resolves when this method should be called next
-    pub fn check_for_work(
-        &mut self,
-        now: DateTime<Utc>,
-        now_instant: Instant,
-    ) -> BoxFuture<'_, ()> {
+    pub fn check_for_work(&mut self, now: DateTime<Utc>) -> BoxFuture<'_, ()> {
         // Any time-consuming work should be spawned as tokio tasks and not
         // run directly within this loop
 
@@ -496,7 +488,7 @@ where
         let partitions = self.db.partitions();
 
         for partition in &partitions {
-            self.maybe_cleanup_failed(&db_name, partition, now_instant);
+            self.maybe_cleanup_failed(&db_name, partition, now);
 
             // Persistence cannot split chunks if they are currently being compacted
             //
@@ -652,8 +644,8 @@ fn sort_free_candidates<P>(candidates: &mut Vec<FreeCandidate<'_, P>>) {
         // Order candidates with the same FreeAction by last access time
         std::cmp::Ordering::Equal => a
             .access_metrics
-            .last_instant
-            .cmp(&b.access_metrics.last_instant),
+            .last_access
+            .cmp(&b.access_metrics.last_access),
         o => o,
     })
 }
@@ -668,6 +660,7 @@ mod tests {
     use chrono::TimeZone;
     use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder, ChunkStorage};
     use data_types::database_rules::MaxActiveCompactions::MaxActiveCompactions;
+    use std::time::Duration;
     use std::{
         cmp::max,
         collections::BTreeMap,
@@ -738,7 +731,7 @@ mod tests {
                 min_timestamp: None,
                 access_metrics: AccessMetrics {
                     count: 0,
-                    last_instant: Instant::now(),
+                    last_access: Utc::now(),
                 },
                 time_of_last_write: from_secs(time_of_last_write),
                 lifecycle_action: None,
@@ -1146,10 +1139,10 @@ mod tests {
 
     #[test]
     fn test_sort_free_candidates() {
-        let instant = Instant::now();
-        let access_metrics = |secs: u64| AccessMetrics {
+        let now = Utc::now();
+        let access_metrics = |secs: i64| AccessMetrics {
             count: 1,
-            last_instant: instant + Duration::from_secs(secs),
+            last_access: now + chrono::Duration::seconds(secs),
         };
 
         let mut candidates = vec![
@@ -1216,7 +1209,7 @@ mod tests {
 
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
-        lifecycle.check_for_work(from_secs(40), Instant::now());
+        lifecycle.check_for_work(from_secs(40));
         assert_eq!(*db.events.read(), vec![]);
     }
 
@@ -1236,11 +1229,11 @@ mod tests {
         let mut lifecycle = LifecyclePolicy::new(&db);
         let partition = Arc::clone(&db.partitions.read()[0]);
 
-        lifecycle.check_for_work(from_secs(9), Instant::now());
+        lifecycle.check_for_work(from_secs(9));
 
         assert_eq!(*db.events.read(), vec![]);
 
-        lifecycle.check_for_work(from_secs(11), Instant::now());
+        lifecycle.check_for_work(from_secs(11));
         let chunks = partition.read().chunks.keys().cloned().collect::<Vec<_>>();
         // expect chunk 2 to have been compacted into a new chunk 3
         assert_eq!(
@@ -1252,14 +1245,14 @@ mod tests {
             vec![ChunkId::new(0), ChunkId::new(1), ChunkId::new(3)]
         );
 
-        lifecycle.check_for_work(from_secs(12), Instant::now());
+        lifecycle.check_for_work(from_secs(12));
         assert_eq!(
             *db.events.read(),
             vec![MoverEvents::Compact(vec![ChunkId::new(2)])]
         );
 
         // Should compact everything possible
-        lifecycle.check_for_work(from_secs(20), Instant::now());
+        lifecycle.check_for_work(from_secs(20));
         assert_eq!(
             *db.events.read(),
             vec![
@@ -1291,12 +1284,12 @@ mod tests {
         // of check_for_work had started a background move task
         lifecycle.trackers.push(tracker);
 
-        let future = lifecycle.check_for_work(from_secs(0), Instant::now());
+        let future = lifecycle.check_for_work(from_secs(0));
         tokio::time::timeout(Duration::from_millis(1), future)
             .await
             .expect_err("expected timeout");
 
-        let future = lifecycle.check_for_work(from_secs(0), Instant::now());
+        let future = lifecycle.check_for_work(from_secs(0));
         std::mem::drop(registration);
         tokio::time::timeout(Duration::from_millis(1), future)
             .await
@@ -1325,10 +1318,10 @@ mod tests {
         let db = TestDb::new(rules.clone(), chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        lifecycle.check_for_work(from_secs(10), Instant::now());
+        lifecycle.check_for_work(from_secs(10));
         assert_eq!(*db.events.read(), vec![]);
 
-        let instant = Instant::now();
+        let now = Utc::now();
 
         let chunks = vec![
             // two "open" chunks => they must not be dropped (yet)
@@ -1343,13 +1336,13 @@ mod tests {
             TestChunk::new(ChunkId::new(4), 0, ChunkStorage::ReadBufferAndObjectStore)
                 .with_access_metrics(AccessMetrics {
                     count: 1,
-                    last_instant: instant,
+                    last_access: now,
                 }),
             // "written" chunk => can be unloaded
             TestChunk::new(ChunkId::new(5), 0, ChunkStorage::ReadBufferAndObjectStore)
                 .with_access_metrics(AccessMetrics {
                     count: 12,
-                    last_instant: instant - Duration::from_secs(1),
+                    last_access: now - chrono::Duration::seconds(1),
                 }),
         ];
 
@@ -1357,7 +1350,7 @@ mod tests {
         let mut lifecycle = LifecyclePolicy::new(&db);
 
         // Should unload chunk 5 first as access time is smaller
-        lifecycle.check_for_work(from_secs(10), Instant::now());
+        lifecycle.check_for_work(from_secs(10));
         assert_eq!(
             *db.events.read(),
             vec![
@@ -1387,7 +1380,7 @@ mod tests {
         let db = TestDb::new(rules.clone(), chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        lifecycle.check_for_work(from_secs(10), Instant::now());
+        lifecycle.check_for_work(from_secs(10));
         assert_eq!(*db.events.read(), vec![]);
 
         let chunks = vec![
@@ -1406,7 +1399,7 @@ mod tests {
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        lifecycle.check_for_work(from_secs(10), Instant::now());
+        lifecycle.check_for_work(from_secs(10));
         assert_eq!(
             *db.events.read(),
             vec![MoverEvents::Unload(ChunkId::new(4))]
@@ -1430,7 +1423,7 @@ mod tests {
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        lifecycle.check_for_work(from_secs(10), Instant::now());
+        lifecycle.check_for_work(from_secs(10));
         assert_eq!(*db.events.read(), vec![]);
     }
 
@@ -1530,7 +1523,7 @@ mod tests {
         let db = TestDb::from_partitions(rules, partitions);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        lifecycle.check_for_work(now, Instant::now());
+        lifecycle.check_for_work(now);
         assert_eq!(
             *db.events.read(),
             vec![
@@ -1544,7 +1537,7 @@ mod tests {
         );
 
         db.events.write().clear();
-        lifecycle.check_for_work(now, Instant::now());
+        lifecycle.check_for_work(now);
         assert_eq!(
             *db.events.read(),
             vec![MoverEvents::Compact(vec![
@@ -1584,7 +1577,7 @@ mod tests {
         let db = TestDb::from_partitions(rules, partitions);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        lifecycle.check_for_work(now, Instant::now());
+        lifecycle.check_for_work(now);
         assert_eq!(
             *db.events.read(),
             vec![
@@ -1596,7 +1589,7 @@ mod tests {
         db.events.write().clear();
 
         // Compaction slots freed up, other partition can now compact.
-        lifecycle.check_for_work(now, Instant::now());
+        lifecycle.check_for_work(now);
         assert_eq!(
             *db.events.read(),
             vec![MoverEvents::Compact(vec![ChunkId::new(200)]),],
@@ -1614,7 +1607,6 @@ mod tests {
             ..Default::default()
         };
         let now = from_secs(0);
-        let now_instant = Instant::now();
 
         let partitions = vec![
             // Insufficient rows and not old enough => don't persist but can compact
@@ -1685,7 +1677,7 @@ mod tests {
         let db = TestDb::from_partitions(rules, partitions);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        lifecycle.check_for_work(from_secs(0), now_instant);
+        lifecycle.check_for_work(from_secs(0));
         assert_eq!(
             *db.events.read(),
             vec![
@@ -1710,7 +1702,6 @@ mod tests {
             ..Default::default()
         };
         let now = Utc::now();
-        let now_instant = Instant::now();
 
         // This could occur if the in-memory contents of a partition are deleted, and
         // compaction causes the chunks to be removed. In such a scenario the persistence
@@ -1724,7 +1715,7 @@ mod tests {
         let db = TestDb::from_partitions(rules, partitions);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        lifecycle.check_for_work(now, now_instant);
+        lifecycle.check_for_work(now);
         assert_eq!(*db.events.read(), vec![MoverEvents::Persist(vec![]),]);
     }
 
@@ -1739,7 +1730,6 @@ mod tests {
             ..Default::default()
         };
         let now = Utc::now();
-        let now_instant = Instant::now();
 
         let partitions = vec![
             // Sufficient rows => could persist but should be suppressed
@@ -1755,13 +1745,13 @@ mod tests {
         let db = TestDb::from_partitions(rules, partitions);
         let mut lifecycle = LifecyclePolicy::new_suppress_persistence(&db);
 
-        lifecycle.check_for_work(now, now_instant);
+        lifecycle.check_for_work(now);
         assert_eq!(
             *db.events.read(),
             vec![MoverEvents::Compact(vec![ChunkId::new(2), ChunkId::new(3)]),]
         );
 
-        lifecycle.check_for_work(now, now_instant);
+        lifecycle.check_for_work(now);
         assert_eq!(
             *db.events.read(),
             vec![MoverEvents::Compact(vec![ChunkId::new(2), ChunkId::new(3)]),]
@@ -1769,7 +1759,7 @@ mod tests {
 
         lifecycle.unsuppress_persistence();
 
-        lifecycle.check_for_work(now, now_instant);
+        lifecycle.check_for_work(now);
         assert_eq!(
             *db.events.read(),
             vec![
@@ -1794,7 +1784,7 @@ mod tests {
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        lifecycle.check_for_work(from_secs(80), Instant::now());
+        lifecycle.check_for_work(from_secs(80));
         assert_eq!(
             *db.events.read(),
             vec![MoverEvents::Compact(vec![ChunkId::new(0)])]
@@ -1816,7 +1806,7 @@ mod tests {
         let db = TestDb::new(rules, chunks);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        lifecycle.check_for_work(from_secs(80), Instant::now());
+        lifecycle.check_for_work(from_secs(80));
         assert_eq!(
             *db.events.read(),
             vec![MoverEvents::Compact(vec![ChunkId::new(0)])]
@@ -1841,13 +1831,12 @@ mod tests {
         chunk.write().lifecycle_action = Some(tracker.clone());
 
         // Shouldn't do anything
-        lifecycle.check_for_work(from_secs(0), tracker.start_instant());
+        lifecycle.check_for_work(tracker.start_time());
         assert!(chunk.read().lifecycle_action().is_some());
 
         // Shouldn't do anything as job hasn't finished
         lifecycle.check_for_work(
-            from_secs(0),
-            tracker.start_instant() + LIFECYCLE_ACTION_BACKOFF,
+            tracker.start_time() + chrono::Duration::seconds(LIFECYCLE_ACTION_BACKOFF_SECONDS),
         );
         assert!(chunk.read().lifecycle_action().is_some());
 
@@ -1855,13 +1844,12 @@ mod tests {
         std::mem::drop(r0);
 
         // Shouldn't do anything as insufficient time passed
-        lifecycle.check_for_work(from_secs(0), tracker.start_instant());
+        lifecycle.check_for_work(tracker.start_time());
         assert!(chunk.read().lifecycle_action().is_some());
 
         // Should clear job
         lifecycle.check_for_work(
-            from_secs(0),
-            tracker.start_instant() + LIFECYCLE_ACTION_BACKOFF,
+            tracker.start_time() + chrono::Duration::seconds(LIFECYCLE_ACTION_BACKOFF_SECONDS),
         );
         assert!(chunk.read().lifecycle_action().is_none());
     }

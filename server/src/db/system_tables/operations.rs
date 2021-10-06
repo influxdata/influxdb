@@ -4,7 +4,6 @@ use arrow::array::{ArrayRef, StringArray, Time64NanosecondArray, TimestampNanose
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use arrow::error::Result;
 use arrow::record_batch::RecordBatch;
-use data_types::instant::to_approximate_datetime;
 use itertools::Itertools;
 
 use data_types::error::ErrorLogger;
@@ -93,7 +92,7 @@ fn from_task_trackers(
         .collect::<StringArray>();
     let start_time = jobs
         .iter()
-        .map(|job| Some(to_approximate_datetime(job.start_instant()).timestamp_nanos()))
+        .map(|job| Some(job.start_time().timestamp_nanos()))
         .collect::<TimestampNanosecondArray>();
     let cpu_time_used = jobs
         .iter()

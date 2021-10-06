@@ -8,7 +8,6 @@ use data_types::{
         ChunkAddr, ChunkColumnSummary, ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkStorage,
         ChunkSummary, DetailedChunkSummary,
     },
-    instant::to_approximate_datetime,
     partition_metadata::TableSummary,
     write_summary::TimestampSummary,
 };
@@ -576,11 +575,7 @@ impl CatalogChunk {
             .as_ref()
             .map(|tracker| *tracker.metadata());
 
-        let time_of_last_access = self
-            .access_recorder
-            .get_metrics()
-            .last_access()
-            .map(to_approximate_datetime);
+        let time_of_last_access = self.access_recorder.get_metrics().last_access();
 
         ChunkSummary {
             partition_key: Arc::clone(&self.addr.partition_key),

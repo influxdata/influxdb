@@ -809,7 +809,6 @@ dependencies = [
  "influxdb_line_protocol",
  "num_cpus",
  "observability_deps",
- "once_cell",
  "percent-encoding",
  "regex",
  "serde",
@@ -1797,10 +1796,12 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow_util",
+ "chrono",
  "futures",
  "hashbrown 0.11.2",
  "indexmap",
  "itertools",
+ "parking_lot",
  "snafu",
  "tokio",
 ]
@@ -4628,6 +4629,7 @@ dependencies = [
 name = "tracker"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "futures",
  "hashbrown 0.11.2",
  "lock_api",
