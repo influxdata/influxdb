@@ -935,7 +935,7 @@ mod tests {
         let mut chunk = make_persisted_chunk().await;
         assert_eq!(
             chunk.freeze().unwrap_err().to_string(),
-            "Internal Error: unexpected chunk state for Chunk('db':'table1':'part1':0) \
+            "Internal Error: unexpected chunk state for Chunk('db':'table1':'part1':00000000-0000-0000-0000-000000000000) \
             during setting closed. Expected Open or Frozen, got Persisted"
         );
     }
@@ -1005,7 +1005,7 @@ mod tests {
                 .unwrap_err()
                 .to_string(),
             "Internal Error: A lifecycle action \'Compacting\' is already in \
-            progress for Chunk('db':'table1':'part1':0)"
+            progress for Chunk('db':'table1':'part1':00000000-0000-0000-0000-000000000000)"
         );
 
         // finishing the wrong action fails
@@ -1014,7 +1014,7 @@ mod tests {
                 .finish_lifecycle_action(ChunkLifecycleAction::Persisting)
                 .unwrap_err()
                 .to_string(),
-            "Internal Error: Unexpected chunk state for Chunk('db':'table1':'part1':0). Expected \
+            "Internal Error: Unexpected chunk state for Chunk('db':'table1':'part1':00000000-0000-0000-0000-000000000000). Expected \
             Persisting to Object Storage, got Compacting"
         );
 
@@ -1029,7 +1029,7 @@ mod tests {
                 .finish_lifecycle_action(ChunkLifecycleAction::Compacting)
                 .unwrap_err()
                 .to_string(),
-            "Internal Error: Unexpected chunk state for Chunk('db':'table1':'part1':0). Expected \
+            "Internal Error: Unexpected chunk state for Chunk('db':'table1':'part1':00000000-0000-0000-0000-000000000000). Expected \
             Compacting, got None"
         );
 
@@ -1059,7 +1059,7 @@ mod tests {
         // clearing now fails because task is still in progress
         assert_eq!(
             chunk.clear_lifecycle_action().unwrap_err().to_string(),
-            "Internal Error: Cannot clear a lifecycle action 'Compacting' for chunk Chunk('db':'table1':'part1':0) that is still running",
+            "Internal Error: Cannot clear a lifecycle action 'Compacting' for chunk Chunk('db':'table1':'part1':00000000-0000-0000-0000-000000000000) that is still running",
         );
 
         // "finish" task
@@ -1137,7 +1137,7 @@ mod tests {
             db_name: Arc::from("db"),
             table_name: Arc::from("table1"),
             partition_key: Arc::from("part1"),
-            chunk_id: ChunkId::new(0),
+            chunk_id: ChunkId::new_test(0),
         }
     }
 

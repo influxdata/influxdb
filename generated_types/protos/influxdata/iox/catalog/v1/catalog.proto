@@ -56,8 +56,13 @@ message ChunkAddr {
   // Partition key.
   string partition_key = 2;
 
+  // Was uint32-based chunk ID.
+  reserved 3;
+
   // Chunk ID.
-  uint32 chunk_id = 3;
+  //
+  // UUID is stored as 16 bytes in big-endian order.
+  bytes chunk_id = 4;
 }
 
 // Register new delete predicate

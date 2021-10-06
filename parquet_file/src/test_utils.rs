@@ -37,7 +37,6 @@ use persistence_windows::{
 };
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
-use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -107,12 +106,12 @@ pub fn db_name() -> &'static str {
 }
 
 /// Creates a test chunk address for a given chunk id
-pub fn chunk_addr(id: u32) -> ChunkAddr {
+pub fn chunk_addr(id: u128) -> ChunkAddr {
     ChunkAddr {
         db_name: Arc::from(db_name()),
         table_name: Arc::from("table1"),
         partition_key: Arc::from("part1"),
-        chunk_id: ChunkId::new(id),
+        chunk_id: ChunkId::new_test(id),
     }
 }
 
@@ -131,7 +130,6 @@ pub async fn make_chunk(
         schema,
         addr,
         column_summaries,
-        test_size,
     )
     .await
 }
@@ -144,7 +142,7 @@ pub async fn make_chunk_no_row_group(
     test_size: TestSize,
 ) -> ParquetChunk {
     let (_, schema, column_summaries, _num_rows) = make_record_batch(column_prefix, test_size);
-    make_chunk_given_record_batch(store, vec![], schema, addr, column_summaries, test_size).await
+    make_chunk_given_record_batch(store, vec![], schema, addr, column_summaries).await
 }
 
 /// Create a test chunk by writing data to object store.
@@ -156,13 +154,8 @@ pub async fn make_chunk_given_record_batch(
     schema: Schema,
     addr: ChunkAddr,
     column_summaries: Vec<ColumnSummary>,
-    test_size: TestSize,
 ) -> ParquetChunk {
-    let storage = if test_size.is_minimal() {
-        Storage::new_for_testing(Arc::clone(&iox_object_store), Uuid::nil())
-    } else {
-        Storage::new(Arc::clone(&iox_object_store))
-    };
+    let storage = Storage::new(Arc::clone(&iox_object_store));
 
     let table_summary = TableSummary {
         name: addr.table_name.to_string(),

@@ -13,6 +13,7 @@ use influxdb_iox_client::{
 };
 
 use test_helpers::assert_contains;
+use uuid::Uuid;
 
 use super::scenario::{
     create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
@@ -525,7 +526,7 @@ async fn test_chunk_get() {
         Chunk {
             partition_key: "cpu".into(),
             table_name: "cpu".into(),
-            id: 0,
+            id: Uuid::from_u128(0).as_bytes().to_vec().into(),
             storage: ChunkStorage::OpenMutableBuffer.into(),
             lifecycle_action,
             memory_bytes: 1016,
@@ -540,7 +541,7 @@ async fn test_chunk_get() {
         Chunk {
             partition_key: "disk".into(),
             table_name: "disk".into(),
-            id: 0,
+            id: Uuid::from_u128(0).as_bytes().to_vec().into(),
             storage: ChunkStorage::OpenMutableBuffer.into(),
             lifecycle_action,
             memory_bytes: 1018,
@@ -712,7 +713,7 @@ async fn test_list_partition_chunks() {
     let expected: Vec<Chunk> = vec![Chunk {
         partition_key: "cpu".into(),
         table_name: "cpu".into(),
-        id: 0,
+        id: Uuid::from_u128(0).as_bytes().to_vec().into(),
         storage: ChunkStorage::OpenMutableBuffer.into(),
         lifecycle_action: ChunkLifecycleAction::Unspecified.into(),
         memory_bytes: 1016,
@@ -875,12 +876,12 @@ async fn test_close_partition_chunk() {
         .expect("listing chunks");
 
     assert_eq!(chunks.len(), 1, "Chunks: {:#?}", chunks);
-    assert_eq!(chunks[0].id, 0);
     assert_eq!(chunks[0].storage, ChunkStorage::OpenMutableBuffer as i32);
+    let chunk_id = chunks[0].id.clone();
 
     // Move the chunk to read buffer
     let iox_operation = management_client
-        .close_partition_chunk(&db_name, table_name, partition_key, 0)
+        .close_partition_chunk(&db_name, table_name, partition_key, chunk_id)
         .await
         .expect("new partition chunk");
 
@@ -925,7 +926,7 @@ async fn test_close_partition_chunk_error() {
             "this database does not exist",
             "nor_does_this_table",
             "nor_does_this_partition",
-            0,
+            Uuid::from_u128(0).as_bytes().to_vec().into(),
         )
         .await
         .expect_err("expected error");
@@ -1050,7 +1051,6 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
             let Chunk {
                 partition_key,
                 table_name,
-                id,
                 storage,
                 lifecycle_action,
                 memory_bytes,
@@ -1062,7 +1062,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
             Chunk {
                 partition_key,
                 table_name,
-                id,
+                id: Uuid::from_u128(0).as_bytes().to_vec().into(),
                 storage,
                 lifecycle_action,
                 row_count,
@@ -1299,7 +1299,7 @@ async fn test_unload_read_buffer() {
         .await
         .expect("listing chunks");
     assert_eq!(chunks.len(), 1);
-    let chunk_id = chunks[0].id;
+    let chunk_id = chunks[0].id.clone();
     let partition_key = &chunks[0].partition_key;
 
     management_client

@@ -421,7 +421,7 @@ where
         // Validate that the database name is legit
         let db_name = DatabaseName::new(db_name).field("db_name")?;
 
-        let chunk_id = ChunkId::new(chunk_id);
+        let chunk_id = ChunkId::try_from(chunk_id).field("chunk_id")?;
 
         let tracker = self
             .server
@@ -451,7 +451,7 @@ where
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        let chunk_id = ChunkId::new(chunk_id);
+        let chunk_id = ChunkId::try_from(chunk_id).field("chunk_id")?;
 
         db.unload_read_buffer(&table_name, &partition_key, chunk_id)
             .map_err(default_db_error_handler)?;

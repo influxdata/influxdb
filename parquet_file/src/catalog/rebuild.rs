@@ -197,11 +197,11 @@ mod tests {
         {
             let mut transaction = catalog.open_transaction().await;
 
-            let info = create_parquet_file(&iox_object_store, ChunkId::new(0)).await;
+            let info = create_parquet_file(&iox_object_store, ChunkId::new_test(0)).await;
             state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info);
 
-            let info = create_parquet_file(&iox_object_store, ChunkId::new(1)).await;
+            let info = create_parquet_file(&iox_object_store, ChunkId::new_test(1)).await;
             state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info);
 
@@ -215,7 +215,7 @@ mod tests {
         {
             let mut transaction = catalog.open_transaction().await;
 
-            let info = create_parquet_file(&iox_object_store, ChunkId::new(2)).await;
+            let info = create_parquet_file(&iox_object_store, ChunkId::new_test(2)).await;
             state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info);
 
@@ -283,7 +283,7 @@ mod tests {
                 .unwrap();
 
         // file w/o metadata
-        create_parquet_file_without_metadata(&iox_object_store, ChunkId::new(0)).await;
+        create_parquet_file_without_metadata(&iox_object_store, ChunkId::new_test(0)).await;
 
         // wipe catalog
         drop(catalog);

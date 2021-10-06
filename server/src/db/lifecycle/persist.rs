@@ -156,6 +156,7 @@ pub fn persist_chunks(
                     // TODO: Filter out predicates applied by the query (#2666)
                     delete_predicates.clone(),
                     min_order,
+                    None,
                 );
             }
 
@@ -178,6 +179,7 @@ pub fn persist_chunks(
                 schema,
                 delete_predicates,
                 min_order,
+                db.persisted_chunk_id_override.lock().as_ref().cloned(),
             );
             let to_persist = LockableCatalogChunk {
                 db,
@@ -359,7 +361,8 @@ mod tests {
             Utc.timestamp_nanos(24)
         );
 
-        let chunks: Vec<_> = partition.read().chunk_summaries().collect();
+        let mut chunks: Vec<_> = partition.read().chunk_summaries().collect();
+        chunks.sort_by_key(|c| c.storage);
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0].storage, ChunkStorage::ReadBuffer);
         assert_eq!(chunks[0].row_count, 1);

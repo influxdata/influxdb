@@ -198,8 +198,9 @@ impl PruningObserver for ChunkAccess {
 
     fn could_not_prune_chunk(&self, chunk: &Self::Observed, reason: &str) {
         debug!(
-            chunk_id = chunk.id().get(),
-            reason, "could not prune chunk from query"
+            chunk_id=%chunk.id().get(),
+            reason,
+            "could not prune chunk from query",
         )
     }
 }

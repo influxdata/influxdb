@@ -126,9 +126,6 @@ pub struct Partition {
     /// partition. Partition::new initializes this to now.
     last_write_at: DateTime<Utc>,
 
-    /// What the next chunk id is
-    next_chunk_id: ChunkId,
-
     /// Partition metrics
     metrics: Arc<PartitionMetrics>,
 
@@ -151,7 +148,6 @@ impl Partition {
             chunks: Default::default(),
             created_at: now,
             last_write_at: now,
-            next_chunk_id: ChunkId::new(0),
             metrics: Arc::new(metrics),
             persistence_windows: None,
             next_chunk_order: ChunkOrder::MIN,
@@ -206,7 +202,7 @@ impl Partition {
     ) -> &Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name().as_ref(), self.table_name());
 
-        let chunk_id = self.next_chunk_id();
+        let chunk_id = ChunkId::new_random();
         let chunk_order = self.next_chunk_order();
 
         let addr = ChunkAddr::new(&self.addr, chunk_id);
@@ -225,6 +221,7 @@ impl Partition {
     /// Create a new read buffer chunk.
     ///
     /// Returns ID and chunk.
+    #[allow(clippy::too_many_arguments)] // TODO(marco) make it nicer
     pub fn create_rub_chunk(
         &mut self,
         chunk: read_buffer::RBChunk,
@@ -233,8 +230,9 @@ impl Partition {
         schema: Arc<Schema>,
         delete_predicates: Vec<Arc<DeletePredicate>>,
         chunk_order: ChunkOrder,
+        chunk_id: Option<ChunkId>,
     ) -> (ChunkId, &Arc<RwLock<CatalogChunk>>) {
-        let chunk_id = self.next_chunk_id();
+        let chunk_id = chunk_id.unwrap_or_else(ChunkId::new_random);
         assert!(
             chunk_order < self.next_chunk_order,
             "chunk order for new RUB chunk ({}) is out of range [0, {})",
@@ -296,7 +294,6 @@ impl Partition {
         let chunk = self.chunks.insert(chunk_id, chunk_order, chunk);
 
         // only update internal state when we know that insertion is OK
-        self.next_chunk_id = self.next_chunk_id.max(chunk_id.next());
         self.next_chunk_order = self.next_chunk_order.max(chunk_order.next());
 
         chunk
@@ -409,12 +406,6 @@ impl Partition {
             .map(|persistence_windows| persistence_windows.sequencer_numbers())
     }
 
-    fn next_chunk_id(&mut self) -> ChunkId {
-        let res = self.next_chunk_id;
-        self.next_chunk_id = self.next_chunk_id.next();
-        res
-    }
-
     fn next_chunk_order(&mut self) -> ChunkOrder {
         let res = self.next_chunk_order;
         self.next_chunk_order = self.next_chunk_order.next();
@@ -454,14 +445,15 @@ mod tests {
 
         let t = Utc::now();
 
+        // should be in ascending order
+        let mut expected_ids = vec![];
+
         // Make three chunks
         let mut partition = Partition::new(addr, partition_metrics);
         for _ in 0..3 {
-            partition.create_open_chunk(make_mb_chunk("t"), t);
+            let chunk = partition.create_open_chunk(make_mb_chunk("t"), t);
+            expected_ids.push(chunk.read().addr().chunk_id)
         }
-
-        // should be in ascending order
-        let expected_ids = vec![ChunkId::new(0), ChunkId::new(1), ChunkId::new(2)];
 
         let ids = partition
             .chunks()

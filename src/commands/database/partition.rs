@@ -12,6 +12,7 @@ use influxdb_iox_client::{
 use std::convert::TryFrom;
 use structopt::StructOpt;
 use thiserror::Error;
+use uuid::Uuid;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
@@ -127,7 +128,7 @@ struct CloseChunk {
     table_name: String,
 
     /// The chunk id
-    chunk_id: u32,
+    chunk_id: Uuid,
 }
 
 /// Unload chunk from read buffer but keep it in object store.
@@ -143,7 +144,7 @@ struct UnloadChunk {
     table_name: String,
 
     /// The chunk id
-    chunk_id: u32,
+    chunk_id: Uuid,
 }
 
 /// Drop partition from memory and (if persisted) from object store.
@@ -283,7 +284,12 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             } = close_chunk;
 
             let operation = client
-                .close_partition_chunk(db_name, table_name, partition_key, chunk_id)
+                .close_partition_chunk(
+                    db_name,
+                    table_name,
+                    partition_key,
+                    chunk_id.as_bytes().to_vec().into(),
+                )
                 .await?;
 
             serde_json::to_writer_pretty(std::io::stdout(), &operation)?;
@@ -297,7 +303,12 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             } = close_chunk;
 
             client
-                .unload_partition_chunk(db_name, table_name, partition_key, chunk_id)
+                .unload_partition_chunk(
+                    db_name,
+                    table_name,
+                    partition_key,
+                    chunk_id.as_bytes().to_vec().into(),
+                )
                 .await?;
             println!("Ok");
         }
