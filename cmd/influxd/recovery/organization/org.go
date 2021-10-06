@@ -110,8 +110,8 @@ func NewOrgCreateCommand() *cobra.Command {
 	}
 
 	defaultPath := filepath.Join(os.Getenv("HOME"), ".influxdbv2", "influxd.bolt")
-	cmd.Flags().StringVar(&orgCmd.boltPath, "bolt-path", defaultPath, "Path to the TSM data directory")
-	cmd.Flags().StringVar(&orgCmd.org, "org", "", "Name of the org (if not provided one will be selected)")
+	cmd.Flags().StringVar(&orgCmd.boltPath, "bolt-path", defaultPath, "Path to the BoltDB file")
+	cmd.Flags().StringVar(&orgCmd.org, "org", "", "Name of the org to create")
 
 	return cmd
 }

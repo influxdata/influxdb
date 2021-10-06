@@ -60,7 +60,7 @@ func NewUserListCommand() *cobra.Command {
 
 	defaultPath := filepath.Join(os.Getenv("HOME"), ".influxdbv2", "influxd.bolt")
 
-	cmd.Flags().StringVar(&userCmd.boltPath, "bolt-path", defaultPath, "Path to the TSM data directory.")
+	cmd.Flags().StringVar(&userCmd.boltPath, "bolt-path", defaultPath, "Path to the BoltDB file.")
 
 	return cmd
 }
@@ -110,7 +110,7 @@ func NewUserCreateCommand() *cobra.Command {
 	}
 
 	defaultPath := filepath.Join(os.Getenv("HOME"), ".influxdbv2", "influxd.bolt")
-	cmd.Flags().StringVar(&userCmd.boltPath, "bolt-path", defaultPath, "Path to the TSM data directory")
+	cmd.Flags().StringVar(&userCmd.boltPath, "bolt-path", defaultPath, "Path to the BoltDB file")
 	cmd.Flags().StringVar(&userCmd.username, "username", "", "Name of the user")
 
 	return cmd

@@ -10,8 +10,8 @@ import (
 // NewCommand creates the new command.
 func NewCommand() *cobra.Command {
 	base := &cobra.Command{
-		Use:   "recovery-cli",
-		Short: "Subset of commands similar to influx cli but usable on a halted local database without authentication",
+		Use:   "recovery",
+		Short: "Commands used to recover / regenerate operator access to the DB",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.PrintErrf("See '%s -h' for help\n", cmd.CommandPath())

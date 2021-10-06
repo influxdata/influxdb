@@ -61,7 +61,7 @@ func NewAuthListCommand() *cobra.Command {
 
 	defaultPath := filepath.Join(os.Getenv("HOME"), ".influxdbv2", "influxd.bolt")
 
-	cmd.Flags().StringVar(&authCmd.boltPath, "bolt-path", defaultPath, "Path to the TSM data directory.")
+	cmd.Flags().StringVar(&authCmd.boltPath, "bolt-path", defaultPath, "Path to the BoltDB file.")
 
 	return cmd
 }
@@ -117,7 +117,7 @@ func NewAuthCreateCommand() *cobra.Command {
 	}
 
 	defaultPath := filepath.Join(os.Getenv("HOME"), ".influxdbv2", "influxd.bolt")
-	cmd.Flags().StringVar(&authCmd.boltPath, "bolt-path", defaultPath, "Path to the TSM data directory")
+	cmd.Flags().StringVar(&authCmd.boltPath, "bolt-path", defaultPath, "Path to the BoltDB file")
 	cmd.Flags().StringVar(&authCmd.username, "username", "", "Name of the user")
 	cmd.Flags().StringVar(&authCmd.org, "org", "", "Name of the org (if not provided one will be selected)")
 
@@ -146,7 +146,7 @@ func (cmd *authCreateCommand) run() error {
 	// Find the user
 	user, err := tenantService.FindUser(ctx, influxdb.UserFilter{Name: &cmd.username})
 	if err != nil {
-		return fmt.Errorf("finding user %q: %w", cmd.username, err)
+		return fmt.Errorf("could not find user %q: %w", cmd.username, err)
 	}
 
 	// Find an organization
@@ -165,7 +165,7 @@ func (cmd *authCreateCommand) run() error {
 			Name: &cmd.org,
 		})
 		if err != nil {
-			return fmt.Errorf("finding org %q: %w", cmd.org, err)
+			return fmt.Errorf("could not find org %q: %w", cmd.org, err)
 		}
 		org = orgs[0]
 	}
@@ -178,7 +178,7 @@ func (cmd *authCreateCommand) run() error {
 		OrgID:       org.ID,
 	}
 	if err := auth.CreateAuthorization(ctx, authToCreate); err != nil {
-		return err
+		return fmt.Errorf("could not create recovery token: %w", err)
 	}
 
 	// Print all authorizations now that we have added one
