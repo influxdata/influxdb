@@ -133,8 +133,8 @@ const (
 
 // TODO(@jsteenb2): make this a stronger type that handlers can register routes that should not be logged.
 var blacklistEndpoints = map[string]isValidMethodFn{
-	prefixSignIn:                     ignoreMethod(),
-	prefixSignOut:                    ignoreMethod(),
+	"/api/v2/signin":                 ignoreMethod(),
+	"/api/v2/signout":                ignoreMethod(),
 	prefixMe:                         ignoreMethod(),
 	mePasswordPath:                   ignoreMethod(),
 	usersPasswordPath:                ignoreMethod(),

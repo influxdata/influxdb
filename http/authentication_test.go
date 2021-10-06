@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/session"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -233,7 +234,7 @@ func TestAuthenticationHandler(t *testing.T) {
 			r := httptest.NewRequest("POST", "http://any.url", nil)
 
 			if tt.args.session != "" {
-				platformhttp.SetCookieSession(tt.args.session, r)
+				session.SetCookieSession(tt.args.session, r)
 			}
 
 			if tt.args.token != "" {
@@ -296,7 +297,7 @@ func TestProbeAuthScheme(t *testing.T) {
 			r := httptest.NewRequest("POST", "http://any.url", nil)
 
 			if tt.args.session != "" {
-				platformhttp.SetCookieSession(tt.args.session, r)
+				session.SetCookieSession(tt.args.session, r)
 			}
 
 			if tt.args.token != "" {

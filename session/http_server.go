@@ -152,7 +152,7 @@ type signoutRequest struct {
 }
 
 func decodeSignoutRequest(ctx context.Context, r *http.Request) (*signoutRequest, error) {
-	key, err := decodeCookieSession(ctx, r)
+	key, err := DecodeCookieSession(ctx, r)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func encodeCookieSession(w http.ResponseWriter, s *influxdb.Session) {
 	http.SetCookie(w, c)
 }
 
-func decodeCookieSession(ctx context.Context, r *http.Request) (string, error) {
+func DecodeCookieSession(ctx context.Context, r *http.Request) (string, error) {
 	c, err := r.Cookie(cookieSessionName)
 	if err != nil {
 		return "", &errors.Error{
