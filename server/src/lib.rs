@@ -2110,9 +2110,6 @@ mod tests {
     }
 
     #[tokio::test]
-    // TODO: This test currently fails but will pass when we're getting the UUID from the
-    // database's object store path.
-    #[ignore]
     async fn init_without_uuid() {
         let application = make_application();
         let server_id = ServerId::try_from(1).unwrap();
@@ -2134,6 +2131,10 @@ mod tests {
         server.set_id(server_id).unwrap();
         server.wait_for_init().await.unwrap();
         assert!(server.initialized());
+
+        // database should not be in an error state
+        let database = server.database(&db_name).unwrap();
+        database.wait_for_init().await.unwrap();
 
         // update the database's rules
         let rules = DatabaseRules {

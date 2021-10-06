@@ -141,6 +141,16 @@ pub fn decode_persisted_database_rules(
     Ok(prost::Message::decode(bytes)?)
 }
 
+/// TEMPORARY FOR TRANSITION PURPOSES - if decoding rules file as `PersistedDatabaseRules` (which
+/// includes the database UUID) fails, use this to try instead to decode as `DatabaseRules`. Then
+/// next time the database rules are updated, the rules file will be writted as
+/// `PersistedDatabaseRules`.
+pub fn decode_database_rules(
+    bytes: prost::bytes::Bytes,
+) -> Result<management::DatabaseRules, ProstError> {
+    Ok(prost::Message::decode(bytes)?)
+}
+
 /// Encode database rules into a serialized format suitable for
 /// storage in objet store
 pub fn encode_persisted_database_rules(

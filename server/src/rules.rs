@@ -113,10 +113,23 @@ impl ProvidedDatabaseRules {
             .await
             .context(RulesFetch)?;
 
-        let new_self = generated_types::database_rules::decode_persisted_database_rules(bytes)
-            .context(Deserialization)?
-            .try_into()
-            .context(ConvertingRules)?;
+        // TEMPORARY FOR TRANSITION PURPOSES - if decoding rules file as `PersistedDatabaseRules`
+        // (which includes the database UUID) fails, try to decode as `DatabaseRules`. Then next
+        // time the database rules are updated, the rules file will be writted as
+        // `PersistedDatabaseRules`.
+        let new_self =
+            match generated_types::database_rules::decode_persisted_database_rules(bytes.clone())
+                .context(Deserialization)?
+                .try_into()
+            {
+                Ok(pdr) => pdr,
+                Err(_) => match generated_types::database_rules::decode_database_rules(bytes) {
+                    Ok(dr) => Self::new_rules(dr).context(ConvertingRules)?,
+                    Err(e) => {
+                        return Err(Error::Deserialization { source: e });
+                    }
+                },
+            };
 
         Ok(new_self)
     }

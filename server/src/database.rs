@@ -386,11 +386,9 @@ impl Database {
         // ensures the state can not be modified.
         new_provided_rules
             .persist(
-                // TODO: this `expect` will go away once `uuid` can be read from the object store
-                // path; we'll always have it in that case
-                self.config()
-                    .uuid
-                    .expect("must have a uuid by now for this to work"),
+                // TODO: Transition: this default value will go away once `uuid` can be read from
+                // the object store path; we'll always have it in that case.
+                self.config().uuid.unwrap_or_else(Uuid::new_v4),
                 &iox_object_store,
             )
             .await
