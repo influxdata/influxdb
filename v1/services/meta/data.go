@@ -19,7 +19,7 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-//go:generate protoc --gogo_out=. internal/meta.proto
+//go:generate protoc --go_out=internal/ internal/meta.proto
 
 const (
 	// DefaultRetentionPolicyReplicaN is the default value of RetentionPolicyInfo.ReplicaN.
