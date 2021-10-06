@@ -870,11 +870,50 @@ async fn sql_select_all_different_tags_chunks() {
 // Delete tests
 #[tokio::test]
 async fn sql_select_with_delete_from_one_expr_delete_all() {
-    let expected = vec!["++", "++"];
 
+    // select *
+    let expected = vec!["++", "++"];
     run_sql_test_case(
         scenarios::delete::OneDeleteSimpleExprOneChunkDeleteAll {},
         "SELECT * from cpu",
+        &expected,
+    )
+    .await;
+
+    // select a specific column
+    run_sql_test_case(
+        scenarios::delete::OneDeleteSimpleExprOneChunkDeleteAll {},
+        "SELECT time from cpu",
+        &expected,
+    )
+    .await;
+
+    // Count
+    let expected = vec![
+        "+-----------------+----------------+-----------------+",
+        "| COUNT(UInt8(1)) | COUNT(cpu.bar) | COUNT(cpu.time) |",
+        "+-----------------+----------------+-----------------+",
+        "| 0               | 0              | 0               |",
+        "+-----------------+----------------+-----------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteSimpleExprOneChunkDeleteAll {},
+        "SELECT count(*), count(bar), count(time) from cpu",
+        &expected,
+    )
+    .await;
+
+    // Min & Max
+    let expected = vec![
+        "+--------------+--------------+---------------+---------------+",
+        "| MIN(cpu.bar) | MAX(cpu.bar) | MIN(cpu.time) | MAX(cpu.time) |",
+        "+--------------+--------------+---------------+---------------+",
+        "|              |              |               |               |",
+        "+--------------+--------------+---------------+---------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteSimpleExprOneChunkDeleteAll {},
+        "SELECT min(bar), max(bar), min(time), max(time) from cpu",
         &expected,
     )
     .await;
@@ -893,6 +932,51 @@ async fn sql_select_with_delete_from_one_expr() {
     run_sql_test_case(
         scenarios::delete::OneDeleteSimpleExprOneChunk {},
         "SELECT * from cpu",
+        &expected,
+    )
+    .await;
+
+    // 
+    let expected = vec![
+        "+--------------------------------+-----+",
+        "| time                           | bar |",
+        "+--------------------------------+-----+",
+        "| 1970-01-01T00:00:00.000000020Z | 2   |",
+        "+--------------------------------+-----+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteSimpleExprOneChunk {},
+        "SELECT time, bar from cpu",
+        &expected,
+    )
+    .await;
+
+    // Count
+    let expected = vec![
+        "+-----------------+-----------------+----------------+",
+        "| COUNT(cpu.time) | COUNT(UInt8(1)) | COUNT(cpu.bar) |",
+        "+-----------------+-----------------+----------------+",
+        "| 1               | 1               | 1              |",
+        "+-----------------+-----------------+----------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteSimpleExprOneChunk {},
+        "SELECT count(time), count(*), count(bar)  from cpu",
+        &expected,
+    )
+    .await;
+
+    // Min & Max
+    let expected = vec![
+        "+--------------+--------------+--------------------------------+--------------------------------+",
+        "| MIN(cpu.bar) | MAX(cpu.bar) | MIN(cpu.time)                  | MAX(cpu.time)                  |",
+        "+--------------+--------------+--------------------------------+--------------------------------+",
+        "| 2            | 2            | 1970-01-01T00:00:00.000000020Z | 1970-01-01T00:00:00.000000020Z |",
+        "+--------------+--------------+--------------------------------+--------------------------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteSimpleExprOneChunk {},
+        "SELECT min(bar), max(bar), min(time), max(time) from cpu",
         &expected,
     )
     .await;
@@ -925,6 +1009,21 @@ async fn sql_select_with_delete_from_one_expr_with_select_predicate() {
         &expected,
     )
     .await;
+
+    // Count, min and max
+    let expected = vec![
+        "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
+        "| COUNT(cpu.time) | COUNT(UInt8(1)) | COUNT(cpu.bar) | MIN(cpu.bar) | MAX(cpu.bar) | MIN(cpu.time)                  | MAX(cpu.time)                  |",
+        "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
+        "| 1               | 1               | 1              | 2            | 2            | 1970-01-01T00:00:00.000000020Z | 1970-01-01T00:00:00.000000020Z |",
+        "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteSimpleExprOneChunk {},
+        "SELECT count(time), count(*), count(bar), min(bar), max(bar), min(time), max(time)  from cpu",
+        &expected,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -944,7 +1043,60 @@ async fn sql_select_with_delete_from_multi_exprs() {
         &expected,
     )
     .await;
+
+    //
+    let expected = vec![
+        "+-----+",
+        "| bar |",
+        "+-----+",
+        "| 1   |",
+        "| 2   |",
+        "+-----+",
+    ];
+
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT bar from cpu",
+        &expected,
+    )
+    .await;
+
+    // Count, min and max
+    // BUG when data in RUB but delete happens at open MUB
+    // let expected = vec![
+    //     "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
+    //     "| COUNT(cpu.time) | COUNT(UInt8(1)) | COUNT(cpu.bar) | MIN(cpu.bar) | MAX(cpu.bar) | MIN(cpu.time)                  | MAX(cpu.time)                  |",
+    //     "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
+    //     "| 2               | 2               | 2              | 1            | 2            | 1970-01-01T00:00:00.000000020Z | 1970-01-01T00:00:00.000000040Z |",
+    //     "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
+    // ];
+    // run_sql_test_case(
+    //     scenarios::delete::OneDeleteMultiExprsOneChunk {},
+    //     "SELECT count(time), count(*), count(bar), min(bar), max(bar), min(time), max(time)  from cpu",
+    //     &expected,
+    // )
+    // .await;
 }
+
+#[ignore]
+#[tokio::test]
+async fn sql_select_with_delete_from_multi_exprs_count() {
+
+    let expected = vec![
+        "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
+        "| COUNT(cpu.time) | COUNT(UInt8(1)) | COUNT(cpu.bar) | MIN(cpu.bar) | MAX(cpu.bar) | MIN(cpu.time)                  | MAX(cpu.time)                  |",
+        "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
+        "| 2               | 2               | 2              | 1            | 2            | 1970-01-01T00:00:00.000000020Z | 1970-01-01T00:00:00.000000040Z |",
+        "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT count(foo) from cpu",
+        &expected,
+    )
+    .await;
+}
+
 
 #[tokio::test]
 async fn sql_select_with_delete_from_multi_exprs_with_select_predicate() {
@@ -1171,6 +1323,36 @@ async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate()
     run_sql_test_case(
         scenarios::delete::ThreeDeleteThreeChunks {},
         "SELECT * from cpu where foo = 'you' and (bar > 3.0 or bar = 1)",
+        &expected,
+    )
+    .await;
+
+    // ----
+    // min, max & count
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT min(bar) from cpu;",
+        &expected,
+    )
+    .await;
+
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT max(foo) from cpu;",
+        &expected,
+    )
+    .await;
+
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT count(bar) from cpu;",
+        &expected,
+    )
+    .await;
+
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT count(*) from cpu;",
         &expected,
     )
     .await;

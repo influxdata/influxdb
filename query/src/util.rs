@@ -15,6 +15,7 @@ use datafusion::{
     },
 };
 use internal_types::schema::{sort::SortKey, Schema};
+use observability_deps::tracing::trace;
 
 /// Create a logical plan that produces the record batch
 pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, DataFusionError> {
@@ -87,6 +88,10 @@ pub fn df_physical_expr(
 
     let input_physical_schema = input.schema();
     let input_logical_schema: DFSchema = input_physical_schema.as_ref().clone().try_into()?;
+
+    trace!(%expr, "logical expression");
+    trace!(%input_logical_schema, "input logical schema");
+    trace!(%input_physical_schema, "input physical schema");
 
     physical_planner.create_physical_expr(
         &expr,
