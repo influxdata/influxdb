@@ -300,8 +300,10 @@ pub struct Db {
     /// - to keep the lifecycle state (e.g. the number of running compactions) around
     lifecycle_policy: tokio::sync::Mutex<Option<::lifecycle::LifecyclePolicy<WeakDb>>>,
 
-    /// TESTING ONLY: Mocked `Instant::now()` for the background worker
-    background_worker_now_override: Mutex<Option<Instant>>,
+    /// TESTING ONLY: Mocked `Utc::now()` for the background worker
+    ///
+    /// TODO: Replace with TimeProvider (#2722)
+    now_override: Mutex<Option<DateTime<Utc>>>,
 
     /// To-be-written delete predicates.
     delete_predicates_mailbox: Mutex<Vec<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)>>,
@@ -357,7 +359,7 @@ impl Db {
             write_buffer_producer: database_to_commit.write_buffer_producer,
             cleanup_lock: Default::default(),
             lifecycle_policy: tokio::sync::Mutex::new(None),
-            background_worker_now_override: Default::default(),
+            now_override: Default::default(),
             delete_predicates_mailbox: Default::default(),
         };
         let this = Arc::new(this);
@@ -665,31 +667,17 @@ impl Db {
 
     /// Persist given partition.
     ///
+    /// If `force` is `true` will persist all unpersisted data regardless of arrival time
+    ///
     /// Errors if there is nothing to persist at the moment as per the lifecycle rules. If successful it returns the
     /// chunk that contains the persisted data.
     ///
-    /// The `now` timestamp should normally be `Instant::now()` but can be altered for testing.
     pub async fn persist_partition(
         self: &Arc<Self>,
         table_name: &str,
         partition_key: &str,
-        now: Instant,
+        force: bool,
     ) -> Result<Option<Arc<DbChunk>>> {
-        self.persist_partition_with_timestamp(table_name, partition_key, now, Utc::now)
-            .await
-    }
-
-    /// Internal use only for testing.
-    async fn persist_partition_with_timestamp<F>(
-        self: &Arc<Self>,
-        table_name: &str,
-        partition_key: &str,
-        now: Instant,
-        f_parquet_creation_timestamp: F,
-    ) -> Result<Option<Arc<DbChunk>>>
-    where
-        F: Fn() -> DateTime<Utc> + Send,
-    {
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
@@ -702,7 +690,10 @@ impl Db {
             // get flush handle
             let flush_handle = partition
                 .persistence_windows_mut()
-                .map(|window| window.flush_handle(now))
+                .map(|window| match force {
+                    true => window.flush_all_handle(),
+                    false => window.flush_handle(self.utc_now()),
+                })
                 .flatten()
                 .context(CannotFlushPartition {
                     table_name,
@@ -732,13 +723,8 @@ impl Db {
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
-            let (_, fut) = lifecycle::persist_chunks(
-                partition,
-                chunks,
-                flush_handle,
-                f_parquet_creation_timestamp,
-            )
-            .context(LifecycleError)?;
+            let (_, fut) = lifecycle::persist_chunks(partition, chunks, flush_handle)
+                .context(LifecycleError)?;
             fut
         };
 
@@ -845,9 +831,7 @@ impl Db {
                     .as_mut()
                     .expect("lifecycle policy should be initialized");
 
-                policy
-                    .check_for_work(Utc::now(), self.background_worker_now())
-                    .await
+                policy.check_for_work(self.utc_now(), Instant::now()).await
             }
         };
 
@@ -937,11 +921,11 @@ impl Db {
         info!("finished db background worker");
     }
 
-    /// `Instant::now()` that is used by the background worker. Can be mocked for testing.
-    fn background_worker_now(&self) -> Instant {
-        self.background_worker_now_override
-            .lock()
-            .unwrap_or_else(Instant::now)
+    /// `Utc::now()` that is used by `Db`. Can be mocked for testing.
+    ///
+    /// TODO: Remove (#2722)
+    fn utc_now(&self) -> DateTime<Utc> {
+        self.now_override.lock().unwrap_or_else(Utc::now)
     }
 
     async fn cleanup_unreferenced_parquet_files(
@@ -1233,21 +1217,21 @@ impl Db {
                                 row_count,
                                 min_time,
                                 max_time,
-                                self.background_worker_now(),
+                                self.utc_now(),
                             );
                         }
                         None => {
                             let mut windows = PersistenceWindows::new(
                                 partition.addr().clone(),
                                 late_arrival_window,
-                                self.background_worker_now(),
+                                self.utc_now(),
                             );
                             windows.add_range(
                                 sequence,
                                 row_count,
                                 min_time,
                                 max_time,
-                                self.background_worker_now(),
+                                self.utc_now(),
                             );
                             partition.set_persistence_windows(windows);
                         }
@@ -1465,6 +1449,7 @@ mod tests {
 
     use arrow::record_batch::RecordBatch;
     use bytes::Bytes;
+    use chrono::{DateTime, TimeZone};
     use futures::{stream, StreamExt, TryStreamExt};
     use predicate::delete_expr::DeleteExpr;
     use tokio_util::sync::CancellationToken;
@@ -1808,13 +1793,9 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
 
         let t6_write = t5_write + chrono::Duration::seconds(1);
+        *db.now_override.lock() = Some(t6_write);
         let chunk_id = db
-            .persist_partition_with_timestamp(
-                "cpu",
-                "1970-01-01T00",
-                Instant::now() + Duration::from_secs(1),
-                || t6_write,
-            )
+            .persist_partition("cpu", "1970-01-01T00", true)
             .await
             .unwrap()
             .unwrap()
@@ -2244,13 +2225,9 @@ mod tests {
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
         let t3_persist = t2_write + chrono::Duration::seconds(1);
+        *db.now_override.lock() = Some(t3_persist);
         let pq_chunk = db
-            .persist_partition_with_timestamp(
-                "cpu",
-                partition_key,
-                Instant::now() + Duration::from_secs(1),
-                || t3_persist,
-            )
+            .persist_partition("cpu", partition_key, true)
             .await
             .unwrap()
             .unwrap();
@@ -2346,13 +2323,9 @@ mod tests {
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
         let t3_persist = t2_write + chrono::Duration::seconds(1);
+        *db.now_override.lock() = Some(t3_persist);
         let pq_chunk = db
-            .persist_partition_with_timestamp(
-                "cpu",
-                partition_key,
-                Instant::now() + Duration::from_secs(1),
-                || t3_persist,
-            )
+            .persist_partition("cpu", partition_key, true)
             .await
             .unwrap()
             .unwrap();
@@ -2800,14 +2773,11 @@ mod tests {
 
         // Persist rb to parquet os
         let t4_persist = t3_write + chrono::Duration::seconds(1);
-        db.persist_partition_with_timestamp(
-            "cpu",
-            "1970-01-01T00",
-            Instant::now() + Duration::from_secs(1),
-            || t4_persist,
-        )
-        .await
-        .unwrap();
+        *db.now_override.lock() = Some(t4_persist);
+        db.persist_partition("cpu", "1970-01-01T00", true)
+            .await
+            .unwrap()
+            .unwrap();
 
         // Check first/last write times on the chunks at this point
         let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
@@ -2950,13 +2920,9 @@ mod tests {
         db.compact_partition("cpu", "1970-01-01T00").await.unwrap();
 
         // write the read buffer chunk to object store
-        db.persist_partition(
-            "cpu",
-            "1970-01-01T00",
-            Instant::now() + Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
+        db.persist_partition("cpu", "1970-01-01T00", true)
+            .await
+            .unwrap();
 
         // write into a separate partition
         write_lp(&db, "cpu bar=1 400000000000000").await;
@@ -3136,13 +3102,9 @@ mod tests {
         assert_ne!(mb_chunk.id(), rb_chunk.id());
 
         // RB => OS
-        db.persist_partition(
-            table_name,
-            partition_key,
-            Instant::now() + Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
+        db.persist_partition(table_name, partition_key, true)
+            .await
+            .unwrap();
 
         // we should have chunks in both the read buffer only
         assert!(mutable_chunk_ids(&db, partition_key).is_empty());
@@ -3694,13 +3656,9 @@ mod tests {
         let partition_key = "part_a";
         write_lp(&db, "cpu,part=a row=10,selector=0i 10").await;
         write_lp(&db, "cpu,part=a row=11,selector=1i 11").await;
-        db.persist_partition(
-            table_name,
-            partition_key,
-            Instant::now() + Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
+        db.persist_partition(table_name, partition_key, true)
+            .await
+            .unwrap();
 
         // 2: RUB
         let partition_key = "part_b";
@@ -3719,12 +3677,9 @@ mod tests {
         let partition_key = "part_d";
         write_lp(&db, "cpu,part=d row=40,selector=0i 40").await;
         write_lp(&db, "cpu,part=d row=41,selector=1i 41").await;
+
         let chunk_id = db
-            .persist_partition(
-                table_name,
-                partition_key,
-                Instant::now() + Duration::from_secs(1),
-            )
+            .persist_partition(table_name, partition_key, true)
             .await
             .unwrap()
             .unwrap()
@@ -3749,13 +3704,9 @@ mod tests {
 
         // ==================== do: preserve another partition ====================
         let partition_key = "part_b";
-        db.persist_partition(
-            table_name,
-            partition_key,
-            Instant::now() + Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
+        db.persist_partition(table_name, partition_key, true)
+            .await
+            .unwrap();
 
         // ==================== do: use background worker for a short while ====================
         let iters_start = db.worker_iterations_delete_predicate_preservation();
@@ -4041,13 +3992,9 @@ mod tests {
         ));
 
         // once persisted drop should work
-        db.persist_partition(
-            "cpu",
-            partition_key,
-            Instant::now() + Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
+        db.persist_partition("cpu", partition_key, true)
+            .await
+            .unwrap();
         db.drop_partition("cpu", partition_key).await.unwrap();
 
         // no chunks left
@@ -4071,13 +4018,9 @@ mod tests {
         write_lp(db.as_ref(), "cpu bar=2 20").await;
 
         let partition_key = "1970-01-01T00";
-        db.persist_partition(
-            "cpu",
-            partition_key,
-            Instant::now() + Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
+        db.persist_partition("cpu", partition_key, true)
+            .await
+            .unwrap();
 
         // query data before drop
         let expected = vec![
@@ -4117,11 +4060,7 @@ mod tests {
 
         // Write the RB chunk to Object Store but keep it in RB
         let chunk = db
-            .persist_partition(
-                table_name,
-                partition_key,
-                Instant::now() + Duration::from_secs(1),
-            )
+            .persist_partition(table_name, partition_key, true)
             .await
             .unwrap()
             .unwrap();

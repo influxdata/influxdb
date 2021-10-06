@@ -1,7 +1,6 @@
 use std::convert::{TryFrom, TryInto};
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::Instant;
 
 use data_types::chunk_metadata::ChunkId;
 use data_types::{server_id::ServerId, DatabaseName};
@@ -573,7 +572,7 @@ where
             .db(&db_name)
             .map_err(default_server_error_handler)?;
 
-        db.persist_partition(&table_name, &partition_key, Instant::now())
+        db.persist_partition(&table_name, &partition_key, false)
             .await
             .map_err(default_db_error_handler)?;
 

@@ -14,6 +14,6 @@ internal_types = { path = "../internal_types" }
 observability_deps = { path = "../observability_deps" }
 tokio = { version = "1.11", features = ["macros", "time"] }
 tracker = { path = "../tracker" }
-[dev-dependencies]
 
+[dev-dependencies]
 tokio = { version = "1.11", features = ["macros", "time", "rt"] }

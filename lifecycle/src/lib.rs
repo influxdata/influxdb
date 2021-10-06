@@ -15,7 +15,6 @@ use data_types::{
     DatabaseName,
 };
 use internal_types::access::AccessMetrics;
-use std::time::Instant;
 use tracker::TaskTracker;
 
 mod guard;
@@ -86,7 +85,7 @@ pub trait LockablePartition: Sized + std::fmt::Display {
     /// write has been present in memory
     fn prepare_persist(
         partition: &mut LifecycleWriteGuard<'_, Self::Partition, Self>,
-        now: Instant,
+        now: DateTime<Utc>,
     ) -> Option<Self::PersistHandle>;
 
     /// Split and persist chunks.
@@ -158,10 +157,10 @@ pub trait LifecyclePartition {
     ///
     /// `now` is the wall clock time that should be used to compute how long a given
     /// write has been present in memory
-    fn persistable_row_count(&self, now: Instant) -> usize;
+    fn persistable_row_count(&self, now: DateTime<Utc>) -> usize;
 
     /// Returns the age of the oldest unpersisted write
-    fn minimum_unpersisted_age(&self) -> Option<Instant>;
+    fn minimum_unpersisted_age(&self) -> Option<DateTime<Utc>>;
 }
 
 /// The lifecycle operates on chunks implementing this trait

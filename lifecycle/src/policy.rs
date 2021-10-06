@@ -82,8 +82,6 @@ where
     /// - If persist is `true` it will only unload persisted chunks in order of creation time, starting with the oldest.
     /// - If persist is `false` it will consider all chunks, also in order of creation time, starting with the oldest.
     ///
-    /// TODO: use LRU instead of creation time
-    ///
     fn maybe_free_memory<P: LockablePartition>(
         &mut self,
         db_name: &DatabaseName<'static>,
@@ -343,7 +341,7 @@ where
         db_name: &DatabaseName<'static>,
         partition: &P,
         rules: &LifecycleRules,
-        now: Instant,
+        now: DateTime<Utc>,
     ) -> bool {
         // TODO: Encapsulate locking into a CatalogTransaction type
         let partition = partition.read();
@@ -353,19 +351,15 @@ where
             return false;
         }
 
-        let persistable_age_seconds = partition
+        let persistable_age_seconds: u32 = partition
             .minimum_unpersisted_age()
             .and_then(|minimum_unpersisted_age| {
-                // If writes happened between when the policy loop
-                // started and this check is done, the duration may be
-                // negative. Skip persistence in this case to avoid
-                // panic in `duration_since`
-                Some(
-                    now.checked_duration_since(minimum_unpersisted_age)?
-                        .as_secs(),
-                )
+                (now - minimum_unpersisted_age)
+                    .num_seconds()
+                    .try_into()
+                    .ok()
             })
-            .unwrap_or_default() as u32;
+            .unwrap_or_default();
 
         let persistable_row_count = partition.persistable_row_count(now);
         debug!(%db_name, %partition,
@@ -512,8 +506,7 @@ where
             // but persistence cannot proceed because of in-progress
             // compactions
             let stall_compaction_persisting = if rules.persist && !self.suppress_persistence {
-                let persisting =
-                    self.maybe_persist_chunks(&db_name, partition, &rules, now_instant);
+                let persisting = self.maybe_persist_chunks(&db_name, partition, &rules, now);
                 if persisting {
                     debug!(%db_name, %partition, reason="persisting", "stalling compaction");
                 }
@@ -672,6 +665,7 @@ mod tests {
         ChunkLifecycleAction, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
         LockablePartition, PersistHandle,
     };
+    use chrono::TimeZone;
     use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder, ChunkStorage};
     use data_types::database_rules::MaxActiveCompactions::MaxActiveCompactions;
     use std::{
@@ -695,7 +689,7 @@ mod tests {
     struct TestPartition {
         chunks: BTreeMap<ChunkId, (ChunkOrder, Arc<RwLock<TestChunk>>)>,
         persistable_row_count: usize,
-        minimum_unpersisted_age: Option<Instant>,
+        minimum_unpersisted_age: Option<DateTime<Utc>>,
         max_persistable_timestamp: Option<DateTime<Utc>>,
         next_id: ChunkId,
     }
@@ -704,7 +698,7 @@ mod tests {
         fn with_persistence(
             self,
             persistable_row_count: usize,
-            minimum_unpersisted_age: Instant,
+            minimum_unpersisted_age: DateTime<Utc>,
             max_persistable_timestamp: DateTime<Utc>,
         ) -> Self {
             Self {
@@ -890,7 +884,7 @@ mod tests {
 
         fn prepare_persist(
             partition: &mut LifecycleWriteGuard<'_, Self::Partition, Self>,
-            _now: Instant,
+            _now: DateTime<Utc>,
         ) -> Option<Self::PersistHandle> {
             Some(TestPersistHandle {
                 timestamp: partition.max_persistable_timestamp.unwrap(),
@@ -983,11 +977,11 @@ mod tests {
             false
         }
 
-        fn persistable_row_count(&self, _now: Instant) -> usize {
+        fn persistable_row_count(&self, _now: DateTime<Utc>) -> usize {
             self.persistable_row_count
         }
 
-        fn minimum_unpersisted_age(&self) -> Option<Instant> {
+        fn minimum_unpersisted_age(&self) -> Option<DateTime<Utc>> {
             self.minimum_unpersisted_age
         }
     }
@@ -1112,7 +1106,7 @@ mod tests {
     }
 
     fn from_secs(secs: i64) -> DateTime<Utc> {
-        DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(secs, 0), Utc)
+        Utc.timestamp(secs, 0)
     }
 
     #[test]
@@ -1619,7 +1613,8 @@ mod tests {
             max_active_compactions: MaxActiveCompactions(NonZeroU32::new(10).unwrap()),
             ..Default::default()
         };
-        let now = Instant::now();
+        let now = from_secs(0);
+        let now_instant = Instant::now();
 
         let partitions = vec![
             // Insufficient rows and not old enough => don't persist but can compact
@@ -1648,7 +1643,7 @@ mod tests {
                 TestChunk::new(ChunkId::new(6), 0, ChunkStorage::ObjectStoreOnly)
                     .with_min_timestamp(from_secs(5)),
             ])
-            .with_persistence(10, now - Duration::from_secs(10), from_secs(20)),
+            .with_persistence(10, now - chrono::Duration::seconds(10), from_secs(20)),
             // Sufficient rows but conflicting compaction => prevent compaction
             TestPartition::new(vec![
                 TestChunk::new(ChunkId::new(7), 0, ChunkStorage::ClosedMutableBuffer)
@@ -1690,7 +1685,7 @@ mod tests {
         let db = TestDb::from_partitions(rules, partitions);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        lifecycle.check_for_work(from_secs(0), now);
+        lifecycle.check_for_work(from_secs(0), now_instant);
         assert_eq!(
             *db.events.read(),
             vec![
@@ -1714,21 +1709,22 @@ mod tests {
             persist_age_threshold_seconds: NonZeroU32::new(20).unwrap(),
             ..Default::default()
         };
-        let now = Instant::now();
+        let now = Utc::now();
+        let now_instant = Instant::now();
 
         // This could occur if the in-memory contents of a partition are deleted, and
         // compaction causes the chunks to be removed. In such a scenario the persistence
         // windows will still think there are rows to be persisted
         let partitions = vec![TestPartition::new(vec![]).with_persistence(
             10,
-            now - Duration::from_secs(20),
+            now - chrono::Duration::seconds(20),
             from_secs(20),
         )];
 
         let db = TestDb::from_partitions(rules, partitions);
         let mut lifecycle = LifecyclePolicy::new(&db);
 
-        lifecycle.check_for_work(from_secs(0), now);
+        lifecycle.check_for_work(now, now_instant);
         assert_eq!(*db.events.read(), vec![MoverEvents::Persist(vec![]),]);
     }
 
@@ -1742,7 +1738,8 @@ mod tests {
             max_active_compactions: MaxActiveCompactions(NonZeroU32::new(10).unwrap()),
             ..Default::default()
         };
-        let now = Instant::now();
+        let now = Utc::now();
+        let now_instant = Instant::now();
 
         let partitions = vec![
             // Sufficient rows => could persist but should be suppressed
@@ -1758,13 +1755,13 @@ mod tests {
         let db = TestDb::from_partitions(rules, partitions);
         let mut lifecycle = LifecyclePolicy::new_suppress_persistence(&db);
 
-        lifecycle.check_for_work(from_secs(0), now);
+        lifecycle.check_for_work(now, now_instant);
         assert_eq!(
             *db.events.read(),
             vec![MoverEvents::Compact(vec![ChunkId::new(2), ChunkId::new(3)]),]
         );
 
-        lifecycle.check_for_work(from_secs(0), now);
+        lifecycle.check_for_work(now, now_instant);
         assert_eq!(
             *db.events.read(),
             vec![MoverEvents::Compact(vec![ChunkId::new(2), ChunkId::new(3)]),]
@@ -1772,7 +1769,7 @@ mod tests {
 
         lifecycle.unsuppress_persistence();
 
-        lifecycle.check_for_work(from_secs(0), now);
+        lifecycle.check_for_work(now, now_instant);
         assert_eq!(
             *db.events.read(),
             vec![

@@ -4,10 +4,10 @@ use std::{
     num::NonZeroUsize,
     ops::Deref,
     sync::Arc,
-    time::{Duration, Instant},
+    time::Duration as StdDuration,
 };
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 
 use data_types::{partition_metadata::PartitionAddr, write_summary::WriteSummary};
 use entry::Sequence;
@@ -15,9 +15,8 @@ use internal_types::freezable::{Freezable, FreezeHandle};
 
 use crate::min_max_sequence::MinMaxSequence;
 use crate::{checkpoint::PartitionCheckpoint, min_max_sequence::OptionalMinMaxSequence};
-use data_types::instant::to_approximate_datetime;
 
-const DEFAULT_CLOSED_WINDOW_PERIOD: Duration = Duration::from_secs(30);
+const DEFAULT_CLOSED_WINDOW_SECONDS: i64 = 30;
 
 /// PersistenceWindows keep track of ingested data within a partition to determine when it
 /// can be persisted. This allows IOx to receive out of order writes (in their timestamps) while
@@ -29,11 +28,11 @@ const DEFAULT_CLOSED_WINDOW_PERIOD: Duration = Duration::from_secs(30);
 ///
 /// The `PersistenceWindows` operate on two different types of time
 ///
-/// * row timestamps - these are `DateTime<Utc>` and are the row's value for the `time` column
-/// * Wall timestamps - these are `Instant` and are the Wall clock of the system used to determine
+/// * row timestamps - these are the row's value for the `time` column
+/// * Wall timestamps - these are the Wall clock of the system used to determine
 ///   the "age" of a set of writes within a PersistenceWindow
 ///
-/// To aid testing Wall timestamps are passed to many methods instead of directly using `Instant::now`
+/// To aid testing Wall timestamps are passed to many methods instead of directly using `Utc::now`
 ///
 /// The PersistenceWindows answer the question: - "What is the maximum row timestamp in the writes
 /// that arrived more than late_arrival_period seconds ago, as determined by wall clock time"
@@ -46,13 +45,14 @@ pub struct PersistenceWindows {
     addr: PartitionAddr,
 
     late_arrival_period: Duration,
+
     closed_window_period: Duration,
 
     /// The instant this PersistenceWindows was created
-    created_at: Instant,
+    time_of_first_write: DateTime<Utc>,
 
-    /// The last instant passed to PersistenceWindows::add_range
-    last_instant: Instant,
+    /// The maximum Wall timestamp that has been passed to PersistenceWindows::add_range
+    time_of_last_write: DateTime<Utc>,
 
     /// maps sequencer_id to the maximum sequence passed to PersistenceWindows::add_range
     max_sequence_numbers: BTreeMap<u32, u64>,
@@ -78,7 +78,7 @@ pub struct FlushHandle {
     /// The address of the partition
     addr: PartitionAddr,
 
-    /// The timestamp to flush
+    /// The row timestamp to flush
     timestamp: DateTime<Utc>,
 
     /// The sequence number ranges not including those persisted by this flush
@@ -104,13 +104,13 @@ impl FlushHandle {
 }
 
 impl PersistenceWindows {
-    pub fn new(addr: PartitionAddr, late_arrival_period: Duration, now: Instant) -> Self {
-        let closed_window_period = late_arrival_period.min(DEFAULT_CLOSED_WINDOW_PERIOD);
+    pub fn new(addr: PartitionAddr, late_arrival_period: StdDuration, now: DateTime<Utc>) -> Self {
+        let late_arrival_period = Duration::from_std(late_arrival_period).unwrap();
+        let closed_window_period =
+            late_arrival_period.min(Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS));
 
-        let late_arrival_seconds = late_arrival_period.as_secs();
-        let closed_window_seconds = closed_window_period.as_secs();
-
-        let closed_window_count = late_arrival_seconds / closed_window_seconds;
+        let closed_window_count =
+            late_arrival_period.num_seconds() / closed_window_period.num_seconds();
 
         Self {
             persistable: Freezable::new(None),
@@ -119,15 +119,17 @@ impl PersistenceWindows {
             addr,
             late_arrival_period,
             closed_window_period,
-            created_at: now,
-            last_instant: now,
+            time_of_first_write: now,
+            time_of_last_write: now,
             max_sequence_numbers: Default::default(),
         }
     }
 
     /// Updates the late arrival period of this `PersistenceWindows` instance
-    pub fn set_late_arrival_period(&mut self, late_arrival_period: Duration) {
-        self.closed_window_period = late_arrival_period.min(DEFAULT_CLOSED_WINDOW_PERIOD);
+    pub fn set_late_arrival_period(&mut self, late_arrival_period: StdDuration) {
+        let late_arrival_period = Duration::from_std(late_arrival_period).unwrap();
+        self.closed_window_period =
+            late_arrival_period.min(Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS));
         self.late_arrival_period = late_arrival_period;
     }
 
@@ -148,12 +150,10 @@ impl PersistenceWindows {
     }
 
     /// Updates the windows with the information from a batch of rows from a single sequencer
-    /// to the same partition. The min and max times are the times on the row data. The `received_at`
-    /// Instant is when the data was received. Taking it in this function is really just about
-    /// dependency injection for testing purposes. Otherwise, this function wouldn't take that
-    /// parameter and just use `Instant::now()`.
+    /// to the same partition. `min_time` and `max_time` are row timestamps in the written data
+    ///  and `time_of_write` is the wall time that the write was performed.
     ///
-    /// The `received_at` is used by the lifecycle manager to determine how long the data in a
+    /// The `time_of_write` is used by the lifecycle manager to determine how long the data in a
     /// persistence window has been sitting in memory. If it is over the configured threshold
     /// the data should be persisted.
     ///
@@ -161,7 +161,6 @@ impl PersistenceWindows {
     /// is triggered (either by crossing a row count threshold or time).
     ///
     /// # Panics
-    /// - When the passed `received_at` is smaller than the last time this method was used (aka time goes backwards).
     /// - When `min_time > max_time`.
     pub fn add_range(
         &mut self,
@@ -169,21 +168,17 @@ impl PersistenceWindows {
         row_count: NonZeroUsize,
         min_time: DateTime<Utc>,
         max_time: DateTime<Utc>,
-        received_at: Instant,
+        time_of_write: DateTime<Utc>,
     ) {
-        assert!(
-            received_at >= self.last_instant,
-            "PersistenceWindows::add_range called out of order, received_at ({:?}) < last_instant ({:?})",
-            received_at,
-            self.last_instant,
-        );
+        // DateTime<Utc> is not monotonic
+        let time_of_write = self.time_of_last_write.max(time_of_write);
         assert!(
             min_time <= max_time,
             "PersistenceWindows::add_range called with min_time ({}) > max_time ({})",
             min_time,
             max_time
         );
-        self.last_instant = received_at;
+        self.time_of_last_write = time_of_write;
 
         if let Some(sequence) = sequence {
             match self.max_sequence_numbers.entry(sequence.id) {
@@ -203,13 +198,13 @@ impl PersistenceWindows {
             }
         }
 
-        self.rotate(received_at);
+        self.rotate(time_of_write);
 
         match self.open.as_mut() {
-            Some(w) => w.add_range(sequence, row_count, min_time, max_time, received_at),
+            Some(w) => w.add_range(sequence, row_count, min_time, max_time, time_of_write),
             None => {
                 self.open = Some(Window::new(
-                    received_at,
+                    time_of_write,
                     sequence,
                     row_count,
                     min_time,
@@ -224,7 +219,7 @@ impl PersistenceWindows {
     /// `now` is the Wall clock time of the server to use for determining how "old" a given
     /// persistence window is, or in other words, how long since the writes it contains the
     /// metrics for were written to this partition
-    fn rotate(&mut self, now: Instant) {
+    fn rotate(&mut self, now: DateTime<Utc>) {
         let rotate = self
             .open
             .as_ref()
@@ -306,10 +301,15 @@ impl PersistenceWindows {
             .collect()
     }
 
+    /// Acquire a handle that flushes all unpersisted data
+    pub fn flush_all_handle(&mut self) -> Option<FlushHandle> {
+        self.flush_handle(chrono::MAX_DATETIME)
+    }
+
     /// Acquire a handle that prevents mutation of the persistable window until dropped
     ///
     /// Returns `None` if there is an outstanding handle or nothing to persist
-    pub fn flush_handle(&mut self, now: Instant) -> Option<FlushHandle> {
+    pub fn flush_handle(&mut self, now: DateTime<Utc>) -> Option<FlushHandle> {
         // Verify no active flush handles before closing open window
         self.persistable.get_mut()?;
 
@@ -385,8 +385,8 @@ impl PersistenceWindows {
     /// update the min row timestamp but not the row count
     pub fn summaries(&self) -> impl Iterator<Item = WriteSummary> + '_ {
         self.windows().map(move |window| WriteSummary {
-            time_of_first_write: to_approximate_datetime(window.created_at),
-            time_of_last_write: to_approximate_datetime(window.last_instant),
+            time_of_first_write: window.time_of_first_write,
+            time_of_last_write: window.time_of_last_write,
             min_timestamp: window.min_time,
             max_timestamp: window.max_time,
             row_count: window.row_count.get(),
@@ -404,8 +404,8 @@ impl PersistenceWindows {
     }
 
     /// Returns the minimum unpersisted age
-    pub fn minimum_unpersisted_age(&self) -> Option<Instant> {
-        self.minimum_window().map(|x| x.created_at)
+    pub fn minimum_unpersisted_age(&self) -> Option<DateTime<Utc>> {
+        self.minimum_window().map(|x| x.time_of_first_write)
     }
 
     /// Returns the minimum unpersisted timestamp
@@ -419,7 +419,7 @@ impl PersistenceWindows {
     }
 
     /// Returns the number of persistable rows
-    pub fn persistable_row_count(&self, now: Instant) -> usize {
+    pub fn persistable_row_count(&self, now: DateTime<Utc>) -> usize {
         self.windows()
             .take_while(|window| window.is_persistable(now, self.late_arrival_period))
             .map(|window| window.row_count.get())
@@ -431,9 +431,9 @@ impl PersistenceWindows {
 struct Window {
     /// The server time when this window was created. Used to determine how long data in this
     /// window has been sitting in memory.
-    created_at: Instant,
+    time_of_first_write: DateTime<Utc>,
     /// The server time of the last write to this window
-    last_instant: Instant,
+    time_of_last_write: DateTime<Utc>,
     /// The number of rows in the window
     row_count: NonZeroUsize,
     /// min time value for data in the window
@@ -446,7 +446,7 @@ struct Window {
 
 impl Window {
     fn new(
-        created_at: Instant,
+        time_of_write: DateTime<Utc>,
         sequence: Option<&Sequence>,
         row_count: NonZeroUsize,
         min_time: DateTime<Utc>,
@@ -461,8 +461,8 @@ impl Window {
         }
 
         Self {
-            created_at,
-            last_instant: created_at,
+            time_of_first_write: time_of_write,
+            time_of_last_write: time_of_write,
             row_count,
             min_time,
             max_time,
@@ -478,10 +478,11 @@ impl Window {
         row_count: NonZeroUsize,
         min_time: DateTime<Utc>,
         max_time: DateTime<Utc>,
-        instant: Instant,
+        time_of_write: DateTime<Utc>,
     ) {
-        assert!(self.created_at <= instant);
-        self.last_instant = instant;
+        assert!(self.time_of_first_write <= time_of_write);
+        assert!(self.time_of_last_write <= time_of_write);
+        self.time_of_last_write = time_of_write;
 
         self.row_count =
             NonZeroUsize::new(self.row_count.get() + row_count.get()).expect("both are > 0");
@@ -509,10 +510,10 @@ impl Window {
 
     /// Add one window to another. Used to collapse closed windows into persisted.
     fn add_window(&mut self, other: Self) {
-        assert!(self.last_instant <= other.created_at);
-        assert!(self.last_instant <= other.last_instant);
+        assert!(self.time_of_last_write <= other.time_of_first_write);
+        assert!(self.time_of_last_write <= other.time_of_last_write);
 
-        self.last_instant = other.last_instant;
+        self.time_of_last_write = other.time_of_last_write;
         self.row_count =
             NonZeroUsize::new(self.row_count.get() + other.row_count.get()).expect("both are > 0");
         if self.min_time > other.min_time {
@@ -535,17 +536,13 @@ impl Window {
     }
 
     /// If this window can be closed
-    fn is_closeable(&self, now: Instant, closed_window_period: Duration) -> bool {
-        now.checked_duration_since(self.created_at)
-            .map(|x| x >= closed_window_period)
-            .unwrap_or(false)
+    fn is_closeable(&self, now: DateTime<Utc>, closed_window_period: Duration) -> bool {
+        (now - self.time_of_first_write) >= closed_window_period
     }
 
     /// If this window is persistable
-    fn is_persistable(&self, now: Instant, late_arrival_period: Duration) -> bool {
-        now.checked_duration_since(self.created_at)
-            .map(|x| x >= late_arrival_period)
-            .unwrap_or(false)
+    fn is_persistable(&self, now: DateTime<Utc>, late_arrival_period: Duration) -> bool {
+        (now - self.time_of_first_write) >= late_arrival_period
     }
 }
 
@@ -555,7 +552,7 @@ mod tests {
 
     use super::*;
 
-    fn make_windows(late_arrival_period: Duration) -> PersistenceWindows {
+    fn make_windows(late_arrival_period: StdDuration) -> PersistenceWindows {
         PersistenceWindows::new(
             PartitionAddr {
                 db_name: Arc::from("db"),
@@ -563,30 +560,21 @@ mod tests {
                 partition_key: Arc::from("partition_key"),
             },
             late_arrival_period,
-            Instant::now(),
+            Utc::now(),
         )
     }
 
-    // *NOTE*: this test currently fails on (at least) aarch64 architectures
-    // such as an Apple M1 machine.
-    //
-    // Possibly related to https://github.com/rust-lang/rust/issues/87906 but
-    // not clear at this point.
-    //
-    // Ignoring the tests here to get the suite green on aarch64.
-    #[cfg(not(target_arch = "aarch64"))]
     #[test]
-    #[should_panic(expected = "PersistenceWindows::add_range called out of order")]
-    fn panics_when_time_goes_backwards() {
-        let mut w = make_windows(Duration::from_secs(60));
-        let now = Instant::now();
+    fn time_go_backwards() {
+        let mut w = make_windows(StdDuration::from_secs(60));
+        let now = Utc::now();
 
         w.add_range(
             Some(&Sequence { id: 1, number: 1 }),
             NonZeroUsize::new(1).unwrap(),
             Utc::now(),
             Utc::now(),
-            now + Duration::from_nanos(1),
+            now + Duration::nanoseconds(1),
         );
 
         w.add_range(
@@ -601,7 +589,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "PersistenceWindows::add_range called with min_time")]
     fn panics_when_min_time_gt_max_time() {
-        let mut w = make_windows(Duration::from_secs(60));
+        let mut w = make_windows(StdDuration::from_secs(60));
 
         let t = Utc::now();
         w.add_range(
@@ -609,54 +597,61 @@ mod tests {
             NonZeroUsize::new(1).unwrap(),
             t + chrono::Duration::nanoseconds(1),
             t,
-            Instant::now(),
+            Utc::now(),
         );
     }
 
     #[test]
     fn starts_open_window() {
-        let mut w = make_windows(Duration::from_secs(60));
+        let mut w = make_windows(StdDuration::from_secs(60));
 
-        let i = Instant::now();
-        let start_time = Utc::now();
+        let row_t0 = Utc::now();
+        let row_t1 = row_t0 + chrono::Duration::seconds(1);
+        let row_t2 = row_t1 + chrono::Duration::milliseconds(3);
+        let row_t3 = row_t2 + chrono::Duration::milliseconds(3);
 
+        let write_t0 = w.time_of_first_write;
+        let write_t1 = write_t0 + chrono::Duration::seconds(2);
+        let write_t2 = write_t1 + chrono::Duration::seconds(2);
+        let write_t3 = write_t2 + chrono::Duration::seconds(2);
+
+        // Write timestamps are purposefully out of order
         w.add_range(
             Some(&Sequence { id: 1, number: 2 }),
             NonZeroUsize::new(1).unwrap(),
-            start_time,
-            Utc::now(),
-            i,
+            row_t0,
+            row_t0,
+            write_t0,
         );
         w.add_range(
             Some(&Sequence { id: 1, number: 4 }),
             NonZeroUsize::new(2).unwrap(),
-            Utc::now(),
-            Utc::now(),
-            Instant::now(),
+            row_t1,
+            row_t1,
+            write_t2,
         );
         w.add_range(
             Some(&Sequence { id: 1, number: 10 }),
             NonZeroUsize::new(1).unwrap(),
-            Utc::now(),
-            Utc::now(),
-            Instant::now(),
+            row_t2,
+            row_t3,
+            write_t3,
         );
-        let time_before_last_time = Utc::now();
-        let last_time = Utc::now();
         w.add_range(
             Some(&Sequence { id: 2, number: 23 }),
             NonZeroUsize::new(10).unwrap(),
-            time_before_last_time,
-            last_time,
-            Instant::now(),
+            row_t2,
+            row_t3,
+            write_t1,
         );
 
         assert!(w.closed.is_empty());
         assert!(w.persistable.is_none());
         let open = w.open.unwrap();
 
-        assert_eq!(open.min_time, start_time);
-        assert_eq!(open.max_time, last_time);
+        assert_eq!(open.time_of_last_write, write_t3);
+        assert_eq!(open.min_time, row_t0);
+        assert_eq!(open.max_time, row_t3);
         assert_eq!(open.row_count.get(), 14);
         assert_eq!(
             open.sequencer_numbers.get(&1).unwrap(),
@@ -670,52 +665,53 @@ mod tests {
 
     #[test]
     fn closes_open_window() {
-        let mut w = make_windows(Duration::from_secs(60));
-        let created_at = Instant::now();
-        let start_time = Utc::now();
-        let last_time = Utc::now();
+        let mut w = make_windows(StdDuration::from_secs(60));
+        let created_at = w.time_of_first_write;
+
+        let row_t0 = Utc.timestamp_nanos(39049493);
+        let row_t1 = row_t0 + Duration::seconds(3);
+        let row_t2 = row_t1 + Duration::milliseconds(65);
 
         w.add_range(
             Some(&Sequence { id: 1, number: 2 }),
             NonZeroUsize::new(1).unwrap(),
-            start_time,
-            start_time,
+            row_t0,
+            row_t1,
             created_at,
         );
         w.add_range(
             Some(&Sequence { id: 1, number: 3 }),
             NonZeroUsize::new(1).unwrap(),
-            last_time,
-            last_time,
-            Instant::now(),
+            row_t0,
+            row_t1,
+            created_at,
         );
-        let after_close_threshold = created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD)
-            .unwrap();
-        let open_time = Utc::now();
+
+        let after_close_threshold = created_at + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS);
         w.add_range(
             Some(&Sequence { id: 1, number: 6 }),
             NonZeroUsize::new(2).unwrap(),
-            last_time,
-            open_time,
+            row_t1,
+            row_t2,
             after_close_threshold,
         );
 
         assert!(w.persistable.is_none());
 
+        assert_eq!(w.closed.len(), 1);
         let closed = w.closed.get(0).unwrap();
         assert_eq!(
             closed.sequencer_numbers.get(&1).unwrap(),
             &MinMaxSequence::new(2, 3)
         );
         assert_eq!(closed.row_count.get(), 2);
-        assert_eq!(closed.min_time, start_time);
-        assert_eq!(closed.max_time, last_time);
+        assert_eq!(closed.min_time, row_t0);
+        assert_eq!(closed.max_time, row_t1);
 
         let open = w.open.unwrap();
         assert_eq!(open.row_count.get(), 2);
-        assert_eq!(open.min_time, last_time);
-        assert_eq!(open.max_time, open_time);
+        assert_eq!(open.min_time, row_t1);
+        assert_eq!(open.max_time, row_t2);
         assert_eq!(
             open.sequencer_numbers.get(&1).unwrap(),
             &MinMaxSequence::new(6, 6)
@@ -724,8 +720,8 @@ mod tests {
 
     #[test]
     fn moves_to_persistable() {
-        let mut w = make_windows(Duration::from_secs(120));
-        let created_at = Instant::now();
+        let mut w = make_windows(StdDuration::from_secs(120));
+        let write_t0 = w.time_of_first_write;
         let start_time = Utc::now();
 
         let first_end = Utc::now();
@@ -734,92 +730,84 @@ mod tests {
             NonZeroUsize::new(2).unwrap(),
             start_time,
             first_end,
-            created_at,
+            write_t0,
         );
 
-        let second_created_at = created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD)
-            .unwrap();
+        let write_t1 = write_t0 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS);
         let second_end = Utc::now();
         w.add_range(
             Some(&Sequence { id: 1, number: 3 }),
             NonZeroUsize::new(3).unwrap(),
             first_end,
             second_end,
-            second_created_at,
+            write_t1,
         );
 
-        let third_created_at = second_created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD)
-            .unwrap();
+        let write_2 = write_t1 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS);
         let third_end = Utc::now();
         w.add_range(
             Some(&Sequence { id: 1, number: 4 }),
             NonZeroUsize::new(4).unwrap(),
             second_end,
             third_end,
-            third_created_at,
+            write_2,
         );
 
         assert!(w.persistable.is_none());
         // confirm the two on closed and third on open
         let c = w.closed.get(0).cloned().unwrap();
-        assert_eq!(c.created_at, created_at);
+        assert_eq!(c.time_of_first_write, write_t0);
         assert_eq!(c.row_count.get(), 2);
         assert_eq!(c.min_time, start_time);
         assert_eq!(c.max_time, first_end);
 
         let c = w.closed.get(1).cloned().unwrap();
-        assert_eq!(c.created_at, second_created_at);
+        assert_eq!(c.time_of_first_write, write_t1);
         assert_eq!(c.row_count.get(), 3);
         assert_eq!(c.min_time, first_end);
         assert_eq!(c.max_time, second_end);
 
         let c = w.open.clone().unwrap();
-        assert_eq!(c.created_at, third_created_at);
+        assert_eq!(c.time_of_first_write, write_2);
         assert_eq!(c.row_count.get(), 4);
         assert_eq!(c.min_time, second_end);
         assert_eq!(c.max_time, third_end);
 
-        let fourth_created_at = third_created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD * 3)
-            .unwrap();
+        let write_t3 = write_2 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS * 3);
         let fourth_end = Utc::now();
         w.add_range(
             Some(&Sequence { id: 1, number: 5 }),
             NonZeroUsize::new(1).unwrap(),
             fourth_end,
             fourth_end,
-            fourth_created_at,
+            write_t3,
         );
 
         // confirm persistable has first and second
         let c = w.persistable.as_ref().unwrap();
-        assert_eq!(c.created_at, created_at);
+        assert_eq!(c.time_of_first_write, write_t0);
         assert_eq!(c.row_count.get(), 5);
         assert_eq!(c.min_time, start_time);
         assert_eq!(c.max_time, second_end);
 
         // and the third window moved to closed
         let c = w.closed.get(0).cloned().unwrap();
-        assert_eq!(c.created_at, third_created_at);
+        assert_eq!(c.time_of_first_write, write_2);
         assert_eq!(c.row_count.get(), 4);
         assert_eq!(c.min_time, second_end);
         assert_eq!(c.max_time, third_end);
 
-        let fifth_created_at = fourth_created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD * 100)
-            .unwrap();
+        let write_t4 = write_t3 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS * 100);
         w.add_range(
             Some(&Sequence { id: 1, number: 9 }),
             NonZeroUsize::new(2).unwrap(),
             Utc::now(),
             Utc::now(),
-            fifth_created_at,
+            write_t4,
         );
 
         let c = w.persistable.as_ref().unwrap();
-        assert_eq!(c.created_at, created_at);
+        assert_eq!(c.time_of_first_write, write_t0);
         assert_eq!(c.row_count.get(), 10);
         assert_eq!(c.min_time, start_time);
         assert_eq!(c.max_time, fourth_end);
@@ -827,56 +815,50 @@ mod tests {
 
     #[test]
     fn flush_persistable_keeps_open_and_closed() {
-        let mut w = make_windows(Duration::from_secs(120));
+        let mut w = make_windows(StdDuration::from_secs(120));
 
         // these instants represent when the server received the data. Here we have a window that
         // should be in the persistable group, a closed window, and an open window that is closed on flush.
-        let created_at = Instant::now();
-        let second_created_at = created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD * 2)
-            .unwrap();
-        let third_created_at = second_created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD)
-            .unwrap();
-        let end_at = third_created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD)
-            .unwrap();
+        let write_t0 = w.time_of_first_write;
+        let write_t1 = write_t0 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS * 2);
+        let write_t2 = write_t1 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS);
+        let write_t3 = write_t2 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS);
 
         // these times represent the value of the time column for the rows of data. Here we have
         // non-overlapping windows.
         let start_time = Utc::now();
-        let first_end = start_time + chrono::Duration::seconds(1);
-        let second_start = first_end + chrono::Duration::seconds(1);
-        let second_end = second_start + chrono::Duration::seconds(1);
-        let third_start = second_end + chrono::Duration::seconds(1);
-        let third_end = third_start + chrono::Duration::seconds(1);
+        let first_end = start_time + Duration::seconds(1);
+        let second_start = first_end + Duration::seconds(1);
+        let second_end = second_start + Duration::seconds(1);
+        let third_start = second_end + Duration::seconds(1);
+        let third_end = third_start + Duration::seconds(1);
 
         w.add_range(
             Some(&Sequence { id: 1, number: 2 }),
             NonZeroUsize::new(2).unwrap(),
             start_time,
             first_end,
-            created_at,
+            write_t0,
         );
         w.add_range(
             Some(&Sequence { id: 1, number: 3 }),
             NonZeroUsize::new(3).unwrap(),
             second_start,
             second_end,
-            second_created_at,
+            write_t1,
         );
         w.add_range(
             Some(&Sequence { id: 1, number: 5 }),
             NonZeroUsize::new(2).unwrap(),
             third_start,
             third_end,
-            third_created_at,
+            write_t2,
         );
 
-        w.rotate(end_at);
+        w.rotate(write_t3);
 
         let c = w.persistable.as_ref().unwrap();
-        assert_eq!(c.created_at, created_at);
+        assert_eq!(c.time_of_first_write, write_t0);
         assert_eq!(c.row_count.get(), 2);
         assert_eq!(c.min_time, start_time);
         assert_eq!(c.max_time, first_end);
@@ -884,7 +866,7 @@ mod tests {
         let mins = w.persistable.as_ref().unwrap().sequencer_numbers.clone();
         assert_eq!(mins, w.minimum_unpersisted_sequence().unwrap());
 
-        let handle = w.flush_handle(end_at).unwrap();
+        let handle = w.flush_handle(write_t3).unwrap();
         w.flush(handle);
 
         assert!(w.persistable.is_none());
@@ -895,77 +877,71 @@ mod tests {
         assert_eq!(c.row_count.get(), 3);
         assert_eq!(c.min_time, second_start);
         assert_eq!(c.max_time, second_end);
-        assert_eq!(c.created_at, second_created_at);
+        assert_eq!(c.time_of_first_write, write_t1);
 
         let c = &w.closed[1];
         assert_eq!(c.row_count.get(), 2);
         assert_eq!(c.min_time, third_start);
         assert_eq!(c.max_time, third_end);
-        assert_eq!(c.created_at, third_created_at);
+        assert_eq!(c.time_of_first_write, write_t2);
     }
 
     #[test]
     fn flush_persistable_overlaps_closed() {
-        let mut w = make_windows(Duration::from_secs(120));
+        let mut w = make_windows(StdDuration::from_secs(120));
 
         // these instants represent when data is received by the server. Here we have a persistable
         // window followed by two closed windows.
-        let created_at = Instant::now();
-        let second_created_at = created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD * 2)
-            .unwrap();
-        let third_created_at = second_created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD)
-            .unwrap();
-        let end_at = third_created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD)
-            .unwrap();
+        let write_t0 = w.time_of_first_write;
+        let write_t1 = write_t0 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS * 2);
+        let write_t2 = write_t1 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS);
+        let write_t3 = write_t2 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS);
 
         // the times of the rows of data. this will create overlapping windows where persistable
         // overlaps with the oldest closed window.
         let start_time = Utc::now();
-        let second_start = start_time + chrono::Duration::seconds(1);
-        let first_end = second_start + chrono::Duration::seconds(1);
-        let second_end = first_end + chrono::Duration::seconds(1);
-        let third_start = first_end + chrono::Duration::seconds(1);
-        let third_end = third_start + chrono::Duration::seconds(1);
+        let second_start = start_time + Duration::seconds(1);
+        let first_end = second_start + Duration::seconds(1);
+        let second_end = first_end + Duration::seconds(1);
+        let third_start = first_end + Duration::seconds(1);
+        let third_end = third_start + Duration::seconds(1);
 
         w.add_range(
             Some(&Sequence { id: 1, number: 2 }),
             NonZeroUsize::new(2).unwrap(),
             start_time,
             first_end,
-            created_at,
+            write_t0,
         );
         w.add_range(
             Some(&Sequence { id: 1, number: 3 }),
             NonZeroUsize::new(3).unwrap(),
             second_start,
             second_end,
-            second_created_at,
+            write_t1,
         );
         w.add_range(
             Some(&Sequence { id: 1, number: 5 }),
             NonZeroUsize::new(2).unwrap(),
             third_start,
             third_end,
-            third_created_at,
+            write_t2,
         );
 
-        w.rotate(end_at);
+        w.rotate(write_t3);
 
         let c = w.persistable.as_ref().unwrap();
-        assert_eq!(c.created_at, created_at);
+        assert_eq!(c.time_of_first_write, write_t0);
         assert_eq!(c.row_count.get(), 2);
         assert_eq!(c.min_time, start_time);
         assert_eq!(c.max_time, first_end);
 
         let mins = w.persistable.as_ref().unwrap().sequencer_numbers.clone();
         assert_eq!(mins, w.minimum_unpersisted_sequence().unwrap());
-        let flush = w.flush_handle(end_at).unwrap();
+        let flush = w.flush_handle(write_t3).unwrap();
 
         assert_eq!(flush.timestamp(), first_end);
-        let truncated_time = flush.timestamp() + chrono::Duration::nanoseconds(1);
+        let truncated_time = flush.timestamp() + Duration::nanoseconds(1);
 
         w.flush(flush);
         assert!(w.persistable.is_none());
@@ -977,64 +953,60 @@ mod tests {
         assert_eq!(c.row_count.get(), 3);
         assert_eq!(c.min_time, truncated_time);
         assert_eq!(c.max_time, second_end);
-        assert_eq!(c.created_at, second_created_at);
+        assert_eq!(c.time_of_first_write, write_t1);
 
         let c = &w.closed[1];
         assert_eq!(c.row_count.get(), 2);
         assert_eq!(c.min_time, third_start);
         assert_eq!(c.max_time, third_end);
-        assert_eq!(c.created_at, third_created_at);
+        assert_eq!(c.time_of_first_write, write_t2);
     }
 
     #[test]
     fn flush_persistable_overlaps_open() {
-        let mut w = make_windows(Duration::from_secs(120));
+        let mut w = make_windows(StdDuration::from_secs(120));
 
         // these instants represent when data is received by the server. Here we have a persistable
         // window followed by two closed windows.
-        let created_at = Instant::now();
-        let second_created_at = created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD * 3)
-            .unwrap();
-        let third_created_at = second_created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD)
-            .unwrap();
-        let end_at = third_created_at.checked_add(Duration::new(1, 0)).unwrap();
+        let write_t0 = w.time_of_first_write;
+        let write_t1 = write_t0 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS * 3);
+        let write_t2 = write_t1 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS);
+        let write_t3 = write_t2 + Duration::seconds(1);
 
         // the times of the rows of data. this will create overlapping windows where persistable
         // overlaps with the newest open window (but not the closed one).
         let start_time = Utc::now();
-        let third_start = start_time + chrono::Duration::seconds(1);
-        let first_end = third_start + chrono::Duration::seconds(1);
-        let second_end = first_end + chrono::Duration::seconds(1);
-        let third_end = second_end + chrono::Duration::seconds(1);
+        let third_start = start_time + Duration::seconds(1);
+        let first_end = third_start + Duration::seconds(1);
+        let second_end = first_end + Duration::seconds(1);
+        let third_end = second_end + Duration::seconds(1);
 
         w.add_range(
             Some(&Sequence { id: 1, number: 2 }),
             NonZeroUsize::new(2).unwrap(),
             start_time,
             first_end,
-            created_at,
+            write_t0,
         );
         w.add_range(
             Some(&Sequence { id: 1, number: 3 }),
             NonZeroUsize::new(3).unwrap(),
             first_end,
             second_end,
-            second_created_at,
+            write_t1,
         );
         w.add_range(
             Some(&Sequence { id: 1, number: 5 }),
             NonZeroUsize::new(2).unwrap(),
             third_start,
             third_end,
-            third_created_at,
+            write_t2,
         );
 
-        w.rotate(end_at);
+        w.rotate(write_t3);
 
         let c = w.persistable.as_ref().unwrap();
-        assert_eq!(c.created_at, created_at);
+        assert_eq!(c.time_of_first_write, write_t0);
         assert_eq!(c.row_count.get(), 2);
         assert_eq!(c.min_time, start_time);
         assert_eq!(c.max_time, first_end);
@@ -1042,7 +1014,7 @@ mod tests {
         let mins = w.persistable.as_ref().unwrap().sequencer_numbers.clone();
         assert_eq!(mins, w.minimum_unpersisted_sequence().unwrap());
 
-        let flush = w.flush_handle(end_at).unwrap();
+        let flush = w.flush_handle(write_t3).unwrap();
         assert_eq!(flush.timestamp(), first_end);
         assert!(w.open.is_none());
         let flushed_time = flush.timestamp() + chrono::Duration::nanoseconds(1);
@@ -1060,7 +1032,7 @@ mod tests {
         assert_eq!(c.row_count.get(), 3);
         assert_eq!(c.min_time, flushed_time);
         assert_eq!(c.max_time, second_end);
-        assert_eq!(c.created_at, second_created_at);
+        assert_eq!(c.time_of_first_write, write_t1);
 
         // the open window should have been closed as part of creating the flush
         // handle and then truncated by the flush timestamp
@@ -1068,57 +1040,53 @@ mod tests {
         assert_eq!(c.row_count.get(), 2);
         assert_eq!(c.min_time, flushed_time);
         assert_eq!(c.max_time, third_end);
-        assert_eq!(c.created_at, third_created_at);
+        assert_eq!(c.time_of_first_write, write_t2);
     }
 
     #[test]
     fn flush_persistable_overlaps_open_and_closed() {
-        let mut w = make_windows(Duration::from_secs(120));
+        let mut w = make_windows(StdDuration::from_secs(120));
 
         // these instants represent when data is received by the server. Here we have a persistable
         // window followed by two closed windows.
-        let created_at = Instant::now();
-        let second_created_at = created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD * 3)
-            .unwrap();
-        let third_created_at = second_created_at
-            .checked_add(DEFAULT_CLOSED_WINDOW_PERIOD)
-            .unwrap();
-        let end_at = third_created_at.checked_add(Duration::new(1, 0)).unwrap();
+        let write_t0 = w.time_of_first_write;
+        let write_t1 = write_t0 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS * 3);
+        let write_t2 = write_t1 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS);
+        let write_t3 = write_t2 + Duration::seconds(1);
 
         // the times of the rows of data. this will create overlapping windows where persistable
         // overlaps with the closed window and the open one.
         let start_time = Utc::now();
-        let second_start = start_time + chrono::Duration::seconds(1);
-        let third_start = second_start + chrono::Duration::seconds(1);
-        let first_end = third_start + chrono::Duration::seconds(1);
-        let second_end = first_end + chrono::Duration::seconds(1);
-        let third_end = second_end + chrono::Duration::seconds(1);
+        let second_start = start_time + Duration::seconds(1);
+        let third_start = second_start + Duration::seconds(1);
+        let first_end = third_start + Duration::seconds(1);
+        let second_end = first_end + Duration::seconds(1);
+        let third_end = second_end + Duration::seconds(1);
 
         w.add_range(
             Some(&Sequence { id: 1, number: 2 }),
             NonZeroUsize::new(2).unwrap(),
             start_time,
             first_end,
-            created_at,
+            write_t0,
         );
         w.add_range(
             Some(&Sequence { id: 1, number: 3 }),
             NonZeroUsize::new(3).unwrap(),
             second_start,
             second_end,
-            second_created_at,
+            write_t1,
         );
         w.add_range(
             Some(&Sequence { id: 1, number: 5 }),
             NonZeroUsize::new(2).unwrap(),
             third_start,
             third_end,
-            third_created_at,
+            write_t2,
         );
 
         let c = w.persistable.as_ref().unwrap();
-        assert_eq!(c.created_at, created_at);
+        assert_eq!(c.time_of_first_write, write_t0);
         assert_eq!(c.row_count.get(), 2);
         assert_eq!(c.min_time, start_time);
         assert_eq!(c.max_time, first_end);
@@ -1129,10 +1097,10 @@ mod tests {
         // this should rotate the first window into persistable
         // after flush we should see no more persistable window and the closed windows
         // should have min timestamps equal to the previous flush end.
-        let flush = w.flush_handle(end_at).unwrap();
+        let flush = w.flush_handle(write_t3).unwrap();
         assert_eq!(flush.timestamp(), first_end);
         assert!(w.open.is_none());
-        let flushed_time = flush.timestamp() + chrono::Duration::nanoseconds(1);
+        let flushed_time = flush.timestamp() + Duration::nanoseconds(1);
         w.flush(flush);
         assert!(w.persistable.is_none());
         let mins = w.closed[0].sequencer_numbers.clone();
@@ -1145,7 +1113,7 @@ mod tests {
         assert_eq!(c.row_count.get(), 3);
         assert_eq!(c.min_time, flushed_time);
         assert_eq!(c.max_time, second_end);
-        assert_eq!(c.created_at, second_created_at);
+        assert_eq!(c.time_of_first_write, write_t1);
 
         // the open window should have been closed as part of creating the flush
         // handle and then truncated by the flush timestamp
@@ -1153,61 +1121,65 @@ mod tests {
         assert_eq!(c.row_count.get(), 2);
         assert_eq!(c.min_time, flushed_time);
         assert_eq!(c.max_time, third_end);
-        assert_eq!(c.created_at, third_created_at);
+        assert_eq!(c.time_of_first_write, write_t2);
     }
 
     #[test]
     fn test_flush_guard() {
-        let mut w = make_windows(Duration::from_secs(120));
+        let mut w = make_windows(StdDuration::from_secs(120));
+        let late_arrival_period = w.late_arrival_period;
 
-        let instant = Instant::now();
-        let start = Utc::now();
+        // Space writes so each goes to a separate window
+        let write_t0 = w.time_of_first_write;
+        let write_t1 = write_t0 + late_arrival_period;
+        let write_t2 = write_t1 + late_arrival_period * 2;
+
+        let row_t0 = Utc::now();
+        let row_t1 = row_t0 + Duration::seconds(2);
+        let row_t2 = row_t1 + Duration::seconds(2);
 
         w.add_range(
             Some(&Sequence { id: 1, number: 2 }),
             NonZeroUsize::new(2).unwrap(),
-            start,
-            start + chrono::Duration::seconds(2),
-            instant,
+            row_t0,
+            row_t1,
+            write_t0,
         );
 
-        w.rotate(instant + Duration::from_secs(120));
+        w.rotate(write_t0 + late_arrival_period);
         assert!(w.persistable.is_some());
         assert_eq!(w.persistable.as_ref().unwrap().row_count.get(), 2);
-        assert_eq!(
-            w.persistable.as_ref().unwrap().max_time,
-            start + chrono::Duration::seconds(2)
-        );
+        assert_eq!(w.persistable.as_ref().unwrap().max_time, row_t1);
 
         w.add_range(
             Some(&Sequence { id: 1, number: 4 }),
             NonZeroUsize::new(5).unwrap(),
-            start,
-            start + chrono::Duration::seconds(4),
-            instant + Duration::from_secs(120),
+            row_t0,
+            row_t2,
+            write_t1,
         );
 
         // Should rotate into closed
-        w.rotate(instant + Duration::from_secs(120) + DEFAULT_CLOSED_WINDOW_PERIOD);
+        w.rotate(write_t1 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS));
         assert_eq!(w.closed.len(), 1);
 
         let guard = w
-            .flush_handle(instant + Duration::from_secs(120) + DEFAULT_CLOSED_WINDOW_PERIOD)
+            .flush_handle(write_t1 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS))
             .unwrap();
 
         // Should only allow one at once
-        assert!(w.flush_handle(instant).is_none());
+        assert!(w.flush_handle(write_t0).is_none());
 
         // This should not rotate into persistable as active flush guard
-        w.rotate(instant + Duration::from_secs(240));
+        w.rotate(write_t1 + late_arrival_period);
         assert_eq!(w.persistable.as_ref().unwrap().row_count.get(), 2);
 
         let flush_t = guard.timestamp();
-        assert_eq!(flush_t, start + chrono::Duration::seconds(2));
+        assert_eq!(flush_t, row_t1);
 
         // Min time should have been truncated by persist operation to be
         // 1 nanosecond more than was persisted
-        let truncated_time = flush_t + chrono::Duration::nanoseconds(1);
+        let truncated_time = flush_t + Duration::nanoseconds(1);
 
         // The flush checkpoint should not include the writes being persisted
         let flush_checkpoint = guard.checkpoint();
@@ -1237,12 +1209,12 @@ mod tests {
         );
 
         // This should rotate into persistable
-        w.rotate(instant + Duration::from_secs(240));
+        w.rotate(write_t1 + late_arrival_period);
         assert_eq!(w.persistable.as_ref().unwrap().row_count.get(), 5);
 
         assert_eq!(w.persistable.as_ref().unwrap().min_time, truncated_time);
 
-        let guard = w.flush_handle(instant + Duration::from_secs(240)).unwrap();
+        let guard = w.flush_handle(write_t1 + late_arrival_period).unwrap();
 
         // that checkpoint has an optional minimum
         let flush_checkpoint = guard.checkpoint();
@@ -1254,63 +1226,72 @@ mod tests {
         w.add_range(
             Some(&Sequence { id: 1, number: 9 }),
             NonZeroUsize::new(9).unwrap(),
-            start,
-            start + chrono::Duration::seconds(2),
-            instant + Duration::from_secs(240),
+            row_t0,
+            row_t0 + chrono::Duration::seconds(2),
+            write_t2,
         );
 
         // Should rotate into closed
-        w.rotate(instant + Duration::from_secs(240) + DEFAULT_CLOSED_WINDOW_PERIOD);
+        w.rotate(write_t2 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS));
         assert_eq!(w.closed.len(), 1);
 
         // This should not rotate into persistable as active flush guard
-        w.rotate(instant + Duration::from_secs(360));
+        w.rotate(write_t2 + late_arrival_period);
         assert_eq!(w.persistable.as_ref().unwrap().row_count.get(), 5);
 
         std::mem::drop(guard);
         // This should rotate into persistable
-        w.rotate(instant + Duration::from_secs(360));
+        w.rotate(write_t2 + late_arrival_period);
         assert_eq!(w.persistable.as_ref().unwrap().row_count.get(), 5 + 9);
-        assert_eq!(w.persistable.as_ref().unwrap().min_time, start);
+        assert_eq!(w.persistable.as_ref().unwrap().min_time, row_t0);
     }
 
     #[test]
     fn test_flush_guard_multiple_closed() {
-        let mut w = make_windows(DEFAULT_CLOSED_WINDOW_PERIOD * 3);
+        let late_arrival_period = Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS * 3);
+        let mut w = make_windows(late_arrival_period.to_std().unwrap());
 
-        let instant = Instant::now();
-        let start = Utc::now();
+        // Space writes so each goes to a separate window
+        let write_t0 = w.time_of_first_write;
+        let write_t1 = write_t0 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS);
+        let write_t2 = write_t1 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS);
+        let write_t3 = write_t2 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS);
+        let write_t4 = write_t3 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS);
+
+        let row_t0 = Utc::now();
+        let row_t1 = row_t0 + Duration::seconds(2);
+        let row_t2 = row_t1 + Duration::seconds(2);
 
         w.add_range(
             Some(&Sequence { id: 1, number: 2 }),
             NonZeroUsize::new(2).unwrap(),
-            start,
-            start + chrono::Duration::seconds(2),
-            instant,
+            row_t0,
+            row_t1,
+            write_t0,
         );
 
         w.add_range(
             Some(&Sequence { id: 1, number: 6 }),
             NonZeroUsize::new(5).unwrap(),
-            start,
-            start + chrono::Duration::seconds(4),
-            instant + DEFAULT_CLOSED_WINDOW_PERIOD,
+            row_t0,
+            row_t2,
+            write_t1,
         );
 
         w.add_range(
             Some(&Sequence { id: 1, number: 9 }),
             NonZeroUsize::new(9).unwrap(),
-            start,
-            start + chrono::Duration::seconds(2),
-            instant + DEFAULT_CLOSED_WINDOW_PERIOD * 2,
+            row_t0,
+            row_t1,
+            write_t2,
         );
 
         w.add_range(
             Some(&Sequence { id: 1, number: 10 }),
             NonZeroUsize::new(17).unwrap(),
-            start,
-            start + chrono::Duration::seconds(2),
-            instant + DEFAULT_CLOSED_WINDOW_PERIOD * 3,
+            row_t0,
+            row_t1,
+            write_t3,
         );
 
         assert_eq!(w.closed.len(), 2);
@@ -1318,28 +1299,26 @@ mod tests {
         assert_eq!(w.closed[1].row_count.get(), 9);
         assert_eq!(w.open.as_ref().unwrap().row_count.get(), 17);
 
-        let flush = w
-            .flush_handle(instant + DEFAULT_CLOSED_WINDOW_PERIOD * 3)
-            .unwrap();
+        let flush = w.flush_handle(write_t0 + late_arrival_period).unwrap();
 
         let flush_t = flush.timestamp();
 
         assert!(w.open.is_none());
         assert_eq!(flush.closed_count, 3);
-        assert_eq!(flush_t, start + chrono::Duration::seconds(2));
-        let truncated_time = flush_t + chrono::Duration::nanoseconds(1);
+        assert_eq!(flush_t, row_t1);
+        let truncated_time = flush_t + Duration::nanoseconds(1);
 
         assert_eq!(w.persistable.as_ref().unwrap().row_count.get(), 2);
 
         w.add_range(
             Some(&Sequence { id: 1, number: 14 }),
             NonZeroUsize::new(11).unwrap(),
-            start,
-            start + chrono::Duration::seconds(2),
-            instant + DEFAULT_CLOSED_WINDOW_PERIOD * 4,
+            row_t0,
+            row_t1,
+            write_t4,
         );
 
-        w.rotate(instant + DEFAULT_CLOSED_WINDOW_PERIOD * 5);
+        w.rotate(write_t4 + Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS));
 
         // Despite time passing persistable window shouldn't have changed due to flush guard
         assert_eq!(w.persistable.as_ref().unwrap().row_count.get(), 2);
@@ -1369,48 +1348,30 @@ mod tests {
             &OptionalMinMaxSequence::new(Some(6), 14)
         );
 
-        // Windows from writes at
-        //
-        // - `instant + DEFAULT_CLOSED_WINDOW_PERIOD * 2`
-        // - `instant + DEFAULT_CLOSED_WINDOW_PERIOD * 3`
-        //
-        // have been completely persisted by the flush
+        // Windows from writes 2 and 3 have been completely persisted by the flush
 
         assert!(w.persistable.is_none());
         assert_eq!(w.closed.len(), 2);
 
-        assert_eq!(
-            w.closed[0].created_at,
-            instant + DEFAULT_CLOSED_WINDOW_PERIOD
-        );
+        assert_eq!(w.closed[0].time_of_first_write, write_t1);
+        assert_eq!(w.closed[0].time_of_last_write, write_t1);
         assert_eq!(w.closed[0].min_time, truncated_time);
-        assert_eq!(w.closed[0].max_time, start + chrono::Duration::seconds(4));
+        assert_eq!(w.closed[0].max_time, row_t2);
         assert_eq!(w.closed[0].row_count.get(), 5);
 
         // Window created after flush handle - should be left alone
-        assert_eq!(
-            w.closed[1].created_at,
-            instant + DEFAULT_CLOSED_WINDOW_PERIOD * 4
-        );
-        assert_eq!(w.closed[1].min_time, start);
-        assert_eq!(w.closed[1].max_time, start + chrono::Duration::seconds(2));
+        assert_eq!(w.closed[1].time_of_first_write, write_t4);
+        assert_eq!(w.closed[1].time_of_last_write, write_t4);
+        assert_eq!(w.closed[1].min_time, row_t0);
+        assert_eq!(w.closed[1].max_time, row_t1);
         assert_eq!(w.closed[1].row_count.get(), 11);
     }
 
-    // *NOTE*: this test currently fails on (at least) aarch64 architectures
-    // such as an Apple M1 machine.
-    //
-    // Possibly related to https://github.com/rust-lang/rust/issues/87906 but
-    // not clear at this point.
-    //
-    // Ignoring the tests here to get the suite green on aarch64.
-    #[cfg(not(target_arch = "aarch64"))]
     #[test]
     fn test_summaries() {
-        let late_arrival_period = Duration::from_secs(100);
-        let mut w = make_windows(late_arrival_period);
-        let instant = w.created_at;
-        let created_at_time = to_approximate_datetime(w.created_at);
+        let late_arrival_period = Duration::seconds(100);
+        let mut w = make_windows(late_arrival_period.to_std().unwrap());
+        let start = w.time_of_first_write;
 
         // Window 1
         w.add_range(
@@ -1418,7 +1379,7 @@ mod tests {
             NonZeroUsize::new(11).unwrap(),
             Utc.timestamp_nanos(10),
             Utc.timestamp_nanos(11),
-            instant + Duration::from_millis(1),
+            start + Duration::milliseconds(1),
         );
 
         w.add_range(
@@ -1426,7 +1387,7 @@ mod tests {
             NonZeroUsize::new(4).unwrap(),
             Utc.timestamp_nanos(10),
             Utc.timestamp_nanos(340),
-            instant + Duration::from_millis(30),
+            start + Duration::milliseconds(30),
         );
 
         w.add_range(
@@ -1434,7 +1395,7 @@ mod tests {
             NonZeroUsize::new(6).unwrap(),
             Utc.timestamp_nanos(1),
             Utc.timestamp_nanos(5),
-            instant + Duration::from_millis(50),
+            start + Duration::milliseconds(50),
         );
 
         // More than DEFAULT_CLOSED_WINDOW_PERIOD after start of Window 1 => Window 2
@@ -1443,7 +1404,7 @@ mod tests {
             NonZeroUsize::new(3).unwrap(),
             Utc.timestamp_nanos(89),
             Utc.timestamp_nanos(90),
-            instant + DEFAULT_CLOSED_WINDOW_PERIOD + Duration::from_millis(1),
+            start + w.closed_window_period + Duration::milliseconds(1),
         );
 
         // More than DEFAULT_CLOSED_WINDOW_PERIOD after start of Window 2 => Window 3
@@ -1452,10 +1413,8 @@ mod tests {
             NonZeroUsize::new(8).unwrap(),
             Utc.timestamp_nanos(3),
             Utc.timestamp_nanos(4),
-            instant + DEFAULT_CLOSED_WINDOW_PERIOD * 3,
+            start + w.closed_window_period * 3,
         );
-
-        let closed_duration = chrono::Duration::from_std(DEFAULT_CLOSED_WINDOW_PERIOD).unwrap();
 
         let summaries: Vec<_> = w.summaries().collect();
 
@@ -1464,26 +1423,22 @@ mod tests {
             summaries,
             vec![
                 WriteSummary {
-                    time_of_first_write: created_at_time + chrono::Duration::milliseconds(1),
-                    time_of_last_write: created_at_time + chrono::Duration::milliseconds(50),
+                    time_of_first_write: start + Duration::milliseconds(1),
+                    time_of_last_write: start + Duration::milliseconds(50),
                     min_timestamp: Utc.timestamp_nanos(1),
                     max_timestamp: Utc.timestamp_nanos(340),
                     row_count: 21
                 },
                 WriteSummary {
-                    time_of_first_write: created_at_time
-                        + closed_duration
-                        + chrono::Duration::milliseconds(1),
-                    time_of_last_write: created_at_time
-                        + closed_duration
-                        + chrono::Duration::milliseconds(1),
+                    time_of_first_write: start + w.closed_window_period + Duration::milliseconds(1),
+                    time_of_last_write: start + w.closed_window_period + Duration::milliseconds(1),
                     min_timestamp: Utc.timestamp_nanos(89),
                     max_timestamp: Utc.timestamp_nanos(90),
                     row_count: 3
                 },
                 WriteSummary {
-                    time_of_first_write: created_at_time + closed_duration * 3,
-                    time_of_last_write: created_at_time + closed_duration * 3,
+                    time_of_first_write: start + w.closed_window_period * 3,
+                    time_of_last_write: start + w.closed_window_period * 3,
                     min_timestamp: Utc.timestamp_nanos(3),
                     max_timestamp: Utc.timestamp_nanos(4),
                     row_count: 8
@@ -1492,7 +1447,7 @@ mod tests {
         );
 
         // Rotate first and second windows into persistable
-        w.rotate(instant + late_arrival_period + DEFAULT_CLOSED_WINDOW_PERIOD * 2);
+        w.rotate(start + late_arrival_period + w.closed_window_period * 2);
 
         let summaries: Vec<_> = w.summaries().collect();
 
@@ -1501,17 +1456,15 @@ mod tests {
             summaries,
             vec![
                 WriteSummary {
-                    time_of_first_write: created_at_time + chrono::Duration::milliseconds(1),
-                    time_of_last_write: created_at_time
-                        + closed_duration
-                        + chrono::Duration::milliseconds(1),
+                    time_of_first_write: start + Duration::milliseconds(1),
+                    time_of_last_write: start + w.closed_window_period + Duration::milliseconds(1),
                     min_timestamp: Utc.timestamp_nanos(1),
                     max_timestamp: Utc.timestamp_nanos(340),
                     row_count: 24
                 },
                 WriteSummary {
-                    time_of_first_write: created_at_time + closed_duration * 3,
-                    time_of_last_write: created_at_time + closed_duration * 3,
+                    time_of_first_write: start + w.closed_window_period * 3,
+                    time_of_last_write: start + w.closed_window_period * 3,
                     min_timestamp: Utc.timestamp_nanos(3),
                     max_timestamp: Utc.timestamp_nanos(4),
                     row_count: 8
@@ -1522,9 +1475,9 @@ mod tests {
 
     #[test]
     fn test_regression_2206() {
-        let late_arrival_period = DEFAULT_CLOSED_WINDOW_PERIOD * 10;
-        let mut w = make_windows(late_arrival_period);
-        let mut now = w.created_at;
+        let late_arrival_period = Duration::seconds(DEFAULT_CLOSED_WINDOW_SECONDS * 10);
+        let mut w = make_windows(late_arrival_period.to_std().unwrap());
+        let now = w.time_of_first_write;
 
         // window 1: to be persisted
         let min_time = Utc.timestamp_nanos(10);
@@ -1538,7 +1491,7 @@ mod tests {
         );
 
         // window 2: closed but overlaps with the persistence range
-        now += late_arrival_period;
+        let now = now + late_arrival_period;
         w.add_range(
             Some(&Sequence { id: 1, number: 4 }),
             NonZeroUsize::new(1).unwrap(),
@@ -1559,7 +1512,7 @@ mod tests {
 
     #[test]
     fn test_mark_seen_and_persisted() {
-        let late_arrival_period = Duration::from_secs(100);
+        let late_arrival_period = StdDuration::from_secs(100);
         let mut w = make_windows(late_arrival_period);
 
         let mut sequencer_numbers1 = BTreeMap::new();
