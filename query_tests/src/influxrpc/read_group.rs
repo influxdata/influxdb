@@ -78,6 +78,39 @@ async fn test_read_group_no_data_no_pred() {
     run_read_group_test_case(NoData {}, predicate, agg, group_columns, expected_results).await;
 }
 
+struct OneMeasurementNoTags {}
+#[async_trait]
+impl DbSetup for OneMeasurementNoTags {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+        let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
+        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
+    }
+}
+
+#[tokio::test]
+async fn test_read_group_data_no_tag_columns() {
+    let predicate = Predicate::default();
+    let agg = Aggregate::Count;
+    let group_columns = vec![];
+    let expected_results = vec![
+        "+-----+--------------------------------+",
+        "| foo | time                           |",
+        "+-----+--------------------------------+",
+        "| 2   | 1970-01-01T00:00:00.000000002Z |",
+        "+-----+--------------------------------+",
+    ];
+
+    run_read_group_test_case(
+        OneMeasurementNoTags {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
+
 struct OneMeasurementForAggs {}
 #[async_trait]
 impl DbSetup for OneMeasurementForAggs {

@@ -999,9 +999,14 @@ impl InfluxRpcPlanner {
 
         let plan_builder = plan_builder
             .aggregate(group_exprs, agg_exprs)
-            .context(BuildingPlan)?
-            .sort(sort_exprs)
             .context(BuildingPlan)?;
+
+        // Add sort if necessary
+        let plan_builder = if sort_exprs.is_empty() {
+            plan_builder
+        } else {
+            plan_builder.sort(sort_exprs).context(BuildingPlan)?
+        };
 
         // and finally create the plan
         let plan = plan_builder.build().context(BuildingPlan)?;
