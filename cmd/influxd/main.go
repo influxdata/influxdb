@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/recovery"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/upgrade"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
@@ -48,6 +49,7 @@ func main() {
 	}
 	rootCmd.AddCommand(inspectCmd)
 	rootCmd.AddCommand(versionCmd())
+	rootCmd.AddCommand(recovery.NewCommand())
 
 	rootCmd.SilenceUsage = true
 	if err := rootCmd.Execute(); err != nil {

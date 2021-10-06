@@ -10,10 +10,9 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/stretchr/testify/require"
-
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/stretchr/testify/require"
 )
 
 const (
