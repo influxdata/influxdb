@@ -434,7 +434,7 @@ impl DbSetup for TwoMeasurementsManyFieldsOneRubChunk {
         db.compact_open_chunk("h2o", partition_key).await.unwrap();
 
         vec![DbScenario {
-            scenario_name: "Data in open chunk of mutable buffer".into(),
+            scenario_name: "Data in single chunk of read buffer".into(),
             db,
         }]
     }

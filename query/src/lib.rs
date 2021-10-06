@@ -53,10 +53,7 @@ pub trait QueryChunkMeta: Sized {
 
     /// return true if the chunk has delete predicates
     fn has_delete_predicates(&self) -> bool {
-        if self.delete_predicates().is_empty() {
-            return false;
-        }
-        true
+        !self.delete_predicates().is_empty()
     }
 }
 
