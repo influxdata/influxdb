@@ -18,9 +18,6 @@ dd7cd2292f6e974a	myorg
 	// org name not created unless create argument given
 	assert.NoError(t, testhelper.RunCommand(t, NewOrgCommand(), "create", "--bolt-path", db.Name(), "--org", "neworg"))
 
-	assert.Regexp(t, `ID			Name
-[^\t]*	neworg
-dd7cd2292f6e974a	myorg
-`,
-		testhelper.MustRunCommand(t, NewOrgCommand(), "list", "--bolt-path", db.Name()))
+	// neworg shows up in list of orgs
+	assert.Regexp(t, "\tneworg\n", testhelper.MustRunCommand(t, NewOrgCommand(), "list", "--bolt-path", db.Name()))
 }

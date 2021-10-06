@@ -18,9 +18,6 @@ func Test_User_Basic(t *testing.T) {
 	// org name not created unless create argument given
 	assert.NoError(t, testhelper.RunCommand(t, NewUserCommand(), "create", "--bolt-path", db.Name(), "--username", "testuser2"))
 
-	assert.Regexp(t, `ID			Name
-08371db1dd8c8000	testuser
-[^\t]*	testuser2
-`,
+	assert.Regexp(t, "\ttestuser2\n",
 		testhelper.MustRunCommand(t, NewUserCommand(), "list", "--bolt-path", db.Name()))
 }
