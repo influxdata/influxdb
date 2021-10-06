@@ -104,13 +104,13 @@ pub fn series_set_item_to_read_response(series_set_item: SeriesSetItem) -> Resul
     Ok(ReadResponse { frames })
 }
 
+/// Converts a [`GroupDescription`] into a storage gRPC `GroupFrame`
+/// format that can be returned to the client.
 fn group_description_to_frames(group_description: GroupDescription) -> Vec<Frame> {
     // split key=value pairs into two separate vectors
-    let (tag_keys, partition_key_vals): (Vec<Vec<u8>>, Vec<Vec<u8>>) = group_description
-        .tags
-        .into_iter()
-        .map(|(k, v)| (k.bytes().collect(), v.bytes().collect()))
-        .unzip();
+    let GroupDescription { all_tags, gby_vals } = group_description;
+
+    let all_tags = all_tags.into_iter().map(|t| t.bytes().collect());
 
     // Flux expects there to be `_field` and `_measurement` as the
     // first two "tags". Note this means the lengths of tag_keys and
@@ -119,7 +119,12 @@ fn group_description_to_frames(group_description: GroupDescription) -> Vec<Frame
     // See https://github.com/influxdata/influxdb_iox/issues/2690 for gory details
     let tag_keys = vec![b"_field".to_vec(), b"_measurement".to_vec()]
         .into_iter()
-        .chain(tag_keys.into_iter())
+        .chain(all_tags)
+        .collect::<Vec<_>>();
+
+    let partition_key_vals = gby_vals
+        .into_iter()
+        .map(|v| v.bytes().collect())
         .collect::<Vec<_>>();
 
     let group_frame = GroupFrame {
@@ -541,10 +546,8 @@ mod tests {
     #[test]
     fn test_group_group_conversion() {
         let group_description = GroupDescription {
-            tags: vec![
-                (Arc::from("tag1"), Arc::from("val1")),
-                (Arc::from("tag2"), Arc::from("val2")),
-            ],
+            all_tags: vec![Arc::from("tag1"), Arc::from("tag2")],
+            gby_vals: vec![Arc::from("val1"), Arc::from("val2")],
         };
 
         let grouped_series_set_item = SeriesSetItem::GroupStart(group_description);

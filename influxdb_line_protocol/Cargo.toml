@@ -6,8 +6,7 @@ edition = "2018"
 
 [dependencies] # In alphabetical order
 nom = "7"
-# See https://github.com/influxdata/influxdb_iox/issues/2735 before bumping smallvec
-smallvec = "1.6.1"
+smallvec = "1.7.0"
 snafu = "0.6.2"
 observability_deps = { path = "../observability_deps" }
 

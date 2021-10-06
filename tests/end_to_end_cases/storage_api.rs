@@ -4,7 +4,7 @@ use crate::common::server_fixture::ServerFixture;
 use futures::prelude::*;
 use generated_types::{
     aggregate::AggregateType,
-    google::protobuf::{Any, Empty},
+    google::protobuf::Empty,
     measurement_fields_response::FieldType,
     node::{Comparison, Type as NodeType, Value},
     read_group_request::Group,
@@ -335,24 +335,17 @@ pub async fn regex_operator_test() {
     );
 }
 
-#[tokio::test]
-pub async fn read_group_test() {
+/// Creates and loads the common data for read_group
+async fn read_group_setup() -> (ServerFixture, Scenario) {
     let fixture = ServerFixture::create_shared().await;
     let mut management = fixture.management_client();
-    let mut storage_client = StorageClient::new(fixture.grpc_channel());
     let influxdb2 = fixture.influxdb2_client();
 
     let scenario = Scenario::new();
     scenario.create_database(&mut management).await;
 
     load_read_group_data(&influxdb2, &scenario).await;
-
-    let read_source = scenario.read_source();
-
-    test_read_group_none_agg(&mut storage_client, &read_source).await;
-    test_read_group_none_agg_with_predicate(&mut storage_client, &read_source).await;
-    test_read_group_sum_agg(&mut storage_client, &read_source).await;
-    test_read_group_last_agg(&mut storage_client, &read_source).await;
+    (fixture, scenario)
 }
 
 async fn load_read_group_data(client: &influxdb2_client::Client, scenario: &Scenario) {
@@ -378,15 +371,16 @@ async fn load_read_group_data(client: &influxdb2_client::Client, scenario: &Scen
         .expect("Wrote cpu line protocol data");
 }
 
-// Standalone test for read_group with group keys and no aggregate
-// assumes that load_read_group_data has been previously run
-async fn test_read_group_none_agg(
-    storage_client: &mut StorageClient<Connection>,
-    read_source: &std::option::Option<Any>,
-) {
+/// Standalone test for read_group with group keys and no aggregate
+/// assumes that load_read_group_data has been previously run
+#[tokio::test]
+async fn test_read_group_none_agg() {
+    let (fixture, scenario) = read_group_setup().await;
+    let mut storage_client = fixture.storage_client();
+
     // read_group(group_keys: region, agg: None)
     let read_group_request = ReadGroupRequest {
-        read_source: read_source.clone(),
+        read_source: scenario.read_source(),
         range: Some(TimestampRange {
             start: 0,
             end: 2001, // include all data
@@ -401,7 +395,7 @@ async fn test_read_group_none_agg(
     };
 
     let expected_group_frames = vec![
-        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu1",
+        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu1",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"20,21\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
@@ -410,7 +404,7 @@ async fn test_read_group_none_agg(
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"10,11\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"71,72\"",
-        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu2",
+        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu2",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"40,41\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
@@ -421,7 +415,7 @@ async fn test_read_group_none_agg(
         "FloatPointsFrame, timestamps: [1000, 2000], values: \"61,62\"",
     ];
 
-    let actual_group_frames = do_read_group_request(storage_client, read_group_request).await;
+    let actual_group_frames = do_read_group_request(&mut storage_client, read_group_request).await;
 
     assert_eq!(
         expected_group_frames, actual_group_frames,
@@ -431,12 +425,13 @@ async fn test_read_group_none_agg(
 }
 
 /// Test that predicates make it through
-async fn test_read_group_none_agg_with_predicate(
-    storage_client: &mut StorageClient<Connection>,
-    read_source: &std::option::Option<Any>,
-) {
+#[tokio::test]
+async fn test_read_group_none_agg_with_predicate() {
+    let (fixture, scenario) = read_group_setup().await;
+    let mut storage_client = fixture.storage_client();
+
     let read_group_request = ReadGroupRequest {
-        read_source: read_source.clone(),
+        read_source: scenario.read_source(),
         range: Some(TimestampRange {
             start: 0,
             end: 2000, // do not include data at timestamp 2000
@@ -451,19 +446,19 @@ async fn test_read_group_none_agg_with_predicate(
     };
 
     let expected_group_frames = vec![
-        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu1",
+        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu1",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [1000], values: \"20\"",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
         "FloatPointsFrame, timestamps: [1000], values: \"10\"",
-        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu2",
+        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu2",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [1000], values: \"40\"",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=foo, type: 0",
         "FloatPointsFrame, timestamps: [1000], values: \"30\"",
     ];
 
-    let actual_group_frames = do_read_group_request(storage_client, read_group_request).await;
+    let actual_group_frames = do_read_group_request(&mut storage_client, read_group_request).await;
 
     assert_eq!(
         expected_group_frames, actual_group_frames,
@@ -475,13 +470,14 @@ async fn test_read_group_none_agg_with_predicate(
 // Standalone test for read_group with group keys and an actual
 // "aggregate" (not a "selector" style).  assumes that
 // load_read_group_data has been previously run
-async fn test_read_group_sum_agg(
-    storage_client: &mut StorageClient<Connection>,
-    read_source: &std::option::Option<Any>,
-) {
+#[tokio::test]
+async fn test_read_group_sum_agg() {
+    let (fixture, scenario) = read_group_setup().await;
+    let mut storage_client = fixture.storage_client();
+
     // read_group(group_keys: region, agg: Sum)
     let read_group_request = ReadGroupRequest {
-        read_source: read_source.clone(),
+        read_source: scenario.read_source(),
         range: Some(TimestampRange {
             start: 0,
             end: 2001, // include all data
@@ -496,7 +492,7 @@ async fn test_read_group_sum_agg(
     };
 
     let expected_group_frames = vec![
-        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu1",
+        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu1",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"41\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
@@ -505,7 +501,7 @@ async fn test_read_group_sum_agg(
         "FloatPointsFrame, timestamps: [2000], values: \"21\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"143\"",
-        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu2",
+        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu2",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"81\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
@@ -516,7 +512,7 @@ async fn test_read_group_sum_agg(
         "FloatPointsFrame, timestamps: [2000], values: \"123\"",
     ];
 
-    let actual_group_frames = do_read_group_request(storage_client, read_group_request).await;
+    let actual_group_frames = do_read_group_request(&mut storage_client, read_group_request).await;
 
     assert_eq!(
         expected_group_frames, actual_group_frames,
@@ -528,13 +524,14 @@ async fn test_read_group_sum_agg(
 // Standalone test for read_group with group keys and an actual
 // "selector" function last.  assumes that
 // load_read_group_data has been previously run
-async fn test_read_group_last_agg(
-    storage_client: &mut StorageClient<Connection>,
-    read_source: &std::option::Option<Any>,
-) {
+#[tokio::test]
+async fn test_read_group_last_agg() {
+    let (fixture, scenario) = read_group_setup().await;
+    let mut storage_client = fixture.storage_client();
+
     // read_group(group_keys: region, agg: Last)
     let read_group_request = ReadGroupRequest {
-        read_source: read_source.clone(),
+        read_source: scenario.read_source(),
         range: Some(TimestampRange {
             start: 0,
             end: 2001, // include all data
@@ -549,7 +546,7 @@ async fn test_read_group_last_agg(
     };
 
     let expected_group_frames = vec![
-        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu1",
+        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu1",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"21\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 0",
@@ -558,7 +555,7 @@ async fn test_read_group_last_agg(
         "FloatPointsFrame, timestamps: [2000], values: \"11\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=foo, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"72\"",
-        "GroupFrame, tag_keys: _field,_measurement,cpu, partition_key_vals: cpu2",
+        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu2",
         "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
         "FloatPointsFrame, timestamps: [2000], values: \"41\"",
         "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 0",
@@ -569,7 +566,7 @@ async fn test_read_group_last_agg(
         "FloatPointsFrame, timestamps: [2000], values: \"62\"",
     ];
 
-    let actual_group_frames = do_read_group_request(storage_client, read_group_request).await;
+    let actual_group_frames = do_read_group_request(&mut storage_client, read_group_request).await;
 
     assert_eq!(
         expected_group_frames, actual_group_frames,

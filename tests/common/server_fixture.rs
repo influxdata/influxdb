@@ -213,6 +213,12 @@ impl ServerFixture {
         influxdb_iox_client::flight::Client::new(self.grpc_channel())
     }
 
+    /// Return a storage API client suitable for communicating with this
+    /// server
+    pub fn storage_client(&self) -> generated_types::storage_client::StorageClient<Connection> {
+        generated_types::storage_client::StorageClient::new(self.grpc_channel())
+    }
+
     /// Restart test server.
     ///
     /// This will break all currently connected clients!
