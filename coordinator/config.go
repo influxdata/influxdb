@@ -36,6 +36,7 @@ type Config struct {
 	MaxSelectPointN      int           `toml:"max-select-point"`
 	MaxSelectSeriesN     int           `toml:"max-select-series"`
 	MaxSelectBucketsN    int           `toml:"max-select-buckets"`
+	TerminationQueryLog  bool          `toml:"termination-query-log"`
 }
 
 // NewConfig returns an instance of Config with defaults.
@@ -46,6 +47,7 @@ func NewConfig() Config {
 		MaxConcurrentQueries: DefaultMaxConcurrentQueries,
 		MaxSelectPointN:      DefaultMaxSelectPointN,
 		MaxSelectSeriesN:     DefaultMaxSelectSeriesN,
+		TerminationQueryLog:  false,
 	}
 }
 
