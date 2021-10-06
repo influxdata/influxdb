@@ -3723,7 +3723,13 @@ mod tests {
 
         let t_0 = Instant::now();
         loop {
-            if db.worker_iterations_delete_predicate_preservation() > iters_start {
+            let did_delete_predicate_preservation =
+                db.worker_iterations_delete_predicate_preservation() > iters_start;
+            let did_compaction = db.chunk_summaries().unwrap().into_iter().any(|summary| {
+                (summary.partition_key.as_ref() == "part_c")
+                    && (summary.storage == ChunkStorage::ReadBuffer)
+            });
+            if did_delete_predicate_preservation && did_compaction {
                 break;
             }
             assert!(t_0.elapsed() < Duration::from_secs(10));
@@ -3740,6 +3746,10 @@ mod tests {
                 if chunk.addr().partition_key.as_ref() == "part_b" {
                     // Strictly speaking not required because the chunk was persisted AFTER the delete predicate was
                     // registered so we can get away with materializing it during persistence.
+                    continue;
+                }
+                if chunk.addr().partition_key.as_ref() == "part_c" {
+                    // This partition was compacted, so the delete predicates were materialized.
                     continue;
                 }
                 let predicates = chunk.delete_predicates();
