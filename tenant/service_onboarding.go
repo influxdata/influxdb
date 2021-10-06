@@ -84,35 +84,6 @@ func (s *OnboardService) OnboardInitialUser(ctx context.Context, req *influxdb.O
 	return s.onboardUser(ctx, req, func(platform.ID, platform.ID) []influxdb.Permission { return influxdb.OperPermissions() })
 }
 
-func CreateUserWithPassword(ctx context.Context, username, password string, service *Service, log *zap.Logger) (*influxdb.User, error) {
-	// create a user
-	user := &influxdb.User{
-		Name:   username,
-		Status: influxdb.Active,
-	}
-
-	if err := service.CreateUser(ctx, user); err != nil {
-		return nil, err
-	}
-
-	// create users password
-	if password != "" {
-		if err := service.SetPassword(ctx, user.ID, password); err != nil {
-			// Try to clean up.
-			if cleanupErr := service.DeleteUser(ctx, user.ID); cleanupErr != nil {
-				log.Error(
-					"couldn't clean up user after failing to set password",
-					zap.String("user", user.Name),
-					zap.String("user_id", user.ID.String()),
-					zap.Error(cleanupErr),
-				)
-			}
-			return nil, err
-		}
-	}
-	return user, nil
-}
-
 // onboardUser allows us to onboard new users.
 func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.OnboardingRequest, permFn func(orgID, userID platform.ID) []influxdb.Permission) (*influxdb.OnboardingResults, error) {
 	if req == nil {
@@ -141,12 +112,31 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 
 	result := &influxdb.OnboardingResults{}
 
-	user, err := CreateUserWithPassword(ctx, req.User, req.Password, s.service, s.log)
-	if err != nil {
+	// create a user
+	user := &influxdb.User{
+		Name:   req.User,
+		Status: influxdb.Active,
+	}
+
+	if err := s.service.CreateUser(ctx, user); err != nil {
 		return nil, err
 	}
 
-	result.User = user
+	// create users password
+	if req.Password != "" {
+		if err := s.service.SetPassword(ctx, user.ID, req.Password); err != nil {
+			// Try to clean up.
+			if cleanupErr := s.service.DeleteUser(ctx, user.ID); cleanupErr != nil {
+				s.log.Error(
+					"couldn't clean up user after failing to set password",
+					zap.String("user", user.Name),
+					zap.String("user_id", user.ID.String()),
+					zap.Error(cleanupErr),
+				)
+			}
+			return nil, err
+		}
+	}
 
 	// set the new user in the context
 	ctx = icontext.SetAuthorizer(ctx, &influxdb.Authorization{
@@ -174,6 +164,7 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 		return nil, err
 	}
 
+	result.User = user
 	result.Org = org
 	result.Bucket = ub
 
