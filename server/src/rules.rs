@@ -124,7 +124,7 @@ impl ProvidedDatabaseRules {
     /// Persist the the `ProvidedDatabaseRules` given the database object storage
     pub async fn persist(&self, uuid: Uuid, iox_object_store: &IoxObjectStore) -> Result<()> {
         let persisted_database_rules = management::v1::PersistedDatabaseRules {
-            uuid: uuid.to_string(),
+            uuid: uuid.as_bytes().to_vec(),
             // Note we save the original version
             rules: Some(self.original.clone()),
         };

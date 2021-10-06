@@ -153,7 +153,7 @@ message DatabaseRules {
 // use `DatabaseRules` instead.
 message PersistedDatabaseRules {
   // The UUID uniquely identifying this database
-  string uuid = 1;
+  bytes uuid = 1;
 
   DatabaseRules rules = 2;
 }
