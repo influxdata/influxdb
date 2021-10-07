@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/querytest"
+	fluxinfluxdb "github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/values/valuestest"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -21,8 +22,8 @@ import (
 func TestTo_Query(t *testing.T) {
 	tests := []querytest.NewQueryTestCase{
 		{
-			Name: "from with database with range",
-			Raw:  `from(bucket:"mydb") |> to(bucket:"series1", org:"fred", host:"localhost", token:"auth-token", fieldFn: (r) => ({ col: r.col }) )`,
+			Name: "from bucket with range to local",
+			Raw:  `from(bucket:"mydb") |> to(bucket:"series1", org:"fred", fieldFn: (r) => ({ col: r.col }) )`,
 			Want: &flux.Spec{
 				Operations: []*flux.Operation{
 					{
@@ -36,8 +37,6 @@ func TestTo_Query(t *testing.T) {
 						Spec: &influxdb.ToOpSpec{
 							Bucket:            "series1",
 							Org:               "fred",
-							Host:              "localhost",
-							Token:             "auth-token",
 							TimeColumn:        execute.DefaultTimeColLabel,
 							MeasurementColumn: influxdb.DefaultMeasurementColLabel,
 							FieldFn: interpreter.ResolvedFunction{
@@ -49,6 +48,38 @@ func TestTo_Query(t *testing.T) {
 				},
 				Edges: []flux.Edge{
 					{Parent: "from0", Child: "influx2x/toKind1"},
+				},
+			},
+		},
+		{
+			Name: "from bucket with range to remote",
+			Raw:  `from(bucket:"mydb") |> to(bucket:"series1", org:"fred", host:"remote-host", token:"auth-token", fieldFn: (r) => ({ col: r.col }) )`,
+			Want: &flux.Spec{
+				Operations: []*flux.Operation{
+					{
+						ID: "from0",
+						Spec: &influxdb.FromOpSpec{
+							Bucket: influxdb.NameOrID{Name: "mydb"},
+						},
+					},
+					{
+						ID: "to1",
+						Spec: &fluxinfluxdb.ToOpSpec{
+							Bucket:            "series1",
+							Org:               "fred",
+							Host:              "remote-host",
+							Token:             "auth-token",
+							TimeColumn:        execute.DefaultTimeColLabel,
+							MeasurementColumn: influxdb.DefaultMeasurementColLabel,
+							FieldFn: interpreter.ResolvedFunction{
+								Scope: valuestest.Scope(),
+								Fn:    executetest.FunctionExpression(t, `(r) => ({col: r.col})`),
+							},
+						},
+					},
+				},
+				Edges: []flux.Edge{
+					{Parent: "from0", Child: "to1"},
 				},
 			},
 		},

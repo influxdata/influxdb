@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/semantic"
-	_ "github.com/influxdata/flux/stdlib/experimental"
+	fluxexperimental "github.com/influxdata/flux/stdlib/experimental"
 	platform "github.com/influxdata/influxdb/v2"
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/models"
@@ -38,6 +38,12 @@ func init() {
 	runtime.ReplacePackageValue("experimental", "to", flux.MustValue(flux.FunctionValueWithSideEffect("to", createToOpSpec, toSignature)))
 	plan.RegisterProcedureSpecWithSideEffect(ExperimentalToKind, newToProcedure, ExperimentalToKind)
 	execute.RegisterTransformation(ExperimentalToKind, createToTransformation)
+}
+
+// argsReader is an interface for OperationSpec that have the same method to read args.
+type argsReader interface {
+	flux.OperationSpec
+	ReadArgs(args flux.Arguments) error
 }
 
 // ReadArgs reads the args from flux.Arguments into the op spec
@@ -81,7 +87,18 @@ func createToOpSpec(args flux.Arguments, a *flux.Administration) (flux.Operation
 		return nil, err
 	}
 
-	s := &ToOpSpec{}
+	_, hostOK, err := args.GetString("host")
+	if err != nil {
+		return nil, err
+	}
+
+	var s argsReader = &ToOpSpec{}
+	// If a `host` is specified, fallback to the default flux implementation that writes
+	// over HTTP.
+	if hostOK {
+		s = &fluxexperimental.ToOpSpec{}
+	}
+
 	if err := s.ReadArgs(args); err != nil {
 		return nil, err
 	}

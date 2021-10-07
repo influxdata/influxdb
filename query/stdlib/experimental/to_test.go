@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/querytest"
+	fluxexperimental "github.com/influxdata/flux/stdlib/experimental"
 	"github.com/influxdata/flux/stdlib/universe"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
@@ -23,13 +24,13 @@ import (
 func TestTo_Query(t *testing.T) {
 	tests := []querytest.NewQueryTestCase{
 		{
-			Name: "from range pivot experimental to",
+			Name: "from range pivot experimental to local bucket",
 			Raw: `import "experimental"
 import "influxdata/influxdb/v1"
 from(bucket:"mydb")
   |> range(start: -1h)
   |> v1.fieldsAsCols()
-  |> experimental.to(bucket:"series1", org:"fred", host:"localhost", token:"auth-token")`,
+  |> experimental.to(bucket:"series1", org:"fred")`,
 			Want: &flux.Spec{
 				Operations: []*flux.Operation{
 					{
@@ -60,8 +61,6 @@ from(bucket:"mydb")
 						Spec: &experimental.ToOpSpec{
 							Bucket: "series1",
 							Org:    "fred",
-							Host:   "localhost",
-							Token:  "auth-token",
 						},
 					},
 				},
@@ -69,6 +68,56 @@ from(bucket:"mydb")
 					{Parent: "from0", Child: "range1"},
 					{Parent: "range1", Child: "pivot2"},
 					{Parent: "pivot2", Child: "influxdb-experimental-to3"},
+				},
+			},
+		},
+		{
+			Name: "from range pivot experimental to remote bucket",
+			Raw: `import "experimental"
+import "influxdata/influxdb/v1"
+from(bucket:"mydb")
+  |> range(start: -1h)
+  |> v1.fieldsAsCols()
+  |> experimental.to(bucket:"series1", org:"fred", host:"remote-host", token:"auth-token")`,
+			Want: &flux.Spec{
+				Operations: []*flux.Operation{
+					{
+						ID: "from0",
+						Spec: &influxdb.FromOpSpec{
+							Bucket: influxdb.NameOrID{Name: "mydb"},
+						},
+					},
+					{
+						ID: "range1",
+						Spec: &universe.RangeOpSpec{
+							Start:       flux.Time{IsRelative: true, Relative: -time.Hour},
+							Stop:        flux.Time{IsRelative: true},
+							TimeColumn:  "_time",
+							StartColumn: "_start",
+							StopColumn:  "_stop",
+						},
+					},
+					{
+						ID: "pivot2",
+						Spec: &universe.PivotOpSpec{
+							RowKey:      []string{"_time"},
+							ColumnKey:   []string{"_field"},
+							ValueColumn: "_value"},
+					},
+					{
+						ID: "experimental-to3",
+						Spec: &fluxexperimental.ToOpSpec{
+							Bucket: influxdb.NameOrID{Name: "series1"},
+							Org:    influxdb.NameOrID{Name: "fred"},
+							Host:   "remote-host",
+							Token:  "auth-token",
+						},
+					},
+				},
+				Edges: []flux.Edge{
+					{Parent: "from0", Child: "range1"},
+					{Parent: "range1", Child: "pivot2"},
+					{Parent: "pivot2", Child: "experimental-to3"},
 				},
 			},
 		},

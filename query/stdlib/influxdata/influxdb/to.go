@@ -15,7 +15,6 @@ import (
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
-	"github.com/influxdata/flux/stdlib/kafka"
 	"github.com/influxdata/flux/values"
 	platform "github.com/influxdata/influxdb/v2"
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
@@ -131,29 +130,18 @@ func createToOpSpec(args flux.Arguments, a *flux.Administration) (flux.Operation
 		return nil, err
 	}
 
-	_, httpOK, err := args.GetString("url")
+	_, hostOK, err := args.GetString("host")
 	if err != nil {
 		return nil, err
 	}
 
-	_, kafkaOK, err := args.GetString("brokers")
-	if err != nil {
-		return nil, err
+	var s argsReader = &ToOpSpec{}
+	// If a `host` is specified, fallback to the default flux implementation that writes
+	// over HTTP.
+	if hostOK {
+		s = &influxdb.ToOpSpec{}
 	}
 
-	var s argsReader
-
-	switch {
-	case httpOK && kafkaOK:
-		return nil, &flux.Error{
-			Code: codes.Invalid,
-			Msg:  "specify at most one of url, brokers in the same `to` function",
-		}
-	case kafkaOK:
-		s = &kafka.ToKafkaOpSpec{}
-	default:
-		s = &ToOpSpec{}
-	}
 	if err := s.ReadArgs(args); err != nil {
 		return nil, err
 	}
