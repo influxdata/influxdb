@@ -13,7 +13,7 @@ use observability_deps::tracing::info;
 use persistence_windows::persistence_windows::FlushHandle;
 use predicate::delete_predicate::DeletePredicate;
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
-use std::{future::Future, sync::Arc};
+use std::{collections::HashSet, future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 /// Split and then persist the provided chunks
@@ -50,7 +50,7 @@ pub fn persist_chunks(
     let mut time_of_first_write: Option<DateTime<Utc>> = None;
     let mut time_of_last_write: Option<DateTime<Utc>> = None;
     let mut query_chunks = vec![];
-    let mut delete_predicates: Vec<Arc<DeletePredicate>> = vec![];
+    let mut delete_predicates_before: HashSet<Arc<DeletePredicate>> = HashSet::new();
     let mut min_order = ChunkOrder::MAX;
     for mut chunk in chunks {
         // Sanity-check
@@ -70,7 +70,7 @@ pub fn persist_chunks(
             .map(|prev_last| prev_last.max(candidate_last))
             .or(Some(candidate_last));
 
-        delete_predicates.extend(chunk.delete_predicates().iter().cloned());
+        delete_predicates_before.extend(chunk.delete_predicates().iter().cloned());
 
         min_order = min_order.min(chunk.order());
 
@@ -139,12 +139,25 @@ pub fn persist_chunks(
         let persist_fut = {
             let partition = LockableCatalogPartition::new(Arc::clone(&db), partition);
             let mut partition_write = partition.write();
+            let mut delete_predicates_after: HashSet<Arc<DeletePredicate>> = HashSet::new();
             for id in &chunk_ids {
-                // TODO: Reacquire chunk lock and check for "new" delete predicates (#2666)
-                partition_write.force_drop_chunk(*id).expect(
+                let chunk = partition_write.force_drop_chunk(*id).expect(
                     "There was a lifecycle action attached to this chunk, who deleted it?!",
                 );
+
+                let chunk = chunk.read();
+                for pred in chunk.delete_predicates() {
+                    if !delete_predicates_before.contains(pred) {
+                        delete_predicates_after.insert(Arc::clone(pred));
+                    }
+                }
             }
+
+            let delete_predicates = {
+                let mut tmp: Vec<_> = delete_predicates_after.into_iter().collect();
+                tmp.sort();
+                tmp
+            };
 
             // Upsert remainder to catalog if any
             if let Some(remainder) = remainder {
@@ -153,7 +166,6 @@ pub fn persist_chunks(
                     time_of_first_write,
                     time_of_last_write,
                     Arc::clone(&schema),
-                    // TODO: Filter out predicates applied by the query (#2666)
                     delete_predicates.clone(),
                     min_order,
                     None,
@@ -214,13 +226,23 @@ pub fn persist_chunks(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{db::test_helpers::write_lp, utils::TestDb, Db};
+    use crate::{
+        db::{catalog::Catalog, load::load_or_create_preserved_catalog, test_helpers::write_lp},
+        utils::TestDb,
+        Db,
+    };
+
     use chrono::{TimeZone, Utc};
-    use data_types::database_rules::LifecycleRules;
-    use data_types::{chunk_metadata::ChunkStorage, timestamp::TimestampRange};
+    use data_types::{
+        chunk_metadata::ChunkStorage, database_rules::LifecycleRules, server_id::ServerId,
+        timestamp::TimestampRange,
+    };
     use lifecycle::{LockableChunk, LockablePartition};
+    use object_store::ObjectStore;
+    use predicate::delete_expr::{DeleteExpr, Op, Scalar};
     use query::QueryDatabase;
     use std::{
+        convert::TryFrom,
         num::{NonZeroU32, NonZeroU64},
         time::Duration,
     };
@@ -284,7 +306,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_persist_delete() {
+    async fn test_persist_delete_all() {
         let db = test_db().await;
 
         let late_arrival = chrono::Duration::seconds(1);
@@ -445,5 +467,114 @@ mod tests {
 
         assert!(maybe_chunk.is_none());
         assert!(partition.read().persistence_windows().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_delete_predicate_propagation() {
+        // setup DB
+        let object_store = Arc::new(ObjectStore::new_in_memory());
+        let server_id = ServerId::try_from(1).unwrap();
+        let db_name = "delete_predicate_propagation";
+        let test_db = TestDb::builder()
+            .object_store(Arc::clone(&object_store))
+            .server_id(server_id)
+            .db_name(db_name)
+            .lifecycle_rules(LifecycleRules {
+                // do not create checkpoints
+                catalog_transactions_until_checkpoint: NonZeroU64::new(u64::MAX).unwrap(),
+                late_arrive_window_seconds: NonZeroU32::new(1).unwrap(),
+                // Disable lifecycle manager - TODO: Better way to do this, as this will still run the loop once
+                worker_backoff_millis: NonZeroU64::new(u64::MAX).unwrap(),
+                ..Default::default()
+            })
+            .build()
+            .await;
+        let db = Arc::new(test_db.db);
+
+        // | foo | delete before persist | delete during persist |
+        // | --- | --------------------- | --------------------- |
+        // |   1 |                   yes |                    no |
+        // |   2 |                   yes |                   yes |
+        // |   3 |                    no |                   yes |
+        // |   4 |                    no |                    no |
+        write_lp(db.as_ref(), "cpu foo=1 10").await;
+        write_lp(db.as_ref(), "cpu foo=2 20").await;
+        write_lp(db.as_ref(), "cpu foo=3 20").await;
+        write_lp(db.as_ref(), "cpu foo=4 20").await;
+
+        let range = TimestampRange {
+            start: 0,
+            end: 1_000,
+        };
+        let pred1 = Arc::new(DeletePredicate {
+            range,
+            exprs: vec![DeleteExpr::new("foo".to_string(), Op::Eq, Scalar::I64(1))],
+        });
+        let pred2 = Arc::new(DeletePredicate {
+            range,
+            exprs: vec![DeleteExpr::new("foo".to_string(), Op::Eq, Scalar::I64(2))],
+        });
+        let pred3 = Arc::new(DeletePredicate {
+            range,
+            exprs: vec![DeleteExpr::new("foo".to_string(), Op::Eq, Scalar::I64(3))],
+        });
+        db.delete("cpu", Arc::clone(&pred1)).await.unwrap();
+        db.delete("cpu", Arc::clone(&pred2)).await.unwrap();
+
+        // start persistence job (but don't poll the future yet)
+        let partition_keys = db.partition_keys().unwrap();
+        assert_eq!(partition_keys.len(), 1);
+        let db_partition = db.partition("cpu", &partition_keys[0]).unwrap();
+
+        // Wait for the persistence window to be closed
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
+        let partition = partition.read();
+
+        let chunks = LockablePartition::chunks(&partition);
+        let chunks = chunks.iter().map(|x| x.read());
+
+        let mut partition = partition.upgrade();
+
+        let handle = LockablePartition::prepare_persist(&mut partition, Utc::now())
+            .unwrap()
+            .0;
+
+        assert_eq!(handle.timestamp(), Utc.timestamp_nanos(20));
+        let chunks: Vec<_> = chunks.map(|x| x.upgrade()).collect();
+
+        let (_, fut) = persist_chunks(partition, chunks, handle).unwrap();
+
+        // add more delete predicates
+        db.delete("cpu", Arc::clone(&pred2)).await.unwrap();
+        db.delete("cpu", Arc::clone(&pred3)).await.unwrap();
+
+        // finish future
+        tokio::spawn(fut).await.unwrap().unwrap().unwrap();
+
+        // check in-mem delete predicates
+        let check_closure = |catalog: &Catalog| {
+            let chunks = catalog.chunks();
+            assert_eq!(chunks.len(), 1);
+            let chunk = &chunks[0];
+            let chunk = chunk.read();
+            let actual = chunk.delete_predicates();
+            let expected = vec![Arc::clone(&pred3)];
+            assert_eq!(actual, &expected);
+        };
+        check_closure(&db.catalog);
+
+        // check object store delete predicates
+        let metric_registry = Arc::new(metric::Registry::new());
+        let (_preserved_catalog, catalog, _replay_plan) = load_or_create_preserved_catalog(
+            db_name,
+            db.iox_object_store(),
+            metric_registry,
+            false,
+            false,
+        )
+        .await
+        .unwrap();
+        check_closure(&catalog);
     }
 }
