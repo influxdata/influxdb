@@ -1,12 +1,57 @@
 package simple8b_test
 
 import (
+	"bytes"
+	"encoding/binary"
 	"math/rand"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/pkg/encoding/simple8b"
 )
+
+func Test_Encode_And_EncodeAll(t *testing.T) {
+	enc := simple8b.NewEncoder()
+	n := 121
+	in := make([]uint64, n)
+	for i := 0; i < n; i++ {
+		in[i] = uint64(1)
+	}
+
+	// len(in) > 120 and the 121th value is not 1.
+	in[120] = 2
+
+	in_copy := make([]uint64, len(in))
+	copy(in_copy, in)
+
+	for _, v := range in {
+		if err := enc.Write(v); err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+	}
+
+	encoded, err := enc.Bytes()
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	all, err := simple8b.EncodeAll(in_copy)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	sz := len(all) * 8
+	encodedAll := make([]byte, sz)
+
+	// Write the encoded values
+	for i, v := range all {
+		binary.BigEndian.PutUint64(encodedAll[i*8:i*8+8], v)
+	}
+
+	if !bytes.Equal(encoded, encodedAll) {
+		t.Fatalf("encode is not equal encodeAll.")
+	}
+}
 
 func Test_Encode_NoValues(t *testing.T) {
 	var in []uint64

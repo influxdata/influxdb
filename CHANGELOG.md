@@ -52,6 +52,7 @@ v1.8.5 [2021-04-19]
 -	[#20277](https://github.com/influxdata/influxdb/pull/20277): fix(query): Group By queries with offset that crosses a DST boundary can fail.
 -	[#20295](https://github.com/influxdata/influxdb/pull/20295): fix: cp.Mux.Serve() closes all net.Listener instances silently on error.
 -	[#19832](https://github.com/influxdata/influxdb/pull/19832): fix(prometheus): regexp handling should comply with PromQL.
+- [#20303](https://github.com/influxdata/influxdb/pull/20303): fix(tsdb): simple8b.EncodeAll and simple8b.Encoder can return the same bytes result.
 -	[#20432](https://github.com/influxdata/influxdb/pull/20432): fix(error): SELECT INTO doesn't return error with unsupported value
 -	[#20033](https://github.com/influxdata/influxdb/pull/20033): fix(tsm1): "snapshot in progress" error during backup
 -	[#20909](https://github.com/influxdata/influxdb/pull/20909): fix(tsm1): data race when accessing tombstone stats
