@@ -63,9 +63,6 @@ pub async fn prune_history(
     // remember latest checkpoint is <= before
     let mut latest_in_prune_range: Option<u64> = None;
 
-    // remember known checkpoint
-    let mut latest_known: Option<u64> = None;
-
     let mut stream = iox_object_store
         .catalog_transaction_files()
         .await
@@ -87,12 +84,6 @@ pub async fn prune_history(
                         }),
                     );
                 }
-
-                latest_known = Some(
-                    latest_known.map_or(transaction_file_path.revision_counter, |x| {
-                        x.max(transaction_file_path.revision_counter)
-                    }),
-                );
             }
 
             files
@@ -102,7 +93,7 @@ pub async fn prune_history(
         }
     }
 
-    if let Some(earliest_keep) = latest_in_prune_range.or(latest_known) {
+    if let Some(earliest_keep) = latest_in_prune_range {
         for (revision, files) in files {
             if revision > earliest_keep {
                 break;
@@ -131,6 +122,8 @@ fn is_checkpoint_or_zero(path: &TransactionFilePath) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use chrono::Duration;
+
     use crate::{
         catalog::{
             core::PreservedCatalog, interface::CheckpointData, test_helpers::TestCatalogState,
@@ -218,6 +211,29 @@ mod tests {
                 (5, true),
                 (6, false)
             ],
+        );
+    }
+
+    #[tokio::test]
+    async fn test_keep_all() {
+        let iox_object_store = make_iox_object_store().await;
+
+        let (catalog, _state) =
+            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
+                .await
+                .unwrap();
+        create_transaction(&catalog).await;
+        create_transaction_and_checkpoint(&catalog).await;
+        create_transaction(&catalog).await;
+
+        let before = Utc::now() - Duration::seconds(1_000);
+        prune_history(Arc::clone(&iox_object_store), before)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            known_revisions(&iox_object_store).await,
+            vec![(0, false), (1, false), (2, false), (2, true), (3, false)],
         );
     }
 
