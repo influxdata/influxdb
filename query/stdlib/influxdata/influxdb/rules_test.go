@@ -1181,10 +1181,12 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	window := func(dur values.Duration) universe.WindowProcedureSpec {
 		return universe.WindowProcedureSpec{
 			Window: plan.WindowSpec{
-				Every:    dur,
-				Period:   dur,
-				Offset:   dur0,
-				Location: "UTC",
+				Every:  dur,
+				Period: dur,
+				Offset: dur0,
+				Location: plan.Location{
+					Name: "UTC",
+				},
 			},
 			TimeColumn:  "_time",
 			StartColumn: "_start",
@@ -1346,10 +1348,12 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		Rules:   []plan.Rule{influxdb.PushDownWindowAggregateRule{}},
 		Before: simplePlanWithWindowAgg(universe.WindowProcedureSpec{
 			Window: plan.WindowSpec{
-				Every:    dur2m,
-				Period:   dur2m,
-				Offset:   dur1m,
-				Location: "UTC",
+				Every:  dur2m,
+				Period: dur2m,
+				Offset: dur1m,
+				Location: plan.Location{
+					Name: "UTC",
+				},
 			},
 			TimeColumn:  "_time",
 			StartColumn: "_start",
@@ -1483,6 +1487,16 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 	badWindow5 := window1m
 	badWindow5.StopColumn = "_stappp"
 	simpleMinUnchanged("BadStop", badWindow5)
+
+	// Condition not met: non-UTC location
+	badWindow6 := window1m
+	badWindow6.Window.Location.Name = "America/Los_Angeles"
+	simpleMinUnchanged("BadLocation", badWindow6)
+
+	// Condition not met: non-zero location offset
+	badWindow7 := window1m
+	badWindow7.Window.Location.Offset = values.ConvertDurationNsecs(time.Hour)
+	simpleMinUnchanged("BadLocationOffset", badWindow7)
 
 	// Condition met: createEmpty is true.
 	windowCreateEmpty1m := window1m
@@ -2106,10 +2120,12 @@ func TestTransposeGroupToWindowAggregateRule(t *testing.T) {
 	window := func(dur values.Duration) universe.WindowProcedureSpec {
 		return universe.WindowProcedureSpec{
 			Window: plan.WindowSpec{
-				Every:    dur,
-				Period:   dur,
-				Offset:   dur0,
-				Location: "UTC",
+				Every:  dur,
+				Period: dur,
+				Offset: dur0,
+				Location: plan.Location{
+					Name: "UTC",
+				},
 			},
 			TimeColumn:  "_time",
 			StartColumn: "_start",
@@ -2338,7 +2354,9 @@ func TestTransposeGroupToWindowAggregateRule(t *testing.T) {
 						Every:    dur2m,
 						Period:   dur2m,
 						Offset:   dur1m,
-						Location: "UTC",
+						Location: plan.Location{
+							Name: "UTC",
+						},
 					},
 					TimeColumn:  "_time",
 					StartColumn: "_start",
@@ -2417,8 +2435,13 @@ func TestTransposeGroupToWindowAggregateRule(t *testing.T) {
 
 	// Condition not met: non-UTC location
 	badWindow6 := window1m
-	badWindow6.Window.Location = "America/Los_Angeles"
+	badWindow6.Window.Location.Name = "America/Los_Angeles"
 	simpleMinUnchanged("BadLocation", badWindow6)
+
+	// Condition not met: non-zero location offset
+	badWindow7 := window1m
+	badWindow7.Window.Location.Offset = values.ConvertDurationNsecs(time.Hour)
+	simpleMinUnchanged("BadLocationOffset", badWindow7)
 
 	// Condition met: createEmpty is true.
 	windowCreateEmpty1m := window1m
