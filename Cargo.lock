@@ -2963,6 +2963,7 @@ dependencies = [
  "datafusion 0.1.0",
  "datafusion_util",
  "generated_types",
+ "hashbrown 0.11.2",
  "internal_types",
  "observability_deps",
  "ordered-float 2.8.0",

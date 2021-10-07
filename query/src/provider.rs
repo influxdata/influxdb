@@ -89,6 +89,11 @@ impl From<Error> for DataFusionError {
     }
 }
 
+enum ColumnType {
+    PrimaryKey,
+    DeletePredicate,
+}
+
 /// Something that can prune chunks based on their metadata
 pub trait ChunkPruner<C: QueryChunk>: Sync + Send + std::fmt::Debug {
     /// prune `chunks`, if possible, based on predicate.
@@ -250,8 +255,7 @@ impl<C: QueryChunk + 'static> TableProvider for ChunkTableProvider<C> {
             Some(indicies) => Arc::new(self.iox_schema.select_by_indices(indicies)),
             None => Arc::clone(&self.iox_schema),
         };
-        println!(" ===== scan_schema (-> output_schema) in scan: {:#?}", scan_schema);
-
+        // println!(" ===== scan_schema (-> output_schema) in scan: {:#?}", scan_schema);
 
         // This debug shows the self.arrow_schema() includes all columns in all chunks
         // which means the schema of all chunks are merged before invoking this scan
@@ -380,7 +384,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         predicate: Predicate,
         sort_output: bool,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        println!(" ===== output_schema in build_scan_plan: {:#?}", output_schema);
+        // println!(" ===== output_schema in build_scan_plan: {:#?}", output_schema);
 
         // Initialize an empty sort key
         let mut output_sort_key = SortKey::with_capacity(0);
@@ -544,8 +548,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         predicate: Predicate,
         output_sort_key: &SortKey<'_>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-
-        println!(" =====  output_schema in build_deduplicate_plan_for_overlapped_chunks: {:#?}", output_schema);
+        // println!(" =====  output_schema in build_deduplicate_plan_for_overlapped_chunks: {:#?}", output_schema);
 
         // Note that we may need to sort/deduplicate based on tag
         // columns which do not appear in the output
@@ -560,7 +563,7 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
 
         let pk_schema = Self::compute_pk_schema(&chunks);
         let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
-        println!(" =====  input_schema in build_deduplicate_plan_for_overlapped_chunks: {:#?}", input_schema);
+        // println!(" =====  input_schema in build_deduplicate_plan_for_overlapped_chunks: {:#?}", input_schema);
 
         // Compute the output sort key for these chunks
         let sort_key = if !output_sort_key.is_empty() {
@@ -644,10 +647,10 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         predicate: Predicate,
         output_sort_key: &SortKey<'_>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        println!(" =====  output_schema in build_deduplicate_plan_for_chunk_with_duplicates: {:#?}", output_schema);
+        // println!(" =====  output_schema in build_deduplicate_plan_for_chunk_with_duplicates: {:#?}", output_schema);
         let pk_schema = Self::compute_pk_schema(&[Arc::clone(&chunk)]);
         let input_schema = Self::compute_input_schema(&output_schema, &pk_schema);
-        println!(" =====  input_schema in build_deduplicate_plan_for_chunk_with_duplicates: {:#?}", input_schema);
+        // println!(" =====  input_schema in build_deduplicate_plan_for_chunk_with_duplicates: {:#?}", input_schema);
 
         // Compute the output sort key for this chunk
         let mut sort_key = if !output_sort_key.is_empty() {
@@ -774,26 +777,29 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         predicate: Predicate, // This is the select predicate of the query
         output_sort_key: &SortKey<'_>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        println!(" ===== output_schema in  build_sort_plan_for_read_filter {:#?}", output_schema);
+        // println!(" ===== output_schema in  build_sort_plan_for_read_filter {:#?}", output_schema);
 
-        // There are delete predicate, needs to add all of its column into the schema of the data
-        let schema = output_schema;
-        if chunk.has_delete_predicates()  {
-            // NGA todo: 
+        // If there are delete predicates, their columns must be added into the schema of
+        // the reading data in IOxReadFilterNode
+        let mut schema = output_schema;
+        if chunk.has_delete_predicates() {
+            // NGA todo:
             // build schema of columns in delete expression
+            let pred_schema = Self::compute_delete_predicate_schema(&[Arc::clone(&chunk)]);
             // merge that column into the schema
+            schema = Self::compute_input_schema(&schema, &pred_schema);
         }
 
         // Create the bottom node IOxReadFilterNode for this chunk
         // NGA: correct for MUB but incorrect for RUB (not include everything)
-        println!(" ========== predicate: {:#?}", predicate);
+        // println!(" ========== predicate: {:#?}", predicate);
         let mut input: Arc<dyn ExecutionPlan> = Arc::new(IOxReadFilterNode::new(
             Arc::clone(&table_name),
             schema,
             vec![Arc::clone(&chunk)],
             predicate,
         ));
-        println!(" ==========  input plan in build_sort_plan_for_read_filter: {:#?}", input);
+        // println!(" ==========  input plan in build_sort_plan_for_read_filter: {:#?}", input);
 
         // Add Filter operator, FilterExec, if the chunk has delete predicates
         let del_preds = chunk.delete_predicates();
@@ -898,15 +904,15 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         predicate: Predicate,
         output_sort_key: &SortKey<'_>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        println!(" =====  output_schema in build_plan_for_non_duplicates_chunk: {:#?}", output_schema);
-        
+        // println!(" =====  output_schema in build_plan_for_non_duplicates_chunk: {:#?}", output_schema);
+
         let mut input_schema = output_schema;
         // There is sort key, must add columns of the sort keys (which is a part of the primary key)
         if !output_sort_key.is_empty() {
             let pk_schema = Self::compute_pk_schema(&[Arc::clone(&chunk)]);
             input_schema = Self::compute_input_schema(&input_schema, &pk_schema);
         }
-        println!(" =====  input_schema in build_plan_for_non_duplicates_chunk: {:#?}", input_schema);
+        // println!(" =====  input_schema in build_plan_for_non_duplicates_chunk: {:#?}", input_schema);
 
         Self::build_sort_plan_for_read_filter(
             table_name,
@@ -994,21 +1000,37 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             .all(|chunk| chunk.delete_predicates().is_empty())
     }
 
-    /// Find the columns needed in the primary key across schemas
+    /// Find the columns needed in a given ColumnType across schemas
     ///
     /// Note by the time we get down here, we have already checked
     /// the chunks for compatible schema, so we use unwrap (perhaps
     /// famous last words, but true at time of writing)
-    fn compute_pk_schema(chunks: &[Arc<C>]) -> Arc<Schema> {
-        let mut pk_schema_merger = SchemaMerger::new();
+    fn compute_schema_for_column_type(chunks: &[Arc<C>], col_type: ColumnType) -> Arc<Schema> {
+        let mut schema_merger = SchemaMerger::new();
         for chunk in chunks {
             let chunk_schema = chunk.schema();
-            let chunk_pk = chunk_schema.primary_key();
-            let chunk_pk_schema = chunk_schema.select_by_names(&chunk_pk).unwrap();
-            pk_schema_merger = pk_schema_merger.merge(&chunk_pk_schema).unwrap();
+            let cols = match col_type {
+                ColumnType::PrimaryKey => chunk_schema.primary_key(),
+                ColumnType::DeletePredicate => chunk.delete_predicate_columns()
+            };
+            // println!(" ===== cols: {:#?}", cols);
+            let chunk_cols_schema = chunk_schema.select_by_names(&cols).unwrap();
+            schema_merger = schema_merger.merge(&chunk_cols_schema).unwrap();
         }
-        let pk_schema = pk_schema_merger.build();
-        Arc::new(pk_schema)
+        let cols_schema = schema_merger.build();
+        // println!(" ===== cols_schema: {:#?}", cols_schema);
+
+        Arc::new(cols_schema)
+    }
+
+    /// Find the columns needed in chunks' delete predicates across schemas
+    fn compute_delete_predicate_schema(chunks: &[Arc<C>]) -> Arc<Schema> {
+        Self::compute_schema_for_column_type(chunks, ColumnType::DeletePredicate)
+    }
+
+    /// Find the columns needed in chunks' primary keys across schemas
+    fn compute_pk_schema(chunks: &[Arc<C>]) -> Arc<Schema> {
+        Self::compute_schema_for_column_type(chunks, ColumnType::PrimaryKey)
     }
 
     /// Find columns required to read from each scan: the output columns + the

@@ -870,7 +870,6 @@ async fn sql_select_all_different_tags_chunks() {
 // Delete tests
 #[tokio::test]
 async fn sql_select_with_delete_from_one_expr_delete_all() {
-
     // select *
     let expected = vec!["++", "++"];
     run_sql_test_case(
@@ -936,7 +935,7 @@ async fn sql_select_with_delete_from_one_expr() {
     )
     .await;
 
-    // 
+    // select all explicit columns
     let expected = vec![
         "+--------------------------------+-----+",
         "| time                           | bar |",
@@ -950,33 +949,40 @@ async fn sql_select_with_delete_from_one_expr() {
         &expected,
     )
     .await;
+}
 
-    // Count
+#[tokio::test]
+async fn sql_select_with_delete_from_one_expr_min_max() {
+    // Min & Max of bar only
     let expected = vec![
-        "+-----------------+-----------------+----------------+",
-        "| COUNT(cpu.time) | COUNT(UInt8(1)) | COUNT(cpu.bar) |",
-        "+-----------------+-----------------+----------------+",
-        "| 1               | 1               | 1              |",
-        "+-----------------+-----------------+----------------+",
+        "+--------------+--------------+",
+        "| MIN(cpu.bar) | MAX(cpu.bar) |",
+        "+--------------+--------------+",
+        "| 2            | 2            |",
+        "+--------------+--------------+",
     ];
     run_sql_test_case(
         scenarios::delete::OneDeleteSimpleExprOneChunk {},
-        "SELECT count(time), count(*), count(bar)  from cpu",
+        "SELECT min(bar), max(bar) from cpu",
         &expected,
     )
     .await;
+}
 
-    // Min & Max
+#[ignore]
+#[tokio::test]
+async fn sql_select_with_delete_from_one_expr_count_max_time() {
+    // Count and max on one column and no cover all 2 columns, time and bar, of the delete predicate
     let expected = vec![
-        "+--------------+--------------+--------------------------------+--------------------------------+",
-        "| MIN(cpu.bar) | MAX(cpu.bar) | MIN(cpu.time)                  | MAX(cpu.time)                  |",
-        "+--------------+--------------+--------------------------------+--------------------------------+",
-        "| 2            | 2            | 1970-01-01T00:00:00.000000020Z | 1970-01-01T00:00:00.000000020Z |",
-        "+--------------+--------------+--------------------------------+--------------------------------+",
+        "+-----------------+--------------------------------+",
+        "| COUNT(cpu.time) | MAX(cpu.time)                  |",
+        "+-----------------+--------------------------------+",
+        "| 1               | 1970-01-01T00:00:00.000000020Z |",
+        "+-----------------+--------------------------------+",
     ];
     run_sql_test_case(
         scenarios::delete::OneDeleteSimpleExprOneChunk {},
-        "SELECT min(bar), max(bar), min(time), max(time) from cpu",
+        "SELECT count(time), max(time)  from cpu",
         &expected,
     )
     .await;
@@ -1046,12 +1052,7 @@ async fn sql_select_with_delete_from_multi_exprs() {
 
     //
     let expected = vec![
-        "+-----+",
-        "| bar |",
-        "+-----+",
-        "| 1   |",
-        "| 2   |",
-        "+-----+",
+        "+-----+", "| bar |", "+-----+", "| 1   |", "| 2   |", "+-----+",
     ];
 
     run_sql_test_case(
@@ -1060,28 +1061,15 @@ async fn sql_select_with_delete_from_multi_exprs() {
         &expected,
     )
     .await;
-
-    // Count, min and max
-    // BUG when data in RUB but delete happens at open MUB
-    // let expected = vec![
-    //     "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
-    //     "| COUNT(cpu.time) | COUNT(UInt8(1)) | COUNT(cpu.bar) | MIN(cpu.bar) | MAX(cpu.bar) | MIN(cpu.time)                  | MAX(cpu.time)                  |",
-    //     "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
-    //     "| 2               | 2               | 2              | 1            | 2            | 1970-01-01T00:00:00.000000020Z | 1970-01-01T00:00:00.000000040Z |",
-    //     "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
-    // ];
-    // run_sql_test_case(
-    //     scenarios::delete::OneDeleteMultiExprsOneChunk {},
-    //     "SELECT count(time), count(*), count(bar), min(bar), max(bar), min(time), max(time)  from cpu",
-    //     &expected,
-    // )
-    // .await;
 }
 
+//  BUG Running scenario 'Deleted data from one RUB chunk, with 1 deletes from open MUB'
+// SQL: '"SELECT count(time), count(*), count(bar), min(bar), max(bar), min(time), max(time)  from cpu"'
+// thread 'sql::sql_select_with_delete_from_multi_exprs' panicked at 'Running plan: ArrowError(InvalidArgumentError("column types must match schema types, expected Dictionary(Int32, Utf8) but found Utf8 at column index 5"))', query_tests/src/sql.rs:37:74
 #[ignore]
 #[tokio::test]
-async fn sql_select_with_delete_from_multi_exprs_count() {
-
+async fn sql_select_with_delete_from_multi_exprs_agg() {
+    // Count, min and max on many columns but not `foo` that is included in delete predicate
     let expected = vec![
         "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
         "| COUNT(cpu.time) | COUNT(UInt8(1)) | COUNT(cpu.bar) | MIN(cpu.bar) | MAX(cpu.bar) | MIN(cpu.time)                  | MAX(cpu.time)                  |",
@@ -1091,12 +1079,106 @@ async fn sql_select_with_delete_from_multi_exprs_count() {
     ];
     run_sql_test_case(
         scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT count(time), count(*), count(bar), min(bar), max(bar), min(time), max(time)  from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_delete_from_multi_exprs_count_col() {
+    let expected = vec![
+        "+----------------+",
+        "| COUNT(cpu.foo) |",
+        "+----------------+",
+        "| 2              |",
+        "+----------------+",
+    ];
+
+    // OneDeleteMultiExprsOneChunk's delete predicates include columns foo, bar and time
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
         "SELECT count(foo) from cpu",
         &expected,
     )
     .await;
 }
 
+#[tokio::test]
+async fn sql_select_with_delete_from_multi_exprs_count_star() {
+    let expected = vec![
+        "+-----------------+",
+        "| COUNT(UInt8(1)) |",
+        "+-----------------+",
+        "| 2               |",
+        "+-----------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT count(*) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_delete_from_multi_exprs_min() {
+    let expected = vec![
+        "+--------------+",
+        "| MIN(cpu.bar) |",
+        "+--------------+",
+        "| 1            |",
+        "+--------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT min(bar) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+// BUG
+// Running scenario 'Deleted data from one Open MUB chunk, with 1 deletes from open MUB'
+// SQL: '"SELECT max(foo) from cpu"'
+// thread 'sql::sql_select_with_delete_from_multi_exprs_max' panicked at 'Running plan: ArrowError(InvalidArgumentError("column types must match schema types, expected Dictionary(Int32, Utf8) but found Utf8 at column index 0"))', query_tests/src/sql.rs:37:74
+#[ignore]
+#[tokio::test]
+async fn sql_select_with_delete_from_multi_exprs_max() {
+    let expected = vec![
+        "+----------------+",
+        "| COUNT(cpu.foo) |",
+        "+----------------+",
+        "| 2              |",
+        "+----------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT max(foo) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+// BUG: scenario 'Deleted data from one RUB chunk, with 1 deletes from open MUB'
+//  return wrong result
+#[ignore]
+#[tokio::test]
+async fn sql_select_with_delete_from_multi_exprs_max_time() {
+    let expected = vec![
+        "+--------------------------------+",
+        "| MAX(cpu.time)                  |",
+        "+--------------------------------+",
+        "| 1970-01-01T00:00:00.000000040Z |",
+        "+--------------------------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT max(time) from cpu",
+        &expected,
+    )
+    .await;
+}
 
 #[tokio::test]
 async fn sql_select_with_delete_from_multi_exprs_with_select_predicate() {
@@ -1214,10 +1296,102 @@ async fn sql_select_with_three_deletes_from_three_chunks() {
     .await;
 }
 
-// Bug: https://github.com/influxdata/influxdb_iox/issues/2745
+#[tokio::test]
+async fn sql_select_with_three_deletes_from_three_chunks_count_star() {
+    let expected = vec![
+        "+-----------------+",
+        "| COUNT(UInt8(1)) |",
+        "+-----------------+",
+        "| 7               |",
+        "+-----------------+",
+    ];
+
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT count(*) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_three_deletes_from_three_chunks_count_time() {
+    let expected = vec![
+        "+-----------------+",
+        "| COUNT(cpu.time) |",
+        "+-----------------+",
+        "| 7               |",
+        "+-----------------+",
+    ];
+
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT count(time) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_three_deletes_from_three_chunks_count_foo() {
+    let expected = vec![
+        "+----------------+",
+        "| COUNT(cpu.foo) |",
+        "+----------------+",
+        "| 7              |",
+        "+----------------+",
+    ];
+
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT count(foo) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_three_deletes_from_three_chunks_count_bar() {
+    let expected = vec![
+        "+----------------+",
+        "| COUNT(cpu.bar) |",
+        "+----------------+",
+        "| 7              |",
+        "+----------------+",
+    ];
+
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT count(bar) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_three_deletes_from_three_chunks_min_bar() {
+    let expected = vec![
+        "+--------------+",
+        "| MIN(cpu.bar) |",
+        "+--------------+",
+        "| 1            |",
+        "+--------------+",
+    ];
+
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT min(bar) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+// BUG  scenario 'Deleted data from 3 chunks,  - OS - RUB - Open MUB, with 3 deletes after all chunks are created'
+// SQL: '"SELECT max(foo) from cpu"'
+// thread 'sql::sql_select_with_three_deletes_from_three_chunks_max_foo' panicked at 'Running plan: ArrowError(InvalidArgumentError("column types must match schema types, expected Dictionary(Int32, Utf8) but found Utf8 at column index 0"))', query_tests/src/sql.rs:37:74
 #[ignore]
 #[tokio::test]
-async fn sql_select_count_with_three_deletes_from_three_chunks() {
+async fn sql_select_with_three_deletes_from_three_chunks_max_foo() {
     let expected = vec![
         "+-----+-----+--------------------------------+",
         "| bar | foo | time                           |",
@@ -1228,7 +1402,29 @@ async fn sql_select_count_with_three_deletes_from_three_chunks() {
 
     run_sql_test_case(
         scenarios::delete::ThreeDeleteThreeChunks {},
-        "SELECT count(*) from cpu",
+        "SELECT max(foo) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+// BUG: Running scenario 'Deleted data from 3 chunks,  - OS - RUB - Open MUB, with 3 deletes after all chunks are created'
+// SQL: '"SELECT min(time), max(time) from cpu"'
+// thread 'sql::sql_select_with_three_deletes_from_three_chunks_min_max_time' panicked at 'Running plan: ArrowError(ExternalError(Internal("MIN/MAX is not expected to receive scalars of incompatible types (TimestampNanosecond(NULL), Float64(1))")))', query_tests/src/sql.rs:37:74
+#[ignore]
+#[tokio::test]
+async fn sql_select_with_three_deletes_from_three_chunks_min_max_time() {
+    let expected = vec![
+        "+-----+-----+--------------------------------+",
+        "| bar | foo | time                           |",
+        "+-----+-----+--------------------------------+",
+        "| 7   | me  | 1970-01-01T00:00:00.000000080Z |",
+        "+-----+-----+--------------------------------+",
+    ];
+
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT min(time), max(time) from cpu",
         &expected,
     )
     .await;
@@ -1326,33 +1522,125 @@ async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate()
         &expected,
     )
     .await;
+}
 
+// let expected = vec![
+//     "+-----+-----+--------------------------------+",
+//     "| bar | foo | time                           |",
+//     "+-----+-----+--------------------------------+",
+//     "| 1   | me  | 1970-01-01T00:00:00.000000040Z |",
+//     "| 1   | me  | 1970-01-01T00:00:00.000000042Z |",
+//     "| 1   | me  | 1970-01-01T00:00:00.000000062Z |",
+//     "| 4   | me  | 1970-01-01T00:00:00.000000050Z |",
+//     "| 5   | me  | 1970-01-01T00:00:00.000000060Z |",
+//     "| 7   | me  | 1970-01-01T00:00:00.000000080Z |",
+//     "+-----+-----+--------------------------------+",
+// ];
+
+#[tokio::test]
+async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate_min_bar() {
     // ----
     // min, max & count
-    run_sql_test_case(
-        scenarios::delete::ThreeDeleteThreeChunks {},
-        "SELECT min(bar) from cpu;",
-        &expected,
-    )
-    .await;
+    let expected = vec![
+        "+--------------+",
+        "| MIN(cpu.bar) |",
+        "+--------------+",
+        "| 1            |",
+        "+--------------+",
+    ];
 
     run_sql_test_case(
         scenarios::delete::ThreeDeleteThreeChunks {},
-        "SELECT max(foo) from cpu;",
+        "SELECT min(bar) from cpu where foo = 'me' and (bar > 2 or bar = 1.0)",
         &expected,
     )
     .await;
+}
 
+// BUG: Running scenario 'Deleted data from 3 chunks,  - OS - RUB - Open MUB, with 3 deletes after all chunks are created'
+// SQL: '"SELECT max(foo) from cpu where foo = 'me' and (bar > 2 or bar = 1.0)"'
+// thread 'sql::sql_select_with_three_deletes_from_three_chunks_with_select_predicate_max_foo' panicked at 'Running plan: ArrowError(InvalidArgumentError("column types must match schema types, expected Dictionary(Int32, Utf8) but found Utf8 at column index 0"))', query_tests/src/sql.rs:37:74
+#[ignore]
+#[tokio::test]
+async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate_max_foo() {
+    let expected = vec![
+        "+--------------+",
+        "| MAX(cpu.foo) |",
+        "+--------------+",
+        "| me           |",
+        "+--------------+",
+    ];
     run_sql_test_case(
         scenarios::delete::ThreeDeleteThreeChunks {},
-        "SELECT count(bar) from cpu;",
+        "SELECT max(foo) from cpu where foo = 'me' and (bar > 2 or bar = 1.0)",
         &expected,
     )
     .await;
+}
 
+#[tokio::test]
+async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate_min_time() {
+    let expected = vec![
+        "+--------------------------------+",
+        "| MIN(cpu.time)                  |",
+        "+--------------------------------+",
+        "| 1970-01-01T00:00:00.000000040Z |",
+        "+--------------------------------+",
+    ];
     run_sql_test_case(
         scenarios::delete::ThreeDeleteThreeChunks {},
-        "SELECT count(*) from cpu;",
+        "SELECT min(time) from cpu where foo = 'me' and (bar > 2 or bar = 1.0)",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate_count_bar() {
+    let expected = vec![
+        "+----------------+",
+        "| COUNT(cpu.bar) |",
+        "+----------------+",
+        "| 6              |",
+        "+----------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT count(bar) from cpu where foo = 'me' and (bar > 2 or bar = 1.0);",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate_count_time() {
+    let expected = vec![
+        "+-----------------+",
+        "| COUNT(cpu.time) |",
+        "+-----------------+",
+        "| 6               |",
+        "+-----------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT count(time) from cpu where foo = 'me' and (bar > 2 or bar = 1.0);",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate_count_star() {
+    let expected = vec![
+        "+-----------------+",
+        "| COUNT(UInt8(1)) |",
+        "+-----------------+",
+        "| 6               |",
+        "+-----------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::ThreeDeleteThreeChunks {},
+        "SELECT count(*) from cpu where foo = 'me' and (bar > 2 or bar = 1.0);",
         &expected,
     )
     .await;

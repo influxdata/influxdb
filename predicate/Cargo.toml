@@ -10,6 +10,7 @@ data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
 generated_types = { path = "../generated_types" }
+hashbrown = "0.11"
 internal_types = { path = "../internal_types" }
 observability_deps = { path = "../observability_deps" }
 ordered-float = "2"
