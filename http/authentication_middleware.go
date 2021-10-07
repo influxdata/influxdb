@@ -12,6 +12,7 @@ import (
 	platcontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/jsonweb"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/session"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 )
@@ -59,7 +60,7 @@ const (
 // ProbeAuthScheme probes the http request for the requests for token or cookie session.
 func ProbeAuthScheme(r *http.Request) (string, error) {
 	_, tokenErr := GetToken(r)
-	_, sessErr := decodeCookieSession(r.Context(), r)
+	_, sessErr := session.DecodeCookieSession(r.Context(), r)
 
 	if tokenErr != nil && sessErr != nil {
 		return "", fmt.Errorf("token required")
@@ -162,7 +163,7 @@ func (h *AuthenticationHandler) extractAuthorization(ctx context.Context, r *htt
 }
 
 func (h *AuthenticationHandler) extractSession(ctx context.Context, r *http.Request) (*platform.Session, error) {
-	k, err := decodeCookieSession(ctx, r)
+	k, err := session.DecodeCookieSession(ctx, r)
 	if err != nil {
 		return nil, err
 	}
