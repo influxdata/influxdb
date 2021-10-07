@@ -3639,6 +3639,8 @@ mod tests {
             .db_name(db_name)
             .lifecycle_rules(LifecycleRules {
                 catalog_transactions_until_checkpoint: NonZeroU64::try_from(1).unwrap(),
+                // do not prune transactions files because this tests relies on them
+                catalog_transaction_prune_age: Duration::from_secs(1_000),
                 late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
                 ..Default::default()
             })
@@ -3832,8 +3834,8 @@ mod tests {
             "| d    | 40  | 0        | 1970-01-01T00:00:00.000000040Z |",
             "+------+-----+----------+--------------------------------+",
         ];
-        // let batches = run_query(Arc::clone(&db), "select * from cpu order by time").await;
-        // assert_batches_sorted_eq!(&expected, &batches);
+        let batches = run_query(Arc::clone(&db), "select * from cpu order by time").await;
+        assert_batches_sorted_eq!(&expected, &batches);
     }
 
     #[tokio::test]
