@@ -1238,11 +1238,7 @@ fn cast_aggregates(
         return Ok(plan_builder);
     }
 
-    // it would be nice to have a way to get the current DF schema
-    // of the plan builder:
-    // https://github.com/apache/arrow-datafusion/issues/1074
-    let temp_plan = plan_builder.build().unwrap();
-    let schema = temp_plan.schema();
+    let schema = plan_builder.schema();
 
     // in read_group and read_window_aggregate, aggregates are only
     // applied to fields, so all fields are also aggregates.
