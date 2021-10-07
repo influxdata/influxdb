@@ -58,7 +58,7 @@ func TestSessionHandler_handleSignin(t *testing.T) {
 				password: "supersecret",
 			},
 			wants: wants{
-				cookie: "session=abc123xyz; Path=/api/",
+				cookie: "influxdb-oss-session=abc123xyz; Path=/api/",
 				code:   http.StatusNoContent,
 			},
 		},
