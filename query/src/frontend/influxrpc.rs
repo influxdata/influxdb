@@ -13,6 +13,7 @@ use datafusion::{
 };
 use datafusion_util::AsExpr;
 
+use hashbrown::HashSet;
 use internal_types::{
     schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME},
     selection::Selection,
@@ -140,6 +141,18 @@ pub enum Error {
 
     #[snafu(display("Error creating aggregate expression:  {}", source))]
     CreatingAggregates { source: crate::group_by::Error },
+
+    #[snafu(display(
+        "gRPC planner got error casting aggregate {:?} for {}: {}",
+        agg,
+        field_name,
+        source
+    ))]
+    CastingAggregates {
+        agg: Aggregate,
+        field_name: String,
+        source: datafusion::error::DataFusionError,
+    },
 
     #[snafu(display("Internal error: unexpected aggregate request for None aggregate",))]
     InternalUnexpectedNoneAggregate {},
@@ -1001,12 +1014,9 @@ impl InfluxRpcPlanner {
             .aggregate(group_exprs, agg_exprs)
             .context(BuildingPlan)?;
 
-        // Add sort if necessary
-        let plan_builder = if sort_exprs.is_empty() {
-            plan_builder
-        } else {
-            plan_builder.sort(sort_exprs).context(BuildingPlan)?
-        };
+        let plan_builder = cast_aggregates(plan_builder, agg, &field_columns)?;
+
+        let plan_builder = add_sort(plan_builder, sort_exprs)?;
 
         // and finally create the plan
         let plan = plan_builder.build().context(BuildingPlan)?;
@@ -1205,6 +1215,67 @@ impl InfluxRpcPlanner {
             schema,
         }))
     }
+}
+
+/// Adds a sort to the plan_builder if there are any sort exprs
+fn add_sort(plan_builder: LogicalPlanBuilder, sort_exprs: Vec<Expr>) -> Result<LogicalPlanBuilder> {
+    if sort_exprs.is_empty() {
+        Ok(plan_builder)
+    } else {
+        plan_builder.sort(sort_exprs).context(BuildingPlan)
+    }
+}
+
+/// casts aggregates (fields named in field_columns) to the types
+/// expected by Flux. Currently this means converting count aggregates
+/// into Int64
+fn cast_aggregates(
+    plan_builder: LogicalPlanBuilder,
+    agg: Aggregate,
+    field_columns: &FieldColumns,
+) -> Result<LogicalPlanBuilder> {
+    if !matches!(agg, Aggregate::Count) {
+        return Ok(plan_builder);
+    }
+
+    // it would be nice to have a way to get the current DF schema
+    // of the plan builder:
+    // https://github.com/apache/arrow-datafusion/issues/1074
+    let temp_plan = plan_builder.build().unwrap();
+    let schema = temp_plan.schema();
+
+    // in read_group and read_window_aggregate, aggregates are only
+    // applied to fields, so all fields are also aggregates.
+    let field_names: HashSet<&str> = match field_columns {
+        FieldColumns::SharedTimestamp(field_names) => {
+            field_names.iter().map(|s| s.as_ref()).collect()
+        }
+        FieldColumns::DifferentTimestamp(fields_and_timestamps) => fields_and_timestamps
+            .iter()
+            .map(|(field, _timestamp)| field.as_ref())
+            .collect(),
+    };
+
+    // Build expressions for each select list
+    let cast_exprs = schema
+        .fields()
+        .iter()
+        .map(|df_field| {
+            let field_name = df_field.name();
+            let expr = if field_names.contains(field_name.as_str()) {
+                // CAST(field_name as Int64) as field_name
+                col(field_name)
+                    .cast_to(&DataType::Int64, schema)
+                    .context(CastingAggregates { agg, field_name })?
+                    .alias(field_name)
+            } else {
+                col(field_name)
+            };
+            Ok(expr)
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    plan_builder.project(cast_exprs).context(BuildingPlan)
 }
 
 /// Returns `Ok` if we support this predicate, `Err` otherwise.

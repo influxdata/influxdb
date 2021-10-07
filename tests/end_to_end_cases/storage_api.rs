@@ -521,6 +521,59 @@ async fn test_read_group_sum_agg() {
     );
 }
 
+// Standalone test for read_group with group keys the count aggregate
+// (returns a different type than the field types)
+#[tokio::test]
+async fn test_read_group_count_agg() {
+    let (fixture, scenario) = read_group_setup().await;
+    let mut storage_client = fixture.storage_client();
+
+    // read_group(group_keys: region, agg: Count)
+    let read_group_request = ReadGroupRequest {
+        read_source: scenario.read_source(),
+        range: Some(TimestampRange {
+            start: 0,
+            end: 2001, // include all data
+        }),
+        predicate: None,
+        group_keys: vec![String::from("cpu")],
+        group: Group::By as i32,
+        aggregate: Some(Aggregate {
+            r#type: AggregateType::Count as i32,
+        }),
+        hints: 0,
+    };
+
+    let expected_group_frames = vec![
+        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu1",
+        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=bar, type: 1",
+        "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
+        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=bar, type: 1",
+        "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
+        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu1,host=foo, type: 1",
+        "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
+        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu1,host=foo, type: 1",
+        "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
+        "GroupFrame, tag_keys: _field,_measurement,cpu,host, partition_key_vals: cpu2",
+        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=bar, type: 1",
+        "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
+        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=bar, type: 1",
+        "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
+        "SeriesFrame, tags: _field=usage_system,_measurement=cpu,cpu=cpu2,host=foo, type: 1",
+        "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
+        "SeriesFrame, tags: _field=usage_user,_measurement=cpu,cpu=cpu2,host=foo, type: 1",
+        "IntegerPointsFrame, timestamps: [2000], values: \"2\"",
+    ];
+
+    let actual_group_frames = do_read_group_request(&mut storage_client, read_group_request).await;
+
+    assert_eq!(
+        expected_group_frames, actual_group_frames,
+        "Expected:\n{:#?}\nActual:\n{:#?}",
+        expected_group_frames, actual_group_frames,
+    );
+}
+
 // Standalone test for read_group with group keys and an actual
 // "selector" function last.  assumes that
 // load_read_group_data has been previously run
@@ -826,6 +879,11 @@ fn dump_data(data: &Data) -> String {
             timestamps,
             dump_values(values)
         ),
+        Some(Data::UnsignedPoints(UnsignedPointsFrame { timestamps, values })) => format!(
+            "UnsignedPointsFrame, timestamps: {:?}, values: {}",
+            timestamps,
+            dump_values(values)
+        ),
         Some(Data::Group(GroupFrame {
             tag_keys,
             partition_key_vals,
@@ -835,7 +893,6 @@ fn dump_data(data: &Data) -> String {
             dump_u8_vec(partition_key_vals),
         ),
         None => "<NO data field>".into(),
-        _ => ":thinking_face: unknown frame type".into(),
     }
 }
 
