@@ -9,7 +9,6 @@ use std::{
 
 use chrono::{TimeZone, Utc};
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, Snafu};
 
 use influxdb_line_protocol::ParsedLine;
@@ -35,7 +34,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// DatabaseRules contains the rules for replicating data, sending data to
 /// subscribers, and querying data for a single database.
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct DatabaseRules {
     /// The name of the database
     pub name: DatabaseName<'static>,
@@ -60,7 +59,7 @@ pub struct DatabaseRules {
 }
 
 /// If the buffer is used for reading or writing.
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum WriteBufferDirection {
     /// Writes into the buffer aka "producer".
     Write,
@@ -72,7 +71,7 @@ pub enum WriteBufferDirection {
 pub const DEFAULT_N_SEQUENCERS: u32 = 1;
 
 /// Configures the use of a write buffer.
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct WriteBufferConnection {
     /// If the buffer is used for reading or writing.
     pub direction: WriteBufferDirection,
@@ -109,7 +108,7 @@ impl Default for WriteBufferConnection {
 ///
 /// What that means depends on the used write buffer, e.g. for Kafka this will create a new topic w/
 /// [`n_sequencers`](Self::n_sequencers) partitions.
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct WriteBufferCreationConfig {
     /// Number of sequencers.
     ///
@@ -132,7 +131,7 @@ impl Default for WriteBufferCreationConfig {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RoutingRules {
     // A routing config defines the target where all data plane operations for
     // a given database are delegated to.
@@ -189,7 +188,7 @@ pub const DEFAULT_PERSIST_AGE_THRESHOLD_SECONDS: u32 = 30 * 60;
 pub const DEFAULT_LATE_ARRIVE_WINDOW_SECONDS: u32 = 5 * 60;
 
 /// Configures how data automatically flows through the system
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct LifecycleRules {
     /// Once the total amount of buffered data in memory reaches this size start
     /// dropping data from memory
@@ -240,7 +239,7 @@ pub struct LifecycleRules {
     pub parquet_cache_limit: Option<NonZeroU64>,
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum MaxActiveCompactions {
     /// The maximum number of permitted concurrently executing compactions.
     /// It is not currently possible to set a limit that disables compactions
@@ -325,7 +324,7 @@ impl Default for LifecycleRules {
 ///
 /// The key is constructed in order of the template parts; thus ordering changes
 /// what partition key is generated.
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Eq, PartialEq, Clone)]
 pub struct PartitionTemplate {
     pub parts: Vec<TemplatePart>,
 }
@@ -358,7 +357,7 @@ impl Partitioner for PartitionTemplate {
 
 /// `TemplatePart` specifies what part of a row should be used to compute this
 /// part of a partition key.
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum TemplatePart {
     /// The name of a table
     Table,
@@ -378,7 +377,7 @@ pub enum TemplatePart {
 
 /// `RegexCapture` is for pulling parts of a string column into the partition
 /// key.
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct RegexCapture {
     pub column: String,
     pub regex: String,
@@ -393,7 +392,7 @@ pub struct RegexCapture {
 /// For example, a time format of "%Y-%m-%d %H:%M:%S" will produce
 /// partition key parts such as "2021-03-14 12:25:21" and
 /// "2021-04-14 12:24:21"
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct StrftimeColumn {
     pub column: String,
     pub format: String,
@@ -401,7 +400,7 @@ pub struct StrftimeColumn {
 
 /// A routing config defines the destination where to route all data plane operations
 /// for a given database.
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct RoutingConfig {
     pub sink: Sink,
 }
@@ -423,7 +422,7 @@ pub trait Sharder {
 /// based on table name and assign to 1 of 10 shards. Within each
 /// shard you would have partitions, which would likely be based off time.
 /// This makes it possible to horizontally scale out writes.
-#[derive(Debug, Eq, PartialEq, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct ShardConfig {
     /// Each matcher, if any, is evaluated in order.
     /// If there is a match, the route will be evaluated to
@@ -447,7 +446,7 @@ pub struct ShardConfig {
 }
 
 /// Configuration for a specific IOx sink
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Sink {
     Iox(NodeGroup),
     Kafka(KafkaProducer),
@@ -498,7 +497,7 @@ impl Sharder for ShardConfig {
 
 /// Maps a matcher with specific shard. If the line/row matches
 /// it should be sent to the group.
-#[derive(Debug, Eq, PartialEq, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct MatcherToShard {
     pub matcher: Matcher,
     pub shard: ShardId,
@@ -507,12 +506,12 @@ pub struct MatcherToShard {
 /// A collection of IOx nodes
 pub type NodeGroup = Vec<ServerId>;
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct KafkaProducer {}
 
 /// HashRing is a rule for creating a hash key for a row and mapping that to
 /// an individual node on a ring.
-#[derive(Debug, Eq, PartialEq, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct HashRing {
     /// If true the table name will be included in the hash key
     pub table_name: bool,
@@ -524,10 +523,9 @@ pub struct HashRing {
 
 /// A matcher is used to match routing rules or subscriptions on a row-by-row
 /// (or line) basis.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct Matcher {
     /// if provided, match if the table name matches against the regex
-    #[serde(with = "serde_regex")]
     pub table_name_regex: Option<Regex>,
     // paul: what should we use for predicate matching here against a single row/line?
     pub predicate: Option<String>,
@@ -570,7 +568,6 @@ pub type PartitionId = String;
 #[cfg(test)]
 mod tests {
     use influxdb_line_protocol::parse_lines;
-    use serde::{Deserialize, Serialize};
 
     use super::*;
 
@@ -839,13 +836,6 @@ mod tests {
 
     fn parse_line(line: &str) -> ParsedLine<'_> {
         parsed_lines(line).pop().unwrap()
-    }
-
-    #[test]
-    fn test_assert_serde() {
-        fn ensure<'de, T: Serialize + Deserialize<'de>>(_t: T) {}
-
-        ensure(DatabaseRules::new(DatabaseName::new("bananas").unwrap()));
     }
 
     #[test]

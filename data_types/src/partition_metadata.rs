@@ -2,7 +2,6 @@
 //! including schema, summary statistics, and file locations in storage.
 
 use observability_deps::tracing::warn;
-use serde::{Deserialize, Serialize};
 use std::{
     borrow::{Borrow, Cow},
     iter::FromIterator,
@@ -12,7 +11,7 @@ use std::{
 };
 
 /// Address of the chunk within the catalog
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PartitionAddr {
     /// Database name
     pub db_name: Arc<str>,
@@ -36,7 +35,7 @@ impl std::fmt::Display for PartitionAddr {
 
 /// Describes the aggregated (across all chunks) summary
 /// statistics for each column in a partition
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct PartitionSummary {
     /// The identifier for the partition, the partition key computed from
     /// PartitionRules
@@ -61,7 +60,7 @@ impl PartitionSummary {
 }
 
 /// Metadata and statistics for a Chunk *within* a partition
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct PartitionChunkSummary {
     pub chunk_id: u32,
     pub table: TableSummary,
@@ -82,7 +81,7 @@ impl FromIterator<Self> for TableSummary {
 /// Metadata and statistics information for a table. This can be
 /// either for the portion of a Table stored within a single chunk or
 /// aggregated across chunks.
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct TableSummary {
     /// Table name
     pub name: String,
@@ -164,7 +163,7 @@ impl TableSummary {
 }
 
 // Replicate this enum here as it can't be derived from the existing statistics
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum InfluxDbType {
     IOx,
     Tag,
@@ -184,7 +183,7 @@ impl InfluxDbType {
 }
 
 /// Column name, statistics which encode type information
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ColumnSummary {
     /// Column name
     pub name: String,
@@ -263,7 +262,7 @@ impl ColumnSummary {
 }
 
 /// Column name, statistics which encode type information
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Column {
     pub name: String,
     pub stats: Statistics,
@@ -282,7 +281,7 @@ impl Column {
 }
 
 /// Statistics and type information for a column.
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Statistics {
     I64(StatValues<i64>),
     U64(StatValues<u64>),
@@ -390,7 +389,7 @@ impl Statistics {
 }
 
 /// Summary statistics for a column.
-#[derive(Debug, Deserialize, Serialize, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct StatValues<T> {
     /// minimum (non-NaN, non-NULL) value, if any
     pub min: Option<T>,

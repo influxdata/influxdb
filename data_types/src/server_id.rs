@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     convert::TryFrom,
@@ -7,7 +6,7 @@ use std::{
     str::FromStr,
 };
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct ServerId(NonZeroU32);
 
 impl ServerId {

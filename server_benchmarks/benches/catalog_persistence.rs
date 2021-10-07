@@ -33,7 +33,7 @@ const N_FIELDS: usize = 10;
 /// Run all benchmarks that test catalog persistence.
 fn benchmark_catalog_persistence(c: &mut Criterion) {
     let object_store = create_throttled_store();
-    let setup_done = Mutex::new(false);
+    let setup_done = Mutex::new(None);
 
     // benchmark reading the catalog
     let mut group = c.benchmark_group("catalog");
@@ -47,19 +47,23 @@ fn benchmark_catalog_persistence(c: &mut Criterion) {
             || {
                 // Threaded runtime is already running.
                 block_in_place(|| {
-                    Handle::current().block_on(setup(Arc::clone(&object_store), &setup_done));
-                });
+                    Handle::current().block_on(setup(Arc::clone(&object_store), &setup_done))
+                })
             },
-            |_| async {
-                let db = create_persisted_db(Arc::clone(&object_store)).await.db;
+            |chunk_ids| {
+                let object_store = Arc::clone(&object_store);
 
-                // test that data is actually loaded
-                let partition_key = "1970-01-01T00";
-                let table_name = "cpu";
-                let chunk_id = ChunkId::new(1);
-                assert!(db
-                    .table_summary(table_name, partition_key, chunk_id)
-                    .is_some());
+                async move {
+                    let db = create_persisted_db(Arc::clone(&object_store)).await.db;
+
+                    // test that data is actually loaded
+                    let partition_key = "1970-01-01T00";
+                    let table_name = "cpu";
+                    let chunk_id = chunk_ids[0];
+                    assert!(db
+                        .table_summary(table_name, partition_key, chunk_id)
+                        .is_some());
+                }
             },
             BatchSize::SmallInput,
         );
@@ -69,15 +73,19 @@ fn benchmark_catalog_persistence(c: &mut Criterion) {
 }
 
 /// Persist a database to the given object store with [`N_CHUNKS`] chunks.
-async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
+async fn setup(
+    object_store: Arc<ObjectStore>,
+    done: &Mutex<Option<Arc<Vec<ChunkId>>>>,
+) -> Arc<Vec<ChunkId>> {
     let mut guard = done.lock().await;
-    if *guard {
-        return;
+    if let Some(chunk_ids) = guard.as_ref() {
+        return Arc::clone(chunk_ids);
     }
 
     let db = create_persisted_db(object_store).await.db;
     let lp = create_lp(N_TAGS, N_FIELDS);
     let partition_key = "1970-01-01T00";
+    let mut chunk_ids = vec![];
 
     for _ in 0..N_CHUNKS {
         let table_names = write_lp(&db, &lp).await;
@@ -95,10 +103,14 @@ async fn setup(object_store: Arc<ObjectStore>, done: &Mutex<bool>) {
 
             db.unload_read_buffer(table_name, partition_key, chunk.id())
                 .unwrap();
+            chunk_ids.push(chunk.id());
         }
     }
 
-    *guard = true;
+    let chunk_ids = Arc::new(chunk_ids);
+    *guard = Some(Arc::clone(&chunk_ids));
+
+    chunk_ids
 }
 
 /// Create a persisted database and load its catalog.

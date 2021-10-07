@@ -14,7 +14,6 @@ pub struct ParquetFilePath {
     table_name: Arc<str>,
     partition_key: Arc<str>,
     chunk_id: ChunkId,
-    uuid: Uuid,
 }
 
 impl ParquetFilePath {
@@ -25,18 +24,6 @@ impl ParquetFilePath {
             table_name: Arc::clone(&chunk_addr.table_name),
             partition_key: Arc::clone(&chunk_addr.partition_key),
             chunk_id: chunk_addr.chunk_id,
-            // generate random UUID so that files are unique and never overwritten
-            uuid: Uuid::new_v4(),
-        }
-    }
-
-    /// Create a location for testing purposes w/ a fixed UUID.
-    pub fn new_for_testing(chunk_addr: &ChunkAddr, uuid: Uuid) -> Self {
-        Self {
-            table_name: Arc::clone(&chunk_addr.table_name),
-            partition_key: Arc::clone(&chunk_addr.partition_key),
-            chunk_id: chunk_addr.chunk_id,
-            uuid,
         }
     }
 
@@ -45,7 +32,7 @@ impl ParquetFilePath {
     pub fn relative_dirs_and_file_name(&self) -> DirsAndFileName {
         let mut result = DirsAndFileName::default();
         result.push_all_dirs(&[self.table_name.as_ref(), self.partition_key.as_ref()]);
-        result.set_file_name(format!("{}.{}.parquet", self.chunk_id.get(), self.uuid));
+        result.set_file_name(format!("{}.parquet", self.chunk_id.get()));
         result
     }
 
@@ -73,18 +60,12 @@ impl ParquetFilePath {
             .context(MissingChunkId)?
             .to_string();
         let mut parts = file_name.split('.');
-        let chunk_id = ChunkId::new(
-            parts
-                .next()
-                .context(MissingChunkId)?
-                .parse::<u32>()
-                .context(InvalidChunkId)?,
-        );
-        let uuid = parts
+        let chunk_id = parts
             .next()
-            .context(MissingUuid)?
-            .parse()
-            .context(InvalidUuid)?;
+            .context(MissingChunkId)?
+            .parse::<Uuid>()
+            .context(InvalidChunkId)?
+            .into();
         let ext = parts.next().context(MissingExtension)?;
         ensure!(ext == "parquet", InvalidExtension { ext });
         ensure!(parts.next().is_none(), UnexpectedExtension);
@@ -93,7 +74,6 @@ impl ParquetFilePath {
             table_name,
             partition_key,
             chunk_id,
-            uuid,
         })
     }
 
@@ -143,13 +123,7 @@ pub enum ParquetFilePathParseError {
     MissingChunkId,
 
     #[snafu(display("Could not parse chunk id: {}", source))]
-    InvalidChunkId { source: std::num::ParseIntError },
-
-    #[snafu(display("Could not find required UUID"))]
-    MissingUuid,
-
-    #[snafu(display("Could not parse UUID: {}", source))]
-    InvalidUuid { source: uuid::Error },
+    InvalidChunkId { source: uuid::Error },
 
     #[snafu(display("Could not find required file extension"))]
     MissingExtension,
@@ -178,20 +152,6 @@ mod tests {
     /// `DirsAndFileName` and thus using object_store::path::DELIMITER as the separator
     fn make_object_store() -> Arc<ObjectStore> {
         Arc::new(ObjectStore::new_in_memory())
-    }
-
-    #[test]
-    fn test_parquet_file_paths_are_unique() {
-        let chunk_addr = ChunkAddr {
-            db_name: "clouds".into(),
-            table_name: "my_table".into(),
-            partition_key: "my_partition".into(),
-            chunk_id: ChunkId::new(13),
-        };
-
-        let p1 = ParquetFilePath::new(&chunk_addr);
-        let p2 = ParquetFilePath::new(&chunk_addr);
-        assert_ne!(p1, p2);
     }
 
     #[test]
@@ -236,28 +196,11 @@ mod tests {
             result
         );
 
-        df.set_file_name("3");
-        let result = ParquetFilePath::from_relative_dirs_and_file_name(&df);
-        assert!(
-            matches!(result, Err(MissingUuid { .. })),
-            "got {:?}",
-            result
-        );
-
-        df.set_file_name("3.nope");
-        let result = ParquetFilePath::from_relative_dirs_and_file_name(&df);
-        assert!(
-            matches!(result, Err(InvalidUuid { .. })),
-            "got {:?}",
-            result
-        );
-
-        let uuid = Uuid::new_v4();
-        df.set_file_name(&format!("3.{}", uuid));
+        df.set_file_name("00000000-0000-0000-0000-00000000000a");
         let result = ParquetFilePath::from_relative_dirs_and_file_name(&df);
         assert!(matches!(result, Err(MissingExtension)), "got {:?}", result);
 
-        df.set_file_name(&format!("3.{}.exe", uuid));
+        df.set_file_name("00000000-0000-0000-0000-00000000000a.exe");
         let result = ParquetFilePath::from_relative_dirs_and_file_name(&df);
         assert!(
             matches!(result, Err(InvalidExtension { .. })),
@@ -265,7 +208,7 @@ mod tests {
             result
         );
 
-        df.set_file_name(&format!("3.{}.parquet.v6", uuid));
+        df.set_file_name("00000000-0000-0000-0000-00000000000a.parquet.v6");
         let result = ParquetFilePath::from_relative_dirs_and_file_name(&df);
         assert!(
             matches!(result, Err(UnexpectedExtension)),
@@ -274,15 +217,14 @@ mod tests {
         );
 
         // Success case
-        df.set_file_name(&format!("3.{}.parquet", uuid));
+        df.set_file_name("00000000-0000-0000-0000-00000000000a.parquet");
         let result = ParquetFilePath::from_relative_dirs_and_file_name(&df).unwrap();
         assert_eq!(
             result,
             ParquetFilePath {
                 table_name: "foo".into(),
                 partition_key: "bar".into(),
-                chunk_id: ChunkId::new(3),
-                uuid
+                chunk_id: ChunkId::new_test(10),
             }
         );
         let round_trip = result.relative_dirs_and_file_name();
@@ -294,18 +236,16 @@ mod tests {
         let object_store = make_object_store();
 
         // Success case
-        let uuid = Uuid::new_v4();
         let mut path = object_store.new_path();
         path.push_all_dirs(&["server", "database", "generation", "data", "}*", "aoeu"]);
-        path.set_file_name(&format!("10.{}.parquet", uuid));
+        path.set_file_name("00000000-0000-0000-0000-00000000000a.parquet");
         let result = ParquetFilePath::from_absolute(path);
         assert_eq!(
             result.unwrap(),
             ParquetFilePath {
                 table_name: "}*".into(),
                 partition_key: "aoeu".into(),
-                chunk_id: ChunkId::new(10),
-                uuid
+                chunk_id: ChunkId::new_test(10),
             }
         );
 
@@ -334,17 +274,15 @@ mod tests {
 
     #[test]
     fn parquet_file_relative_dirs_and_file_path() {
-        let uuid = Uuid::new_v4();
         let pfp = ParquetFilePath {
             table_name: "}*".into(),
             partition_key: "aoeu".into(),
-            chunk_id: ChunkId::new(10),
-            uuid,
+            chunk_id: ChunkId::new_test(10),
         };
         let dirs_and_file_name = pfp.relative_dirs_and_file_name();
         assert_eq!(
             dirs_and_file_name.to_string(),
-            format!("%7D%2A/aoeu/10.{}.parquet", uuid)
+            "%7D%2A/aoeu/00000000-0000-0000-0000-00000000000a.parquet".to_string(),
         );
         let round_trip =
             ParquetFilePath::from_relative_dirs_and_file_name(&dirs_and_file_name).unwrap();
@@ -366,12 +304,10 @@ mod tests {
             root_path,
         );
 
-        let uuid = Uuid::new_v4();
         let pfp = ParquetFilePath {
             table_name: "}*".into(),
             partition_key: "aoeu".into(),
-            chunk_id: ChunkId::new(10),
-            uuid,
+            chunk_id: ChunkId::new_test(10),
         };
 
         let path = iox_object_store.data_path.join(&pfp);
@@ -385,7 +321,7 @@ mod tests {
             "}*",
             "aoeu",
         ]);
-        expected_path.set_file_name(&format!("10.{}.parquet", uuid));
+        expected_path.set_file_name("00000000-0000-0000-0000-00000000000a.parquet");
 
         assert_eq!(path, expected_path);
     }

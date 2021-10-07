@@ -328,8 +328,13 @@ message ClosePartitionChunkRequest {
   // the table name
   string table_name = 4;
 
+  // Was uint32-based chunk ID.
+  reserved 3;
+
   // the chunk id
-  uint32 chunk_id = 3;
+  //
+  // UUID is stored as 16 bytes in big-endian order.
+  bytes chunk_id = 5;
 }
 
 message ClosePartitionChunkResponse {
@@ -348,8 +353,13 @@ message UnloadPartitionChunkRequest {
   // the table name
   string table_name = 4;
 
+  // Was uint32-based chunk ID.
+  reserved 3;
+
   // the chunk id
-  uint32 chunk_id = 3;
+  //
+  // UUID is stored as 16 bytes in big-endian order.
+  bytes chunk_id = 5;
 }
 
 message UnloadPartitionChunkResponse {

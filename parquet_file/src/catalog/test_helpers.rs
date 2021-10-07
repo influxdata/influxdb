@@ -275,14 +275,14 @@ where
                     },
                 )
                 .unwrap();
-            expected_files.insert(ChunkId::new(chunk_id), (path, Arc::new(metadata)));
+            expected_files.insert(ChunkId::new_test(chunk_id), (path, Arc::new(metadata)));
         }
     }
     assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // remove files
     {
-        let (path, _) = expected_files.remove(&ChunkId::new(1)).unwrap();
+        let (path, _) = expected_files.remove(&ChunkId::new_test(1)).unwrap();
         state.remove(&path).unwrap();
     }
     assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
@@ -307,7 +307,7 @@ where
 
     // remove and add in the same transaction
     {
-        let (path, metadata) = expected_files.get(&ChunkId::new(3)).unwrap();
+        let (path, metadata) = expected_files.get(&ChunkId::new_test(3)).unwrap();
         state.remove(path).unwrap();
         state
             .add(
@@ -347,13 +347,13 @@ where
                 },
             )
             .unwrap();
-        expected_files.insert(ChunkId::new(6), (path, Arc::new(metadata)));
+        expected_files.insert(ChunkId::new_test(6), (path, Arc::new(metadata)));
     }
     assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // remove, add, remove in same transaction
     {
-        let (path, metadata) = expected_files.remove(&ChunkId::new(4)).unwrap();
+        let (path, metadata) = expected_files.remove(&ChunkId::new_test(4)).unwrap();
         state.remove(&path).unwrap();
         state
             .add(
@@ -380,7 +380,7 @@ where
             .add(
                 Arc::clone(&iox_object_store),
                 CatalogParquetInfo {
-                    path: path.clone(),
+                    path,
                     file_size_bytes: 33,
                     metadata: Arc::new(metadata),
                 },
@@ -390,20 +390,13 @@ where
             err,
             CatalogStateAddError::ParquetFileAlreadyExists { .. }
         ));
-
-        // does not exist as has a different UUID
-        let err = state.remove(&path).unwrap_err();
-        assert!(matches!(
-            err,
-            CatalogStateRemoveError::ParquetFileDoesNotExist { .. }
-        ));
     }
     assert_checkpoint(&state, &f, &expected_files, &expected_predicates);
 
     // error handling, still something works
     {
         // already exists (should also not change the metadata)
-        let (_, metadata) = expected_files.get(&ChunkId::new(0)).unwrap();
+        let (_, metadata) = expected_files.get(&ChunkId::new_test(0)).unwrap();
         let err = state
             .add(
                 Arc::clone(&iox_object_store),
@@ -434,7 +427,7 @@ where
                 },
             )
             .unwrap();
-        expected_files.insert(ChunkId::new(7), (path.clone(), Arc::clone(&metadata)));
+        expected_files.insert(ChunkId::new_test(7), (path.clone(), Arc::clone(&metadata)));
 
         // recently added
         let err = state
@@ -452,16 +445,8 @@ where
             CatalogStateAddError::ParquetFileAlreadyExists { .. }
         ));
 
-        // does not exist - as different UUID
-        let path = ParquetFilePath::new(&chunk_addr(7));
-        let err = state.remove(&path).unwrap_err();
-        assert!(matches!(
-            err,
-            CatalogStateRemoveError::ParquetFileDoesNotExist { .. }
-        ));
-
         // this still works
-        let (path, _) = expected_files.remove(&ChunkId::new(7)).unwrap();
+        let (path, _) = expected_files.remove(&ChunkId::new_test(7)).unwrap();
         state.remove(&path).unwrap();
 
         // recently removed
@@ -553,14 +538,14 @@ where
 
     // removing a chunk will also remove its predicates
     {
-        let (path, _) = expected_files.remove(&ChunkId::new(8)).unwrap();
+        let (path, _) = expected_files.remove(&ChunkId::new_test(8)).unwrap();
         state.remove(&path).unwrap();
         expected_predicates = expected_predicates
             .into_iter()
             .filter_map(|(predicate, chunks)| {
                 let chunks: HashSet<_> = chunks
                     .into_iter()
-                    .filter(|addr| addr.chunk_id != ChunkId::new(8))
+                    .filter(|addr| addr.chunk_id != ChunkId::new_test(8))
                     .collect();
                 (!chunks.is_empty()).then(|| (predicate, chunks))
             })
@@ -575,7 +560,7 @@ where
         let chunks = vec![ChunkAddrWithoutDatabase {
             table_name: Arc::from("some_table"),
             partition_key: Arc::from("part"),
-            chunk_id: ChunkId::new(1000),
+            chunk_id: ChunkId::new_test(1000),
         }];
         state.delete_predicate(Arc::clone(&predicate), chunks);
     }

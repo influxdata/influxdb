@@ -805,16 +805,16 @@ dependencies = [
 name = "data_types"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "chrono",
  "influxdb_line_protocol",
  "num_cpus",
  "observability_deps",
  "percent-encoding",
  "regex",
- "serde",
- "serde_regex",
  "snafu",
  "test_helpers",
+ "uuid",
 ]
 
 [[package]]
@@ -1721,6 +1721,7 @@ dependencies = [
  "arrow",
  "arrow-flight",
  "arrow_util",
+ "bytes",
  "client_util",
  "futures-util",
  "generated_types",
@@ -3791,16 +3792,6 @@ version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0421d4f173fab82d72d6babf36d57fae38b994ca5c2d78e704260ba6d12118b"
 dependencies = [
- "serde",
-]
-
-[[package]]
-name = "serde_regex"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8136f1a4ea815d7eac4101cfd0b16dc0cb5e1fe1b8609dfd728058656b7badf"
-dependencies = [
- "regex",
  "serde",
 ]
 

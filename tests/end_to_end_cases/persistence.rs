@@ -269,7 +269,7 @@ async fn create_readbuffer_chunk(fixture: &ServerFixture, db_name: &str) -> Chun
 
     // Move the chunk to read buffer
     let iox_operation = management_client
-        .close_partition_chunk(db_name, table_name, partition_key, 0)
+        .close_partition_chunk(db_name, table_name, partition_key, chunk_id.into())
         .await
         .expect("new partition chunk");
 

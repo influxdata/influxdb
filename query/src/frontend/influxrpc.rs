@@ -209,9 +209,9 @@ impl InfluxRpcPlanner {
                     // TODO: General purpose plans for
                     // table_names. For now, return an error
                     debug!(
-                        chunk = chunk.id().get(),
+                        chunk=%chunk.id().get(),
                         ?predicate,
-                        table_name = chunk.table_name(),
+                        table_name=%chunk.table_name(),
                         "can not evaluate predicate"
                     );
                     return UnsupportedPredicateForTableNames { predicate }.fail();
@@ -281,7 +281,7 @@ impl InfluxRpcPlanner {
                     debug!(
                         table_name,
                         names=?names,
-                        chunk_id=chunk.id().get(),
+                        chunk_id=%chunk.id().get(),
                         "column names found from metadata",
                     );
                     known_columns.append(&mut names);
@@ -289,7 +289,7 @@ impl InfluxRpcPlanner {
                 None => {
                     debug!(
                         table_name,
-                        chunk_id = chunk.id().get(),
+                        chunk_id=%chunk.id().get(),
                         "column names need full plan"
                     );
                     // can't get columns only from metadata, need
@@ -414,7 +414,7 @@ impl InfluxRpcPlanner {
                     debug!(
                         table_name,
                         names=?names,
-                        chunk_id=chunk.id().get(),
+                        chunk_id=%chunk.id().get(),
                         "column values found from metadata",
                     );
                     known_values.append(&mut names);
@@ -422,7 +422,7 @@ impl InfluxRpcPlanner {
                 None => {
                     debug!(
                         table_name,
-                        chunk_id = chunk.id().get(),
+                        chunk_id=%chunk.id().get(),
                         "need full plan to find column values"
                     );
                     // can't get columns only from metadata, need

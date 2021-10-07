@@ -1,11 +1,15 @@
 //! Module contains a representation of chunk metadata
-use crate::partition_metadata::PartitionAddr;
+use std::{convert::TryFrom, num::NonZeroU32, sync::Arc};
+
+use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use std::{num::NonZeroU32, sync::Arc};
+use snafu::{ResultExt, Snafu};
+use uuid::Uuid;
+
+use crate::partition_metadata::PartitionAddr;
 
 /// Address of the chunk within the catalog
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct ChunkAddr {
     /// Database name
     pub db_name: Arc<str>,
@@ -53,7 +57,7 @@ impl std::fmt::Display for ChunkAddr {
 }
 
 /// Which storage system is a chunk located in?
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum ChunkStorage {
     /// The chunk is still open for new writes, in the Mutable Buffer
     OpenMutableBuffer,
@@ -85,7 +89,7 @@ impl ChunkStorage {
 }
 
 /// Any lifecycle action currently in progress for this chunk
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ChunkLifecycleAction {
     /// Chunk is in the process of being written to object storage
     Persisting,
@@ -115,7 +119,7 @@ impl ChunkLifecycleAction {
 
 /// Represents metadata about the physical storage of a chunk in a
 /// database.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct ChunkSummary {
     /// The partition key of this chunk
     pub partition_key: Arc<str>,
@@ -183,10 +187,9 @@ pub struct DetailedChunkSummary {
 }
 
 impl ChunkSummary {
-    pub fn equal_without_timestamps(&self, other: &Self) -> bool {
+    pub fn equal_without_timestamps_and_ids(&self, other: &Self) -> bool {
         self.partition_key == other.partition_key
             && self.table_name == other.table_name
-            && self.id == other.id
             && self.storage == other.storage
             && self.lifecycle_action == other.lifecycle_action
             && self.memory_bytes == other.memory_bytes
@@ -198,26 +201,27 @@ impl ChunkSummary {
 /// ID of a chunk.
 ///
 /// This ID is unique within a single partition.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct ChunkId(u32);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ChunkId(Uuid);
 
 impl ChunkId {
-    pub const MAX: Self = Self(u32::MAX);
-
-    pub fn new(id: u32) -> Self {
-        Self(id)
+    /// Create new, random ID.
+    #[allow(clippy::new_without_default)] // `new` creates non-deterministic result
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
     }
 
-    pub fn get(&self) -> u32 {
-        self.0
-    }
-
-    /// Get next chunk ID.
+    /// **TESTING ONLY:** Create new ID from integer.
     ///
-    /// # Panic
-    /// Panics if `self` is already [max](Self::MAX).
-    pub fn next(&self) -> Self {
-        Self(self.0.checked_add(1).expect("chunk ID overflow"))
+    /// Since this can easily lead to ID collissions (which in turn can lead to panics), this must only be used for
+    /// testing purposes!
+    pub fn new_test(id: u128) -> Self {
+        Self(Uuid::from_u128(id))
+    }
+
+    /// Get inner UUID.
+    pub fn get(&self) -> Uuid {
+        self.0
     }
 }
 
@@ -227,12 +231,38 @@ impl std::fmt::Display for ChunkId {
     }
 }
 
+impl From<ChunkId> for Bytes {
+    fn from(id: ChunkId) -> Self {
+        id.get().as_bytes().to_vec().into()
+    }
+}
+
+#[derive(Debug, Snafu)]
+pub enum BytesToChunkIdError {
+    #[snafu(display("Cannot convert bytes to chunk ID: {}", source))]
+    CannotConvertBytes { source: uuid::Error },
+}
+
+impl TryFrom<Bytes> for ChunkId {
+    type Error = BytesToChunkIdError;
+
+    fn try_from(value: Bytes) -> Result<Self, Self::Error> {
+        Ok(Self(Uuid::from_slice(&value).context(CannotConvertBytes)?))
+    }
+}
+
+impl From<Uuid> for ChunkId {
+    fn from(uuid: Uuid) -> Self {
+        Self(uuid)
+    }
+}
+
 /// Order of a chunk.
 ///
 /// This is used for:
 /// 1. **upsert order:** chunks with higher order overwrite data in chunks with lower order
 /// 2. **locking order:** chunks must be locked in consistent (ascending) order
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChunkOrder(NonZeroU32);
 
 impl ChunkOrder {

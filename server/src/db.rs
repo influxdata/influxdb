@@ -307,6 +307,9 @@ pub struct Db {
 
     /// To-be-written delete predicates.
     delete_predicates_mailbox: Mutex<Vec<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)>>,
+
+    /// TESTING ONLY: Override of IDs for persisted chunks.
+    persisted_chunk_id_override: Mutex<Option<ChunkId>>,
 }
 
 /// All the information needed to commit a database
@@ -361,6 +364,7 @@ impl Db {
             lifecycle_policy: tokio::sync::Mutex::new(None),
             now_override: Default::default(),
             delete_predicates_mailbox: Default::default(),
+            persisted_chunk_id_override: Default::default(),
         };
         let this = Arc::new(this);
         *this.lifecycle_policy.try_lock().expect("not used yet") = Some(
@@ -1794,6 +1798,7 @@ mod tests {
 
         let t6_write = t5_write + chrono::Duration::seconds(1);
         *db.now_override.lock() = Some(t6_write);
+        *db.persisted_chunk_id_override.lock() = Some(ChunkId::new_test(1337));
         let chunk_id = db
             .persist_partition("cpu", "1970-01-01T00", true)
             .await
@@ -1802,7 +1807,7 @@ mod tests {
             .id();
 
         // A chunk is now in the object store and still in read buffer
-        let expected_parquet_size = 1245;
+        let expected_parquet_size = 1234;
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
         // now also in OS
         catalog_chunk_size_bytes_metric_eq(registry, "object_store", expected_parquet_size);
@@ -1883,7 +1888,6 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(mb_chunk.id(), ChunkId::new(0));
 
         let expected = vec![
             "+-----+--------------------------------+",
@@ -1914,7 +1918,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(chunk.id(), ChunkId::new(1));
+        assert_ne!(chunk.id(), mb_chunk.id());
 
         let batches = run_query(db, "select * from cpu").await;
         assert_batches_sorted_eq!(&expected, &batches);
@@ -1936,12 +1940,10 @@ mod tests {
         write_lp(db.as_ref(), &lines.join("\n")).await;
         assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
 
-        let mb_chunk = db
-            .rollover_partition("cpu", "1970-01-01T00")
+        db.rollover_partition("cpu", "1970-01-01T00")
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(mb_chunk.id(), ChunkId::new(0));
 
         let expected = vec![
             "+------+--------+--------------------------------+------+",
@@ -2226,6 +2228,7 @@ mod tests {
         // Write the RB chunk to Object Store but keep it in RB
         let t3_persist = t2_write + chrono::Duration::seconds(1);
         *db.now_override.lock() = Some(t3_persist);
+        *db.persisted_chunk_id_override.lock() = Some(ChunkId::new_test(1337));
         let pq_chunk = db
             .persist_partition("cpu", partition_key, true)
             .await
@@ -2237,7 +2240,7 @@ mod tests {
         // Read buffer + Parquet chunk size
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1243);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1233);
 
         // All the chunks should have different IDs
         assert_ne!(mb_chunk.id(), rb_chunk.id());
@@ -2324,6 +2327,7 @@ mod tests {
         // Write the RB chunk to Object Store but keep it in RB
         let t3_persist = t2_write + chrono::Duration::seconds(1);
         *db.now_override.lock() = Some(t3_persist);
+        *db.persisted_chunk_id_override.lock() = Some(ChunkId::new_test(1337));
         let pq_chunk = db
             .persist_partition("cpu", partition_key, true)
             .await
@@ -2346,9 +2350,10 @@ mod tests {
         let registry = test_db.metric_registry.as_ref();
 
         // Read buffer + Parquet chunk size
+        let object_store_bytes = 1233;
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 1700);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1243);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", object_store_bytes);
 
         // Unload RB chunk but keep it in OS
         let pq_chunk = db
@@ -2369,7 +2374,7 @@ mod tests {
         // Parquet chunk size only
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 0);
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", 0);
-        catalog_chunk_size_bytes_metric_eq(registry, "object_store", 1243);
+        catalog_chunk_size_bytes_metric_eq(registry, "object_store", object_store_bytes);
 
         // Verify data written to the parquet file in object store
         //
@@ -2562,19 +2567,17 @@ mod tests {
         write_lp(&db, "cpu bar=1 10").await;
         write_lp(&db, "cpu bar=1 20").await;
 
-        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![ChunkId::new(0)]);
+        assert_eq!(mutable_chunk_ids(&db, partition_key).len(), 1);
         assert_eq!(
             read_buffer_chunk_ids(&db, partition_key),
             vec![] as Vec<ChunkId>
         );
 
         let partition_key = "1970-01-01T00";
-        let mb_chunk = db
-            .rollover_partition("cpu", "1970-01-01T00")
+        db.rollover_partition("cpu", "1970-01-01T00")
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(mb_chunk.id(), ChunkId::new(0));
 
         // add a new chunk in mutable buffer, and move chunk1 (but
         // not chunk 0) to read buffer
@@ -2605,7 +2608,7 @@ mod tests {
         let expected = vec![ChunkSummary {
             partition_key: Arc::from("1970-01-05T15"),
             table_name: Arc::from("cpu"),
-            id: ChunkId::new(0),
+            id: ChunkId::new_test(0),
             storage: ChunkStorage::OpenMutableBuffer,
             lifecycle_action: None,
             memory_bytes: 1006,    // memory_size
@@ -2629,7 +2632,7 @@ mod tests {
 
         for (expected_summary, actual_summary) in expected.iter().zip(chunk_summaries.iter()) {
             assert!(
-                expected_summary.equal_without_timestamps(actual_summary),
+                expected_summary.equal_without_timestamps_and_ids(actual_summary),
                 "expected:\n{:#?}\n\nactual:{:#?}\n\n",
                 expected_summary,
                 actual_summary
@@ -2656,7 +2659,6 @@ mod tests {
         chunk_summaries.sort_by_key(|s| s.id);
 
         let summary = &chunk_summaries[0];
-        assert_eq!(summary.id, ChunkId::new(0), "summary; {:#?}", summary);
         assert_eq!(summary.time_of_first_write, t_first_write);
         assert_eq!(summary.time_of_last_write, t_second_write);
         assert!(t_close_before <= summary.time_closed.unwrap());
@@ -2774,6 +2776,7 @@ mod tests {
         // Persist rb to parquet os
         let t4_persist = t3_write + chrono::Duration::seconds(1);
         *db.now_override.lock() = Some(t4_persist);
+        *db.persisted_chunk_id_override.lock() = Some(ChunkId::new_test(1337));
         db.persist_partition("cpu", "1970-01-01T00", true)
             .await
             .unwrap()
@@ -2846,8 +2849,8 @@ mod tests {
                 id: chunk_summaries[0].id,
                 storage: ChunkStorage::ReadBufferAndObjectStore,
                 lifecycle_action,
-                memory_bytes: 4085,       // size of RB and OS chunks
-                object_store_bytes: 1537, // size of parquet file
+                memory_bytes: 4079,       // size of RB and OS chunks
+                object_store_bytes: 1557, // size of parquet file
                 row_count: 2,
                 time_of_last_access: None,
                 time_of_first_write: Utc.timestamp_nanos(1),
@@ -2888,7 +2891,7 @@ mod tests {
 
         for (expected_summary, actual_summary) in expected.iter().zip(chunk_summaries.iter()) {
             assert!(
-                expected_summary.equal_without_timestamps(actual_summary),
+                expected_summary.equal_without_timestamps_and_ids(actual_summary),
                 "\n\nexpected item:\n{:#?}\n\nactual item:\n{:#?}\n\n\
                      all expected:\n{:#?}\n\nall actual:\n{:#?}",
                 expected_summary,
@@ -2900,7 +2903,7 @@ mod tests {
 
         assert_eq!(db.catalog.metrics().memory().mutable_buffer(), 2486 + 1303);
         assert_eq!(db.catalog.metrics().memory().read_buffer(), 2550);
-        assert_eq!(db.catalog.metrics().memory().object_store(), 1535);
+        assert_eq!(db.catalog.metrics().memory().object_store(), 1529);
     }
 
     #[tokio::test]
@@ -3434,7 +3437,7 @@ mod tests {
         let path_delete = ParquetFilePath::new(&ChunkAddr {
             table_name: "cpu".into(),
             partition_key: "123".into(),
-            chunk_id: ChunkId::new(3),
+            chunk_id: ChunkId::new_test(3),
             db_name: "not used".into(),
         });
         create_empty_file(&db.iox_object_store, &path_delete).await;

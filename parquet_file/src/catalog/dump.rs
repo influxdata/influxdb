@@ -272,7 +272,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 17,
+            version: 18,
             actions: [],
             revision_counter: 0,
             uuid: b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
@@ -297,7 +297,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 17,
+            version: 18,
             actions: [
                 Action {
                     action: Some(
@@ -309,11 +309,11 @@ File {
                                             "table1",
                                             "part1",
                                         ],
-                                        file_name: "0.00000000-0000-0000-0000-000000000000.parquet",
+                                        file_name: "00000000-0000-0000-0000-000000000000.parquet",
                                     },
                                 ),
                                 file_size_bytes: 33,
-                                metadata: b"metadata omitted (933 bytes)",
+                                metadata: b"metadata omitted (937 bytes)",
                             },
                         ),
                     ),
@@ -396,7 +396,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 17,
+            version: 18,
             actions: [],
             revision_counter: 0,
             uuid: b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
@@ -421,7 +421,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 17,
+            version: 18,
             actions: [
                 Action {
                     action: Some(
@@ -433,11 +433,11 @@ File {
                                             "table1",
                                             "part1",
                                         ],
-                                        file_name: "0.00000000-0000-0000-0000-000000000000.parquet",
+                                        file_name: "00000000-0000-0000-0000-000000000000.parquet",
                                     },
                                 ),
                                 file_size_bytes: 33,
-                                metadata: b"metadata omitted (933 bytes)",
+                                metadata: b"metadata omitted (937 bytes)",
                             },
                         ),
                     ),
@@ -467,7 +467,7 @@ File {
                             table_name: "table1",
                             partition_key: "part1",
                             chunk_id: ChunkId(
-                                0,
+                                00000000-0000-0000-0000-000000000000,
                             ),
                             partition_checkpoint: PartitionCheckpoint {
                                 table_name: "table1",

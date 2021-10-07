@@ -54,8 +54,13 @@ message Chunk {
   // The table of this chunk
   string table_name = 8;
 
-  // The id of this chunk
-  uint32 id = 2;
+  // was uint32-based ID
+  reserved 2;
+
+  // The id of this chunk.
+  //
+  // UUID is stored as 16 bytes in big-endian order.
+  bytes id = 14;
 
   // Which storage system the chunk is located in
   ChunkStorage storage = 3;

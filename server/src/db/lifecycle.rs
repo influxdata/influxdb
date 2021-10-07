@@ -228,7 +228,7 @@ impl LockablePartition for LockableCatalogPartition {
         info!(
             table=%partition.table_name(),
             partition=%partition.partition_key(),
-            chunk_id=chunk.addr().chunk_id.get(),
+            chunk_id=%chunk.addr().chunk_id.get(),
             "drop chunk",
         );
         let (tracker, fut) = drop::drop_chunk(partition, chunk)?;
