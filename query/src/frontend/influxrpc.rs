@@ -7,8 +7,8 @@ use std::{
 use arrow::datatypes::{DataType, Field};
 use data_types::chunk_metadata::ChunkId;
 use datafusion::{
-    error::{DataFusionError, Result as DatafusionResult},
-    logical_plan::{Expr, ExpressionVisitor, LogicalPlan, LogicalPlanBuilder, Operator, Recursion},
+    error::DataFusionError,
+    logical_plan::{Expr, LogicalPlan, LogicalPlanBuilder},
     prelude::col,
 };
 use datafusion_util::AsExpr;
@@ -19,10 +19,7 @@ use internal_types::{
     selection::Selection,
 };
 use observability_deps::tracing::{debug, trace};
-use predicate::{
-    predicate::{Predicate, PredicateMatch},
-    regex::{REGEX_MATCH_UDF_NAME, REGEX_NOT_MATCH_UDF_NAME},
-};
+use predicate::predicate::{Predicate, PredicateMatch};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use crate::{
@@ -1201,11 +1198,6 @@ impl InfluxRpcPlanner {
                        "Skipping table as schema doesn't have all filter_expr columns");
                 return Ok(None);
             }
-            // Assuming that if a table doesn't have all the columns
-            // in an expression it can't be true isn't correct for
-            // certain predicates (e.g. IS NOT NULL), so error out
-            // here until we have proper support for that case
-            check_predicate_support(&filter_expr)?;
 
             plan_builder = plan_builder.filter(filter_expr).context(BuildingPlan)?;
         }
@@ -1272,77 +1264,6 @@ fn cast_aggregates(
         .collect::<Result<Vec<_>>>()?;
 
     plan_builder.project(cast_exprs).context(BuildingPlan)
-}
-
-/// Returns `Ok` if we support this predicate, `Err` otherwise.
-///
-/// Right now, the gRPC planner assumes that if all columns in an
-/// expression are not present, the expression can't evaluate to true
-/// (aka have rows match).
-///
-/// This is not true for certain expressions (e.g. IS NULL for
-///  example), so error here if we see one of those).
-
-fn check_predicate_support(expr: &Expr) -> Result<()> {
-    let visitor = SupportVisitor {};
-    expr.accept(visitor).context(UnsupportedPredicate)?;
-    Ok(())
-}
-
-/// Used to figure out if we know how to deal with this kind of
-/// predicate in the grpc buffer
-struct SupportVisitor {}
-
-impl ExpressionVisitor for SupportVisitor {
-    fn pre_visit(self, expr: &Expr) -> DatafusionResult<Recursion<Self>> {
-        match expr {
-            Expr::Literal(..) => Ok(Recursion::Continue(self)),
-            Expr::Column(..) => Ok(Recursion::Continue(self)),
-            Expr::BinaryExpr { op, .. } => {
-                match op {
-                    Operator::Eq
-                    | Operator::NotEq
-                    | Operator::Lt
-                    | Operator::LtEq
-                    | Operator::Gt
-                    | Operator::GtEq
-                    | Operator::Plus
-                    | Operator::Minus
-                    | Operator::Multiply
-                    | Operator::Divide
-                    | Operator::And
-                    | Operator::Or => Ok(Recursion::Continue(self)),
-                    // Unsupported (need to think about ramifications)
-                    Operator::Modulo
-                    | Operator::Like
-                    | Operator::NotLike
-                    | Operator::RegexMatch
-                    | Operator::RegexIMatch
-                    | Operator::RegexNotMatch
-                    | Operator::RegexNotIMatch => Err(DataFusionError::NotImplemented(format!(
-                        "Unsupported operator in gRPC: {:?} in expression {:?}",
-                        op, expr
-                    ))),
-                }
-            }
-            Expr::ScalarUDF { fun, .. } => {
-                if fun.name.as_str() == REGEX_MATCH_UDF_NAME
-                    || fun.name.as_str() == REGEX_NOT_MATCH_UDF_NAME
-                {
-                    Ok(Recursion::Continue(self))
-                } else {
-                    Err(DataFusionError::NotImplemented(format!(
-                        "Unsupported expression in gRPC: {:?}",
-                        expr
-                    )))
-                }
-            }
-            _ => Err(DataFusionError::NotImplemented(format!(
-                "Unsupported expression in gRPC: {:?}",
-                expr
-            ))),
-        }
-    }
 }
 
 struct TableScanAndFilter {
