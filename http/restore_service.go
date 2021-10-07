@@ -2,7 +2,9 @@ package http
 
 import (
 	"compress/gzip"
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -11,6 +13,8 @@ import (
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorizer"
+	context2 "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -26,6 +30,7 @@ type RestoreBackend struct {
 	RestoreService          influxdb.RestoreService
 	SqlBackupRestoreService influxdb.SqlBackupRestoreService
 	BucketService           influxdb.BucketService
+	AuthorizationService    influxdb.AuthorizationService
 }
 
 // NewRestoreBackend returns a new instance of RestoreBackend.
@@ -37,6 +42,7 @@ func NewRestoreBackend(b *APIBackend) *RestoreBackend {
 		RestoreService:          b.RestoreService,
 		SqlBackupRestoreService: b.SqlBackupRestoreService,
 		BucketService:           b.BucketService,
+		AuthorizationService:    b.AuthorizationService,
 	}
 }
 
@@ -50,6 +56,7 @@ type RestoreHandler struct {
 	RestoreService          influxdb.RestoreService
 	SqlBackupRestoreService influxdb.SqlBackupRestoreService
 	BucketService           influxdb.BucketService
+	AuthorizationService    influxdb.AuthorizationService
 }
 
 const (
@@ -72,6 +79,7 @@ func NewRestoreHandler(b *RestoreBackend) *RestoreHandler {
 		RestoreService:          b.RestoreService,
 		SqlBackupRestoreService: b.SqlBackupRestoreService,
 		BucketService:           b.BucketService,
+		AuthorizationService:    b.AuthorizationService,
 		api:                     kithttp.NewAPI(kithttp.WithLog(b.Logger)),
 	}
 
@@ -83,6 +91,30 @@ func NewRestoreHandler(b *RestoreBackend) *RestoreHandler {
 	h.HandlerFunc(http.MethodPost, restoreShardPath, h.handleRestoreShard)
 
 	return h
+}
+
+func (h *RestoreHandler) getOperatorToken(ctx context.Context) (influxdb.Authorization, error) {
+	// Get the token post-restore
+	auths, _, err := h.AuthorizationService.FindAuthorizations(ctx, influxdb.AuthorizationFilter{})
+	if err != nil {
+		return influxdb.Authorization{}, err
+	}
+
+	var operToken *influxdb.Authorization
+	for _, a := range auths {
+		authCtx := context.Background()
+		authCtx = context2.SetAuthorizer(authCtx, a)
+		if authorizer.IsAllowedAll(authCtx, influxdb.OperPermissions()) == nil {
+			operToken = a
+			break
+		}
+	}
+
+	if operToken == nil {
+		return influxdb.Authorization{}, fmt.Errorf("invalid backup without an operator token, consider editing the BoltDB in the backup with 'influxd recovery'")
+	}
+
+	return *operToken, nil
 }
 
 func (h *RestoreHandler) handleRestoreKVStore(w http.ResponseWriter, r *http.Request) {
@@ -110,6 +142,19 @@ func (h *RestoreHandler) handleRestoreKVStore(w http.ResponseWriter, r *http.Req
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+
+	// Get the token post-restore
+	operatorToken, err := h.getOperatorToken(ctx)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	// Return the new token to the caller so it can continue the restore
+	response := make(map[string]string)
+	response["token"] = operatorToken.Token
+
+	h.api.Respond(w, r, http.StatusOK, response)
 }
 
 func (h *RestoreHandler) handleRestoreSqlStore(w http.ResponseWriter, r *http.Request) {

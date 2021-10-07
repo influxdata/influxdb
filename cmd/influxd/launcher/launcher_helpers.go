@@ -495,10 +495,16 @@ func (tl *TestLauncher) RestoreService(tb testing.TB) *clirestore.Client {
 	client := tl.APIClient(tb)
 	return &clirestore.Client{
 		CLI:              clients.CLI{},
-		RestoreApi:       client.RestoreApi,
-		OrganizationsApi: client.OrganizationsApi,
 		HealthApi:        client.HealthApi,
+		RestoreApi:       client.RestoreApi,
+		BucketsApi:       client.BucketsApi,
+		OrganizationsApi: client.OrganizationsApi,
+		ApiConfig:        client,
 	}
+}
+
+func (tl *TestLauncher) ResetHTTPCLient() {
+	tl.httpClient = nil
 }
 
 func (tl *TestLauncher) HTTPClient(tb testing.TB) *httpc.Client {
