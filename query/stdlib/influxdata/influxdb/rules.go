@@ -716,7 +716,7 @@ func isPushableWindow(windowSpec *universe.WindowProcedureSpec) bool {
 	// every and period must be equal
 	// every.isNegative must be false
 	// offset.isNegative must be false
-	// location must be "UTC"
+	// location must be UTC with no offset
 	// timeColumn: must be "_time"
 	// startColumn: must be "_start"
 	// stopColumn: must be "_stop"
@@ -725,7 +725,7 @@ func isPushableWindow(windowSpec *universe.WindowProcedureSpec) bool {
 	return window.Every.Equal(window.Period) &&
 		!window.Every.IsNegative() &&
 		!window.Offset.IsNegative() &&
-		window.Location == "UTC" &&
+		window.Location.IsUTC() &&
 		windowSpec.TimeColumn == "_time" &&
 		windowSpec.StartColumn == "_start" &&
 		windowSpec.StopColumn == "_stop"
