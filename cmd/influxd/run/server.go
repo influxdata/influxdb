@@ -675,6 +675,14 @@ func (s *Server) stopProfile() error {
 	return nil
 }
 
+func (s *Server) LogQueriesOnTermination() bool {
+	if s != nil && s.config != nil {
+		return s.config.Coordinator.TerminationQueryLog
+	} else {
+		return false
+	}
+}
+
 // monitorPointsWriter is a wrapper around `coordinator.PointsWriter` that helps
 // to prevent a circular dependency between the `cluster` and `monitor` packages.
 type monitorPointsWriter coordinator.PointsWriter
