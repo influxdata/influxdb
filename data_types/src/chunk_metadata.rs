@@ -3,14 +3,13 @@ use std::{convert::TryFrom, num::NonZeroU32, sync::Arc};
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
 use uuid::Uuid;
 
 use crate::partition_metadata::PartitionAddr;
 
 /// Address of the chunk within the catalog
-#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct ChunkAddr {
     /// Database name
     pub db_name: Arc<str>,
@@ -58,7 +57,7 @@ impl std::fmt::Display for ChunkAddr {
 }
 
 /// Which storage system is a chunk located in?
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum ChunkStorage {
     /// The chunk is still open for new writes, in the Mutable Buffer
     OpenMutableBuffer,
@@ -90,7 +89,7 @@ impl ChunkStorage {
 }
 
 /// Any lifecycle action currently in progress for this chunk
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ChunkLifecycleAction {
     /// Chunk is in the process of being written to object storage
     Persisting,
@@ -120,7 +119,7 @@ impl ChunkLifecycleAction {
 
 /// Represents metadata about the physical storage of a chunk in a
 /// database.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct ChunkSummary {
     /// The partition key of this chunk
     pub partition_key: Arc<str>,
@@ -202,7 +201,7 @@ impl ChunkSummary {
 /// ID of a chunk.
 ///
 /// This ID is unique within a single partition.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChunkId(Uuid);
 
 impl ChunkId {
@@ -263,7 +262,7 @@ impl From<Uuid> for ChunkId {
 /// This is used for:
 /// 1. **upsert order:** chunks with higher order overwrite data in chunks with lower order
 /// 2. **locking order:** chunks must be locked in consistent (ascending) order
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChunkOrder(NonZeroU32);
 
 impl ChunkOrder {

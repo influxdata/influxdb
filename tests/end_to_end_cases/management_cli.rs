@@ -478,14 +478,14 @@ async fn test_get_chunks() {
 
     load_lp(addr, &db_name, lp_data);
 
-    let predicate = predicate::str::contains(r#""partition_key": "cpu","#)
+    let predicate = predicate::str::contains(r#""partitionKey": "cpu","#)
         .and(predicate::str::contains(
-            r#""storage": "OpenMutableBuffer","#,
+            r#""storage": "CHUNK_STORAGE_OPEN_MUTABLE_BUFFER","#,
         ))
-        .and(predicate::str::contains(r#""memory_bytes": 1016"#))
+        .and(predicate::str::contains(r#""memoryBytes": "1016""#))
         // Check for a non empty timestamp such as
         // "time_of_first_write": "2021-03-30T17:11:10.723866Z",
-        .and(predicate::str::contains(r#""time_of_first_write": "20"#));
+        .and(predicate::str::contains(r#""timeOfFirstWrite": "20"#));
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -721,11 +721,11 @@ async fn test_list_partition_chunks() {
         .assert()
         .success()
         .stdout(
-            predicate::str::contains(r#""partition_key": "cpu""#)
-                .and(predicate::str::contains(r#""table_name": "cpu""#))
+            predicate::str::contains(r#""partitionKey": "cpu""#)
+                .and(predicate::str::contains(r#""tableName": "cpu""#))
                 .and(predicate::str::contains(r#""order": 1"#))
                 .and(predicate::str::contains(
-                    r#""storage": "OpenMutableBuffer""#,
+                    r#""storage": "CHUNK_STORAGE_OPEN_MUTABLE_BUFFER""#,
                 ))
                 .and(predicate::str::contains("cpu2").not()),
         );
@@ -802,7 +802,7 @@ async fn test_new_partition_chunk() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains("ReadBuffer"));
+        .stdout(predicate::str::contains("CHUNK_STORAGE_READ_BUFFER"));
 }
 
 #[tokio::test]

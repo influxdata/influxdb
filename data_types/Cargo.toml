@@ -8,16 +8,14 @@ readme = "README.md"
 
 [dependencies] # In alphabetical order
 bytes = "1.0"
-chrono = { version = "0.4", features = ["serde"] }
+chrono = "0.4"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 num_cpus = "1.13.0"
 observability_deps = { path = "../observability_deps" }
 percent-encoding = "2.1.0"
 regex = "1.4"
-serde = { version = "1.0", features = ["rc", "derive"] }
-serde_regex = "1.1"
 snafu = "0.6"
-uuid = { version = "0.8", features = ["serde", "v4"] }
+uuid = { version = "0.8", features = ["v4"] }
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }

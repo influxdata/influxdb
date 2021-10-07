@@ -1,5 +1,4 @@
 //! This module implements the `partition` CLI command
-use data_types::chunk_metadata::ChunkSummary;
 use generated_types::google::FieldViolation;
 use influxdb_iox_client::{
     connection::Connection,
@@ -9,7 +8,6 @@ use influxdb_iox_client::{
         PersistPartitionError, UnloadPartitionChunkError,
     },
 };
-use std::convert::TryFrom;
 use structopt::StructOpt;
 use thiserror::Error;
 use uuid::Uuid;
@@ -254,11 +252,6 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             } = list_chunks;
 
             let chunks = client.list_partition_chunks(db_name, partition_key).await?;
-
-            let chunks = chunks
-                .into_iter()
-                .map(ChunkSummary::try_from)
-                .collect::<Result<Vec<_>, FieldViolation>>()?;
 
             serde_json::to_writer_pretty(std::io::stdout(), &chunks)?;
         }

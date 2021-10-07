@@ -46,9 +46,7 @@ pub enum DatabaseNameError {
 ///
 /// But this is not reciprocal - functions that wish to accept only
 /// pre-validated names can use `DatabaseName` as a parameter.
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DatabaseName<'a>(Cow<'a, str>);
 
 impl<'a> DatabaseName<'a> {

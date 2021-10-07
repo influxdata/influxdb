@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
-
 use crate::{
     chunk_metadata::{ChunkAddr, ChunkId},
     partition_metadata::PartitionAddr,
@@ -9,9 +7,7 @@ use crate::{
 
 /// Metadata associated with a set of background tasks
 /// Used in combination with TrackerRegistry
-///
-/// TODO: Serde is temporary until prost adds JSON support
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Job {
     Dummy {
         db_name: Option<Arc<str>>,
