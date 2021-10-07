@@ -87,8 +87,11 @@ func (m *Main) Run(args ...string) error {
 		cmd.Logger.Info("Listening for signals")
 
 		// Block until one of the signals above is received
-		<-signalCh
+		sig := <-signalCh
 		cmd.Logger.Info("Signal received, initializing clean shutdown...")
+		if sig == syscall.SIGTERM && cmd.Server.LogQueriesOnTermination() {
+			cmd.Server.QueryExecutor.TaskManager.LogCurrentQueries(cmd.Logger.Info)
+		}
 		go cmd.Close()
 
 		// Block again until another signal is received, a shutdown timeout elapses,

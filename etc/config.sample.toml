@@ -194,6 +194,10 @@
   # number of buckets unlimited.
   # max-select-buckets = 0
 
+  # Whether to print a list of running queries when a data node receives a SIGTERM (sent when a process
+  # exceeds a container memory limit, or by the kill command.
+  # termination-query-log = false
+
 ###
 ### [retention]
 ###
