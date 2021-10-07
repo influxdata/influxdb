@@ -39,7 +39,7 @@ impl IoxSystemTable for ChunksTable {
 fn chunk_summaries_schema() -> SchemaRef {
     let ts = DataType::Timestamp(TimeUnit::Nanosecond, None);
     Arc::new(Schema::new(vec![
-        Field::new("id", DataType::UInt32, false),
+        Field::new("id", DataType::Utf8, false),
         Field::new("partition_key", DataType::Utf8, false),
         Field::new("table_name", DataType::Utf8, false),
         Field::new("storage", DataType::Utf8, false),
@@ -67,8 +67,8 @@ fn time_to_ts(ts: DateTime<Utc>) -> Option<i64> {
 fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
     let id = chunks
         .iter()
-        .map(|c| Some(c.id.get()))
-        .collect::<UInt32Array>();
+        .map(|c| Some(c.id.get().to_string()))
+        .collect::<StringArray>();
     let partition_key = chunks
         .iter()
         .map(|c| Some(c.partition_key.as_ref()))
@@ -155,7 +155,7 @@ mod tests {
             ChunkSummary {
                 partition_key: Arc::from("p1"),
                 table_name: Arc::from("table1"),
-                id: ChunkId::new(0),
+                id: ChunkId::new_test(0),
                 storage: ChunkStorage::OpenMutableBuffer,
                 lifecycle_action: None,
                 memory_bytes: 23754,
@@ -170,7 +170,7 @@ mod tests {
             ChunkSummary {
                 partition_key: Arc::from("p1"),
                 table_name: Arc::from("table1"),
-                id: ChunkId::new(1),
+                id: ChunkId::new_test(1),
                 storage: ChunkStorage::OpenMutableBuffer,
                 lifecycle_action: Some(ChunkLifecycleAction::Persisting),
                 memory_bytes: 23455,
@@ -185,7 +185,7 @@ mod tests {
             ChunkSummary {
                 partition_key: Arc::from("p1"),
                 table_name: Arc::from("table1"),
-                id: ChunkId::new(2),
+                id: ChunkId::new_test(2),
                 storage: ChunkStorage::ObjectStoreOnly,
                 lifecycle_action: None,
                 memory_bytes: 1234,
@@ -200,13 +200,13 @@ mod tests {
         ];
 
         let expected = vec![
-            "+----+---------------+------------+-------------------+------------------------------+--------------+--------------------+-----------+----------------------+----------------------+----------------------+-------------+-------+",
-            "| id | partition_key | table_name | storage           | lifecycle_action             | memory_bytes | object_store_bytes | row_count | time_of_last_access  | time_of_first_write  | time_of_last_write   | time_closed | order |",
-            "+----+---------------+------------+-------------------+------------------------------+--------------+--------------------+-----------+----------------------+----------------------+----------------------+-------------+-------+",
-            "| 0  | p1            | table1     | OpenMutableBuffer |                              | 23754        |                    | 11        |                      | 1970-01-01T00:00:10Z | 1970-01-01T00:00:10Z |             | 5     |",
-            "| 1  | p1            | table1     | OpenMutableBuffer | Persisting to Object Storage | 23455        |                    | 22        | 1970-01-01T00:12:34Z | 1970-01-01T00:01:20Z | 1970-01-01T00:01:20Z |             | 6     |",
-            "| 2  | p1            | table1     | ObjectStoreOnly   |                              | 1234         | 5678               | 33        | 1970-01-01T00:00:05Z | 1970-01-01T00:01:40Z | 1970-01-01T00:03:20Z |             | 7     |",
-            "+----+---------------+------------+-------------------+------------------------------+--------------+--------------------+-----------+----------------------+----------------------+----------------------+-------------+-------+",
+            "+--------------------------------------+---------------+------------+-------------------+------------------------------+--------------+--------------------+-----------+----------------------+----------------------+----------------------+-------------+-------+",
+            "| id                                   | partition_key | table_name | storage           | lifecycle_action             | memory_bytes | object_store_bytes | row_count | time_of_last_access  | time_of_first_write  | time_of_last_write   | time_closed | order |",
+            "+--------------------------------------+---------------+------------+-------------------+------------------------------+--------------+--------------------+-----------+----------------------+----------------------+----------------------+-------------+-------+",
+            "| 00000000-0000-0000-0000-000000000000 | p1            | table1     | OpenMutableBuffer |                              | 23754        |                    | 11        |                      | 1970-01-01T00:00:10Z | 1970-01-01T00:00:10Z |             | 5     |",
+            "| 00000000-0000-0000-0000-000000000001 | p1            | table1     | OpenMutableBuffer | Persisting to Object Storage | 23455        |                    | 22        | 1970-01-01T00:12:34Z | 1970-01-01T00:01:20Z | 1970-01-01T00:01:20Z |             | 6     |",
+            "| 00000000-0000-0000-0000-000000000002 | p1            | table1     | ObjectStoreOnly   |                              | 1234         | 5678               | 33        | 1970-01-01T00:00:05Z | 1970-01-01T00:01:40Z | 1970-01-01T00:03:20Z |             | 7     |",
+            "+--------------------------------------+---------------+------------+-------------------+------------------------------+--------------+--------------------+-----------+----------------------+----------------------+----------------------+-------------+-------+",
         ];
 
         let schema = chunk_summaries_schema();

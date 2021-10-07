@@ -710,7 +710,7 @@ mod tests {
             db_name: "clouds".into(),
             table_name: "my_table".into(),
             partition_key: "my_partition".into(),
-            chunk_id: ChunkId::new(13),
+            chunk_id: ChunkId::new_test(13),
         };
         let p1 = ParquetFilePath::new(&chunk_addr);
         add_parquet_file(&iox_object_store, &p1).await;

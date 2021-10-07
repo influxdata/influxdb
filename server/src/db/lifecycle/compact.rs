@@ -133,6 +133,7 @@ pub(crate) fn compact_chunks(
             // TODO: Filter out predicates applied by the query (#2666)
             delete_predicates,
             min_order,
+            None,
         );
 
         // input rows per second

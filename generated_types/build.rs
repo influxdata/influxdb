@@ -67,8 +67,17 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         .extern_path(".google.protobuf", "::pbjson_types")
         .bytes(&[
             ".influxdata.iox.catalog.v1.AddParquet.metadata",
+            ".influxdata.iox.catalog.v1.ChunkAddr.chunk_id",
+            ".influxdata.iox.catalog.v1.IoxMetadata.chunk_id",
             ".influxdata.iox.catalog.v1.Transaction.previous_uuid",
             ".influxdata.iox.catalog.v1.Transaction.uuid",
+            ".influxdata.iox.management.v1.Chunk.id",
+            ".influxdata.iox.management.v1.ClosePartitionChunkRequest.chunk_id",
+            ".influxdata.iox.management.v1.CompactChunks.chunks",
+            ".influxdata.iox.management.v1.DropChunk.chunk_id",
+            ".influxdata.iox.management.v1.PersistChunks.chunks",
+            ".influxdata.iox.management.v1.WriteChunk.chunk_id",
+            ".influxdata.iox.management.v1.UnloadPartitionChunkRequest.chunk_id",
         ])
         .btree_map(&[
             ".influxdata.iox.catalog.v1.DatabaseCheckpoint.sequencer_numbers",

@@ -1,5 +1,5 @@
 use crate::{
-    google::{FieldViolation, FromFieldOpt},
+    google::{FieldViolation, FieldViolationExt, FromFieldOpt},
     influxdata::iox::management::v1 as management,
 };
 use data_types::chunk_metadata::{
@@ -32,7 +32,7 @@ impl From<ChunkSummary> for management::Chunk {
         Self {
             partition_key: partition_key.to_string(),
             table_name: table_name.to_string(),
-            id: id.get(),
+            id: id.into(),
             storage: management::ChunkStorage::from(storage).into(),
             lifecycle_action: management::ChunkLifecycleAction::from(lifecycle_action).into(),
             memory_bytes: memory_bytes as u64,
@@ -113,7 +113,7 @@ impl TryFrom<management::Chunk> for ChunkSummary {
         Ok(Self {
             partition_key: Arc::from(partition_key.as_str()),
             table_name: Arc::from(table_name.as_str()),
-            id: ChunkId::new(id),
+            id: ChunkId::try_from(id).field("id")?,
             storage: management::ChunkStorage::from_i32(storage).required("storage")?,
             lifecycle_action: management::ChunkLifecycleAction::from_i32(lifecycle_action)
                 .required("lifecycle_action")?,
@@ -169,6 +169,7 @@ impl TryFrom<management::ChunkLifecycleAction> for Option<ChunkLifecycleAction> 
 #[cfg(test)]
 mod test {
     use super::*;
+    use bytes::Bytes;
     use chrono::{TimeZone, Utc};
     use data_types::chunk_metadata::ChunkOrder;
 
@@ -178,7 +179,7 @@ mod test {
         let proto = management::Chunk {
             partition_key: "foo".to_string(),
             table_name: "bar".to_string(),
-            id: 42,
+            id: Bytes::from("\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0*"),
             memory_bytes: 1234,
             object_store_bytes: 567,
             row_count: 321,
@@ -199,7 +200,7 @@ mod test {
         let expected = ChunkSummary {
             partition_key: Arc::from("foo"),
             table_name: Arc::from("bar"),
-            id: ChunkId::new(42),
+            id: ChunkId::new_test(42),
             memory_bytes: 1234,
             object_store_bytes: 567,
             row_count: 321,
@@ -225,7 +226,7 @@ mod test {
         let summary = ChunkSummary {
             partition_key: Arc::from("foo"),
             table_name: Arc::from("bar"),
-            id: ChunkId::new(42),
+            id: ChunkId::new_test(42),
             memory_bytes: 1234,
             object_store_bytes: 567,
             row_count: 321,
@@ -243,7 +244,7 @@ mod test {
         let expected = management::Chunk {
             partition_key: "foo".to_string(),
             table_name: "bar".to_string(),
-            id: 42,
+            id: Bytes::from("\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0*"),
             memory_bytes: 1234,
             object_store_bytes: 567,
             row_count: 321,

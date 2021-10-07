@@ -313,12 +313,13 @@ impl Catalog {
 
 #[cfg(test)]
 mod tests {
+    use data_types::chunk_metadata::ChunkAddr;
     use entry::test_helpers::lp_to_entry;
 
     use super::*;
     use chrono::Utc;
 
-    fn create_open_chunk(partition: &Arc<RwLock<Partition>>) {
+    fn create_open_chunk(partition: &Arc<RwLock<Partition>>) -> ChunkAddr {
         let mut partition = partition.write();
         let table = partition.table_name();
         let entry = lp_to_entry(&format!("{} bar=1 10", table));
@@ -333,7 +334,9 @@ mod tests {
         )
         .unwrap();
 
-        partition.create_open_chunk(mb_chunk, time_of_write);
+        let chunk = partition.create_open_chunk(mb_chunk, time_of_write);
+        let chunk = chunk.read();
+        chunk.addr().clone()
     }
 
     #[test]
@@ -378,29 +381,29 @@ mod tests {
         let (p1, _schema) = catalog.get_or_create_partition("t1", "p1");
         let (p2, _schema) = catalog.get_or_create_partition("t2", "p2");
 
-        create_open_chunk(&p1);
-        create_open_chunk(&p1);
-        create_open_chunk(&p2);
+        let addr1 = create_open_chunk(&p1);
+        let addr2 = create_open_chunk(&p1);
+        let addr3 = create_open_chunk(&p2);
 
         let p1 = p1.write();
         let p2 = p2.write();
 
-        let (c1_0, _order) = p1.chunk(ChunkId::new(0)).unwrap();
+        let (c1_0, _order) = p1.chunk(addr1.chunk_id).unwrap();
         assert_eq!(c1_0.read().table_name().as_ref(), "t1");
         assert_eq!(c1_0.read().key(), "p1");
-        assert_eq!(c1_0.read().id(), ChunkId::new(0));
+        assert_eq!(c1_0.read().id(), addr1.chunk_id);
 
-        let (c1_1, _order) = p1.chunk(ChunkId::new(1)).unwrap();
+        let (c1_1, _order) = p1.chunk(addr2.chunk_id).unwrap();
         assert_eq!(c1_1.read().table_name().as_ref(), "t1");
         assert_eq!(c1_1.read().key(), "p1");
-        assert_eq!(c1_1.read().id(), ChunkId::new(1));
+        assert_eq!(c1_1.read().id(), addr2.chunk_id);
 
-        let (c2_0, _order) = p2.chunk(ChunkId::new(0)).unwrap();
+        let (c2_0, _order) = p2.chunk(addr3.chunk_id).unwrap();
         assert_eq!(c2_0.read().table_name().as_ref(), "t2");
         assert_eq!(c2_0.read().key(), "p2");
-        assert_eq!(c2_0.read().id(), ChunkId::new(0));
+        assert_eq!(c2_0.read().id(), addr3.chunk_id);
 
-        assert!(p1.chunk(ChunkId::new(100)).is_none());
+        assert!(p1.chunk(ChunkId::new_test(100)).is_none());
     }
 
     #[test]
@@ -409,26 +412,21 @@ mod tests {
 
         let (p1, _schema) = catalog.get_or_create_partition("table1", "p1");
         let (p2, _schema) = catalog.get_or_create_partition("table2", "p1");
-        create_open_chunk(&p1);
-        create_open_chunk(&p1);
-        create_open_chunk(&p2);
+        let addr1 = create_open_chunk(&p1);
+        let addr2 = create_open_chunk(&p1);
+        let addr3 = create_open_chunk(&p2);
 
         let (p3, _schema) = catalog.get_or_create_partition("table1", "p2");
-        create_open_chunk(&p3);
+        let addr4 = create_open_chunk(&p3);
 
         assert_eq!(
-            chunk_strings(&catalog),
-            vec![
-                "Chunk p1:table1:0",
-                "Chunk p1:table1:1",
-                "Chunk p1:table2:0",
-                "Chunk p2:table1:0"
-            ]
+            chunk_addrs(&catalog),
+            as_sorted(vec![addr1, addr2, addr3, addr4,]),
         );
     }
 
-    fn chunk_strings(catalog: &Catalog) -> Vec<String> {
-        let mut chunks: Vec<String> = catalog
+    fn chunk_addrs(catalog: &Catalog) -> Vec<ChunkAddr> {
+        let mut chunks: Vec<_> = catalog
             .partitions()
             .into_iter()
             .flat_map(|p| {
@@ -437,14 +435,14 @@ mod tests {
                     .into_iter()
                     .map(|c| {
                         let c = c.read();
-                        format!("Chunk {}:{}:{}", c.key(), c.table_name(), c.id().get())
+                        c.addr().clone()
                     })
                     .collect::<Vec<_>>()
                     .into_iter()
             })
             .collect();
 
-        chunks.sort_unstable();
+        chunks.sort();
         chunks
     }
 
@@ -454,35 +452,35 @@ mod tests {
 
         let (p1, _schema) = catalog.get_or_create_partition("p1", "table1");
         let (p2, _schema) = catalog.get_or_create_partition("p1", "table2");
-        create_open_chunk(&p1);
-        create_open_chunk(&p1);
-        create_open_chunk(&p2);
+        let addr1 = create_open_chunk(&p1);
+        let addr2 = create_open_chunk(&p1);
+        let addr3 = create_open_chunk(&p2);
 
         let (p3, _schema) = catalog.get_or_create_partition("p2", "table1");
-        create_open_chunk(&p3);
+        let _addr4 = create_open_chunk(&p3);
 
-        assert_eq!(chunk_strings(&catalog).len(), 4);
+        assert_eq!(chunk_addrs(&catalog).len(), 4);
 
         {
             let mut p2 = p2.write();
-            p2.drop_chunk(ChunkId::new(0)).unwrap();
-            assert!(p2.chunk(ChunkId::new(0)).is_none()); // chunk is gone
+            p2.drop_chunk(addr3.chunk_id).unwrap();
+            assert!(p2.chunk(addr3.chunk_id).is_none()); // chunk is gone
         }
-        assert_eq!(chunk_strings(&catalog).len(), 3);
+        assert_eq!(chunk_addrs(&catalog).len(), 3);
 
         {
             let mut p1 = p1.write();
-            p1.drop_chunk(ChunkId::new(1)).unwrap();
-            assert!(p1.chunk(ChunkId::new(1)).is_none()); // chunk is gone
+            p1.drop_chunk(addr2.chunk_id).unwrap();
+            assert!(p1.chunk(addr2.chunk_id).is_none()); // chunk is gone
         }
-        assert_eq!(chunk_strings(&catalog).len(), 2);
+        assert_eq!(chunk_addrs(&catalog).len(), 2);
 
         {
             let mut p1 = p1.write();
-            p1.drop_chunk(ChunkId::new(0)).unwrap();
-            assert!(p1.chunk(ChunkId::new(0)).is_none()); // chunk is gone
+            p1.drop_chunk(addr1.chunk_id).unwrap();
+            assert!(p1.chunk(addr1.chunk_id).is_none()); // chunk is gone
         }
-        assert_eq!(chunk_strings(&catalog).len(), 1);
+        assert_eq!(chunk_addrs(&catalog).len(), 1);
     }
 
     #[test]
@@ -492,7 +490,7 @@ mod tests {
         create_open_chunk(&p3);
 
         let mut p3 = p3.write();
-        let err = p3.drop_chunk(ChunkId::new(2)).unwrap_err();
+        let err = p3.drop_chunk(ChunkId::new_test(1337)).unwrap_err();
 
         assert!(matches!(err, partition::Error::ChunkNotFound { .. }))
     }
@@ -502,25 +500,22 @@ mod tests {
         let catalog = Catalog::test();
 
         let (p1, _schema) = catalog.get_or_create_partition("table1", "p1");
-        create_open_chunk(&p1);
-        create_open_chunk(&p1);
+        let addr1 = create_open_chunk(&p1);
+        let addr2 = create_open_chunk(&p1);
         assert_eq!(
-            chunk_strings(&catalog),
-            vec!["Chunk p1:table1:0", "Chunk p1:table1:1"]
+            chunk_addrs(&catalog),
+            as_sorted(vec![addr1.clone(), addr2.clone(),]),
         );
 
         {
             let mut p1 = p1.write();
-            p1.drop_chunk(ChunkId::new(0)).unwrap();
+            p1.drop_chunk(addr1.chunk_id).unwrap();
         }
-        assert_eq!(chunk_strings(&catalog), vec!["Chunk p1:table1:1"]);
+        assert_eq!(chunk_addrs(&catalog), vec![addr2.clone()]);
 
         // should be ok to "re-create", it gets another chunk_id though
-        create_open_chunk(&p1);
-        assert_eq!(
-            chunk_strings(&catalog),
-            vec!["Chunk p1:table1:1", "Chunk p1:table1:2"]
-        );
+        let addr3 = create_open_chunk(&p1);
+        assert_eq!(chunk_addrs(&catalog), as_sorted(vec![addr2, addr3,]),);
     }
 
     #[test]
@@ -551,5 +546,13 @@ mod tests {
 
     fn make_set(s: impl Into<String>) -> BTreeSet<String> {
         std::iter::once(s.into()).collect()
+    }
+
+    fn as_sorted<T>(mut v: Vec<T>) -> Vec<T>
+    where
+        T: Ord,
+    {
+        v.sort();
+        v
     }
 }

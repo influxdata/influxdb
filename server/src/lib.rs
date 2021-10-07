@@ -1697,12 +1697,18 @@ mod tests {
             .await
             .unwrap();
 
+        // get chunk ID
+        let db = server.db(&db_name).unwrap();
+        let chunks = db.chunk_summaries().unwrap();
+        assert_eq!(chunks.len(), 1);
+        let chunk_id = chunks[0].id;
+
         // start the close (note this is not an async)
         let chunk_addr = ChunkAddr {
             db_name: Arc::from(db_name.as_str()),
             table_name: Arc::from("cpu"),
             partition_key: Arc::from(""),
-            chunk_id: ChunkId::new(0),
+            chunk_id,
         };
         let tracker = server
             .close_chunk(

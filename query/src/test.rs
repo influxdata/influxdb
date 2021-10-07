@@ -247,7 +247,7 @@ impl TestChunk {
             table_name: table_name.clone(),
             schema: Arc::new(SchemaBuilder::new().build().unwrap()),
             table_summary: TableSummary::new(table_name),
-            id: ChunkId::new(0),
+            id: ChunkId::new_test(0),
             may_contain_pk_duplicates: Default::default(),
             predicates: Default::default(),
             table_data: Default::default(),
@@ -258,8 +258,8 @@ impl TestChunk {
         }
     }
 
-    pub fn with_id(mut self, id: u32) -> Self {
-        self.id = ChunkId::new(id);
+    pub fn with_id(mut self, id: u128) -> Self {
+        self.id = ChunkId::new_test(id);
         self
     }
 

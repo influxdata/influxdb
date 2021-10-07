@@ -13,7 +13,6 @@ use crate::{
 };
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use data_types::chunk_metadata::ChunkId;
 use futures::{StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
@@ -27,6 +26,7 @@ use std::{
         hash_map::Entry::{Occupied, Vacant},
         HashMap, HashSet,
     },
+    convert::TryInto,
     fmt::Debug,
     sync::Arc,
 };
@@ -39,7 +39,7 @@ pub use crate::catalog::internals::proto_parse::Error as ProtoParseError;
 /// Current version for serialized transactions.
 ///
 /// For breaking changes, this will change.
-pub const TRANSACTION_VERSION: u32 = 17;
+pub const TRANSACTION_VERSION: u32 = 18;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -153,6 +153,11 @@ pub enum Error {
     #[snafu(display("Cannot deserialize predicate: {}", source))]
     CannotDeserializePredicate {
         source: predicate::serialize::DeserializeError,
+    },
+
+    #[snafu(display("Cannot decode chunk id: {}", source))]
+    CannotDecodeChunkId {
+        source: data_types::chunk_metadata::BytesToChunkIdError,
     },
 }
 
@@ -578,12 +583,15 @@ impl OpenTransaction {
                 let chunks = d
                     .chunks
                     .into_iter()
-                    .map(|chunk| ChunkAddrWithoutDatabase {
-                        table_name: Arc::from(chunk.table_name),
-                        partition_key: Arc::from(chunk.partition_key),
-                        chunk_id: ChunkId::new(chunk.chunk_id),
+                    .map(|chunk| {
+                        let addr = ChunkAddrWithoutDatabase {
+                            table_name: Arc::from(chunk.table_name),
+                            partition_key: Arc::from(chunk.partition_key),
+                            chunk_id: chunk.chunk_id.try_into().context(CannotDecodeChunkId)?,
+                        };
+                        Ok(addr)
                     })
-                    .collect();
+                    .collect::<Result<Vec<ChunkAddrWithoutDatabase>, Error>>()?;
                 state.delete_predicate(predicate, chunks);
             }
         };
@@ -872,7 +880,7 @@ impl<'c> TransactionHandle<'c> {
                         .map(|chunk| proto::ChunkAddr {
                             table_name: chunk.table_name.to_string(),
                             partition_key: chunk.partition_key.to_string(),
-                            chunk_id: chunk.chunk_id.get(),
+                            chunk_id: chunk.chunk_id.into(),
                         })
                         .collect(),
                 },
@@ -1011,7 +1019,7 @@ impl<'c> CheckpointHandle<'c> {
                         .map(|chunk| proto::ChunkAddr {
                             table_name: chunk.table_name.to_string(),
                             partition_key: chunk.partition_key.to_string(),
-                            chunk_id: chunk.chunk_id.get(),
+                            chunk_id: chunk.chunk_id.into(),
                         })
                         .collect(),
                 };

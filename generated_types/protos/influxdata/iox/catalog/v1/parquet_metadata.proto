@@ -17,8 +17,13 @@ message IoxMetadata {
   // Partition key of the partition that holds this parquet file.
   string partition_key = 4;
 
+  // Was uint32-based chunk ID.
+  reserved 5;
+
   // Chunk ID.
-  uint32 chunk_id = 5;
+  //
+  // UUID is stored as 16 bytes in big-endian order.
+  bytes chunk_id = 11;
 
   // Partition checkpoint with pre-split data for the in this file.
   PartitionCheckpoint partition_checkpoint = 6;

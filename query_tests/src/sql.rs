@@ -328,16 +328,16 @@ async fn sql_select_from_system_chunks() {
     //  test timestamps, etc)
 
     let expected = vec![
-        "+----+---------------+------------+-------------------+--------------+-----------+",
-        "| id | partition_key | table_name | storage           | memory_bytes | row_count |",
-        "+----+---------------+------------+-------------------+--------------+-----------+",
-        "| 0  | 1970-01-01T00 | h2o        | OpenMutableBuffer | 1639         | 3         |",
-        "| 0  | 1970-01-01T00 | o2         | OpenMutableBuffer | 1635         | 2         |",
-        "+----+---------------+------------+-------------------+--------------+-----------+",
+        "+---------------+------------+-------------------+--------------+-----------+",
+        "| partition_key | table_name | storage           | memory_bytes | row_count |",
+        "+---------------+------------+-------------------+--------------+-----------+",
+        "| 1970-01-01T00 | h2o        | OpenMutableBuffer | 1639         | 3         |",
+        "| 1970-01-01T00 | o2         | OpenMutableBuffer | 1635         | 2         |",
+        "+---------------+------------+-------------------+--------------+-----------+",
     ];
     run_sql_test_case(
         TwoMeasurementsManyFieldsOneChunk {},
-        "SELECT id, partition_key, table_name, storage, memory_bytes, row_count from system.chunks",
+        "SELECT partition_key, table_name, storage, memory_bytes, row_count from system.chunks",
         &expected,
     )
     .await;

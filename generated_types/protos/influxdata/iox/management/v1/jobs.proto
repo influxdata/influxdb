@@ -62,8 +62,13 @@ message WriteChunk {
   // table name
   string table_name = 4;
 
+  // was uint32-based chunk ID
+  reserved 3;
+
   // chunk_id
-  uint32 chunk_id = 3;
+  //
+  // UUID is stored as 16 bytes in big-endian order.
+  bytes chunk_id = 5;
 }
 
 // Compact chunks into a single chunk
@@ -77,8 +82,13 @@ message CompactChunks {
   // table name
   string table_name = 4;
 
+  // was uint32-based chunk IDs
+  reserved 3;
+
   // chunk_id
-  repeated uint32 chunks = 3;
+  //
+  // UUID is stored as 16 bytes in big-endian order.
+  repeated bytes chunks = 5;
 }
 
 // Split and write chunks to object store
@@ -92,8 +102,13 @@ message PersistChunks {
   // table name
   string table_name = 4;
 
+  // was uint32-based chunk IDs
+  reserved 3;
+
   // chunk_id
-  repeated uint32 chunks = 3;
+  //
+  // UUID is stored as 16 bytes in big-endian order.
+  repeated bytes chunks = 5;
 }
 
 // Drop chunk from memory and (if persisted) from object store.
@@ -107,8 +122,13 @@ message DropChunk {
   // table name
   string table_name = 4;
 
+  // was uint32-based chunk ID
+  reserved 3;
+
   // chunk_id
-  uint32 chunk_id = 3;
+  //
+  // UUID is stored as 16 bytes in big-endian order.
+  bytes chunk_id = 5;
 }
 
 // Drop partition from memory and (if persisted) from object store.
