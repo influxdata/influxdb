@@ -206,14 +206,21 @@ impl ChunkSummary {
 pub struct ChunkId(Uuid);
 
 impl ChunkId {
-    pub fn new_random() -> Self {
+    /// Create new, random ID.
+    #[allow(clippy::new_without_default)] // `new` creates non-deterministic result
+    pub fn new() -> Self {
         Self(Uuid::new_v4())
     }
 
+    /// **TESTING ONLY:** Create new ID from integer.
+    ///
+    /// Since this can easily lead to ID collissions (which in turn can lead to panics), this must only be used for
+    /// testing purposes!
     pub fn new_test(id: u128) -> Self {
         Self(Uuid::from_u128(id))
     }
 
+    /// Get inner UUID.
     pub fn get(&self) -> Uuid {
         self.0
     }

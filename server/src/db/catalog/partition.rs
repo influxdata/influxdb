@@ -202,7 +202,7 @@ impl Partition {
     ) -> &Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name().as_ref(), self.table_name());
 
-        let chunk_id = ChunkId::new_random();
+        let chunk_id = ChunkId::new();
         let chunk_order = self.next_chunk_order();
 
         let addr = ChunkAddr::new(&self.addr, chunk_id);
@@ -232,7 +232,7 @@ impl Partition {
         chunk_order: ChunkOrder,
         chunk_id: Option<ChunkId>,
     ) -> (ChunkId, &Arc<RwLock<CatalogChunk>>) {
-        let chunk_id = chunk_id.unwrap_or_else(ChunkId::new_random);
+        let chunk_id = chunk_id.unwrap_or_else(ChunkId::new);
         assert!(
             chunk_order < self.next_chunk_order,
             "chunk order for new RUB chunk ({}) is out of range [0, {})",

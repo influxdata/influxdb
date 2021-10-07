@@ -1,6 +1,7 @@
 use std::{fs::set_permissions, os::unix::fs::PermissionsExt};
 
 use arrow_util::assert_batches_sorted_eq;
+use data_types::chunk_metadata::ChunkId;
 use generated_types::{
     google::protobuf::{Duration, Empty},
     influxdata::iox::management::v1::{
@@ -13,7 +14,6 @@ use influxdb_iox_client::{
 };
 
 use test_helpers::assert_contains;
-use uuid::Uuid;
 
 use super::scenario::{
     create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
@@ -526,7 +526,7 @@ async fn test_chunk_get() {
         Chunk {
             partition_key: "cpu".into(),
             table_name: "cpu".into(),
-            id: Uuid::from_u128(0).as_bytes().to_vec().into(),
+            id: ChunkId::new_test(0).into(),
             storage: ChunkStorage::OpenMutableBuffer.into(),
             lifecycle_action,
             memory_bytes: 1016,
@@ -541,7 +541,7 @@ async fn test_chunk_get() {
         Chunk {
             partition_key: "disk".into(),
             table_name: "disk".into(),
-            id: Uuid::from_u128(0).as_bytes().to_vec().into(),
+            id: ChunkId::new_test(0).into(),
             storage: ChunkStorage::OpenMutableBuffer.into(),
             lifecycle_action,
             memory_bytes: 1018,
@@ -713,7 +713,7 @@ async fn test_list_partition_chunks() {
     let expected: Vec<Chunk> = vec![Chunk {
         partition_key: "cpu".into(),
         table_name: "cpu".into(),
-        id: Uuid::from_u128(0).as_bytes().to_vec().into(),
+        id: ChunkId::new_test(0).into(),
         storage: ChunkStorage::OpenMutableBuffer.into(),
         lifecycle_action: ChunkLifecycleAction::Unspecified.into(),
         memory_bytes: 1016,
@@ -926,7 +926,7 @@ async fn test_close_partition_chunk_error() {
             "this database does not exist",
             "nor_does_this_table",
             "nor_does_this_partition",
-            Uuid::from_u128(0).as_bytes().to_vec().into(),
+            ChunkId::new_test(0).into(),
         )
         .await
         .expect_err("expected error");
@@ -1062,7 +1062,7 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
             Chunk {
                 partition_key,
                 table_name,
-                id: Uuid::from_u128(0).as_bytes().to_vec().into(),
+                id: ChunkId::new_test(0).into(),
                 storage,
                 lifecycle_action,
                 row_count,

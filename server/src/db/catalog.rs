@@ -421,7 +421,7 @@ mod tests {
 
         assert_eq!(
             chunk_addrs(&catalog),
-            sorted(vec![addr1, addr2, addr3, addr4,]),
+            as_sorted(vec![addr1, addr2, addr3, addr4,]),
         );
     }
 
@@ -504,7 +504,7 @@ mod tests {
         let addr2 = create_open_chunk(&p1);
         assert_eq!(
             chunk_addrs(&catalog),
-            sorted(vec![addr1.clone(), addr2.clone(),]),
+            as_sorted(vec![addr1.clone(), addr2.clone(),]),
         );
 
         {
@@ -515,7 +515,7 @@ mod tests {
 
         // should be ok to "re-create", it gets another chunk_id though
         let addr3 = create_open_chunk(&p1);
-        assert_eq!(chunk_addrs(&catalog), sorted(vec![addr2, addr3,]),);
+        assert_eq!(chunk_addrs(&catalog), as_sorted(vec![addr2, addr3,]),);
     }
 
     #[test]
@@ -548,7 +548,7 @@ mod tests {
         std::iter::once(s.into()).collect()
     }
 
-    fn sorted<T>(mut v: Vec<T>) -> Vec<T>
+    fn as_sorted<T>(mut v: Vec<T>) -> Vec<T>
     where
         T: Ord,
     {
