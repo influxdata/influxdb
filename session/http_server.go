@@ -161,7 +161,7 @@ func decodeSignoutRequest(ctx context.Context, r *http.Request) (*signoutRequest
 	}, nil
 }
 
-const cookieSessionName = "session"
+const cookieSessionName = "influxdb-oss-session"
 
 func encodeCookieSession(w http.ResponseWriter, s *influxdb.Session) {
 	c := &http.Cookie{
