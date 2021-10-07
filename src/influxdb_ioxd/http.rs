@@ -898,7 +898,7 @@ where
 mod tests {
     use super::*;
     use std::{
-        convert::{TryFrom, TryInto},
+        convert::TryFrom,
         net::{IpAddr, Ipv4Addr, SocketAddr},
     };
 
@@ -1731,12 +1731,7 @@ mod tests {
 
     fn make_rules(db_name: impl Into<String>) -> ProvidedDatabaseRules {
         let db_name = DatabaseName::new(db_name.into()).unwrap();
-
-        let rules = DatabaseRules::new(db_name);
-        let rules: generated_types::influxdata::iox::management::v1::DatabaseRules =
-            rules.try_into().unwrap();
-
-        let provided_rules: ProvidedDatabaseRules = rules.try_into().unwrap();
-        provided_rules
+        ProvidedDatabaseRules::new_rules(DatabaseRules::new(db_name).into())
+            .expect("Tests should create valid DatabaseRules")
     }
 }

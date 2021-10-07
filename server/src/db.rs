@@ -405,7 +405,7 @@ impl Db {
             let late_arrive_window_updated = rules.lifecycle_rules.late_arrive_window_seconds
                 != new_rules.lifecycle_rules.late_arrive_window_seconds;
 
-            *rules = Arc::clone(&new_rules);
+            *rules = new_rules;
             late_arrive_window_updated
         };
 

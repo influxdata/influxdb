@@ -149,6 +149,15 @@ message DatabaseRules {
   WriteBufferConnection write_buffer_connection = 13;
 }
 
+// The UUID and database rules stored in object storage for a database. Operator-facing APIs should
+// use `DatabaseRules` instead.
+message PersistedDatabaseRules {
+  // The UUID uniquely identifying this database
+  bytes uuid = 1;
+
+  DatabaseRules rules = 2;
+}
+
 // Configures the use of a write buffer.
 message WriteBufferConnection {
   enum Direction {

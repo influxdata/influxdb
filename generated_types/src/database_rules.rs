@@ -1,17 +1,20 @@
-use std::convert::{TryFrom, TryInto};
-use std::num::NonZeroU32;
-use std::time::Duration;
-
-use thiserror::Error;
-
-use data_types::database_rules::{
-    DatabaseRules, RoutingConfig, RoutingRules, WriteBufferConnection, WriteBufferCreationConfig,
-    WriteBufferDirection, DEFAULT_N_SEQUENCERS,
+use crate::{
+    google::{FieldViolation, FieldViolationExt, FromFieldOpt},
+    influxdata::iox::management::v1 as management,
 };
-use data_types::DatabaseName;
-
-use crate::google::{FieldViolation, FieldViolationExt, FromFieldOpt};
-use crate::influxdata::iox::management::v1 as management;
+use data_types::{
+    database_rules::{
+        DatabaseRules, RoutingConfig, RoutingRules, WriteBufferConnection,
+        WriteBufferCreationConfig, WriteBufferDirection, DEFAULT_N_SEQUENCERS,
+    },
+    DatabaseName,
+};
+use std::{
+    convert::{TryFrom, TryInto},
+    num::NonZeroU32,
+    time::Duration,
+};
+use thiserror::Error;
 
 mod lifecycle;
 mod partition;
@@ -131,7 +134,17 @@ pub enum ProstError {
     DecodeError(#[from] prost::DecodeError),
 }
 
-/// Decode datbase rules that were encoded using `encode_database_rules`
+/// Decode database rules that were encoded using `encode_persisted_database_rules`
+pub fn decode_persisted_database_rules(
+    bytes: prost::bytes::Bytes,
+) -> Result<management::PersistedDatabaseRules, ProstError> {
+    Ok(prost::Message::decode(bytes)?)
+}
+
+/// TEMPORARY FOR TRANSITION PURPOSES - if decoding rules file as `PersistedDatabaseRules` (which
+/// includes the database UUID) fails, use this to try instead to decode as `DatabaseRules`. Then
+/// next time the database rules are updated, the rules file will be writted as
+/// `PersistedDatabaseRules`.
 pub fn decode_database_rules(
     bytes: prost::bytes::Bytes,
 ) -> Result<management::DatabaseRules, ProstError> {
@@ -140,8 +153,8 @@ pub fn decode_database_rules(
 
 /// Encode database rules into a serialized format suitable for
 /// storage in objet store
-pub fn encode_database_rules(
-    rules: &management::DatabaseRules,
+pub fn encode_persisted_database_rules(
+    rules: &management::PersistedDatabaseRules,
     bytes: &mut prost::bytes::BytesMut,
 ) -> Result<(), ProstError> {
     Ok(prost::Message::encode(rules, bytes)?)
