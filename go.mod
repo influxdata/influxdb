@@ -41,7 +41,6 @@ require (
 	github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe
 	github.com/influxdata/flux v0.133.0
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
-	github.com/influxdata/influx-cli/v2 v2.1.1-0.20211006152725-857e2b356cc0
 	github.com/influxdata/influxql v1.1.1-0.20211004132434-7e7d61973256
 	github.com/influxdata/pkg-config v0.2.9-0.20210928145121-f721f9766b86
 	github.com/jmoiron/sqlx v1.3.4
@@ -165,6 +164,7 @@ require (
 	github.com/hashicorp/vault/sdk v0.1.8 // indirect
 	github.com/huandu/xstrings v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/influxdata/influx-cli/v2 v2.1.1-0.20211007122339-c4a5a13c8ee3
 	github.com/influxdata/influxdb-client-go/v2 v2.3.1-0.20210518120617-5d1fff431040 // indirect
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839 // indirect
 	github.com/influxdata/tdigest v0.0.2-0.20210216194612-fc98d27c9e8b // indirect
@@ -219,14 +219,5 @@ require (
 	gopkg.in/ini.v1 v1.51.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1 // indirect
 )
-
-// Arrow has been taking too long to merge our PR that addresses some checkptr fixes.
-// We are using our own fork, which specifically applies the change in
-// https://github.com/apache/arrow/pull/8112, on top of the commit of Arrow that flux uses.
-//
-// The next time Flux updates its Arrow dependency, we will see checkptr test failures,
-// if that version does not include PR 8112. In that event, someone (perhaps Mark R again)
-// will need to apply the change in 8112 on top of the newer version of Arrow.
-replace github.com/apache/arrow/go/arrow v0.0.0-20191024131854-af6fa24be0db => github.com/influxdata/arrow/go/arrow v0.0.0-20200917142114-986e413c1705
 
 replace github.com/nats-io/nats-streaming-server v0.11.2 => github.com/influxdata/nats-streaming-server v0.11.3-0.20201112040610-c277f7560803

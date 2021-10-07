@@ -29,6 +29,7 @@ func TestBackupRestore_Full(t *testing.T) {
 		o.Testing = false
 		o.LogLevel = zap.InfoLevel
 	})
+	originalAuth := *l1.Auth
 	l1.WritePointsOrFail(t, "m,k=v1 f=100i 946684800000000000\nm,k=v2 f=200i 946684800000000001")
 	l1.BackupOrFail(t, ctx, backup.Params{Path: backupDir})
 
@@ -46,7 +47,7 @@ func TestBackupRestore_Full(t *testing.T) {
 	// Shut down the server.
 	l1.ShutdownOrFail(t, ctx)
 
-	// Boot up a second server, using the same auth token as the previous.
+	// Boot up a second server, using a new auth token
 	l2 := launcher.NewTestLauncher()
 	l2.RunOrFail(t, ctx, func(o *launcher.InfluxdOpts) {
 		o.StoreType = "bolt"
@@ -60,7 +61,6 @@ func TestBackupRestore_Full(t *testing.T) {
 		Password: "PASSWORD",
 		Org:      "ORG",
 		Bucket:   "BUCKET",
-		Token:    l1.Auth.Token,
 	}
 	onboardRes := l2.OnBoardOrFail(t, &onboardReq)
 	l2.Org = onboardRes.Org
@@ -78,6 +78,10 @@ func TestBackupRestore_Full(t *testing.T) {
 
 	// Perform a full restore from the previous backups.
 	l2.RestoreOrFail(t, ctx, restore.Params{Path: backupDir, Full: true})
+
+	// A full restore also restores the original token
+	l2.Auth = &originalAuth
+	l2.ResetHTTPCLient()
 
 	// Check that orgs and buckets were reset to match the original server's metadata.
 	_, err = l2.OrgService(t).FindOrganizationByID(ctx, l2.Org.ID)
