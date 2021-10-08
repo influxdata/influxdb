@@ -100,6 +100,36 @@ async fn test_field_columns_with_pred() {
 }
 
 #[tokio::test]
+async fn test_field_columns_measurement_pred() {
+    // get only fields from h2o using a _measurement predicate
+    let predicate = PredicateBuilder::default()
+        .add_expr(col("_measurement").eq(lit("h2o")))
+        .build();
+
+    let expected_fields = FieldList {
+        fields: vec![
+            Field {
+                name: "moisture".into(),
+                data_type: DataType::Float64,
+                last_timestamp: 100000,
+            },
+            Field {
+                name: "other_temp".into(),
+                data_type: DataType::Float64,
+                last_timestamp: 350,
+            },
+            Field {
+                name: "temp".into(),
+                data_type: DataType::Float64,
+                last_timestamp: 100000,
+            },
+        ],
+    };
+
+    run_field_columns_test_case(TwoMeasurementsManyFields {}, predicate, expected_fields).await;
+}
+
+#[tokio::test]
 async fn test_field_columns_with_ts_pred() {
     let predicate = PredicateBuilder::default()
         .table("h2o")

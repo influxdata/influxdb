@@ -2638,23 +2638,31 @@ mod test {
 
     fn _read_filter_setup() -> RowGroup {
         let mut columns = vec![];
-        let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
+        let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6, 8][..]));
         columns.push(("time".to_string(), tc));
 
         let rc = ColumnType::Tag(Column::from(
-            &["west", "west", "east", "west", "south", "north"][..],
+            &[
+                Some("west"),
+                Some("west"),
+                Some("east"),
+                Some("west"),
+                Some("south"),
+                Some("north"),
+                None,
+            ][..],
         ));
         columns.push(("region".to_string(), rc));
 
         let mc = ColumnType::Tag(Column::from(
-            &["GET", "POST", "POST", "POST", "PUT", "GET"][..],
+            &["GET", "POST", "POST", "POST", "PUT", "GET", "PATCH"][..],
         ));
         columns.push(("method".to_string(), mc));
 
-        let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
+        let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10, 29][..]));
         columns.push(("count".to_string(), fc));
 
-        RowGroup::new(6, columns)
+        RowGroup::new(7, columns)
     }
 
     #[test]
@@ -2713,6 +2721,28 @@ east,3
 west,4
 ",
             ),
+            (
+                vec!["region", "time"],
+                Predicate::with_time_range(&[BinaryExpr::from(("method", "!=", "HEAD"))], 0, 10),
+                "region,time
+west,1
+west,2
+east,3
+west,4
+south,5
+north,6
+NULL,8
+",
+            ),
+            (
+                vec!["region", "time"],
+                Predicate::with_time_range(&[BinaryExpr::from(("region", "!=", "west"))], 0, 10),
+                "region,time
+east,3
+south,5
+north,6
+",
+            ),
         ];
 
         for (cols, predicates, expected) in cases {
@@ -2744,6 +2774,7 @@ POST,east,3
 POST,west,4
 PUT,south,5
 GET,north,6
+PATCH,NULL,8
 ",
             ),
             (

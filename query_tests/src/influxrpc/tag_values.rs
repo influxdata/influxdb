@@ -237,6 +237,49 @@ async fn list_tag_values_table_and_timestamp_and_state_pred_state_col_no_rows() 
 }
 
 #[tokio::test]
+async fn list_tag_values_measurement_pred() {
+    let tag_name = "state";
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(1, 600) // filters out the NY row
+        .add_expr(col("_measurement").not_eq(lit("o2")))
+        .build();
+    let expected_tag_keys = vec!["CA", "MA"];
+
+    run_tag_values_test_case(
+        TwoMeasurementsManyNulls {},
+        tag_name,
+        predicate,
+        expected_tag_keys,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn list_tag_values_measurement_pred_and_or() {
+    let tag_name = "city";
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(1, 600) // filters out the NY row
+        // since there is an 'OR' in this predicate, can't answer
+        // with metadata alone
+        // _measurement = 'o2' OR temp > 70.0
+        .add_expr(
+            col("_measurement")
+                .eq(lit("o2"))
+                .or(col("temp").gt(lit(70.0))),
+        )
+        .build();
+    let expected_tag_keys = vec!["Boston", "LA", "NYC"];
+
+    run_tag_values_test_case(
+        TwoMeasurementsManyNulls {},
+        tag_name,
+        predicate,
+        expected_tag_keys,
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn list_tag_values_field_col() {
     let db_setup = TwoMeasurementsManyNulls {};
     let predicate = PredicateBuilder::default().build();

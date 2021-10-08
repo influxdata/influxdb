@@ -7,13 +7,14 @@ use std::{
 use arrow::datatypes::{DataType, Field};
 use data_types::chunk_metadata::ChunkId;
 use datafusion::{
-    error::DataFusionError,
-    logical_plan::{Expr, LogicalPlan, LogicalPlanBuilder},
+    error::{DataFusionError, Result as DatafusionResult},
+    logical_plan::{lit, Column, Expr, ExprRewriter, LogicalPlan, LogicalPlanBuilder},
+    optimizer::utils::expr_to_columns,
     prelude::col,
 };
 use datafusion_util::AsExpr;
 
-use hashbrown::HashSet;
+use hashbrown::{HashMap, HashSet};
 use internal_types::{
     schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME},
     selection::Selection,
@@ -35,9 +36,18 @@ use crate::{
         stringset::{Error as StringSetError, StringSetPlan, StringSetPlanBuilder},
     },
     provider::ProviderBuilder,
-    util::schema_has_all_expr_columns,
     QueryChunk, QueryChunkMeta, QueryDatabase,
 };
+
+/// Any column references to this name are rewritten to be
+/// the actual table name by the Influx gRPC planner.
+///
+/// This is required to support predicates like
+/// `_measurement = "foo" OR tag1 = "bar"`
+///
+/// The plan for each table will have the value of `_measurement`
+/// filled in with a literal for the respective name of that field
+pub const MEASUREMENT_COLUMN_NAME: &str = "_measurement";
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -200,9 +210,13 @@ impl InfluxRpcPlanner {
         D: QueryDatabase + 'static,
     {
         let mut builder = StringSetPlanBuilder::new();
+        let mut normalizer = PredicateNormalizer::new(predicate);
 
-        for chunk in database.chunks(&predicate) {
+        for chunk in database.chunks(normalizer.unnormalized()) {
             // Try and apply the predicate using only metadata
+            let table_name = chunk.table_name();
+            let predicate = normalizer.normalized(table_name);
+
             let pred_result = chunk
                 .apply_predicate_to_metadata(&predicate)
                 .map_err(|e| Box::new(e) as _)
@@ -216,15 +230,18 @@ impl InfluxRpcPlanner {
                 PredicateMatch::Zero => builder,
                 // can't evaluate predicate, need a new plan
                 PredicateMatch::Unknown => {
-                    // TODO: General purpose plans for
-                    // table_names. For now, return an error
+                    // TODO: General purpose plans for table_names.
+                    // https://github.com/influxdata/influxdb_iox/issues/762
                     debug!(
                         chunk=%chunk.id().get(),
                         ?predicate,
-                        table_name=%chunk.table_name(),
+                        %table_name,
                         "can not evaluate predicate"
                     );
-                    return UnsupportedPredicateForTableNames { predicate }.fail();
+                    return UnsupportedPredicateForTableNames {
+                        predicate: predicate.as_ref().clone(),
+                    }
+                    .fail();
                 }
             };
         }
@@ -254,9 +271,13 @@ impl InfluxRpcPlanner {
         // for that table but that we couldn't evaluate the predicate
         // entirely using the metadata
         let mut need_full_plans = BTreeMap::new();
+        let mut normalizer = PredicateNormalizer::new(predicate);
 
         let mut known_columns = BTreeSet::new();
-        for chunk in database.chunks(&predicate) {
+        for chunk in database.chunks(normalizer.unnormalized()) {
+            let table_name = chunk.table_name();
+            let predicate = normalizer.normalized(table_name);
+
             // Try and apply the predicate using only metadata
             let pred_result = chunk
                 .apply_predicate_to_metadata(&predicate)
@@ -268,7 +289,6 @@ impl InfluxRpcPlanner {
             if matches!(pred_result, PredicateMatch::Zero) {
                 continue;
             }
-            let table_name = chunk.table_name();
 
             // get only tag columns from metadata
             let schema = chunk.schema();
@@ -327,7 +347,7 @@ impl InfluxRpcPlanner {
                 let schema = database.table_schema(&table_name).context(TableRemoved {
                     table_name: &table_name,
                 })?;
-                let plan = self.tag_keys_plan(&table_name, schema, &predicate, chunks)?;
+                let plan = self.tag_keys_plan(&table_name, schema, &mut normalizer, chunks)?;
 
                 if let Some(plan) = plan {
                     builder = builder.append(plan)
@@ -369,8 +389,12 @@ impl InfluxRpcPlanner {
         // entirely using the metadata
         let mut need_full_plans = BTreeMap::new();
 
+        let mut normalizer = PredicateNormalizer::new(predicate);
         let mut known_values = BTreeSet::new();
-        for chunk in database.chunks(&predicate) {
+        for chunk in database.chunks(normalizer.unnormalized()) {
+            let table_name = chunk.table_name();
+            let predicate = normalizer.normalized(table_name);
+
             // Try and apply the predicate using only metadata
             let pred_result = chunk
                 .apply_predicate_to_metadata(&predicate)
@@ -382,7 +406,6 @@ impl InfluxRpcPlanner {
             if matches!(pred_result, PredicateMatch::Zero) {
                 continue;
             }
-            let table_name = chunk.table_name();
 
             // use schema to validate column type
             let schema = chunk.schema();
@@ -425,7 +448,7 @@ impl InfluxRpcPlanner {
                         table_name,
                         names=?names,
                         chunk_id=%chunk.id().get(),
-                        "column values found from metadata",
+                        "tag values found from metadata",
                     );
                     known_values.append(&mut names);
                 }
@@ -433,7 +456,7 @@ impl InfluxRpcPlanner {
                     debug!(
                         table_name,
                         chunk_id=%chunk.id().get(),
-                        "need full plan to find column values"
+                        "need full plan to find tag values"
                     );
                     // can't get columns only from metadata, need
                     // a general purpose plan
@@ -456,7 +479,8 @@ impl InfluxRpcPlanner {
             let schema = database.table_schema(&table_name).context(TableRemoved {
                 table_name: &table_name,
             })?;
-            let scan_and_filter = self.scan_and_filter(&table_name, schema, &predicate, chunks)?;
+            let scan_and_filter =
+                self.scan_and_filter(&table_name, schema, &mut normalizer, chunks)?;
 
             // if we have any data to scan, make a plan!
             if let Some(TableScanAndFilter {
@@ -510,17 +534,20 @@ impl InfluxRpcPlanner {
         //
         // The executor then figures out which columns have non-null
         // values and stops the plan executing once it has them
+        let mut normalizer = PredicateNormalizer::new(predicate);
 
         // map table -> Vec<Arc<Chunk>>
-        let chunks = database.chunks(&predicate);
-        let table_chunks = self.group_chunks_by_table(&predicate, chunks)?;
+        let chunks = database.chunks(normalizer.unnormalized());
+        let table_chunks = self.group_chunks_by_table(&mut normalizer, chunks)?;
 
         let mut field_list_plan = FieldListPlan::new();
         for (table_name, chunks) in table_chunks {
             let schema = database.table_schema(&table_name).context(TableRemoved {
                 table_name: &table_name,
             })?;
-            if let Some(plan) = self.field_columns_plan(&table_name, schema, &predicate, chunks)? {
+            if let Some(plan) =
+                self.field_columns_plan(&table_name, schema, &mut normalizer, chunks)?
+            {
                 field_list_plan = field_list_plan.append(plan);
             }
         }
@@ -554,10 +581,12 @@ impl InfluxRpcPlanner {
     {
         debug!(predicate=?predicate, "planning read_filter");
 
+        let mut normalizer = PredicateNormalizer::new(predicate);
+
         // group tables by chunk, pruning if possible
         // key is table name, values are chunks
-        let chunks = database.chunks(&predicate);
-        let table_chunks = self.group_chunks_by_table(&predicate, chunks)?;
+        let chunks = database.chunks(normalizer.unnormalized());
+        let table_chunks = self.group_chunks_by_table(&mut normalizer, chunks)?;
 
         // now, build up plans for each table
         let mut ss_plans = Vec::with_capacity(table_chunks.len());
@@ -568,7 +597,7 @@ impl InfluxRpcPlanner {
             })?;
 
             let ss_plan =
-                self.read_filter_plan(table_name, schema, prefix_columns, &predicate, chunks)?;
+                self.read_filter_plan(table_name, schema, prefix_columns, &mut normalizer, chunks)?;
             // If we have to do real work, add it to the list of plans
             if let Some(ss_plan) = ss_plan {
                 ss_plans.push(ss_plan);
@@ -594,9 +623,11 @@ impl InfluxRpcPlanner {
     {
         debug!(predicate=?predicate, agg=?agg, "planning read_group");
 
+        let mut normalizer = PredicateNormalizer::new(predicate);
+
         // group tables by chunk, pruning if possible
-        let chunks = database.chunks(&predicate);
-        let table_chunks = self.group_chunks_by_table(&predicate, chunks)?;
+        let chunks = database.chunks(normalizer.unnormalized());
+        let table_chunks = self.group_chunks_by_table(&mut normalizer, chunks)?;
         let num_prefix_tag_group_columns = group_columns.len();
 
         // now, build up plans for each table
@@ -610,13 +641,13 @@ impl InfluxRpcPlanner {
                     table_name,
                     Arc::clone(&schema),
                     Some(group_columns),
-                    &predicate,
+                    &mut normalizer,
                     chunks,
                 )?,
                 _ => self.read_group_plan(
                     table_name,
                     schema,
-                    &predicate,
+                    &mut normalizer,
                     agg,
                     group_columns,
                     chunks,
@@ -654,9 +685,11 @@ impl InfluxRpcPlanner {
             "planning read_window_aggregate"
         );
 
+        let mut normalizer = PredicateNormalizer::new(predicate);
+
         // group tables by chunk, pruning if possible
-        let chunks = database.chunks(&predicate);
-        let table_chunks = self.group_chunks_by_table(&predicate, chunks)?;
+        let chunks = database.chunks(normalizer.unnormalized());
+        let table_chunks = self.group_chunks_by_table(&mut normalizer, chunks)?;
 
         // now, build up plans for each table
         let mut ss_plans = Vec::with_capacity(table_chunks.len());
@@ -665,7 +698,13 @@ impl InfluxRpcPlanner {
                 table_name: &table_name,
             })?;
             let ss_plan = self.read_window_aggregate_plan(
-                table_name, schema, &predicate, agg, &every, &offset, chunks,
+                table_name,
+                schema,
+                &mut normalizer,
+                agg,
+                &every,
+                &offset,
+                chunks,
             )?;
             // If we have to do real work, add it to the list of plans
             if let Some(ss_plan) = ss_plan {
@@ -679,7 +718,7 @@ impl InfluxRpcPlanner {
     /// Creates a map of table_name --> Chunks that have that table that *may* pass the predicate
     fn group_chunks_by_table<C>(
         &self,
-        predicate: &Predicate,
+        normalizer: &mut PredicateNormalizer,
         chunks: Vec<Arc<C>>,
     ) -> Result<BTreeMap<String, Vec<Arc<C>>>>
     where
@@ -687,9 +726,10 @@ impl InfluxRpcPlanner {
     {
         let mut table_chunks = BTreeMap::new();
         for chunk in chunks {
+            let predicate = normalizer.normalized(chunk.table_name());
             // Try and apply the predicate using only metadata
             let pred_result = chunk
-                .apply_predicate_to_metadata(predicate)
+                .apply_predicate_to_metadata(&predicate)
                 .map_err(|e| Box::new(e) as _)
                 .context(CheckingChunkPredicate {
                     chunk_id: chunk.id(),
@@ -727,13 +767,13 @@ impl InfluxRpcPlanner {
         &self,
         table_name: &str,
         schema: Arc<Schema>,
-        predicate: &Predicate,
+        normalizer: &mut PredicateNormalizer,
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<StringSetPlan>>
     where
         C: QueryChunk + 'static,
     {
-        let scan_and_filter = self.scan_and_filter(table_name, schema, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(table_name, schema, normalizer, chunks)?;
 
         let TableScanAndFilter {
             plan_builder,
@@ -790,13 +830,13 @@ impl InfluxRpcPlanner {
         &self,
         table_name: &str,
         schema: Arc<Schema>,
-        predicate: &Predicate,
+        normalizer: &mut PredicateNormalizer,
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<LogicalPlan>>
     where
         C: QueryChunk + 'static,
     {
-        let scan_and_filter = self.scan_and_filter(table_name, schema, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(table_name, schema, normalizer, chunks)?;
         let TableScanAndFilter {
             plan_builder,
             schema,
@@ -842,14 +882,15 @@ impl InfluxRpcPlanner {
         table_name: impl AsRef<str>,
         schema: Arc<Schema>,
         prefix_columns: Option<&[impl AsRef<str>]>,
-        predicate: &Predicate,
+        normalizer: &mut PredicateNormalizer,
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<SeriesSetPlan>>
     where
         C: QueryChunk + 'static,
     {
         let table_name = table_name.as_ref();
-        let scan_and_filter = self.scan_and_filter(table_name, schema, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(table_name, schema, normalizer, chunks)?;
+        let predicate = normalizer.normalized(table_name);
 
         let TableScanAndFilter {
             plan_builder,
@@ -885,7 +926,7 @@ impl InfluxRpcPlanner {
         // Select away anything that isn't in the influx data model
         let tags_fields_and_timestamps: Vec<Expr> = schema
             .tags_iter()
-            .chain(filtered_fields_iter(&schema, predicate))
+            .chain(filtered_fields_iter(&schema, &predicate))
             .chain(schema.time_iter())
             .map(|field| field.name().as_expr())
             .collect();
@@ -901,7 +942,7 @@ impl InfluxRpcPlanner {
             .map(|field| Arc::from(field.name().as_str()))
             .collect();
 
-        let field_columns = filtered_fields_iter(&schema, predicate)
+        let field_columns = filtered_fields_iter(&schema, &predicate)
             .map(|field| Arc::from(field.name().as_str()))
             .collect();
 
@@ -962,7 +1003,7 @@ impl InfluxRpcPlanner {
         &self,
         table_name: impl Into<String>,
         schema: Arc<Schema>,
-        predicate: &Predicate,
+        normalizer: &mut PredicateNormalizer,
         agg: Aggregate,
         group_columns: &[impl AsRef<str>],
         chunks: Vec<Arc<C>>,
@@ -971,7 +1012,8 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter = self.scan_and_filter(&table_name, schema, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(&table_name, schema, normalizer, chunks)?;
+        let predicate = normalizer.normalized(&table_name);
 
         let TableScanAndFilter {
             plan_builder,
@@ -1000,7 +1042,7 @@ impl InfluxRpcPlanner {
         let AggExprs {
             agg_exprs,
             field_columns,
-        } = AggExprs::try_new(agg, &schema, predicate)?;
+        } = AggExprs::try_new(agg, &schema, &predicate)?;
 
         let sort_exprs = group_exprs
             .iter()
@@ -1056,7 +1098,7 @@ impl InfluxRpcPlanner {
         &self,
         table_name: impl Into<String>,
         schema: Arc<Schema>,
-        predicate: &Predicate,
+        normalizer: &mut PredicateNormalizer,
         agg: Aggregate,
         every: &WindowDuration,
         offset: &WindowDuration,
@@ -1066,7 +1108,8 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter = self.scan_and_filter(&table_name, schema, predicate, chunks)?;
+        let scan_and_filter = self.scan_and_filter(&table_name, schema, normalizer, chunks)?;
+        let predicate = normalizer.normalized(&table_name);
 
         let TableScanAndFilter {
             plan_builder,
@@ -1087,7 +1130,7 @@ impl InfluxRpcPlanner {
             .collect::<Vec<_>>();
 
         // aggregate each field
-        let agg_exprs = filtered_fields_iter(&schema, predicate)
+        let agg_exprs = filtered_fields_iter(&schema, &predicate)
             .map(|field| make_agg_expr(agg, field.name()))
             .collect::<Result<Vec<_>>>()?;
 
@@ -1111,7 +1154,7 @@ impl InfluxRpcPlanner {
             .map(|field| Arc::from(field.name().as_str()))
             .collect();
 
-        let field_columns = filtered_fields_iter(&schema, predicate)
+        let field_columns = filtered_fields_iter(&schema, &predicate)
             .map(|field| Arc::from(field.name().as_str()))
             .collect();
 
@@ -1144,12 +1187,14 @@ impl InfluxRpcPlanner {
         &self,
         table_name: &str,
         schema: Arc<Schema>,
-        predicate: &Predicate,
+        normalizer: &mut PredicateNormalizer,
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<TableScanAndFilter>>
     where
         C: QueryChunk + 'static,
     {
+        let predicate = normalizer.normalized(table_name);
+
         // Scan all columns to begin with (DataFusion projection
         // push-down optimization will prune out unneeded columns later)
         let projection = None;
@@ -1459,8 +1504,123 @@ fn make_selector_expr(
         .alias(column_name))
 }
 
+/// Creates specialized / normalized predicates
+#[derive(Debug)]
+struct PredicateNormalizer {
+    unnormalized: Predicate,
+    normalized: HashMap<String, TableNormalizedPredicate>,
+}
+
+impl PredicateNormalizer {
+    fn new(unnormalized: Predicate) -> Self {
+        Self {
+            unnormalized,
+            normalized: Default::default(),
+        }
+    }
+
+    /// Return a reference to the unnormalized predicate
+    fn unnormalized(&self) -> &Predicate {
+        &self.unnormalized
+    }
+
+    /// Return a reference to a predicate specialized for `table_name`
+    fn normalized(&mut self, table_name: &str) -> Arc<Predicate> {
+        if let Some(normalized_predicate) = self.normalized.get(table_name) {
+            return normalized_predicate.inner();
+        }
+
+        let normalized_predicate =
+            TableNormalizedPredicate::new(table_name, self.unnormalized.clone());
+
+        self.normalized
+            .entry(table_name.to_string())
+            .or_insert(normalized_predicate)
+            .inner()
+    }
+}
+
+/// Predicate that has been "specialized" / normalized for a
+/// particular table. Specifically:
+///
+/// * all references to the [MEASUREMENT_COLUMN_NAME] column in any
+/// `Exprs` are rewritten with the actual table name
+///
+/// For example if the original predicate was
+/// ```text
+/// _measurement = "some_table"
+/// ```
+///
+/// When evaluated on table "cpu" then the predicate is rewritten to
+/// ```text
+/// "cpu" = "some_table"
+///
+#[derive(Debug)]
+struct TableNormalizedPredicate {
+    inner: Arc<Predicate>,
+}
+
+impl TableNormalizedPredicate {
+    fn new(table_name: &str, mut inner: Predicate) -> Self {
+        inner.exprs = inner
+            .exprs
+            .into_iter()
+            .map(|e| rewrite_measurement_references(table_name, e))
+            .collect::<Vec<_>>();
+
+        Self {
+            inner: Arc::new(inner),
+        }
+    }
+
+    fn inner(&self) -> Arc<Predicate> {
+        Arc::clone(&self.inner)
+    }
+}
+
+/// Rewrites all references to the [MEASUREMENT_COLUMN_NAME] column
+/// with the actual table name
+fn rewrite_measurement_references(table_name: &str, expr: Expr) -> Expr {
+    let mut rewriter = MeasurementRewriter { table_name };
+    expr.rewrite(&mut rewriter).expect("rewrite is infallable")
+}
+
+struct MeasurementRewriter<'a> {
+    table_name: &'a str,
+}
+
+impl ExprRewriter for MeasurementRewriter<'_> {
+    fn mutate(&mut self, expr: Expr) -> DatafusionResult<Expr> {
+        Ok(match expr {
+            // rewrite col("_measurement") --> "table_name"
+            Expr::Column(Column { relation, name }) if name == MEASUREMENT_COLUMN_NAME => {
+                // should not have a qualified foo._measurement
+                // reference
+                assert!(relation.is_none());
+                lit(self.table_name)
+            }
+            // no rewrite needed
+            _ => expr,
+        })
+    }
+}
+
+/// Returns true if all columns referred to in `expr` are present in
+/// the schema, false otherwise
+pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
+    let mut predicate_columns = std::collections::HashSet::new();
+    expr_to_columns(expr, &mut predicate_columns).unwrap();
+
+    predicate_columns.into_iter().all(|col| {
+        let col_name = col.name.as_str();
+        col_name == MEASUREMENT_COLUMN_NAME || schema.find_index_of(col_name).is_some()
+    })
+}
+
 #[cfg(test)]
 mod tests {
+    use internal_types::schema::builder::SchemaBuilder;
+
     use super::*;
 
     #[test]
@@ -1542,5 +1702,38 @@ mod tests {
             }
             Err(e) => format!("{}", e),
         }
+    }
+
+    #[test]
+    fn test_schema_has_all_exprs_() {
+        let schema = SchemaBuilder::new().tag("t1").timestamp().build().unwrap();
+
+        assert!(schema_has_all_expr_columns(
+            &schema,
+            &col("t1").eq(lit("foo"))
+        ));
+        assert!(!schema_has_all_expr_columns(
+            &schema,
+            &col("t2").eq(lit("foo"))
+        ));
+        assert!(schema_has_all_expr_columns(
+            &schema,
+            &col("t1").eq(col("time"))
+        ));
+        assert!(!schema_has_all_expr_columns(
+            &schema,
+            &col("t1").eq(col("time2"))
+        ));
+        assert!(!schema_has_all_expr_columns(
+            &schema,
+            &col("t1").eq(col("time")).and(col("t3").lt(col("time")))
+        ));
+
+        assert!(schema_has_all_expr_columns(
+            &schema,
+            &col("t1")
+                .eq(col("time"))
+                .and(col("_measurement").eq(lit("the_table")))
+        ));
     }
 }

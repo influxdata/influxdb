@@ -73,6 +73,10 @@ async fn list_table_names_data_pred_250_300() {
     run_table_names_test_case(TwoMeasurements {}, tsp(250, 300), vec![]).await;
 }
 
+// Note when table names supports general purpose predicates, add a
+// test here with a `_measurement` predicate
+// https://github.com/influxdata/influxdb_iox/issues/762
+
 // make a single timestamp predicate between r1 and r2
 fn tsp(r1: i64, r2: i64) -> Predicate {
     PredicateBuilder::default().timestamp_range(r1, r2).build()

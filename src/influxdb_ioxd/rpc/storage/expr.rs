@@ -22,7 +22,10 @@ use generated_types::{
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 use observability_deps::tracing::warn;
 use predicate::{predicate::PredicateBuilder, regex::regex_match_expr};
-use query::group_by::{Aggregate as QueryAggregate, WindowDuration};
+use query::{
+    frontend::influxrpc::MEASUREMENT_COLUMN_NAME,
+    group_by::{Aggregate as QueryAggregate, WindowDuration},
+};
 use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -60,9 +63,6 @@ pub enum Error {
         description
     ))]
     InvalidWindowOffsetDuration { description: String },
-
-    #[snafu(display("Internal error: found measurement tag reference in unexpected location"))]
-    InternalInvalidMeasurementReference {},
 
     #[snafu(display("Internal error: found field tag reference in unexpected location"))]
     InternalInvalidFieldReference {},
@@ -422,11 +422,12 @@ fn convert_node_to_expr(node: RPCNode) -> Result<Expr> {
 }
 
 fn make_tag_name(tag_name: Vec<u8>) -> Result<String> {
-    // These should have been handled at a higher level -- if we get
-    // here it is too late
     if tag_name.is_measurement() {
-        InternalInvalidMeasurementReference.fail()
+        // convert to "_measurement" which is handled specially in grpc planner
+        Ok(MEASUREMENT_COLUMN_NAME.to_string())
     } else if tag_name.is_field() {
+        // These should have been handled at a higher level -- if we get
+        // here it is too late
         InternalInvalidFieldReference.fail()
     } else {
         String::from_utf8(tag_name).context(ConvertingTagName)
@@ -808,7 +809,7 @@ mod tests {
         let res = PredicateBuilder::default().rpc_predicate(Some(rpc_predicate));
 
         let expected_error = "Unexpected empty predicate: Node";
-        let actual_error = error_result_to_string(res);
+        let actual_error = res.unwrap_err().to_string();
         assert!(
             actual_error.contains(expected_error),
             "expected '{}' not found in '{}'",
@@ -830,18 +831,49 @@ mod tests {
             .expect("successfully converting predicate")
             .build();
 
-        assert_eq!(predicate.exprs.len(), 1);
-        let converted_expr = &predicate.exprs[0];
-
-        // compare the expression using their string representations
-        // as Expr can't be compared directly.
-        let converted_expr = format!("{:?}", converted_expr);
-        let expected_expr = format!("{:?}", expected_expr);
+        let converted_expr = &predicate.exprs;
 
         assert_eq!(
-            expected_expr, converted_expr,
+            &expected_expr, converted_expr,
             "expected '{:#?}' doesn't match actual '{:#?}'",
             expected_expr, converted_expr
+        );
+    }
+
+    #[test]
+    fn test_convert_predicate_measurement() {
+        // _measurement = "foo"
+        let field_ref = RPCNode {
+            node_type: RPCNodeType::TagRef as i32,
+            children: vec![],
+            value: Some(RPCValue::TagRefValue(TAG_KEY_MEASUREMENT.to_vec())),
+        };
+        let iconst = RPCNode {
+            node_type: RPCNodeType::Literal as i32,
+            children: vec![],
+            value: Some(RPCValue::StringValue("foo".into())),
+        };
+        let comparison = RPCNode {
+            node_type: RPCNodeType::ComparisonExpression as i32,
+            children: vec![field_ref, iconst],
+            value: Some(RPCValue::Comparison(RPCComparison::NotEqual as i32)),
+        };
+
+        let rpc_predicate = RPCPredicate {
+            root: Some(comparison),
+        };
+
+        let predicate = PredicateBuilder::default()
+            .rpc_predicate(Some(rpc_predicate))
+            .expect("successfully converting predicate")
+            .build();
+
+        let expected_exprs = vec![col("_measurement").not_eq(lit("foo"))];
+
+        assert_eq!(
+            &expected_exprs, &predicate.exprs,
+            "expected '{:#?}' doesn't match actual '{:#?}'",
+            expected_exprs, predicate.exprs,
         );
     }
 
@@ -860,7 +892,7 @@ mod tests {
         let res = PredicateBuilder::default().rpc_predicate(Some(rpc_predicate));
 
         let expected_error = "Error creating predicate: Unsupported number of children in binary operator Gt: 0 (must be 2)";
-        let actual_error = error_result_to_string(res);
+        let actual_error = res.unwrap_err().to_string();
         assert!(
             actual_error.contains(expected_error),
             "expected '{}' not found in '{}'",
@@ -891,7 +923,7 @@ mod tests {
         let res = PredicateBuilder::default().rpc_predicate(Some(rpc_predicate));
 
         let expected_error = "Error creating predicate: Unknown comparison node type: 42";
-        let actual_error = error_result_to_string(res);
+        let actual_error = res.unwrap_err().to_string();
         assert!(
             actual_error.contains(expected_error),
             "expected '{}' not found in '{}'",
@@ -922,7 +954,7 @@ mod tests {
         let res = PredicateBuilder::default().rpc_predicate(Some(rpc_predicate));
 
         let expected_error = "Error creating predicate: Unknown logical node type: 42";
-        let actual_error = error_result_to_string(res);
+        let actual_error = res.unwrap_err().to_string();
         assert!(
             actual_error.contains(expected_error),
             "expected '{}' not found in '{}'",
@@ -1017,14 +1049,10 @@ mod tests {
             .unwrap()
             .build();
 
-        // compare the expression using their string representations
-        // as Expr can't be compared directly.
-        assert_eq!(predicate.exprs.len(), 1);
-        let converted_expr = format!("{:?}", predicate.exprs[0]);
-        let expected_expr = format!("{:?}", expected_expr);
+        let converted_expr = &predicate.exprs;
 
         assert_eq!(
-            expected_expr, converted_expr,
+            &expected_expr, converted_expr,
             "expected '{:#?}' doesn't match actual '{:#?}'",
             expected_expr, converted_expr
         );
@@ -1072,7 +1100,7 @@ mod tests {
         let res = PredicateBuilder::default().rpc_predicate(Some(rpc_predicate));
 
         let expected_error = "Internal error: found field tag reference in unexpected location";
-        let actual_error = error_result_to_string(res);
+        let actual_error = res.unwrap_err().to_string();
         assert!(
             actual_error.contains(expected_error),
             "expected '{}' not found in '{}'",
@@ -1092,7 +1120,7 @@ mod tests {
     }
 
     /// returns (RPCNode, and expected_expr for the "host > 5.0")
-    fn make_host_comparison() -> (RPCNode, Expr) {
+    fn make_host_comparison() -> (RPCNode, Vec<Expr>) {
         // host > 5.0
         let field_ref = RPCNode {
             node_type: RPCNodeType::FieldRef as i32,
@@ -1112,7 +1140,7 @@ mod tests {
 
         let expected_expr = col("host").gt(lit(5.0));
 
-        (comparison, expected_expr)
+        (comparison, vec![expected_expr])
     }
 
     fn make_tag_ref_node(tag_name: &[u8], field_name: impl Into<String>) -> RPCNode {
@@ -1155,15 +1183,6 @@ mod tests {
 
     fn to_set(v: &[&str]) -> BTreeSet<String> {
         v.iter().map(|s| s.to_string()).collect::<BTreeSet<_>>()
-    }
-
-    /// Return the dislay formay of the resulting error, or
-    /// 'UNEXPECTED SUCCESS' if `res` is not an error.
-    fn error_result_to_string<R>(res: Result<R>) -> String {
-        match res {
-            Ok(_) => "UNEXPECTED SUCCESS".into(),
-            Err(e) => format!("{}", e),
-        }
     }
 
     #[test]
@@ -1220,17 +1239,17 @@ mod tests {
         let agg = make_read_window_aggregate(vec![], 5, 10, None);
         let expected =
             "Error creating aggregate: Exactly one aggregate is supported, but 0 were supplied: []";
-        assert_eq!(error_result_to_string(agg), expected);
+        assert_eq!(agg.unwrap_err().to_string(), expected);
 
         let agg =
             make_read_window_aggregate(vec![make_aggregate(1), make_aggregate(2)], 5, 10, None);
         let expected = "Error creating aggregate: Exactly one aggregate is supported, but 2 were supplied: [Aggregate { r#type: Sum }, Aggregate { r#type: Count }]";
-        assert_eq!(error_result_to_string(agg), expected);
+        assert_eq!(agg.unwrap_err().to_string(), expected);
 
         // now window specified
         let agg = make_read_window_aggregate(vec![make_aggregate(1)], 0, 0, None);
         let expected = "Error parsing window bounds: No window specified";
-        assert_eq!(error_result_to_string(agg), expected);
+        assert_eq!(agg.unwrap_err().to_string(), expected);
 
         // correct window + window_every
         let agg = make_read_window_aggregate(vec![make_aggregate(1)], 5, 10, None).unwrap();
@@ -1302,7 +1321,7 @@ mod tests {
             Some(make_rpc_window(5, 1, false, 10, 0, false)),
         );
         let expected = "Error parsing window bounds duration \'window.every\': duration used as an interval cannot mix month and nanosecond units";
-        assert_eq!(error_result_to_string(agg), expected);
+        assert_eq!(agg.unwrap_err().to_string(), expected);
 
         // invalid durations
         let agg = make_read_window_aggregate(
@@ -1312,7 +1331,7 @@ mod tests {
             Some(make_rpc_window(5, 0, false, 10, 1, false)),
         );
         let expected = "Error parsing window bounds duration \'window.offset\': duration used as an interval cannot mix month and nanosecond units";
-        assert_eq!(error_result_to_string(agg), expected);
+        assert_eq!(agg.unwrap_err().to_string(), expected);
 
         // invalid durations
         let agg = make_read_window_aggregate(
@@ -1322,7 +1341,7 @@ mod tests {
             Some(make_rpc_window(0, 0, false, 5, 0, false)),
         );
         let expected = "Error parsing window bounds duration \'window.every\': duration used as an interval cannot be zero";
-        assert_eq!(error_result_to_string(agg), expected);
+        assert_eq!(agg.unwrap_err().to_string(), expected);
     }
 
     #[test]
@@ -1330,7 +1349,7 @@ mod tests {
         assert_eq!(convert_group_type(0).unwrap(), RPCGroup::None);
         assert_eq!(convert_group_type(2).unwrap(), RPCGroup::By);
         assert_eq!(
-            error_result_to_string(convert_group_type(1)),
+            convert_group_type(1).unwrap_err().to_string(),
             "Error creating aggregate: Unknown group type: 1"
         );
     }
@@ -1371,7 +1390,9 @@ mod tests {
             QueryAggregate::Mean
         );
         assert_eq!(
-            error_result_to_string(convert_aggregate(Some(make_aggregate(100)))),
+            convert_aggregate(Some(make_aggregate(100)))
+                .unwrap_err()
+                .to_string(),
             "Error creating aggregate: Unknown aggregate type 100"
         );
     }
