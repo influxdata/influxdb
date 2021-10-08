@@ -218,17 +218,17 @@ impl Debug for Metadata {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{TimeZone, Utc};
-    use uuid::Uuid;
-
+    use super::*;
     use crate::{
         catalog::{
-            core::PreservedCatalog, interface::CatalogParquetInfo, test_helpers::TestCatalogState,
+            core::PreservedCatalog,
+            interface::CatalogParquetInfo,
+            test_helpers::{TestCatalogState, DB_NAME},
         },
         test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize},
     };
-
-    use super::*;
+    use chrono::{TimeZone, Utc};
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_dump_default_options() {
@@ -236,6 +236,7 @@ mod tests {
 
         // build catalog with some data
         let (catalog, _state) = PreservedCatalog::new_empty_for_testing::<TestCatalogState>(
+            DB_NAME,
             Arc::clone(&iox_object_store),
             (),
             Uuid::nil(),
@@ -355,6 +356,7 @@ File {
 
         // build catalog with some data
         let (catalog, _state) = PreservedCatalog::new_empty_for_testing::<TestCatalogState>(
+            DB_NAME,
             Arc::clone(&iox_object_store),
             (),
             Uuid::nil(),

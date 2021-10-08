@@ -29,6 +29,10 @@ use std::{
     sync::Arc,
 };
 
+/// Metrics need a database name, but what the database name is doesn't matter for what's tested
+/// in this crate. This is an arbitrary name that can be used wherever a database name is needed.
+pub const DB_NAME: &str = "db1";
+
 #[derive(Clone, Debug, Default)]
 pub struct Table {
     pub partitions: HashMap<Arc<str>, Partition>,
@@ -217,14 +221,14 @@ pub async fn exists(iox_object_store: &Arc<IoxObjectStore>) -> bool {
 pub async fn load_ok(
     iox_object_store: &Arc<IoxObjectStore>,
 ) -> Option<(PreservedCatalog, TestCatalogState)> {
-    PreservedCatalog::load(Arc::clone(iox_object_store), ())
+    PreservedCatalog::load(DB_NAME, Arc::clone(iox_object_store), ())
         .await
         .unwrap()
 }
 
 /// Load a `PreservedCatalog` and unwrap the error, expecting the operation to fail
 pub async fn load_err(iox_object_store: &Arc<IoxObjectStore>) -> crate::catalog::core::Error {
-    PreservedCatalog::load::<TestCatalogState>(Arc::clone(iox_object_store), ())
+    PreservedCatalog::load::<TestCatalogState>(DB_NAME, Arc::clone(iox_object_store), ())
         .await
         .unwrap_err()
 }
@@ -233,7 +237,7 @@ pub async fn load_err(iox_object_store: &Arc<IoxObjectStore>) -> crate::catalog:
 pub async fn new_empty(
     iox_object_store: &Arc<IoxObjectStore>,
 ) -> (PreservedCatalog, TestCatalogState) {
-    PreservedCatalog::new_empty(Arc::clone(iox_object_store), ())
+    PreservedCatalog::new_empty(DB_NAME, Arc::clone(iox_object_store), ())
         .await
         .unwrap()
 }
@@ -272,7 +276,7 @@ where
     // empty state
     let iox_object_store = make_iox_object_store().await;
     let (_catalog, mut state) =
-        PreservedCatalog::new_empty::<S>(Arc::clone(&iox_object_store), state_data)
+        PreservedCatalog::new_empty::<S>(DB_NAME, Arc::clone(&iox_object_store), state_data)
             .await
             .unwrap();
 

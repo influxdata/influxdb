@@ -265,17 +265,19 @@ impl PreservedCatalog {
     /// An empty transaction will be used to mark the catalog start so that concurrent open but
     /// still-empty catalogs can easily be detected.
     pub async fn new_empty<S>(
+        db_name: &str,
         iox_object_store: Arc<IoxObjectStore>,
         state_data: S::EmptyInput,
     ) -> Result<(Self, S)>
     where
         S: CatalogState + Send + Sync,
     {
-        Self::new_empty_inner::<S>(iox_object_store, state_data, None, None).await
+        Self::new_empty_inner::<S>(db_name, iox_object_store, state_data, None, None).await
     }
 
     /// Same as [`new_empty`](Self::new_empty) but for testing.
     pub async fn new_empty_for_testing<S>(
+        db_name: &str,
         iox_object_store: Arc<IoxObjectStore>,
         state_data: S::EmptyInput,
         fixed_uuid: Uuid,
@@ -285,6 +287,7 @@ impl PreservedCatalog {
         S: CatalogState + Send + Sync,
     {
         Self::new_empty_inner::<S>(
+            db_name,
             iox_object_store,
             state_data,
             Some(fixed_uuid),
@@ -294,6 +297,7 @@ impl PreservedCatalog {
     }
 
     pub async fn new_empty_inner<S>(
+        db_name: &str,
         iox_object_store: Arc<IoxObjectStore>,
         state_data: S::EmptyInput,
         fixed_uuid: Option<Uuid>,
@@ -305,7 +309,7 @@ impl PreservedCatalog {
         if Self::exists(&iox_object_store).await? {
             return Err(Error::AlreadyExists {});
         }
-        let state = S::new_empty(iox_object_store.database_name(), state_data);
+        let state = S::new_empty(db_name, state_data);
 
         let catalog = Self {
             previous_tkey: RwLock::new(None),
@@ -331,6 +335,7 @@ impl PreservedCatalog {
     /// Loading starts at the latest checkpoint or -- if none exists -- at transaction `0`.
     /// Transactions before that point are neither verified nor are they required to exist.
     pub async fn load<S>(
+        db_name: &str,
         iox_object_store: Arc<IoxObjectStore>,
         state_data: S::EmptyInput,
     ) -> Result<Option<(Self, S)>>
@@ -397,7 +402,7 @@ impl PreservedCatalog {
         }
 
         // setup empty state
-        let mut state = S::new_empty(iox_object_store.database_name(), state_data);
+        let mut state = S::new_empty(db_name, state_data);
         let mut last_tkey = None;
 
         // detect replay start
@@ -1058,7 +1063,7 @@ mod tests {
     use super::*;
     use crate::catalog::test_helpers::{
         break_catalog_with_weird_version, create_delete_predicate, exists, load_err, load_ok,
-        new_empty, TestCatalogState,
+        new_empty, TestCatalogState, DB_NAME,
     };
     use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize};
 
@@ -1980,9 +1985,12 @@ mod tests {
 
         new_empty(&iox_object_store).await;
 
-        let res =
-            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-                .await;
+        let res = PreservedCatalog::new_empty::<TestCatalogState>(
+            DB_NAME,
+            Arc::clone(&iox_object_store),
+            (),
+        )
+        .await;
         assert_eq!(res.unwrap_err().to_string(), "Catalog already exists");
     }
 

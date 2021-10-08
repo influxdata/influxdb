@@ -68,6 +68,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// - **Metadata Read Failure:** There is a parquet file with metadata that cannot be read. Set
 ///   `ignore_metadata_read_failure` to `true` to ignore these cases.
 pub async fn rebuild_catalog<S>(
+    db_name: &str,
     iox_object_store: Arc<IoxObjectStore>,
     catalog_empty_input: S::EmptyInput,
     ignore_metadata_read_failure: bool,
@@ -79,10 +80,13 @@ where
     let files = collect_files(&iox_object_store, ignore_metadata_read_failure).await?;
 
     // create new empty catalog
-    let (catalog, mut state) =
-        PreservedCatalog::new_empty::<S>(Arc::clone(&iox_object_store), catalog_empty_input)
-            .await
-            .context(NewEmptyFailure)?;
+    let (catalog, mut state) = PreservedCatalog::new_empty::<S>(
+        db_name,
+        Arc::clone(&iox_object_store),
+        catalog_empty_input,
+    )
+    .await
+    .context(NewEmptyFailure)?;
 
     // create single transaction with all files
     if !files.is_empty() {
@@ -172,7 +176,7 @@ mod tests {
     use crate::{
         catalog::{
             core::PreservedCatalog,
-            test_helpers::{exists, new_empty, TestCatalogState},
+            test_helpers::{exists, new_empty, TestCatalogState, DB_NAME},
         },
         metadata::IoxMetadata,
         storage::{MemWriter, Storage},
@@ -235,9 +239,10 @@ mod tests {
         PreservedCatalog::wipe(&iox_object_store).await.unwrap();
 
         // rebuild
-        let (catalog, state) = rebuild_catalog::<TestCatalogState>(iox_object_store, (), false)
-            .await
-            .unwrap();
+        let (catalog, state) =
+            rebuild_catalog::<TestCatalogState>(DB_NAME, iox_object_store, (), false)
+                .await
+                .unwrap();
 
         // check match
         let paths_actual = {
@@ -261,9 +266,10 @@ mod tests {
         PreservedCatalog::wipe(&iox_object_store).await.unwrap();
 
         // rebuild
-        let (catalog, state) = rebuild_catalog::<TestCatalogState>(iox_object_store, (), false)
-            .await
-            .unwrap();
+        let (catalog, state) =
+            rebuild_catalog::<TestCatalogState>(DB_NAME, iox_object_store, (), false)
+                .await
+                .unwrap();
 
         // check match
         assert!(state.files().next().is_none());
@@ -288,14 +294,16 @@ mod tests {
 
         // rebuild (do not ignore errors)
         let res =
-            rebuild_catalog::<TestCatalogState>(Arc::clone(&iox_object_store), (), false).await;
+            rebuild_catalog::<TestCatalogState>(DB_NAME, Arc::clone(&iox_object_store), (), false)
+                .await;
         assert!(dbg!(res.unwrap_err().to_string())
             .starts_with("Cannot read IOx metadata from parquet file"));
 
         // rebuild (ignore errors)
-        let (catalog, state) = rebuild_catalog::<TestCatalogState>(iox_object_store, (), true)
-            .await
-            .unwrap();
+        let (catalog, state) =
+            rebuild_catalog::<TestCatalogState>(DB_NAME, iox_object_store, (), true)
+                .await
+                .unwrap();
         assert!(state.files().next().is_none());
         assert_eq!(catalog.revision_counter(), 0);
     }
@@ -321,9 +329,10 @@ mod tests {
         PreservedCatalog::wipe(&iox_object_store).await.unwrap();
 
         // rebuild
-        let catalog = rebuild_catalog::<TestCatalogState>(Arc::clone(&iox_object_store), (), false)
-            .await
-            .unwrap();
+        let catalog =
+            rebuild_catalog::<TestCatalogState>(DB_NAME, Arc::clone(&iox_object_store), (), false)
+                .await
+                .unwrap();
         drop(catalog);
 
         // delete transaction files
