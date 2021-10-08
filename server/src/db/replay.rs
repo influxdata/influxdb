@@ -329,7 +329,6 @@ fn filter_entry(
                     (false, None)
                 }
                 SequenceNumberSection::PartiallyPersisted => {
-                    // TODO: implement row filtering, for now replay the entire batch
                     let maybe_mask = table_batch.timestamps().ok().map(|timestamps| {
                         let max_persisted_ts = max_persisted_ts.timestamp_nanos();
                         timestamps
