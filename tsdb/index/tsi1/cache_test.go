@@ -20,7 +20,7 @@ func (i *Index) LogDiskSize(t *testing.T) {
 	// Get MANIFEST sizes from each partition.
 	for count, p := range i.partitions {
 		sz := p.manifestSize
-		t.Logf("Parition %d has size %d", count, sz)
+		t.Logf("Partition %d has size %d", count, sz)
 		size += sz
 	}
 	for _, f := range fs.files {
