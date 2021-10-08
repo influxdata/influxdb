@@ -24,8 +24,8 @@ use predicate::{
     predicate::{Predicate, PredicateMatch},
 };
 
-use hashbrown::{HashMap, HashSet};
-use std::{fmt::Debug, iter::FromIterator, sync::Arc};
+use hashbrown::HashMap;
+use std::{collections::BTreeSet, fmt::Debug, iter::FromIterator, sync::Arc};
 
 pub mod exec;
 pub mod frontend;
@@ -61,19 +61,14 @@ pub trait QueryChunkMeta: Sized {
     /// This order is to be consistent with Schema::primary_key
     fn delete_predicate_columns(&self) -> Vec<&str> {
         // get all column names but time
-        let mut col_names: HashSet<&str> = hashbrown::HashSet::new();
+        let mut col_names = BTreeSet::new();
         for pred in self.delete_predicates() {
-            let cols = pred.all_column_names_but_time();
-            for col in cols {
-                col_names.insert(col);
-            }
+            //let cols = pred.all_column_names_but_time();
+            pred.all_column_names_but_time(&mut col_names);
         }
 
         // convert to vector
-        let mut column_names: Vec<&str> = Vec::from_iter(col_names);
-
-        // Sort it
-        column_names.sort_unstable();
+        let mut column_names = Vec::from_iter(col_names);
 
         // Now add time column to the end of the vector
         // Since time range is a must in the delete predicate, time column must be in this list

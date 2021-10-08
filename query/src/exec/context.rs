@@ -255,7 +255,7 @@ impl IOxExecutionContext {
         debug!(text=%sql, "planning SQL query");
         let logical_plan = ctx.inner.create_logical_plan(sql)?;
         let s = logical_plan.display_graphviz().to_string();
-        debug!(?s, "logical plan");
+        debug!(plan=?s, "logical plan");
         ctx.prepare_plan(&logical_plan).await
     }
 

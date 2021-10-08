@@ -1,4 +1,4 @@
-use std::convert::TryInto;
+use std::{collections::BTreeSet, convert::TryInto};
 
 use chrono::DateTime;
 use data_types::timestamp::TimestampRange;
@@ -102,13 +102,13 @@ impl DeletePredicate {
     }
 
     /// Return all columns participating in the expressions of delete predicate minus the time column if any
-    pub fn all_column_names_but_time(&self) -> hashbrown::HashSet<&str> {
-        // Get column names of the predicate expressions
-        self.exprs
-            .iter()
-            .map(|e| e.column())
-            .filter(|col_name| col_name != &TIME_COLUMN_NAME)
-            .collect::<hashbrown::HashSet<&str>>()
+    pub fn all_column_names_but_time<'a>(&'a self, cols: &mut BTreeSet<&'a str>) {
+        for expr in &self.exprs {
+            let col = expr.column();
+            if col != TIME_COLUMN_NAME {
+                cols.insert(col);
+            }
+        }
     }
 }
 
