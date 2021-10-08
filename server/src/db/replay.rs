@@ -316,7 +316,7 @@ fn filter_entry(
         .map(|partition_checkpoint| {
             partition_checkpoint
                 .sequencer_numbers(sequence.id)
-                .map(|min_max| (partition_checkpoint.max_persisted_timestamp(), min_max))
+                .map(|min_max| (partition_checkpoint.flush_timestamp(), min_max))
         })
         .flatten();
 

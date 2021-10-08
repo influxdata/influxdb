@@ -484,7 +484,7 @@ File {
                                         max: 28,
                                     },
                                 },
-                                max_persisted_timestamp: 1970-01-01T00:00:10.000000020Z,
+                                flush_timestamp: 1970-01-01T00:00:10.000000020Z,
                             },
                             database_checkpoint: DatabaseCheckpoint {
                                 sequencer_numbers: {

@@ -338,15 +338,15 @@ impl IoxMetadata {
                 }
             })
             .collect::<Result<BTreeMap<u32, OptionalMinMaxSequence>>>()?;
-        let max_persisted_timestamp = decode_timestamp_from_field(
-            proto_partition_checkpoint.max_persisted_timestamp,
-            "partition_checkpoint.max_persisted_timestamp",
+        let flush_timestamp = decode_timestamp_from_field(
+            proto_partition_checkpoint.flush_timestamp,
+            "partition_checkpoint.flush_timestamp",
         )?;
         let partition_checkpoint = PartitionCheckpoint::new(
             Arc::clone(&table_name),
             Arc::clone(&partition_key),
             sequencer_numbers,
-            max_persisted_timestamp,
+            flush_timestamp,
         );
 
         // extract database checkpoint
@@ -406,9 +406,7 @@ impl IoxMetadata {
                     )
                 })
                 .collect(),
-            max_persisted_timestamp: Some(
-                self.partition_checkpoint.max_persisted_timestamp().into(),
-            ),
+            flush_timestamp: Some(self.partition_checkpoint.flush_timestamp().into()),
         };
 
         let proto_database_checkpoint = proto::DatabaseCheckpoint {

@@ -333,10 +333,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// ```text
 /// ┌───────────────────┬ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┌─────────────────────┐
-/// │seq < min_sequence │  time <= max_persisted   │ seq > max sequence  │
+/// │seq < min_sequence │     time <= flush_ts     │ seq > max sequence  │
 /// │                   │        PERSISTED         │                     │
 /// │                   ├──────────────────────────┤                     │
-/// │     PERSISTED     │    time > max_persisted  │    UNPERSISTED      │
+/// │     PERSISTED     │       time > flush_ts    │    UNPERSISTED      │
 /// │                   │       UNPERSISTED        │                     │
 /// └───────────────────┤─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┼─────────────────────┘
 ///
@@ -360,7 +360,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///    sequencer 1 yield "less" and the ranges for sequencer 2 yield "greater"; or if the sequence number ranges yield
 ///    "less" but the first checkpoint has more sequencers than the second.
 ///
-/// Note that they are NOT compared based on the [`max_persisted_timestamp`](Self::max_persisted_timestamp) since
+/// Note that they are NOT compared based on the [`flush_timestamp`](Self::flush_timestamp) since
 /// that one depends on the data ingested by the user and might go backwards during backfills.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartitionCheckpoint {
@@ -373,10 +373,8 @@ pub struct PartitionCheckpoint {
     /// Maps `sequencer_id` to the to-be-persisted minimum and seen maximum sequence numbers.
     sequencer_numbers: BTreeMap<u32, OptionalMinMaxSequence>,
 
-    /// Maximum persisted timestamp value of the
-    /// [`TIME_COLUMN_NAME`](internal_types::schema::TIME_COLUMN_NAME)
-    /// (aka "flush timestamp")
-    max_persisted_timestamp: DateTime<Utc>,
+    /// Flush timestamp
+    flush_timestamp: DateTime<Utc>,
 }
 
 impl PartitionCheckpoint {
@@ -385,13 +383,13 @@ impl PartitionCheckpoint {
         table_name: Arc<str>,
         partition_key: Arc<str>,
         sequencer_numbers: BTreeMap<u32, OptionalMinMaxSequence>,
-        max_persisted_timestamp: DateTime<Utc>,
+        flush_timestamp: DateTime<Utc>,
     ) -> Self {
         Self {
             table_name,
             partition_key,
             sequencer_numbers,
-            max_persisted_timestamp,
+            flush_timestamp,
         }
     }
 
@@ -428,8 +426,8 @@ impl PartitionCheckpoint {
     }
 
     /// Maximum persisted timestamp.
-    pub fn max_persisted_timestamp(&self) -> DateTime<Utc> {
-        self.max_persisted_timestamp
+    pub fn flush_timestamp(&self) -> DateTime<Utc> {
+        self.flush_timestamp
     }
 }
 
@@ -911,8 +909,8 @@ mod tests {
         ($table_name:expr, $partition_key:expr, {$($sequencer_number:expr => ($min:expr, $max:expr)),*}) => {
             {
                 let sequencer_numbers = sequencer_numbers!{$($sequencer_number => ($min, $max)),*};
-                let max_persisted_timestamp = DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(0, 0), Utc);
-                PartitionCheckpoint::new(Arc::from($table_name), Arc::from($partition_key), sequencer_numbers, max_persisted_timestamp)
+                let flush_timestamp = DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(0, 0), Utc);
+                PartitionCheckpoint::new(Arc::from($table_name), Arc::from($partition_key), sequencer_numbers, flush_timestamp)
             }
         };
     }
