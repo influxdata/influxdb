@@ -18,6 +18,7 @@ import (
 	fluxinfluxdb "github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/flux/values"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"

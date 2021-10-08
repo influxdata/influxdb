@@ -6,6 +6,7 @@ import (
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -53,6 +54,27 @@ func (d FromDependencies) PrometheusCollectors() []prometheus.Collector {
 		collectors = append(collectors, d.Metrics.PrometheusCollectors()...)
 	}
 	return collectors
+}
+
+// ToDependencies contains the dependencies for executing the `to` function.
+type ToDependencies struct {
+	BucketLookup       BucketLookup
+	OrganizationLookup OrganizationLookup
+	PointsWriter       storage.PointsWriter
+}
+
+// Validate returns an error if any required field is unset.
+func (d ToDependencies) Validate() error {
+	if d.BucketLookup == nil {
+		return errors.New("missing bucket lookup dependency")
+	}
+	if d.OrganizationLookup == nil {
+		return errors.New("missing organization lookup dependency")
+	}
+	if d.PointsWriter == nil {
+		return errors.New("missing points writer dependency")
+	}
+	return nil
 }
 
 type StaticLookup struct {
