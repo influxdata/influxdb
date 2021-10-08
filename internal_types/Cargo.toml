@@ -8,9 +8,11 @@ readme = "README.md"
 
 [dependencies]
 arrow = { version = "5.5", features = ["prettyprint"] }
+chrono = "0.4"
 hashbrown = "0.11"
 indexmap = "1.6"
 itertools = "0.10.1"
+parking_lot = "0.11"
 snafu = "0.6"
 tokio = { version = "1.11", features = ["sync"] }
 

@@ -29,7 +29,6 @@ use std::{
     io::{Cursor, Seek, SeekFrom, Write},
     sync::Arc,
 };
-use uuid::Uuid;
 
 use crate::metadata::{IoxMetadata, IoxParquetMetaData, METADATA_KEY};
 
@@ -127,23 +126,11 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Clone)]
 pub struct Storage {
     iox_object_store: Arc<IoxObjectStore>,
-    fixed_uuid: Option<Uuid>,
 }
 
 impl Storage {
     pub fn new(iox_object_store: Arc<IoxObjectStore>) -> Self {
-        Self {
-            iox_object_store,
-            fixed_uuid: None,
-        }
-    }
-
-    /// Create new instance for testing w/ a fixed UUID.
-    pub fn new_for_testing(iox_object_store: Arc<IoxObjectStore>, uuid: Uuid) -> Self {
-        Self {
-            iox_object_store,
-            fixed_uuid: Some(uuid),
-        }
+        Self { iox_object_store }
     }
 
     /// Write the given stream of data of a specified table of
@@ -158,10 +145,7 @@ impl Storage {
         metadata: IoxMetadata,
     ) -> Result<(ParquetFilePath, usize, IoxParquetMetaData)> {
         // Create full path location of this file in object store
-        let path = match self.fixed_uuid {
-            Some(uuid) => ParquetFilePath::new_for_testing(&chunk_addr, uuid),
-            None => ParquetFilePath::new(&chunk_addr),
-        };
+        let path = ParquetFilePath::new(&chunk_addr);
 
         let schema = stream.schema();
         let data = Self::parquet_stream_to_bytes(stream, schema, metadata).await?;
@@ -445,7 +429,7 @@ mod tests {
             creation_timestamp: Utc::now(),
             table_name,
             partition_key,
-            chunk_id: ChunkId::new(1337),
+            chunk_id: ChunkId::new_test(1337),
             partition_checkpoint,
             database_checkpoint,
             time_of_first_write: Utc::now(),
@@ -502,8 +486,9 @@ mod tests {
         // create Storage
         let table_name = Arc::from("my_table");
         let partition_key = Arc::from("my_partition");
-        let chunk_id = ChunkId::new(33);
+        let chunk_id = ChunkId::new_test(33);
         let iox_object_store = make_iox_object_store().await;
+        let db_name = Arc::from("db1");
         let storage = Storage::new(Arc::clone(&iox_object_store));
 
         // write the data in
@@ -531,7 +516,7 @@ mod tests {
         let (path, _file_size_bytes, _metadata) = storage
             .write_to_object_store(
                 ChunkAddr {
-                    db_name: iox_object_store.database_name().into(),
+                    db_name: Arc::clone(&db_name),
                     table_name,
                     partition_key,
                     chunk_id,
@@ -595,7 +580,6 @@ mod tests {
             schema.clone(),
             addr,
             column_summaries.clone(),
-            TestSize::Full,
         )
         .await;
 

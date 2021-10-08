@@ -7,7 +7,6 @@
 )]
 
 pub mod access;
-pub mod atomic_instant;
 pub mod freezable;
 pub mod once;
 pub mod schema;

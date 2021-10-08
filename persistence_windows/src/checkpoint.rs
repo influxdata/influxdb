@@ -316,9 +316,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// This structure contains the minimum and maximum sequence numbers
 /// for each sequencer for a specific partition along with the
-/// min_unpersisted timestamp ("flush timestamp").
+/// `max_persisted` timestamp ("flush timestamp").
 ///
-/// The min_unpersisted timestamp is relative to the value in
+/// The `min_persisted` timestamp is relative to the value in
 /// [`TIME_COLUMN_NAME`](internal_types::schema::TIME_COLUMN_NAME). The
 /// min/max sequence numbers are relative to their respective
 /// sequencers.
@@ -333,10 +333,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// ```text
 /// ┌───────────────────┬ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┌─────────────────────┐
-/// │seq < min_sequence │ time < min_unpersisted   │ seq > max sequence  │
+/// │seq < min_sequence │     time <= flush_ts     │ seq > max sequence  │
 /// │                   │        PERSISTED         │                     │
 /// │                   ├──────────────────────────┤                     │
-/// │     PERSISTED     │  time >= min_unpersisted │    UNPERSISTED      │
+/// │     PERSISTED     │       time > flush_ts    │    UNPERSISTED      │
 /// │                   │       UNPERSISTED        │                     │
 /// └───────────────────┤─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┼─────────────────────┘
 ///
@@ -360,7 +360,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///    sequencer 1 yield "less" and the ranges for sequencer 2 yield "greater"; or if the sequence number ranges yield
 ///    "less" but the first checkpoint has more sequencers than the second.
 ///
-/// Note that they are NOT compared based on the [`min_unpersisted_timestamp`](Self::min_unpersisted_timestamp) since
+/// Note that they are NOT compared based on the [`flush_timestamp`](Self::flush_timestamp) since
 /// that one depends on the data ingested by the user and might go backwards during backfills.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartitionCheckpoint {
@@ -373,10 +373,8 @@ pub struct PartitionCheckpoint {
     /// Maps `sequencer_id` to the to-be-persisted minimum and seen maximum sequence numbers.
     sequencer_numbers: BTreeMap<u32, OptionalMinMaxSequence>,
 
-    /// Minimum unpersisted timestamp value of the
-    /// [`TIME_COLUMN_NAME`](internal_types::schema::TIME_COLUMN_NAME) + 1ns
-    /// (aka "flush timestamp" + 1ns)
-    min_unpersisted_timestamp: DateTime<Utc>,
+    /// Flush timestamp
+    flush_timestamp: DateTime<Utc>,
 }
 
 impl PartitionCheckpoint {
@@ -385,13 +383,13 @@ impl PartitionCheckpoint {
         table_name: Arc<str>,
         partition_key: Arc<str>,
         sequencer_numbers: BTreeMap<u32, OptionalMinMaxSequence>,
-        min_unpersisted_timestamp: DateTime<Utc>,
+        flush_timestamp: DateTime<Utc>,
     ) -> Self {
         Self {
             table_name,
             partition_key,
             sequencer_numbers,
-            min_unpersisted_timestamp,
+            flush_timestamp,
         }
     }
 
@@ -427,9 +425,9 @@ impl PartitionCheckpoint {
             .map(|(sequencer_id, min_max)| (*sequencer_id, *min_max))
     }
 
-    /// Minimum unpersisted timestamp.
-    pub fn min_unpersisted_timestamp(&self) -> DateTime<Utc> {
-        self.min_unpersisted_timestamp
+    /// Maximum persisted timestamp.
+    pub fn flush_timestamp(&self) -> DateTime<Utc> {
+        self.flush_timestamp
     }
 }
 
@@ -911,8 +909,8 @@ mod tests {
         ($table_name:expr, $partition_key:expr, {$($sequencer_number:expr => ($min:expr, $max:expr)),*}) => {
             {
                 let sequencer_numbers = sequencer_numbers!{$($sequencer_number => ($min, $max)),*};
-                let min_unpersisted_timestamp = DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(0, 0), Utc);
-                PartitionCheckpoint::new(Arc::from($table_name), Arc::from($partition_key), sequencer_numbers, min_unpersisted_timestamp)
+                let flush_timestamp = DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(0, 0), Utc);
+                PartitionCheckpoint::new(Arc::from($table_name), Arc::from($partition_key), sequencer_numbers, flush_timestamp)
             }
         };
     }

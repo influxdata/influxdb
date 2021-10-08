@@ -1,6 +1,6 @@
 use crate::db::{catalog::Catalog, system_tables::IoxSystemTable};
 use arrow::{
-    array::{ArrayRef, StringBuilder, UInt32Builder, UInt64Builder},
+    array::{ArrayRef, StringBuilder, UInt64Builder},
     datatypes::{DataType, Field, Schema, SchemaRef},
     error::Result,
     record_batch::RecordBatch,
@@ -121,7 +121,7 @@ impl IoxSystemTable for ChunkColumnsTable {
 fn chunk_columns_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
         Field::new("partition_key", DataType::Utf8, false),
-        Field::new("chunk_id", DataType::UInt32, false),
+        Field::new("chunk_id", DataType::Utf8, false),
         Field::new("table_name", DataType::Utf8, false),
         Field::new("column_name", DataType::Utf8, false),
         Field::new("storage", DataType::Utf8, false),
@@ -155,7 +155,7 @@ fn assemble_chunk_columns(
     let row_estimate = chunk_summaries.len() * 5;
 
     let mut partition_key = StringBuilder::new(row_estimate);
-    let mut chunk_id = UInt32Builder::new(row_estimate);
+    let mut chunk_id = StringBuilder::new(row_estimate);
     let mut table_name = StringBuilder::new(row_estimate);
     let mut column_name = StringBuilder::new(row_estimate);
     let mut storage = StringBuilder::new(row_estimate);
@@ -174,7 +174,7 @@ fn assemble_chunk_columns(
 
         for column in &table_summary.columns {
             partition_key.append_value(chunk_summary.inner.partition_key.as_ref())?;
-            chunk_id.append_value(chunk_summary.inner.id.get())?;
+            chunk_id.append_value(chunk_summary.inner.id.get().to_string())?;
             table_name.append_value(&chunk_summary.inner.table_name)?;
             column_name.append_value(&column.name)?;
             storage.append_value(storage_value)?;
@@ -311,7 +311,7 @@ mod tests {
                     inner: ChunkSummary {
                         partition_key: "p1".into(),
                         table_name: "t1".into(),
-                        id: ChunkId::new(42),
+                        id: ChunkId::new_test(42),
                         storage: ChunkStorage::ReadBuffer,
                         lifecycle_action,
                         memory_bytes: 23754,
@@ -348,7 +348,7 @@ mod tests {
                     inner: ChunkSummary {
                         partition_key: "p2".into(),
                         table_name: "t1".into(),
-                        id: ChunkId::new(43),
+                        id: ChunkId::new_test(43),
                         storage: ChunkStorage::OpenMutableBuffer,
                         lifecycle_action,
                         memory_bytes: 23754,
@@ -379,7 +379,7 @@ mod tests {
                     inner: ChunkSummary {
                         partition_key: "p2".into(),
                         table_name: "t2".into(),
-                        id: ChunkId::new(44),
+                        id: ChunkId::new_test(44),
                         storage: ChunkStorage::OpenMutableBuffer,
                         lifecycle_action,
                         memory_bytes: 23754,
@@ -400,14 +400,14 @@ mod tests {
         ];
 
         let expected = vec![
-            "+---------------+----------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+",
-            "| partition_key | chunk_id | table_name | column_name | storage           | row_count | null_count | min_value | max_value | memory_bytes |",
-            "+---------------+----------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+",
-            "| p1            | 42       | t1         | c1          | ReadBuffer        | 55        | 0          | bar       | foo       | 11           |",
-            "| p1            | 42       | t1         | c2          | ReadBuffer        | 66        | 0          | 11        | 43        | 12           |",
-            "| p2            | 43       | t1         | c1          | OpenMutableBuffer | 667       | 99         | 110       | 430       | 100          |",
-            "| p2            | 44       | t2         | c3          | OpenMutableBuffer | 4         | 0          | -1        | 2         | 200          |",
-            "+---------------+----------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+",
+            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+",
+            "| partition_key | chunk_id                             | table_name | column_name | storage           | row_count | null_count | min_value | max_value | memory_bytes |",
+            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+",
+            "| p1            | 00000000-0000-0000-0000-00000000002a | t1         | c1          | ReadBuffer        | 55        | 0          | bar       | foo       | 11           |",
+            "| p1            | 00000000-0000-0000-0000-00000000002a | t1         | c2          | ReadBuffer        | 66        | 0          | 11        | 43        | 12           |",
+            "| p2            | 00000000-0000-0000-0000-00000000002b | t1         | c1          | OpenMutableBuffer | 667       | 99         | 110       | 430       | 100          |",
+            "| p2            | 00000000-0000-0000-0000-00000000002c | t2         | c3          | OpenMutableBuffer | 4         | 0          | -1        | 2         | 200          |",
+            "+---------------+--------------------------------------+------------+-------------+-------------------+-----------+------------+-----------+-----------+--------------+",
         ];
 
         let batch = assemble_chunk_columns(chunk_columns_schema(), summaries).unwrap();

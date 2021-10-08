@@ -121,7 +121,7 @@ use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputPro
 ///
 /// **Important: When changing this structure, consider bumping the
 ///   [catalog transaction version](crate::catalog::core::TRANSACTION_VERSION)!**
-pub const METADATA_VERSION: u32 = 8;
+pub const METADATA_VERSION: u32 = 10;
 
 /// File-level metadata key to store the IOx-specific data.
 ///
@@ -237,6 +237,11 @@ pub enum Error {
 
     #[snafu(display("Cannot decode ZSTD message for parquet metadata: {}", source))]
     ZstdDecodeFailure { source: std::io::Error },
+
+    #[snafu(display("Cannot decode chunk id: {}", source))]
+    CannotDecodeChunkId {
+        source: data_types::chunk_metadata::BytesToChunkIdError,
+    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -333,15 +338,15 @@ impl IoxMetadata {
                 }
             })
             .collect::<Result<BTreeMap<u32, OptionalMinMaxSequence>>>()?;
-        let min_unpersisted_timestamp = decode_timestamp_from_field(
-            proto_partition_checkpoint.min_unpersisted_timestamp,
-            "partition_checkpoint.min_unpersisted_timestamp",
+        let flush_timestamp = decode_timestamp_from_field(
+            proto_partition_checkpoint.flush_timestamp,
+            "partition_checkpoint.flush_timestamp",
         )?;
         let partition_checkpoint = PartitionCheckpoint::new(
             Arc::clone(&table_name),
             Arc::clone(&partition_key),
             sequencer_numbers,
-            min_unpersisted_timestamp,
+            flush_timestamp,
         );
 
         // extract database checkpoint
@@ -372,7 +377,7 @@ impl IoxMetadata {
             time_of_last_write,
             table_name,
             partition_key,
-            chunk_id: ChunkId::new(proto_msg.chunk_id),
+            chunk_id: proto_msg.chunk_id.try_into().context(CannotDecodeChunkId)?,
             partition_checkpoint,
             database_checkpoint,
             chunk_order: ChunkOrder::new(proto_msg.chunk_order).ok_or_else(|| {
@@ -401,9 +406,7 @@ impl IoxMetadata {
                     )
                 })
                 .collect(),
-            min_unpersisted_timestamp: Some(
-                self.partition_checkpoint.min_unpersisted_timestamp().into(),
-            ),
+            flush_timestamp: Some(self.partition_checkpoint.flush_timestamp().into()),
         };
 
         let proto_database_checkpoint = proto::DatabaseCheckpoint {
@@ -431,7 +434,7 @@ impl IoxMetadata {
             time_of_last_write: Some(self.time_of_last_write.into()),
             table_name: self.table_name.to_string(),
             partition_key: self.partition_key.to_string(),
-            chunk_id: self.chunk_id.get(),
+            chunk_id: self.chunk_id.into(),
             partition_checkpoint: Some(proto_partition_checkpoint),
             database_checkpoint: Some(proto_database_checkpoint),
             chunk_order: self.chunk_order.get(),
@@ -1073,7 +1076,7 @@ mod tests {
             creation_timestamp: Utc::now(),
             table_name,
             partition_key,
-            chunk_id: ChunkId::new(1337),
+            chunk_id: ChunkId::new_test(1337),
             partition_checkpoint,
             database_checkpoint,
             time_of_first_write: Utc::now(),
@@ -1116,6 +1119,6 @@ mod tests {
             .await
             .unwrap();
         let parquet_metadata = IoxParquetMetaData::from_file_bytes(parquet_data).unwrap();
-        assert_eq!(parquet_metadata.size(), 3716);
+        assert_eq!(parquet_metadata.size(), 3730);
     }
 }

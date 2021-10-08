@@ -7,7 +7,7 @@ use arrow::{
 use datafusion::{
     error::DataFusionError,
     logical_plan::{create_udf, Expr},
-    physical_plan::functions::make_scalar_function,
+    physical_plan::functions::{make_scalar_function, Volatility},
 };
 
 /// The name of the regex_match UDF given to DataFusion.
@@ -65,6 +65,7 @@ pub fn regex_match_expr(input: Expr, pattern: String, matches: bool) -> Expr {
         udf_name,
         vec![DataType::Utf8],
         Arc::new(DataType::Boolean),
+        Volatility::Stable,
         func,
     );
 

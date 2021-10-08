@@ -4,12 +4,10 @@
 use parking_lot::Mutex;
 use std::{pin::Pin, sync::Arc};
 use tokio::sync::oneshot::Receiver;
-use tracker::{TaskRegistration, TrackedFutureExt};
 
 use futures::Future;
 
 use observability_deps::tracing::warn;
-use std::convert::Infallible;
 
 /// The type of thing that the dedicated executor runs
 type Task = Pin<Box<dyn Future<Output = ()> + Send>>;
@@ -80,22 +78,21 @@ impl DedicatedExecutor {
             runtime.block_on(async move {
                 // Dropping the tokio runtime only waits for tasks to yield not to complete
                 //
-                // All spawned tasks are therefore registered with a TaskRegistration
-                // which is used to wait for all tasks to finish before shutting down
-                let registration = TaskRegistration::new();
+                // We therefore use a RwLock to wait for tasks to complete
+                let join = Arc::new(tokio::sync::RwLock::new(()));
 
                 while let Ok(task) = rx.recv() {
-                    tokio::task::spawn(
-                        async move {
-                            task.await;
-                            Ok::<_, Infallible>(())
-                        }
-                        .track(registration.clone()),
-                    );
+                    let join = Arc::clone(&join);
+                    let handle = join.read_owned().await;
+
+                    tokio::task::spawn(async move {
+                        task.await;
+                        std::mem::drop(handle);
+                    });
                 }
 
                 // Wait for all tasks to finish
-                registration.into_tracker(()).join().await;
+                join.write().await;
             })
         });
 

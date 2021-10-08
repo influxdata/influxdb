@@ -188,6 +188,7 @@ mod tests {
     #[tokio::test]
     async fn test_rebuild_successfull() {
         let iox_object_store = make_iox_object_store().await;
+        let db_name = Arc::from("db1");
 
         // build catalog with some data
         let (catalog, mut state) =
@@ -197,11 +198,11 @@ mod tests {
         {
             let mut transaction = catalog.open_transaction().await;
 
-            let info = create_parquet_file(&iox_object_store, ChunkId::new(0)).await;
+            let info = create_parquet_file(&db_name, &iox_object_store, ChunkId::new_test(0)).await;
             state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info);
 
-            let info = create_parquet_file(&iox_object_store, ChunkId::new(1)).await;
+            let info = create_parquet_file(&db_name, &iox_object_store, ChunkId::new_test(1)).await;
             state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info);
 
@@ -215,7 +216,7 @@ mod tests {
         {
             let mut transaction = catalog.open_transaction().await;
 
-            let info = create_parquet_file(&iox_object_store, ChunkId::new(2)).await;
+            let info = create_parquet_file(&db_name, &iox_object_store, ChunkId::new_test(2)).await;
             state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info);
 
@@ -275,6 +276,7 @@ mod tests {
     #[tokio::test]
     async fn test_rebuild_no_metadata() {
         let iox_object_store = make_iox_object_store().await;
+        let db_name = Arc::from("db1");
 
         // build catalog with same data
         let catalog =
@@ -283,7 +285,8 @@ mod tests {
                 .unwrap();
 
         // file w/o metadata
-        create_parquet_file_without_metadata(&iox_object_store, ChunkId::new(0)).await;
+        create_parquet_file_without_metadata(&db_name, &iox_object_store, ChunkId::new_test(0))
+            .await;
 
         // wipe catalog
         drop(catalog);
@@ -357,6 +360,7 @@ mod tests {
     }
 
     pub async fn create_parquet_file(
+        db_name: &Arc<str>,
         iox_object_store: &Arc<IoxObjectStore>,
         chunk_id: ChunkId,
     ) -> CatalogParquetInfo {
@@ -385,7 +389,7 @@ mod tests {
         let (path, file_size_bytes, metadata) = storage
             .write_to_object_store(
                 ChunkAddr {
-                    db_name: iox_object_store.database_name().into(),
+                    db_name: Arc::clone(db_name),
                     table_name,
                     partition_key,
                     chunk_id,
@@ -404,6 +408,7 @@ mod tests {
     }
 
     pub async fn create_parquet_file_without_metadata(
+        db_name: &Arc<str>,
         iox_object_store: &Arc<IoxObjectStore>,
         chunk_id: ChunkId,
     ) -> (ParquetFilePath, IoxParquetMetaData) {
@@ -426,7 +431,7 @@ mod tests {
         let md = IoxParquetMetaData::from_file_bytes(data.clone()).unwrap();
         let storage = Storage::new(Arc::clone(iox_object_store));
         let chunk_addr = ChunkAddr {
-            db_name: Arc::from(iox_object_store.database_name()),
+            db_name: Arc::clone(db_name),
             table_name: Arc::from("table1"),
             partition_key: Arc::from("part1"),
             chunk_id,

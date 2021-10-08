@@ -17,8 +17,13 @@ message IoxMetadata {
   // Partition key of the partition that holds this parquet file.
   string partition_key = 4;
 
+  // Was uint32-based chunk ID.
+  reserved 5;
+
   // Chunk ID.
-  uint32 chunk_id = 5;
+  //
+  // UUID is stored as 16 bytes in big-endian order.
+  bytes chunk_id = 11;
 
   // Partition checkpoint with pre-split data for the in this file.
   PartitionCheckpoint partition_checkpoint = 6;
@@ -45,8 +50,11 @@ message PartitionCheckpoint {
   // Maps `sequencer_id` to the to-be-persisted minimum and seen maximum sequence numbers.
   map<uint32, OptionalMinMaxSequence> sequencer_numbers = 1;
 
-  // Minimum unpersisted timestamp.
-  google.protobuf.Timestamp min_unpersisted_timestamp = 2;
+  // Was Minimum unpersisted timestamp.
+  reserved 2;
+
+  // Flush timestamp.
+  google.protobuf.Timestamp flush_timestamp = 3;
 }
 
 // Record of the playback state for the whole database.

@@ -303,11 +303,18 @@ async fn test_sql_observer_operations() {
         .expect("listing chunks");
     println!("The chunks:\n{:?}", chunks);
 
+    let chunk_id = chunks
+        .iter()
+        .find(|c| c.table_name == "cpu")
+        .unwrap()
+        .id
+        .clone();
+
     let partition_key = "cpu";
     let table_name = "cpu";
     // Move the chunk to read buffer
     let iox_operation = management_client
-        .close_partition_chunk(&db_name, table_name, partition_key, 0)
+        .close_partition_chunk(&db_name, table_name, partition_key, chunk_id)
         .await
         .expect("new partition chunk");
 
@@ -324,24 +331,24 @@ async fn test_sql_observer_operations() {
         .expect("failed to wait operation");
 
     let expected_output = r#"
-+------------+---------------+-----------+---------------------------------+
-| table_name | partition_key | chunk_ids | description                     |
-+------------+---------------+-----------+---------------------------------+
-| cpu        | cpu           | 0         | Compacting chunks to ReadBuffer |
-+------------+---------------+-----------+---------------------------------+
++------------+---------------+---------------------------------+
+| table_name | partition_key | description                     |
++------------+---------------+---------------------------------+
+| cpu        | cpu           | Compacting chunks to ReadBuffer |
++------------+---------------+---------------------------------+
 "#
     .trim();
 
     let query = format!(
         r#"
 select
-  table_name, partition_key, chunk_ids, description
+  table_name, partition_key, description
 from
   operations
 where
   database_name = '{}'
 order by
-  table_name, partition_key, chunk_ids, description
+  table_name, partition_key, description
 "#,
         db_name
     );

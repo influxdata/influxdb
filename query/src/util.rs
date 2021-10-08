@@ -1,20 +1,19 @@
 //! This module contains DataFusion utility functions and helpers
 
-use std::{collections::HashSet, convert::TryInto, sync::Arc};
+use std::{convert::TryInto, sync::Arc};
 
 use arrow::{compute::SortOptions, datatypes::Schema as ArrowSchema, record_batch::RecordBatch};
 
 use datafusion::{
     error::DataFusionError,
     logical_plan::{DFSchema, Expr, LogicalPlan, LogicalPlanBuilder},
-    optimizer::utils::expr_to_columns,
     physical_plan::{
         expressions::{col as physical_col, PhysicalSortExpr},
         planner::DefaultPhysicalPlanner,
         ExecutionPlan, PhysicalExpr,
     },
 };
-use internal_types::schema::{sort::SortKey, Schema};
+use internal_types::schema::sort::SortKey;
 use observability_deps::tracing::trace;
 
 /// Create a logical plan that produces the record batch
@@ -23,17 +22,6 @@ pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, Da
     let partitions = vec![vec![batch]];
     let projection = None; // scan all columns
     LogicalPlanBuilder::scan_memory(partitions, schema, projection)?.build()
-}
-
-/// Returns true if all columns referred to in schema are present, false
-/// otherwise
-pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
-    let mut predicate_columns = HashSet::new();
-    expr_to_columns(expr, &mut predicate_columns).unwrap();
-
-    predicate_columns
-        .into_iter()
-        .all(|col_name| schema.find_index_of(&col_name.name).is_some())
 }
 
 /// Returns the pk in arrow's expression used for data sorting
@@ -99,38 +87,4 @@ pub fn df_physical_expr(
         &input_physical_schema,
         &ctx_state,
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use datafusion::prelude::*;
-    use internal_types::schema::builder::SchemaBuilder;
-
-    use super::*;
-
-    #[test]
-    fn test_schema_has_all_exprs_() {
-        let schema = SchemaBuilder::new().tag("t1").timestamp().build().unwrap();
-
-        assert!(schema_has_all_expr_columns(
-            &schema,
-            &col("t1").eq(lit("foo"))
-        ));
-        assert!(!schema_has_all_expr_columns(
-            &schema,
-            &col("t2").eq(lit("foo"))
-        ));
-        assert!(schema_has_all_expr_columns(
-            &schema,
-            &col("t1").eq(col("time"))
-        ));
-        assert!(!schema_has_all_expr_columns(
-            &schema,
-            &col("t1").eq(col("time2"))
-        ));
-        assert!(!schema_has_all_expr_columns(
-            &schema,
-            &col("t1").eq(col("time")).and(col("t3").lt(col("time")))
-        ));
-    }
 }

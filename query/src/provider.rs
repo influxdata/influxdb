@@ -1099,10 +1099,16 @@ mod test {
 
         assert_eq!(
             chunk_group_ids(&deduplicator.overlapped_chunks_set),
-            vec!["Group 0: 2, 3"]
+            vec!["Group 0: 00000000-0000-0000-0000-000000000002, 00000000-0000-0000-0000-000000000003"]
         );
-        assert_eq!(chunk_ids(&deduplicator.in_chunk_duplicates_chunks), "4");
-        assert_eq!(chunk_ids(&deduplicator.no_duplicates_chunks), "1");
+        assert_eq!(
+            chunk_ids(&deduplicator.in_chunk_duplicates_chunks),
+            "00000000-0000-0000-0000-000000000004"
+        );
+        assert_eq!(
+            chunk_ids(&deduplicator.no_duplicates_chunks),
+            "00000000-0000-0000-0000-000000000001"
+        );
     }
 
     #[tokio::test]

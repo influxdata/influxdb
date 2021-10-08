@@ -1,7 +1,7 @@
 use crate::common::server_fixture::ServerFixture;
 use arrow_util::assert_batches_eq;
 
-use super::scenario::{collect_query, create_readable_database, rand_name};
+use super::scenario::{collect_query, create_readable_database, list_chunks, rand_name};
 
 #[tokio::test]
 async fn test_operations() {
@@ -26,9 +26,12 @@ async fn test_operations() {
         .await
         .expect("write succeded");
 
+    let chunks = list_chunks(&fixture, &db_name1).await;
+    let chunk_id = chunks[0].id;
+
     // Move the chunk to read buffer
     let iox_operation = management_client
-        .close_partition_chunk(&db_name1, table_name, partition_key, 0)
+        .close_partition_chunk(&db_name1, table_name, partition_key, chunk_id.into())
         .await
         .expect("new partition chunk");
 
@@ -39,7 +42,7 @@ async fn test_operations() {
         .expect("failed to wait operation");
 
     let mut client = fixture.flight_client();
-    let sql_query = "select chunk_ids, status, description from system.operations";
+    let sql_query = "select status, description from system.operations";
 
     let query_results = client.perform_query(&db_name1, sql_query).await.unwrap();
 
@@ -48,11 +51,11 @@ async fn test_operations() {
     // parameterize on db_name1
 
     let expected_read_data = vec![
-        "+-----------+---------+---------------------------------+",
-        "| chunk_ids | status  | description                     |",
-        "+-----------+---------+---------------------------------+",
-        "| 0         | Success | Compacting chunks to ReadBuffer |",
-        "+-----------+---------+---------------------------------+",
+        "+---------+---------------------------------+",
+        "| status  | description                     |",
+        "+---------+---------------------------------+",
+        "| Success | Compacting chunks to ReadBuffer |",
+        "+---------+---------------------------------+",
     ];
 
     assert_batches_eq!(expected_read_data, &batches);

@@ -1,12 +1,11 @@
 //! This module contains testing scenarios for Delete
 
-use data_types::chunk_metadata::ChunkId;
 use data_types::timestamp::TimestampRange;
 use predicate::delete_expr::DeleteExpr;
 use predicate::delete_predicate::DeletePredicate;
 
 use async_trait::async_trait;
-use query::QueryChunk;
+use query::{QueryChunk, QueryDatabase};
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -583,7 +582,7 @@ async fn make_chunk_with_deletes_at_different_stages(
     // Make an open MUB
     write_lp(&db, &lp_lines.join("\n")).await;
     // 0 does not represent the real chunk id. It is here just to initialize the chunk_id  variable for later assignment
-    let mut chunk_id = ChunkId::new(0);
+    let mut chunk_id = db.chunk_summaries().unwrap()[0].id;
     // Apply delete predicate
     let mut deleted = false;
     let mut display = "".to_string();
@@ -761,7 +760,7 @@ async fn make_different_stage_chunks_with_deletes_scenario(
         // Make an open MUB
         write_lp(&db, &chunk_data.lp_lines.join("\n")).await;
         // 0 does not represent the real chunk id. It is here just to initialize the chunk_id  variable for later assignment
-        let mut chunk_id = ChunkId::new(0);
+        let mut chunk_id = db.chunk_summaries().unwrap()[0].id;
 
         // ----------
         // freeze MUB

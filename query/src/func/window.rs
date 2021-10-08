@@ -6,7 +6,11 @@ use internal_types::schema::TIME_DATA_TYPE;
 use std::sync::Arc;
 
 use arrow::array::{ArrayRef, TimestampNanosecondArray};
-use datafusion::{logical_plan::Expr, physical_plan::functions::make_scalar_function, prelude::*};
+use datafusion::{
+    logical_plan::Expr,
+    physical_plan::functions::{make_scalar_function, Volatility},
+    prelude::*,
+};
 
 use crate::group_by::WindowDuration;
 
@@ -80,6 +84,7 @@ pub fn make_window_bound_expr(
         "window_bounds",
         vec![TIME_DATA_TYPE()],     // argument types
         Arc::new(TIME_DATA_TYPE()), // return type
+        Volatility::Stable,
         func_ptr,
     );
 

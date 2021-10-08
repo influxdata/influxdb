@@ -21,7 +21,7 @@ use datafusion::{
     error::{DataFusionError, Result as DataFusionResult},
     physical_plan::{
         aggregates::{AccumulatorFunctionImplementation, StateTypeFunction},
-        functions::{ReturnTypeFunction, Signature},
+        functions::{ReturnTypeFunction, Signature, Volatility},
         udaf::AggregateUDF,
         Accumulator,
     },
@@ -202,7 +202,10 @@ where
     SELECTOR: Selector + 'static,
 {
     let value_data_type = SELECTOR::value_data_type();
-    let input_signature = Signature::Exact(vec![value_data_type.clone(), TIME_DATA_TYPE()]);
+    let input_signature = Signature::exact(
+        vec![value_data_type.clone(), TIME_DATA_TYPE()],
+        Volatility::Stable,
+    );
 
     let state_type = Arc::new(vec![value_data_type.clone(), TIME_DATA_TYPE()]);
     let state_type_factory: StateTypeFunction = Arc::new(move |_| Ok(Arc::clone(&state_type)));

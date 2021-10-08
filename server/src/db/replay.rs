@@ -311,17 +311,17 @@ fn filter_entry(
     let table_name = table_batch.name();
 
     // Check if we have a partition checkpoint that contains data for this specific sequencer
-    let min_unpersisted_ts_and_sequence_range = replay_plan
+    let max_persisted_ts_and_sequence_range = replay_plan
         .last_partition_checkpoint(table_name, partition_key)
         .map(|partition_checkpoint| {
             partition_checkpoint
                 .sequencer_numbers(sequence.id)
-                .map(|min_max| (partition_checkpoint.min_unpersisted_timestamp(), min_max))
+                .map(|min_max| (partition_checkpoint.flush_timestamp(), min_max))
         })
         .flatten();
 
-    match min_unpersisted_ts_and_sequence_range {
-        Some((min_unpersisted_ts, min_max)) => {
+    match max_persisted_ts_and_sequence_range {
+        Some((max_persisted_ts, min_max)) => {
             // Figure out what the sequence number tells us about the entire batch
             match SequenceNumberSection::compare(sequence.number, min_max) {
                 SequenceNumberSection::Persisted => {
@@ -329,12 +329,11 @@ fn filter_entry(
                     (false, None)
                 }
                 SequenceNumberSection::PartiallyPersisted => {
-                    // TODO: implement row filtering, for now replay the entire batch
                     let maybe_mask = table_batch.timestamps().ok().map(|timestamps| {
-                        let min_unpersisted_ts = min_unpersisted_ts.timestamp_nanos();
+                        let max_persisted_ts = max_persisted_ts.timestamp_nanos();
                         timestamps
                             .into_iter()
-                            .map(|ts_row| ts_row >= min_unpersisted_ts)
+                            .map(|ts_row| ts_row > max_persisted_ts)
                             .collect::<Vec<bool>>()
                     });
                     (true, maybe_mask)

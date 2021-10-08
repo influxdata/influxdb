@@ -12,7 +12,7 @@ use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
 use predicate::delete_predicate::DeletePredicate;
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
-use std::{future::Future, sync::Arc};
+use std::{collections::HashSet, future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 /// Compact the provided chunks into a single chunk,
@@ -47,7 +47,7 @@ pub(crate) fn compact_chunks(
     let mut input_rows = 0;
     let mut time_of_first_write: Option<DateTime<Utc>> = None;
     let mut time_of_last_write: Option<DateTime<Utc>> = None;
-    let mut delete_predicates: Vec<Arc<DeletePredicate>> = vec![];
+    let mut delete_predicates_before: HashSet<Arc<DeletePredicate>> = HashSet::new();
     let mut min_order = ChunkOrder::MAX;
     let query_chunks = chunks
         .into_iter()
@@ -68,7 +68,7 @@ pub(crate) fn compact_chunks(
                 .map(|prev_last| prev_last.max(candidate_last))
                 .or(Some(candidate_last));
 
-            delete_predicates.extend(chunk.delete_predicates().iter().cloned());
+            delete_predicates_before.extend(chunk.delete_predicates().iter().cloned());
 
             min_order = min_order.min(chunk.order());
 
@@ -108,12 +108,25 @@ pub(crate) fn compact_chunks(
         let maybe_rb_chunk = collect_rub(stream, &addr, metric_registry.as_ref()).await?;
 
         let mut partition = partition.write();
+        let mut delete_predicates_after = HashSet::new();
         for id in &chunk_ids {
-            // TODO: Reacquire chunk lock and check for "new" delete predicates (#2666)
-            partition
+            let chunk = partition
                 .force_drop_chunk(*id)
                 .expect("There was a lifecycle action attached to this chunk, who deleted it?!");
+
+            let chunk = chunk.read();
+            for pred in chunk.delete_predicates() {
+                if !delete_predicates_before.contains(pred) {
+                    delete_predicates_after.insert(Arc::clone(pred));
+                }
+            }
         }
+
+        let delete_predicates = {
+            let mut tmp: Vec<_> = delete_predicates_after.into_iter().collect();
+            tmp.sort();
+            tmp
+        };
 
         let rb_chunk = match maybe_rb_chunk {
             Some(rb_chunk) => rb_chunk,
@@ -130,9 +143,9 @@ pub(crate) fn compact_chunks(
             time_of_first_write,
             time_of_last_write,
             schema,
-            // TODO: Filter out predicates applied by the query (#2666)
             delete_predicates,
             min_order,
+            None,
         );
 
         // input rows per second
@@ -159,6 +172,7 @@ mod tests {
     use data_types::chunk_metadata::ChunkStorage;
     use data_types::timestamp::TimestampRange;
     use lifecycle::{LockableChunk, LockablePartition};
+    use predicate::delete_expr::{DeleteExpr, Op, Scalar};
     use query::QueryDatabase;
 
     #[tokio::test]
@@ -224,7 +238,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compact_delete() {
+    async fn test_compact_delete_all() {
         let db = make_db().await.db;
 
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
@@ -251,5 +265,73 @@ mod tests {
             .unwrap();
 
         assert!(chunk.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_delete_predicate_propagation() {
+        // setup DB
+        let db = make_db().await.db;
+
+        // | foo | delete before compaction | delete during compaction |
+        // | --- | ------------------------ | ------------------------ |
+        // |   1 |                      yes |                       no |
+        // |   2 |                      yes |                      yes |
+        // |   3 |                       no |                      yes |
+        // |   4 |                       no |                       no |
+        write_lp(db.as_ref(), "cpu foo=1 10").await;
+        write_lp(db.as_ref(), "cpu foo=2 20").await;
+        write_lp(db.as_ref(), "cpu foo=3 20").await;
+        write_lp(db.as_ref(), "cpu foo=4 20").await;
+
+        let range = TimestampRange {
+            start: 0,
+            end: 1_000,
+        };
+        let pred1 = Arc::new(DeletePredicate {
+            range,
+            exprs: vec![DeleteExpr::new("foo".to_string(), Op::Eq, Scalar::I64(1))],
+        });
+        let pred2 = Arc::new(DeletePredicate {
+            range,
+            exprs: vec![DeleteExpr::new("foo".to_string(), Op::Eq, Scalar::I64(2))],
+        });
+        let pred3 = Arc::new(DeletePredicate {
+            range,
+            exprs: vec![DeleteExpr::new("foo".to_string(), Op::Eq, Scalar::I64(3))],
+        });
+        db.delete("cpu", Arc::clone(&pred1)).await.unwrap();
+        db.delete("cpu", Arc::clone(&pred2)).await.unwrap();
+
+        // start compaction job (but don't poll the future yet)
+        let partition_keys = db.partition_keys().unwrap();
+        assert_eq!(partition_keys.len(), 1);
+        let partition_key: &str = partition_keys[0].as_ref();
+
+        let db_partition = db.partition("cpu", partition_key).unwrap();
+
+        let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
+        let partition = partition.read();
+
+        let chunks = LockablePartition::chunks(&partition);
+        assert_eq!(chunks.len(), 1);
+        let chunk = chunks[0].read();
+
+        let (_, fut) = compact_chunks(partition.upgrade(), vec![chunk.upgrade()]).unwrap();
+
+        // add more delete predicates
+        db.delete("cpu", Arc::clone(&pred2)).await.unwrap();
+        db.delete("cpu", Arc::clone(&pred3)).await.unwrap();
+
+        // finish future
+        tokio::spawn(fut).await.unwrap().unwrap().unwrap();
+
+        // check delete predicates
+        let chunks = db.catalog.chunks();
+        assert_eq!(chunks.len(), 1);
+        let chunk = &chunks[0];
+        let chunk = chunk.read();
+        let actual = chunk.delete_predicates();
+        let expected = vec![pred3];
+        assert_eq!(actual, &expected);
     }
 }

@@ -596,13 +596,13 @@ mod tests {
 
         // Query should count as an access
         assert_eq!(t2.count + 1, t3.count);
-        assert!(t2.last_instant < t3.last_instant);
+        assert!(t2.last_access < t3.last_access);
 
         // If column names successful should record access
         match column_names {
             true => {
                 assert_eq!(t3.count + 1, t4.count);
-                assert!(t3.last_instant < t4.last_instant);
+                assert!(t3.last_access < t4.last_access);
             }
             false => {
                 assert_eq!(t3, t4);
@@ -613,7 +613,7 @@ mod tests {
         match column_values {
             true => {
                 assert_eq!(t4.count + 1, t5.count);
-                assert!(t4.last_instant < t5.last_instant);
+                assert!(t4.last_access < t5.last_access);
             }
             false => {
                 assert_eq!(t4, t5);

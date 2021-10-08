@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use thiserror::Error;
 
 use self::generated_types::{management_service_client::ManagementServiceClient, *};
@@ -892,7 +893,7 @@ impl Client {
         db_name: impl Into<String> + Send,
         table_name: impl Into<String> + Send,
         partition_key: impl Into<String> + Send,
-        chunk_id: u32,
+        chunk_id: Bytes,
     ) -> Result<IoxOperation, ClosePartitionChunkError> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();
@@ -926,7 +927,7 @@ impl Client {
         db_name: impl Into<String> + Send,
         table_name: impl Into<String> + Send,
         partition_key: impl Into<String> + Send,
-        chunk_id: u32,
+        chunk_id: Bytes,
     ) -> Result<(), UnloadPartitionChunkError> {
         let db_name = db_name.into();
         let partition_key = partition_key.into();

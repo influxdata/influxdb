@@ -383,12 +383,13 @@ mod tests {
     use data_types::{database_rules::DatabaseRules, DatabaseName};
     use influxdb_iox_client::connection::Connection;
     use server::rules::ProvidedDatabaseRules;
-    use std::convert::TryInto;
-    use std::num::NonZeroU64;
+    use std::{convert::TryInto, num::NonZeroU64};
     use structopt::StructOpt;
     use tokio::task::JoinHandle;
-    use trace::span::{Span, SpanStatus};
-    use trace::RingBufferTraceCollector;
+    use trace::{
+        span::{Span, SpanStatus},
+        RingBufferTraceCollector,
+    };
     use trace_exporters::export::{AsyncExporter, TestAsyncExporter};
 
     fn test_config(server_id: Option<u32>) -> Config {
@@ -827,12 +828,7 @@ mod tests {
 
     fn make_rules(db_name: impl Into<String>) -> ProvidedDatabaseRules {
         let db_name = DatabaseName::new(db_name.into()).unwrap();
-
-        let rules = DatabaseRules::new(db_name);
-        let rules: generated_types::influxdata::iox::management::v1::DatabaseRules =
-            rules.try_into().unwrap();
-
-        let provided_rules: ProvidedDatabaseRules = rules.try_into().unwrap();
-        provided_rules
+        ProvidedDatabaseRules::new_rules(DatabaseRules::new(db_name).into())
+            .expect("Tests should create valid DatabaseRules")
     }
 }

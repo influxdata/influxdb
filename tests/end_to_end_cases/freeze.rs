@@ -41,10 +41,11 @@ async fn test_mub_freeze() {
     assert_eq!(num_lines_written, 10);
 
     // Not exceeded row threshold - shouldn't freeze
-    let chunks = list_chunks(&fixture, &db_name).await;
+    let mut chunks = list_chunks(&fixture, &db_name).await;
+    chunks.sort_by_key(|chunk| chunk.storage);
     assert_eq!(chunks.len(), 2);
-    assert_eq!(chunks[0].storage, ChunkStorage::ClosedMutableBuffer);
-    assert_eq!(chunks[1].storage, ChunkStorage::OpenMutableBuffer);
+    assert_eq!(chunks[0].storage, ChunkStorage::OpenMutableBuffer);
+    assert_eq!(chunks[1].storage, ChunkStorage::ClosedMutableBuffer);
 
     let num_lines_written = write_client
         .write(&db_name, lp_lines.iter().take(10).join("\n"))
@@ -53,7 +54,8 @@ async fn test_mub_freeze() {
     assert_eq!(num_lines_written, 10);
 
     // Exceeded row threshold - should freeze
-    let chunks = list_chunks(&fixture, &db_name).await;
+    let mut chunks = list_chunks(&fixture, &db_name).await;
+    chunks.sort_by_key(|chunk| chunk.storage);
     assert_eq!(chunks.len(), 2);
     assert_eq!(chunks[0].storage, ChunkStorage::ClosedMutableBuffer);
     assert_eq!(chunks[1].storage, ChunkStorage::ClosedMutableBuffer);

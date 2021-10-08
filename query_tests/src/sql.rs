@@ -342,16 +342,16 @@ async fn sql_select_from_system_chunks() {
     //  test timestamps, etc)
 
     let expected = vec![
-        "+----+---------------+------------+-------------------+--------------+-----------+",
-        "| id | partition_key | table_name | storage           | memory_bytes | row_count |",
-        "+----+---------------+------------+-------------------+--------------+-----------+",
-        "| 0  | 1970-01-01T00 | h2o        | OpenMutableBuffer | 1639         | 3         |",
-        "| 0  | 1970-01-01T00 | o2         | OpenMutableBuffer | 1635         | 2         |",
-        "+----+---------------+------------+-------------------+--------------+-----------+",
+        "+---------------+------------+-------------------+--------------+-----------+",
+        "| partition_key | table_name | storage           | memory_bytes | row_count |",
+        "+---------------+------------+-------------------+--------------+-----------+",
+        "| 1970-01-01T00 | h2o        | OpenMutableBuffer | 1639         | 3         |",
+        "| 1970-01-01T00 | o2         | OpenMutableBuffer | 1635         | 2         |",
+        "+---------------+------------+-------------------+--------------+-----------+",
     ];
     run_sql_test_case(
         TwoMeasurementsManyFieldsOneChunk {},
-        "SELECT id, partition_key, table_name, storage, memory_bytes, row_count from system.chunks",
+        "SELECT partition_key, table_name, storage, memory_bytes, row_count from system.chunks",
         &expected,
     )
     .await;
@@ -1005,6 +1005,9 @@ async fn sql_select_with_delete_from_one_expr_time() {
     .await;
 }
 
+// BUG: https://github.com/influxdata/influxdb_iox/issues/2779
+// inconsistent format returned
+#[ignore]
 #[tokio::test]
 async fn sql_select_with_delete_from_one_expr_max_time() {
     // max on one column and no cover all 2 columns, time and bar, of the delete predicate
@@ -1339,6 +1342,9 @@ async fn sql_select_with_delete_from_multi_exprs_foo() {
     .await;
 }
 
+// BUG: https://github.com/influxdata/influxdb_iox/issues/2779
+// inconsistent format returned
+#[ignore]
 #[tokio::test]
 async fn sql_select_with_delete_from_multi_exprs_min_time() {
     let expected = vec![
@@ -1351,6 +1357,24 @@ async fn sql_select_with_delete_from_multi_exprs_min_time() {
     run_sql_test_case(
         scenarios::delete::OneDeleteMultiExprsOneChunk {},
         "SELECT min(time) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_delete_from_multi_exprs_time() {
+    let expected = vec![
+        "+--------------------------------+",
+        "| time                           |",
+        "+--------------------------------+",
+        "| 1970-01-01T00:00:00.000000020Z |",
+        "| 1970-01-01T00:00:00.000000040Z |",
+        "+--------------------------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT time from cpu",
         &expected,
     )
     .await;
@@ -1392,6 +1416,9 @@ async fn sql_select_with_delete_from_multi_exprs_max_foo() {
     .await;
 }
 
+// BUG: https://github.com/influxdata/influxdb_iox/issues/2779
+// inconsistent format returned
+#[ignore]
 #[tokio::test]
 async fn sql_select_with_delete_from_multi_exprs_max_time() {
     let expected = vec![

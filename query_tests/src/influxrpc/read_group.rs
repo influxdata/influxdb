@@ -78,6 +78,39 @@ async fn test_read_group_no_data_no_pred() {
     run_read_group_test_case(NoData {}, predicate, agg, group_columns, expected_results).await;
 }
 
+struct OneMeasurementNoTags {}
+#[async_trait]
+impl DbSetup for OneMeasurementNoTags {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+        let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
+        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
+    }
+}
+
+#[tokio::test]
+async fn test_read_group_data_no_tag_columns() {
+    let predicate = Predicate::default();
+    let agg = Aggregate::Count;
+    let group_columns = vec![];
+    let expected_results = vec![
+        "+-----+--------------------------------+",
+        "| foo | time                           |",
+        "+-----+--------------------------------+",
+        "| 2   | 1970-01-01T00:00:00.000000002Z |",
+        "+-----+--------------------------------+",
+    ];
+
+    run_read_group_test_case(
+        OneMeasurementNoTags {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
+
 struct OneMeasurementForAggs {}
 #[async_trait]
 impl DbSetup for OneMeasurementForAggs {
@@ -271,6 +304,62 @@ async fn test_grouped_series_set_plan_mean() {
 
     run_read_group_test_case(
         AnotherMeasurementForAggs {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
+
+struct TwoMeasurementForAggs {}
+#[async_trait]
+impl DbSetup for TwoMeasurementForAggs {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines1 = vec![
+            "h2o,state=MA,city=Boston temp=70.4 100",
+            "h2o,state=MA,city=Boston temp=72.4 250",
+        ];
+        let lp_lines2 = vec![
+            "o2,state=CA,city=LA temp=90.0 200",
+            "o2,state=CA,city=LA temp=90.0 350",
+        ];
+
+        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
+    }
+}
+
+#[tokio::test]
+async fn test_grouped_series_set_plan_count_measurement_pred() {
+    let predicate = PredicateBuilder::default()
+        // city = 'Boston' OR (_measurement = o2)
+        .add_expr(
+            col("city")
+                .eq(lit("Boston"))
+                .or(col("_measurement").eq(lit("o2"))),
+        )
+        .build();
+
+    let agg = Aggregate::Count;
+    let group_columns = vec!["state"];
+
+    let expected_results = vec![
+        "+-------+--------+------+--------------------------------+",
+        "| state | city   | temp | time                           |",
+        "+-------+--------+------+--------------------------------+",
+        "| MA    | Boston | 2    | 1970-01-01T00:00:00.000000250Z |",
+        "+-------+--------+------+--------------------------------+",
+        "+-------+------+------+--------------------------------+",
+        "| state | city | temp | time                           |",
+        "+-------+------+------+--------------------------------+",
+        "| CA    | LA   | 2    | 1970-01-01T00:00:00.000000350Z |",
+        "+-------+------+------+--------------------------------+",
+    ];
+
+    run_read_group_test_case(
+        TwoMeasurementForAggs {},
         predicate,
         agg,
         group_columns,

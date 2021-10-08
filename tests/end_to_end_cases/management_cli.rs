@@ -17,7 +17,9 @@ use crate::{
 };
 
 use super::scenario::{create_readable_database, rand_name};
-use crate::end_to_end_cases::scenario::{fixture_broken_catalog, fixture_replay_broken};
+use crate::end_to_end_cases::scenario::{
+    fixture_broken_catalog, fixture_replay_broken, list_chunks,
+};
 
 #[tokio::test]
 async fn test_server_id() {
@@ -476,15 +478,14 @@ async fn test_get_chunks() {
 
     load_lp(addr, &db_name, lp_data);
 
-    let predicate = predicate::str::contains(r#""partition_key": "cpu","#)
-        .and(predicate::str::contains(r#""id": 0,"#))
+    let predicate = predicate::str::contains(r#""partitionKey": "cpu","#)
         .and(predicate::str::contains(
-            r#""storage": "OpenMutableBuffer","#,
+            r#""storage": "CHUNK_STORAGE_OPEN_MUTABLE_BUFFER","#,
         ))
-        .and(predicate::str::contains(r#""memory_bytes": 1016"#))
+        .and(predicate::str::contains(r#""memoryBytes": "1016""#))
         // Check for a non empty timestamp such as
         // "time_of_first_write": "2021-03-30T17:11:10.723866Z",
-        .and(predicate::str::contains(r#""time_of_first_write": "20"#));
+        .and(predicate::str::contains(r#""timeOfFirstWrite": "20"#));
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -706,14 +707,6 @@ async fn test_list_partition_chunks() {
 
     load_lp(addr, &db_name, lp_data);
 
-    let expected = r#"
-    "partition_key": "cpu",
-    "table_name": "cpu",
-    "order": 1,
-    "id": 0,
-    "storage": "OpenMutableBuffer",
-"#;
-
     let partition_key = "cpu";
     // should not contain anything related to cpu2 partition
     Command::cargo_bin("influxdb_iox")
@@ -727,7 +720,15 @@ async fn test_list_partition_chunks() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains(expected).and(predicate::str::contains("cpu2").not()));
+        .stdout(
+            predicate::str::contains(r#""partitionKey": "cpu""#)
+                .and(predicate::str::contains(r#""tableName": "cpu""#))
+                .and(predicate::str::contains(r#""order": 1"#))
+                .and(predicate::str::contains(
+                    r#""storage": "CHUNK_STORAGE_OPEN_MUTABLE_BUFFER""#,
+                ))
+                .and(predicate::str::contains("cpu2").not()),
+        );
 }
 
 #[tokio::test]
@@ -801,7 +802,7 @@ async fn test_new_partition_chunk() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains("ReadBuffer"));
+        .stdout(predicate::str::contains("CHUNK_STORAGE_READ_BUFFER"));
 }
 
 #[tokio::test]
@@ -837,6 +838,9 @@ async fn test_close_partition_chunk() {
     let lp_data = vec!["cpu,region=west user=23.2 100"];
     load_lp(addr, &db_name, lp_data);
 
+    let chunks = list_chunks(&server_fixture, &db_name).await;
+    let chunk_id = chunks[0].id;
+
     let iox_operation: IoxOperation = serde_json::from_slice(
         &Command::cargo_bin("influxdb_iox")
             .unwrap()
@@ -846,7 +850,7 @@ async fn test_close_partition_chunk() {
             .arg(&db_name)
             .arg("cpu")
             .arg("cpu")
-            .arg("0")
+            .arg(chunk_id.get().to_string())
             .arg("--host")
             .arg(addr)
             .assert()
@@ -880,7 +884,7 @@ async fn test_close_partition_chunk_error() {
         .arg("non_existent_database")
         .arg("non_existent_partition")
         .arg("non_existent_table")
-        .arg("0")
+        .arg("00000000-0000-0000-0000-000000000000")
         .arg("--host")
         .arg(addr)
         .assert()
@@ -1076,6 +1080,9 @@ async fn test_unload_partition_chunk_error() {
     let lp_data = vec!["cpu,region=west user=23.2 100"];
     load_lp(addr, &db_name, lp_data);
 
+    let chunks = list_chunks(&server_fixture, &db_name).await;
+    let chunk_id = chunks[0].id;
+
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
@@ -1084,7 +1091,7 @@ async fn test_unload_partition_chunk_error() {
         .arg(&db_name)
         .arg("cpu")
         .arg("cpu")
-        .arg("0")
+        .arg(chunk_id.get().to_string())
         .arg("--host")
         .arg(addr)
         .assert()
