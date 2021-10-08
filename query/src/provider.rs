@@ -769,8 +769,8 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
         predicate: Predicate, // This is the select predicate of the query
         output_sort_key: &SortKey<'_>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        // Add columns in sort key or delete predicates if not yet in the output schema
-        // This is needed because columns in select query may not include all columns of sort key and delete predicates
+        // Add columns of sort key and delete predicates in the schema of to-be-scanned IOxReadFilterNode
+        // This is needed because columns in select query may not include them yet
         let mut input_schema = Arc::clone(&output_schema);
         //
         // Cols of sort keys (which is a part of the primary key)
@@ -822,7 +822,8 @@ impl<C: QueryChunk + 'static> Deduplicater<C> {
             input = Self::build_sort_plan(chunk, input, output_sort_key)?
         }
 
-        // select back to the requested output schema
+        // Add a projection operator to return only schema of the operator above this in the plan
+        // This is needed for matching column index of that operator
         Self::add_projection_node_if_needed(output_schema, input)
     }
 

@@ -65,25 +65,20 @@ pub trait QueryChunkMeta: Sized {
         let mut col_names: HashSet<&str> = hashbrown::HashSet::new();
         for pred in self.delete_predicates() {
             let cols = pred.all_column_names_but_time();
-            // println!(" ===== in loop - all_column_names_but_time: {:#?}", cols);
             for col in cols {
                 col_names.insert(col);
             }
         }
-        // println!(" ===== col_names in pred exprs: {:#?}", col_names);
 
         // convert to vector
         let mut column_names: Vec<&str> = Vec::from_iter(col_names);
-        // println!(" ===== vector column_names: {:#?}", column_names);
 
         // Sort it
         column_names.sort_unstable();
-        // println!(" ===== vector column_names after sorting: {:#?}", column_names);
 
         // Now add time column to the end of the vector
         // Since time range is a must in the delete predicate, time column must be in this list
         column_names.push(TIME_COLUMN_NAME);
-        // println!(" ===== vector column_names with time: {:#?}", column_names);
 
         column_names
     }

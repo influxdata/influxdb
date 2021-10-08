@@ -103,19 +103,12 @@ impl DeletePredicate {
 
     /// Return all columns participating in the expressions of delete predicate minus the time column if any
     pub fn all_column_names_but_time(&self) -> hashbrown::HashSet<&str> {
-        // println!(" ===== del exprs: {:#?}", self.exprs);
-
         // Get column names of the predicate expressions
-        let cols = self
-            .exprs
+        self.exprs
             .iter()
             .map(|e| e.column())
             .filter(|col_name| col_name != &TIME_COLUMN_NAME)
-            .collect::<hashbrown::HashSet<&str>>();
-
-        // println!(" ===== cols of del exprs: {:#?}", cols);
-
-        cols
+            .collect::<hashbrown::HashSet<&str>>()
     }
 }
 

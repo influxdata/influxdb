@@ -61,7 +61,6 @@ async fn sql_select_from_cpu_min_utf8() {
         "| MIN(cpu.region |",
         "+----------------+",
         "| west           |",
-        "| west           |",
         "+----------------+",
     ];
     run_sql_test_case(TwoMeasurements {}, "SELECT min(region) from cpu", &expected).await;
@@ -1757,19 +1756,6 @@ async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate()
 }
 
 // --------------------------------------------------------
-
-// let expected = vec![
-//     "+-----+-----+--------------------------------+",
-//     "| bar | foo | time                           |",
-//     "+-----+-----+--------------------------------+",
-//     "| 1   | me  | 1970-01-01T00:00:00.000000040Z |",
-//     "| 1   | me  | 1970-01-01T00:00:00.000000042Z |",
-//     "| 1   | me  | 1970-01-01T00:00:00.000000062Z |",
-//     "| 4   | me  | 1970-01-01T00:00:00.000000050Z |",
-//     "| 5   | me  | 1970-01-01T00:00:00.000000060Z |",
-//     "| 7   | me  | 1970-01-01T00:00:00.000000080Z |",
-//     "+-----+-----+--------------------------------+",
-// ];
 
 #[tokio::test]
 async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate_min_bar() {
