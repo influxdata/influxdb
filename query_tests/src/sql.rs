@@ -52,6 +52,21 @@ async fn sql_select_from_cpu() {
     run_sql_test_case(TwoMeasurements {}, "SELECT * from cpu", &expected).await;
 }
 
+// BUG: https://github.com/influxdata/influxdb_iox/issues/2776
+#[ignore]
+#[tokio::test]
+async fn sql_select_from_cpu_min_utf8() {
+    let expected = vec![
+        "+----------------+",
+        "| MIN(cpu.region |",
+        "+----------------+",
+        "| west           |",
+        "| west           |",
+        "+----------------+",
+    ];
+    run_sql_test_case(TwoMeasurements {}, "SELECT min(region) from cpu", &expected).await;
+}
+
 #[tokio::test]
 async fn sql_select_from_cpu_2021() {
     let expected = vec![
@@ -918,6 +933,8 @@ async fn sql_select_with_delete_from_one_expr_delete_all() {
     .await;
 }
 
+// --------------------------------------------------------
+
 #[tokio::test]
 async fn sql_select_with_delete_from_one_expr() {
     let expected = vec![
@@ -951,6 +968,8 @@ async fn sql_select_with_delete_from_one_expr() {
     .await;
 }
 
+// --------------------------------------------------------
+
 #[tokio::test]
 async fn sql_select_with_delete_from_one_expr_min_max() {
     // Min & Max of bar only
@@ -969,7 +988,42 @@ async fn sql_select_with_delete_from_one_expr_min_max() {
     .await;
 }
 
-#[ignore]
+#[tokio::test]
+async fn sql_select_with_delete_from_one_expr_time() {
+    // one column, time,  and no cover all 2 columns, time and bar, of the delete predicate
+    let expected = vec![
+        "+--------------------------------+",
+        "| time                           |",
+        "+--------------------------------+",
+        "| 1970-01-01T00:00:00.000000020Z |",
+        "+--------------------------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteSimpleExprOneChunk {},
+        "SELECT time from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_delete_from_one_expr_max_time() {
+    // max on one column and no cover all 2 columns, time and bar, of the delete predicate
+    let expected = vec![
+        "+--------------------------------+",
+        "| MAX(cpu.time)                  |",
+        "+--------------------------------+",
+        "| 1970-01-01T00:00:00.000000020Z |",
+        "+--------------------------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteSimpleExprOneChunk {},
+        "SELECT max(time)  from cpu",
+        &expected,
+    )
+    .await;
+}
+
 #[tokio::test]
 async fn sql_select_with_delete_from_one_expr_count_max_time() {
     // Count and max on one column and no cover all 2 columns, time and bar, of the delete predicate
@@ -987,6 +1041,26 @@ async fn sql_select_with_delete_from_one_expr_count_max_time() {
     )
     .await;
 }
+
+#[tokio::test]
+async fn sql_select_with_delete_from_one_expr_count_time() {
+    // Count and max on one column and no cover all 2 columns, time and bar, of the delete predicate
+    let expected = vec![
+        "+-----------------+",
+        "| COUNT(cpu.time) |",
+        "+-----------------+",
+        "| 1               |",
+        "+-----------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteSimpleExprOneChunk {},
+        "SELECT count(time)  from cpu",
+        &expected,
+    )
+    .await;
+}
+
+// --------------------------------------------------------
 
 #[tokio::test]
 async fn sql_select_with_delete_from_one_expr_with_select_predicate() {
@@ -1032,6 +1106,8 @@ async fn sql_select_with_delete_from_one_expr_with_select_predicate() {
     .await;
 }
 
+// --------------------------------------------------------
+
 #[tokio::test]
 async fn sql_select_with_delete_from_multi_exprs() {
     let expected = vec![
@@ -1050,7 +1126,7 @@ async fn sql_select_with_delete_from_multi_exprs() {
     )
     .await;
 
-    //
+    // select one column, delete predicates on all 3 columns of the table
     let expected = vec![
         "+-----+", "| bar |", "+-----+", "| 1   |", "| 2   |", "+-----+",
     ];
@@ -1063,10 +1139,67 @@ async fn sql_select_with_delete_from_multi_exprs() {
     .await;
 }
 
-//  BUG Running scenario 'Deleted data from one RUB chunk, with 1 deletes from open MUB'
-// SQL: '"SELECT count(time), count(*), count(bar), min(bar), max(bar), min(time), max(time)  from cpu"'
-// thread 'sql::sql_select_with_delete_from_multi_exprs' panicked at 'Running plan: ArrowError(InvalidArgumentError("column types must match schema types, expected Dictionary(Int32, Utf8) but found Utf8 at column index 5"))', query_tests/src/sql.rs:37:74
+// --------------------------------------------------------
+
+// tests without delete
+#[tokio::test]
+async fn sql_select_without_delete_agg() {
+    // Count, min and max on many columns but not `foo` that is included in delete predicate
+    let expected = vec![
+        "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
+        "| COUNT(cpu.time) | COUNT(UInt8(1)) | COUNT(cpu.bar) | MIN(cpu.bar) | MAX(cpu.bar) | MIN(cpu.time)                  | MAX(cpu.time)                  |",
+        "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
+        "| 4               | 4               | 4              | 1            | 2            | 1970-01-01T00:00:00.000000010Z | 1970-01-01T00:00:00.000000040Z |",
+        "+-----------------+-----------------+----------------+--------------+--------------+--------------------------------+--------------------------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::NoDeleteOneChunk {},
+        "SELECT count(time), count(*), count(bar), min(bar), max(bar), min(time), max(time)  from cpu",
+        &expected,
+    )
+    .await;
+}
+
+// BUG: https://github.com/influxdata/influxdb_iox/issues/2776
 #[ignore]
+#[tokio::test]
+async fn sql_select_without_delete_max_foo() {
+    let expected = vec![
+        "+--------------+",
+        "| MAX(cpu.foo) |",
+        "+--------------+",
+        "| you           |",
+        "+--------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::NoDeleteOneChunk {},
+        "SELECT max(foo) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+// BUG: as as above
+#[ignore]
+#[tokio::test]
+async fn sql_select_without_delete_min_foo() {
+    let expected = vec![
+        "+--------------+",
+        "| MIN(cpu.foo)  |",
+        "+--------------+",
+        "| me            |",
+        "+--------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::NoDeleteOneChunk {},
+        "SELECT min(foo) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+// --------------------------------------------------------
+
 #[tokio::test]
 async fn sql_select_with_delete_from_multi_exprs_agg() {
     // Count, min and max on many columns but not `foo` that is included in delete predicate
@@ -1086,7 +1219,25 @@ async fn sql_select_with_delete_from_multi_exprs_agg() {
 }
 
 #[tokio::test]
-async fn sql_select_with_delete_from_multi_exprs_count_col() {
+async fn sql_select_with_delete_from_multi_exprs_count_time() {
+    // Count, min and max on many columns but not `foo` that is included in delete predicate
+    let expected = vec![
+        "+-----------------+",
+        "| COUNT(cpu.time) |",
+        "+-----------------+",
+        "| 2               |",
+        "+-----------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT count(time)  from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_delete_from_multi_exprs_count_foo() {
     let expected = vec![
         "+----------------+",
         "| COUNT(cpu.foo) |",
@@ -1099,6 +1250,25 @@ async fn sql_select_with_delete_from_multi_exprs_count_col() {
     run_sql_test_case(
         scenarios::delete::OneDeleteMultiExprsOneChunk {},
         "SELECT count(foo) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_delete_from_multi_exprs_count_bar() {
+    let expected = vec![
+        "+----------------+",
+        "| COUNT(cpu.bar) |",
+        "+----------------+",
+        "| 2              |",
+        "+----------------+",
+    ];
+
+    // OneDeleteMultiExprsOneChunk's delete predicates include columns foo, bar and time
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT count(bar) from cpu",
         &expected,
     )
     .await;
@@ -1122,7 +1292,7 @@ async fn sql_select_with_delete_from_multi_exprs_count_star() {
 }
 
 #[tokio::test]
-async fn sql_select_with_delete_from_multi_exprs_min() {
+async fn sql_select_with_delete_from_multi_exprs_min_bar() {
     let expected = vec![
         "+--------------+",
         "| MIN(cpu.bar) |",
@@ -1138,13 +1308,76 @@ async fn sql_select_with_delete_from_multi_exprs_min() {
     .await;
 }
 
-// BUG
-// Running scenario 'Deleted data from one Open MUB chunk, with 1 deletes from open MUB'
-// SQL: '"SELECT max(foo) from cpu"'
-// thread 'sql::sql_select_with_delete_from_multi_exprs_max' panicked at 'Running plan: ArrowError(InvalidArgumentError("column types must match schema types, expected Dictionary(Int32, Utf8) but found Utf8 at column index 0"))', query_tests/src/sql.rs:37:74
+// BUG: https://github.com/influxdata/influxdb_iox/issues/2776
 #[ignore]
 #[tokio::test]
-async fn sql_select_with_delete_from_multi_exprs_max() {
+async fn sql_select_with_delete_from_multi_exprs_min_foo() {
+    let expected = vec![
+        "+--------------+",
+        "| MIN(cpu.foo) |",
+        "+--------------+",
+        "| me           |",
+        "+--------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT min(foo) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_delete_from_multi_exprs_foo() {
+    let expected = vec![
+        "+-----+", "| foo |", "+-----+", "| me  |", "| you |", "+-----+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT foo from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_delete_from_multi_exprs_min_time() {
+    let expected = vec![
+        "+--------------------------------+",
+        "| MIN(cpu.time)                  |",
+        "+--------------------------------+",
+        "| 1970-01-01T00:00:00.000000020Z |",
+        "+--------------------------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT min(time) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sql_select_with_delete_from_multi_exprs_max_bar() {
+    let expected = vec![
+        "+--------------+",
+        "| MAX(cpu.bar) |",
+        "+--------------+",
+        "| 2            |",
+        "+--------------+",
+    ];
+    run_sql_test_case(
+        scenarios::delete::OneDeleteMultiExprsOneChunk {},
+        "SELECT max(bar) from cpu",
+        &expected,
+    )
+    .await;
+}
+
+// BUG: https://github.com/influxdata/influxdb_iox/issues/2776
+#[ignore]
+#[tokio::test]
+async fn sql_select_with_delete_from_multi_exprs_max_foo() {
     let expected = vec![
         "+----------------+",
         "| COUNT(cpu.foo) |",
@@ -1160,9 +1393,6 @@ async fn sql_select_with_delete_from_multi_exprs_max() {
     .await;
 }
 
-// BUG: scenario 'Deleted data from one RUB chunk, with 1 deletes from open MUB'
-//  return wrong result
-#[ignore]
 #[tokio::test]
 async fn sql_select_with_delete_from_multi_exprs_max_time() {
     let expected = vec![
@@ -1179,6 +1409,8 @@ async fn sql_select_with_delete_from_multi_exprs_max_time() {
     )
     .await;
 }
+
+// --------------------------------------------------------
 
 #[tokio::test]
 async fn sql_select_with_delete_from_multi_exprs_with_select_predicate() {
@@ -1272,6 +1504,8 @@ async fn sql_select_with_two_deletes_from_multi_exprs_with_select_predicate() {
     .await;
 }
 
+// --------------------------------------------------------
+
 #[tokio::test]
 async fn sql_select_with_three_deletes_from_three_chunks() {
     let expected = vec![
@@ -1295,6 +1529,8 @@ async fn sql_select_with_three_deletes_from_three_chunks() {
     )
     .await;
 }
+
+// --------------------------------------------------------
 
 #[tokio::test]
 async fn sql_select_with_three_deletes_from_three_chunks_count_star() {
@@ -1386,9 +1622,7 @@ async fn sql_select_with_three_deletes_from_three_chunks_min_bar() {
     .await;
 }
 
-// BUG  scenario 'Deleted data from 3 chunks,  - OS - RUB - Open MUB, with 3 deletes after all chunks are created'
-// SQL: '"SELECT max(foo) from cpu"'
-// thread 'sql::sql_select_with_three_deletes_from_three_chunks_max_foo' panicked at 'Running plan: ArrowError(InvalidArgumentError("column types must match schema types, expected Dictionary(Int32, Utf8) but found Utf8 at column index 0"))', query_tests/src/sql.rs:37:74
+// BUG: https://github.com/influxdata/influxdb_iox/issues/2776
 #[ignore]
 #[tokio::test]
 async fn sql_select_with_three_deletes_from_three_chunks_max_foo() {
@@ -1408,18 +1642,14 @@ async fn sql_select_with_three_deletes_from_three_chunks_max_foo() {
     .await;
 }
 
-// BUG: Running scenario 'Deleted data from 3 chunks,  - OS - RUB - Open MUB, with 3 deletes after all chunks are created'
-// SQL: '"SELECT min(time), max(time) from cpu"'
-// thread 'sql::sql_select_with_three_deletes_from_three_chunks_min_max_time' panicked at 'Running plan: ArrowError(ExternalError(Internal("MIN/MAX is not expected to receive scalars of incompatible types (TimestampNanosecond(NULL), Float64(1))")))', query_tests/src/sql.rs:37:74
-#[ignore]
 #[tokio::test]
 async fn sql_select_with_three_deletes_from_three_chunks_min_max_time() {
     let expected = vec![
-        "+-----+-----+--------------------------------+",
-        "| bar | foo | time                           |",
-        "+-----+-----+--------------------------------+",
-        "| 7   | me  | 1970-01-01T00:00:00.000000080Z |",
-        "+-----+-----+--------------------------------+",
+        "+--------------------------------+--------------------------------+",
+        "| MIN(cpu.time)                  | MAX(cpu.time)                  |",
+        "+--------------------------------+--------------------------------+",
+        "| 1970-01-01T00:00:00.000000040Z | 1970-01-01T00:00:00.000000080Z |",
+        "+--------------------------------+--------------------------------+",
     ];
 
     run_sql_test_case(
@@ -1429,6 +1659,8 @@ async fn sql_select_with_three_deletes_from_three_chunks_min_max_time() {
     )
     .await;
 }
+
+// --------------------------------------------------------
 
 #[tokio::test]
 async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate() {
@@ -1524,6 +1756,8 @@ async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate()
     .await;
 }
 
+// --------------------------------------------------------
+
 // let expected = vec![
 //     "+-----+-----+--------------------------------+",
 //     "| bar | foo | time                           |",
@@ -1539,8 +1773,6 @@ async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate()
 
 #[tokio::test]
 async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate_min_bar() {
-    // ----
-    // min, max & count
     let expected = vec![
         "+--------------+",
         "| MIN(cpu.bar) |",
@@ -1557,9 +1789,7 @@ async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate_m
     .await;
 }
 
-// BUG: Running scenario 'Deleted data from 3 chunks,  - OS - RUB - Open MUB, with 3 deletes after all chunks are created'
-// SQL: '"SELECT max(foo) from cpu where foo = 'me' and (bar > 2 or bar = 1.0)"'
-// thread 'sql::sql_select_with_three_deletes_from_three_chunks_with_select_predicate_max_foo' panicked at 'Running plan: ArrowError(InvalidArgumentError("column types must match schema types, expected Dictionary(Int32, Utf8) but found Utf8 at column index 0"))', query_tests/src/sql.rs:37:74
+// BUG: https://github.com/influxdata/influxdb_iox/issues/2776
 #[ignore]
 #[tokio::test]
 async fn sql_select_with_three_deletes_from_three_chunks_with_select_predicate_max_foo() {

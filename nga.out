@@ -1,6 +1,0 @@
-
-running 1 test
-test sql::sql_select_with_delete_from_multi_exprs_count ... ignored
-
-test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 139 filtered out; finished in 0.00s
-
