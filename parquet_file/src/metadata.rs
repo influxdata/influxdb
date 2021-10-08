@@ -121,7 +121,7 @@ use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputPro
 ///
 /// **Important: When changing this structure, consider bumping the
 ///   [catalog transaction version](crate::catalog::core::TRANSACTION_VERSION)!**
-pub const METADATA_VERSION: u32 = 9;
+pub const METADATA_VERSION: u32 = 10;
 
 /// File-level metadata key to store the IOx-specific data.
 ///
@@ -338,15 +338,15 @@ impl IoxMetadata {
                 }
             })
             .collect::<Result<BTreeMap<u32, OptionalMinMaxSequence>>>()?;
-        let min_unpersisted_timestamp = decode_timestamp_from_field(
-            proto_partition_checkpoint.min_unpersisted_timestamp,
-            "partition_checkpoint.min_unpersisted_timestamp",
+        let flush_timestamp = decode_timestamp_from_field(
+            proto_partition_checkpoint.flush_timestamp,
+            "partition_checkpoint.flush_timestamp",
         )?;
         let partition_checkpoint = PartitionCheckpoint::new(
             Arc::clone(&table_name),
             Arc::clone(&partition_key),
             sequencer_numbers,
-            min_unpersisted_timestamp,
+            flush_timestamp,
         );
 
         // extract database checkpoint
@@ -406,9 +406,7 @@ impl IoxMetadata {
                     )
                 })
                 .collect(),
-            min_unpersisted_timestamp: Some(
-                self.partition_checkpoint.min_unpersisted_timestamp().into(),
-            ),
+            flush_timestamp: Some(self.partition_checkpoint.flush_timestamp().into()),
         };
 
         let proto_database_checkpoint = proto::DatabaseCheckpoint {

@@ -272,7 +272,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 18,
+            version: 19,
             actions: [],
             revision_counter: 0,
             uuid: b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
@@ -297,7 +297,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 18,
+            version: 19,
             actions: [
                 Action {
                     action: Some(
@@ -396,7 +396,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 18,
+            version: 19,
             actions: [],
             revision_counter: 0,
             uuid: b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
@@ -421,7 +421,7 @@ File {
     is_checkpoint: false,
     proto: Ok(
         Transaction {
-            version: 18,
+            version: 19,
             actions: [
                 Action {
                     action: Some(
@@ -484,7 +484,7 @@ File {
                                         max: 28,
                                     },
                                 },
-                                min_unpersisted_timestamp: 1970-01-01T00:00:10.000000020Z,
+                                flush_timestamp: 1970-01-01T00:00:10.000000020Z,
                             },
                             database_checkpoint: DatabaseCheckpoint {
                                 sequencer_numbers: {
