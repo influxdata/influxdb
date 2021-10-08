@@ -478,10 +478,10 @@ impl Table {
     pub fn column_names(
         &self,
         predicate: &Predicate,
+        negated_predicates: &[Predicate],
         columns: Selection<'_>,
         mut dst: BTreeSet<String>,
     ) -> Result<BTreeSet<String>> {
-        // TODO(edd): add delete support
         let (meta, row_groups) = {
             let table_data = self.table_data.read();
             (Arc::clone(&table_data.meta), table_data.data.clone())
@@ -493,15 +493,22 @@ impl Table {
             return Ok(dst);
         }
 
-        // Determine if predicate can be applied.
+        // Determine if predicate can be applied to table.
         let predicate: Predicate = meta.validate_exprs(predicate.clone())?.into();
+
+        // Determine if the negated predicates (deletes) can be applied to the
+        // table.
+        let mut n_predicates: Vec<Predicate> = vec![];
+        for pred in negated_predicates {
+            n_predicates.push(meta.validate_exprs(pred.clone())?.into());
+        }
 
         // Filter set of row groups to process using predicate.
         let row_groups = self.filter_row_groups(&predicate, row_groups);
 
         // Execute against each row group
         for row_group in row_groups {
-            row_group.column_names(&predicate, columns, &mut dst);
+            row_group.column_names(&predicate, negated_predicates, columns, &mut dst);
         }
 
         Ok(dst)
@@ -1774,7 +1781,7 @@ west,host-b,100
 
         let mut dst: BTreeSet<String> = BTreeSet::new();
         dst = table
-            .column_names(&Predicate::default(), Selection::All, dst)
+            .column_names(&Predicate::default(), &[], Selection::All, dst)
             .unwrap();
 
         assert_eq!(
@@ -1784,7 +1791,7 @@ west,host-b,100
 
         // re-run and get the same answer
         dst = table
-            .column_names(&Predicate::default(), Selection::All, dst)
+            .column_names(&Predicate::default(), &[], Selection::All, dst)
             .unwrap();
         assert_eq!(
             dst.iter().cloned().collect::<Vec<_>>(),
@@ -1796,6 +1803,7 @@ west,host-b,100
         dst = table
             .column_names(
                 &Predicate::new(vec![BinaryExpr::from(("time", ">=", 300_i64))]),
+                &[],
                 Selection::All,
                 dst,
             )
@@ -1809,6 +1817,7 @@ west,host-b,100
         dst = table
             .column_names(
                 &Predicate::new(vec![BinaryExpr::from(("time", ">=", 300_i64))]),
+                &[],
                 Selection::All,
                 BTreeSet::new(),
             )
@@ -1822,6 +1831,7 @@ west,host-b,100
         assert!(table
             .column_names(
                 &Predicate::new(vec![BinaryExpr::from(("time", ">=", "not a number"))]),
+                &[],
                 Selection::All,
                 dst,
             )
