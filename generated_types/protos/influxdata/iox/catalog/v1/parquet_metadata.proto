@@ -50,8 +50,11 @@ message PartitionCheckpoint {
   // Maps `sequencer_id` to the to-be-persisted minimum and seen maximum sequence numbers.
   map<uint32, OptionalMinMaxSequence> sequencer_numbers = 1;
 
-  // Minimum unpersisted timestamp.
-  google.protobuf.Timestamp min_unpersisted_timestamp = 2;
+  // Was Minimum unpersisted timestamp.
+  reserved 2;
+
+  // Maximum persisted timestamp.
+  google.protobuf.Timestamp max_persisted_timestamp = 3;
 }
 
 // Record of the playback state for the whole database.
