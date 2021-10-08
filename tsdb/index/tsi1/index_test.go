@@ -226,7 +226,7 @@ func TestIndex_Open(t *testing.T) {
 
 		for i := 0; i < int(idx.PartitionN); i++ {
 			p := idx.PartitionAt(i)
-			if got, exp := p.NeedsCompaction(), false; got != exp {
+			if got, exp := p.NeedsCompaction(false), false; got != exp {
 				t.Fatalf("got needs compaction %v, expected %v", got, exp)
 			}
 		}
@@ -594,7 +594,7 @@ func (idx *Index) RunStateAware(t *testing.T, fn func(t *testing.T, state int)) 
 	for {
 		needsCompaction := false
 		for i := 0; i < int(idx.PartitionN); i++ {
-			needsCompaction = needsCompaction || idx.PartitionAt(i).NeedsCompaction()
+			needsCompaction = needsCompaction || idx.PartitionAt(i).NeedsCompaction(false)
 		}
 		if !needsCompaction {
 			break
