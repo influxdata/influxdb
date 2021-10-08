@@ -496,21 +496,16 @@ impl Column {
                 }
             }
 
-            // When the predicate is one of {<, <=, >, >=} and the column doesn't
-            // contain any null values, and the entire range of values satisfies the
-            // predicate then the column doesn't need to be read.
-            cmp::Operator::GT | cmp::Operator::GTE | cmp::Operator::LT | cmp::Operator::LTE => {
+            // When the predicate is one of {!=, <, <=, >, >=} and the column
+            // doesn't contain any null values, and the entire range of values
+            // satisfies the predicate then the column doesn't need to be read.
+            cmp::Operator::NotEqual
+            | cmp::Operator::GT
+            | cmp::Operator::GTE
+            | cmp::Operator::LT
+            | cmp::Operator::LTE => {
                 if self.predicate_matches_all_values(op, value) {
                     return PredicateMatch::All;
-                }
-            }
-
-            // When the predicate is != and the metadata range indicates that the
-            // column can't possibly contain `value` then the predicate must
-            // match all rows on the column.
-            cmp::Operator::NotEqual => {
-                if !self.might_contain_value(value) {
-                    return PredicateMatch::All; // all rows are going to match.
                 }
             }
         }
@@ -1429,6 +1424,7 @@ pub(crate) struct Statistics {
 mod test {
     use super::*;
     use arrow::array::{Int64Array, StringArray};
+    use cmp::Operator;
     use encoding::string::NULL_ID;
 
     #[test]
@@ -2020,7 +2016,7 @@ mod test {
 
         row_ids = col.row_ids_filter(
             &cmp::Operator::NotEqual,
-            &Value::from(-1257_i64),
+            &Value::from(1257_i64),
             RowIDs::new_bitmap(),
         );
         assert!(matches!(row_ids, RowIDsOption::All(_)));
@@ -2256,63 +2252,90 @@ mod test {
 
     #[test]
     fn evaluate_predicate_on_meta() {
-        let input = &[100_i64, 200, 300, 2, 200, 22, 30];
-        let col = Column::from(&input[..]);
-
+        let col = Column::from(&[100_i64, 200, 300, 2, 200, 22, 30][..]);
         let cases: Vec<(cmp::Operator, Scalar, PredicateMatch)> = vec![
+            (Operator::GT, Scalar::U64(100), PredicateMatch::SomeMaybe),
+            (Operator::GT, Scalar::I64(100), PredicateMatch::SomeMaybe),
+            (Operator::GT, Scalar::I64(-99), PredicateMatch::All),
+            (Operator::GT, Scalar::I64(100), PredicateMatch::SomeMaybe),
+            (Operator::LT, Scalar::I64(300), PredicateMatch::SomeMaybe),
+            (Operator::LTE, Scalar::I64(300), PredicateMatch::All),
+            (Operator::Equal, Scalar::I64(2), PredicateMatch::SomeMaybe),
             (
-                cmp::Operator::GT,
-                Scalar::U64(100),
-                PredicateMatch::SomeMaybe,
-            ),
-            (
-                cmp::Operator::GT,
-                Scalar::I64(100),
-                PredicateMatch::SomeMaybe,
-            ),
-            (cmp::Operator::GT, Scalar::I64(-99), PredicateMatch::All),
-            (
-                cmp::Operator::GT,
-                Scalar::I64(100),
-                PredicateMatch::SomeMaybe,
-            ),
-            (
-                cmp::Operator::LT,
-                Scalar::I64(300),
-                PredicateMatch::SomeMaybe,
-            ),
-            (cmp::Operator::LTE, Scalar::I64(300), PredicateMatch::All),
-            (
-                cmp::Operator::Equal,
+                Operator::NotEqual,
                 Scalar::I64(2),
                 PredicateMatch::SomeMaybe,
             ),
-            (
-                cmp::Operator::NotEqual,
-                Scalar::I64(2),
-                PredicateMatch::SomeMaybe,
-            ),
-            (cmp::Operator::NotEqual, Scalar::I64(1), PredicateMatch::All),
-            (
-                cmp::Operator::NotEqual,
-                Scalar::I64(301),
-                PredicateMatch::All,
-            ),
-            (cmp::Operator::GT, Scalar::I64(100000), PredicateMatch::None),
-            (cmp::Operator::GTE, Scalar::I64(301), PredicateMatch::None),
-            (cmp::Operator::LT, Scalar::I64(2), PredicateMatch::None),
-            (cmp::Operator::LTE, Scalar::I64(-100), PredicateMatch::None),
-            (
-                cmp::Operator::Equal,
-                Scalar::I64(100000),
-                PredicateMatch::None,
-            ),
+            (Operator::NotEqual, Scalar::I64(1), PredicateMatch::All),
+            (Operator::NotEqual, Scalar::I64(301), PredicateMatch::All),
+            (Operator::GT, Scalar::I64(100000), PredicateMatch::None),
+            (Operator::GTE, Scalar::I64(301), PredicateMatch::None),
+            (Operator::LT, Scalar::I64(2), PredicateMatch::None),
+            (Operator::LTE, Scalar::I64(-100), PredicateMatch::None),
+            (Operator::Equal, Scalar::I64(100000), PredicateMatch::None),
         ];
 
-        for (op, scalar, result) in cases {
+        for (i, (op, scalar, result)) in cases.into_iter().enumerate() {
             assert_eq!(
                 col.evaluate_predicate_on_meta(&op, &Value::Scalar(scalar)),
-                result
+                result,
+                "case {:?} failed",
+                i
+            );
+        }
+
+        // Now with a column containing at least one NULL value.
+        let col = Column::from(Int64Array::from(vec![
+            Some(100_i64),
+            Some(200),
+            Some(300),
+            Some(2),
+            None,
+            Some(200),
+            Some(22),
+            Some(30),
+        ]));
+
+        let cases: Vec<(cmp::Operator, Scalar, PredicateMatch)> = vec![
+            (Operator::GT, Scalar::U64(100), PredicateMatch::SomeMaybe),
+            (Operator::GT, Scalar::I64(100), PredicateMatch::SomeMaybe),
+            // Not all values will match > -99 because of NULL
+            (Operator::GT, Scalar::I64(-99), PredicateMatch::SomeMaybe),
+            (Operator::GT, Scalar::I64(100), PredicateMatch::SomeMaybe),
+            (Operator::LT, Scalar::I64(300), PredicateMatch::SomeMaybe),
+            // Not all values will match < 300 because of NULL
+            (Operator::LTE, Scalar::I64(300), PredicateMatch::SomeMaybe),
+            (Operator::Equal, Scalar::I64(2), PredicateMatch::SomeMaybe),
+            (
+                Operator::NotEqual,
+                Scalar::I64(2),
+                PredicateMatch::SomeMaybe,
+            ),
+            // Not all values will match != 1 because of NULL
+            (
+                Operator::NotEqual,
+                Scalar::I64(1),
+                PredicateMatch::SomeMaybe,
+            ),
+            // Not all values will match != 301 because of NULL
+            (
+                Operator::NotEqual,
+                Scalar::I64(301),
+                PredicateMatch::SomeMaybe,
+            ),
+            (Operator::GT, Scalar::I64(100000), PredicateMatch::None),
+            (Operator::GTE, Scalar::I64(301), PredicateMatch::None),
+            (Operator::LT, Scalar::I64(2), PredicateMatch::None),
+            (Operator::LTE, Scalar::I64(-100), PredicateMatch::None),
+            (Operator::Equal, Scalar::I64(100000), PredicateMatch::None),
+        ];
+
+        for (i, (op, scalar, result)) in cases.into_iter().enumerate() {
+            assert_eq!(
+                col.evaluate_predicate_on_meta(&op, &Value::Scalar(scalar)),
+                result,
+                "case {:?} failed",
+                i
             );
         }
     }
