@@ -59,7 +59,6 @@ pub trait QueryChunkMeta: Sized {
     /// return column names participating in the all delete predicates
     /// in lexicographical order with one exception that time column is last
     /// This order is to be consistent with Schema::primary_key
-    //#[warn(clippy::stable_sort_primitive)]
     fn delete_predicate_columns(&self) -> Vec<&str> {
         // get all column names but time
         let mut col_names: HashSet<&str> = hashbrown::HashSet::new();
