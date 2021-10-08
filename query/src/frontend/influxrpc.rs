@@ -7,21 +7,19 @@ use std::{
 use arrow::datatypes::{DataType, Field};
 use data_types::chunk_metadata::ChunkId;
 use datafusion::{
-    error::{DataFusionError, Result as DatafusionResult},
-    logical_plan::{Expr, ExpressionVisitor, LogicalPlan, LogicalPlanBuilder, Operator, Recursion},
+    error::DataFusionError,
+    logical_plan::{Expr, LogicalPlan, LogicalPlanBuilder},
     prelude::col,
 };
 use datafusion_util::AsExpr;
 
+use hashbrown::HashSet;
 use internal_types::{
     schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME},
     selection::Selection,
 };
 use observability_deps::tracing::{debug, trace};
-use predicate::{
-    predicate::{Predicate, PredicateMatch},
-    regex::{REGEX_MATCH_UDF_NAME, REGEX_NOT_MATCH_UDF_NAME},
-};
+use predicate::predicate::{Predicate, PredicateMatch};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use crate::{
@@ -140,6 +138,18 @@ pub enum Error {
 
     #[snafu(display("Error creating aggregate expression:  {}", source))]
     CreatingAggregates { source: crate::group_by::Error },
+
+    #[snafu(display(
+        "gRPC planner got error casting aggregate {:?} for {}: {}",
+        agg,
+        field_name,
+        source
+    ))]
+    CastingAggregates {
+        agg: Aggregate,
+        field_name: String,
+        source: datafusion::error::DataFusionError,
+    },
 
     #[snafu(display("Internal error: unexpected aggregate request for None aggregate",))]
     InternalUnexpectedNoneAggregate {},
@@ -1001,12 +1011,9 @@ impl InfluxRpcPlanner {
             .aggregate(group_exprs, agg_exprs)
             .context(BuildingPlan)?;
 
-        // Add sort if necessary
-        let plan_builder = if sort_exprs.is_empty() {
-            plan_builder
-        } else {
-            plan_builder.sort(sort_exprs).context(BuildingPlan)?
-        };
+        let plan_builder = cast_aggregates(plan_builder, agg, &field_columns)?;
+
+        let plan_builder = add_sort(plan_builder, sort_exprs)?;
 
         // and finally create the plan
         let plan = plan_builder.build().context(BuildingPlan)?;
@@ -1191,11 +1198,6 @@ impl InfluxRpcPlanner {
                        "Skipping table as schema doesn't have all filter_expr columns");
                 return Ok(None);
             }
-            // Assuming that if a table doesn't have all the columns
-            // in an expression it can't be true isn't correct for
-            // certain predicates (e.g. IS NOT NULL), so error out
-            // here until we have proper support for that case
-            check_predicate_support(&filter_expr)?;
 
             plan_builder = plan_builder.filter(filter_expr).context(BuildingPlan)?;
         }
@@ -1207,75 +1209,61 @@ impl InfluxRpcPlanner {
     }
 }
 
-/// Returns `Ok` if we support this predicate, `Err` otherwise.
-///
-/// Right now, the gRPC planner assumes that if all columns in an
-/// expression are not present, the expression can't evaluate to true
-/// (aka have rows match).
-///
-/// This is not true for certain expressions (e.g. IS NULL for
-///  example), so error here if we see one of those).
-
-fn check_predicate_support(expr: &Expr) -> Result<()> {
-    let visitor = SupportVisitor {};
-    expr.accept(visitor).context(UnsupportedPredicate)?;
-    Ok(())
+/// Adds a sort to the plan_builder if there are any sort exprs
+fn add_sort(plan_builder: LogicalPlanBuilder, sort_exprs: Vec<Expr>) -> Result<LogicalPlanBuilder> {
+    if sort_exprs.is_empty() {
+        Ok(plan_builder)
+    } else {
+        plan_builder.sort(sort_exprs).context(BuildingPlan)
+    }
 }
 
-/// Used to figure out if we know how to deal with this kind of
-/// predicate in the grpc buffer
-struct SupportVisitor {}
-
-impl ExpressionVisitor for SupportVisitor {
-    fn pre_visit(self, expr: &Expr) -> DatafusionResult<Recursion<Self>> {
-        match expr {
-            Expr::Literal(..) => Ok(Recursion::Continue(self)),
-            Expr::Column(..) => Ok(Recursion::Continue(self)),
-            Expr::BinaryExpr { op, .. } => {
-                match op {
-                    Operator::Eq
-                    | Operator::NotEq
-                    | Operator::Lt
-                    | Operator::LtEq
-                    | Operator::Gt
-                    | Operator::GtEq
-                    | Operator::Plus
-                    | Operator::Minus
-                    | Operator::Multiply
-                    | Operator::Divide
-                    | Operator::And
-                    | Operator::Or => Ok(Recursion::Continue(self)),
-                    // Unsupported (need to think about ramifications)
-                    Operator::Modulo
-                    | Operator::Like
-                    | Operator::NotLike
-                    | Operator::RegexMatch
-                    | Operator::RegexIMatch
-                    | Operator::RegexNotMatch
-                    | Operator::RegexNotIMatch => Err(DataFusionError::NotImplemented(format!(
-                        "Unsupported operator in gRPC: {:?} in expression {:?}",
-                        op, expr
-                    ))),
-                }
-            }
-            Expr::ScalarUDF { fun, .. } => {
-                if fun.name.as_str() == REGEX_MATCH_UDF_NAME
-                    || fun.name.as_str() == REGEX_NOT_MATCH_UDF_NAME
-                {
-                    Ok(Recursion::Continue(self))
-                } else {
-                    Err(DataFusionError::NotImplemented(format!(
-                        "Unsupported expression in gRPC: {:?}",
-                        expr
-                    )))
-                }
-            }
-            _ => Err(DataFusionError::NotImplemented(format!(
-                "Unsupported expression in gRPC: {:?}",
-                expr
-            ))),
-        }
+/// casts aggregates (fields named in field_columns) to the types
+/// expected by Flux. Currently this means converting count aggregates
+/// into Int64
+fn cast_aggregates(
+    plan_builder: LogicalPlanBuilder,
+    agg: Aggregate,
+    field_columns: &FieldColumns,
+) -> Result<LogicalPlanBuilder> {
+    if !matches!(agg, Aggregate::Count) {
+        return Ok(plan_builder);
     }
+
+    let schema = plan_builder.schema();
+
+    // in read_group and read_window_aggregate, aggregates are only
+    // applied to fields, so all fields are also aggregates.
+    let field_names: HashSet<&str> = match field_columns {
+        FieldColumns::SharedTimestamp(field_names) => {
+            field_names.iter().map(|s| s.as_ref()).collect()
+        }
+        FieldColumns::DifferentTimestamp(fields_and_timestamps) => fields_and_timestamps
+            .iter()
+            .map(|(field, _timestamp)| field.as_ref())
+            .collect(),
+    };
+
+    // Build expressions for each select list
+    let cast_exprs = schema
+        .fields()
+        .iter()
+        .map(|df_field| {
+            let field_name = df_field.name();
+            let expr = if field_names.contains(field_name.as_str()) {
+                // CAST(field_name as Int64) as field_name
+                col(field_name)
+                    .cast_to(&DataType::Int64, schema)
+                    .context(CastingAggregates { agg, field_name })?
+                    .alias(field_name)
+            } else {
+                col(field_name)
+            };
+            Ok(expr)
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    plan_builder.project(cast_exprs).context(BuildingPlan)
 }
 
 struct TableScanAndFilter {

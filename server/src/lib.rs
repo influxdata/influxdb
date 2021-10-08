@@ -98,6 +98,7 @@ use std::sync::Arc;
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
 use tracker::{TaskTracker, TrackedFutureExt};
+use uuid::Uuid;
 
 pub use application::ApplicationState;
 pub use connection::{ConnectionManager, ConnectionManagerImpl, RemoteServer};
@@ -635,11 +636,9 @@ where
     /// Tells the server the set of rules for a database.
     ///
     /// Waits until the database has initialized or failed to do so
-    pub async fn create_database(
-        &self,
-        provided_rules: ProvidedDatabaseRules,
-    ) -> Result<Arc<Database>> {
-        let db_name = provided_rules.db_name();
+    pub async fn create_database(&self, rules: ProvidedDatabaseRules) -> Result<Arc<Database>> {
+        let uuid = Uuid::new_v4();
+        let db_name = rules.db_name();
 
         // Wait for exclusive access to mutate server state
         let handle_fut = self.shared.state.read().freeze();
@@ -661,7 +660,8 @@ where
 
         let res = Database::create(
             Arc::clone(&self.shared.application),
-            &provided_rules,
+            uuid,
+            &rules,
             server_id,
         )
         .await;
@@ -685,6 +685,7 @@ where
                         &self.shared,
                         DatabaseConfig {
                             name: db_name.clone(),
+                            uuid: Some(uuid),
                             server_id,
                             wipe_catalog_on_error: false,
                             skip_replay: false,
@@ -945,19 +946,15 @@ where
     pub async fn update_db_rules(
         &self,
         db_name: &DatabaseName<'_>,
-        provided_rules: ProvidedDatabaseRules,
+        rules: ProvidedDatabaseRules,
     ) -> Result<Arc<ProvidedDatabaseRules>> {
-        let provided_rules = Arc::new(provided_rules);
-
         let database = self.database(db_name)?;
 
-        // attempt to save  provided rules in the current state
-        database
-            .update_provided_rules(Arc::clone(&provided_rules))
+        // attempt to save provided rules in the current state
+        Ok(database
+            .update_provided_rules(rules)
             .await
-            .context(CanNotUpdateRules { db_name })?;
-
-        Ok(provided_rules)
+            .context(CanNotUpdateRules { db_name })?)
     }
 
     pub fn remotes_sorted(&self) -> Vec<(ServerId, String)> {
@@ -1144,6 +1141,10 @@ async fn maybe_initialize_server(shared: &ServerShared) {
                         shared,
                         DatabaseConfig {
                             name: db_name,
+                            // TODO: this will be the UUID from the object store path once we
+                            // make that switch; we'll be guaranteed to have it then and this
+                            // won't be an `Option`
+                            uuid: None,
                             server_id: init_ready.server_id,
                             wipe_catalog_on_error: init_ready.wipe_catalog_on_error,
                             skip_replay: init_ready.skip_replay_and_seek_instead,
@@ -1253,7 +1254,7 @@ mod tests {
     use parquet_file::catalog::{core::PreservedCatalog, test_helpers::TestCatalogState};
     use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner, QueryDatabase};
     use std::{
-        convert::{TryFrom, TryInto},
+        convert::TryFrom,
         sync::{
             atomic::{AtomicBool, Ordering},
             Arc,
@@ -1317,6 +1318,7 @@ mod tests {
             worker_cleanup_avg_sleep: Duration::from_secs(2),
             write_buffer_connection: None,
         };
+
         let provided_rules = make_provided_rules(rules);
 
         // Create a database
@@ -1338,8 +1340,8 @@ mod tests {
 
         let db2 = DatabaseName::new("db_awesome").unwrap();
         let rules2 = DatabaseRules::new(db2.clone());
-
         let provided_rules2 = make_provided_rules(rules2);
+
         server
             .create_database(provided_rules2)
             .await
@@ -1766,14 +1768,13 @@ mod tests {
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.wait_for_init().await.unwrap();
 
-        let name = DatabaseName::new("foo".to_string()).unwrap();
+        let name = DatabaseName::new("foo").unwrap();
         server
             .create_database(default_rules(name.clone()))
             .await
             .unwrap();
 
-        let db_name = DatabaseName::new("foo").unwrap();
-        let db = server.db(&db_name).unwrap();
+        let db = server.db(&name).unwrap();
 
         let mut rules: DatabaseRules = db.rules().as_ref().clone();
 
@@ -2109,6 +2110,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn init_without_uuid() {
+        let application = make_application();
+        let server_id = ServerId::try_from(1).unwrap();
+
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        let db_name = DatabaseName::new("foo").unwrap();
+
+        // Create database
+        create_simple_database(&server, &db_name)
+            .await
+            .expect("failed to create database");
+
+        // restart the server
+        std::mem::drop(server);
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+        assert!(server.initialized());
+
+        // database should not be in an error state
+        let database = server.database(&db_name).unwrap();
+        database.wait_for_init().await.unwrap();
+
+        // update the database's rules
+        let rules = DatabaseRules {
+            name: db_name.clone(),
+            partition_template: PartitionTemplate {
+                parts: vec![TemplatePart::TimeFormat("YYYY-MM".to_string())],
+            },
+            lifecycle_rules: Default::default(),
+            routing_rules: None,
+            worker_cleanup_avg_sleep: Duration::from_secs(2),
+            write_buffer_connection: Some(WriteBufferConnection {
+                direction: WriteBufferDirection::Write,
+                type_: "mock".to_string(),
+                connection: "my_mock".to_string(),
+                ..Default::default()
+            }),
+        };
+        let provided_rules = make_provided_rules(rules);
+
+        server
+            .update_db_rules(&db_name, provided_rules)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
     async fn wipe_preserved_catalog() {
         // have the following DBs:
         // 1. existing => cannot be wiped
@@ -2408,11 +2460,8 @@ mod tests {
     /// tests they are constructed from database rules structures
     /// themselves.
     fn make_provided_rules(rules: DatabaseRules) -> ProvidedDatabaseRules {
-        let rules: generated_types::influxdata::iox::management::v1::DatabaseRules =
-            rules.try_into().unwrap();
-
-        let provided_rules: ProvidedDatabaseRules = rules.try_into().unwrap();
-        provided_rules
+        ProvidedDatabaseRules::new_rules(rules.into())
+            .expect("Tests should create valid DatabaseRules")
     }
 
     #[tokio::test]
