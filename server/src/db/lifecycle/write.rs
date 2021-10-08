@@ -57,6 +57,7 @@ pub(super) fn write_chunk_to_object_store(
     let table_name = Arc::clone(&addr.table_name);
     let partition_key = Arc::clone(&addr.partition_key);
     let chunk_order = chunk.order();
+    let delete_predicates = chunk.delete_predicates().to_vec();
 
     let (tracker, registration) = db.jobs.register(Job::WriteChunk {
         chunk: addr.clone(),
@@ -135,7 +136,7 @@ pub(super) fn write_chunk_to_object_store(
                 chunk_order,
             };
             let (path, file_size_bytes, parquet_metadata) = storage
-                .write_to_object_store(addr, stream, metadata)
+                .write_to_object_store(addr.clone(), stream, metadata)
                 .await
                 .context(WritingToObjectStore)?;
             let parquet_metadata = Arc::new(parquet_metadata);
@@ -159,6 +160,8 @@ pub(super) fn write_chunk_to_object_store(
             //            By using the cleanup lock (see above) it is ensured that the file that we
             //            have written is not deleted in between.
             let mut transaction = db.preserved_catalog.open_transaction().await;
+
+            // add parquet file
             let info = CatalogParquetInfo {
                 path,
                 file_size_bytes,
@@ -166,9 +169,18 @@ pub(super) fn write_chunk_to_object_store(
             };
             transaction.add_parquet(&info);
 
-            // We do NOT need to report delete predicates here because they were either materialized during the write
-            // query above or if they were added after the query they where added to a transaction (or checkpoint)
-            // because the chunk here was marked as "persisting".
+            // add delete predicates
+            //
+            // Delete predicates are handled in the following way
+            // 1. Predicates added before this chunk was created (aka before the DataFusion split plan was running):
+            //    They were materialized and are no longer part of the chunk.
+            // 2. Predicates added while this chunk was created (aka while the DataFusion split plan was running):
+            //    They were not materialized and must be added to this transaction.
+            // 3. Predicates added while we are persisting this chunk (aka while the "persisting" lifecycle action is active):
+            //    They are added to the outbound mailbox and will be handled by the background worker.
+            for predicate in delete_predicates {
+                transaction.delete_predicate(&predicate, &[addr.clone().into()]);
+            }
 
             // preserved commit
             let ckpt_handle = transaction.commit().await.context(CommitError)?;
