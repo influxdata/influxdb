@@ -12,6 +12,7 @@ use std::{
     time::Duration,
 };
 
+use ::lifecycle::select_persistable_chunks;
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use parking_lot::{Mutex, RwLock};
@@ -686,6 +687,8 @@ impl Db {
         partition_key: &str,
         force: bool,
     ) -> Result<Option<Arc<DbChunk>>> {
+        let db_name = self.rules.read().name.clone();
+
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
@@ -708,28 +711,16 @@ impl Db {
                     partition_key,
                 })?;
 
-            // get chunks for persistence, break after first chunk that cannot be persisted due to lifecycle reasons
-            let chunks = chunks
-                .iter()
-                .filter_map(|chunk| {
-                    let chunk = chunk.read();
-                    if matches!(chunk.stage(), ChunkStage::Persisted { .. })
-                        || (chunk.min_timestamp() > flush_handle.timestamp())
-                    {
-                        None
-                    } else {
-                        Some(chunk)
+            let chunks =
+                match select_persistable_chunks(&chunks, &db_name, flush_handle.timestamp()) {
+                    Ok(chunks) => chunks,
+                    Err(_) => {
+                        return Err(Error::CannotFlushPartition {
+                            table_name: table_name.to_string(),
+                            partition_key: partition_key.to_string(),
+                        });
                     }
-                })
-                .map(|chunk| match chunk.lifecycle_action() {
-                    Some(_) => CannotFlushPartition {
-                        table_name,
-                        partition_key,
-                    }
-                    .fail(),
-                    None => Ok(chunk.upgrade()),
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+                };
 
             let (_, fut) = lifecycle::persist_chunks(partition, chunks, flush_handle)
                 .context(LifecycleError)?;
