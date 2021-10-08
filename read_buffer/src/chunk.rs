@@ -286,6 +286,7 @@ impl Chunk {
     pub fn column_names(
         &self,
         predicate: Predicate,
+        _negated_predicates: Vec<Predicate>,
         only_columns: Selection<'_>,
         dst: BTreeSet<String>,
     ) -> Result<BTreeSet<String>> {
@@ -1251,7 +1252,12 @@ mod test {
             .build();
 
         let result = chunk
-            .column_names(Predicate::default(), Selection::All, BTreeSet::new())
+            .column_names(
+                Predicate::default(),
+                vec![],
+                Selection::All,
+                BTreeSet::new(),
+            )
             .unwrap();
 
         assert_eq!(
@@ -1263,6 +1269,7 @@ mod test {
         let result = chunk
             .column_names(
                 Predicate::new(vec![BinaryExpr::from(("time", "=", 222222_i64))]),
+                vec![],
                 Selection::All,
                 BTreeSet::new(),
             )
@@ -1276,6 +1283,7 @@ mod test {
         assert!(matches!(
             chunk.column_names(
                 Predicate::new(vec![BinaryExpr::from(("time", "=", "not a number"))]),
+                vec![],
                 Selection::Some(&["region", "env"]),
                 BTreeSet::new()
             ),

@@ -426,9 +426,11 @@ impl QueryChunk for DbChunk {
                 };
 
                 self.access_recorder.record_access();
+                // TODO(edd): wire up delete predicates to be pushed down to
+                // the read buffer.
                 Ok(Some(
                     chunk
-                        .column_names(rb_predicate, columns, BTreeSet::new())
+                        .column_names(rb_predicate, vec![], columns, BTreeSet::new())
                         .context(ReadBufferChunkError {
                             chunk_id: self.id(),
                         })?,
