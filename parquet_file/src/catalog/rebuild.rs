@@ -170,7 +170,10 @@ async fn read_parquet(
 mod tests {
     use super::*;
     use crate::{
-        catalog::{core::PreservedCatalog, test_helpers::TestCatalogState},
+        catalog::{
+            core::PreservedCatalog,
+            test_helpers::{exists, new_empty, TestCatalogState},
+        },
         metadata::IoxMetadata,
         storage::{MemWriter, Storage},
         test_utils::{
@@ -191,10 +194,7 @@ mod tests {
         let db_name = Arc::from("db1");
 
         // build catalog with some data
-        let (catalog, mut state) =
-            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-                .await
-                .unwrap();
+        let (catalog, mut state) = new_empty(&iox_object_store).await;
         {
             let mut transaction = catalog.open_transaction().await;
 
@@ -254,10 +254,7 @@ mod tests {
         let iox_object_store = make_iox_object_store().await;
 
         // build empty catalog
-        let (catalog, _state) =
-            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-                .await
-                .unwrap();
+        let (catalog, _state) = new_empty(&iox_object_store).await;
 
         // wipe catalog
         drop(catalog);
@@ -279,10 +276,7 @@ mod tests {
         let db_name = Arc::from("db1");
 
         // build catalog with same data
-        let catalog =
-            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-                .await
-                .unwrap();
+        let catalog = new_empty(&iox_object_store).await;
 
         // file w/o metadata
         create_parquet_file_without_metadata(&db_name, &iox_object_store, ChunkId::new_test(0))
@@ -319,10 +313,7 @@ mod tests {
         let iox_object_store = make_iox_object_store().await;
 
         // build catalog with some data (2 transactions + initial empty one)
-        let (catalog, _state) =
-            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-                .await
-                .unwrap();
+        let (catalog, _state) = new_empty(&iox_object_store).await;
         assert_eq!(catalog.revision_counter(), 0);
 
         // wipe catalog
@@ -356,7 +347,7 @@ mod tests {
         assert!(deleted);
 
         // the catalog should be gone because there should have been no checkpoint files remaining
-        assert!(!PreservedCatalog::exists(&iox_object_store).await.unwrap());
+        assert!(!exists(&iox_object_store).await);
     }
 
     pub async fn create_parquet_file(

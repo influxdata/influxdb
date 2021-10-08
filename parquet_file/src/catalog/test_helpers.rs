@@ -1,20 +1,3 @@
-use std::{
-    collections::{
-        hash_map::Entry::{Occupied, Vacant},
-        HashMap, HashSet,
-    },
-    fmt::Debug,
-    sync::Arc,
-};
-
-use data_types::{chunk_metadata::ChunkId, timestamp::TimestampRange};
-use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
-use predicate::{
-    delete_expr::{DeleteExpr, Op, Scalar},
-    delete_predicate::DeletePredicate,
-};
-use snafu::ResultExt;
-
 use crate::{
     catalog::{
         core::PreservedCatalog,
@@ -29,6 +12,21 @@ use crate::{
     },
     metadata::IoxParquetMetaData,
     test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize},
+};
+use data_types::{chunk_metadata::ChunkId, timestamp::TimestampRange};
+use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
+use predicate::{
+    delete_expr::{DeleteExpr, Op, Scalar},
+    delete_predicate::DeletePredicate,
+};
+use snafu::ResultExt;
+use std::{
+    collections::{
+        hash_map::Entry::{Occupied, Vacant},
+        HashMap, HashSet,
+    },
+    fmt::Debug,
+    sync::Arc,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -208,6 +206,36 @@ impl CatalogState for TestCatalogState {
             }
         }
     }
+}
+
+/// Test whether the catalog exists or not, expecting the operation to succeed
+pub async fn exists(iox_object_store: &Arc<IoxObjectStore>) -> bool {
+    PreservedCatalog::exists(iox_object_store).await.unwrap()
+}
+
+/// Load a `PreservedCatalog` and unwrap, expecting the operation to succeed
+pub async fn load_ok(
+    iox_object_store: &Arc<IoxObjectStore>,
+) -> Option<(PreservedCatalog, TestCatalogState)> {
+    PreservedCatalog::load(Arc::clone(iox_object_store), ())
+        .await
+        .unwrap()
+}
+
+/// Load a `PreservedCatalog` and unwrap the error, expecting the operation to fail
+pub async fn load_err(iox_object_store: &Arc<IoxObjectStore>) -> crate::catalog::core::Error {
+    PreservedCatalog::load::<TestCatalogState>(Arc::clone(iox_object_store), ())
+        .await
+        .unwrap_err()
+}
+
+/// Create a new empty catalog with the TestCatalogState, expecting the operation to succeed
+pub async fn new_empty(
+    iox_object_store: &Arc<IoxObjectStore>,
+) -> (PreservedCatalog, TestCatalogState) {
+    PreservedCatalog::new_empty(Arc::clone(iox_object_store), ())
+        .await
+        .unwrap()
 }
 
 /// Break preserved catalog by moving one of the transaction files into a weird unknown version.

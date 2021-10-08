@@ -1057,39 +1057,10 @@ mod tests {
 
     use super::*;
     use crate::catalog::test_helpers::{
-        break_catalog_with_weird_version, create_delete_predicate, TestCatalogState,
+        break_catalog_with_weird_version, create_delete_predicate, exists, load_err, load_ok,
+        new_empty, TestCatalogState,
     };
     use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize};
-
-    /// Test whether the catalog exists or not, expecting the operation to succeed
-    async fn exists(iox_object_store: &Arc<IoxObjectStore>) -> bool {
-        PreservedCatalog::exists(iox_object_store).await.unwrap()
-    }
-
-    /// Load a `PreservedCatalog` and unwrap, expecting the operation to succeed
-    async fn load_ok(
-        iox_object_store: &Arc<IoxObjectStore>,
-    ) -> Option<(PreservedCatalog, TestCatalogState)> {
-        PreservedCatalog::load(Arc::clone(iox_object_store), ())
-            .await
-            .unwrap()
-    }
-
-    /// Load a `PreservedCatalog` and unwrap the error, expecting the operation to fail
-    async fn load_err(iox_object_store: &Arc<IoxObjectStore>) -> Error {
-        PreservedCatalog::load::<TestCatalogState>(Arc::clone(iox_object_store), ())
-            .await
-            .unwrap_err()
-    }
-
-    /// Create a new empty catalog with the TestCatalogState, expecting the operation to succeed
-    async fn new_empty(
-        iox_object_store: &Arc<IoxObjectStore>,
-    ) -> (PreservedCatalog, TestCatalogState) {
-        PreservedCatalog::new_empty(Arc::clone(iox_object_store), ())
-            .await
-            .unwrap()
-    }
 
     #[tokio::test]
     async fn test_create_empty() {

@@ -160,7 +160,7 @@ impl CatalogState for TracerCatalogState {
 mod tests {
     use super::*;
     use crate::{
-        catalog::test_helpers::TestCatalogState,
+        catalog::test_helpers::new_empty,
         test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize},
     };
     use std::{collections::HashSet, sync::Arc};
@@ -170,10 +170,7 @@ mod tests {
     async fn test_cleanup_empty() {
         let iox_object_store = make_iox_object_store().await;
 
-        let (catalog, _state) =
-            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-                .await
-                .unwrap();
+        let (catalog, _state) = new_empty(&iox_object_store).await;
 
         // run clean-up
         let files = get_unreferenced_parquet_files(&catalog, 1_000)
@@ -186,10 +183,7 @@ mod tests {
     async fn test_cleanup_rules() {
         let iox_object_store = make_iox_object_store().await;
 
-        let (catalog, _state) =
-            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-                .await
-                .unwrap();
+        let (catalog, _state) = new_empty(&iox_object_store).await;
 
         // create some data
         let mut paths_keep = vec![];
@@ -256,10 +250,7 @@ mod tests {
         let iox_object_store = make_iox_object_store().await;
         let lock: RwLock<()> = Default::default();
 
-        let (catalog, _state) =
-            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-                .await
-                .unwrap();
+        let (catalog, _state) = new_empty(&iox_object_store).await;
 
         // try multiple times to provoke a conflict
         for i in 0..100 {
@@ -312,10 +303,7 @@ mod tests {
     async fn test_cleanup_max_files() {
         let iox_object_store = make_iox_object_store().await;
 
-        let (catalog, _state) =
-            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-                .await
-                .unwrap();
+        let (catalog, _state) = new_empty(&iox_object_store).await;
 
         // create some files
         let mut to_remove = HashSet::default();

@@ -301,7 +301,7 @@ mod tests {
     use object_store::ObjectStore;
     use parquet_file::catalog::{
         interface::CheckpointData,
-        test_helpers::{assert_catalog_state_implementation, TestCatalogState},
+        test_helpers::{assert_catalog_state_implementation, new_empty},
     };
     use std::convert::TryFrom;
 
@@ -316,10 +316,7 @@ mod tests {
                 .unwrap(),
         );
 
-        let (preserved_catalog, _catalog) =
-            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-                .await
-                .unwrap();
+        let (preserved_catalog, _catalog) = new_empty(&iox_object_store).await;
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
 
