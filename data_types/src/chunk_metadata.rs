@@ -201,7 +201,7 @@ impl ChunkSummary {
 /// ID of a chunk.
 ///
 /// This ID is unique within a single partition.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChunkId(Uuid);
 
 impl ChunkId {
@@ -225,9 +225,21 @@ impl ChunkId {
     }
 }
 
+impl std::fmt::Debug for ChunkId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        <Self as std::fmt::Display>::fmt(self, f)
+    }
+}
+
 impl std::fmt::Display for ChunkId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("ChunkId").field(&self.0).finish()
+        if (self.0.get_variant() == Some(uuid::Variant::RFC4122))
+            && (self.0.get_version() == Some(uuid::Version::Random))
+        {
+            f.debug_tuple("ChunkId").field(&self.0).finish()
+        } else {
+            f.debug_tuple("ChunkId").field(&self.0.as_u128()).finish()
+        }
     }
 }
 
@@ -293,5 +305,43 @@ impl ChunkOrder {
 impl std::fmt::Display for ChunkOrder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("ChunkOrder").field(&self.0.get()).finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_chunk_id_new() {
+        // `ChunkId::new()` create new random ID
+        assert_ne!(ChunkId::new(), ChunkId::new());
+    }
+
+    #[test]
+    fn test_chunk_id_new_test() {
+        // `ChunkId::new_test(...)` creates deterministic ID
+        assert_eq!(ChunkId::new_test(1), ChunkId::new_test(1));
+        assert_ne!(ChunkId::new_test(1), ChunkId::new_test(2));
+    }
+
+    #[test]
+    fn test_chunk_id_debug_and_display() {
+        // Random chunk IDs use UUID-format
+        let id_random = ChunkId::new();
+        let inner: Uuid = id_random.get();
+        assert_eq!(
+            format!("{:?}", id_random),
+            format!("ChunkId({})", inner.to_string())
+        );
+        assert_eq!(
+            format!("{}", id_random),
+            format!("ChunkId({})", inner.to_string())
+        );
+
+        // Deterministic IDs use integer format
+        let id_test = ChunkId::new_test(42);
+        assert_eq!(format!("{:?}", id_test), "ChunkId(42)");
+        assert_eq!(format!("{}", id_test), "ChunkId(42)");
     }
 }
