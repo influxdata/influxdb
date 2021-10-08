@@ -467,7 +467,7 @@ File {
                             table_name: "table1",
                             partition_key: "part1",
                             chunk_id: ChunkId(
-                                00000000-0000-0000-0000-000000000000,
+                                0,
                             ),
                             partition_checkpoint: PartitionCheckpoint {
                                 table_name: "table1",
