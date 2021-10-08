@@ -316,7 +316,7 @@ fn filter_entry(
         .map(|partition_checkpoint| {
             partition_checkpoint
                 .sequencer_numbers(sequence.id)
-                .map(|min_max| (partition_checkpoint.max_persisted_timestamp(), min_max))
+                .map(|min_max| (partition_checkpoint.flush_timestamp(), min_max))
         })
         .flatten();
 
@@ -329,7 +329,6 @@ fn filter_entry(
                     (false, None)
                 }
                 SequenceNumberSection::PartiallyPersisted => {
-                    // TODO: implement row filtering, for now replay the entire batch
                     let maybe_mask = table_batch.timestamps().ok().map(|timestamps| {
                         let max_persisted_ts = max_persisted_ts.timestamp_nanos();
                         timestamps

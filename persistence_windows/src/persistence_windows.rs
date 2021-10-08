@@ -1195,7 +1195,7 @@ mod tests {
             flush_checkpoint.sequencer_numbers(1).unwrap(),
             OptionalMinMaxSequence::new(Some(4), 4)
         );
-        assert_eq!(flush_checkpoint.max_persisted_timestamp(), flush_t);
+        assert_eq!(flush_checkpoint.flush_timestamp(), flush_t);
 
         // The sequencer numbers on the partition should include everything
         let sequencer_numbers = w.sequencer_numbers();
@@ -1338,7 +1338,7 @@ mod tests {
             checkpoint.sequencer_numbers(1).unwrap(),
             OptionalMinMaxSequence::new(Some(6), 10)
         );
-        assert_eq!(checkpoint.max_persisted_timestamp(), flush_t);
+        assert_eq!(checkpoint.flush_timestamp(), flush_t);
 
         // The sequencer numbers of partition should include everything
         let sequencer_numbers = w.sequencer_numbers();
@@ -1577,7 +1577,7 @@ mod tests {
         let handle = w.flush_handle(t2).unwrap();
         assert_eq!(handle.timestamp(), MAX_DATETIME);
         let ckpt = handle.checkpoint();
-        assert_eq!(ckpt.max_persisted_timestamp(), MAX_DATETIME);
+        assert_eq!(ckpt.flush_timestamp(), MAX_DATETIME);
         w.flush(handle);
 
         assert!(w.closed.is_empty());

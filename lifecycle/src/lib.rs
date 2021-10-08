@@ -93,7 +93,7 @@ pub trait LockablePartition: Sized + std::fmt::Display {
     /// Combines and deduplicates the data in `chunks` into two new chunks:
     ///
     /// 1. A read buffer chunk that contains any rows with timestamps
-    /// prior to `max_persistable_timestamp`
+    /// prior to `flush_timestamp`
     ///
     /// 2. A read buffer chunk (also written to the object store) with
     /// all other rows

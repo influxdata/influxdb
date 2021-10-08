@@ -929,12 +929,12 @@ pub fn create_partition_and_database_checkpoint(
     let mut sequencer_numbers_1 = BTreeMap::new();
     sequencer_numbers_1.insert(1, OptionalMinMaxSequence::new(None, 18));
     sequencer_numbers_1.insert(2, OptionalMinMaxSequence::new(Some(25), 28));
-    let max_persisted_timestamp = Utc.timestamp(10, 20);
+    let flush_timestamp = Utc.timestamp(10, 20);
     let partition_checkpoint_1 = PartitionCheckpoint::new(
         Arc::clone(&table_name),
         Arc::clone(&partition_key),
         sequencer_numbers_1,
-        max_persisted_timestamp,
+        flush_timestamp,
     );
 
     // create second partition

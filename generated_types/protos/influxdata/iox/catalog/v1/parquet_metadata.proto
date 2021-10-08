@@ -53,8 +53,8 @@ message PartitionCheckpoint {
   // Was Minimum unpersisted timestamp.
   reserved 2;
 
-  // Maximum persisted timestamp.
-  google.protobuf.Timestamp max_persisted_timestamp = 3;
+  // Flush timestamp.
+  google.protobuf.Timestamp flush_timestamp = 3;
 }
 
 // Record of the playback state for the whole database.
