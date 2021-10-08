@@ -912,7 +912,7 @@ func (p *Partition) runPeriodicCompaction() {
 		case <-closing:
 			return
 		case <-t.C:
-			if p.NeedsCompaction() {
+			if p.NeedsCompaction(true) {
 				p.Compact()
 			}
 		}
@@ -920,8 +920,11 @@ func (p *Partition) runPeriodicCompaction() {
 }
 
 // NeedsCompaction only requires a read lock and checks if there are files that could be compacted.
-// If compact is updated we should also update NeedsCompaction.
-func (p *Partition) NeedsCompaction() bool {
+//
+// If compact() is updated we should also update needsCompaction
+// If checkRunning = true, only count as needing a compaction if there is not a compaction already
+// in progress for the level that would be compacted
+func (p *Partition) NeedsCompaction(checkRunning bool) bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.needsLogCompaction() {
@@ -933,7 +936,7 @@ func (p *Partition) NeedsCompaction() bool {
 	for _, f := range p.fileSet.files {
 		level := f.Level()
 		levelCount[level]++
-		if level <= maxLevel && levelCount[level] > 1 && !p.levelCompacting[level] {
+		if level <= maxLevel && levelCount[level] > 1 && !(checkRunning && p.levelCompacting[level]) {
 			return true
 		}
 	}
