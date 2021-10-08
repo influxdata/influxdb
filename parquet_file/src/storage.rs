@@ -488,6 +488,7 @@ mod tests {
         let partition_key = Arc::from("my_partition");
         let chunk_id = ChunkId::new_test(33);
         let iox_object_store = make_iox_object_store().await;
+        let db_name = Arc::from("db1");
         let storage = Storage::new(Arc::clone(&iox_object_store));
 
         // write the data in
@@ -515,7 +516,7 @@ mod tests {
         let (path, _file_size_bytes, _metadata) = storage
             .write_to_object_store(
                 ChunkAddr {
-                    db_name: iox_object_store.database_name().into(),
+                    db_name: Arc::clone(&db_name),
                     table_name,
                     partition_key,
                     chunk_id,
