@@ -98,7 +98,7 @@ impl FlushHandle {
             Arc::clone(&self.addr.table_name),
             Arc::clone(&self.addr.partition_key),
             self.sequencer_numbers.clone(),
-            self.timestamp + chrono::Duration::nanoseconds(1),
+            self.timestamp,
         )
     }
 }
@@ -350,18 +350,26 @@ impl PersistenceWindows {
             persistable.max_time, timestamp,
             "persistable max time doesn't match handle"
         );
-        // Everything up to and including persistable max time will have been persisted
-        let new_min = persistable.max_time + chrono::Duration::nanoseconds(1);
-        for w in self.closed.iter_mut().take(closed_count) {
-            if w.min_time < new_min {
-                w.min_time = new_min;
-            }
-        }
 
-        // Drop any now empty windows
-        let mut tail = self.closed.split_off(closed_count);
-        self.closed.retain(|w| w.max_time >= new_min);
-        self.closed.append(&mut tail);
+        // Everything up to and including persistable max time will have been persisted
+        if let Some(new_min) = persistable
+            .max_time
+            .checked_add_signed(chrono::Duration::nanoseconds(1))
+        {
+            for w in self.closed.iter_mut().take(closed_count) {
+                if w.min_time < new_min {
+                    w.min_time = new_min;
+                }
+            }
+
+            // Drop any now empty windows
+            let mut tail = self.closed.split_off(closed_count);
+            self.closed.retain(|w| w.max_time >= new_min);
+            self.closed.append(&mut tail);
+        } else {
+            // drop all windows (persisted everything)
+            self.closed.clear();
+        }
     }
 
     /// Returns an iterator over the windows starting with the oldest
@@ -548,7 +556,7 @@ impl Window {
 
 #[cfg(test)]
 mod tests {
-    use chrono::TimeZone;
+    use chrono::{TimeZone, MAX_DATETIME, MIN_DATETIME};
 
     use super::*;
 
@@ -1187,7 +1195,7 @@ mod tests {
             flush_checkpoint.sequencer_numbers(1).unwrap(),
             OptionalMinMaxSequence::new(Some(4), 4)
         );
-        assert_eq!(flush_checkpoint.min_unpersisted_timestamp(), truncated_time);
+        assert_eq!(flush_checkpoint.max_persisted_timestamp(), flush_t);
 
         // The sequencer numbers on the partition should include everything
         let sequencer_numbers = w.sequencer_numbers();
@@ -1330,7 +1338,7 @@ mod tests {
             checkpoint.sequencer_numbers(1).unwrap(),
             OptionalMinMaxSequence::new(Some(6), 10)
         );
-        assert_eq!(checkpoint.min_unpersisted_timestamp(), truncated_time);
+        assert_eq!(checkpoint.max_persisted_timestamp(), flush_t);
 
         // The sequencer numbers of partition should include everything
         let sequencer_numbers = w.sequencer_numbers();
@@ -1541,5 +1549,38 @@ mod tests {
         expected.insert(1, OptionalMinMaxSequence::new(None, 2));
         expected.insert(2, OptionalMinMaxSequence::new(None, 3));
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn flush_min_max_timestamp() {
+        let mut w = make_windows(StdDuration::from_secs(30));
+
+        let t0 = Utc::now();
+        let t1 = t0 + Duration::seconds(30);
+        let t2 = t1 + Duration::seconds(3);
+
+        w.add_range(
+            Some(&Sequence { id: 1, number: 2 }),
+            NonZeroUsize::new(2).unwrap(),
+            MIN_DATETIME,
+            MAX_DATETIME,
+            t0,
+        );
+        w.add_range(
+            Some(&Sequence { id: 1, number: 3 }),
+            NonZeroUsize::new(2).unwrap(),
+            MIN_DATETIME,
+            MAX_DATETIME,
+            t1,
+        );
+
+        let handle = w.flush_handle(t2).unwrap();
+        assert_eq!(handle.timestamp(), MAX_DATETIME);
+        let ckpt = handle.checkpoint();
+        assert_eq!(ckpt.max_persisted_timestamp(), MAX_DATETIME);
+        w.flush(handle);
+
+        assert!(w.closed.is_empty());
+        assert!(w.persistable.is_none());
     }
 }
