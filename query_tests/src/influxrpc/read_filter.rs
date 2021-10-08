@@ -222,6 +222,36 @@ async fn test_read_filter_data_filter_fields() {
 }
 
 #[tokio::test]
+async fn test_read_filter_data_filter_measurement_pred() {
+    // use an expr on table name to pick just the last row from o2
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(200, 400)
+        .add_expr(col("_measurement").eq(lit("o2")))
+        .build();
+
+    // Only expect other_temp in this location
+    let expected_results = vec![
+        "SeriesSet",
+        "table_name: o2",
+        "tags",
+        "  (state, CA)",
+        "field_indexes:",
+        "  (value_index: 2, timestamp_index: 4)",
+        "  (value_index: 3, timestamp_index: 4)",
+        "start_row: 0",
+        "num_rows: 1",
+        "Batches:",
+        "+------+-------+---------+------+--------------------------------+",
+        "| city | state | reading | temp | time                           |",
+        "+------+-------+---------+------+--------------------------------+",
+        "|      | CA    |         | 79   | 1970-01-01T00:00:00.000000300Z |",
+        "+------+-------+---------+------+--------------------------------+",
+    ];
+
+    run_read_filter_test_case(TwoMeasurementsManyFields {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
 async fn test_read_filter_data_pred_refers_to_non_existent_column() {
     let predicate = PredicateBuilder::default()
         .add_expr(col("tag_not_in_h20").eq(lit("foo")))

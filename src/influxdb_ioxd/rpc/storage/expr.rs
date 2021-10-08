@@ -22,7 +22,10 @@ use generated_types::{
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 use observability_deps::tracing::warn;
 use predicate::{predicate::PredicateBuilder, regex::regex_match_expr};
-use query::group_by::{Aggregate as QueryAggregate, WindowDuration};
+use query::{
+    frontend::influxrpc::MEASUREMENT_COLUMN_NAME,
+    group_by::{Aggregate as QueryAggregate, WindowDuration},
+};
 use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -60,9 +63,6 @@ pub enum Error {
         description
     ))]
     InvalidWindowOffsetDuration { description: String },
-
-    #[snafu(display("Internal error: found measurement tag reference in unexpected location"))]
-    InternalInvalidMeasurementReference {},
 
     #[snafu(display("Internal error: found field tag reference in unexpected location"))]
     InternalInvalidFieldReference {},
@@ -422,11 +422,12 @@ fn convert_node_to_expr(node: RPCNode) -> Result<Expr> {
 }
 
 fn make_tag_name(tag_name: Vec<u8>) -> Result<String> {
-    // These should have been handled at a higher level -- if we get
-    // here it is too late
     if tag_name.is_measurement() {
-        InternalInvalidMeasurementReference.fail()
+        // convert to "_measurement" which is handled specially in grpc planner
+        Ok(MEASUREMENT_COLUMN_NAME.to_string())
     } else if tag_name.is_field() {
+        // These should have been handled at a higher level -- if we get
+        // here it is too late
         InternalInvalidFieldReference.fail()
     } else {
         String::from_utf8(tag_name).context(ConvertingTagName)
@@ -836,6 +837,43 @@ mod tests {
             &expected_expr, converted_expr,
             "expected '{:#?}' doesn't match actual '{:#?}'",
             expected_expr, converted_expr
+        );
+    }
+
+    #[test]
+    fn test_convert_predicate_measurement() {
+        // _measurement = "foo"
+        let field_ref = RPCNode {
+            node_type: RPCNodeType::TagRef as i32,
+            children: vec![],
+            value: Some(RPCValue::TagRefValue(TAG_KEY_MEASUREMENT.to_vec())),
+        };
+        let iconst = RPCNode {
+            node_type: RPCNodeType::Literal as i32,
+            children: vec![],
+            value: Some(RPCValue::StringValue("foo".into())),
+        };
+        let comparison = RPCNode {
+            node_type: RPCNodeType::ComparisonExpression as i32,
+            children: vec![field_ref, iconst],
+            value: Some(RPCValue::Comparison(RPCComparison::NotEqual as i32)),
+        };
+
+        let rpc_predicate = RPCPredicate {
+            root: Some(comparison),
+        };
+
+        let predicate = PredicateBuilder::default()
+            .rpc_predicate(Some(rpc_predicate))
+            .expect("successfully converting predicate")
+            .build();
+
+        let expected_exprs = vec![col("_measurement").not_eq(lit("foo"))];
+
+        assert_eq!(
+            &expected_exprs, &predicate.exprs,
+            "expected '{:#?}' doesn't match actual '{:#?}'",
+            expected_exprs, predicate.exprs,
         );
     }
 

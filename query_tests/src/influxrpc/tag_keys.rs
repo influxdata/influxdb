@@ -61,12 +61,26 @@ async fn list_tag_columns_timestamp() {
     let expected_tag_keys = vec!["city", "state"];
     run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
 }
+
 #[tokio::test]
 async fn list_tag_columns_predicate() {
     let predicate = PredicateBuilder::default()
         .add_expr(col("state").eq(lit("MA"))) // state=MA
         .build();
     let expected_tag_keys = vec!["city", "county", "state"];
+    run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
+}
+
+#[tokio::test]
+async fn list_tag_columns_measurement_pred() {
+    // Select only the following line using a _measurement predicate
+    //
+    // "o2,state=NY,city=NYC temp=61.0 500",
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(450, 550)
+        .add_expr(col("_measurement").eq(lit("o2"))) // _measurement=o2
+        .build();
+    let expected_tag_keys = vec!["city", "state"];
     run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
 }
 

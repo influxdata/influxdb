@@ -150,6 +150,46 @@ async fn test_read_window_aggregate_nanoseconds() {
     .await;
 }
 
+#[tokio::test]
+async fn test_read_window_aggregate_nanoseconds_measurement_pred() {
+    let predicate = PredicateBuilder::default()
+        // city=Cambridge OR (_measurement != 'other' AND city = LA)
+        .add_expr(
+            col("city").eq(lit("Boston")).or(col("_measurement")
+                .not_eq(lit("other"))
+                .and(col("city").eq(lit("LA")))),
+        )
+        .timestamp_range(100, 450)
+        .build();
+
+    let agg = Aggregate::Mean;
+    let every = WindowDuration::from_nanoseconds(200);
+    let offset = WindowDuration::from_nanoseconds(0);
+
+    let expected_results = vec![
+        "+--------+-------+--------------------------------+------+",
+        "| city   | state | time                           | temp |",
+        "+--------+-------+--------------------------------+------+",
+        "| Boston | MA    | 1970-01-01T00:00:00.000000200Z | 70   |",
+        "| Boston | MA    | 1970-01-01T00:00:00.000000400Z | 71.5 |",
+        "| Boston | MA    | 1970-01-01T00:00:00.000000600Z | 73   |",
+        "| LA     | CA    | 1970-01-01T00:00:00.000000200Z | 90   |",
+        "| LA     | CA    | 1970-01-01T00:00:00.000000400Z | 91.5 |",
+        "| LA     | CA    | 1970-01-01T00:00:00.000000600Z | 93   |",
+        "+--------+-------+--------------------------------+------+",
+    ];
+
+    run_read_window_aggregate_test_case(
+        MeasurementForWindowAggregate {},
+        predicate,
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
+}
+
 struct MeasurementForWindowAggregateMonths {}
 #[async_trait]
 impl DbSetup for MeasurementForWindowAggregateMonths {
