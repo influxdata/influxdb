@@ -14,11 +14,15 @@ import (
 )
 
 func TestMigration_ShardGroupDuration(t *testing.T) {
+	testRepairMissingShardGroupDurations(t, 15)
+}
+
+func testRepairMissingShardGroupDurations(t *testing.T, migrationNum int) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
-	// Run up to migration 14.
-	ts := newService(t, ctx, 14)
+	// Run up to the migration before the migration-under-test.
+	ts := newService(t, ctx, migrationNum-2)
 
 	// Seed some buckets.
 	buckets := []*influxdb.Bucket{
@@ -65,8 +69,8 @@ func TestMigration_ShardGroupDuration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Run the migration.
-	require.NoError(t, Migration0015_RecordShardGroupDurationsInBucketMetadata.Up(context.Background(), ts.Store))
+	// Run the migration-under-test.
+	require.NoError(t, Migrations[migrationNum-1].Up(context.Background(), ts.Store))
 
 	// Read the buckets back out of the store.
 	migratedBuckets := make([]influxdb.Bucket, len(buckets))

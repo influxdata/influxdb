@@ -41,5 +41,7 @@ var Migrations = [...]migration.Spec{
 	Migration0016_AddAnnotationsNotebooksToOperToken,
 	// add annotations and notebooks resource types to all-access tokens
 	Migration0017_AddAnnotationsNotebooksToAllAccessTokens,
+	// repair missing shard group durations
+	Migration0018_RepairMissingShardGroupDurations,
 	// {{ do_not_edit . }}
 }
