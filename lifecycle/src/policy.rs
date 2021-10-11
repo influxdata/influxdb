@@ -387,7 +387,7 @@ where
             }
         };
 
-        let chunks = match select_persistable_chunks(&chunks, db_name, persist_handle.timestamp()) {
+        let chunks = match select_persistable_chunks(&chunks, persist_handle.timestamp()) {
             Ok(chunks) => chunks,
             Err(stall) => {
                 return stall;
@@ -622,11 +622,10 @@ fn sort_free_candidates<P>(candidates: &mut Vec<FreeCandidate<'_, P>>) {
 ///
 /// If the error boolean is `false`, there are other active lifecycle actions preventing persistence (e.g. a persistence
 /// job that is already running).
-pub fn select_persistable_chunks<'a, P, D>(
-    chunks: &'a [D],
-    db_name: &DatabaseName<'static>,
+pub fn select_persistable_chunks<P, D>(
+    chunks: &[D],
     flush_ts: DateTime<Utc>,
-) -> Result<Vec<LifecycleWriteGuard<'a, P, D>>, bool>
+) -> Result<Vec<LifecycleWriteGuard<'_, P, D>>, bool>
 where
     D: LockableChunk<Chunk = P>,
     P: LifecycleChunk,
@@ -636,7 +635,7 @@ where
 
     for chunk in chunks {
         let chunk = chunk.read();
-        trace!(%db_name, chunk=%chunk.addr(), "considering chunk for persistence");
+        trace!(chunk=%chunk.addr(), "considering chunk for persistence");
 
         // Check if chunk is eligible for persistence
         match chunk.storage() {
@@ -644,8 +643,11 @@ where
             | ChunkStorage::ClosedMutableBuffer
             | ChunkStorage::ReadBuffer => {}
             ChunkStorage::ReadBufferAndObjectStore | ChunkStorage::ObjectStoreOnly => {
-                debug!(%db_name, chunk=%chunk.addr(), storage=?chunk.storage(),
-                        "chunk not eligible due to storage");
+                debug!(
+                    chunk=%chunk.addr(),
+                    storage=?chunk.storage(),
+                    "chunk not eligible due to storage",
+                );
                 continue;
             }
         }
@@ -655,8 +657,10 @@ where
         // plan
         if chunk.min_timestamp() > flush_ts {
             // Ignore chunk for now, but we might need it later to close chunk order gaps
-            debug!(%db_name, chunk=%chunk.addr(),
-                    "chunk does not contain data eligible for persistence");
+            debug!(
+                chunk=%chunk.addr(),
+                "chunk does not contain data eligible for persistence",
+            );
             if chunk.lifecycle_action().is_none() {
                 to_persist_gap.push(chunk);
             }
@@ -668,7 +672,7 @@ where
             // see if we should stall subsequent pull it is
             // preventing us from persisting
             let stall = action.metadata() == &ChunkLifecycleAction::Compacting;
-            info!(%db_name, ?action, chunk=%chunk.addr(), "Chunk to persist has outstanding action");
+            info!(?action, chunk=%chunk.addr(), "Chunk to persist has outstanding action");
 
             // NOTE: This early exit also ensures that we are not "jumping" over chunks sorted by `order`.
             return Err(stall);

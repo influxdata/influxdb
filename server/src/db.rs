@@ -687,8 +687,6 @@ impl Db {
         partition_key: &str,
         force: bool,
     ) -> Result<Option<Arc<DbChunk>>> {
-        let db_name = self.rules.read().name.clone();
-
         // Use explicit scope to ensure the async generator doesn't
         // assume the locks have to possibly live across the `await`
         let fut = {
@@ -711,16 +709,15 @@ impl Db {
                     partition_key,
                 })?;
 
-            let chunks =
-                match select_persistable_chunks(&chunks, &db_name, flush_handle.timestamp()) {
-                    Ok(chunks) => chunks,
-                    Err(_) => {
-                        return Err(Error::CannotFlushPartition {
-                            table_name: table_name.to_string(),
-                            partition_key: partition_key.to_string(),
-                        });
-                    }
-                };
+            let chunks = match select_persistable_chunks(&chunks, flush_handle.timestamp()) {
+                Ok(chunks) => chunks,
+                Err(_) => {
+                    return Err(Error::CannotFlushPartition {
+                        table_name: table_name.to_string(),
+                        partition_key: partition_key.to_string(),
+                    });
+                }
+            };
 
             let (_, fut) = lifecycle::persist_chunks(partition, chunks, flush_handle)
                 .context(LifecycleError)?;
