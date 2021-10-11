@@ -24,10 +24,11 @@ use data_types::{
     chunk_metadata::{ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkSummary},
     database_rules::DatabaseRules,
     partition_metadata::{PartitionSummary, TableSummary},
+    sequence::Sequence,
     server_id::ServerId,
 };
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
-use entry::{Entry, Sequence, SequencedEntry, TableBatch};
+use entry::{Entry, SequencedEntry, TableBatch};
 use internal_types::schema::Schema;
 use iox_object_store::IoxObjectStore;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};

@@ -9,8 +9,9 @@ use std::{
 
 use chrono::{DateTime, Duration, Utc};
 
-use data_types::{partition_metadata::PartitionAddr, write_summary::WriteSummary};
-use entry::Sequence;
+use data_types::{
+    partition_metadata::PartitionAddr, sequence::Sequence, write_summary::WriteSummary,
+};
 use internal_types::freezable::{Freezable, FreezeHandle};
 
 use crate::min_max_sequence::MinMaxSequence;

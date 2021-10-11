@@ -8,8 +8,10 @@ use std::{
 
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
-use data_types::{database_rules::WriteBufferCreationConfig, server_id::ServerId};
-use entry::{Entry, Sequence, SequencedEntry};
+use data_types::{
+    database_rules::WriteBufferCreationConfig, sequence::Sequence, server_id::ServerId,
+};
+use entry::{Entry, SequencedEntry};
 use futures::{FutureExt, StreamExt};
 use observability_deps::tracing::{debug, info};
 use rdkafka::{
