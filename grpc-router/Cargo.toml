@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 bytes = "1.0"
-cache_loader_async = {version  = "0.1.0", features = ["ttl-cache"] }
+cache_loader_async = {version  = "0.1.2", features = ["ttl-cache"] }
 futures = "0.3"
 observability_deps = { path = "../observability_deps" }
 paste = "1.0.5"
