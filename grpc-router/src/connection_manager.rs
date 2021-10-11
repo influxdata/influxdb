@@ -190,7 +190,7 @@ where
     /// Builds a [`CachingConnectionManager`].
     pub fn build(self) -> CachingConnectionManager<T> {
         let make_client = self.make_client;
-        let (cache, _) = LoadingCache::with_backing(self.backing, move |connect| async move {
+        let cache = LoadingCache::with_backing(self.backing, move |connect| async move {
             (make_client)(connect)
                 .await
                 .map_err(|e| Arc::new(Box::new(e) as _))
