@@ -126,7 +126,9 @@ mod tests {
 
     use crate::{
         catalog::{
-            core::PreservedCatalog, interface::CheckpointData, test_helpers::TestCatalogState,
+            core::PreservedCatalog,
+            interface::CheckpointData,
+            test_helpers::{load_ok, new_empty},
         },
         test_utils::make_iox_object_store,
     };
@@ -144,28 +146,20 @@ mod tests {
     async fn test_do_delete_wipe_last_checkpoint() {
         let iox_object_store = make_iox_object_store().await;
 
-        PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-            .await
-            .unwrap();
+        new_empty(&iox_object_store).await;
 
         prune_history(Arc::clone(&iox_object_store), Utc::now())
             .await
             .unwrap();
 
-        PreservedCatalog::load::<TestCatalogState>(iox_object_store, ())
-            .await
-            .unwrap()
-            .unwrap();
+        load_ok(&iox_object_store).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_complex_1() {
         let iox_object_store = make_iox_object_store().await;
 
-        let (catalog, _state) =
-            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-                .await
-                .unwrap();
+        let (catalog, _state) = new_empty(&iox_object_store).await;
         create_transaction(&catalog).await;
         create_transaction_and_checkpoint(&catalog).await;
         let before = Utc::now();
@@ -185,10 +179,7 @@ mod tests {
     async fn test_complex_2() {
         let iox_object_store = make_iox_object_store().await;
 
-        let (catalog, _state) =
-            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-                .await
-                .unwrap();
+        let (catalog, _state) = new_empty(&iox_object_store).await;
         create_transaction(&catalog).await;
         create_transaction_and_checkpoint(&catalog).await;
         create_transaction(&catalog).await;
@@ -218,10 +209,7 @@ mod tests {
     async fn test_keep_all() {
         let iox_object_store = make_iox_object_store().await;
 
-        let (catalog, _state) =
-            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-                .await
-                .unwrap();
+        let (catalog, _state) = new_empty(&iox_object_store).await;
         create_transaction(&catalog).await;
         create_transaction_and_checkpoint(&catalog).await;
         create_transaction(&catalog).await;

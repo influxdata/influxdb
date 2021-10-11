@@ -237,6 +237,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct Db {
     rules: RwLock<Arc<DatabaseRules>>,
 
+    name: Arc<str>,
+
     server_id: ServerId, // this is also the Query Server ID
 
     /// Interface to use for persistence
@@ -327,7 +329,7 @@ pub(crate) struct DatabaseToCommit {
 
 impl Db {
     pub(crate) fn new(database_to_commit: DatabaseToCommit, jobs: Arc<JobRegistry>) -> Arc<Self> {
-        let db_name = database_to_commit.rules.name.clone();
+        let name = Arc::from(database_to_commit.rules.name.as_str());
 
         let rules = RwLock::new(database_to_commit.rules);
         let server_id = database_to_commit.server_id;
@@ -336,7 +338,7 @@ impl Db {
         let catalog = Arc::new(database_to_commit.catalog);
 
         let catalog_access = QueryCatalogAccess::new(
-            &db_name,
+            &*name,
             Arc::clone(&catalog),
             Arc::clone(&jobs),
             database_to_commit.metric_registry.as_ref(),
@@ -345,6 +347,7 @@ impl Db {
 
         let this = Self {
             rules,
+            name,
             server_id,
             iox_object_store,
             exec: database_to_commit.exec,
@@ -392,6 +395,10 @@ impl Db {
     /// Return the current database rules
     pub fn rules(&self) -> Arc<DatabaseRules> {
         Arc::clone(&*self.rules.read())
+    }
+
+    pub fn name(&self) -> Arc<str> {
+        Arc::clone(&self.name)
     }
 
     /// Updates the database rules
@@ -933,7 +940,8 @@ impl Db {
         self: &Arc<Self>,
     ) -> std::result::Result<(), parquet_file::catalog::cleanup::Error> {
         let guard = self.cleanup_lock.write().await;
-        let files = get_unreferenced_parquet_files(&self.preserved_catalog, 1_000).await?;
+        let files =
+            get_unreferenced_parquet_files(&self.name(), &self.preserved_catalog, 1_000).await?;
         drop(guard);
 
         delete_parquet_files(&self.preserved_catalog, &files).await
@@ -1469,7 +1477,7 @@ mod tests {
     use metric::{Attributes, CumulativeGauge, Metric, Observation};
     use object_store::ObjectStore;
     use parquet_file::{
-        catalog::test_helpers::TestCatalogState,
+        catalog::test_helpers::load_ok,
         metadata::IoxParquetMetaData,
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };
@@ -3286,10 +3294,7 @@ mod tests {
 
         // ==================== check: empty catalog created ====================
         // at this point, an empty preserved catalog exists
-        let maybe_preserved_catalog =
-            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&db.iox_object_store), ())
-                .await
-                .unwrap();
+        let maybe_preserved_catalog = load_ok(&db.iox_object_store).await;
         assert!(maybe_preserved_catalog.is_some());
 
         // ==================== do: write data to parquet ====================
@@ -3319,11 +3324,7 @@ mod tests {
             }
         }
         paths_expected.sort();
-        let (_preserved_catalog, catalog) =
-            PreservedCatalog::load::<TestCatalogState>(Arc::clone(&db.iox_object_store), ())
-                .await
-                .unwrap()
-                .unwrap();
+        let (_preserved_catalog, catalog) = load_ok(&db.iox_object_store).await.unwrap();
         let paths_actual = {
             let mut tmp: Vec<_> = catalog.files().map(|info| info.path.clone()).collect();
             tmp.sort();

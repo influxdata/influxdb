@@ -1251,7 +1251,10 @@ mod tests {
         path::{parsed::DirsAndFileName, ObjectStorePath},
         ObjectStore, ObjectStoreApi,
     };
-    use parquet_file::catalog::{core::PreservedCatalog, test_helpers::TestCatalogState};
+    use parquet_file::catalog::{
+        core::PreservedCatalog,
+        test_helpers::{load_ok, new_empty},
+    };
     use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner, QueryDatabase};
     use std::{
         convert::TryFrom,
@@ -2203,13 +2206,9 @@ mod tests {
             .await
             .unwrap();
 
-        let (preserved_catalog, _catalog) = PreservedCatalog::load::<TestCatalogState>(
-            catalog_broken.iox_object_store().unwrap(),
-            (),
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let (preserved_catalog, _catalog) = load_ok(&catalog_broken.iox_object_store().unwrap())
+            .await
+            .unwrap();
 
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
@@ -2288,9 +2287,7 @@ mod tests {
             .await
             .unwrap(),
         );
-        PreservedCatalog::new_empty::<TestCatalogState>(non_existing_iox_object_store, ())
-            .await
-            .unwrap();
+        new_empty(&non_existing_iox_object_store).await;
         assert_eq!(
             server
                 .wipe_preserved_catalog(&db_name_non_existing)
@@ -2386,9 +2383,7 @@ mod tests {
         );
 
         // create catalog
-        PreservedCatalog::new_empty::<TestCatalogState>(iox_object_store, ())
-            .await
-            .unwrap();
+        new_empty(&iox_object_store).await;
 
         // creating database will now result in an error
         let err = create_simple_database(&server, db_name).await.unwrap_err();

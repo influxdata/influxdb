@@ -58,6 +58,7 @@ pub async fn load_or_create_preserved_catalog(
 ) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
     // first try to load existing catalogs
     match PreservedCatalog::load(
+        db_name,
         Arc::clone(&iox_object_store),
         LoaderEmptyInput::new(Arc::clone(&metric_registry), skip_replay),
     )
@@ -82,8 +83,13 @@ pub async fn load_or_create_preserved_catalog(
                 db_name
             );
 
-            create_preserved_catalog(Arc::clone(&iox_object_store), metric_registry, skip_replay)
-                .await
+            create_preserved_catalog(
+                db_name,
+                Arc::clone(&iox_object_store),
+                metric_registry,
+                skip_replay,
+            )
+            .await
         }
         Err(e) => {
             if wipe_on_error {
@@ -96,6 +102,7 @@ pub async fn load_or_create_preserved_catalog(
                     .context(CannotWipeCatalog)?;
 
                 create_preserved_catalog(
+                    db_name,
                     Arc::clone(&iox_object_store),
                     metric_registry,
                     skip_replay,
@@ -112,11 +119,13 @@ pub async fn load_or_create_preserved_catalog(
 ///
 /// This will fail if a preserved catalog already exists.
 pub async fn create_preserved_catalog(
+    db_name: &str,
     iox_object_store: Arc<IoxObjectStore>,
     metric_registry: Arc<metric::Registry>,
     skip_replay: bool,
 ) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
     let (preserved_catalog, loader) = PreservedCatalog::new_empty(
+        db_name,
         Arc::clone(&iox_object_store),
         LoaderEmptyInput::new(metric_registry, skip_replay),
     )
@@ -301,7 +310,7 @@ mod tests {
     use object_store::ObjectStore;
     use parquet_file::catalog::{
         interface::CheckpointData,
-        test_helpers::{assert_catalog_state_implementation, TestCatalogState},
+        test_helpers::{assert_catalog_state_implementation, new_empty},
     };
     use std::convert::TryFrom;
 
@@ -316,10 +325,7 @@ mod tests {
                 .unwrap(),
         );
 
-        let (preserved_catalog, _catalog) =
-            PreservedCatalog::new_empty::<TestCatalogState>(Arc::clone(&iox_object_store), ())
-                .await
-                .unwrap();
+        let (preserved_catalog, _catalog) = new_empty(&iox_object_store).await;
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
 
