@@ -611,6 +611,17 @@ fn sort_free_candidates<P>(candidates: &mut Vec<FreeCandidate<'_, P>>) {
     })
 }
 
+/// Select persistable chunks.
+///
+/// # Error Handling
+/// This can fail if chunks that should be persisted have an active lifecycle action. In that case an `Err(bool)` is
+/// returned.
+///
+/// If the error boolean is `true`, compaction is currently blocking persistence and you should stall compaction (aka
+/// to prevent new compaction jobs from starting) to be able to proceed with persistence.
+///
+/// If the error boolean is `false`, there are other active lifecycle actions preventing persistence (e.g. a persistence
+/// job that is already running).
 pub fn select_persistable_chunks<'a, P, D>(
     chunks: &'a [D],
     db_name: &DatabaseName<'static>,
