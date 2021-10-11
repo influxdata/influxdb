@@ -15,7 +15,7 @@ use datafusion::{
 use datafusion_util::AsExpr;
 
 use hashbrown::{HashMap, HashSet};
-use observability_deps::tracing::{debug, trace};
+use observability_deps::tracing::{debug, info, trace};
 use predicate::predicate::{Predicate, PredicateMatch};
 use schema::selection::Selection;
 use schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME};
@@ -207,6 +207,8 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
+        info!(" = Start building plan for table_name");
+
         let mut builder = StringSetPlanBuilder::new();
         let mut normalizer = PredicateNormalizer::new(predicate);
 
@@ -245,6 +247,7 @@ impl InfluxRpcPlanner {
         }
 
         let plan = builder.build().context(CreatingStringSet)?;
+        info!(" = End building plan for table_name");
         Ok(plan)
     }
 
@@ -256,6 +259,7 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
+        info!(" = Start building plan for tag_keys");
         debug!(predicate=?predicate, "planning tag_keys");
 
         // The basic algorithm is:
@@ -354,10 +358,14 @@ impl InfluxRpcPlanner {
         }
 
         // add the known columns we could find from metadata only
-        builder
+        let plan_set = builder
             .append(known_columns.into())
             .build()
-            .context(CreatingStringSet)
+            .context(CreatingStringSet);
+
+        info!(" = End building plan for tag_keys");
+
+        plan_set
     }
 
     /// Returns a plan which finds the distinct, non-null tag values
@@ -372,6 +380,7 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
+        info!(" = Start building plan for tag_values");
         debug!(predicate=?predicate, tag_name, "planning tag_values");
 
         // The basic algorithm is:
@@ -511,10 +520,14 @@ impl InfluxRpcPlanner {
         }
 
         // add the known values we could find from metadata only
-        builder
+        let plan_set = builder
             .append(known_values.into())
             .build()
-            .context(CreatingStringSet)
+            .context(CreatingStringSet);
+
+        info!(" = End building plan for tag_values");
+
+        plan_set
     }
 
     /// Returns a plan that produces a list of columns and their
@@ -525,6 +538,7 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
+        info!(" = Start building plan for field_columns");
         debug!(predicate=?predicate, "planning field_columns");
 
         // Algorithm is to run a "select field_cols from table where
@@ -550,6 +564,7 @@ impl InfluxRpcPlanner {
             }
         }
 
+        info!(" = End building plan for field_columns");
         Ok(field_list_plan)
     }
 
@@ -577,6 +592,7 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
+        info!(" = Start building plan for read_filter");
         debug!(predicate=?predicate, "planning read_filter");
 
         let mut normalizer = PredicateNormalizer::new(predicate);
@@ -602,6 +618,7 @@ impl InfluxRpcPlanner {
             }
         }
 
+        info!(" = End building plan for read_filter");
         Ok(ss_plans.into())
     }
 
@@ -619,6 +636,7 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
+        info!(" = Start building plan for read_group");
         debug!(predicate=?predicate, agg=?agg, "planning read_group");
 
         let mut normalizer = PredicateNormalizer::new(predicate);
@@ -659,6 +677,7 @@ impl InfluxRpcPlanner {
             }
         }
 
+        info!(" = End building plan for read_group");
         Ok(ss_plans.into())
     }
 
@@ -675,6 +694,7 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
+        info!(" = Start building plan for read_window_aggregate");
         debug!(
             ?predicate,
             ?agg,
@@ -710,6 +730,7 @@ impl InfluxRpcPlanner {
             }
         }
 
+        info!(" = End building plan for read_window_aggregate");
         Ok(ss_plans.into())
     }
 

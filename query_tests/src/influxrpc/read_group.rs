@@ -1,5 +1,5 @@
 //! Tests for the Influx gRPC queries
-use crate::scenarios::*;
+use crate::scenarios::{DbScenario, DbSetup, NoData, make_two_chunk_scenarios, util::all_delete_scenarios_for_one_chunk};
 
 use arrow_util::display::pretty_format_batches;
 use async_trait::async_trait;
@@ -84,9 +84,11 @@ impl DbSetup for OneMeasurementNoTags {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
         let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
-        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
+        all_delete_scenarios_for_one_chunk(vec![], vec![], lp_lines, "m0", partition_key).await
     }
 }
+
+// NGA todo: similar test with deleted data 
 
 #[tokio::test]
 async fn test_read_group_data_no_tag_columns() {
@@ -129,6 +131,8 @@ impl DbSetup for OneMeasurementForAggs {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
+
+// NGA todo: similar test with deleted data
 
 #[tokio::test]
 async fn test_read_group_data_pred() {
@@ -204,6 +208,8 @@ impl DbSetup for AnotherMeasurementForAggs {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
+
+// NGA todo: similar test with deleted data
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_sum() {
@@ -331,6 +337,8 @@ impl DbSetup for TwoMeasurementForAggs {
     }
 }
 
+// NGA todo: similar test with deleted data
+
 #[tokio::test]
 async fn test_grouped_series_set_plan_count_measurement_pred() {
     let predicate = PredicateBuilder::default()
@@ -384,6 +392,8 @@ impl DbSetup for MeasurementForSelectors {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
+
+// NGA todo: similar test with deleted data
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_first() {
@@ -460,6 +470,8 @@ impl DbSetup for MeasurementForMin {
     }
 }
 
+// NGA todo: similar test with deleted data
+
 #[tokio::test]
 async fn test_grouped_series_set_plan_min() {
     let predicate = PredicateBuilder::default()
@@ -504,6 +516,8 @@ impl DbSetup for MeasurementForMax {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
+
+// NGA todo: similar test with deleted data
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_max() {
@@ -554,6 +568,8 @@ impl DbSetup for MeasurementForGroupKeys {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
+
+// NGA todo: similar test with deleted data
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_group_by_state_city() {
