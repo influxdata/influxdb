@@ -1,8 +1,9 @@
-use std::convert::TryInto;
+use std::{collections::BTreeSet, convert::TryInto};
 
 use chrono::DateTime;
 use data_types::timestamp::TimestampRange;
 use datafusion::logical_plan::{lit, Column, Expr, Operator};
+use schema::TIME_COLUMN_NAME;
 use snafu::{ResultExt, Snafu};
 use sqlparser::{
     ast::{BinaryOperator, Expr as SqlParserExpr, Ident, Statement, Value},
@@ -98,6 +99,16 @@ impl DeletePredicate {
             },
             exprs: delete_exprs,
         })
+    }
+
+    /// Return all columns participating in the expressions of delete predicate minus the time column if any
+    pub fn all_column_names_but_time<'a>(&'a self, cols: &mut BTreeSet<&'a str>) {
+        for expr in &self.exprs {
+            let col = expr.column();
+            if col != TIME_COLUMN_NAME {
+                cols.insert(col);
+            }
+        }
     }
 }
 
