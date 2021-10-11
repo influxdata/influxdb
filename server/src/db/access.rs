@@ -16,7 +16,6 @@ use datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
     datasource::TableProvider,
 };
-use internal_types::schema::Schema;
 use metric::{Attributes, Metric, U64Counter};
 use observability_deps::tracing::debug;
 use predicate::predicate::{Predicate, PredicateBuilder};
@@ -24,6 +23,7 @@ use query::{
     provider::{ChunkPruner, ProviderBuilder},
     QueryChunk, QueryChunkMeta, DEFAULT_SCHEMA,
 };
+use schema::Schema;
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
 
 use hashbrown::HashMap;

@@ -11,7 +11,8 @@ use futures::{stream, FutureExt, StreamExt};
 use parking_lot::Mutex;
 
 use data_types::database_rules::WriteBufferCreationConfig;
-use entry::{Entry, Sequence, SequencedEntry};
+use data_types::sequence::Sequence;
+use entry::{Entry, SequencedEntry};
 
 use crate::core::{
     EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,

@@ -8,12 +8,12 @@ use data_types::{
     partition_metadata::{PartitionAddr, PartitionSummary},
 };
 use hashbrown::HashMap;
-use internal_types::schema::Schema;
 use observability_deps::tracing::info;
 use persistence_windows::{
     min_max_sequence::OptionalMinMaxSequence, persistence_windows::PersistenceWindows,
 };
 use predicate::delete_predicate::DeletePredicate;
+use schema::Schema;
 use snafu::{OptionExt, Snafu};
 use std::{collections::BTreeMap, fmt::Display, sync::Arc};
 use tracker::RwLock;

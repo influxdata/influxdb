@@ -2,7 +2,7 @@ use super::partition::Partition;
 use crate::db::catalog::metrics::TableMetrics;
 use data_types::partition_metadata::{PartitionAddr, PartitionSummary};
 use hashbrown::HashMap;
-use internal_types::schema::{
+use schema::{
     builder::SchemaBuilder,
     merge::{Error as SchemaMergerError, SchemaMerger},
     Schema,
@@ -196,7 +196,7 @@ impl<'a> TableSchemaUpsertHandle<'a> {
 
 #[cfg(test)]
 mod tests {
-    use internal_types::schema::{InfluxColumnType, InfluxFieldType};
+    use schema::{InfluxColumnType, InfluxFieldType};
 
     use super::*;
 

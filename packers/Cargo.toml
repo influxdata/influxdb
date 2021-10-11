@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies] # In alphabetical order
 arrow = { version = "5.5", features = ["prettyprint"] }
 influxdb_tsm = { path = "../influxdb_tsm" }
-internal_types = { path = "../internal_types" }
+schema = { path = "../schema" }
 snafu = "0.6.2"
 observability_deps = { path = "../observability_deps" }
 parquet = "5.5"

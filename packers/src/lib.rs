@@ -11,10 +11,10 @@ pub mod packers;
 pub mod sorter;
 pub mod stats;
 
+use schema::Schema;
 use snafu::Snafu;
 
 pub use crate::packers::{Packer, Packers};
-use internal_types::schema::Schema;
 pub use parquet::data_type::ByteArray;
 
 use std::borrow::Cow;

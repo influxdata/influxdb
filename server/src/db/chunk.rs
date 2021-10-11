@@ -8,11 +8,7 @@ use data_types::{
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
-use internal_types::{
-    access::AccessRecorder,
-    schema::{sort::SortKey, Schema},
-    selection::Selection,
-};
+use internal_types::access::AccessRecorder;
 use iox_object_store::ParquetFilePath;
 use mutable_buffer::chunk::snapshot::ChunkSnapshot;
 use observability_deps::tracing::debug;
@@ -24,6 +20,7 @@ use predicate::{
 };
 use query::{exec::stringset::StringSet, QueryChunk, QueryChunkMeta};
 use read_buffer::RBChunk;
+use schema::{selection::Selection, sort::SortKey, Schema};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -54,9 +51,7 @@ pub enum Error {
     },
 
     #[snafu(display("Internal error restricting schema: {}", source))]
-    InternalSelectingSchema {
-        source: internal_types::schema::Error,
-    },
+    InternalSelectingSchema { source: schema::Error },
 
     #[snafu(display("Predicate conversion error: {}", source))]
     PredicateConversion { source: super::pred::Error },

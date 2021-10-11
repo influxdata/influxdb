@@ -1195,7 +1195,8 @@ mod tests {
     use data_types::database_rules::{
         PartitionTemplate, TemplatePart, WriteBufferConnection, WriteBufferDirection,
     };
-    use entry::{test_helpers::lp_to_entries, Sequence, SequencedEntry};
+    use data_types::sequence::Sequence;
+    use entry::{test_helpers::lp_to_entries, SequencedEntry};
     use object_store::ObjectStore;
     use std::{
         convert::{TryFrom, TryInto},

@@ -13,7 +13,6 @@ use crate::db::{
 use ::lifecycle::LifecycleWriteGuard;
 
 use data_types::{chunk_metadata::ChunkLifecycleAction, job::Job};
-use internal_types::selection::Selection;
 use observability_deps::tracing::{debug, warn};
 use parquet_file::{
     catalog::interface::CatalogParquetInfo,
@@ -27,6 +26,7 @@ use persistence_windows::{
 };
 use predicate::predicate::Predicate;
 use query::{QueryChunk, QueryChunkMeta};
+use schema::selection::Selection;
 use snafu::ResultExt;
 use std::{future::Future, sync::Arc};
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};

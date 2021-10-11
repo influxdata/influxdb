@@ -14,15 +14,13 @@ use data_types::{
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use exec::stringset::StringSet;
-use internal_types::{
-    schema::{sort::SortKey, Schema, TIME_COLUMN_NAME},
-    selection::Selection,
-};
 use observability_deps::tracing::{debug, trace};
 use predicate::{
     delete_predicate::DeletePredicate,
     predicate::{Predicate, PredicateMatch},
 };
+use schema::selection::Selection;
+use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 
 use hashbrown::HashMap;
 use std::{fmt::Debug, sync::Arc};

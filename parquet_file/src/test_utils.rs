@@ -21,10 +21,6 @@ use data_types::{
 use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
 use futures::TryStreamExt;
-use internal_types::{
-    schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME},
-    selection::Selection,
-};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use object_store::ObjectStore;
 use parquet::{
@@ -35,6 +31,8 @@ use persistence_windows::{
     checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder},
     min_max_sequence::OptionalMinMaxSequence,
 };
+use schema::selection::Selection;
+use schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME};
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
 

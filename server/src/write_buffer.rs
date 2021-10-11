@@ -201,8 +201,8 @@ mod tests {
     use ::test_helpers::assert_contains;
     use arrow_util::assert_batches_eq;
     use data_types::database_rules::{PartitionTemplate, TemplatePart};
+    use data_types::sequence::Sequence;
     use entry::test_helpers::lp_to_entry;
-    use entry::Sequence;
     use persistence_windows::min_max_sequence::MinMaxSequence;
     use query::exec::ExecutionContextProvider;
     use query::frontend::sql::SqlQueryPlanner;

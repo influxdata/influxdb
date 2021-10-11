@@ -9,7 +9,7 @@ use arrow::{
     datatypes::{DataType, SchemaRef},
     record_batch::RecordBatch,
 };
-use internal_types::schema::TIME_COLUMN_NAME;
+use schema::TIME_COLUMN_NAME;
 
 use snafu::{ensure, ResultExt, Snafu};
 
@@ -191,7 +191,7 @@ mod tests {
         array::{Int64Array, StringArray},
         datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema},
     };
-    use internal_types::schema::TIME_DATA_TYPE;
+    use schema::TIME_DATA_TYPE;
 
     #[test]
     fn test_convert_single_batch() {

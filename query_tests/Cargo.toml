@@ -21,9 +21,9 @@ server = { path = "../server" }
 arrow = { version = "5.5", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 data_types = { path = "../data_types" }
-internal_types = { path = "../internal_types" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
+schema = { path = "../schema" }
 snafu = "0.6.3"
 tempfile = "3.1.0"
 test_helpers = { path = "../test_helpers" }

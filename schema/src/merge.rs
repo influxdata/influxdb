@@ -3,7 +3,7 @@ use hashbrown::hash_map::RawEntryMut;
 use hashbrown::HashMap;
 use snafu::Snafu;
 
-use crate::schema::sort::SortKey;
+use crate::sort::SortKey;
 
 use super::{InfluxColumnType, Schema};
 
@@ -188,8 +188,8 @@ impl SchemaMerger {
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::builder::SchemaBuilder;
-    use crate::schema::InfluxFieldType::Integer;
+    use crate::builder::SchemaBuilder;
+    use crate::InfluxFieldType::Integer;
 
     use super::*;
 

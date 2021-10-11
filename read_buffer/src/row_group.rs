@@ -17,6 +17,7 @@ use crate::schema::{AggregateType, LogicalDataType, ResultSchema};
 use crate::value::{
     AggregateVec, EncodedValues, OwnedValue, Scalar, Value, Values, ValuesIterator,
 };
+use ::schema::{selection::Selection, InfluxColumnType, Schema};
 use arrow::{
     array,
     array::ArrayRef,
@@ -27,12 +28,10 @@ use datafusion::{
     logical_plan::Expr as DfExpr, logical_plan::Operator as DFOperator,
     scalar::ScalarValue as DFScalarValue,
 };
-use internal_types::schema::{InfluxColumnType, Schema};
-use internal_types::selection::Selection;
 use std::num::NonZeroU64;
 
 /// The name used for a timestamp column.
-pub const TIME_COLUMN_NAME: &str = internal_types::schema::TIME_COLUMN_NAME;
+pub const TIME_COLUMN_NAME: &str = ::schema::TIME_COLUMN_NAME;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -40,9 +39,7 @@ pub enum Error {
     ArrowConversion { source: arrow::error::ArrowError },
 
     #[snafu(display("schema conversion error: {}", source))]
-    SchemaConversion {
-        source: internal_types::schema::builder::Error,
-    },
+    SchemaConversion { source: ::schema::builder::Error },
 
     #[snafu(display("unsupported operation: {}", msg))]
     UnsupportedOperation { msg: String },
@@ -1787,7 +1784,7 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
     type Error = Error;
 
     fn try_from(result: ReadFilterResult<'_>) -> Result<Self, Self::Error> {
-        let schema = internal_types::schema::Schema::try_from(result.schema())
+        let schema = ::schema::Schema::try_from(result.schema())
             .map_err(|source| Error::SchemaConversion { source })?;
 
         let columns: Vec<ArrayRef> = result
@@ -2263,7 +2260,7 @@ impl TryFrom<ReadAggregateResult<'_>> for RecordBatch {
     type Error = Error;
 
     fn try_from(mut result: ReadAggregateResult<'_>) -> Result<Self, Self::Error> {
-        let schema = internal_types::schema::Schema::try_from(result.schema())
+        let schema = ::schema::Schema::try_from(result.schema())
             .map_err(|source| Error::SchemaConversion { source })?;
         let arrow_schema: arrow::datatypes::SchemaRef = schema.into();
 

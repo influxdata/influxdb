@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, fmt::Display};
 
-use internal_types::schema::InfluxFieldType;
+use schema::InfluxFieldType;
 
 /// A schema that is used to track the names and semantics of columns returned
 /// in results out of various operations on a row group.
@@ -96,11 +96,11 @@ impl Display for ResultSchema {
     }
 }
 
-impl TryFrom<&ResultSchema> for internal_types::schema::Schema {
-    type Error = internal_types::schema::builder::Error;
+impl TryFrom<&ResultSchema> for ::schema::Schema {
+    type Error = ::schema::builder::Error;
 
     fn try_from(rs: &ResultSchema) -> Result<Self, Self::Error> {
-        let mut builder = internal_types::schema::builder::SchemaBuilder::new();
+        let mut builder = ::schema::builder::SchemaBuilder::new();
         for (col_type, data_type) in &rs.select_columns {
             match col_type {
                 ColumnType::Tag(name) => builder.tag(name.as_str()),
