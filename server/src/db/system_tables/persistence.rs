@@ -101,9 +101,9 @@ fn from_write_summaries(
 
 #[cfg(test)]
 mod tests {
-    use chrono::{TimeZone, Utc};
 
     use arrow_util::assert_batches_eq;
+    use time::Time;
 
     use super::*;
 
@@ -119,20 +119,20 @@ mod tests {
             (
                 addr.clone(),
                 WriteSummary {
-                    time_of_first_write: Utc.timestamp_nanos(0),
-                    time_of_last_write: Utc.timestamp_nanos(20),
-                    min_timestamp: Utc.timestamp_nanos(50),
-                    max_timestamp: Utc.timestamp_nanos(60),
+                    time_of_first_write: Time::from_timestamp_nanos(0),
+                    time_of_last_write: Time::from_timestamp_nanos(20),
+                    min_timestamp: Time::from_timestamp_nanos(50),
+                    max_timestamp: Time::from_timestamp_nanos(60),
                     row_count: 320,
                 },
             ),
             (
                 addr,
                 WriteSummary {
-                    time_of_first_write: Utc.timestamp_nanos(6),
-                    time_of_last_write: Utc.timestamp_nanos(21),
-                    min_timestamp: Utc.timestamp_nanos(1),
-                    max_timestamp: Utc.timestamp_nanos(2),
+                    time_of_first_write: Time::from_timestamp_nanos(6),
+                    time_of_last_write: Time::from_timestamp_nanos(21),
+                    min_timestamp: Time::from_timestamp_nanos(1),
+                    max_timestamp: Time::from_timestamp_nanos(2),
                     row_count: 2,
                 },
             ),

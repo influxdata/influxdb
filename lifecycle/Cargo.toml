@@ -12,6 +12,7 @@ futures = "0.3"
 hashbrown = "0.11"
 internal_types = { path = "../internal_types" }
 observability_deps = { path = "../observability_deps" }
+time = { path = "../time" }
 tokio = { version = "1.11", features = ["macros", "time"] }
 tracker = { path = "../tracker" }
 

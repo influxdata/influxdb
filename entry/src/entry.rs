@@ -17,6 +17,7 @@ use schema::{
     builder::{Error as SchemaBuilderError, SchemaBuilder},
     IOxValueType, InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME,
 };
+use time::Time;
 
 use crate::entry_fb;
 
@@ -926,7 +927,7 @@ impl<'a> TableBatch<'a> {
         let timestamps = self.timestamps()?;
         let mut summary = TimestampSummary::default();
         for t in &timestamps {
-            summary.record(Utc.timestamp_nanos(t))
+            summary.record(Time::from_timestamp_nanos(t))
         }
         Ok(summary)
     }

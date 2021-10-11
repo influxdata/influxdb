@@ -36,6 +36,7 @@ use schema::selection::Selection;
 use schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME};
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeMap, num::NonZeroU32, sync::Arc};
+use time::Time;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -939,7 +940,7 @@ pub fn create_partition_and_database_checkpoint(
         Arc::clone(&table_name),
         Arc::clone(&partition_key),
         sequencer_numbers_1,
-        flush_timestamp,
+        Time::from_date_time(flush_timestamp),
     );
 
     // create second partition

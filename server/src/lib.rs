@@ -2399,13 +2399,13 @@ mod tests {
 
     #[tokio::test]
     async fn write_buffer_errors_propagate() {
+        let application = ApplicationState::new(Arc::new(ObjectStore::new_in_memory()), None);
+
         let mut factory = WriteBufferConfigFactory::new();
         factory.register_always_fail_mock("my_mock".to_string());
-        let application = Arc::new(ApplicationState::with_write_buffer_factory(
-            Arc::new(ObjectStore::new_in_memory()),
-            Arc::new(factory),
-            None,
-        ));
+
+        let application = Arc::new(application.with_write_buffer_factory(Arc::new(factory)));
+
         let server = make_server(application);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.wait_for_init().await.unwrap();

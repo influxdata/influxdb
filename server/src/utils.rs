@@ -15,6 +15,7 @@ use persistence_windows::checkpoint::ReplayPlan;
 use query::exec::ExecutorConfig;
 use query::{exec::Executor, QueryDatabase};
 use std::{borrow::Cow, convert::TryFrom, num::NonZeroU32, sync::Arc, time::Duration};
+use time::{Time, TimeProvider};
 use write_buffer::core::WriteBufferWriting;
 
 // A wrapper around a Db and a metric registry allowing for isolated testing
@@ -41,6 +42,7 @@ pub struct TestDbBuilder {
     write_buffer_producer: Option<Arc<dyn WriteBufferWriting>>,
     lifecycle_rules: Option<LifecycleRules>,
     partition_template: Option<PartitionTemplate>,
+    time_provider: Option<Arc<dyn TimeProvider>>,
 }
 
 impl TestDbBuilder {
@@ -52,9 +54,16 @@ impl TestDbBuilder {
         let server_id = self
             .server_id
             .unwrap_or_else(|| ServerId::try_from(1).unwrap());
+
         let db_name = self
             .db_name
             .unwrap_or_else(|| DatabaseName::new("placeholder").unwrap());
+
+        let time_provider = self
+            .time_provider
+            .clone()
+            .take()
+            .unwrap_or_else(|| Arc::new(time::SystemProvider::new()));
 
         let object_store = self
             .object_store
@@ -125,6 +134,7 @@ impl TestDbBuilder {
             write_buffer_producer: self.write_buffer_producer,
             exec,
             metric_registry: Arc::clone(&metric_registry),
+            time_provider,
         };
 
         TestDb {
@@ -174,11 +184,26 @@ impl TestDbBuilder {
         self.partition_template = Some(template);
         self
     }
+
+    pub fn time_provider(mut self, time_provider: Arc<dyn TimeProvider>) -> Self {
+        self.time_provider = Some(time_provider);
+        self
+    }
 }
 
 /// Used for testing: create a Database with a local store
 pub async fn make_db() -> TestDb {
     TestDb::builder().build().await
+}
+
+pub async fn make_db_time() -> (Arc<Db>, Arc<time::MockProvider>) {
+    let provider = Arc::new(time::MockProvider::new(Time::from_timestamp(295293, 3)));
+    let db = TestDb::builder()
+        .time_provider(Arc::<time::MockProvider>::clone(&provider))
+        .build()
+        .await
+        .db;
+    (db, provider)
 }
 
 fn chunk_summary_iter(db: &Db) -> impl Iterator<Item = ChunkSummary> + '_ {

@@ -76,7 +76,7 @@
 //!
 //! # // mocking for the example below
 //! # use std::collections::BTreeMap;
-//! # use chrono::Utc;
+//! # use time::Time;
 //! # use persistence_windows::min_max_sequence::OptionalMinMaxSequence;
 //! #
 //! # struct Partition {
@@ -105,7 +105,7 @@
 //! #             Arc::from("table"),
 //! #             Arc::from("part"),
 //! #             Default::default(),
-//! #             Utc::now(),
+//! #             Time::from_timestamp_nanos(3963),
 //! #         )
 //! #     }
 //! # }
@@ -176,7 +176,7 @@
 //!
 //! # // mocking for the example below
 //! # use std::sync::Arc;
-//! # use chrono::Utc;
+//! # use time::Time;
 //! # use persistence_windows::checkpoint::{DatabaseCheckpoint, PartitionCheckpoint, PersistCheckpointBuilder};
 //! #
 //! # struct File {}
@@ -187,7 +187,7 @@
 //! #             Arc::from("table"),
 //! #             Arc::from("part"),
 //! #             Default::default(),
-//! #             Utc::now(),
+//! #             Time::from_timestamp_nanos(0),
 //! #         )
 //! #     }
 //! #
@@ -265,9 +265,9 @@ use std::{
     sync::Arc,
 };
 
-use chrono::{DateTime, Utc};
 use observability_deps::tracing::warn;
 use snafu::{OptionExt, Snafu};
+use time::Time;
 
 use crate::min_max_sequence::OptionalMinMaxSequence;
 
@@ -373,7 +373,7 @@ pub struct PartitionCheckpoint {
     sequencer_numbers: BTreeMap<u32, OptionalMinMaxSequence>,
 
     /// Flush timestamp
-    flush_timestamp: DateTime<Utc>,
+    flush_timestamp: Time,
 }
 
 impl PartitionCheckpoint {
@@ -382,7 +382,7 @@ impl PartitionCheckpoint {
         table_name: Arc<str>,
         partition_key: Arc<str>,
         sequencer_numbers: BTreeMap<u32, OptionalMinMaxSequence>,
-        flush_timestamp: DateTime<Utc>,
+        flush_timestamp: Time,
     ) -> Self {
         Self {
             table_name,
@@ -424,8 +424,8 @@ impl PartitionCheckpoint {
             .map(|(sequencer_id, min_max)| (*sequencer_id, *min_max))
     }
 
-    /// Maximum persisted timestamp.
-    pub fn flush_timestamp(&self) -> DateTime<Utc> {
+    /// Flush timestamp
+    pub fn flush_timestamp(&self) -> Time {
         self.flush_timestamp
     }
 }
@@ -908,7 +908,7 @@ mod tests {
         ($table_name:expr, $partition_key:expr, {$($sequencer_number:expr => ($min:expr, $max:expr)),*}) => {
             {
                 let sequencer_numbers = sequencer_numbers!{$($sequencer_number => ($min, $max)),*};
-                let flush_timestamp = DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(0, 0), Utc);
+                let flush_timestamp = Time::from_timestamp_nanos(0);
                 PartitionCheckpoint::new(Arc::from($table_name), Arc::from($partition_key), sequencer_numbers, flush_timestamp)
             }
         };

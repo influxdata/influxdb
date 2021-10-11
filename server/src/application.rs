@@ -3,6 +3,7 @@ use std::sync::Arc;
 use object_store::ObjectStore;
 use observability_deps::tracing::info;
 use query::exec::Executor;
+use time::TimeProvider;
 use write_buffer::config::WriteBufferConfigFactory;
 
 use crate::JobRegistry;
@@ -16,6 +17,7 @@ pub struct ApplicationState {
     executor: Arc<Executor>,
     job_registry: Arc<JobRegistry>,
     metric_registry: Arc<metric::Registry>,
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 impl ApplicationState {
@@ -23,26 +25,14 @@ impl ApplicationState {
     ///
     /// Uses number of CPUs in the system if num_worker_threads is not set
     pub fn new(object_store: Arc<ObjectStore>, num_worker_threads: Option<usize>) -> Self {
-        Self::with_write_buffer_factory(
-            object_store,
-            Arc::new(Default::default()),
-            num_worker_threads,
-        )
-    }
-
-    /// Same as [`new`](Self::new) but also specifies the write buffer factory.
-    ///
-    /// This is mostly useful for testing.
-    pub fn with_write_buffer_factory(
-        object_store: Arc<ObjectStore>,
-        write_buffer_factory: Arc<WriteBufferConfigFactory>,
-        num_worker_threads: Option<usize>,
-    ) -> Self {
         let num_threads = num_worker_threads.unwrap_or_else(num_cpus::get);
         info!(%num_threads, "using specified number of threads per thread pool");
 
         let metric_registry = Arc::new(metric::Registry::new());
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(time::SystemProvider::new());
         let job_registry = Arc::new(JobRegistry::new(Arc::clone(&metric_registry)));
+
+        let write_buffer_factory = Arc::new(WriteBufferConfigFactory::new());
 
         Self {
             object_store,
@@ -50,6 +40,18 @@ impl ApplicationState {
             executor: Arc::new(Executor::new(num_threads)),
             job_registry,
             metric_registry,
+            time_provider,
+        }
+    }
+
+    /// Overrides the write_buffer_factory
+    pub fn with_write_buffer_factory(
+        self,
+        write_buffer_factory: Arc<WriteBufferConfigFactory>,
+    ) -> Self {
+        Self {
+            write_buffer_factory,
+            ..self
         }
     }
 
@@ -67,6 +69,10 @@ impl ApplicationState {
 
     pub fn metric_registry(&self) -> &Arc<metric::Registry> {
         &self.metric_registry
+    }
+
+    pub fn time_provider(&self) -> &Arc<dyn TimeProvider> {
+        &self.time_provider
     }
 
     pub fn executor(&self) -> &Arc<Executor> {

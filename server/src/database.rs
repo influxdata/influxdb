@@ -1109,6 +1109,7 @@ impl DatabaseStateRulesLoaded {
             catalog,
             write_buffer_producer: producer,
             metric_registry: Arc::clone(shared.application.metric_registry()),
+            time_provider: Arc::clone(shared.application.time_provider()),
         };
 
         let db = Db::new(
@@ -1392,13 +1393,13 @@ mod tests {
         ));
 
         // setup application
+        let application = ApplicationState::new(Arc::new(ObjectStore::new_in_memory()), None);
+
         let mut factory = WriteBufferConfigFactory::new();
         factory.register_mock("my_mock".to_string(), state.clone());
-        let application = Arc::new(ApplicationState::with_write_buffer_factory(
-            Arc::new(ObjectStore::new_in_memory()),
-            Arc::new(factory),
-            None,
-        ));
+
+        let application = Arc::new(application.with_write_buffer_factory(Arc::new(factory)));
+
         let server_id = ServerId::try_from(1).unwrap();
 
         // setup DB

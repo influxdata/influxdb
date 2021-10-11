@@ -14,7 +14,7 @@ use std::{
 
 use ::lifecycle::select_persistable_chunks;
 use async_trait::async_trait;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use parking_lot::{Mutex, RwLock};
 use rand_distr::{Distribution, Poisson};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -46,6 +46,7 @@ use query::{
     QueryDatabase,
 };
 use schema::Schema;
+use time::{Time, TimeProvider};
 use trace::ctx::SpanContext;
 use write_buffer::core::{WriteBufferReading, WriteBufferWriting};
 
@@ -300,10 +301,7 @@ pub struct Db {
     /// - to keep the lifecycle state (e.g. the number of running compactions) around
     lifecycle_policy: tokio::sync::Mutex<Option<::lifecycle::LifecyclePolicy<WeakDb>>>,
 
-    /// TESTING ONLY: Mocked `Utc::now()` for the background worker
-    ///
-    /// TODO: Replace with TimeProvider (#2722)
-    now_override: Mutex<Option<DateTime<Utc>>>,
+    time_provider: Arc<dyn TimeProvider>,
 
     /// To-be-written delete predicates.
     delete_predicates_mailbox: Mutex<Vec<(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)>>,
@@ -321,6 +319,7 @@ pub(crate) struct DatabaseToCommit {
     pub(crate) preserved_catalog: PreservedCatalog,
     pub(crate) catalog: Catalog,
     pub(crate) rules: Arc<DatabaseRules>,
+    pub(crate) time_provider: Arc<dyn TimeProvider>,
 
     /// TODO: Move onto Database
     pub(crate) write_buffer_producer: Option<Arc<dyn WriteBufferWriting>>,
@@ -363,7 +362,7 @@ impl Db {
             write_buffer_producer: database_to_commit.write_buffer_producer,
             cleanup_lock: Default::default(),
             lifecycle_policy: tokio::sync::Mutex::new(None),
-            now_override: Default::default(),
+            time_provider: database_to_commit.time_provider,
             delete_predicates_mailbox: Default::default(),
             persisted_chunk_id_override: Default::default(),
         };
@@ -701,7 +700,7 @@ impl Db {
                 .persistence_windows_mut()
                 .map(|window| match force {
                     true => window.flush_all_handle(),
-                    false => window.flush_handle(self.utc_now()),
+                    false => window.flush_handle(),
                 })
                 .flatten()
                 .context(CannotFlushPartition {
@@ -921,7 +920,7 @@ impl Db {
     ///
     /// TODO: Remove (#2722)
     fn utc_now(&self) -> DateTime<Utc> {
-        self.now_override.lock().unwrap_or_else(Utc::now)
+        self.time_provider.now().date_time()
     }
 
     async fn cleanup_unreferenced_parquet_files(
@@ -1204,32 +1203,20 @@ impl Db {
                     schema_handle.commit();
 
                     // TODO: PersistenceWindows use TimestampSummary
-                    let min_time = Utc.timestamp_nanos(timestamp_summary.stats.min.unwrap());
-                    let max_time = Utc.timestamp_nanos(timestamp_summary.stats.max.unwrap());
+                    let min_time = Time::from_timestamp_nanos(timestamp_summary.stats.min.unwrap());
+                    let max_time = Time::from_timestamp_nanos(timestamp_summary.stats.max.unwrap());
 
                     match partition.persistence_windows_mut() {
                         Some(windows) => {
-                            windows.add_range(
-                                sequence,
-                                row_count,
-                                min_time,
-                                max_time,
-                                self.utc_now(),
-                            );
+                            windows.add_range(sequence, row_count, min_time, max_time);
                         }
                         None => {
                             let mut windows = PersistenceWindows::new(
                                 partition.addr().clone(),
                                 late_arrival_window,
-                                self.utc_now(),
+                                Arc::clone(&self.time_provider),
                             );
-                            windows.add_range(
-                                sequence,
-                                row_count,
-                                min_time,
-                                max_time,
-                                self.utc_now(),
-                            );
+                            windows.add_range(sequence, row_count, min_time, max_time);
                             partition.set_persistence_windows(windows);
                         }
                     }
@@ -1478,6 +1465,7 @@ mod tests {
         MockBufferForWriting, MockBufferForWritingThatAlwaysErrors, MockBufferSharedState,
     };
 
+    use crate::utils::make_db_time;
     use crate::{
         assert_store_sequenced_entry_failures,
         db::{
@@ -1723,11 +1711,15 @@ mod tests {
 
     #[tokio::test]
     async fn metrics_during_rollover() {
-        let test_db = make_db().await;
+        let time = Arc::new(time::MockProvider::new(Time::from_timestamp(11, 22)));
+        let test_db = TestDb::builder()
+            .time_provider(Arc::<time::MockProvider>::clone(&time))
+            .build()
+            .await;
 
         let db = Arc::clone(&test_db.db);
 
-        let t1_write = Utc.timestamp(11, 22);
+        let t1_write = time.now().date_time();
         write_lp_with_time(db.as_ref(), "cpu bar=1 10", t1_write).await;
 
         let registry = test_db.metric_registry.as_ref();
@@ -1744,13 +1736,13 @@ mod tests {
         catalog_chunk_size_bytes_metric_eq(registry, "mutable_buffer", 700);
 
         // write into same chunk again.
-        let t2_write = t1_write + chrono::Duration::seconds(1);
+        let t2_write = time.inc(Duration::from_secs(1)).date_time();
         write_lp_with_time(db.as_ref(), "cpu bar=2 20", t2_write).await;
-        let t3_write = t2_write + chrono::Duration::seconds(1);
+        let t3_write = time.inc(Duration::from_secs(1)).date_time();
         write_lp_with_time(db.as_ref(), "cpu bar=3 30", t3_write).await;
-        let t4_write = t3_write + chrono::Duration::seconds(1);
+        let t4_write = time.inc(Duration::from_secs(1)).date_time();
         write_lp_with_time(db.as_ref(), "cpu bar=4 40", t4_write).await;
-        let t5_write = t4_write + chrono::Duration::seconds(1);
+        let t5_write = time.inc(Duration::from_secs(1)).date_time();
         write_lp_with_time(db.as_ref(), "cpu bar=5 50", t5_write).await;
 
         // verify chunk size updated
@@ -1791,8 +1783,7 @@ mod tests {
         let expected_read_buffer_size = 1706;
         catalog_chunk_size_bytes_metric_eq(registry, "read_buffer", expected_read_buffer_size);
 
-        let t6_write = t5_write + chrono::Duration::seconds(1);
-        *db.now_override.lock() = Some(t6_write);
+        time.inc(Duration::from_secs(1));
         *db.persisted_chunk_id_override.lock() = Some(ChunkId::new_test(1337));
         let chunk_id = db
             .persist_partition("cpu", "1970-01-01T00", true)
@@ -1843,10 +1834,10 @@ mod tests {
         write_lp(db.as_ref(), "write_metrics_test foo=3 650000000010").await;
 
         let mut summary = TimestampSummary::default();
-        summary.record(Utc.timestamp_nanos(100000000000));
-        summary.record(Utc.timestamp_nanos(180000000000));
-        summary.record(Utc.timestamp_nanos(650000000000));
-        summary.record(Utc.timestamp_nanos(650000000010));
+        summary.record(Time::from_timestamp_nanos(100000000000));
+        summary.record(Time::from_timestamp_nanos(180000000000));
+        summary.record(Time::from_timestamp_nanos(650000000000));
+        summary.record(Time::from_timestamp_nanos(650000000010));
 
         let mut reporter = metric::RawReporter::default();
         test_db.metric_registry.report(&mut reporter);
@@ -2188,6 +2179,7 @@ mod tests {
     async fn write_one_chunk_to_parquet_file() {
         // Test that data can be written into parquet files
         let object_store = Arc::new(ObjectStore::new_in_memory());
+        let time = Arc::new(time::MockProvider::new(Time::from_timestamp(11, 22)));
 
         // Create a DB given a server id, an object store and a db name
         let test_db = TestDb::builder()
@@ -2196,15 +2188,16 @@ mod tests {
                 ..Default::default()
             })
             .object_store(Arc::clone(&object_store))
+            .time_provider(Arc::<time::MockProvider>::clone(&time))
             .build()
             .await;
 
         let db = test_db.db;
 
         // Write some line protocols in Mutable buffer of the DB
-        let t1_write = Utc.timestamp(11, 22);
+        let t1_write = time.now().date_time();
         write_lp_with_time(db.as_ref(), "cpu bar=1 10", t1_write).await;
-        let t2_write = t1_write + chrono::Duration::seconds(1);
+        let t2_write = time.inc(Duration::from_secs(1)).date_time();
         write_lp_with_time(db.as_ref(), "cpu bar=2 20", t2_write).await;
 
         //Now mark the MB chunk close
@@ -2220,9 +2213,9 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
+
         // Write the RB chunk to Object Store but keep it in RB
-        let t3_persist = t2_write + chrono::Duration::seconds(1);
-        *db.now_override.lock() = Some(t3_persist);
+        time.inc(Duration::from_secs(1));
         *db.persisted_chunk_id_override.lock() = Some(ChunkId::new_test(1337));
         let pq_chunk = db
             .persist_partition("cpu", partition_key, true)
@@ -2287,6 +2280,7 @@ mod tests {
 
         // Create an object store in memory
         let object_store = Arc::new(ObjectStore::new_in_memory());
+        let time = Arc::new(time::MockProvider::new(Time::from_timestamp(11, 22)));
 
         // Create a DB given a server id, an object store and a db name
         let test_db = TestDb::builder()
@@ -2295,15 +2289,16 @@ mod tests {
                 ..Default::default()
             })
             .object_store(Arc::clone(&object_store))
+            .time_provider(Arc::<time::MockProvider>::clone(&time))
             .build()
             .await;
 
         let db = test_db.db;
 
         // Write some line protocols in Mutable buffer of the DB
-        let t1_write = Utc.timestamp(11, 22);
+        let t1_write = time.now().date_time();
         write_lp_with_time(db.as_ref(), "cpu bar=1 10", t1_write).await;
-        let t2_write = t1_write + chrono::Duration::seconds(1);
+        let t2_write = time.inc(Duration::from_secs(1)).date_time();
         write_lp_with_time(db.as_ref(), "cpu bar=2 20", t2_write).await;
 
         // Now mark the MB chunk close
@@ -2320,8 +2315,7 @@ mod tests {
             .unwrap()
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
-        let t3_persist = t2_write + chrono::Duration::seconds(1);
-        *db.now_override.lock() = Some(t3_persist);
+        time.inc(Duration::from_secs(1));
         *db.persisted_chunk_id_override.lock() = Some(ChunkId::new_test(1337));
         let pq_chunk = db
             .persist_partition("cpu", partition_key, true)
@@ -2688,11 +2682,12 @@ mod tests {
     #[tokio::test]
     async fn chunk_summaries() {
         // Test that chunk id listing is hooked up
-        let db = make_db().await.db;
+        let (db, time) = make_db_time().await;
+        time.set(Time::from_timestamp(11, 22));
 
         // get three chunks: one open, one closed in mb and one close in rb
         // In open chunk, will end up in rb/os
-        let t1_write = Utc.timestamp(11, 22);
+        let t1_write = time.now().date_time();
         write_lp_with_time(&db, "cpu bar=1 1", t1_write).await;
 
         // Move open chunk to closed
@@ -2700,7 +2695,7 @@ mod tests {
 
         // New open chunk in mb
         // This point will end up in rb/os
-        let t2_write = t1_write + chrono::Duration::seconds(1);
+        let t2_write = time.inc(Duration::from_secs(1)).date_time();
         write_lp_with_time(&db, "cpu bar=1,baz=2 2", t2_write).await;
 
         // Check first/last write times on the chunks at this point
@@ -2717,7 +2712,7 @@ mod tests {
         assert_chunks_times_ordered(&closed_mb_t3, &open_mb_t3);
 
         // This point makes a new open mb chunk and will end up in the closed mb chunk
-        let t3_write = t2_write + chrono::Duration::seconds(1);
+        let t3_write = time.inc(Duration::from_secs(1)).date_time();
         write_lp_with_time(&db, "cpu bar=1,baz=2,frob=3 400000000000000", t3_write).await;
 
         // Check first/last write times on the chunks at this point
@@ -2762,8 +2757,7 @@ mod tests {
         assert_chunks_times_eq(&other_open_mb_t5, &other_open_mb_t4);
 
         // Persist rb to parquet os
-        let t4_persist = t3_write + chrono::Duration::seconds(1);
-        *db.now_override.lock() = Some(t4_persist);
+        time.inc(Duration::from_secs(1)).date_time();
         *db.persisted_chunk_id_override.lock() = Some(ChunkId::new_test(1337));
         db.persist_partition("cpu", "1970-01-01T00", true)
             .await
@@ -2806,7 +2800,7 @@ mod tests {
 
         // New open chunk in mb
         // This point will stay in this open mb chunk
-        let t5_write = t4_persist + chrono::Duration::seconds(1);
+        let t5_write = time.inc(Duration::from_secs(1)).date_time();
         write_lp_with_time(&db, "cpu bar=1,baz=3,blargh=3 400000000000000", t5_write).await;
 
         // Check first/last write times on the chunks at this point

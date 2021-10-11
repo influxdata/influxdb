@@ -232,7 +232,6 @@ mod tests {
         Db,
     };
 
-    use chrono::{TimeZone, Utc};
     use data_types::{
         chunk_metadata::ChunkStorage, database_rules::LifecycleRules, server_id::ServerId,
         timestamp::TimestampRange,
@@ -247,8 +246,10 @@ mod tests {
         num::{NonZeroU32, NonZeroU64},
         time::Duration,
     };
+    use time::Time;
 
-    async fn test_db() -> Arc<Db> {
+    async fn test_db() -> (Arc<Db>, Arc<time::MockProvider>) {
+        let time_provider = Arc::new(time::MockProvider::new(Time::from_timestamp(3409, 45)));
         let test_db = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
                 late_arrive_window_seconds: NonZeroU32::new(1).unwrap(),
@@ -256,23 +257,24 @@ mod tests {
                 worker_backoff_millis: NonZeroU64::new(u64::MAX).unwrap(),
                 ..Default::default()
             })
+            .time_provider(Arc::<time::MockProvider>::clone(&time_provider))
             .build()
             .await;
 
-        test_db.db
+        (test_db.db, time_provider)
     }
 
     #[tokio::test]
     async fn test_flush_overlapping() {
-        let db = test_db().await;
+        let (db, time) = test_db().await;
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
 
         let partition_keys = db.partition_keys().unwrap();
         assert_eq!(partition_keys.len(), 1);
         let db_partition = db.partition("cpu", &partition_keys[0]).unwrap();
 
-        // Wait for the persistence window to be closed
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        // Close window
+        time.inc(Duration::from_secs(2));
 
         write_lp(db.as_ref(), "cpu,tag1=lagged bar=1 10").await;
 
@@ -284,11 +286,11 @@ mod tests {
 
         let mut partition = partition.upgrade();
 
-        let handle = LockablePartition::prepare_persist(&mut partition, Utc::now())
+        let handle = LockablePartition::prepare_persist(&mut partition, false)
             .unwrap()
             .0;
 
-        assert_eq!(handle.timestamp(), Utc.timestamp_nanos(10));
+        assert_eq!(handle.timestamp(), Time::from_timestamp_nanos(10));
         let chunks: Vec<_> = chunks.map(|x| x.upgrade()).collect();
 
         persist_chunks(partition, chunks, handle)
@@ -308,18 +310,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_persist_delete_all() {
-        let db = test_db().await;
+        let (db, time) = test_db().await;
 
-        let late_arrival = chrono::Duration::seconds(1);
+        let late_arrival = Duration::from_secs(1);
 
-        let t0 = Utc::now();
-        let t1 = t0 + late_arrival * 10;
-        let t2 = t1 + late_arrival * 10;
-
-        *db.now_override.lock() = Some(t0);
+        time.inc(Duration::from_secs(32));
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
 
-        *db.now_override.lock() = Some(t1);
+        time.inc(late_arrival);
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=3 23").await;
 
         let partition_keys = db.partition_keys().unwrap();
@@ -336,7 +334,6 @@ mod tests {
         db.delete("cpu", predicate).await.unwrap();
 
         // Try to persist first write but it has been deleted
-        *db.now_override.lock() = Some(t0 + late_arrival);
         let maybe_chunk = db
             .persist_partition("cpu", partition_key.as_str(), false)
             .await
@@ -356,11 +353,11 @@ mod tests {
                 .unwrap()
                 .minimum_unpersisted_timestamp()
                 .unwrap(),
-            Utc.timestamp_nanos(23)
+            Time::from_timestamp_nanos(23)
         );
 
         // Add a second set of writes one of which overlaps the above chunk
-        *db.now_override.lock() = Some(t2);
+        time.inc(late_arrival * 10);
         write_lp(db.as_ref(), "cpu,tag1=foo bar=2 23").await;
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=2 26").await;
 
@@ -381,7 +378,7 @@ mod tests {
             // The persistence windows only know that all rows <= 23 have been persisted
             // They do not know that the remaining row has timestamp 26, only that
             // it is in the range 24..=26
-            Utc.timestamp_nanos(24)
+            Time::from_timestamp_nanos(24)
         );
 
         let mut chunks: Vec<_> = partition.read().chunk_summaries().collect();
@@ -404,7 +401,7 @@ mod tests {
         db.delete("cpu", predicate).await.unwrap();
 
         // Try to persist third set of writes
-        *db.now_override.lock() = Some(t2 + late_arrival);
+        time.inc(late_arrival);
         let maybe_chunk = db
             .persist_partition("cpu", partition_key.as_str(), false)
             .await
@@ -423,12 +420,9 @@ mod tests {
 
     #[tokio::test]
     async fn persist_compacted_deletes() {
-        let db = test_db().await;
+        let (db, time) = test_db().await;
 
-        let late_arrival = chrono::Duration::seconds(1);
-        let t0 = Utc::now();
-
-        *db.now_override.lock() = Some(t0);
+        let late_arrival = Duration::from_secs(1);
         write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
 
         let partition_keys = db.partition_keys().unwrap();
@@ -460,7 +454,7 @@ mod tests {
         // Persistence windows unaware rows have been deleted
         assert!(!partition.read().persistence_windows().unwrap().is_empty());
 
-        *db.now_override.lock() = Some(t0 + late_arrival);
+        time.inc(late_arrival);
         let maybe_chunk = db
             .persist_partition("cpu", partition_key.as_str(), false)
             .await
@@ -528,7 +522,6 @@ mod tests {
         let db_partition = db.partition("cpu", &partition_keys[0]).unwrap();
 
         // Wait for the persistence window to be closed
-        tokio::time::sleep(Duration::from_secs(2)).await;
         let partition = LockableCatalogPartition::new(Arc::clone(&db), Arc::clone(&db_partition));
         let partition = partition.read();
 
@@ -537,11 +530,11 @@ mod tests {
 
         let mut partition = partition.upgrade();
 
-        let handle = LockablePartition::prepare_persist(&mut partition, Utc::now())
+        let handle = LockablePartition::prepare_persist(&mut partition, true)
             .unwrap()
             .0;
 
-        assert_eq!(handle.timestamp(), Utc.timestamp_nanos(20));
+        assert_eq!(handle.timestamp(), Time::from_timestamp_nanos(20));
         let chunks: Vec<_> = chunks.map(|x| x.upgrade()).collect();
 
         let (_, fut) = persist_chunks(partition, chunks, handle).unwrap();

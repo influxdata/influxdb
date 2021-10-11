@@ -114,6 +114,7 @@ use schema::{InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
+use time::Time;
 
 /// Current version for serialized metadata.
 ///
@@ -344,7 +345,7 @@ impl IoxMetadata {
             Arc::clone(&table_name),
             Arc::clone(&partition_key),
             sequencer_numbers,
-            flush_timestamp,
+            Time::from_date_time(flush_timestamp),
         );
 
         // extract database checkpoint
@@ -404,7 +405,12 @@ impl IoxMetadata {
                     )
                 })
                 .collect(),
-            flush_timestamp: Some(self.partition_checkpoint.flush_timestamp().into()),
+            flush_timestamp: Some(
+                self.partition_checkpoint
+                    .flush_timestamp()
+                    .date_time()
+                    .into(),
+            ),
         };
 
         let proto_database_checkpoint = proto::DatabaseCheckpoint {

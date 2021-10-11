@@ -4,7 +4,6 @@ use std::{
     time::Duration,
 };
 
-use chrono::Utc;
 use data_types::sequence::Sequence;
 use entry::TableBatch;
 use futures::TryStreamExt;
@@ -15,6 +14,7 @@ use persistence_windows::{
     persistence_windows::PersistenceWindows,
 };
 use snafu::{ResultExt, Snafu};
+use time::Time;
 use write_buffer::core::WriteBufferReading;
 
 use crate::Db;
@@ -120,7 +120,7 @@ pub async fn seek_to_end(db: &Db, write_buffer: &mut dyn WriteBufferReading) -> 
             Arc::from(partition.table_name()),
             Arc::from(partition.key()),
             sequencer_numbers.clone(),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
         );
 
         match partition.persistence_windows_mut() {
@@ -131,7 +131,7 @@ pub async fn seek_to_end(db: &Db, write_buffer: &mut dyn WriteBufferReading) -> 
                 let mut windows = PersistenceWindows::new(
                     partition.addr().clone(),
                     late_arrival_window,
-                    db.utc_now(),
+                    Arc::clone(&db.time_provider),
                 );
                 windows.mark_seen_and_persisted(&dummy_checkpoint);
                 partition.set_persistence_windows(windows);
@@ -290,7 +290,7 @@ pub async fn perform_replay(
                     let mut windows = PersistenceWindows::new(
                         partition.addr().clone(),
                         late_arrival_window,
-                        db.utc_now(),
+                        Arc::clone(&db.time_provider),
                     );
                     windows.mark_seen_and_persisted(partition_checkpoint);
                     partition.set_persistence_windows(windows);
@@ -418,7 +418,7 @@ mod tests {
     };
 
     use arrow_util::assert_batches_eq;
-    use chrono::{DateTime, Utc};
+    use chrono::Utc;
     use data_types::{
         database_rules::{PartitionTemplate, Partitioner, TemplatePart},
         sequence::Sequence,
@@ -435,6 +435,7 @@ mod tests {
     };
     use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner};
     use test_helpers::{assert_contains, assert_not_contains, tracing::TracingCapture};
+    use time::{Time, TimeProvider};
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
@@ -561,6 +562,7 @@ mod tests {
 
             // ==================== setup ====================
             let object_store = Arc::new(ObjectStore::new_in_memory());
+            let time = Arc::new(time::MockProvider::new(Time::from_timestamp(12, 0)));
             let server_id = ServerId::try_from(1).unwrap();
             let db_name = "replay_test";
             let partition_template = PartitionTemplate {
@@ -577,7 +579,7 @@ mod tests {
                 db_name,
                 partition_template.clone(),
                 self.catalog_transactions_until_checkpoint,
-                Utc::now(),
+                Arc::<time::MockProvider>::clone(&time),
             )
             .await;
 
@@ -610,9 +612,6 @@ mod tests {
                         shutdown.cancel();
                         join_handle.await.unwrap();
 
-                        // remember time
-                        let now = test_db.db.now_override.lock().unwrap();
-
                         // drop old DB
                         drop(test_db);
 
@@ -623,7 +622,7 @@ mod tests {
                             db_name,
                             partition_template.clone(),
                             self.catalog_transactions_until_checkpoint,
-                            now,
+                            Arc::<time::MockProvider>::clone(&time),
                         )
                         .await;
                         test_db = test_db_tmp;
@@ -694,8 +693,7 @@ mod tests {
                         }
                     }
                     Step::MakeWritesPersistable => {
-                        let mut guard = test_db.db.now_override.lock();
-                        *guard = Some(guard.unwrap() + chrono::Duration::seconds(60));
+                        time.inc(Duration::from_secs(60));
                     }
                     Step::Assert(checks) => {
                         Self::eval_checks(&checks, true, &test_db).await;
@@ -762,7 +760,7 @@ mod tests {
             db_name: &'static str,
             partition_template: PartitionTemplate,
             catalog_transactions_until_checkpoint: NonZeroU64,
-            now: DateTime<Utc>,
+            time_provider: Arc<dyn TimeProvider>,
         ) -> (TestDb, CancellationToken, JoinHandle<()>) {
             let test_db = TestDb::builder()
                 .object_store(object_store)
@@ -775,12 +773,10 @@ mod tests {
                     ..Default::default()
                 })
                 .partition_template(partition_template)
+                .time_provider(time_provider)
                 .db_name(db_name)
                 .build()
                 .await;
-
-            // Mock time
-            *test_db.db.now_override.lock() = Some(now);
 
             // start background worker
             let shutdown: CancellationToken = Default::default();
@@ -2595,7 +2591,7 @@ mod tests {
             Arc::from("table"),
             Arc::from("partition"),
             sequencer_numbers,
-            Utc::now(),
+            Time::from_timestamp_nanos(236),
         );
         let builder = PersistCheckpointBuilder::new(partition_checkpoint);
         let (partition_checkpoint, database_checkpoint) = builder.build();
@@ -2642,7 +2638,7 @@ mod tests {
             Arc::from("table"),
             Arc::from("partition"),
             sequencer_numbers,
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
         );
         let builder = PersistCheckpointBuilder::new(partition_checkpoint);
         let (partition_checkpoint, database_checkpoint) = builder.build();

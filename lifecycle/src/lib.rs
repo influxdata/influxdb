@@ -21,6 +21,7 @@ mod guard;
 pub use guard::*;
 mod policy;
 pub use policy::*;
+use time::Time;
 
 /// A trait that encapsulates the database logic that is automated by `LifecyclePolicy`
 pub trait LifecycleDb {
@@ -81,11 +82,10 @@ pub trait LockablePartition: Sized + std::fmt::Display {
     /// Returns None if there is a persistence operation in flight, or
     /// if there are no persistable windows.
     ///
-    /// `now` is the wall clock time that should be used to compute how long a given
-    /// write has been present in memory
+    /// If `force` is `true` will persist all unpersisted data regardless of arrival time
     fn prepare_persist(
         partition: &mut LifecycleWriteGuard<'_, Self::Partition, Self>,
-        now: DateTime<Utc>,
+        force: bool,
     ) -> Option<Self::PersistHandle>;
 
     /// Split and persist chunks.
@@ -157,10 +157,10 @@ pub trait LifecyclePartition {
     ///
     /// `now` is the wall clock time that should be used to compute how long a given
     /// write has been present in memory
-    fn persistable_row_count(&self, now: DateTime<Utc>) -> usize;
+    fn persistable_row_count(&self) -> usize;
 
     /// Returns the age of the oldest unpersisted write
-    fn minimum_unpersisted_age(&self) -> Option<DateTime<Utc>>;
+    fn minimum_unpersisted_age(&self) -> Option<Time>;
 }
 
 /// The lifecycle operates on chunks implementing this trait
@@ -188,5 +188,5 @@ pub trait LifecycleChunk {
 pub trait PersistHandle {
     /// Any unpersisted chunks containing rows with timestamps less than or equal to this
     /// must be included in the corresponding `LockablePartition::persist_chunks` call
-    fn timestamp(&self) -> DateTime<Utc>;
+    fn timestamp(&self) -> Time;
 }

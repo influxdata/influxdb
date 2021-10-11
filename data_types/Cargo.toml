@@ -15,6 +15,7 @@ observability_deps = { path = "../observability_deps" }
 percent-encoding = "2.1.0"
 regex = "1.4"
 snafu = "0.6"
+time = { path = "../time" }
 uuid = { version = "0.8", features = ["v4"] }
 
 [dev-dependencies] # In alphabetical order

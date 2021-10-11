@@ -1085,8 +1085,7 @@ impl DbSetup for ChunkOrder {
             let partition = partition.read();
             let chunks = LockablePartition::chunks(&partition);
             let mut partition = partition.upgrade();
-            let flush_handle =
-                LockablePartition::prepare_persist(&mut partition, chrono::MAX_DATETIME).unwrap();
+            let flush_handle = LockablePartition::prepare_persist(&mut partition, true).unwrap();
 
             (chunks, flush_handle)
         };
