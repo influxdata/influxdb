@@ -130,7 +130,7 @@ mod tests {
             interface::CheckpointData,
             test_helpers::{load_ok, new_empty},
         },
-        test_utils::make_iox_object_store,
+        test_utils::{make_config, make_iox_object_store},
     };
 
     use super::*;
@@ -144,42 +144,44 @@ mod tests {
 
     #[tokio::test]
     async fn test_do_delete_wipe_last_checkpoint() {
-        let iox_object_store = make_iox_object_store().await;
+        let config = make_config().await;
 
-        new_empty(&iox_object_store).await;
+        new_empty(config.clone()).await;
 
-        prune_history(Arc::clone(&iox_object_store), Utc::now())
+        prune_history(Arc::clone(&config.iox_object_store), Utc::now())
             .await
             .unwrap();
 
-        load_ok(&iox_object_store).await.unwrap();
+        load_ok(config).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_complex_1() {
-        let iox_object_store = make_iox_object_store().await;
+        let config = make_config().await;
+        let iox_object_store = &config.iox_object_store;
 
-        let (catalog, _state) = new_empty(&iox_object_store).await;
+        let (catalog, _state) = new_empty(config.clone()).await;
         create_transaction(&catalog).await;
         create_transaction_and_checkpoint(&catalog).await;
         let before = Utc::now();
         create_transaction(&catalog).await;
 
-        prune_history(Arc::clone(&iox_object_store), before)
+        prune_history(Arc::clone(iox_object_store), before)
             .await
             .unwrap();
 
         assert_eq!(
-            known_revisions(&iox_object_store).await,
+            known_revisions(iox_object_store).await,
             vec![(2, true), (3, false)],
         );
     }
 
     #[tokio::test]
     async fn test_complex_2() {
-        let iox_object_store = make_iox_object_store().await;
+        let config = make_config().await;
+        let iox_object_store = &config.iox_object_store;
 
-        let (catalog, _state) = new_empty(&iox_object_store).await;
+        let (catalog, _state) = new_empty(config.clone()).await;
         create_transaction(&catalog).await;
         create_transaction_and_checkpoint(&catalog).await;
         create_transaction(&catalog).await;
@@ -188,12 +190,12 @@ mod tests {
         create_transaction_and_checkpoint(&catalog).await;
         create_transaction(&catalog).await;
 
-        prune_history(Arc::clone(&iox_object_store), before)
+        prune_history(Arc::clone(iox_object_store), before)
             .await
             .unwrap();
 
         assert_eq!(
-            known_revisions(&iox_object_store).await,
+            known_revisions(iox_object_store).await,
             vec![
                 (2, true),
                 (3, false),
@@ -207,20 +209,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_keep_all() {
-        let iox_object_store = make_iox_object_store().await;
+        let config = make_config().await;
+        let iox_object_store = &config.iox_object_store;
 
-        let (catalog, _state) = new_empty(&iox_object_store).await;
+        let (catalog, _state) = new_empty(config.clone()).await;
         create_transaction(&catalog).await;
         create_transaction_and_checkpoint(&catalog).await;
         create_transaction(&catalog).await;
 
         let before = Utc::now() - Duration::seconds(1_000);
-        prune_history(Arc::clone(&iox_object_store), before)
+        prune_history(Arc::clone(iox_object_store), before)
             .await
             .unwrap();
 
         assert_eq!(
-            known_revisions(&iox_object_store).await,
+            known_revisions(iox_object_store).await,
             vec![(0, false), (1, false), (2, false), (2, true), (3, false)],
         );
     }

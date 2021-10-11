@@ -1464,6 +1464,7 @@ mod tests {
     use iox_object_store::ParquetFilePath;
     use metric::{Attributes, CumulativeGauge, Metric, Observation};
     use object_store::ObjectStore;
+    use parquet_file::catalog::core::PreservedCatalogConfig;
     use parquet_file::{
         catalog::test_helpers::load_ok,
         metadata::IoxParquetMetaData,
@@ -3282,7 +3283,8 @@ mod tests {
 
         // ==================== check: empty catalog created ====================
         // at this point, an empty preserved catalog exists
-        let maybe_preserved_catalog = load_ok(&db.iox_object_store).await;
+        let config = PreservedCatalogConfig::new(Arc::clone(&db.iox_object_store));
+        let maybe_preserved_catalog = load_ok(config.clone()).await;
         assert!(maybe_preserved_catalog.is_some());
 
         // ==================== do: write data to parquet ====================
@@ -3312,7 +3314,7 @@ mod tests {
             }
         }
         paths_expected.sort();
-        let (_preserved_catalog, catalog) = load_ok(&db.iox_object_store).await.unwrap();
+        let (_preserved_catalog, catalog) = load_ok(config).await.unwrap();
         let paths_actual = {
             let mut tmp: Vec<_> = catalog.files().map(|info| info.path.clone()).collect();
             tmp.sort();

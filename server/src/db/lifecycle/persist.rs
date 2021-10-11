@@ -239,6 +239,7 @@ mod tests {
     };
     use lifecycle::{LockableChunk, LockablePartition};
     use object_store::ObjectStore;
+    use parquet_file::catalog::core::PreservedCatalogConfig;
     use predicate::delete_expr::{DeleteExpr, Op, Scalar};
     use query::QueryDatabase;
     use std::{
@@ -489,7 +490,7 @@ mod tests {
             })
             .build()
             .await;
-        let db = Arc::new(test_db.db);
+        let db = test_db.db;
 
         // | foo | delete before persist | delete during persist |
         // | --- | --------------------- | --------------------- |
@@ -566,15 +567,11 @@ mod tests {
 
         // check object store delete predicates
         let metric_registry = Arc::new(metric::Registry::new());
-        let (_preserved_catalog, catalog, _replay_plan) = load_or_create_preserved_catalog(
-            db_name,
-            db.iox_object_store(),
-            metric_registry,
-            false,
-            false,
-        )
-        .await
-        .unwrap();
+        let config = PreservedCatalogConfig::new(Arc::clone(&db.iox_object_store));
+        let (_preserved_catalog, catalog, _replay_plan) =
+            load_or_create_preserved_catalog(db_name, config, metric_registry, false, false)
+                .await
+                .unwrap();
         check_closure(&catalog);
     }
 }

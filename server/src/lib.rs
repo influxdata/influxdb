@@ -1251,6 +1251,7 @@ mod tests {
         path::{parsed::DirsAndFileName, ObjectStorePath},
         ObjectStore, ObjectStoreApi,
     };
+    use parquet_file::catalog::core::PreservedCatalogConfig;
     use parquet_file::catalog::{
         core::PreservedCatalog,
         test_helpers::{load_ok, new_empty},
@@ -2206,9 +2207,11 @@ mod tests {
             .await
             .unwrap();
 
-        let (preserved_catalog, _catalog) = load_ok(&catalog_broken.iox_object_store().unwrap())
-            .await
-            .unwrap();
+        let (preserved_catalog, _catalog) = load_ok(PreservedCatalogConfig::new(
+            catalog_broken.iox_object_store().unwrap(),
+        ))
+        .await
+        .unwrap();
 
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
@@ -2287,7 +2290,7 @@ mod tests {
             .await
             .unwrap(),
         );
-        new_empty(&non_existing_iox_object_store).await;
+        new_empty(PreservedCatalogConfig::new(non_existing_iox_object_store)).await;
         assert_eq!(
             server
                 .wipe_preserved_catalog(&db_name_non_existing)
@@ -2383,7 +2386,7 @@ mod tests {
         );
 
         // create catalog
-        new_empty(&iox_object_store).await;
+        new_empty(PreservedCatalogConfig::new(iox_object_store)).await;
 
         // creating database will now result in an error
         let err = create_simple_database(&server, db_name).await.unwrap_err();
