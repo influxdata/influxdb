@@ -3152,6 +3152,7 @@ dependencies = [
  "libc",
  "observability_deps",
  "parking_lot",
+ "pin-project",
  "predicate",
  "regex",
  "schema",
@@ -3159,6 +3160,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-stream",
+ "tokio-util",
  "trace",
 ]
 
