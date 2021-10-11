@@ -90,9 +90,8 @@ message Chunk {
   // that data was originally written into
   google.protobuf.Timestamp time_of_last_write = 6;
 
-  // Time at which this chunk was marked as closed. Note this is not
-  // the same as the timestamps on the data itself
-  google.protobuf.Timestamp time_closed = 7;
+  // Was `time_closed`.
+  reserved 7;
 
   // Order of this chunk relative to other overlapping chunks.
   uint32 order = 13;

@@ -2552,8 +2552,6 @@ mod tests {
         assert!(start < chunk.time_of_first_write());
         assert!(chunk.time_of_first_write() < after_data_load);
         assert!(chunk.time_of_first_write() == chunk.time_of_last_write());
-        assert!(after_data_load < chunk.time_closed().unwrap());
-        assert!(chunk.time_closed().unwrap() < after_rollover);
     }
 
     #[tokio::test]
@@ -2615,7 +2613,6 @@ mod tests {
             time_of_last_access: None,
             time_of_first_write: Utc.timestamp_nanos(1),
             time_of_last_write: Utc.timestamp_nanos(1),
-            time_closed: None,
             order: ChunkOrder::new(5).unwrap(),
         }];
 
@@ -2648,9 +2645,7 @@ mod tests {
         let t_second_write = Utc::now();
         write_lp_with_time(&db, "cpu bar=2 2", t_second_write).await;
 
-        let t_close_before = Utc::now();
         db.rollover_partition("cpu", "1970-01-01T00").await.unwrap();
-        let t_close_after = Utc::now();
 
         let mut chunk_summaries = db.chunk_summaries().unwrap();
 
@@ -2659,8 +2654,6 @@ mod tests {
         let summary = &chunk_summaries[0];
         assert_eq!(summary.time_of_first_write, t_first_write);
         assert_eq!(summary.time_of_last_write, t_second_write);
-        assert!(t_close_before <= summary.time_closed.unwrap());
-        assert!(summary.time_closed.unwrap() <= t_close_after);
     }
 
     fn assert_first_last_times_eq(chunk_summary: &ChunkSummary, expected: DateTime<Utc>) {
@@ -2853,7 +2846,6 @@ mod tests {
                 time_of_last_access: None,
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
-                time_closed: None,
             },
             ChunkSummary {
                 partition_key: Arc::from("1970-01-05T15"),
@@ -2868,7 +2860,6 @@ mod tests {
                 time_of_last_access: None,
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
-                time_closed: None,
             },
             ChunkSummary {
                 partition_key: Arc::from("1970-01-05T15"),
@@ -2883,7 +2874,6 @@ mod tests {
                 time_of_last_access: None,
                 time_of_first_write: Utc.timestamp_nanos(1),
                 time_of_last_write: Utc.timestamp_nanos(1),
-                time_closed: None,
             },
         ];
 

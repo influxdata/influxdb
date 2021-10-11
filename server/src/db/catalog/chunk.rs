@@ -220,10 +220,6 @@ pub struct CatalogChunk {
     /// that data was originally written into
     time_of_last_write: DateTime<Utc>,
 
-    /// Time at which this chunk was marked as closed. Note this is
-    /// not the same as the timestamps on the data itself
-    time_closed: Option<DateTime<Utc>>,
-
     /// Order of this chunk relative to other overlapping chunks.
     order: ChunkOrder,
 }
@@ -293,7 +289,6 @@ impl CatalogChunk {
             access_recorder: Default::default(),
             time_of_first_write: time_of_write,
             time_of_last_write: time_of_write,
-            time_closed: None,
             order,
         };
         chunk.update_metrics();
@@ -331,7 +326,6 @@ impl CatalogChunk {
             access_recorder: Default::default(),
             time_of_first_write,
             time_of_last_write,
-            time_closed: None,
             order,
         };
         chunk.update_metrics();
@@ -372,7 +366,6 @@ impl CatalogChunk {
             access_recorder: Default::default(),
             time_of_first_write,
             time_of_last_write,
-            time_closed: None,
             order,
         };
         chunk.update_metrics();
@@ -420,10 +413,6 @@ impl CatalogChunk {
 
     pub fn time_of_last_write(&self) -> DateTime<Utc> {
         self.time_of_last_write
-    }
-
-    pub fn time_closed(&self) -> Option<DateTime<Utc>> {
-        self.time_closed
     }
 
     pub fn order(&self) -> ChunkOrder {
@@ -590,7 +579,6 @@ impl CatalogChunk {
             time_of_last_access,
             time_of_first_write: self.time_of_first_write,
             time_of_last_write: self.time_of_last_write,
-            time_closed: self.time_closed,
             order: self.order,
         }
     }
@@ -693,9 +681,6 @@ impl CatalogChunk {
         match &self.stage {
             ChunkStage::Open { mb_chunk, .. } => {
                 debug!(%self.addr, row_count=mb_chunk.rows(), "freezing chunk");
-                assert!(self.time_closed.is_none());
-
-                self.time_closed = Some(Utc::now());
                 let (s, _) = mb_chunk.snapshot();
 
                 // Cache table summary + schema
@@ -946,10 +931,8 @@ mod tests {
         let mut chunk = make_open_chunk();
         let registration = TaskRegistration::new();
 
-        assert!(chunk.time_closed.is_none());
         assert!(matches!(chunk.stage, ChunkStage::Open { .. }));
         chunk.set_compacting(&registration).unwrap();
-        assert!(chunk.time_closed.is_some());
         assert!(matches!(chunk.stage, ChunkStage::Frozen { .. }));
     }
 
