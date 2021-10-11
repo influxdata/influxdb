@@ -4,13 +4,13 @@ use rand::prelude::*;
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
-use internal_types::selection::Selection;
 use packers::{sorter, Packers};
 use read_buffer::{
     benchmarks::{Column, ColumnType, RowGroup},
     RBChunk,
 };
 use read_buffer::{BinaryExpr, Predicate};
+use schema::selection::Selection;
 
 const ONE_MS: i64 = 1_000_000;
 

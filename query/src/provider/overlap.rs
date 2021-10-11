@@ -5,7 +5,7 @@
 //! writes (and thus are stored in separate rows)
 
 use data_types::partition_metadata::{ColumnSummary, StatOverlap, Statistics};
-use internal_types::schema::TIME_COLUMN_NAME;
+use schema::TIME_COLUMN_NAME;
 use snafu::Snafu;
 
 use crate::QueryChunkMeta;

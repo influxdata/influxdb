@@ -319,9 +319,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// `max_persisted` timestamp ("flush timestamp").
 ///
 /// The `min_persisted` timestamp is relative to the value in
-/// [`TIME_COLUMN_NAME`](internal_types::schema::TIME_COLUMN_NAME). The
-/// min/max sequence numbers are relative to their respective
-/// sequencers.
+/// the time column. The min/max sequence numbers are relative
+/// to their respective sequencers.
 ///
 /// Since the sequence number is per-Entry, that it can be evaluated
 /// quickly during replay, while the timestamp must be checked for each

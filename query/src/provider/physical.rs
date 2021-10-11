@@ -11,7 +11,8 @@ use datafusion::{
         DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
     },
 };
-use internal_types::{schema::Schema, selection::Selection};
+use schema::selection::Selection;
+use schema::Schema;
 
 use crate::QueryChunk;
 use predicate::predicate::Predicate;

@@ -4,12 +4,10 @@ use data_types::{
     timestamp::TimestampRange,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
-use internal_types::{
-    schema::{Schema, TIME_COLUMN_NAME},
-    selection::Selection,
-};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use predicate::predicate::Predicate;
+use schema::selection::Selection;
+use schema::{Schema, TIME_COLUMN_NAME};
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, mem, sync::Arc};
 
@@ -22,9 +20,7 @@ pub enum Error {
     ReadParquet { source: crate::storage::Error },
 
     #[snafu(display("Failed to select columns: {}", source))]
-    SelectColumns {
-        source: internal_types::schema::Error,
-    },
+    SelectColumns { source: schema::Error },
 
     #[snafu(
         display("Cannot decode parquet metadata from {:?}: {}", path, source),

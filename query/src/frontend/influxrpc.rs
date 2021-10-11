@@ -15,12 +15,10 @@ use datafusion::{
 use datafusion_util::AsExpr;
 
 use hashbrown::{HashMap, HashSet};
-use internal_types::{
-    schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME},
-    selection::Selection,
-};
 use observability_deps::tracing::{debug, trace};
 use predicate::predicate::{Predicate, PredicateMatch};
+use schema::selection::Selection;
+use schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use crate::{
@@ -1619,7 +1617,7 @@ pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use internal_types::schema::builder::SchemaBuilder;
+    use schema::builder::SchemaBuilder;
 
     use super::*;
 

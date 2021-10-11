@@ -13,7 +13,7 @@ use data_types::sequence::Sequence;
 use data_types::write_summary::TimestampSummary;
 use generated_types::influxdata::pbdata::v1 as pb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
-use internal_types::schema::{
+use schema::{
     builder::{Error as SchemaBuilderError, SchemaBuilder},
     IOxValueType, InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME,
 };

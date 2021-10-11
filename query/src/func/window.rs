@@ -1,7 +1,7 @@
 mod internal;
 
 pub use internal::{Duration, Window};
-use internal_types::schema::TIME_DATA_TYPE;
+use schema::TIME_DATA_TYPE;
 
 use std::sync::Arc;
 
@@ -94,7 +94,7 @@ pub fn make_window_bound_expr(
 #[cfg(test)]
 mod tests {
     use arrow::array::TimestampNanosecondArray;
-    use internal_types::schema::TIME_DATA_TIMEZONE;
+    use schema::TIME_DATA_TIMEZONE;
 
     use super::*;
 

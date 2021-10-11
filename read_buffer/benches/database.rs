@@ -3,8 +3,8 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
-use internal_types::schema::builder::SchemaBuilder;
 use read_buffer::{BinaryExpr, ChunkMetrics, Predicate, RBChunk};
+use schema::builder::SchemaBuilder;
 use std::sync::Arc;
 
 const BASE_TIME: i64 = 1351700038292387000_i64;

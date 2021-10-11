@@ -6,8 +6,8 @@ use datafusion::{
     logical_plan::{col, Expr, LogicalPlan, LogicalPlanBuilder},
     scalar::ScalarValue,
 };
-use internal_types::schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 use observability_deps::tracing::{debug, trace};
+use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 
 use crate::{
     exec::make_stream_split,
@@ -19,9 +19,7 @@ use snafu::{ResultExt, Snafu};
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Chunk schema not compatible for compact plan: {}", source))]
-    ChunkSchemaNotCompatible {
-        source: internal_types::schema::merge::Error,
-    },
+    ChunkSchemaNotCompatible { source: schema::merge::Error },
 
     #[snafu(display("Reorg planner got error building plan: {}", source))]
     BuildingPlan {
@@ -254,7 +252,7 @@ struct ScanPlan<C: QueryChunk + 'static> {
 mod test {
     use arrow::compute::SortOptions;
     use arrow_util::assert_batches_eq;
-    use internal_types::schema::merge::SchemaMerger;
+    use schema::merge::SchemaMerger;
 
     use crate::{
         exec::{Executor, ExecutorType},

@@ -36,7 +36,7 @@ use internal::{
     I64LastSelector, I64MaxSelector, I64MinSelector, Utf8FirstSelector, Utf8LastSelector,
     Utf8MaxSelector, Utf8MinSelector,
 };
-use internal_types::schema::TIME_DATA_TYPE;
+use schema::TIME_DATA_TYPE;
 
 /// Returns a DataFusion user defined aggregate function for computing
 /// one field of the first() selector function.
@@ -313,7 +313,7 @@ mod test {
         util::pretty::pretty_format_batches,
     };
     use datafusion::{datasource::MemTable, logical_plan::Expr, prelude::*};
-    use internal_types::schema::TIME_DATA_TIMEZONE;
+    use schema::TIME_DATA_TIMEZONE;
 
     use super::*;
 

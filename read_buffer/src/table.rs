@@ -7,8 +7,8 @@ use crate::{
 };
 use arrow::record_batch::RecordBatch;
 use data_types::{chunk_metadata::ChunkColumnSummary, partition_metadata::TableSummary};
-use internal_types::selection::Selection;
 use parking_lot::RwLock;
+use schema::selection::Selection;
 use snafu::{ensure, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},

@@ -11,12 +11,13 @@ use data_types::{
     partition_metadata::TableSummary,
     write_summary::TimestampSummary,
 };
-use internal_types::{access::AccessRecorder, schema::Schema};
+use internal_types::access::AccessRecorder;
 use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use predicate::delete_predicate::DeletePredicate;
 use read_buffer::RBChunk;
+use schema::Schema;
 use tracker::{TaskRegistration, TaskTracker};
 
 use crate::db::catalog::metrics::{StorageRecorder, TimestampHistogram};

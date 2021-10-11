@@ -14,5 +14,5 @@ flatbuffers = "2"
 snafu = "0.6"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 ouroboros = "0.13.0"
-internal_types = { path = "../internal_types" }
+schema = { path = "../schema" }
 generated_types = { path = "../generated_types" }

@@ -69,6 +69,7 @@ members = [
     "trace_http",
     "tracker",
     "trogging",
+    "schema",
     "grpc-router",
     "grpc-router/grpc-router-test-gen",
     "write_buffer",

@@ -29,7 +29,6 @@ use data_types::{
 };
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use entry::{Entry, SequencedEntry, TableBatch};
-use internal_types::schema::Schema;
 use iox_object_store::IoxObjectStore;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info, warn};
@@ -45,6 +44,7 @@ use query::{
     exec::{ExecutionContextProvider, Executor, ExecutorType, IOxExecutionContext},
     QueryDatabase,
 };
+use schema::Schema;
 use trace::ctx::SpanContext;
 use write_buffer::core::{WriteBufferReading, WriteBufferWriting};
 
@@ -138,14 +138,10 @@ pub enum Error {
     TableBatchMissingTimes {},
 
     #[snafu(display("Table batch has invalid schema: {}", source))]
-    TableBatchSchemaExtractError {
-        source: internal_types::schema::builder::Error,
-    },
+    TableBatchSchemaExtractError { source: schema::builder::Error },
 
     #[snafu(display("Table batch has mismatching schema: {}", source))]
-    TableBatchSchemaMergeError {
-        source: internal_types::schema::merge::Error,
-    },
+    TableBatchSchemaMergeError { source: schema::merge::Error },
 
     #[snafu(display(
         "Unable to flush partition at the moment {}:{}",
@@ -1469,7 +1465,6 @@ mod tests {
         write_summary::TimestampSummary,
     };
     use entry::test_helpers::lp_to_entry;
-    use internal_types::{schema::Schema, selection::Selection};
     use iox_object_store::ParquetFilePath;
     use metric::{Attributes, CumulativeGauge, Metric, Observation};
     use object_store::ObjectStore;
@@ -1480,6 +1475,8 @@ mod tests {
     };
     use persistence_windows::min_max_sequence::MinMaxSequence;
     use query::{QueryChunk, QueryDatabase};
+    use schema::selection::Selection;
+    use schema::Schema;
     use write_buffer::mock::{
         MockBufferForWriting, MockBufferForWritingThatAlwaysErrors, MockBufferSharedState,
     };

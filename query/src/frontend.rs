@@ -12,7 +12,7 @@ mod test {
         ExecutionPlan, ExecutionPlanVisitor,
     };
     use futures::StreamExt;
-    use internal_types::schema::{merge::SchemaMerger, sort::SortKey, Schema};
+    use schema::{merge::SchemaMerger, sort::SortKey, Schema};
 
     use crate::{
         exec::{split::StreamSplitExec, Executor, ExecutorType},

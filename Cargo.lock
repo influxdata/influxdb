@@ -1014,8 +1014,8 @@ dependencies = [
  "flatbuffers",
  "generated_types",
  "influxdb_line_protocol",
- "internal_types",
  "ouroboros",
+ "schema",
  "snafu",
 ]
 
@@ -1795,13 +1795,8 @@ checksum = "90c11140ffea82edce8dcd74137ce9324ec24b3cf0175fc9d7e29164da9915b8"
 name = "internal_types"
 version = "0.1.0"
 dependencies = [
- "arrow",
- "arrow_util",
  "chrono",
  "futures",
- "hashbrown 0.11.2",
- "indexmap",
- "itertools",
  "parking_lot",
  "snafu",
  "tokio",
@@ -2209,10 +2204,10 @@ dependencies = [
  "data_types",
  "entry",
  "hashbrown 0.11.2",
- "internal_types",
  "metric",
  "observability_deps",
  "parking_lot",
+ "schema",
  "snafu",
  "test_helpers",
  "tokio",
@@ -2618,10 +2613,10 @@ dependencies = [
  "arrow",
  "criterion",
  "influxdb_tsm",
- "internal_types",
  "observability_deps",
  "parquet",
  "rand",
+ "schema",
  "snafu",
  "test_helpers",
 ]
@@ -2702,7 +2697,6 @@ dependencies = [
  "datafusion_util",
  "futures",
  "generated_types",
- "internal_types",
  "iox_object_store",
  "metric",
  "object_store",
@@ -2714,6 +2708,7 @@ dependencies = [
  "persistence_windows",
  "predicate",
  "prost",
+ "schema",
  "snafu",
  "tempfile",
  "test_helpers",
@@ -2964,10 +2959,10 @@ dependencies = [
  "datafusion 0.1.0",
  "datafusion_util",
  "generated_types",
- "internal_types",
  "observability_deps",
  "ordered-float 2.8.0",
  "regex",
+ "schema",
  "serde_json",
  "snafu",
  "sqlparser",
@@ -3153,13 +3148,13 @@ dependencies = [
  "datafusion_util",
  "futures",
  "hashbrown 0.11.2",
- "internal_types",
  "itertools",
  "libc",
  "observability_deps",
  "parking_lot",
  "predicate",
  "regex",
+ "schema",
  "snafu",
  "test_helpers",
  "tokio",
@@ -3177,12 +3172,12 @@ dependencies = [
  "chrono",
  "data_types",
  "datafusion 0.1.0",
- "internal_types",
  "metric",
  "object_store",
  "once_cell",
  "predicate",
  "query",
+ "schema",
  "server",
  "snafu",
  "tempfile",
@@ -3356,7 +3351,6 @@ dependencies = [
  "datafusion 0.1.0",
  "either",
  "hashbrown 0.11.2",
- "internal_types",
  "itertools",
  "metric",
  "observability_deps",
@@ -3365,6 +3359,7 @@ dependencies = [
  "permutation",
  "rand",
  "rand_distr",
+ "schema",
  "snafu",
  "test_helpers",
 ]
@@ -3686,6 +3681,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "schema"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow_util",
+ "hashbrown 0.11.2",
+ "indexmap",
+ "itertools",
+ "snafu",
+]
+
+[[package]]
 name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3845,6 +3852,7 @@ dependencies = [
  "rand",
  "rand_distr",
  "read_buffer",
+ "schema",
  "serde",
  "serde_json",
  "snafu",

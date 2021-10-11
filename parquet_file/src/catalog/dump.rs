@@ -37,7 +37,7 @@ pub struct DumpOptions {
     /// error otherwise.
     pub show_iox_metadata: bool,
 
-    /// Show debug output of [`Schema`](internal_types::schema::Schema) if decoding succeeds, show the decoding
+    /// Show debug output of [`Schema`](schema::Schema) if decoding succeeds, show the decoding
     /// error otherwise.
     pub show_schema: bool,
 

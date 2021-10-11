@@ -14,10 +14,7 @@ use data_types::{
     DatabaseName,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
-use internal_types::{
-    access::AccessMetrics,
-    schema::{merge::SchemaMerger, Schema, TIME_COLUMN_NAME},
-};
+use internal_types::access::AccessMetrics;
 use lifecycle::{
     LifecycleChunk, LifecyclePartition, LifecycleReadGuard, LifecycleWriteGuard, LockableChunk,
     LockablePartition,
@@ -25,6 +22,7 @@ use lifecycle::{
 use observability_deps::tracing::{info, trace};
 use persistence_windows::persistence_windows::FlushHandle;
 use query::QueryChunkMeta;
+use schema::{merge::SchemaMerger, Schema, TIME_COLUMN_NAME};
 use std::{
     convert::TryInto,
     fmt::Display,

@@ -14,7 +14,6 @@ datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3.7"
 generated_types = { path = "../generated_types" }
-internal_types = { path = "../internal_types" }
 iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
@@ -27,6 +26,7 @@ persistence_windows = { path = "../persistence_windows" }
 predicate = { path = "../predicate" }
 prost = "0.8"
 snafu = "0.6"
+schema = { path = "../schema" }
 tempfile = "3.1.0"
 thrift = "0.13"
 tokio = { version = "1.0", features = ["macros", "rt", "rt-multi-thread", "sync"] }

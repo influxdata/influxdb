@@ -5,10 +5,9 @@ use data_types::{
     partition_metadata::{Statistics, TableSummary},
     timestamp::TimestampRange,
 };
-use internal_types::{
-    schema::{Schema, TIME_COLUMN_NAME},
-    selection::Selection,
-};
+use schema::selection::Selection;
+use schema::{Schema, TIME_COLUMN_NAME};
+
 use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, sync::Arc};
 
@@ -18,9 +17,7 @@ pub enum Error {
     TableNotFound { table_name: String },
 
     #[snafu(display("Failed to select columns: {}", source))]
-    SelectColumns {
-        source: internal_types::schema::Error,
-    },
+    SelectColumns { source: schema::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
