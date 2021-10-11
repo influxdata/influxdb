@@ -70,9 +70,13 @@ done
 
 output="$(git cliff ${@} ${DEFAULT_GIT_CLIFF_OPTIONS} ${COMMIT_RANGE})"
 
-if [ -n "$PREPEND_TARGET" ] && [ -n "$output" ]; then
-  newline=$'\n\n'
-  echo "${output}${newline}$(cat $PREPEND_TARGET)" > $PREPEND_TARGET
+if [ -n "$PREPEND_TARGET" ] ; then
+  if [ -n "$output" ]; then
+    newline=$'\n\n'
+    echo "${output}${newline}$(cat $PREPEND_TARGET)"
+  else
+    echo "$(cat $PREPEND_TARGET)"
+  fi
 else
   echo "$output"
 fi

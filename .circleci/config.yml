@@ -947,11 +947,12 @@ jobs:
               --commit-range "$LAST_COMMIT..$NEWEST_COMMIT" \
               --prepend CHANGELOG.md \
               -- \
-              --tag $TIMESTAMP
+              --tag $TIMESTAMP > CHANGELOG-2.md
             echo ${CIRCLE_SHA1} > $COMMIT_FILE_PATH
+            cat CHANGELOG-2.md
 
             mkdir changelog_artifacts
-            cp CHANGELOG.md changelog_artifacts
+            cp CHANGELOG-2.md changelog_artifacts/CHANGELOG.md
             cp $COMMIT_FILE_PATH changelog_artifacts
       - store_artifacts:
           path: changelog_artifacts/
