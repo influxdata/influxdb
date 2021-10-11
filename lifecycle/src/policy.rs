@@ -620,8 +620,8 @@ where
     D: LockableChunk<Chunk = P>,
     P: LifecycleChunk,
 {
-    let mut to_persist = Vec::new();
-    let mut to_persist_gap = Vec::new();
+    let mut to_persist = Vec::with_capacity(chunks.len());
+    let mut to_persist_gap = Vec::with_capacity(chunks.len());
 
     for chunk in chunks {
         let chunk = chunk.read();
