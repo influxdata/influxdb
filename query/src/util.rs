@@ -13,6 +13,7 @@ use datafusion::{
         ExecutionPlan, PhysicalExpr,
     },
 };
+use observability_deps::tracing::trace;
 use schema::sort::SortKey;
 
 /// Create a logical plan that produces the record batch
@@ -75,6 +76,10 @@ pub fn df_physical_expr(
 
     let input_physical_schema = input.schema();
     let input_logical_schema: DFSchema = input_physical_schema.as_ref().clone().try_into()?;
+
+    trace!(%expr, "logical expression");
+    trace!(%input_logical_schema, "input logical schema");
+    trace!(%input_physical_schema, "input physical schema");
 
     physical_planner.create_physical_expr(
         &expr,

@@ -46,6 +46,7 @@ where
             return summaries;
         }
     };
+    trace!(%filter_expr, "Filter_expr of pruning chunks");
 
     // TODO: performance optimization: batch the chunk pruning by
     // grouping the chunks with the same types for all columns
