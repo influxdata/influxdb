@@ -511,9 +511,7 @@ async fn test_chunk_get() {
 
     // make sure there were timestamps prior to normalization
     assert!(
-        chunks[0].time_of_first_write.is_some()
-            && chunks[0].time_of_last_write.is_some()
-            && chunks[0].time_closed.is_none(), // chunk is not yet closed
+        chunks[0].time_of_first_write.is_some() && chunks[0].time_of_last_write.is_some(), // chunk is not yet closed
         "actual:{:#?}",
         chunks[0]
     );
@@ -535,7 +533,6 @@ async fn test_chunk_get() {
             time_of_last_access: None,
             time_of_first_write: None,
             time_of_last_write: None,
-            time_closed: None,
             order: 1,
         },
         Chunk {
@@ -550,7 +547,6 @@ async fn test_chunk_get() {
             time_of_last_access: None,
             time_of_first_write: None,
             time_of_last_write: None,
-            time_closed: None,
             order: 1,
         },
     ];
@@ -722,7 +718,6 @@ async fn test_list_partition_chunks() {
         time_of_last_access: None,
         time_of_first_write: None,
         time_of_last_write: None,
-        time_closed: None,
         order: 1,
     }];
 
@@ -1069,7 +1064,6 @@ fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
                 time_of_last_access: None,
                 time_of_first_write: None,
                 time_of_last_write: None,
-                time_closed: None,
                 memory_bytes,
                 object_store_bytes,
                 order,
