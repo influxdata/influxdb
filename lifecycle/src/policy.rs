@@ -643,7 +643,7 @@ where
         // up to, and thus there is reason to include it in the
         // plan
         if chunk.min_timestamp() > flush_ts {
-            // Ignore chunk for now, but we might need it later to closer chunk order gaps
+            // Ignore chunk for now, but we might need it later to close chunk order gaps
             debug!(%db_name, chunk=%chunk.addr(),
                     "chunk does not contain data eligible for persistence");
             if chunk.lifecycle_action().is_none() {
