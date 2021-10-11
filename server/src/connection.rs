@@ -57,7 +57,7 @@ pub enum CacheFillError {
 
 impl ConnectionManagerImpl {
     pub fn new() -> Self {
-        let (cache, _) = LoadingCache::new(Self::cached_remote_server);
+        let cache = LoadingCache::new(Self::cached_remote_server);
         Self { cache }
     }
 
