@@ -73,6 +73,7 @@ func upgradeDatabases(ctx context.Context, cli clients.CLI, v1 *influxDBv1, v2 *
 				Description:         fmt.Sprintf("Upgraded from v1 database %s with retention policy %s", db.Name, rp.Name),
 				RetentionPolicyName: rp.Name,
 				RetentionPeriod:     rp.Duration,
+				ShardGroupDuration:  rp.ShardGroupDuration,
 			}
 			log.Debug("Creating bucket", zap.String("Bucket", bucket.Name))
 			err = v2.bucketSvc.CreateBucket(ctx, bucket)

@@ -294,6 +294,7 @@ func TestUpgradeRealDB(t *testing.T) {
 				case bucketNames[6]:
 					emptyBucketId = b.ID.String()
 				}
+				require.NotZero(t, b.ShardGroupDuration)
 			}
 			require.NoDirExists(t, filepath.Join(enginePath, "data", "_internal"))
 
