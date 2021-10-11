@@ -85,7 +85,7 @@ func repairMissingShardGroupDurations(ctx context.Context, store kv.SchemaStore)
 
 				if b.ShardGroupDuration == 0 {
 					// Backfill the duration using the same method used
-					// to dervie the value within the storage engine.
+					// to derive the value within the storage engine.
 					b.ShardGroupDuration = meta.NormalisedShardDuration(0, b.RetentionPeriod)
 				}
 
