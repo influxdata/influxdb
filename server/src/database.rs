@@ -212,6 +212,7 @@ impl Database {
             .context(SavingRules)?;
 
         create_preserved_catalog(
+            db_name,
             Arc::clone(&iox_object_store),
             Arc::clone(application.metric_registry()),
             true,

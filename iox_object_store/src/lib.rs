@@ -358,11 +358,6 @@ impl IoxObjectStore {
         }
     }
 
-    /// The name of the database this object store is for.
-    pub fn database_name(&self) -> &str {
-        &self.database_name
-    }
-
     /// The location in object storage for all files for this database, suitable for logging
     /// or debugging purposes only. Do not parse this, as its format is subject to change!
     pub fn debug_database_path(&self) -> String {

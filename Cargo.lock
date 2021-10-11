@@ -519,7 +519,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "serde",
- "time",
+ "time 0.1.43",
  "winapi",
 ]
 
@@ -531,7 +531,7 @@ checksum = "0be5180df5f7c41fc2416bc038bc8d78d44db8136c415b94ccbc95f523dc38e9"
 dependencies = [
  "chrono",
  "scanlex",
- "time",
+ "time 0.1.43",
 ]
 
 [[package]]
@@ -2972,9 +2972,9 @@ dependencies = [
 
 [[package]]
 name = "predicates"
-version = "2.0.2"
+version = "2.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c143348f141cc87aab5b950021bac6145d0e5ae754b0591de23244cee42c9308"
+checksum = "5c6ce811d0b2e103743eec01db1c50612221f173084ce2f7941053e94b6bb474"
 dependencies = [
  "difflib",
  "float-cmp",
@@ -3152,6 +3152,7 @@ dependencies = [
  "libc",
  "observability_deps",
  "parking_lot",
+ "pin-project",
  "predicate",
  "regex",
  "schema",
@@ -3159,6 +3160,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-stream",
+ "tokio-util",
  "trace",
 ]
 
@@ -4255,6 +4257,14 @@ dependencies = [
  "cc",
  "fs_extra",
  "libc",
+]
+
+[[package]]
+name = "time"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "parking_lot",
 ]
 
 [[package]]

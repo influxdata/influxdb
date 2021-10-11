@@ -1,0 +1,12 @@
+[package]
+name = "time"
+version = "0.1.0"
+edition = "2018"
+description = "Time functionality for IOx"
+
+[dependencies]
+
+chrono = "0.4"
+parking_lot = "0.11"
+
+[dev-dependencies]

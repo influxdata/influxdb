@@ -64,6 +64,7 @@ members = [
     "server",
     "server_benchmarks",
     "test_helpers",
+    "time",
     "trace",
     "trace_exporters",
     "trace_http",
@@ -176,7 +177,7 @@ write_buffer = { path = "write_buffer" }
 assert_cmd = "2.0.2"
 flate2 = "1.0"
 hex = "0.4.2"
-predicates = "2.0.2"
+predicates = "2.0.3"
 rand = "0.8.3"
 rdkafka = "0.26.0"
 reqwest = "0.11"
