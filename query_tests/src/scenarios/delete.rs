@@ -71,6 +71,29 @@ impl DbSetup for OneDeleteSimpleExprOneChunk {
 }
 
 #[derive(Debug)]
+/// Setup for many scenario move chunk from from MUB to RUB to OS
+/// No delete in this case
+pub struct NoDeleteOneChunk {}
+#[async_trait]
+impl DbSetup for NoDeleteOneChunk {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+        let table_name = "cpu";
+        // chunk data
+        let lp_lines = vec![
+            "cpu,foo=me bar=1 10",
+            "cpu,foo=you bar=2 20",
+            "cpu,foo=me bar=1 30",
+            "cpu,foo=me bar=1 40",
+        ];
+
+        // this returns 15 scenarios
+        all_delete_scenarios_for_one_chunk(vec![], vec![], lp_lines, table_name, partition_key)
+            .await
+    }
+}
+
+#[derive(Debug)]
 /// Setup for multi-expression delete query test with one table and one chunk moved from MUB to RUB to OS
 pub struct OneDeleteMultiExprsOneChunk {}
 #[async_trait]
