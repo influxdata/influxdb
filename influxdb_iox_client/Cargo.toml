@@ -23,7 +23,7 @@ prost = "0.8"
 rand = "0.8.3"
 serde = "1.0.128"
 serde_json = { version = "1.0.67", optional = true }
-thiserror = "1.0.28"
+thiserror = "1.0.30"
 tonic = { version = "0.5.0" }
 
 [dev-dependencies] # In alphabetical order
