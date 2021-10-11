@@ -2,7 +2,8 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use entry::{Entry, Sequence, SequencedEntry};
+use data_types::sequence::Sequence;
+use entry::{Entry, SequencedEntry};
 use futures::{future::BoxFuture, stream::BoxStream};
 
 /// Generic boxed error type that is used in this crate.

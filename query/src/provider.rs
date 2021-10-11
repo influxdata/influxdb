@@ -18,9 +18,9 @@ use datafusion::{
         ExecutionPlan,
     },
 };
-use internal_types::schema::{merge::SchemaMerger, sort::SortKey, Schema};
 use observability_deps::tracing::{debug, trace};
 use predicate::predicate::{Predicate, PredicateBuilder};
+use schema::{merge::SchemaMerger, sort::SortKey, Schema};
 
 use crate::{
     compute_sort_key,
@@ -1048,7 +1048,7 @@ mod test {
     use arrow::datatypes::DataType;
     use arrow_util::assert_batches_eq;
     use datafusion::physical_plan::collect;
-    use internal_types::schema::{builder::SchemaBuilder, TIME_COLUMN_NAME};
+    use schema::{builder::SchemaBuilder, TIME_COLUMN_NAME};
 
     use crate::{
         test::{raw_data, TestChunk},

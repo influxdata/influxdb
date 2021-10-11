@@ -3,7 +3,7 @@ use std::{collections::BTreeSet, convert::TryInto};
 use chrono::DateTime;
 use data_types::timestamp::TimestampRange;
 use datafusion::logical_plan::{lit, Column, Expr, Operator};
-use internal_types::schema::TIME_COLUMN_NAME;
+use schema::TIME_COLUMN_NAME;
 use snafu::{ResultExt, Snafu};
 use sqlparser::{
     ast::{BinaryOperator, Expr as SqlParserExpr, Ident, Statement, Value},

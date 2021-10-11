@@ -5,7 +5,8 @@ use std::{
 };
 
 use chrono::Utc;
-use entry::{Sequence, TableBatch};
+use data_types::sequence::Sequence;
+use entry::TableBatch;
 use futures::TryStreamExt;
 use observability_deps::tracing::info;
 use persistence_windows::{
@@ -420,11 +421,12 @@ mod tests {
     use chrono::{DateTime, Utc};
     use data_types::{
         database_rules::{PartitionTemplate, Partitioner, TemplatePart},
+        sequence::Sequence,
         server_id::ServerId,
     };
     use entry::{
         test_helpers::{lp_to_entries, lp_to_entry},
-        Sequence, SequencedEntry,
+        SequencedEntry,
     };
     use object_store::ObjectStore;
     use persistence_windows::{

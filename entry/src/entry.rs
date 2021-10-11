@@ -9,15 +9,16 @@ use ouroboros::self_referencing;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use data_types::database_rules::{Error as DataError, Partitioner, ShardId, Sharder};
+use data_types::sequence::Sequence;
+use data_types::write_summary::TimestampSummary;
 use generated_types::influxdata::pbdata::v1 as pb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
-use internal_types::schema::{
+use schema::{
     builder::{Error as SchemaBuilderError, SchemaBuilder},
     IOxValueType, InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME,
 };
 
 use crate::entry_fb;
-use data_types::write_summary::TimestampSummary;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -1748,21 +1749,6 @@ pub struct SequencedEntry {
     /// At the time of writing, sequences will not be present when there is no configured mechanism to define the order
     /// of all writes.
     sequence_and_producer_ts: Option<(Sequence, DateTime<Utc>)>,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct Sequence {
-    pub id: u32,
-    pub number: u64,
-}
-
-impl Sequence {
-    pub fn new(sequencer_id: u32, sequence_number: u64) -> Self {
-        Self {
-            id: sequencer_id,
-            number: sequence_number,
-        }
-    }
 }
 
 impl SequencedEntry {

@@ -381,7 +381,7 @@ impl RecordBatchDeduplicator {
 }
 
 /// Get column name out of the `expr`. TODO use
-/// internal_types::schema::SortKey instead.
+/// schema::SortKey instead.
 fn get_col_name(expr: &dyn PhysicalExpr) -> &str {
     expr.as_any()
         .downcast_ref::<datafusion::physical_plan::expressions::Column>()

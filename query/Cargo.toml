@@ -24,10 +24,10 @@ datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
 hashbrown = "0.11"
-internal_types = { path = "../internal_types" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11.2"
 regex = "1"
+schema = { path = "../schema" }
 snafu = "0.6.9"
 tokio = { version = "1.11", features = ["macros"] }
 tokio-stream = "0.1.2"

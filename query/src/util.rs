@@ -13,8 +13,8 @@ use datafusion::{
         ExecutionPlan, PhysicalExpr,
     },
 };
-use internal_types::schema::sort::SortKey;
 use observability_deps::tracing::trace;
+use schema::sort::SortKey;
 
 /// Create a logical plan that produces the record batch
 pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, DataFusionError> {

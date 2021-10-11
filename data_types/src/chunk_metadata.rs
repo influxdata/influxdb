@@ -160,10 +160,6 @@ pub struct ChunkSummary {
     /// into IOx. Note due to the compaction, etc... this may not be the chunk
     /// that data was originally written into
     pub time_of_last_write: DateTime<Utc>,
-
-    /// Time at which this chunk was marked as closed. Note this is
-    /// not the same as the timestamps on the data itself
-    pub time_closed: Option<DateTime<Utc>>,
 }
 
 /// Represents metadata about the physical storage of a column in a chunk

@@ -25,7 +25,6 @@ impl From<ChunkSummary> for management::Chunk {
             time_of_last_access,
             time_of_first_write,
             time_of_last_write,
-            time_closed,
             order,
         } = summary;
 
@@ -41,7 +40,6 @@ impl From<ChunkSummary> for management::Chunk {
             time_of_last_access: time_of_last_access.map(Into::into),
             time_of_first_write: Some(time_of_first_write.into()),
             time_of_last_write: Some(time_of_last_write.into()),
-            time_closed: time_closed.map(Into::into),
             order: order.get(),
         }
     }
@@ -106,7 +104,6 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             time_of_last_access,
             time_of_first_write,
             time_of_last_write,
-            time_closed,
             order,
         } = proto;
 
@@ -123,7 +120,6 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             time_of_last_access: timestamp(time_of_last_access, "time_of_last_access")?,
             time_of_first_write: required_timestamp(time_of_first_write, "time_of_first_write")?,
             time_of_last_write: required_timestamp(time_of_last_write, "time_of_last_write")?,
-            time_closed: timestamp(time_closed, "time_closed")?,
             order: ChunkOrder::new(order).ok_or_else(|| FieldViolation {
                 field: "order".to_string(),
                 description: "Order must be non-zero".to_string(),
@@ -188,7 +184,6 @@ mod test {
             lifecycle_action: management::ChunkLifecycleAction::Compacting.into(),
             time_of_first_write: Some(now.into()),
             time_of_last_write: Some(now.into()),
-            time_closed: None,
             time_of_last_access: Some(pbjson_types::Timestamp {
                 seconds: 50,
                 nanos: 7,
@@ -208,7 +203,6 @@ mod test {
             lifecycle_action: Some(ChunkLifecycleAction::Compacting),
             time_of_first_write: now,
             time_of_last_write: now,
-            time_closed: None,
             time_of_last_access: Some(Utc.timestamp_nanos(50_000_000_007)),
             order: ChunkOrder::new(5).unwrap(),
         };
@@ -234,7 +228,6 @@ mod test {
             lifecycle_action: Some(ChunkLifecycleAction::Persisting),
             time_of_first_write: now,
             time_of_last_write: now,
-            time_closed: None,
             time_of_last_access: Some(Utc.timestamp_nanos(12_000_100_007)),
             order: ChunkOrder::new(5).unwrap(),
         };
@@ -252,7 +245,6 @@ mod test {
             lifecycle_action: management::ChunkLifecycleAction::Persisting.into(),
             time_of_first_write: Some(now.into()),
             time_of_last_write: Some(now.into()),
-            time_closed: None,
             time_of_last_access: Some(pbjson_types::Timestamp {
                 seconds: 12,
                 nanos: 100_007,

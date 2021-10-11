@@ -9,7 +9,7 @@ use hashbrown::{HashMap, HashSet};
 use data_types::chunk_metadata::ChunkSummary;
 use data_types::chunk_metadata::DetailedChunkSummary;
 use data_types::partition_metadata::{PartitionAddr, PartitionSummary, TableSummary};
-use internal_types::schema::Schema;
+use schema::Schema;
 use snafu::{OptionExt, Snafu};
 use tracker::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
 

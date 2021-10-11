@@ -1,0 +1,16 @@
+[package]
+name = "schema"
+version = "0.1.0"
+authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
+edition = "2018"
+description = "IOx Schema definition"
+
+[dependencies]
+arrow = { version = "5.5", features = ["prettyprint"] }
+hashbrown = "0.11"
+indexmap = "1.6"
+itertools = "0.10.1"
+snafu = "0.6"
+
+[dev-dependencies]
+arrow_util = { path = "../arrow_util" }

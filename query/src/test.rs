@@ -20,14 +20,13 @@ use data_types::{
 };
 use datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream};
 use futures::StreamExt;
-use internal_types::schema::sort::SortKey;
-use internal_types::{
-    schema::{builder::SchemaBuilder, merge::SchemaMerger, InfluxColumnType, Schema},
-    selection::Selection,
-};
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use predicate::delete_predicate::DeletePredicate;
+use schema::selection::Selection;
+use schema::{
+    builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, InfluxColumnType, Schema,
+};
 use snafu::Snafu;
 use std::num::NonZeroU64;
 use std::{collections::BTreeMap, fmt, sync::Arc};

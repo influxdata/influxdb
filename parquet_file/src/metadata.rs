@@ -92,7 +92,6 @@ use data_types::{
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
 };
 use generated_types::influxdata::iox::catalog::v1 as proto;
-use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
 use parquet::{
     arrow::parquet_to_arrow_schema,
     file::{
@@ -111,6 +110,7 @@ use persistence_windows::{
     min_max_sequence::OptionalMinMaxSequence,
 };
 use prost::Message;
+use schema::{InfluxColumnType, InfluxFieldType, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeMap, convert::TryInto, sync::Arc};
 use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol, TOutputProtocol};
@@ -207,9 +207,7 @@ pub enum Error {
     },
 
     #[snafu(display("Cannot read IOx schema from arrow: {}", source))]
-    IoxFromArrowFailure {
-        source: internal_types::schema::Error,
-    },
+    IoxFromArrowFailure { source: schema::Error },
 
     #[snafu(display("Parquet metadata does not contain IOx metadata"))]
     IoxMetadataMissing {},
@@ -862,7 +860,7 @@ fn extract_iox_statistics(
 mod tests {
     use super::*;
 
-    use internal_types::schema::TIME_COLUMN_NAME;
+    use schema::TIME_COLUMN_NAME;
 
     use crate::test_utils::{
         chunk_addr, create_partition_and_database_checkpoint, load_parquet_from_store, make_chunk,

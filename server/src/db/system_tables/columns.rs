@@ -320,7 +320,6 @@ mod tests {
                         time_of_last_access: None,
                         time_of_first_write: Utc.timestamp_nanos(1),
                         time_of_last_write: Utc.timestamp_nanos(2),
-                        time_closed: None,
                         order: ChunkOrder::new(5).unwrap(),
                     },
                     columns: vec![
@@ -357,7 +356,6 @@ mod tests {
                         time_of_last_access: None,
                         time_of_first_write: Utc.timestamp_nanos(1),
                         time_of_last_write: Utc.timestamp_nanos(2),
-                        time_closed: None,
                         order: ChunkOrder::new(6).unwrap(),
                     },
                     columns: vec![ChunkColumnSummary {
@@ -388,7 +386,6 @@ mod tests {
                         time_of_last_access: None,
                         time_of_first_write: Utc.timestamp_nanos(1),
                         time_of_last_write: Utc.timestamp_nanos(2),
-                        time_closed: None,
                         order: ChunkOrder::new(5).unwrap(),
                     },
                     columns: vec![ChunkColumnSummary {

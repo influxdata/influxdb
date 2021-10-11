@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use arrow::datatypes::{DataType as ArrowDataType, Field as ArrowField};
 use snafu::{ResultExt, Snafu};
 
-use crate::schema::sort::SortKey;
+use crate::sort::SortKey;
 
 use super::{InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME};
 
@@ -124,7 +124,7 @@ impl SchemaBuilder {
     /// Creates an Arrow schema with embedded metadata.
     /// All schema validation happens at this time.
     /// ```
-    /// use internal_types::schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
+    /// use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
     ///
     /// let schema = SchemaBuilder::new()
     ///   .tag("region")

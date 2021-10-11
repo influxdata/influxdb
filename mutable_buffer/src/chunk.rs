@@ -6,11 +6,9 @@ use arrow::record_batch::RecordBatch;
 use data_types::partition_metadata::{ColumnSummary, InfluxDbType, TableSummary};
 use entry::TableBatch;
 use hashbrown::HashMap;
-use internal_types::{
-    schema::{builder::SchemaBuilder, InfluxColumnType, Schema},
-    selection::Selection,
-};
 use parking_lot::Mutex;
+use schema::selection::Selection;
+use schema::{builder::SchemaBuilder, InfluxColumnType, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeSet, sync::Arc};
 
@@ -35,9 +33,7 @@ pub enum Error {
     ArrowError { source: arrow::error::ArrowError },
 
     #[snafu(display("Internal error converting schema: {}", source))]
-    InternalSchema {
-        source: internal_types::schema::builder::Error,
-    },
+    InternalSchema { source: schema::builder::Error },
 
     #[snafu(display("Column not found: {}", column))]
     ColumnNotFound { column: String },
@@ -435,7 +431,7 @@ mod tests {
         ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary,
     };
     use entry::test_helpers::lp_to_entry;
-    use internal_types::schema::{InfluxColumnType, InfluxFieldType};
+    use schema::{InfluxColumnType, InfluxFieldType};
     use std::{convert::TryFrom, num::NonZeroU64, vec};
 
     #[test]

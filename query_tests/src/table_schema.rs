@@ -1,12 +1,10 @@
 //! Tests for the table_names implementation
 
 use arrow::datatypes::DataType;
-use internal_types::{
-    schema::{builder::SchemaBuilder, sort::SortKey, Schema, TIME_COLUMN_NAME},
-    selection::Selection,
-};
 use predicate::predicate::PredicateBuilder;
 use query::{QueryChunk, QueryChunkMeta, QueryDatabase};
+use schema::selection::Selection;
+use schema::{builder::SchemaBuilder, sort::SortKey, Schema, TIME_COLUMN_NAME};
 
 use super::scenarios::*;
 

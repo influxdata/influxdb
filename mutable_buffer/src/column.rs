@@ -16,7 +16,7 @@ use arrow_util::bitset::{iter_set_positions, BitSet};
 use arrow_util::string::PackedStringArray;
 use data_types::partition_metadata::{IsNan, StatValues, Statistics};
 use entry::Column as EntryColumn;
-use internal_types::schema::{IOxValueType, InfluxColumnType, InfluxFieldType, TIME_DATA_TYPE};
+use schema::{IOxValueType, InfluxColumnType, InfluxFieldType, TIME_DATA_TYPE};
 
 use crate::dictionary::{Dictionary, DID, INVALID_DID};
 

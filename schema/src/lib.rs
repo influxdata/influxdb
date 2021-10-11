@@ -1,4 +1,4 @@
-//! This module contains the schema definiton for IOx
+//! This module contains the schema definition for IOx
 use std::{
     cmp::Ordering,
     collections::HashMap,
@@ -11,13 +11,12 @@ use arrow::datatypes::{
     DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema,
     SchemaRef as ArrowSchemaRef, TimeUnit,
 };
+use hashbrown::HashSet;
+
+use selection::Selection;
 use snafu::{OptionExt, Snafu};
 
-use crate::{
-    schema::sort::{ColumnSort, SortKey},
-    selection::Selection,
-};
-use hashbrown::HashSet;
+use crate::sort::{ColumnSort, SortKey};
 
 /// The name of the timestamp column in the InfluxDB datamodel
 pub const TIME_COLUMN_NAME: &str = "time";
@@ -41,6 +40,7 @@ pub fn TIME_DATA_TYPE() -> ArrowDataType {
 
 pub mod builder;
 pub mod merge;
+pub mod selection;
 pub mod sort;
 
 /// Database schema creation / validation errors.
@@ -787,11 +787,13 @@ macro_rules! assert_column_eq {
 #[cfg(test)]
 mod test {
     use arrow::compute::SortOptions;
+
     use InfluxColumnType::*;
     use InfluxFieldType::*;
 
+    use crate::merge::SchemaMerger;
+
     use super::{builder::SchemaBuilder, *};
-    use crate::schema::merge::SchemaMerger;
 
     fn make_field(
         name: &str,

@@ -15,8 +15,8 @@ use datafusion::{
     optimizer::utils,
 };
 use datafusion_util::{make_range_expr, AndExprBuilder};
-use internal_types::schema::TIME_COLUMN_NAME;
 use observability_deps::tracing::debug;
+use schema::TIME_COLUMN_NAME;
 
 /// This `Predicate` represents the empty predicate (aka that
 /// evaluates to true for all rows).

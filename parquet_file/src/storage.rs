@@ -13,7 +13,6 @@ use datafusion::{
 };
 use datafusion_util::AdapterStream;
 use futures::StreamExt;
-use internal_types::selection::Selection;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
@@ -24,6 +23,7 @@ use parquet::{
     file::{metadata::KeyValue, properties::WriterProperties, writer::TryClone},
 };
 use predicate::predicate::Predicate;
+use schema::selection::Selection;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     io::{Cursor, Seek, SeekFrom, Write},

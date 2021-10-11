@@ -5,7 +5,7 @@ use datafusion::{
     physical_plan::{ColumnStatistics, Statistics as DFStatistics},
     scalar::ScalarValue,
 };
-use internal_types::schema::Schema;
+use schema::Schema;
 
 /// Converts stats.min and an appropriate `ScalarValue`
 pub(crate) fn min_to_scalar(stats: &IOxStatistics) -> Option<ScalarValue> {
@@ -88,7 +88,7 @@ mod test {
 
     use super::*;
     use data_types::partition_metadata::{InfluxDbType, StatValues};
-    use internal_types::schema::{builder::SchemaBuilder, InfluxFieldType};
+    use schema::{builder::SchemaBuilder, InfluxFieldType};
 
     #[test]
     fn convert() {
