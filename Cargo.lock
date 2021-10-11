@@ -519,7 +519,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "serde",
- "time",
+ "time 0.1.43",
  "winapi",
 ]
 
@@ -531,7 +531,7 @@ checksum = "0be5180df5f7c41fc2416bc038bc8d78d44db8136c415b94ccbc95f523dc38e9"
 dependencies = [
  "chrono",
  "scanlex",
- "time",
+ "time 0.1.43",
 ]
 
 [[package]]
@@ -4257,6 +4257,14 @@ dependencies = [
  "cc",
  "fs_extra",
  "libc",
+]
+
+[[package]]
+name = "time"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "parking_lot",
 ]
 
 [[package]]

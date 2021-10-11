@@ -64,6 +64,7 @@ members = [
     "server",
     "server_benchmarks",
     "test_helpers",
+    "time",
     "trace",
     "trace_exporters",
     "trace_http",
