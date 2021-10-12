@@ -113,8 +113,6 @@ impl DbSetup for MeasurementForWindowAggregate {
     }
 }
 
-// NGA todo: similar test with deleted data
-
 #[tokio::test]
 async fn test_read_window_aggregate_nanoseconds() {
     let predicate = PredicateBuilder::default()

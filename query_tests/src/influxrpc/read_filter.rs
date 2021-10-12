@@ -35,8 +35,6 @@ impl DbSetup for TwoMeasurementsMultiSeries {
     }
 }
 
-// NGA TODO: similar test with deleted data
-
 /// runs read_filter(predicate) and compares it to the expected
 /// output
 async fn run_read_filter_test_case<D>(
@@ -464,8 +462,6 @@ impl DbSetup for MeasurementsSortableTags {
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
     }
 }
-
-// NGA todo: similar test with deleted data
 
 #[tokio::test]
 async fn test_read_filter_data_plan_order() {

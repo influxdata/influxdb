@@ -90,8 +90,6 @@ impl DbSetup for OneMeasurementNoTags {
     }
 }
 
-// NGA todo: similar test with deleted data
-
 #[tokio::test]
 async fn test_read_group_data_no_tag_columns() {
     let predicate = Predicate::default();
@@ -133,8 +131,6 @@ impl DbSetup for OneMeasurementForAggs {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
-
-// NGA todo: similar test with deleted data
 
 #[tokio::test]
 async fn test_read_group_data_pred() {
@@ -210,8 +206,6 @@ impl DbSetup for AnotherMeasurementForAggs {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
-
-// NGA todo: similar test with deleted data
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_sum() {
@@ -339,8 +333,6 @@ impl DbSetup for TwoMeasurementForAggs {
     }
 }
 
-// NGA todo: similar test with deleted data
-
 #[tokio::test]
 async fn test_grouped_series_set_plan_count_measurement_pred() {
     let predicate = PredicateBuilder::default()
@@ -394,8 +386,6 @@ impl DbSetup for MeasurementForSelectors {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
-
-// NGA todo: similar test with deleted data
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_first() {
@@ -472,8 +462,6 @@ impl DbSetup for MeasurementForMin {
     }
 }
 
-// NGA todo: similar test with deleted data
-
 #[tokio::test]
 async fn test_grouped_series_set_plan_min() {
     let predicate = PredicateBuilder::default()
@@ -518,8 +506,6 @@ impl DbSetup for MeasurementForMax {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
-
-// NGA todo: similar test with deleted data
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_max() {
@@ -570,8 +556,6 @@ impl DbSetup for MeasurementForGroupKeys {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
-
-// NGA todo: similar test with deleted data
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_group_by_state_city() {

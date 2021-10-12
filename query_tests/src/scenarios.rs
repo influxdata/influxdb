@@ -460,8 +460,6 @@ impl DbSetup for TwoMeasurementsManyNulls {
     }
 }
 
-// NGA todo: similar test with deleted data
-
 #[derive(Debug)]
 pub struct TwoMeasurementsManyFields {}
 #[async_trait]
@@ -481,8 +479,6 @@ impl DbSetup for TwoMeasurementsManyFields {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
-
-// NGA todo: similar test with deleted data
 
 #[derive(Debug)]
 /// This has a single chunk for queries that check the state of the system
@@ -748,8 +744,6 @@ impl DbSetup for OneMeasurementManyFields {
     }
 }
 
-// NGA todo: similar test with deleted data
-
 /// This data (from end to end test)
 #[derive(Debug)]
 pub struct EndToEndTest {}
@@ -773,8 +767,6 @@ impl DbSetup for EndToEndTest {
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu_load_short", partition_key).await
     }
 }
-
-// NGA todo: similar test with deleted data
 
 /// This function loads one chunk of lp data into MUB only
 ///
