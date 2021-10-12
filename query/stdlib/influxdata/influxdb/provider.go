@@ -246,7 +246,7 @@ func (w *localPointsWriter) Write(ms ...protocol.Metric) error {
 	copyPoints := func() int {
 		n := 0
 		for _, m := range ms {
-			if w.n + n == len(w.buf) {
+			if w.n+n == len(w.buf) {
 				break
 			}
 			mtags := m.TagList()
@@ -260,7 +260,7 @@ func (w *localPointsWriter) Write(ms ...protocol.Metric) error {
 			for _, f := range mfields {
 				fields[f.Key] = f.Value
 			}
-			w.buf[w.n + n], w.err = models.NewPoint(m.Name(), tags, fields, m.Time())
+			w.buf[w.n+n], w.err = models.NewPoint(m.Name(), tags, fields, m.Time())
 			if w.err != nil {
 				return n
 			}
