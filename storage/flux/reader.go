@@ -3,7 +3,6 @@ package storageflux
 import (
 	"context"
 	"fmt"
-	"google.golang.org/protobuf/types/known/anypb"
 	"strings"
 
 	"github.com/influxdata/flux"
@@ -18,6 +17,7 @@ import (
 	storage "github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // GroupCursorError is returned when two different cursor types

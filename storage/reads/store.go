@@ -2,11 +2,11 @@ package reads
 
 import (
 	"context"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
+	"google.golang.org/protobuf/proto"
 )
 
 type ResultSet interface {

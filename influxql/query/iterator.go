@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/proto"
 	"io"
 	"regexp"
 	"time"
@@ -13,6 +12,7 @@ import (
 	internal "github.com/influxdata/influxdb/v2/influxql/query/internal"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxql"
+	"google.golang.org/protobuf/proto"
 )
 
 // ErrUnknownCall is returned when operating on an unknown function call.

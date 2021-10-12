@@ -1,14 +1,14 @@
 package tracing
 
 import (
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"math"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/pkg/tracing/fields"
 	"github.com/influxdata/influxdb/v2/pkg/tracing/labels"
 	"github.com/influxdata/influxdb/v2/pkg/tracing/wire"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func fieldsToWire(set fields.Fields) []*wire.Field {

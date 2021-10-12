@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/proto"
 	"io"
 	"io/ioutil"
 	"os"
@@ -29,6 +28,7 @@ import (
 	internal "github.com/influxdata/influxdb/v2/tsdb/internal"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 const (

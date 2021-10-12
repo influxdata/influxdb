@@ -3,11 +3,11 @@ package tsm1
 import (
 	"bytes"
 	"fmt"
-	"google.golang.org/protobuf/proto"
 	"regexp"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+	"google.golang.org/protobuf/proto"
 )
 
 // Predicate is something that can match on a series key.

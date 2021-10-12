@@ -1,12 +1,12 @@
 package predicate
 
 import (
-	"github.com/influxdata/influxdb/v2/pkg/cmputil"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/cmputil"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	influxtesting "github.com/influxdata/influxdb/v2/testing"
 )

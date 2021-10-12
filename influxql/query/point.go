@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"google.golang.org/protobuf/proto"
 	"io"
 	"math"
 	"sort"
 
 	internal "github.com/influxdata/influxdb/v2/influxql/query/internal"
 	"github.com/influxdata/influxql"
+	"google.golang.org/protobuf/proto"
 )
 
 // ZeroTime is the Unix nanosecond timestamp for no time.

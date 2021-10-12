@@ -3,7 +3,6 @@ package meta
 import (
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/proto"
 	"net"
 	"net/url"
 	"sort"
@@ -17,6 +16,7 @@ import (
 	influxdb "github.com/influxdata/influxdb/v2/v1"
 	internal "github.com/influxdata/influxdb/v2/v1/services/meta/internal"
 	"github.com/influxdata/influxql"
+	"google.golang.org/protobuf/proto"
 )
 
 //go:generate protoc --go_out=internal/ internal/meta.proto

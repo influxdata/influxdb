@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/proto"
 	"sort"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
