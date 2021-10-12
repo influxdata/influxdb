@@ -3,7 +3,7 @@ package tsdb_test
 import (
 	"compress/gzip"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -369,12 +369,12 @@ func MustNewIndex(tb testing.TB, index string, eopts ...EngineOption) *Index {
 		opt(&opts)
 	}
 
-	rootPath, err := ioutil.TempDir("", "influxdb-tsdb")
+	rootPath, err := os.MkdirTemp("", "influxdb-tsdb")
 	if err != nil {
 		panic(err)
 	}
 
-	seriesPath, err := ioutil.TempDir(rootPath, tsdb.SeriesFileDirectory)
+	seriesPath, err := os.MkdirTemp(rootPath, tsdb.SeriesFileDirectory)
 	if err != nil {
 		panic(err)
 	}
@@ -492,7 +492,7 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	data, err := ioutil.ReadAll(gzr)
+	data, err := io.ReadAll(gzr)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -590,7 +590,7 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	data, err := ioutil.ReadAll(gzr)
+	data, err := io.ReadAll(gzr)
 	if err != nil {
 		b.Fatal(err)
 	}

@@ -2,7 +2,6 @@ package tsm1
 
 import (
 	"fmt"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -1658,7 +1657,7 @@ func TestTSMReader_FuzzCrashes(t *testing.T) {
 			defer os.RemoveAll(dir)
 
 			filename := filepath.Join(dir, "x.tsm")
-			if err := ioutil.WriteFile(filename, []byte(c), 0600); err != nil {
+			if err := os.WriteFile(filename, []byte(c), 0600); err != nil {
 				t.Fatalf("exp no error, got %s", err)
 			}
 			defer os.RemoveAll(dir)

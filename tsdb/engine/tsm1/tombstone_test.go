@@ -2,7 +2,6 @@ package tsm1_test
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -242,7 +241,7 @@ func TestTombstoner_ReadV1(t *testing.T) {
 	defer func() { os.RemoveAll(dir) }()
 
 	f := MustTempFile(dir)
-	if err := ioutil.WriteFile(f.Name(), []byte("foo\n"), 0x0600); err != nil {
+	if err := os.WriteFile(f.Name(), []byte("foo\n"), 0x0600); err != nil {
 		t.Fatalf("write v1 file: %v", err)
 	}
 	f.Close()
