@@ -9,7 +9,7 @@ executors:
       # NOTE: To upgrade the Go version, first push the upgrade to the cross-builder Dockerfile in the edge repo,
       # then update the version here to match. Until we finish the migration to using the cross-builder image,
       # you'll also need to update references to `cimg/go` and `GO_VERSION` in this file.
-      - image: quay.io/influxdb/cross-builder:go1.17.1-f8379e935394b78ab2977471b55974d0d617d289
+      - image: quay.io/influxdb/cross-builder:go1.17.2-db5b05aa885a888488709c415bd37cea7387a4ea
     resource_class: large
   linux-amd64:
     machine:
@@ -265,8 +265,8 @@ commands:
           # GO_VERSION_HASH is from https://golang.org/dl/
           command: |
             mkdir -p ${HOME}/.tools
-            GO_VERSION=1.17.1
-            GO_VERSION_HASH=dab7d9c34361dc21ec237d584590d72500652e7c909bf082758fb63064fca0ef
+            GO_VERSION=1.17.2
+            GO_VERSION_HASH=f242a9db6a0ad1846de7b6d94d507915d14062660616a61ef7c808a76e4f1676
             wget https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz
             echo "${GO_VERSION_HASH}  go${GO_VERSION}.linux-amd64.tar.gz" | sha256sum --check --
             tar -C ${HOME}/.tools -xzf go${GO_VERSION}.linux-amd64.tar.gz
@@ -432,7 +432,7 @@ jobs:
 
   godeps:
     docker:
-      - image: cimg/go:1.17.1
+      - image: cimg/go:1.17.2
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -536,7 +536,7 @@ jobs:
 
   fluxtest:
     docker:
-      - image: cimg/go:1.17.1
+      - image: cimg/go:1.17.2
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -551,7 +551,7 @@ jobs:
 
   tlstest:
     docker:
-      - image: cimg/go:1.17.1
+      - image: cimg/go:1.17.2
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -570,7 +570,7 @@ jobs:
 
   build:
     docker:
-      - image: cimg/go:1.17.1
+      - image: cimg/go:1.17.2
     resource_class: large
     environment:
       TMPDIR: /mnt/ramdisk
@@ -822,7 +822,7 @@ jobs:
 
   e2e-monitor-ci:
     docker:
-      - image: cimg/go:1.17.1
+      - image: cimg/go:1.17.2
     steps:
       - checkout
       - run:
