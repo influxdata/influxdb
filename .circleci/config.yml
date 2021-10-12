@@ -2,6 +2,7 @@ version: 2.1
 
 orbs:
   terraform: circleci/terraform@2.1.0
+  aws-s3: circleci/aws-s3@2.0.0
 
 parameters:
   aws_teardown:
@@ -19,6 +20,15 @@ parameters:
   aws_teardown_query_format:
     default: "n/a"
     type: string
+
+commands:
+  install_rust:
+    steps:
+      - run:
+          name: Install Rust toolchain
+          command: |
+            ./scripts/ci/install-rust.sh
+            echo 'export PATH=${HOME}/.cargo/bin:${PATH}' >> $BASH_ENV
 
 jobs:
   build_and_test:
@@ -184,6 +194,54 @@ jobs:
             instance_id=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 describe-instances --filters "Name=tag:Name,Values=$name" --query 'Reservations[].Instances[].InstanceId' --output text)
             AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
 
+  changelog:
+    machine:
+      image: ubuntu-2004:202010-01
+    steps:
+      - checkout
+      - install_rust
+      - run:
+          name: Run script
+          command: |
+            set -x
+            git clone --depth=1 --branch v0.2.5 https://github.com/orhun/git-cliff
+            cd git-cliff
+            cargo install git-cliff
+            cd ..
+
+            S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/platform/nightlies/1.8"
+            curl -o CHANGELOG.md ${S3_PATH}/CHANGELOG.md
+            curl -o scripts/ci/changelog-commit.txt ${S3_PATH}/changelog-commit.txt
+
+            TIMESTAMP="$(date -u '+%Y%m%d')"
+            COMMIT_FILE_PATH="scripts/ci/changelog-commit.txt"
+            LAST_COMMIT=$(cat $COMMIT_FILE_PATH)
+            NEWEST_COMMIT=${CIRCLE_SHA1}
+            ./scripts/ci/update-changelog.sh \
+              --commit-range "$LAST_COMMIT..$NEWEST_COMMIT" \
+              --prepend CHANGELOG.md \
+              -- \
+              --tag $TIMESTAMP
+            echo ${CIRCLE_SHA1} > $COMMIT_FILE_PATH
+
+            mkdir changelog_artifacts
+            cp CHANGELOG.md changelog_artifacts
+            cp $COMMIT_FILE_PATH changelog_artifacts
+      - store_artifacts:
+          path: changelog_artifacts/
+      - aws-s3/copy:
+          arguments: |
+            --acl public-read
+          aws-region: AWS_S3_REGION
+          from: changelog_artifacts/changelog-commit.txt
+          to: s3://dl.influxdata.com/platform/nightlies/1.8/changelog-commit.txt
+      - aws-s3/copy:
+          arguments: |
+            --acl public-read
+          aws-region: AWS_S3_REGION
+          from: changelog_artifacts/CHANGELOG.md
+          to: s3://dl.influxdata.com/platform/nightlies/1.8/CHANGELOG.md
+
 workflows:
   version: 2
   on_push:
@@ -223,3 +281,32 @@ workflows:
     when: << pipeline.parameters.aws_teardown >>
     jobs:
       - aws_destroy_by_name
+  daily:
+    triggers:
+      - schedule:
+          # run weekdays at 4am -- note: use spaces, not tabs
+          cron: "0 4 * * 1-5"
+          filters:
+            branches:
+              only:
+                - "1.8"
+
+    jobs:
+      - changelog
+      - build_and_test
+      - pkg_run_test:
+          filters:
+            branches:
+              ignore: /pull\/[0-9]+/
+          requires:
+            - build_and_test
+      - perf_test:
+          name: perf-test-influxql
+          format: http
+          record_ingest_results: true
+          requires:
+            - build_and_test
+          filters:
+            branches:
+              only:
+                - "1.8"
