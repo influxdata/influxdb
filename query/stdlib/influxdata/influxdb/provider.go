@@ -119,7 +119,7 @@ func (p Provider) WriterFor(ctx context.Context, conf influxdb.Config) (influxdb
 
 	return &localPointsWriter{
 		ctx:      ctx,
-		buf:      make([]protocol.Metric, 1<<14),
+		buf:      make([]models.Point, 1<<14),
 		orgID:    orgID,
 		bucketID: bucketID,
 		wr:       deps.PointsWriter,
@@ -234,7 +234,7 @@ func (s seriesCardinalityReader) Read(ctx context.Context, f func(flux.Table) er
 
 type localPointsWriter struct {
 	ctx      context.Context
-	buf      []protocol.Metric
+	buf      []models.Point
 	orgID    platform.ID
 	bucketID platform.ID
 	n        int
@@ -243,16 +243,45 @@ type localPointsWriter struct {
 }
 
 func (w *localPointsWriter) Write(ms ...protocol.Metric) error {
+	copyPoints := func() int {
+		n := 0
+		for _, m := range ms {
+			if w.n + n == len(w.buf) {
+				break
+			}
+			mtags := m.TagList()
+			mfields := m.FieldList()
+
+			tags := make(models.Tags, len(mtags))
+			fields := make(models.Fields, len(mfields))
+			for ti, t := range mtags {
+				tags[ti] = models.Tag{Key: []byte(t.Key), Value: []byte(t.Value)}
+			}
+			for _, f := range mfields {
+				fields[f.Key] = f.Value
+			}
+			w.buf[w.n + n], w.err = models.NewPoint(m.Name(), tags, fields, m.Time())
+			if w.err != nil {
+				return n
+			}
+			n++
+		}
+		return n
+	}
+
 	for len(ms) > w.available() && w.err == nil {
-		n := copy(w.buf[w.n:], ms)
+		n := copyPoints()
+		if w.err != nil {
+			return w.err
+		}
 		w.n += n
 		w.err = w.flush()
+		if w.err != nil {
+			return w.err
+		}
 		ms = ms[n:]
 	}
-	if w.err != nil {
-		return w.err
-	}
-	w.n += copy(w.buf[w.n:], ms)
+	w.n += copyPoints()
 	return nil
 }
 
@@ -268,26 +297,7 @@ func (w *localPointsWriter) flush() error {
 		return nil
 	}
 
-	ps := make([]models.Point, w.n)
-	for i, m := range w.buf[:w.n] {
-		mtags := m.TagList()
-		mfields := m.FieldList()
-
-		tags := make(models.Tags, len(mtags))
-		fields := make(models.Fields, len(mfields))
-		for ti, t := range mtags {
-			tags[ti] = models.Tag{Key: []byte(t.Key), Value: []byte(t.Value)}
-		}
-		for _, f := range mfields {
-			fields[f.Key] = f.Value
-		}
-		ps[i], w.err = models.NewPoint(m.Name(), tags, fields, m.Time())
-		if w.err != nil {
-			return w.err
-		}
-	}
-
-	w.err = w.wr.WritePoints(w.ctx, w.orgID, w.bucketID, ps)
+	w.err = w.wr.WritePoints(w.ctx, w.orgID, w.bucketID, w.buf[:w.n])
 	if w.err != nil {
 		return w.err
 	}
