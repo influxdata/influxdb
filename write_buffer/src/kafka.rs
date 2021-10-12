@@ -19,6 +19,7 @@ use rdkafka::{
     client::DefaultClientContext,
     consumer::{BaseConsumer, Consumer, StreamConsumer},
     error::KafkaError,
+    message::{Headers, OwnedHeaders},
     producer::{FutureProducer, FutureRecord},
     types::RDKafkaErrorCode,
     util::Timeout,
@@ -30,6 +31,14 @@ use crate::core::{
     EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
     WriteBufferWriting,
 };
+
+/// Message header that determines message format.
+pub const HEADER_FORMAT: &str = "IOX:FORMAT";
+
+/// Current flatbuffer-based.
+///
+/// This is a value for [`HEADER_FORMAT`].
+pub const FORMAT_FLATBUFFER: &str = "iox:flatbuffer_v1";
 
 pub struct KafkaBufferProducer {
     conn: String,
@@ -73,7 +82,8 @@ impl WriteBufferWriting for KafkaBufferProducer {
         let record: FutureRecord<'_, String, _> = FutureRecord::to(&self.database_name)
             .payload(entry.data())
             .partition(partition)
-            .timestamp(timestamp_millis);
+            .timestamp(timestamp_millis)
+            .headers(OwnedHeaders::new().add(HEADER_FORMAT, FORMAT_FLATBUFFER));
 
         debug!(db_name=%self.database_name, partition, size=entry.data().len(), "writing to kafka");
 
@@ -175,7 +185,28 @@ impl WriteBufferReading for KafkaBufferConsumer {
                 .stream()
                 .map(move |message| {
                     let message = message?;
-                    let entry = Entry::try_from(message.payload().unwrap().to_vec())?;
+
+                    let format = message.headers().map(|headers| {
+                        for i in 0..headers.count() {
+                            if let Some((name, value)) = headers.get(i) {
+                                if name == HEADER_FORMAT {
+                                    return String::from_utf8(value.to_vec()).ok()
+                                }
+                            }
+                        }
+
+                        None
+                    }).flatten();
+                    // Fallback for now https://github.com/influxdata/influxdb_iox/issues/2805
+                    let format = format.unwrap_or_else(|| FORMAT_FLATBUFFER.to_string());
+                    if format != FORMAT_FLATBUFFER {
+                        return Err(format!("Unknown message format: {}", format).into());
+                    }
+
+                    let payload = message.payload().ok_or_else::<WriteBufferError, _>(|| {
+                        "Payload missing".to_string().into()
+                    })?;
+                    let entry = Entry::try_from(payload.to_vec())?;
 
                     // Timestamps were added as part of
                     // [KIP-32](https://cwiki.apache.org/confluence/display/KAFKA/KIP-32+-+Add+timestamps+to+Kafka+message).
@@ -550,8 +581,12 @@ mod tests {
     };
     use time::TimeProvider;
 
+    use entry::test_helpers::lp_to_entry;
+
     use crate::{
-        core::test_utils::{perform_generic_tests, TestAdapter, TestContext},
+        core::test_utils::{
+            map_pop_first, perform_generic_tests, set_pop_first, TestAdapter, TestContext,
+        },
         kafka::test_utils::random_kafka_topic,
         maybe_skip_kafka_integration,
     };
@@ -647,6 +682,7 @@ mod tests {
     async fn topic_create_twice() {
         let conn = maybe_skip_kafka_integration!();
         let database_name = random_kafka_topic();
+
         create_kafka_topic(
             &conn,
             &database_name,
@@ -655,6 +691,7 @@ mod tests {
         )
         .await
         .unwrap();
+
         create_kafka_topic(
             &conn,
             &database_name,
@@ -663,5 +700,69 @@ mod tests {
         )
         .await
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn error_no_payload() {
+        let conn = maybe_skip_kafka_integration!();
+        let adapter = KafkaTestAdapter::new(conn);
+        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
+
+        let writer = ctx.writing(true).await.unwrap();
+        let partition = set_pop_first(&mut writer.sequencer_ids()).unwrap() as i32;
+        let record: FutureRecord<'_, String, [u8]> =
+            FutureRecord::to(&writer.database_name).partition(partition);
+        writer.producer.send(record, Timeout::Never).await.unwrap();
+
+        let mut reader = ctx.reading(true).await.unwrap();
+        let mut streams = reader.streams();
+        assert_eq!(streams.len(), 1);
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+        let err = stream.stream.next().await.unwrap().unwrap_err();
+        assert_eq!(err.to_string(), "Payload missing");
+    }
+
+    #[tokio::test]
+    async fn format_header_missing() {
+        let conn = maybe_skip_kafka_integration!();
+        let adapter = KafkaTestAdapter::new(conn);
+        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
+
+        let writer = ctx.writing(true).await.unwrap();
+        let partition = set_pop_first(&mut writer.sequencer_ids()).unwrap() as i32;
+        let entry = lp_to_entry("upc,region=east user=1 100");
+        let record: FutureRecord<'_, String, _> = FutureRecord::to(&writer.database_name)
+            .payload(entry.data())
+            .partition(partition);
+        writer.producer.send(record, Timeout::Never).await.unwrap();
+
+        let mut reader = ctx.reading(true).await.unwrap();
+        let mut streams = reader.streams();
+        assert_eq!(streams.len(), 1);
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+        stream.stream.next().await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn format_header_unknown() {
+        let conn = maybe_skip_kafka_integration!();
+        let adapter = KafkaTestAdapter::new(conn);
+        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
+
+        let writer = ctx.writing(true).await.unwrap();
+        let partition = set_pop_first(&mut writer.sequencer_ids()).unwrap() as i32;
+        let entry = lp_to_entry("upc,region=east user=1 100");
+        let record: FutureRecord<'_, String, _> = FutureRecord::to(&writer.database_name)
+            .payload(entry.data())
+            .partition(partition)
+            .headers(OwnedHeaders::new().add(HEADER_FORMAT, "foo"));
+        writer.producer.send(record, Timeout::Never).await.unwrap();
+
+        let mut reader = ctx.reading(true).await.unwrap();
+        let mut streams = reader.streams();
+        assert_eq!(streams.len(), 1);
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+        let err = stream.stream.next().await.unwrap().unwrap_err();
+        assert_eq!(err.to_string(), "Unknown message format: foo");
     }
 }
