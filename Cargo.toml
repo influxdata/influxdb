@@ -111,6 +111,7 @@ trace_exporters = { path = "trace_exporters" }
 trace_http = { path = "trace_http" }
 tracker = { path = "tracker" }
 trogging = { path = "trogging", default-features = false, features = ["structopt"] }
+time = { path = "time" }
 
 # Crates.io dependencies, in alphabetical order
 arrow = { version = "5.5", features = ["prettyprint"] }

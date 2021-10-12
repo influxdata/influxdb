@@ -12,6 +12,7 @@ use futures::future::BoxFuture;
 use internal_types::access::AccessMetrics;
 use observability_deps::tracing::{debug, info, trace, warn};
 use std::{convert::TryInto, fmt::Debug};
+use time::Time;
 use tracker::TaskTracker;
 
 /// Number of seconds to wait before retrying a failed lifecycle action
@@ -350,14 +351,14 @@ where
         let persistable_age_seconds: u32 = partition
             .minimum_unpersisted_age()
             .and_then(|minimum_unpersisted_age| {
-                (now - minimum_unpersisted_age)
+                (now - minimum_unpersisted_age.date_time())
                     .num_seconds()
                     .try_into()
                     .ok()
             })
             .unwrap_or_default();
 
-        let persistable_row_count = partition.persistable_row_count(now);
+        let persistable_row_count = partition.persistable_row_count();
         debug!(%db_name, %partition,
                partition_persist_row_count=persistable_row_count,
                rules_persist_row_count=%rules.persist_row_threshold.get(),
@@ -379,7 +380,7 @@ where
         // Upgrade partition to be able to rotate persistence windows
         let mut partition = partition.upgrade();
 
-        let persist_handle = match LockablePartition::prepare_persist(&mut partition, now) {
+        let persist_handle = match LockablePartition::prepare_persist(&mut partition, false) {
             Some(x) => x,
             None => {
                 debug!(%db_name, %partition, "no persistable windows or previous outstanding persist");
@@ -438,7 +439,7 @@ where
     /// The core policy logic
     ///
     /// Returns a future that resolves when this method should be called next
-    pub fn check_for_work(&mut self, now: DateTime<Utc>) -> BoxFuture<'_, ()> {
+    pub fn check_for_work(&mut self, now: DateTime<Utc>) -> BoxFuture<'static, ()> {
         // Any time-consuming work should be spawned as tokio tasks and not
         // run directly within this loop
 
@@ -581,7 +582,8 @@ fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<
         return true;
     }
 
-    elapsed_seconds(now, chunk.time_of_last_write()) >= rules.late_arrive_window_seconds.get()
+    elapsed_seconds(now, chunk.time_of_last_write().date_time())
+        >= rules.late_arrive_window_seconds.get()
 }
 
 /// An action to free up memory
@@ -624,7 +626,7 @@ fn sort_free_candidates<P>(candidates: &mut Vec<FreeCandidate<'_, P>>) {
 /// job that is already running).
 pub fn select_persistable_chunks<P, D>(
     chunks: &[D],
-    flush_ts: DateTime<Utc>,
+    flush_ts: Time,
 ) -> Result<Vec<LifecycleWriteGuard<'_, P, D>>, bool>
 where
     D: LockableChunk<Chunk = P>,
@@ -655,7 +657,7 @@ where
         // Chunk's data is entirely after the time we are flushing
         // up to, and thus there is reason to include it in the
         // plan
-        if chunk.min_timestamp() > flush_ts {
+        if chunk.min_timestamp() > flush_ts.date_time() {
             // Ignore chunk for now, but we might need it later to close chunk order gaps
             debug!(
                 chunk=%chunk.addr(),
@@ -725,8 +727,8 @@ mod tests {
     struct TestPartition {
         chunks: BTreeMap<ChunkId, (ChunkOrder, Arc<RwLock<TestChunk>>)>,
         persistable_row_count: usize,
-        minimum_unpersisted_age: Option<DateTime<Utc>>,
-        max_persistable_timestamp: Option<DateTime<Utc>>,
+        minimum_unpersisted_age: Option<Time>,
+        max_persistable_timestamp: Option<Time>,
         next_id: u128,
     }
 
@@ -734,8 +736,8 @@ mod tests {
         fn with_persistence(
             self,
             persistable_row_count: usize,
-            minimum_unpersisted_age: DateTime<Utc>,
-            max_persistable_timestamp: DateTime<Utc>,
+            minimum_unpersisted_age: Time,
+            max_persistable_timestamp: Time,
         ) -> Self {
             Self {
                 chunks: self.chunks,
@@ -753,7 +755,7 @@ mod tests {
         row_count: usize,
         min_timestamp: Option<DateTime<Utc>>,
         access_metrics: AccessMetrics,
-        time_of_last_write: DateTime<Utc>,
+        time_of_last_write: Time,
         lifecycle_action: Option<TaskTracker<ChunkLifecycleAction>>,
         storage: ChunkStorage,
         order: ChunkOrder,
@@ -774,9 +776,9 @@ mod tests {
                 min_timestamp: None,
                 access_metrics: AccessMetrics {
                     count: 0,
-                    last_access: Utc::now(),
+                    last_access: Time::from_timestamp(0, 0),
                 },
-                time_of_last_write: from_secs(time_of_last_write),
+                time_of_last_write: Time::from_timestamp(time_of_last_write, 0),
                 lifecycle_action: None,
                 storage,
                 order: ChunkOrder::MIN,
@@ -831,11 +833,11 @@ mod tests {
 
     #[derive(Debug)]
     struct TestPersistHandle {
-        timestamp: DateTime<Utc>,
+        timestamp: Time,
     }
 
     impl PersistHandle for TestPersistHandle {
-        fn timestamp(&self) -> DateTime<Utc> {
+        fn timestamp(&self) -> Time {
             self.timestamp
         }
     }
@@ -920,7 +922,7 @@ mod tests {
 
         fn prepare_persist(
             partition: &mut LifecycleWriteGuard<'_, Self::Partition, Self>,
-            _now: DateTime<Utc>,
+            _force: bool,
         ) -> Option<Self::PersistHandle> {
             Some(TestPersistHandle {
                 timestamp: partition.max_persistable_timestamp.unwrap(),
@@ -942,8 +944,9 @@ mod tests {
             partition.next_id += 1;
 
             // The remainder left behind after the split
-            let new_chunk = TestChunk::new(id, 0, ChunkStorage::ReadBuffer)
-                .with_min_timestamp(handle.timestamp + chrono::Duration::nanoseconds(1));
+            let new_chunk = TestChunk::new(id, 0, ChunkStorage::ReadBuffer).with_min_timestamp(
+                handle.timestamp.date_time() + chrono::Duration::nanoseconds(1),
+            );
 
             partition
                 .chunks
@@ -1013,11 +1016,11 @@ mod tests {
             false
         }
 
-        fn persistable_row_count(&self, _now: DateTime<Utc>) -> usize {
+        fn persistable_row_count(&self) -> usize {
             self.persistable_row_count
         }
 
-        fn minimum_unpersisted_age(&self) -> Option<DateTime<Utc>> {
+        fn minimum_unpersisted_age(&self) -> Option<Time> {
             self.minimum_unpersisted_age
         }
     }
@@ -1039,7 +1042,7 @@ mod tests {
             self.access_metrics.clone()
         }
 
-        fn time_of_last_write(&self) -> DateTime<Utc> {
+        fn time_of_last_write(&self) -> Time {
             self.time_of_last_write
         }
 
@@ -1182,10 +1185,10 @@ mod tests {
 
     #[test]
     fn test_sort_free_candidates() {
-        let now = Utc::now();
-        let access_metrics = |secs: i64| AccessMetrics {
+        let now = Time::from_timestamp_nanos(0);
+        let access_metrics = |secs: u64| AccessMetrics {
             count: 1,
-            last_access: now + chrono::Duration::seconds(secs),
+            last_access: now + Duration::from_secs(secs),
         };
 
         let mut candidates = vec![
@@ -1375,8 +1378,6 @@ mod tests {
         lifecycle.check_for_work(from_secs(10));
         assert_eq!(*db.events.read(), vec![]);
 
-        let now = Utc::now();
-
         let chunks = vec![
             // two "open" chunks => they must not be dropped (yet)
             TestChunk::new(ChunkId::new_test(0), 0, ChunkStorage::OpenMutableBuffer),
@@ -1394,7 +1395,7 @@ mod tests {
             )
             .with_access_metrics(AccessMetrics {
                 count: 1,
-                last_access: now,
+                last_access: Time::from_timestamp(5, 0),
             }),
             // "written" chunk => can be unloaded
             TestChunk::new(
@@ -1404,7 +1405,7 @@ mod tests {
             )
             .with_access_metrics(AccessMetrics {
                 count: 12,
-                last_access: now - chrono::Duration::seconds(1),
+                last_access: Time::from_timestamp(4, 0),
             }),
         ];
 
@@ -1697,6 +1698,7 @@ mod tests {
             ..Default::default()
         };
         let now = from_secs(0);
+        let time_now = Time::from_date_time(now);
 
         let partitions = vec![
             // Insufficient rows and not old enough => don't persist but can compact
@@ -1706,7 +1708,7 @@ mod tests {
                 TestChunk::new(ChunkId::new_test(1), 0, ChunkStorage::ReadBuffer)
                     .with_min_timestamp(from_secs(5)),
             ])
-            .with_persistence(10, now, from_secs(20)),
+            .with_persistence(10, time_now, Time::from_timestamp(20, 0)),
             // Sufficient rows => persist
             TestPartition::new(vec![
                 TestChunk::new(ChunkId::new_test(2), 0, ChunkStorage::ClosedMutableBuffer)
@@ -1714,7 +1716,7 @@ mod tests {
                 TestChunk::new(ChunkId::new_test(3), 0, ChunkStorage::ReadBuffer)
                     .with_min_timestamp(from_secs(5)),
             ])
-            .with_persistence(1_000, now, from_secs(20)),
+            .with_persistence(1_000, time_now, Time::from_timestamp(20, 0)),
             // Writes too old => persist
             TestPartition::new(vec![
                 // Should split open chunks
@@ -1725,7 +1727,11 @@ mod tests {
                 TestChunk::new(ChunkId::new_test(6), 0, ChunkStorage::ObjectStoreOnly)
                     .with_min_timestamp(from_secs(5)),
             ])
-            .with_persistence(10, now - chrono::Duration::seconds(10), from_secs(20)),
+            .with_persistence(
+                10,
+                time_now - Duration::from_secs(10),
+                Time::from_timestamp(20, 0),
+            ),
             // Sufficient rows but conflicting compaction => prevent compaction
             TestPartition::new(vec![
                 TestChunk::new(ChunkId::new_test(7), 0, ChunkStorage::ClosedMutableBuffer)
@@ -1737,7 +1743,7 @@ mod tests {
                 TestChunk::new(ChunkId::new_test(9), 0, ChunkStorage::ReadBuffer)
                     .with_min_timestamp(from_secs(5)),
             ])
-            .with_persistence(1_000, now, from_secs(20)),
+            .with_persistence(1_000, time_now, Time::from_timestamp(20, 0)),
             // Sufficient rows and non-conflicting compaction => persist
             TestPartition::new(vec![
                 TestChunk::new(ChunkId::new_test(10), 0, ChunkStorage::ClosedMutableBuffer)
@@ -1748,7 +1754,7 @@ mod tests {
                 TestChunk::new(ChunkId::new_test(12), 0, ChunkStorage::ReadBuffer)
                     .with_min_timestamp(from_secs(5)),
             ])
-            .with_persistence(1_000, now, from_secs(20)),
+            .with_persistence(1_000, time_now, Time::from_timestamp(20, 0)),
             // Sufficient rows, non-conflicting compaction and compact-able chunk => persist + compact
             TestPartition::new(vec![
                 TestChunk::new(ChunkId::new_test(13), 0, ChunkStorage::ClosedMutableBuffer)
@@ -1762,7 +1768,7 @@ mod tests {
                 TestChunk::new(ChunkId::new_test(16), 0, ChunkStorage::ReadBuffer)
                     .with_min_timestamp(from_secs(5)),
             ])
-            .with_persistence(1_000, now, from_secs(20)),
+            .with_persistence(1_000, time_now, Time::from_timestamp(20, 0)),
             // Checks that we include chunks in a closed "order"-based interval.
             // Note that the chunks here are ordered in reverse to check if the lifecycle policy really uses the chunk
             // order during iteration.
@@ -1783,7 +1789,7 @@ mod tests {
                     .with_min_timestamp(from_secs(25))
                     .with_order(ChunkOrder::new(1).unwrap()),
             ])
-            .with_persistence(1_000, now, from_secs(20)),
+            .with_persistence(1_000, time_now, Time::from_timestamp(20, 0)),
         ];
 
         let db = TestDb::from_partitions(rules, partitions);
@@ -1823,14 +1829,15 @@ mod tests {
             ..Default::default()
         };
         let now = Utc::now();
+        let time_now = Time::from_date_time(now);
 
         // This could occur if the in-memory contents of a partition are deleted, and
         // compaction causes the chunks to be removed. In such a scenario the persistence
         // windows will still think there are rows to be persisted
         let partitions = vec![TestPartition::new(vec![]).with_persistence(
             10,
-            now - chrono::Duration::seconds(20),
-            from_secs(20),
+            time_now - Duration::from_secs(20),
+            Time::from_timestamp(20, 0),
         )];
 
         let db = TestDb::from_partitions(rules, partitions);
@@ -1851,6 +1858,7 @@ mod tests {
             ..Default::default()
         };
         let now = Utc::now();
+        let time_now = Time::from_date_time(now);
 
         let partitions = vec![
             // Sufficient rows => could persist but should be suppressed
@@ -1860,7 +1868,7 @@ mod tests {
                 TestChunk::new(ChunkId::new_test(3), 0, ChunkStorage::ReadBuffer)
                     .with_min_timestamp(from_secs(5)),
             ])
-            .with_persistence(1_000, now, from_secs(20)),
+            .with_persistence(1_000, time_now, Time::from_timestamp(20, 0)),
         ];
 
         let db = TestDb::from_partitions(rules, partitions);

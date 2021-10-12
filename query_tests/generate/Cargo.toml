@@ -1,0 +1,11 @@
+[package]
+name = "generate"
+description = "Creates rust #tests for files in .sql"
+version = "0.1.0"
+authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
+edition = "2018"
+
+[dependencies] # In alphabetical order
+
+# Note this is a standalone binary and not part of the overall workspace
+[workspace]

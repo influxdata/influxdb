@@ -51,6 +51,11 @@ pub struct SpanContext {
 
     pub span_id: SpanId,
 
+    /// Link to other spans, can be cross-trace if this span aggregates multiple spans.
+    ///
+    /// See <https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/overview.md#links-between-spans>.
+    pub links: Vec<(TraceId, SpanId)>,
+
     pub collector: Option<Arc<dyn TraceCollector>>,
 }
 
@@ -67,6 +72,7 @@ impl SpanContext {
             trace_id: TraceId(NonZeroU128::new(trace_id).unwrap()),
             parent_span_id: None,
             span_id: SpanId(NonZeroU64::new(span_id).unwrap()),
+            links: vec![],
             collector: Some(collector),
         }
     }
@@ -79,6 +85,7 @@ impl SpanContext {
                 trace_id: self.trace_id,
                 span_id: SpanId::gen(),
                 collector: self.collector.clone(),
+                links: vec![],
                 parent_span_id: Some(self.span_id),
             },
             start: None,

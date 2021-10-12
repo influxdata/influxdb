@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
 use snafu::Snafu;
 
 use data_types::{
@@ -22,6 +21,7 @@ use tracker::{TaskRegistration, TaskTracker};
 
 use crate::db::catalog::metrics::{StorageRecorder, TimestampHistogram};
 use parking_lot::Mutex;
+use time::{Time, TimeProvider};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -210,15 +210,18 @@ pub struct CatalogChunk {
     /// Record access to this chunk's data by queries and writes
     access_recorder: AccessRecorder,
 
+    /// Time provider
+    time_provider: Arc<dyn TimeProvider>,
+
     /// The earliest time at which data contained within this chunk was written
     /// into IOx. Note due to the compaction, etc... this may not be the chunk
     /// that data was originally written into
-    time_of_first_write: DateTime<Utc>,
+    time_of_first_write: Time,
 
     /// The latest time at which data contained within this chunk was written
     /// into IOx. Note due to the compaction, etc... this may not be the chunk
     /// that data was originally written into
-    time_of_last_write: DateTime<Utc>,
+    time_of_last_write: Time,
 
     /// Order of this chunk relative to other overlapping chunks.
     order: ChunkOrder,
@@ -273,22 +276,25 @@ impl CatalogChunk {
     pub(super) fn new_open(
         addr: ChunkAddr,
         chunk: mutable_buffer::chunk::MBChunk,
-        time_of_write: DateTime<Utc>,
         metrics: ChunkMetrics,
         order: ChunkOrder,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         assert_eq!(chunk.table_name(), &addr.table_name);
 
         let stage = ChunkStage::Open { mb_chunk: chunk };
+
+        let now = time_provider.now();
 
         let chunk = Self {
             addr,
             stage,
             lifecycle_action: None,
             metrics: Mutex::new(metrics),
-            access_recorder: Default::default(),
-            time_of_first_write: time_of_write,
-            time_of_last_write: time_of_write,
+            access_recorder: AccessRecorder::new(Arc::clone(&time_provider)),
+            time_provider,
+            time_of_first_write: now,
+            time_of_last_write: now,
             order,
         };
         chunk.update_metrics();
@@ -302,12 +308,13 @@ impl CatalogChunk {
     pub(super) fn new_rub_chunk(
         addr: ChunkAddr,
         chunk: read_buffer::RBChunk,
-        time_of_first_write: DateTime<Utc>,
-        time_of_last_write: DateTime<Utc>,
+        time_of_first_write: Time,
+        time_of_last_write: Time,
         schema: Arc<Schema>,
         metrics: ChunkMetrics,
         delete_predicates: Vec<Arc<DeletePredicate>>,
         order: ChunkOrder,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         let stage = ChunkStage::Frozen {
             meta: Arc::new(ChunkMetadata {
@@ -323,7 +330,8 @@ impl CatalogChunk {
             stage,
             lifecycle_action: None,
             metrics: Mutex::new(metrics),
-            access_recorder: Default::default(),
+            access_recorder: AccessRecorder::new(Arc::clone(&time_provider)),
+            time_provider,
             time_of_first_write,
             time_of_last_write,
             order,
@@ -334,14 +342,16 @@ impl CatalogChunk {
 
     /// Creates a new chunk that is only registered via an object store reference (= only exists in
     /// parquet).
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new_object_store_only(
         addr: ChunkAddr,
         chunk: Arc<parquet_file::chunk::ParquetChunk>,
-        time_of_first_write: DateTime<Utc>,
-        time_of_last_write: DateTime<Utc>,
+        time_of_first_write: Time,
+        time_of_last_write: Time,
         metrics: ChunkMetrics,
         delete_predicates: Vec<Arc<DeletePredicate>>,
         order: ChunkOrder,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         assert_eq!(chunk.table_name(), addr.table_name.as_ref());
 
@@ -363,7 +373,8 @@ impl CatalogChunk {
             stage,
             lifecycle_action: None,
             metrics: Mutex::new(metrics),
-            access_recorder: Default::default(),
+            access_recorder: AccessRecorder::new(Arc::clone(&time_provider)),
+            time_provider,
             time_of_first_write,
             time_of_last_write,
             order,
@@ -407,11 +418,11 @@ impl CatalogChunk {
             .map_or(false, |action| action.metadata() == &lifecycle_action)
     }
 
-    pub fn time_of_first_write(&self) -> DateTime<Utc> {
+    pub fn time_of_first_write(&self) -> Time {
         self.time_of_first_write
     }
 
-    pub fn time_of_last_write(&self) -> DateTime<Utc> {
+    pub fn time_of_last_write(&self) -> Time {
         self.time_of_last_write
     }
 
@@ -511,19 +522,18 @@ impl CatalogChunk {
     ///
     /// `time_of_write` is the wall clock time of the write
     /// `timestamps` is a summary of the row timestamps contained in the write
-    pub fn record_write(&mut self, time_of_write: DateTime<Utc>, timestamps: &TimestampSummary) {
+    pub fn record_write(&mut self, timestamps: &TimestampSummary) {
         {
             let metrics = self.metrics.lock();
             if let Some(timestamp_histogram) = metrics.timestamp_histogram.as_ref() {
                 timestamp_histogram.add(timestamps)
             }
         }
-        self.access_recorder.record_access_now();
+        self.access_recorder.record_access();
 
-        self.time_of_first_write = self.time_of_first_write.min(time_of_write);
-
-        // DateTime<Utc> isn't necessarily monotonic
-        self.time_of_last_write = self.time_of_last_write.max(time_of_write);
+        let now = self.time_provider.now();
+        self.time_of_first_write = self.time_of_first_write.min(now);
+        self.time_of_last_write = self.time_of_last_write.max(now);
 
         self.update_metrics();
     }
@@ -1128,20 +1138,19 @@ mod tests {
     fn make_open_chunk() -> CatalogChunk {
         let addr = chunk_addr();
         let mb_chunk = make_mb_chunk(&addr.table_name);
-        let time_of_write = Utc::now();
 
         CatalogChunk::new_open(
             addr,
             mb_chunk,
-            time_of_write,
             ChunkMetrics::new_unregistered(),
             ChunkOrder::new(5).unwrap(),
+            Arc::new(time::SystemProvider::new()),
         )
     }
 
     async fn make_persisted_chunk() -> CatalogChunk {
         let addr = chunk_addr();
-        let now = Utc::now();
+        let now = Time::from_timestamp_nanos(43564);
 
         // assemble ParquetChunk
         let parquet_chunk = make_parquet_chunk(addr.clone()).await;
@@ -1154,6 +1163,7 @@ mod tests {
             ChunkMetrics::new_unregistered(),
             vec![],
             ChunkOrder::new(6).unwrap(),
+            Arc::new(time::SystemProvider::new()),
         )
     }
 }

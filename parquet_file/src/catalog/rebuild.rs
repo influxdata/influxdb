@@ -6,6 +6,7 @@ use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use observability_deps::tracing::error;
 use snafu::{ResultExt, Snafu};
 
+use crate::catalog::core::PreservedCatalogConfig;
 use crate::{
     catalog::{
         core::PreservedCatalog,
@@ -69,7 +70,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///   `ignore_metadata_read_failure` to `true` to ignore these cases.
 pub async fn rebuild_catalog<S>(
     db_name: &str,
-    iox_object_store: Arc<IoxObjectStore>,
+    config: PreservedCatalogConfig,
     catalog_empty_input: S::EmptyInput,
     ignore_metadata_read_failure: bool,
 ) -> Result<(PreservedCatalog, S)>
@@ -77,23 +78,20 @@ where
     S: CatalogState + Debug + Send + Sync,
 {
     // collect all revisions from parquet files
-    let files = collect_files(&iox_object_store, ignore_metadata_read_failure).await?;
+    let files = collect_files(&config.iox_object_store, ignore_metadata_read_failure).await?;
 
     // create new empty catalog
-    let (catalog, mut state) = PreservedCatalog::new_empty::<S>(
-        db_name,
-        Arc::clone(&iox_object_store),
-        catalog_empty_input,
-    )
-    .await
-    .context(NewEmptyFailure)?;
+    let (catalog, mut state) =
+        PreservedCatalog::new_empty::<S>(db_name, config.clone(), catalog_empty_input)
+            .await
+            .context(NewEmptyFailure)?;
 
     // create single transaction with all files
     if !files.is_empty() {
         let mut transaction = catalog.open_transaction().await;
         for info in files {
             state
-                .add(Arc::clone(&iox_object_store), info.clone())
+                .add(Arc::clone(&config.iox_object_store), info.clone())
                 .context(FileRecordFailure)?;
             transaction.add_parquet(&info);
         }
@@ -181,32 +179,32 @@ mod tests {
         metadata::IoxMetadata,
         storage::{MemWriter, Storage},
         test_utils::{
-            create_partition_and_database_checkpoint, make_iox_object_store, make_record_batch,
-            TestSize,
+            create_partition_and_database_checkpoint, make_config, make_record_batch, TestSize,
         },
     };
-    use chrono::Utc;
     use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
     use datafusion::physical_plan::SendableRecordBatchStream;
     use datafusion_util::MemoryStream;
     use parquet::arrow::ArrowWriter;
+    use time::Time;
     use tokio_stream::StreamExt;
 
     #[tokio::test]
     async fn test_rebuild_successfull() {
-        let iox_object_store = make_iox_object_store().await;
+        let config = make_config().await;
+        let iox_object_store = &config.iox_object_store;
         let db_name = Arc::from("db1");
 
         // build catalog with some data
-        let (catalog, mut state) = new_empty(&iox_object_store).await;
+        let (catalog, mut state) = new_empty(config.clone()).await;
         {
             let mut transaction = catalog.open_transaction().await;
 
-            let info = create_parquet_file(&db_name, &iox_object_store, ChunkId::new_test(0)).await;
+            let info = create_parquet_file(&db_name, iox_object_store, ChunkId::new_test(0)).await;
             state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info);
 
-            let info = create_parquet_file(&db_name, &iox_object_store, ChunkId::new_test(1)).await;
+            let info = create_parquet_file(&db_name, iox_object_store, ChunkId::new_test(1)).await;
             state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info);
 
@@ -220,7 +218,7 @@ mod tests {
         {
             let mut transaction = catalog.open_transaction().await;
 
-            let info = create_parquet_file(&db_name, &iox_object_store, ChunkId::new_test(2)).await;
+            let info = create_parquet_file(&db_name, iox_object_store, ChunkId::new_test(2)).await;
             state.insert(info.clone()).unwrap();
             transaction.add_parquet(&info);
 
@@ -236,13 +234,12 @@ mod tests {
 
         // wipe catalog
         drop(catalog);
-        PreservedCatalog::wipe(&iox_object_store).await.unwrap();
+        PreservedCatalog::wipe(iox_object_store).await.unwrap();
 
         // rebuild
-        let (catalog, state) =
-            rebuild_catalog::<TestCatalogState>(DB_NAME, iox_object_store, (), false)
-                .await
-                .unwrap();
+        let (catalog, state) = rebuild_catalog::<TestCatalogState>(DB_NAME, config, (), false)
+            .await
+            .unwrap();
 
         // check match
         let paths_actual = {
@@ -256,20 +253,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_rebuild_empty() {
-        let iox_object_store = make_iox_object_store().await;
+        let config = make_config().await;
 
         // build empty catalog
-        let (catalog, _state) = new_empty(&iox_object_store).await;
+        let (catalog, _state) = new_empty(config.clone()).await;
 
         // wipe catalog
         drop(catalog);
-        PreservedCatalog::wipe(&iox_object_store).await.unwrap();
+        PreservedCatalog::wipe(&config.iox_object_store)
+            .await
+            .unwrap();
 
         // rebuild
-        let (catalog, state) =
-            rebuild_catalog::<TestCatalogState>(DB_NAME, iox_object_store, (), false)
-                .await
-                .unwrap();
+        let (catalog, state) = rebuild_catalog::<TestCatalogState>(DB_NAME, config, (), false)
+            .await
+            .unwrap();
 
         // check match
         assert!(state.files().next().is_none());
@@ -278,30 +276,30 @@ mod tests {
 
     #[tokio::test]
     async fn test_rebuild_no_metadata() {
-        let iox_object_store = make_iox_object_store().await;
+        let config = make_config().await;
+        let iox_object_store = &config.iox_object_store;
+
         let db_name = Arc::from("db1");
 
         // build catalog with same data
-        let catalog = new_empty(&iox_object_store).await;
+        let catalog = new_empty(config.clone()).await;
 
         // file w/o metadata
-        create_parquet_file_without_metadata(&db_name, &iox_object_store, ChunkId::new_test(0))
+        create_parquet_file_without_metadata(&db_name, iox_object_store, ChunkId::new_test(0))
             .await;
 
         // wipe catalog
         drop(catalog);
-        PreservedCatalog::wipe(&iox_object_store).await.unwrap();
+        PreservedCatalog::wipe(iox_object_store).await.unwrap();
 
         // rebuild (do not ignore errors)
-        let res =
-            rebuild_catalog::<TestCatalogState>(DB_NAME, Arc::clone(&iox_object_store), (), false)
-                .await;
+        let res = rebuild_catalog::<TestCatalogState>(DB_NAME, config.clone(), (), false).await;
         assert!(dbg!(res.unwrap_err().to_string())
             .starts_with("Cannot read IOx metadata from parquet file"));
 
         // rebuild (ignore errors)
         let (catalog, state) =
-            rebuild_catalog::<TestCatalogState>(DB_NAME, iox_object_store, (), true)
+            rebuild_catalog::<TestCatalogState>(DB_NAME, config.clone(), (), true)
                 .await
                 .unwrap();
         assert!(state.files().next().is_none());
@@ -318,21 +316,21 @@ mod tests {
         // transaction files and then check that rebuilt catalog will be gone afterwards. Note the
         // difference to the `test_rebuild_empty` case where we can indeed proof the existence of a
         // catalog (even though it is empty aka has no files).
-        let iox_object_store = make_iox_object_store().await;
+        let config = make_config().await;
+        let iox_object_store = &config.iox_object_store;
 
         // build catalog with some data (2 transactions + initial empty one)
-        let (catalog, _state) = new_empty(&iox_object_store).await;
+        let (catalog, _state) = new_empty(config.clone()).await;
         assert_eq!(catalog.revision_counter(), 0);
 
         // wipe catalog
         drop(catalog);
-        PreservedCatalog::wipe(&iox_object_store).await.unwrap();
+        PreservedCatalog::wipe(iox_object_store).await.unwrap();
 
         // rebuild
-        let catalog =
-            rebuild_catalog::<TestCatalogState>(DB_NAME, Arc::clone(&iox_object_store), (), false)
-                .await
-                .unwrap();
+        let catalog = rebuild_catalog::<TestCatalogState>(DB_NAME, config.clone(), (), false)
+            .await
+            .unwrap();
         drop(catalog);
 
         // delete transaction files
@@ -356,7 +354,7 @@ mod tests {
         assert!(deleted);
 
         // the catalog should be gone because there should have been no checkpoint files remaining
-        assert!(!exists(&iox_object_store).await);
+        assert!(!exists(iox_object_store).await);
     }
 
     pub async fn create_parquet_file(
@@ -375,14 +373,14 @@ mod tests {
             Arc::clone(&partition_key),
         );
         let metadata = IoxMetadata {
-            creation_timestamp: Utc::now(),
+            creation_timestamp: Time::from_timestamp_nanos(0),
             table_name: Arc::clone(&table_name),
             partition_key: Arc::clone(&partition_key),
             chunk_id,
             partition_checkpoint,
             database_checkpoint,
-            time_of_first_write: Utc::now(),
-            time_of_last_write: Utc::now(),
+            time_of_first_write: Time::from_timestamp_nanos(0),
+            time_of_last_write: Time::from_timestamp_nanos(0),
             chunk_order: ChunkOrder::new(5).unwrap(),
         };
         let stream: SendableRecordBatchStream = Box::pin(MemoryStream::new(record_batches));

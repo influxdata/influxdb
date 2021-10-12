@@ -2,7 +2,6 @@
 
 use super::chunk::{CatalogChunk, Error as ChunkError};
 use crate::db::catalog::metrics::PartitionMetrics;
-use chrono::{DateTime, Utc};
 use data_types::{
     chunk_metadata::{ChunkAddr, ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkSummary},
     partition_metadata::{PartitionAddr, PartitionSummary},
@@ -16,6 +15,7 @@ use predicate::delete_predicate::DeletePredicate;
 use schema::Schema;
 use snafu::{OptionExt, Snafu};
 use std::{collections::BTreeMap, fmt::Display, sync::Arc};
+use time::{Time, TimeProvider};
 use tracker::RwLock;
 
 #[derive(Debug, Snafu)]
@@ -120,11 +120,11 @@ pub struct Partition {
     chunks: ChunkCollection,
 
     /// When this partition was created
-    created_at: DateTime<Utc>,
+    created_at: Time,
 
     /// the last time at which write was made to this
     /// partition. Partition::new initializes this to now.
-    last_write_at: DateTime<Utc>,
+    last_write_at: Time,
 
     /// Partition metrics
     metrics: Arc<PartitionMetrics>,
@@ -134,6 +134,9 @@ pub struct Partition {
 
     /// Tracks next chunk order in this partition.
     next_chunk_order: ChunkOrder,
+
+    /// The time provider
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 impl Partition {
@@ -141,8 +144,12 @@ impl Partition {
     ///
     /// This function is not pub because `Partition`s should be created using the interfaces on
     /// [`Catalog`](crate::db::catalog::Catalog) and not instantiated directly.
-    pub(super) fn new(addr: PartitionAddr, metrics: PartitionMetrics) -> Self {
-        let now = Utc::now();
+    pub(super) fn new(
+        addr: PartitionAddr,
+        metrics: PartitionMetrics,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Self {
+        let now = time_provider.now();
         Self {
             addr,
             chunks: Default::default(),
@@ -151,6 +158,7 @@ impl Partition {
             metrics: Arc::new(metrics),
             persistence_windows: None,
             next_chunk_order: ChunkOrder::MIN,
+            time_provider,
         }
     }
 
@@ -176,16 +184,16 @@ impl Partition {
 
     /// Update the last write time to now
     pub fn update_last_write_at(&mut self) {
-        self.last_write_at = Utc::now();
+        self.last_write_at = self.time_provider.now();
     }
 
     /// Return the time at which this partition was created
-    pub fn created_at(&self) -> DateTime<Utc> {
+    pub fn created_at(&self) -> Time {
         self.created_at
     }
 
     /// Return the time at which the last write was written to this partititon
-    pub fn last_write_at(&self) -> DateTime<Utc> {
+    pub fn last_write_at(&self) -> Time {
         self.last_write_at
     }
 
@@ -198,7 +206,6 @@ impl Partition {
     pub fn create_open_chunk(
         &mut self,
         chunk: mutable_buffer::chunk::MBChunk,
-        time_of_write: DateTime<Utc>,
     ) -> &Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name().as_ref(), self.table_name());
 
@@ -210,9 +217,9 @@ impl Partition {
         let chunk = CatalogChunk::new_open(
             addr,
             chunk,
-            time_of_write,
             self.metrics.new_chunk_metrics(),
             chunk_order,
+            Arc::clone(&self.time_provider),
         );
         let chunk = Arc::new(self.metrics.new_chunk_lock(chunk));
         self.chunks.insert(chunk_id, chunk_order, chunk)
@@ -225,8 +232,8 @@ impl Partition {
     pub fn create_rub_chunk(
         &mut self,
         chunk: read_buffer::RBChunk,
-        time_of_first_write: DateTime<Utc>,
-        time_of_last_write: DateTime<Utc>,
+        time_of_first_write: Time,
+        time_of_last_write: Time,
         schema: Arc<Schema>,
         delete_predicates: Vec<Arc<DeletePredicate>>,
         chunk_order: ChunkOrder,
@@ -252,6 +259,7 @@ impl Partition {
             self.metrics.new_chunk_metrics(),
             delete_predicates,
             chunk_order,
+            Arc::clone(&self.time_provider),
         )));
 
         let chunk = self.chunks.insert(chunk_id, chunk_order, chunk);
@@ -269,8 +277,8 @@ impl Partition {
         &mut self,
         chunk_id: ChunkId,
         chunk: Arc<parquet_file::chunk::ParquetChunk>,
-        time_of_first_write: DateTime<Utc>,
-        time_of_last_write: DateTime<Utc>,
+        time_of_first_write: Time,
+        time_of_last_write: Time,
         delete_predicates: Vec<Arc<DeletePredicate>>,
         chunk_order: ChunkOrder,
     ) -> &Arc<RwLock<CatalogChunk>> {
@@ -288,6 +296,7 @@ impl Partition {
                     self.metrics.new_chunk_metrics(),
                     delete_predicates,
                     chunk_order,
+                    Arc::clone(&self.time_provider),
                 )),
         );
 
@@ -440,18 +449,17 @@ mod tests {
             Arc::clone(&addr.db_name),
             Arc::clone(&registry),
         ));
+        let time_provider = Arc::new(time::SystemProvider::new());
         let table_metrics = Arc::new(catalog_metrics.new_table_metrics("t"));
         let partition_metrics = table_metrics.new_partition_metrics();
-
-        let t = Utc::now();
 
         // should be in ascending order
         let mut expected_ids = vec![];
 
         // Make three chunks
-        let mut partition = Partition::new(addr, partition_metrics);
+        let mut partition = Partition::new(addr, partition_metrics, time_provider);
         for _ in 0..3 {
-            let chunk = partition.create_open_chunk(make_mb_chunk("t"), t);
+            let chunk = partition.create_open_chunk(make_mb_chunk("t"));
             expected_ids.push(chunk.read().addr().chunk_id)
         }
 

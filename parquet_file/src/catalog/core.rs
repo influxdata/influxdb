@@ -12,7 +12,6 @@ use crate::{
     metadata::IoxParquetMetaData,
 };
 use bytes::Bytes;
-use chrono::{DateTime, Utc};
 use futures::{StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
@@ -30,6 +29,7 @@ use std::{
     fmt::Debug,
     sync::Arc,
 };
+use time::{Time, TimeProvider};
 use tokio::sync::{Semaphore, SemaphorePermit};
 use uuid::Uuid;
 
@@ -163,6 +163,48 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Configuration used to create a [`PreservedCatalog`]
+#[derive(Debug, Clone)]
+pub struct PreservedCatalogConfig {
+    /// Object store that backs the catalog
+    pub(crate) iox_object_store: Arc<IoxObjectStore>,
+
+    /// Fixed UUID for testing
+    pub(crate) fixed_uuid: Option<Uuid>,
+
+    /// Time provider to use instead of [`time::SystemProvider`]
+    pub(crate) time_provider: Arc<dyn TimeProvider>,
+}
+
+impl PreservedCatalogConfig {
+    pub fn new(
+        iox_object_store: Arc<IoxObjectStore>,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Self {
+        Self {
+            iox_object_store,
+            fixed_uuid: None,
+            time_provider,
+        }
+    }
+
+    /// Fixed UUID to use for all transactions instead of a fresh UUIDv4
+    pub fn with_fixed_uuid(self, uuid: Uuid) -> Self {
+        Self {
+            fixed_uuid: Some(uuid),
+            ..self
+        }
+    }
+
+    /// Override the time provider
+    pub fn with_time_provider(self, time_provider: Arc<dyn TimeProvider>) -> Self {
+        Self {
+            time_provider,
+            ..self
+        }
+    }
+}
+
 /// In-memory view of the preserved catalog.
 pub struct PreservedCatalog {
     // We need an RWLock AND a semaphore, so that readers are NOT blocked during an open
@@ -194,10 +236,8 @@ pub struct PreservedCatalog {
     /// This can be useful for testing to achieve deterministic outputs.
     fixed_uuid: Option<Uuid>,
 
-    /// If set, this start time will be used for all transaction instead of "now".
-    ///
-    /// This can be useful for testing to achieve deterministic outputs.
-    fixed_timestamp: Option<DateTime<Utc>>,
+    /// Time provider
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 impl PreservedCatalog {
@@ -221,7 +261,7 @@ impl PreservedCatalog {
     /// most broken catalogs.
     pub async fn find_last_transaction_timestamp(
         iox_object_store: &IoxObjectStore,
-    ) -> Result<Option<DateTime<Utc>>> {
+    ) -> Result<Option<Time>> {
         let mut res = None;
 
         let mut stream = iox_object_store
@@ -234,7 +274,7 @@ impl PreservedCatalog {
                 match load_transaction_proto(iox_object_store, transaction_file_path).await {
                     Ok(proto) => match proto_parse::parse_timestamp(&proto.start_timestamp) {
                         Ok(ts) => {
-                            res = Some(res.map_or(ts, |res: DateTime<Utc>| res.max(ts)));
+                            res = Some(res.map_or(ts, |res: Time| res.max(ts)));
                         }
                         Err(e) => warn!(%e, ?transaction_file_path, "Cannot parse timestamp"),
                     },
@@ -266,47 +306,13 @@ impl PreservedCatalog {
     /// still-empty catalogs can easily be detected.
     pub async fn new_empty<S>(
         db_name: &str,
-        iox_object_store: Arc<IoxObjectStore>,
+        config: PreservedCatalogConfig,
         state_data: S::EmptyInput,
     ) -> Result<(Self, S)>
     where
         S: CatalogState + Send + Sync,
     {
-        Self::new_empty_inner::<S>(db_name, iox_object_store, state_data, None, None).await
-    }
-
-    /// Same as [`new_empty`](Self::new_empty) but for testing.
-    pub async fn new_empty_for_testing<S>(
-        db_name: &str,
-        iox_object_store: Arc<IoxObjectStore>,
-        state_data: S::EmptyInput,
-        fixed_uuid: Uuid,
-        fixed_timestamp: DateTime<Utc>,
-    ) -> Result<(Self, S)>
-    where
-        S: CatalogState + Send + Sync,
-    {
-        Self::new_empty_inner::<S>(
-            db_name,
-            iox_object_store,
-            state_data,
-            Some(fixed_uuid),
-            Some(fixed_timestamp),
-        )
-        .await
-    }
-
-    pub async fn new_empty_inner<S>(
-        db_name: &str,
-        iox_object_store: Arc<IoxObjectStore>,
-        state_data: S::EmptyInput,
-        fixed_uuid: Option<Uuid>,
-        fixed_timestamp: Option<DateTime<Utc>>,
-    ) -> Result<(Self, S)>
-    where
-        S: CatalogState + Send + Sync,
-    {
-        if Self::exists(&iox_object_store).await? {
+        if Self::exists(&config.iox_object_store).await? {
             return Err(Error::AlreadyExists {});
         }
         let state = S::new_empty(db_name, state_data);
@@ -314,9 +320,9 @@ impl PreservedCatalog {
         let catalog = Self {
             previous_tkey: RwLock::new(None),
             transaction_semaphore: Semaphore::new(1),
-            iox_object_store,
-            fixed_uuid,
-            fixed_timestamp,
+            iox_object_store: config.iox_object_store,
+            fixed_uuid: config.fixed_uuid,
+            time_provider: config.time_provider,
         };
 
         // add empty transaction
@@ -336,7 +342,7 @@ impl PreservedCatalog {
     /// Transactions before that point are neither verified nor are they required to exist.
     pub async fn load<S>(
         db_name: &str,
-        iox_object_store: Arc<IoxObjectStore>,
+        config: PreservedCatalogConfig,
         state_data: S::EmptyInput,
     ) -> Result<Option<(Self, S)>>
     where
@@ -347,7 +353,8 @@ impl PreservedCatalog {
         let mut max_revision = None;
         let mut last_checkpoint = None;
 
-        let mut stream = iox_object_store
+        let mut stream = config
+            .iox_object_store
             .catalog_transaction_files()
             .await
             .context(Read)?;
@@ -426,7 +433,7 @@ impl PreservedCatalog {
                 FileType::Transaction
             };
             OpenTransaction::load_and_apply(
-                &iox_object_store,
+                &config.iox_object_store,
                 tkey,
                 &mut state,
                 &last_tkey,
@@ -440,9 +447,9 @@ impl PreservedCatalog {
             Self {
                 previous_tkey: RwLock::new(last_tkey),
                 transaction_semaphore: Semaphore::new(1),
-                iox_object_store,
-                fixed_uuid: None,
-                fixed_timestamp: None,
+                iox_object_store: config.iox_object_store,
+                fixed_uuid: config.fixed_uuid,
+                time_provider: config.time_provider,
             },
             state,
         )))
@@ -456,8 +463,7 @@ impl PreservedCatalog {
     /// transactions are given out in the order they were requested.
     pub async fn open_transaction(&self) -> TransactionHandle<'_> {
         let uuid = self.fixed_uuid.unwrap_or_else(Uuid::new_v4);
-        let start_timestamp = self.fixed_timestamp.unwrap_or_else(Utc::now);
-        TransactionHandle::new(self, uuid, start_timestamp).await
+        TransactionHandle::new(self, uuid, self.time_provider.now()).await
     }
 
     /// Get latest revision counter.
@@ -474,6 +480,15 @@ impl PreservedCatalog {
             .read()
             .map(|tkey| tkey.uuid)
             .expect("catalog should have at least an empty transaction")
+    }
+
+    /// Return the config for this `PreservedCatalog`
+    pub fn config(&self) -> PreservedCatalogConfig {
+        PreservedCatalogConfig {
+            iox_object_store: Arc::clone(&self.iox_object_store),
+            fixed_uuid: self.fixed_uuid,
+            time_provider: Arc::clone(&self.time_provider),
+        }
     }
 
     /// Object store used by this catalog.
@@ -496,11 +511,7 @@ struct OpenTransaction {
 impl OpenTransaction {
     /// Private API to create new transaction, users should always use
     /// [`PreservedCatalog::open_transaction`].
-    fn new(
-        previous_tkey: &Option<TransactionKey>,
-        uuid: Uuid,
-        start_timestamp: DateTime<Utc>,
-    ) -> Self {
+    fn new(previous_tkey: &Option<TransactionKey>, uuid: Uuid, start_timestamp: Time) -> Self {
         let (revision_counter, previous_uuid) = match previous_tkey {
             Some(tkey) => (
                 tkey.revision_counter + 1,
@@ -516,7 +527,7 @@ impl OpenTransaction {
                 uuid: uuid.as_bytes().to_vec().into(),
                 revision_counter,
                 previous_uuid,
-                start_timestamp: Some(start_timestamp.into()),
+                start_timestamp: Some(start_timestamp.date_time().into()),
                 encoding: proto::transaction::Encoding::Delta.into(),
             },
         }
@@ -731,7 +742,7 @@ impl<'c> TransactionHandle<'c> {
     async fn new(
         catalog: &'c PreservedCatalog,
         uuid: Uuid,
-        start_timestamp: DateTime<Utc>,
+        start_timestamp: Time,
     ) -> TransactionHandle<'c> {
         // first acquire semaphore (which is only being used for transactions), then get state lock
         let permit = catalog
@@ -954,7 +965,7 @@ impl<'c> CheckpointHandle<'c> {
             previous_uuid: self
                 .previous_tkey
                 .map_or_else(Bytes::new, |tkey| tkey.uuid.as_bytes().to_vec().into()),
-            start_timestamp: Some(Utc::now().into()),
+            start_timestamp: Some(self.catalog.time_provider.now().date_time().into()),
             encoding: proto::transaction::Encoding::Full.into(),
         };
         let path = TransactionFilePath::new_checkpoint(self.tkey.revision_counter, self.tkey.uuid);
@@ -1065,66 +1076,68 @@ mod tests {
         break_catalog_with_weird_version, create_delete_predicate, exists, load_err, load_ok,
         new_empty, TestCatalogState, DB_NAME,
     };
-    use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize};
+    use crate::test_utils::{
+        chunk_addr, make_config, make_iox_object_store, make_metadata, TestSize,
+    };
 
     #[tokio::test]
     async fn test_create_empty() {
-        let iox_object_store = make_iox_object_store().await;
+        let config = make_config().await;
 
-        assert!(!exists(&iox_object_store).await);
-        assert!(load_ok(&iox_object_store).await.is_none());
+        assert!(!exists(&config.iox_object_store).await);
+        assert!(load_ok(config.clone()).await.is_none());
 
-        new_empty(&iox_object_store).await;
+        new_empty(config.clone()).await;
 
-        assert!(exists(&iox_object_store).await);
-        assert!(load_ok(&iox_object_store).await.is_some());
+        assert!(exists(&config.iox_object_store).await);
+        assert!(load_ok(config).await.is_some());
     }
 
     #[tokio::test]
     async fn test_inmem_commit_semantics() {
-        let iox_object_store = make_iox_object_store().await;
-        assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        assert_single_catalog_inmem_works(config).await;
     }
 
     #[tokio::test]
     async fn test_store_roundtrip() {
-        let iox_object_store = make_iox_object_store().await;
-        assert_catalog_roundtrip_works(&iox_object_store).await;
+        let config = make_config().await;
+        assert_catalog_roundtrip_works(config).await;
     }
 
     #[tokio::test]
     async fn test_load_from_empty_store() {
-        let iox_object_store = make_iox_object_store().await;
-        assert!(load_ok(&iox_object_store).await.is_none());
+        let config = make_config().await;
+        assert!(load_ok(config).await.is_none());
     }
 
     #[tokio::test]
     async fn test_missing_transaction() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // remove transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        checked_delete(&iox_object_store, &path).await;
+        checked_delete(&config.iox_object_store, &path).await;
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(err.to_string(), "Missing transaction: 0",);
     }
 
     #[tokio::test]
     async fn test_transaction_version_mismatch() {
-        let iox_object_store = make_iox_object_store().await;
-        assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
-        let (catalog, _state) = load_ok(&iox_object_store).await.unwrap();
+        let (catalog, _state) = load_ok(config.clone()).await.unwrap();
         break_catalog_with_weird_version(&catalog).await;
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             format!(
@@ -1137,23 +1150,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_transaction_revision() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         proto.revision_counter = 42;
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             "Wrong revision counter in transaction file: expected 0 but found 42"
@@ -1162,25 +1175,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_transaction_uuid() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         let uuid_expected = Uuid::from_slice(&proto.uuid).unwrap();
         let uuid_actual = Uuid::nil();
         proto.uuid = uuid_actual.as_bytes().to_vec().into();
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             format!(
@@ -1192,23 +1205,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_missing_transaction_uuid() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         proto.uuid = Bytes::new();
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             "Internal: Error while parsing protobuf: UUID required but not provided"
@@ -1217,23 +1230,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_broken_transaction_uuid() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         proto.uuid = Bytes::from("foo");
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             "Internal: Error while parsing protobuf: Cannot parse UUID: invalid bytes length: \
@@ -1243,23 +1256,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_transaction_link_start() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         proto.previous_uuid = Uuid::nil().as_bytes().to_vec().into();
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             "Wrong link to previous UUID in revision 0: expected None but found \
@@ -1269,23 +1282,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_transaction_link_middle() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[1];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         proto.previous_uuid = Uuid::nil().as_bytes().to_vec().into();
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             format!(
@@ -1298,23 +1311,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_transaction_link_broken() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         proto.previous_uuid = Bytes::from("foo");
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             "Internal: Error while parsing protobuf: Cannot parse UUID: invalid bytes length: \
@@ -1324,8 +1337,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_broken_protobuf() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
@@ -1333,13 +1346,14 @@ mod tests {
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         let data = Bytes::from("foo");
 
-        iox_object_store
+        config
+            .iox_object_store
             .put_catalog_transaction_file(&path, data)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             "Error during protobuf IO: Error during protobuf deserialization: failed to decode \
@@ -1349,8 +1363,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_transaction_handle_debug() {
-        let iox_object_store = make_iox_object_store().await;
-        let (catalog, _state) = new_empty(&iox_object_store).await;
+        let config = make_config().await;
+        let (catalog, _state) = new_empty(config).await;
         let mut t = catalog.open_transaction().await;
 
         // open transaction
@@ -1367,14 +1381,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_fork_transaction() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // re-create transaction file with different UUID
         assert!(trace.tkeys.len() >= 2);
         let mut tkey = trace.tkeys[1];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         let old_uuid = tkey.uuid;
@@ -1383,12 +1397,12 @@ mod tests {
         tkey.uuid = new_uuid;
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
         proto.uuid = new_uuid.as_bytes().to_vec().into();
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         let (uuid1, uuid2) = if old_uuid < new_uuid {
             (old_uuid, new_uuid)
         } else {
@@ -1406,14 +1420,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_fork_checkpoint() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // create checkpoint file with different UUID
         assert!(trace.tkeys.len() >= 2);
         let mut tkey = trace.tkeys[1];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         let old_uuid = tkey.uuid;
@@ -1423,12 +1437,12 @@ mod tests {
         let path = TransactionFilePath::new_checkpoint(tkey.revision_counter, tkey.uuid);
         proto.uuid = new_uuid.as_bytes().to_vec().into();
         proto.encoding = proto::transaction::Encoding::Full.into();
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         let (uuid1, uuid2) = if old_uuid < new_uuid {
             (old_uuid, new_uuid)
         } else {
@@ -1446,14 +1460,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_unsupported_upgrade() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         proto.actions.push(proto::transaction::Action {
@@ -1463,12 +1477,12 @@ mod tests {
                 },
             )),
         });
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             "Upgrade path not implemented/supported: foo",
@@ -1477,23 +1491,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_missing_start_timestamp() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         proto.start_timestamp = None;
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             "Internal: Error while parsing protobuf: Datetime required but missing in serialized \
@@ -1503,26 +1517,26 @@ mod tests {
 
     #[tokio::test]
     async fn test_broken_start_timestamp() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         proto.start_timestamp = Some(generated_types::google::protobuf::Timestamp {
             seconds: 0,
             nanos: -1,
         });
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             "Internal: Error while parsing protobuf: Cannot parse datetime in serialized catalog: \
@@ -1532,23 +1546,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_broken_encoding() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         proto.encoding = -1;
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             "Internal: Error while parsing protobuf: Cannot parse encoding in serialized catalog: \
@@ -1558,23 +1572,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_encoding_in_transaction_file() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         proto.encoding = proto::transaction::Encoding::Full.into();
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             "Internal: Found wrong encoding in serialized catalog file: Expected Delta but got Full"
@@ -1583,23 +1597,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_missing_encoding_in_transaction_file() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         proto.encoding = 0;
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             "Internal: Error while parsing protobuf: Cannot parse encoding in serialized catalog: \
@@ -1609,23 +1623,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_wrong_encoding_in_checkpoint_file() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let proto = load_transaction_proto(&iox_object_store, &path)
+        let proto = load_transaction_proto(&config.iox_object_store, &path)
             .await
             .unwrap();
         let path = TransactionFilePath::new_checkpoint(tkey.revision_counter, tkey.uuid);
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(&config.iox_object_store, &path, &proto)
             .await
             .unwrap();
 
         // loading catalog should fail now
-        let err = load_err(&iox_object_store).await;
+        let err = load_err(config).await;
         assert_eq!(
             err.to_string(),
             "Internal: Found wrong encoding in serialized catalog file: Expected Full but got Delta"
@@ -1634,13 +1648,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_checkpoint() {
-        let iox_object_store = make_iox_object_store().await;
-
-        // use common test as baseline
-        let mut trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let mut trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // re-open catalog
-        let (catalog, mut state) = load_ok(&iox_object_store).await.unwrap();
+        let (catalog, mut state) = load_ok(config.clone()).await.unwrap();
 
         // create empty transaction w/ checkpoint (the delta transaction file is not required for catalog loading)
         {
@@ -1656,8 +1668,13 @@ mod tests {
         // create another transaction on-top that adds a file (this transaction will be required to load the full state)
         {
             let addr = chunk_addr(1337);
-            let (path, metadata) =
-                make_metadata(&iox_object_store, "foo", addr.clone(), TestSize::Full).await;
+            let (path, metadata) = make_metadata(
+                &config.iox_object_store,
+                "foo",
+                addr.clone(),
+                TestSize::Full,
+            )
+            .await;
 
             let mut transaction = catalog.open_transaction().await;
             let info = CatalogParquetInfo {
@@ -1685,11 +1702,11 @@ mod tests {
             }
             let tkey = trace.tkeys[i];
             let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-            checked_delete(&iox_object_store, &path).await;
+            checked_delete(&config.iox_object_store, &path).await;
         }
 
         // load catalog from store and check replayed state
-        let (catalog, state) = load_ok(&iox_object_store).await.unwrap();
+        let (catalog, state) = load_ok(config).await.unwrap();
         assert_eq!(
             catalog.revision_counter(),
             trace.tkeys.last().unwrap().revision_counter
@@ -1702,9 +1719,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_predicates() {
-        let iox_object_store = make_iox_object_store().await;
+        let config = make_config().await;
+        let iox_object_store = &config.iox_object_store;
 
-        let (catalog, mut state) = new_empty(&iox_object_store).await;
+        let (catalog, mut state) = new_empty(config.clone()).await;
 
         {
             let mut t = catalog.open_transaction().await;
@@ -1714,7 +1732,7 @@ mod tests {
             for id in 0..3 {
                 let chunk_addr = chunk_addr(id);
                 let (path, metadata) =
-                    make_metadata(&iox_object_store, "foo", chunk_addr.clone(), TestSize::Full)
+                    make_metadata(iox_object_store, "foo", chunk_addr.clone(), TestSize::Full)
                         .await;
                 let info = CatalogParquetInfo {
                     path,
@@ -1742,7 +1760,7 @@ mod tests {
         }
 
         // restoring from the last transaction works
-        let (_catalog, state_recovered) = load_ok(&iox_object_store).await.unwrap();
+        let (_catalog, state_recovered) = load_ok(config.clone()).await.unwrap();
         assert_eq!(
             state.delete_predicates(),
             state_recovered.delete_predicates()
@@ -1760,7 +1778,7 @@ mod tests {
         }
 
         // restoring from the last checkpoint works
-        let (_catalog, state_recovered) = load_ok(&iox_object_store).await.unwrap();
+        let (_catalog, state_recovered) = load_ok(config.clone()).await.unwrap();
         assert_eq!(
             state.delete_predicates(),
             state_recovered.delete_predicates()
@@ -1835,7 +1853,7 @@ mod tests {
         states: Vec<TestCatalogState>,
 
         /// Traces timestamp after every (committed and aborted) transaction.
-        post_timestamps: Vec<DateTime<Utc>>,
+        post_timestamps: Vec<Time>,
 
         /// Traces if an transaction was aborted.
         aborted: Vec<bool>,
@@ -1854,15 +1872,14 @@ mod tests {
         fn record(&mut self, catalog: &PreservedCatalog, state: &TestCatalogState, aborted: bool) {
             self.tkeys.push(catalog.previous_tkey.read().unwrap());
             self.states.push(state.clone());
-            self.post_timestamps.push(Utc::now());
+            self.post_timestamps.push(catalog.time_provider.now());
             self.aborted.push(aborted);
         }
     }
 
-    async fn assert_single_catalog_inmem_works(
-        iox_object_store: &Arc<IoxObjectStore>,
-    ) -> TestTrace {
-        let (catalog, mut state) = new_empty(iox_object_store).await;
+    async fn assert_single_catalog_inmem_works(config: PreservedCatalogConfig) -> TestTrace {
+        let iox_object_store = &config.iox_object_store;
+        let (catalog, mut state) = new_empty(config.clone()).await;
 
         // track all the intermediate results
         let mut trace = TestTrace::new();
@@ -1981,16 +1998,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_twice() {
-        let iox_object_store = make_iox_object_store().await;
+        let config = make_config().await;
 
-        new_empty(&iox_object_store).await;
+        new_empty(config.clone()).await;
 
-        let res = PreservedCatalog::new_empty::<TestCatalogState>(
-            DB_NAME,
-            Arc::clone(&iox_object_store),
-            (),
-        )
-        .await;
+        let res = PreservedCatalog::new_empty::<TestCatalogState>(DB_NAME, config, ()).await;
         assert_eq!(res.unwrap_err().to_string(), "Catalog already exists");
     }
 
@@ -2003,48 +2015,48 @@ mod tests {
 
     #[tokio::test]
     async fn test_wipe_normal() {
-        let iox_object_store = make_iox_object_store().await;
+        let config = make_config().await;
+        let iox_object_store = &config.iox_object_store;
 
         // create a real catalog
-        assert_single_catalog_inmem_works(&iox_object_store).await;
+        assert_single_catalog_inmem_works(config.clone()).await;
 
         // wipe
-        PreservedCatalog::wipe(&iox_object_store).await.unwrap();
+        PreservedCatalog::wipe(iox_object_store).await.unwrap();
 
         // `exists` and `load` both report "no data"
-        assert!(!exists(&iox_object_store).await);
-        assert!(load_ok(&iox_object_store).await.is_none());
+        assert!(!exists(&config.iox_object_store).await);
+        assert!(load_ok(config.clone()).await.is_none());
 
         // can create new catalog
-        new_empty(&iox_object_store).await;
+        new_empty(config).await;
     }
 
     #[tokio::test]
     async fn test_wipe_broken_catalog() {
-        let iox_object_store = make_iox_object_store().await;
-
-        // create a real catalog
-        assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let iox_object_store = &config.iox_object_store;
+        assert_single_catalog_inmem_works(config.clone()).await;
 
         // break
-        let (catalog, _state) = load_ok(&iox_object_store).await.unwrap();
+        let (catalog, _state) = load_ok(config.clone()).await.unwrap();
         break_catalog_with_weird_version(&catalog).await;
 
         // wipe
-        PreservedCatalog::wipe(&iox_object_store).await.unwrap();
+        PreservedCatalog::wipe(iox_object_store).await.unwrap();
 
         // `exists` and `load` both report "no data"
-        assert!(!exists(&iox_object_store).await);
-        assert!(load_ok(&iox_object_store).await.is_none());
+        assert!(!exists(&config.iox_object_store).await);
+        assert!(load_ok(config.clone()).await.is_none());
 
         // can create new catalog
-        new_empty(&iox_object_store).await;
+        new_empty(config).await;
     }
 
     #[tokio::test]
     async fn test_transaction_handle_revision_counter() {
-        let iox_object_store = make_iox_object_store().await;
-        let (catalog, _state) = new_empty(&iox_object_store).await;
+        let config = make_config().await;
+        let (catalog, _state) = new_empty(config).await;
         let t = catalog.open_transaction().await;
 
         assert_eq!(t.revision_counter(), 1);
@@ -2052,8 +2064,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_transaction_handle_uuid() {
-        let iox_object_store = make_iox_object_store().await;
-        let (catalog, _state) = new_empty(&iox_object_store).await;
+        let config = make_config().await;
+        let (catalog, _state) = new_empty(config).await;
         let mut t = catalog.open_transaction().await;
 
         t.transaction.as_mut().unwrap().proto.uuid = Uuid::nil().as_bytes().to_vec().into();
@@ -2062,10 +2074,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_transaction_timestamp_ok() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
-        let ts = PreservedCatalog::find_last_transaction_timestamp(&iox_object_store)
+        let ts = PreservedCatalog::find_last_transaction_timestamp(&config.iox_object_store)
             .await
             .unwrap()
             .unwrap();
@@ -2103,22 +2115,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_transaction_timestamp_datetime_broken() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let iox_object_store = &config.iox_object_store;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
         let tkey = trace.tkeys[0];
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        let mut proto = load_transaction_proto(&iox_object_store, &path)
+        let mut proto = load_transaction_proto(iox_object_store, &path)
             .await
             .unwrap();
         proto.start_timestamp = None;
-        store_transaction_proto(&iox_object_store, &path, &proto)
+        store_transaction_proto(iox_object_store, &path, &proto)
             .await
             .unwrap();
 
-        let ts = PreservedCatalog::find_last_transaction_timestamp(&iox_object_store)
+        let ts = PreservedCatalog::find_last_transaction_timestamp(iox_object_store)
             .await
             .unwrap()
             .unwrap();
@@ -2144,8 +2157,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_transaction_timestamp_protobuf_broken() {
-        let iox_object_store = make_iox_object_store().await;
-        let trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let iox_object_store = &config.iox_object_store;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // break transaction file
         assert!(trace.tkeys.len() >= 2);
@@ -2158,7 +2172,7 @@ mod tests {
             .await
             .unwrap();
 
-        let ts = PreservedCatalog::find_last_transaction_timestamp(&iox_object_store)
+        let ts = PreservedCatalog::find_last_transaction_timestamp(iox_object_store)
             .await
             .unwrap()
             .unwrap();
@@ -2184,10 +2198,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_transaction_timestamp_checkpoints_only() {
-        let iox_object_store = make_iox_object_store().await;
-        let mut trace = assert_single_catalog_inmem_works(&iox_object_store).await;
+        let config = make_config().await;
+        let iox_object_store = &config.iox_object_store;
+        let mut trace = assert_single_catalog_inmem_works(config.clone()).await;
 
-        let (catalog, state) = load_ok(&iox_object_store).await.unwrap();
+        let (catalog, state) = load_ok(config.clone()).await.unwrap();
 
         // create empty transaction w/ checkpoint
         {
@@ -2206,11 +2221,11 @@ mod tests {
                 continue;
             }
             let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-            checked_delete(&iox_object_store, &path).await;
+            checked_delete(iox_object_store, &path).await;
         }
         drop(catalog);
 
-        let ts = PreservedCatalog::find_last_transaction_timestamp(&iox_object_store)
+        let ts = PreservedCatalog::find_last_transaction_timestamp(iox_object_store)
             .await
             .unwrap()
             .unwrap();
@@ -2234,12 +2249,12 @@ mod tests {
         );
     }
 
-    async fn assert_catalog_roundtrip_works(iox_object_store: &Arc<IoxObjectStore>) {
+    async fn assert_catalog_roundtrip_works(config: PreservedCatalogConfig) {
         // use single-catalog test case as base
-        let trace = assert_single_catalog_inmem_works(iox_object_store).await;
+        let trace = assert_single_catalog_inmem_works(config.clone()).await;
 
         // load catalog from store and check replayed state
-        let (catalog, state) = load_ok(iox_object_store).await.unwrap();
+        let (catalog, state) = load_ok(config).await.unwrap();
         assert_eq!(
             catalog.revision_counter(),
             trace.tkeys.last().unwrap().revision_counter
@@ -2252,16 +2267,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_exists_considers_checkpoints() {
-        let iox_object_store = make_iox_object_store().await;
+        let config = make_config().await;
+        let iox_object_store = &config.iox_object_store;
 
-        assert!(!exists(&iox_object_store).await);
+        assert!(!exists(iox_object_store).await);
 
-        let (catalog, state) = new_empty(&iox_object_store).await;
+        let (catalog, state) = new_empty(config.clone()).await;
 
         // delete transaction file
         let tkey = catalog.previous_tkey.read().unwrap();
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        checked_delete(&iox_object_store, &path).await;
+        checked_delete(iox_object_store, &path).await;
 
         // create empty transaction w/ checkpoint
         {
@@ -2276,11 +2292,11 @@ mod tests {
         // delete transaction file
         let tkey = catalog.previous_tkey.read().unwrap();
         let path = TransactionFilePath::new_transaction(tkey.revision_counter, tkey.uuid);
-        checked_delete(&iox_object_store, &path).await;
+        checked_delete(iox_object_store, &path).await;
 
         drop(catalog);
 
-        assert!(exists(&iox_object_store).await);
-        assert!(load_ok(&iox_object_store).await.is_some());
+        assert!(exists(iox_object_store).await);
+        assert!(load_ok(config).await.is_some());
     }
 }

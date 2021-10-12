@@ -7,7 +7,6 @@ use crate::{
     rules::ProvidedDatabaseRules,
     ApplicationState, Db,
 };
-use chrono::{DateTime, Utc};
 use data_types::{
     database_rules::WriteBufferDirection, detailed_database::GenerationId, server_id::ServerId,
     DatabaseName,
@@ -213,8 +212,9 @@ impl Database {
 
         create_preserved_catalog(
             db_name,
-            Arc::clone(&iox_object_store),
+            iox_object_store,
             Arc::clone(application.metric_registry()),
+            Arc::clone(application.time_provider()),
             true,
         )
         .await
@@ -542,11 +542,7 @@ impl Database {
     /// - write it to a write buffer
     /// - write it to a local `Db`
     ///
-    pub async fn write_entry(
-        &self,
-        entry: entry::Entry,
-        time_of_write: DateTime<Utc>,
-    ) -> Result<(), WriteError> {
+    pub async fn write_entry(&self, entry: entry::Entry) -> Result<(), WriteError> {
         let recorder = self.shared.metrics.entry_ingest(entry.data().len());
 
         let db = {
@@ -565,7 +561,7 @@ impl Database {
             }
         };
 
-        db.store_entry(entry, time_of_write).await.map_err(|e| {
+        db.store_entry(entry).await.map_err(|e| {
             use super::db::Error;
             match e {
                 // TODO: Pull write buffer producer out of Db
@@ -1076,6 +1072,7 @@ impl DatabaseStateRulesLoaded {
             shared.config.name.as_str(),
             Arc::clone(&self.iox_object_store),
             Arc::clone(shared.application.metric_registry()),
+            Arc::clone(shared.application.time_provider()),
             shared.config.wipe_catalog_on_error,
             shared.config.skip_replay,
         )
@@ -1104,6 +1101,7 @@ impl DatabaseStateRulesLoaded {
             catalog,
             write_buffer_producer: producer,
             metric_registry: Arc::clone(shared.application.metric_registry()),
+            time_provider: Arc::clone(shared.application.time_provider()),
         };
 
         let db = Db::new(
@@ -1135,7 +1133,7 @@ impl DatabaseStateCatalogLoaded {
         let db = Arc::clone(&self.db);
 
         // TODO: Pull write buffer and lifecycle out of Db
-        db.unsuppress_persistence().await;
+        db.unsuppress_persistence();
 
         let rules = self.provided_rules.rules();
         let write_buffer_factory = shared.application.write_buffer_factory();
@@ -1191,7 +1189,6 @@ impl DatabaseStateInitialized {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
     use data_types::database_rules::{
         PartitionTemplate, TemplatePart, WriteBufferConnection, WriteBufferDirection,
     };
@@ -1203,6 +1200,7 @@ mod tests {
         num::NonZeroU32,
         time::Instant,
     };
+    use time::Time;
     use uuid::Uuid;
     use write_buffer::{config::WriteBufferConfigFactory, mock::MockBufferSharedState};
 
@@ -1377,23 +1375,23 @@ mod tests {
             .unwrap();
         state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 10),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry_a,
         ));
         state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 11),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry_b,
         ));
 
         // setup application
-        let mut factory = WriteBufferConfigFactory::new();
+        let application = ApplicationState::new(Arc::new(ObjectStore::new_in_memory()), None);
+
+        let mut factory = WriteBufferConfigFactory::new(Arc::clone(application.time_provider()));
         factory.register_mock("my_mock".to_string(), state.clone());
-        let application = Arc::new(ApplicationState::with_write_buffer_factory(
-            Arc::new(ObjectStore::new_in_memory()),
-            Arc::new(factory),
-            None,
-        ));
+
+        let application = Arc::new(application.with_write_buffer_factory(Arc::new(factory)));
+
         let server_id = ServerId::try_from(1).unwrap();
 
         // setup DB
@@ -1465,7 +1463,7 @@ mod tests {
             .unwrap();
         state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 12),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry_c,
         ));
 
@@ -1486,7 +1484,7 @@ mod tests {
             .unwrap();
         state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 13),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry_d,
         ));
         let db = database.initialized_db().unwrap();

@@ -1,7 +1,6 @@
 use super::{
     catalog::chunk::ChunkMetadata, pred::to_read_buffer_predicate, streams::ReadFilterResultsStream,
 };
-use chrono::{DateTime, Utc};
 use data_types::{
     chunk_metadata::{ChunkId, ChunkOrder},
     partition_metadata,
@@ -26,6 +25,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
+use time::Time;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -81,8 +81,8 @@ pub struct DbChunk {
     access_recorder: AccessRecorder,
     state: State,
     meta: Arc<ChunkMetadata>,
-    time_of_first_write: DateTime<Utc>,
-    time_of_last_write: DateTime<Utc>,
+    time_of_first_write: Time,
+    time_of_last_write: Time,
     order: ChunkOrder,
 }
 
@@ -218,11 +218,11 @@ impl DbChunk {
         &self.table_name
     }
 
-    pub fn time_of_first_write(&self) -> DateTime<Utc> {
+    pub fn time_of_first_write(&self) -> Time {
         self.time_of_first_write
     }
 
-    pub fn time_of_last_write(&self) -> DateTime<Utc> {
+    pub fn time_of_last_write(&self) -> Time {
         self.time_of_last_write
     }
 
@@ -343,7 +343,7 @@ impl QueryChunk for DbChunk {
         // when possible for performance gain
 
         debug!(?predicate, "Input Predicate to read_filter");
-        self.access_recorder.record_access_now();
+        self.access_recorder.record_access();
 
         debug!(?delete_predicates, "Input Delete Predicates to read_filter");
 
@@ -419,7 +419,7 @@ impl QueryChunk for DbChunk {
                     // TODO: Support predicates
                     return Ok(None);
                 }
-                self.access_recorder.record_access_now();
+                self.access_recorder.record_access();
                 Ok(chunk.column_names(columns))
             }
             State::ReadBuffer { chunk, .. } => {
@@ -431,7 +431,7 @@ impl QueryChunk for DbChunk {
                     }
                 };
 
-                self.access_recorder.record_access_now();
+                self.access_recorder.record_access();
                 Ok(Some(
                     chunk
                         .column_names(rb_predicate, columns, BTreeSet::new())
@@ -445,7 +445,7 @@ impl QueryChunk for DbChunk {
                     // TODO: Support predicates when MB supports it
                     return Ok(None);
                 }
-                self.access_recorder.record_access_now();
+                self.access_recorder.record_access();
                 Ok(chunk.column_names(columns))
             }
         }
@@ -471,7 +471,7 @@ impl QueryChunk for DbChunk {
                     }
                 };
 
-                self.access_recorder.record_access_now();
+                self.access_recorder.record_access();
                 let mut values = chunk
                     .column_values(
                         rb_predicate,
@@ -555,70 +555,74 @@ impl QueryChunkMeta for DbChunk {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        db::{
-            catalog::chunk::{CatalogChunk, ChunkStage},
-            test_helpers::{write_lp, write_lp_with_time},
-        },
-        utils::make_db,
+    use crate::db::{
+        catalog::chunk::{CatalogChunk, ChunkStage},
+        test_helpers::write_lp,
     };
+    use crate::utils::make_db_time;
     use data_types::chunk_metadata::ChunkStorage;
+    use std::time::Duration;
 
-    async fn test_chunk_access(chunk: &CatalogChunk) {
-        let t1 = chunk.access_recorder().get_metrics();
+    async fn test_chunk_access(chunk: &CatalogChunk, time: Arc<time::MockProvider>) {
+        let m1 = chunk.access_recorder().get_metrics();
         let snapshot = DbChunk::snapshot(chunk);
-        let t2 = chunk.access_recorder().get_metrics();
+        let m2 = chunk.access_recorder().get_metrics();
 
+        let t1 = time.inc(Duration::from_secs(1));
         snapshot
             .read_filter(&Default::default(), Selection::All, &[])
             .unwrap();
-        let t3 = chunk.access_recorder().get_metrics();
+        let m3 = chunk.access_recorder().get_metrics();
 
+        let t2 = time.inc(Duration::from_secs(1));
         let column_names = snapshot
             .column_names(&Default::default(), Selection::All)
             .unwrap()
             .is_some();
-        let t4 = chunk.access_recorder().get_metrics();
+        let m4 = chunk.access_recorder().get_metrics();
 
+        let t3 = time.inc(Duration::from_secs(1));
         let column_values = snapshot
             .column_values("tag", &Default::default())
             .unwrap()
             .is_some();
-        let t5 = chunk.access_recorder().get_metrics();
+        let m5 = chunk.access_recorder().get_metrics();
 
         // Snapshot shouldn't count as an access
-        assert_eq!(t1, t2);
+        assert_eq!(m1, m2);
 
         // Query should count as an access
-        assert_eq!(t2.count + 1, t3.count);
-        assert!(t2.last_access < t3.last_access);
+        assert_eq!(m2.count + 1, m3.count);
+        assert!(m2.last_access < m3.last_access);
+        assert_eq!(m3.last_access, t1);
 
         // If column names successful should record access
         match column_names {
             true => {
-                assert_eq!(t3.count + 1, t4.count);
-                assert!(t3.last_access < t4.last_access);
+                assert_eq!(m3.count + 1, m4.count);
+                assert_eq!(m4.last_access, t2);
             }
             false => {
-                assert_eq!(t3, t4);
+                assert_eq!(m3, m4);
             }
         }
 
         // If column values successful should record access
         match column_values {
             true => {
-                assert_eq!(t4.count + 1, t5.count);
-                assert!(t4.last_access < t5.last_access);
+                assert_eq!(m4.count + 1, m5.count);
+                assert!(m4.last_access < m5.last_access);
+                assert_eq!(m5.last_access, t3);
             }
             false => {
-                assert_eq!(t4, t5);
+                assert_eq!(m4, m5);
             }
         }
     }
 
     #[tokio::test]
     async fn mub_records_access() {
-        let db = make_db().await.db;
+        let (db, time) = make_db_time().await;
 
         write_lp(&db, "cpu,tag=1 bar=1 1").await;
 
@@ -628,12 +632,12 @@ mod tests {
         let chunk = chunk.read();
         assert_eq!(chunk.storage().1, ChunkStorage::OpenMutableBuffer);
 
-        test_chunk_access(&chunk).await;
+        test_chunk_access(&chunk, time).await;
     }
 
     #[tokio::test]
     async fn rub_records_access() {
-        let db = make_db().await.db;
+        let (db, time) = make_db_time().await;
 
         write_lp(&db, "cpu,tag=1 bar=1 1").await;
         db.compact_partition("cpu", "1970-01-01T00").await.unwrap();
@@ -644,15 +648,15 @@ mod tests {
         let chunk = chunk.read();
         assert_eq!(chunk.storage().1, ChunkStorage::ReadBuffer);
 
-        test_chunk_access(&chunk).await
+        test_chunk_access(&chunk, time).await
     }
 
     #[tokio::test]
     async fn parquet_records_access() {
-        let db = make_db().await.db;
+        let (db, time) = make_db_time().await;
 
-        let creation_time = Utc::now();
-        write_lp_with_time(&db, "cpu,tag=1 bar=1 1", creation_time).await;
+        let t0 = time.inc(Duration::from_secs(324));
+        write_lp(&db, "cpu,tag=1 bar=1 1").await;
 
         let id = db
             .persist_partition("cpu", "1970-01-01T00", true)
@@ -668,22 +672,24 @@ mod tests {
         let chunk = chunks.into_iter().next().unwrap();
         let chunk = chunk.read();
         assert_eq!(chunk.storage().1, ChunkStorage::ObjectStoreOnly);
+
         let first_write = chunk.time_of_first_write();
         let last_write = chunk.time_of_last_write();
-        assert_eq!(first_write, last_write);
-        assert_eq!(first_write, creation_time);
+        assert_eq!(first_write, t0);
+        assert_eq!(last_write, t0);
 
-        test_chunk_access(&chunk).await
+        test_chunk_access(&chunk, time).await
     }
 
     #[tokio::test]
     async fn parquet_snapshot() {
-        let db = make_db().await.db;
+        let (db, time) = make_db_time().await;
 
-        let w0 = Utc::now();
-        write_lp_with_time(&db, "cpu,tag=1 bar=1 1", w0).await;
-        let w1 = w0 + chrono::Duration::seconds(4);
-        write_lp_with_time(&db, "cpu,tag=2 bar=2 2", w1).await;
+        let w0 = time.inc(Duration::from_secs(10));
+        write_lp(&db, "cpu,tag=1 bar=1 1").await;
+
+        let w1 = time.inc(Duration::from_secs(10));
+        write_lp(&db, "cpu,tag=2 bar=2 2").await;
 
         db.persist_partition("cpu", "1970-01-01T00", true)
             .await

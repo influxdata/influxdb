@@ -70,6 +70,7 @@ pub fn get_all_setups() -> &'static HashMap<String, Arc<dyn DbSetup>> {
             register_setup!(OneDeleteSimpleExprOneChunk),
             register_setup!(OneDeleteMultiExprsOneChunk),
             register_setup!(TwoDeletesMultiExprsOneChunk),
+            register_setup!(OneMeasurementRealisticTimes),
         ]
         .into_iter()
         .map(|(name, setup)| (name.to_string(), setup as Arc<dyn DbSetup>))
@@ -1103,8 +1104,7 @@ impl DbSetup for ChunkOrder {
             let partition = partition.read();
             let chunks = LockablePartition::chunks(&partition);
             let mut partition = partition.upgrade();
-            let flush_handle =
-                LockablePartition::prepare_persist(&mut partition, chrono::MAX_DATETIME).unwrap();
+            let flush_handle = LockablePartition::prepare_persist(&mut partition, true).unwrap();
 
             (chunks, flush_handle)
         };

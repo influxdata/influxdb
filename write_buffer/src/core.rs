@@ -1,10 +1,13 @@
-use std::fmt::Debug;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Debug,
+};
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use data_types::sequence::Sequence;
 use entry::{Entry, SequencedEntry};
 use futures::{future::BoxFuture, stream::BoxStream};
+use time::Time;
 
 /// Generic boxed error type that is used in this crate.
 ///
@@ -15,6 +18,11 @@ pub type WriteBufferError = Box<dyn std::error::Error + Sync + Send>;
 /// entries from the Write Buffer at a later time.
 #[async_trait]
 pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
+    /// List all known sequencers.
+    ///
+    /// This set  not empty.
+    fn sequencer_ids(&self) -> BTreeSet<u32>;
+
     /// Send an `Entry` to the write buffer using the specified sequencer ID.
     ///
     /// Returns information that can be used to restore entries at a later time.
@@ -22,7 +30,7 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
         &self,
         entry: &Entry,
         sequencer_id: u32,
-    ) -> Result<(Sequence, DateTime<Utc>), WriteBufferError>;
+    ) -> Result<(Sequence, Time), WriteBufferError>;
 
     /// Return type (like `"mock"` or `"kafka"`) of this writer.
     fn type_name(&self) -> &'static str;
@@ -58,7 +66,7 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
     /// [`WriteBufferReading`] instance at the same time. If all streams are dropped and requested again, the last
     /// offsets of the old streams will be the start offsets for the new streams. If you want to prevent that either
     /// create a new [`WriteBufferReading`] or use [`seek`](Self::seek).
-    fn streams(&mut self) -> Vec<(u32, EntryStream<'_>)>;
+    fn streams(&mut self) -> BTreeMap<u32, EntryStream<'_>>;
 
     /// Seek given sequencer to given sequence number. The next output of related streams will be an entry with at least
     /// the given sequence number (the actual sequence number might be skipped due to "holes" in the stream).
@@ -76,12 +84,19 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
 
 pub mod test_utils {
     //! Generic tests for all write buffer implementations.
-    use std::{convert::TryFrom, num::NonZeroU32, time::Duration};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        convert::TryFrom,
+        num::NonZeroU32,
+        sync::Arc,
+        time::Duration,
+    };
 
     use async_trait::async_trait;
-    use chrono::{DateTime, TimeZone, Utc};
+    use chrono::{TimeZone, Utc};
     use entry::{test_helpers::lp_to_entry, Entry};
     use futures::{StreamExt, TryStreamExt};
+    use time::{Time, TimeProvider};
 
     use super::{WriteBufferError, WriteBufferReading, WriteBufferWriting};
 
@@ -95,7 +110,16 @@ pub mod test_utils {
         ///
         /// This will be called multiple times during the test suite. Each resulting context must represent an isolated
         /// environment.
-        async fn new_context(&self, n_sequencers: NonZeroU32) -> Self::Context;
+        async fn new_context(&self, n_sequencers: NonZeroU32) -> Self::Context {
+            self.new_context_with_time(n_sequencers, Arc::new(time::SystemProvider::new()))
+                .await
+        }
+
+        async fn new_context_with_time(
+            &self,
+            n_sequencers: NonZeroU32,
+            time_provider: Arc<dyn TimeProvider>,
+        ) -> Self::Context;
     }
 
     /// Context used during testing.
@@ -134,6 +158,7 @@ pub mod test_utils {
         test_watermark(&adapter).await;
         test_timestamp(&adapter).await;
         test_sequencer_auto_creation(&adapter).await;
+        test_sequencer_ids(&adapter).await;
     }
 
     /// Test IO with a single writer and single reader stream.
@@ -157,7 +182,7 @@ pub mod test_utils {
 
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
-        let (sequencer_id, mut stream) = streams.pop().unwrap();
+        let (sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
 
         let waker = futures::task::noop_waker();
         let mut cx = futures::task::Context::from_waker(&waker);
@@ -218,12 +243,12 @@ pub mod test_utils {
         // creating stream, drop stream, re-create it => still starts at first entry
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
-        let (_sequencer_id, stream) = streams.pop().unwrap();
+        let (_sequencer_id, stream) = map_pop_first(&mut streams).unwrap();
         drop(stream);
         drop(streams);
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
-        let (_sequencer_id, mut stream) = streams.pop().unwrap();
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
         assert_eq!(
             stream.stream.next().await.unwrap().unwrap().entry(),
             &entry_1
@@ -234,7 +259,7 @@ pub mod test_utils {
         drop(streams);
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
-        let (_sequencer_id, mut stream) = streams.pop().unwrap();
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
         assert_eq!(
             stream.stream.next().await.unwrap().unwrap().entry(),
             &entry_2
@@ -249,7 +274,7 @@ pub mod test_utils {
         drop(streams);
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
-        let (_sequencer_id, mut stream) = streams.pop().unwrap();
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
         assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
     }
 
@@ -273,8 +298,8 @@ pub mod test_utils {
 
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 2);
-        let (sequencer_id_1, mut stream_1) = streams.pop().unwrap();
-        let (sequencer_id_2, mut stream_2) = streams.pop().unwrap();
+        let (sequencer_id_1, mut stream_1) = map_pop_first(&mut streams).unwrap();
+        let (sequencer_id_2, mut stream_2) = map_pop_first(&mut streams).unwrap();
         assert_ne!(sequencer_id_1, sequencer_id_2);
 
         let waker = futures::task::noop_waker();
@@ -314,6 +339,7 @@ pub mod test_utils {
     /// Test multiple multiple writers and multiple readers on multiple sequencers.
     ///
     /// This tests that:
+    /// - writers retrieve consistent sequencer IDs
     /// - writes go to and reads come from the right sequencer, similar to [`test_multi_sequencer_io`] but less
     ///   detailled
     /// - multiple writers can write to a single sequencer
@@ -332,19 +358,40 @@ pub mod test_utils {
         let mut reader_1 = context.reading(true).await.unwrap();
         let mut reader_2 = context.reading(true).await.unwrap();
 
-        // TODO: do not hard-code sequencer IDs here but provide a proper interface
-        writer_1.store_entry(&entry_east_1, 0).await.unwrap();
-        writer_1.store_entry(&entry_west_1, 1).await.unwrap();
-        writer_2.store_entry(&entry_east_2, 0).await.unwrap();
+        let mut sequencer_ids_1 = writer_1.sequencer_ids();
+        let sequencer_ids_2 = writer_2.sequencer_ids();
+        assert_eq!(sequencer_ids_1, sequencer_ids_2);
+        assert_eq!(sequencer_ids_1.len(), 2);
+        let sequencer_id_1 = set_pop_first(&mut sequencer_ids_1).unwrap();
+        let sequencer_id_2 = set_pop_first(&mut sequencer_ids_1).unwrap();
+
+        writer_1
+            .store_entry(&entry_east_1, sequencer_id_1)
+            .await
+            .unwrap();
+        writer_1
+            .store_entry(&entry_west_1, sequencer_id_2)
+            .await
+            .unwrap();
+        writer_2
+            .store_entry(&entry_east_2, sequencer_id_1)
+            .await
+            .unwrap();
 
         assert_reader_content(
             &mut reader_1,
-            &[(0, &[&entry_east_1, &entry_east_2]), (1, &[&entry_west_1])],
+            &[
+                (sequencer_id_1, &[&entry_east_1, &entry_east_2]),
+                (sequencer_id_2, &[&entry_west_1]),
+            ],
         )
         .await;
         assert_reader_content(
             &mut reader_2,
-            &[(0, &[&entry_east_1, &entry_east_2]), (1, &[&entry_west_1])],
+            &[
+                (sequencer_id_1, &[&entry_east_1, &entry_east_2]),
+                (sequencer_id_2, &[&entry_west_1]),
+            ],
         )
         .await;
     }
@@ -404,8 +451,8 @@ pub mod test_utils {
         let _sequence_number_east_3 = writer.store_entry(&entry_east_3, 0).await.unwrap().0.number;
         let mut streams = reader_1.streams();
         assert_eq!(streams.len(), 2);
-        let (_sequencer_id, mut stream_1) = streams.pop().unwrap();
-        let (_sequencer_id, mut stream_2) = streams.pop().unwrap();
+        let (_sequencer_id, mut stream_1) = map_pop_first(&mut streams).unwrap();
+        let (_sequencer_id, mut stream_2) = map_pop_first(&mut streams).unwrap();
         assert!(stream_1.stream.poll_next_unpin(&mut cx).is_pending());
         assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
         drop(stream_1);
@@ -436,8 +483,8 @@ pub mod test_utils {
 
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 2);
-        let (sequencer_id_1, stream_1) = streams.pop().unwrap();
-        let (sequencer_id_2, stream_2) = streams.pop().unwrap();
+        let (sequencer_id_1, stream_1) = map_pop_first(&mut streams).unwrap();
+        let (sequencer_id_2, stream_2) = map_pop_first(&mut streams).unwrap();
 
         // start at watermark 0
         assert_eq!((stream_1.fetch_high_watermark)().await.unwrap(), 0);
@@ -469,7 +516,15 @@ pub mod test_utils {
     where
         T: TestAdapter,
     {
-        let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
+        // Note: Roundtrips are only guaranteed for millisecond-precision
+        let t0 = Time::from_date_time(Utc.timestamp_millis(129));
+        let time = Arc::new(time::MockProvider::new(t0));
+        let context = adapter
+            .new_context_with_time(
+                NonZeroU32::try_from(1).unwrap(),
+                Arc::<time::MockProvider>::clone(&time),
+            )
+            .await;
 
         let entry = lp_to_entry("upc user=1 100");
 
@@ -478,33 +533,18 @@ pub mod test_utils {
 
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
-        let (sequencer_id, mut stream) = streams.pop().unwrap();
+        let (sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
 
-        // ingest data
-        //
-        // We want to capture the time of `store_entry`. However for certain sequencers (like Kafka) the time is
-        // slightly imprecise in a way that it truncates the time to milliseconds. So the workaround in the test is:
-        //
-        // 1. Capture a `ts_pre` from which we know that it is close but less or equal to the store time. We use the
-        //    wallclock for that but truncate to milliseconds.
-        // 2. Capture a `ts_post` from which we know that it is close but greater or equal to the store time. We use
-        //    the wallclock but if it has a sub-millisecond part we use the next millisecond (it's like a ceil
-        //    operation).
-        // 3. Wait a bit between step 2 and the restore operation so that we can be really sure that the restore
-        //    operation must know the timestamp of the store operation and cannot just "guess" it.
-        let ts_pre = timestamp_floor_millis(Utc::now());
         let reported_ts = writer.store_entry(&entry, sequencer_id).await.unwrap().1;
-        let ts_post = timestamp_ceil_millis(Utc::now());
 
-        // wait a bit
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        // advance time
+        time.inc(Duration::from_secs(10));
 
         // check that the timestamp records the ingestion time, not the read time
         let sequenced_entry = stream.stream.next().await.unwrap().unwrap();
         let ts_entry = sequenced_entry.producer_wallclock_timestamp().unwrap();
-        assert!(ts_entry >= ts_pre, "{} >= {}", ts_entry, ts_pre);
-        assert!(ts_entry <= ts_post, "{} <= {}", ts_entry, ts_post);
-        assert_eq!(ts_entry, reported_ts);
+        assert_eq!(ts_entry, t0);
+        assert_eq!(reported_ts, t0);
     }
 
     /// Test that sequencer auto-creation works.
@@ -534,6 +574,28 @@ pub mod test_utils {
         context.writing(false).await.unwrap();
     }
 
+    /// Test sequencer IDs reporting of writers.
+    ///
+    /// This tests that:
+    /// - all sequencers are reported
+    async fn test_sequencer_ids<T>(adapter: &T)
+    where
+        T: TestAdapter,
+    {
+        let n_sequencers = 10;
+        let context = adapter
+            .new_context(NonZeroU32::try_from(n_sequencers).unwrap())
+            .await;
+
+        let writer_1 = context.writing(true).await.unwrap();
+        let writer_2 = context.writing(true).await.unwrap();
+
+        let sequencer_ids_1 = writer_1.sequencer_ids();
+        let sequencer_ids_2 = writer_2.sequencer_ids();
+        assert_eq!(sequencer_ids_1, sequencer_ids_2);
+        assert_eq!(sequencer_ids_1.len(), n_sequencers as usize);
+    }
+
     /// Assert that the content of the reader is as expected.
     ///
     /// This will read `expected.len()` from the reader and then ensures that the stream is pending.
@@ -541,10 +603,16 @@ pub mod test_utils {
     where
         R: WriteBufferReading,
     {
+        // normalize expected values
+        let expected = {
+            let mut expected = expected.to_vec();
+            expected.sort_by_key(|(sequencer_id, _entries)| *sequencer_id);
+            expected
+        };
+
         // Ensure content of the streams
-        let mut streams = reader.streams();
+        let streams = reader.streams();
         assert_eq!(streams.len(), expected.len());
-        streams.sort_by_key(|(sequencer_id, _stream)| *sequencer_id);
 
         for ((actual_sequencer_id, actual_stream), (expected_sequencer_id, expected_entries)) in
             streams.into_iter().zip(expected.iter())
@@ -563,9 +631,8 @@ pub mod test_utils {
         }
 
         // Ensure that streams a pending
-        let mut streams = reader.streams();
+        let streams = reader.streams();
         assert_eq!(streams.len(), expected.len());
-        streams.sort_by_key(|(sequencer_id, _stream)| *sequencer_id);
 
         let waker = futures::task::noop_waker();
         let mut cx = futures::task::Context::from_waker(&waker);
@@ -582,25 +649,27 @@ pub mod test_utils {
         }
     }
 
-    /// Return largest "milliseconds only" timestamp less than or equal to the given timestamp.
+    /// Pops first entry from map.
     ///
-    /// The result will not have micro- or nanoseconds attached.
-    fn timestamp_floor_millis(ts: DateTime<Utc>) -> DateTime<Utc> {
-        let millis = ts.timestamp_millis();
-        Utc.timestamp_millis(millis)
+    /// Helper until <https://github.com/rust-lang/rust/issues/62924> is stable.
+    pub(crate) fn map_pop_first<K, V>(map: &mut BTreeMap<K, V>) -> Option<(K, V)>
+    where
+        K: Clone + Ord,
+    {
+        map.keys()
+            .next()
+            .cloned()
+            .map(|k| map.remove_entry(&k))
+            .flatten()
     }
 
-    /// Return smallest "milliseconds only" timestamp greater than or equal to the given timestamp.
+    /// Pops first entry from set.
     ///
-    /// The result will not have micro- or nanoseconds attached.
-    fn timestamp_ceil_millis(ts: DateTime<Utc>) -> DateTime<Utc> {
-        let millis = ts.timestamp_millis();
-        let ts2 = Utc.timestamp_millis(millis);
-        if ts2 != ts {
-            // ts has sub-milli precision, increase millis by 1 (ceiling)
-            Utc.timestamp_millis(millis + 1)
-        } else {
-            ts2
-        }
+    /// Helper until <https://github.com/rust-lang/rust/issues/62924> is stable.
+    pub(crate) fn set_pop_first<T>(set: &mut BTreeSet<T>) -> Option<T>
+    where
+        T: Clone + Ord,
+    {
+        set.iter().next().cloned().map(|k| set.take(&k)).flatten()
     }
 }

@@ -28,6 +28,7 @@ use std::{
     fmt::Display,
     sync::{Arc, Weak},
 };
+use time::Time;
 use tracker::{RwLock, TaskTracker};
 
 pub(crate) use compact::compact_chunks;
@@ -103,7 +104,7 @@ impl LockableChunk for LockableCatalogChunk {
 pub struct CatalogPersistHandle(FlushHandle);
 
 impl lifecycle::PersistHandle for CatalogPersistHandle {
-    fn timestamp(&self) -> DateTime<Utc> {
+    fn timestamp(&self) -> Time {
         self.0.timestamp()
     }
 }
@@ -200,10 +201,13 @@ impl LockablePartition for LockableCatalogPartition {
 
     fn prepare_persist(
         partition: &mut LifecycleWriteGuard<'_, Self::Partition, Self>,
-        now: DateTime<Utc>,
+        force: bool,
     ) -> Option<Self::PersistHandle> {
         let window = partition.persistence_windows_mut().unwrap();
-        let handle = window.flush_handle(now);
+        let handle = match force {
+            true => window.flush_all_handle(),
+            false => window.flush_handle(),
+        };
         trace!(?handle, "preparing for persist");
         Some(CatalogPersistHandle(handle?))
     }
@@ -285,13 +289,13 @@ impl LifecyclePartition for Partition {
             .unwrap_or(true)
     }
 
-    fn persistable_row_count(&self, now: DateTime<Utc>) -> usize {
+    fn persistable_row_count(&self) -> usize {
         self.persistence_windows()
-            .map(|w| w.persistable_row_count(now))
+            .map(|w| w.persistable_row_count())
             .unwrap_or(0)
     }
 
-    fn minimum_unpersisted_age(&self) -> Option<DateTime<Utc>> {
+    fn minimum_unpersisted_age(&self) -> Option<Time> {
         self.persistence_windows()
             .and_then(|w| w.minimum_unpersisted_age())
     }
@@ -327,7 +331,7 @@ impl LifecycleChunk for CatalogChunk {
         self.access_recorder().get_metrics()
     }
 
-    fn time_of_last_write(&self) -> DateTime<Utc> {
+    fn time_of_last_write(&self) -> Time {
         self.time_of_last_write()
     }
 

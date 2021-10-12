@@ -1,3 +1,4 @@
+use crate::catalog::core::PreservedCatalogConfig;
 use crate::{
     catalog::{
         core::PreservedCatalog,
@@ -11,7 +12,7 @@ use crate::{
         },
     },
     metadata::IoxParquetMetaData,
-    test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize},
+    test_utils::{chunk_addr, make_config, make_metadata, TestSize},
 };
 use data_types::{chunk_metadata::ChunkId, timestamp::TimestampRange};
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
@@ -219,25 +220,21 @@ pub async fn exists(iox_object_store: &Arc<IoxObjectStore>) -> bool {
 
 /// Load a `PreservedCatalog` and unwrap, expecting the operation to succeed
 pub async fn load_ok(
-    iox_object_store: &Arc<IoxObjectStore>,
+    config: PreservedCatalogConfig,
 ) -> Option<(PreservedCatalog, TestCatalogState)> {
-    PreservedCatalog::load(DB_NAME, Arc::clone(iox_object_store), ())
-        .await
-        .unwrap()
+    PreservedCatalog::load(DB_NAME, config, ()).await.unwrap()
 }
 
 /// Load a `PreservedCatalog` and unwrap the error, expecting the operation to fail
-pub async fn load_err(iox_object_store: &Arc<IoxObjectStore>) -> crate::catalog::core::Error {
-    PreservedCatalog::load::<TestCatalogState>(DB_NAME, Arc::clone(iox_object_store), ())
+pub async fn load_err(config: PreservedCatalogConfig) -> crate::catalog::core::Error {
+    PreservedCatalog::load::<TestCatalogState>(DB_NAME, config, ())
         .await
         .unwrap_err()
 }
 
 /// Create a new empty catalog with the TestCatalogState, expecting the operation to succeed
-pub async fn new_empty(
-    iox_object_store: &Arc<IoxObjectStore>,
-) -> (PreservedCatalog, TestCatalogState) {
-    PreservedCatalog::new_empty(DB_NAME, Arc::clone(iox_object_store), ())
+pub async fn new_empty(config: PreservedCatalogConfig) -> (PreservedCatalog, TestCatalogState) {
+    PreservedCatalog::new_empty(DB_NAME, config, ())
         .await
         .unwrap()
 }
@@ -274,9 +271,9 @@ where
     F: Fn(&S) -> CheckpointData + Send,
 {
     // empty state
-    let iox_object_store = make_iox_object_store().await;
+    let config = make_config().await;
     let (_catalog, mut state) =
-        PreservedCatalog::new_empty::<S>(DB_NAME, Arc::clone(&iox_object_store), state_data)
+        PreservedCatalog::new_empty::<S>(DB_NAME, config.clone(), state_data)
             .await
             .unwrap();
 
@@ -291,7 +288,7 @@ where
     {
         for chunk_id in 0..5 {
             let (path, metadata) = make_metadata(
-                &iox_object_store,
+                &config.iox_object_store,
                 "ok",
                 chunk_addr(chunk_id),
                 TestSize::Full,
@@ -299,7 +296,7 @@ where
             .await;
             state
                 .add(
-                    Arc::clone(&iox_object_store),
+                    Arc::clone(&config.iox_object_store),
                     CatalogParquetInfo {
                         path: path.clone(),
                         file_size_bytes: 33,
@@ -321,11 +318,16 @@ where
 
     // add and remove in the same transaction
     {
-        let (path, metadata) =
-            make_metadata(&iox_object_store, "ok", chunk_addr(5), TestSize::Full).await;
+        let (path, metadata) = make_metadata(
+            &config.iox_object_store,
+            "ok",
+            chunk_addr(5),
+            TestSize::Full,
+        )
+        .await;
         state
             .add(
-                Arc::clone(&iox_object_store),
+                Arc::clone(&config.iox_object_store),
                 CatalogParquetInfo {
                     path: path.clone(),
                     file_size_bytes: 33,
@@ -343,7 +345,7 @@ where
         state.remove(path).unwrap();
         state
             .add(
-                Arc::clone(&iox_object_store),
+                Arc::clone(&config.iox_object_store),
                 CatalogParquetInfo {
                     path: path.clone(),
                     file_size_bytes: 33,
@@ -356,11 +358,16 @@ where
 
     // add, remove, add in the same transaction
     {
-        let (path, metadata) =
-            make_metadata(&iox_object_store, "ok", chunk_addr(6), TestSize::Full).await;
+        let (path, metadata) = make_metadata(
+            &config.iox_object_store,
+            "ok",
+            chunk_addr(6),
+            TestSize::Full,
+        )
+        .await;
         state
             .add(
-                Arc::clone(&iox_object_store),
+                Arc::clone(&config.iox_object_store),
                 CatalogParquetInfo {
                     path: path.clone(),
                     file_size_bytes: 33,
@@ -371,7 +378,7 @@ where
         state.remove(&path).unwrap();
         state
             .add(
-                Arc::clone(&iox_object_store),
+                Arc::clone(&config.iox_object_store),
                 CatalogParquetInfo {
                     path: path.clone(),
                     file_size_bytes: 33,
@@ -389,7 +396,7 @@ where
         state.remove(&path).unwrap();
         state
             .add(
-                Arc::clone(&iox_object_store),
+                Arc::clone(&config.iox_object_store),
                 CatalogParquetInfo {
                     path: path.clone(),
                     file_size_bytes: 33,
@@ -406,11 +413,16 @@ where
         // TODO: Error handling should disambiguate between chunk collision and filename collision
 
         // chunk with same ID already exists (should also not change the metadata)
-        let (path, metadata) =
-            make_metadata(&iox_object_store, "fail", chunk_addr(0), TestSize::Full).await;
+        let (path, metadata) = make_metadata(
+            &config.iox_object_store,
+            "fail",
+            chunk_addr(0),
+            TestSize::Full,
+        )
+        .await;
         let err = state
             .add(
-                Arc::clone(&iox_object_store),
+                Arc::clone(&config.iox_object_store),
                 CatalogParquetInfo {
                     path,
                     file_size_bytes: 33,
@@ -431,7 +443,7 @@ where
         let (_, metadata) = expected_files.get(&ChunkId::new_test(0)).unwrap();
         let err = state
             .add(
-                Arc::clone(&iox_object_store),
+                Arc::clone(&config.iox_object_store),
                 CatalogParquetInfo {
                     // Intentionally "incorrect" path
                     path: ParquetFilePath::new(&chunk_addr(10)),
@@ -446,12 +458,17 @@ where
         ));
 
         // this transaction will still work
-        let (path, metadata) =
-            make_metadata(&iox_object_store, "ok", chunk_addr(7), TestSize::Full).await;
+        let (path, metadata) = make_metadata(
+            &config.iox_object_store,
+            "ok",
+            chunk_addr(7),
+            TestSize::Full,
+        )
+        .await;
         let metadata = Arc::new(metadata);
         state
             .add(
-                Arc::clone(&iox_object_store),
+                Arc::clone(&config.iox_object_store),
                 CatalogParquetInfo {
                     path: path.clone(),
                     file_size_bytes: 33,
@@ -464,7 +481,7 @@ where
         // recently added
         let err = state
             .add(
-                Arc::clone(&iox_object_store),
+                Arc::clone(&config.iox_object_store),
                 CatalogParquetInfo {
                     path,
                     file_size_bytes: 33,
@@ -495,7 +512,7 @@ where
         // create two chunks that we can use for delete predicate
         let chunk_addr_1 = chunk_addr(8);
         let (path, metadata) = make_metadata(
-            &iox_object_store,
+            &config.iox_object_store,
             "ok",
             chunk_addr_1.clone(),
             TestSize::Full,
@@ -503,7 +520,7 @@ where
         .await;
         state
             .add(
-                Arc::clone(&iox_object_store),
+                Arc::clone(&config.iox_object_store),
                 CatalogParquetInfo {
                     path: path.clone(),
                     file_size_bytes: 33,
@@ -515,7 +532,7 @@ where
 
         let chunk_addr_2 = chunk_addr(9);
         let (path, metadata) = make_metadata(
-            &iox_object_store,
+            &config.iox_object_store,
             "ok",
             chunk_addr_2.clone(),
             TestSize::Full,
@@ -523,7 +540,7 @@ where
         .await;
         state
             .add(
-                Arc::clone(&iox_object_store),
+                Arc::clone(&config.iox_object_store),
                 CatalogParquetInfo {
                     path: path.clone(),
                     file_size_bytes: 33,
@@ -548,7 +565,7 @@ where
         // chunks created afterwards are unaffected
         let chunk_addr_3 = chunk_addr(10);
         let (path, metadata) = make_metadata(
-            &iox_object_store,
+            &config.iox_object_store,
             "ok",
             chunk_addr_3.clone(),
             TestSize::Full,
@@ -556,7 +573,7 @@ where
         .await;
         state
             .add(
-                Arc::clone(&iox_object_store),
+                Arc::clone(&config.iox_object_store),
                 CatalogParquetInfo {
                     path: path.clone(),
                     file_size_bytes: 33,

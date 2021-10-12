@@ -2,8 +2,8 @@
 use std::{convert::TryFrom, num::NonZeroU32, sync::Arc};
 
 use bytes::Bytes;
-use chrono::{DateTime, Utc};
 use snafu::{ResultExt, Snafu};
+use time::Time;
 use uuid::Uuid;
 
 use crate::partition_metadata::PartitionAddr;
@@ -149,17 +149,17 @@ pub struct ChunkSummary {
     pub row_count: usize,
 
     /// The time at which the chunk data was accessed, by a query or a write
-    pub time_of_last_access: Option<DateTime<Utc>>,
+    pub time_of_last_access: Option<Time>,
 
     /// The earliest time at which data contained within this chunk was written
     /// into IOx. Note due to the compaction, etc... this may not be the chunk
     /// that data was originally written into
-    pub time_of_first_write: DateTime<Utc>,
+    pub time_of_first_write: Time,
 
     /// The latest time at which data contained within this chunk was written
     /// into IOx. Note due to the compaction, etc... this may not be the chunk
     /// that data was originally written into
-    pub time_of_last_write: DateTime<Utc>,
+    pub time_of_last_write: Time,
 }
 
 /// Represents metadata about the physical storage of a column in a chunk

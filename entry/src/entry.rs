@@ -17,6 +17,7 @@ use schema::{
     builder::{Error as SchemaBuilderError, SchemaBuilder},
     IOxValueType, InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME,
 };
+use time::Time;
 
 use crate::entry_fb;
 
@@ -926,7 +927,7 @@ impl<'a> TableBatch<'a> {
         let timestamps = self.timestamps()?;
         let mut summary = TimestampSummary::default();
         for t in &timestamps {
-            summary.record(Utc.timestamp_nanos(t))
+            summary.record(Time::from_timestamp_nanos(t))
         }
         Ok(summary)
     }
@@ -1748,13 +1749,13 @@ pub struct SequencedEntry {
     ///
     /// At the time of writing, sequences will not be present when there is no configured mechanism to define the order
     /// of all writes.
-    sequence_and_producer_ts: Option<(Sequence, DateTime<Utc>)>,
+    sequence_and_producer_ts: Option<(Sequence, Time)>,
 }
 
 impl SequencedEntry {
     pub fn new_from_sequence(
         sequence: Sequence,
-        producer_wallclock_timestamp: DateTime<Utc>,
+        producer_wallclock_timestamp: Time,
         entry: Entry,
     ) -> Self {
         Self {
@@ -1780,7 +1781,7 @@ impl SequencedEntry {
             .map(|(sequence, _ts)| sequence)
     }
 
-    pub fn producer_wallclock_timestamp(&self) -> Option<DateTime<Utc>> {
+    pub fn producer_wallclock_timestamp(&self) -> Option<Time> {
         self.sequence_and_producer_ts
             .as_ref()
             .map(|(_sequence, ts)| *ts)

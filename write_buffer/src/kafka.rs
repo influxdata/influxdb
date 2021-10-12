@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     convert::{TryFrom, TryInto},
     num::NonZeroU32,
     sync::Arc,
@@ -7,7 +7,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{TimeZone, Utc};
 use data_types::{
     database_rules::WriteBufferCreationConfig, sequence::Sequence, server_id::ServerId,
 };
@@ -19,21 +19,89 @@ use rdkafka::{
     client::DefaultClientContext,
     consumer::{BaseConsumer, Consumer, StreamConsumer},
     error::KafkaError,
+    message::{Headers, OwnedHeaders},
     producer::{FutureProducer, FutureRecord},
     types::RDKafkaErrorCode,
     util::Timeout,
     ClientConfig, Message, Offset, TopicPartitionList,
 };
+use time::{Time, TimeProvider};
 
 use crate::core::{
     EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
     WriteBufferWriting,
 };
 
+/// Message header that determines message content type.
+pub const HEADER_CONTENT_TYPE: &str = "content-type";
+
+/// Current flatbuffer-based content type.
+///
+/// This is a value for [`HEADER_CONTENT_TYPE`].
+///
+/// Inspired by:
+/// - <https://stackoverflow.com/a/56502135>
+/// - <https://stackoverflow.com/a/48051331>
+pub const CONTENT_TYPE_FLATBUFFER: &str =
+    r#"application/x-flatbuffers; schema="influxdata.iox.write.v1.Entry""#;
+
+/// IOx-specific headers attached to every Kafka message.
+#[derive(Debug, PartialEq)]
+struct IoxHeaders {
+    content_type: Option<String>,
+}
+
+impl IoxHeaders {
+    /// Create new headers with sane default values.
+    fn new() -> Self {
+        Self {
+            content_type: Some(CONTENT_TYPE_FLATBUFFER.to_string()),
+        }
+    }
+
+    /// Create new headers where all information is missing.
+    fn empty() -> Self {
+        Self { content_type: None }
+    }
+}
+
+impl<H> From<&H> for IoxHeaders
+where
+    H: Headers,
+{
+    fn from(headers: &H) -> Self {
+        let mut res = Self { content_type: None };
+
+        for i in 0..headers.count() {
+            if let Some((name, value)) = headers.get(i) {
+                if name.eq_ignore_ascii_case(HEADER_CONTENT_TYPE) {
+                    res.content_type = String::from_utf8(value.to_vec()).ok();
+                }
+            }
+        }
+
+        res
+    }
+}
+
+impl From<&IoxHeaders> for OwnedHeaders {
+    fn from(iox_headers: &IoxHeaders) -> Self {
+        let mut res = Self::new();
+
+        if let Some(content_type) = iox_headers.content_type.as_ref() {
+            res = res.add(HEADER_CONTENT_TYPE, content_type);
+        }
+
+        res
+    }
+}
+
 pub struct KafkaBufferProducer {
     conn: String,
     database_name: String,
+    time_provider: Arc<dyn TimeProvider>,
     producer: FutureProducer,
+    partitions: BTreeSet<u32>,
 }
 
 // Needed because rdkafka's FutureProducer doesn't impl Debug
@@ -48,24 +116,32 @@ impl std::fmt::Debug for KafkaBufferProducer {
 
 #[async_trait]
 impl WriteBufferWriting for KafkaBufferProducer {
+    fn sequencer_ids(&self) -> BTreeSet<u32> {
+        self.partitions.clone()
+    }
+
     /// Send an `Entry` to Kafka using the sequencer ID as a partition.
     async fn store_entry(
         &self,
         entry: &Entry,
         sequencer_id: u32,
-    ) -> Result<(Sequence, DateTime<Utc>), WriteBufferError> {
+    ) -> Result<(Sequence, Time), WriteBufferError> {
         let partition = i32::try_from(sequencer_id)?;
 
         // truncate milliseconds from timestamps because that's what Kafka supports
-        let timestamp_millis = Utc::now().timestamp_millis();
-        let timestamp = Utc.timestamp_millis(timestamp_millis);
+        let date_time = self.time_provider.now().date_time();
+        let timestamp_millis = date_time.timestamp_millis();
+        let timestamp = Time::from_timestamp_millis(timestamp_millis);
+
+        let headers = IoxHeaders::new();
 
         // This type annotation is necessary because `FutureRecord` is generic over key type, but
         // key is optional and we're not setting a key. `String` is arbitrary.
         let record: FutureRecord<'_, String, _> = FutureRecord::to(&self.database_name)
             .payload(entry.data())
             .partition(partition)
-            .timestamp(timestamp_millis);
+            .timestamp(timestamp_millis)
+            .headers((&headers).into());
 
         debug!(db_name=%self.database_name, partition, size=entry.data().len(), "writing to kafka");
 
@@ -97,6 +173,7 @@ impl KafkaBufferProducer {
         database_name: impl Into<String> + Send,
         connection_config: &HashMap<String, String>,
         creation_config: Option<&WriteBufferCreationConfig>,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> Result<Self, WriteBufferError> {
         let conn = conn.into();
         let database_name = database_name.into();
@@ -121,22 +198,17 @@ impl KafkaBufferProducer {
         cfg.set("allow.auto.create.topics", "false");
 
         // handle auto-creation
-        if get_partitions(&database_name, &cfg).await?.is_empty() {
-            if let Some(cfg) = creation_config {
-                create_kafka_topic(&conn, &database_name, cfg.n_sequencers, &cfg.options).await?;
-            } else {
-                return Err("no partitions found and auto-creation not requested"
-                    .to_string()
-                    .into());
-            }
-        }
+        let partitions =
+            maybe_auto_create_topics(&conn, &database_name, creation_config, &cfg).await?;
 
         let producer: FutureProducer = cfg.create()?;
 
         Ok(Self {
             conn,
             database_name,
+            time_provider,
             producer,
+            partitions,
         })
     }
 }
@@ -159,8 +231,8 @@ impl std::fmt::Debug for KafkaBufferConsumer {
 
 #[async_trait]
 impl WriteBufferReading for KafkaBufferConsumer {
-    fn streams(&mut self) -> Vec<(u32, EntryStream<'_>)> {
-        let mut streams = vec![];
+    fn streams(&mut self) -> BTreeMap<u32, EntryStream<'_>> {
+        let mut streams = BTreeMap::new();
 
         for (sequencer_id, consumer) in &self.consumers {
             let sequencer_id = *sequencer_id;
@@ -171,7 +243,19 @@ impl WriteBufferReading for KafkaBufferConsumer {
                 .stream()
                 .map(move |message| {
                     let message = message?;
-                    let entry = Entry::try_from(message.payload().unwrap().to_vec())?;
+
+                    let headers: IoxHeaders = message.headers().map(|headers| headers.into()).unwrap_or_else(IoxHeaders::empty);
+
+                    // Fallback for now https://github.com/influxdata/influxdb_iox/issues/2805
+                    let content_type = headers.content_type.unwrap_or_else(|| CONTENT_TYPE_FLATBUFFER.to_string());
+                    if content_type != CONTENT_TYPE_FLATBUFFER {
+                        return Err(format!("Unknown message format: {}", content_type).into());
+                    }
+
+                    let payload = message.payload().ok_or_else::<WriteBufferError, _>(|| {
+                        "Payload missing".to_string().into()
+                    })?;
+                    let entry = Entry::try_from(payload.to_vec())?;
 
                     // Timestamps were added as part of
                     // [KIP-32](https://cwiki.apache.org/confluence/display/KAFKA/KIP-32+-+Add+timestamps+to+Kafka+message).
@@ -194,7 +278,7 @@ impl WriteBufferReading for KafkaBufferConsumer {
                         number: message.offset().try_into()?,
                     };
 
-                    Ok(SequencedEntry::new_from_sequence(sequence, timestamp, entry))
+                    Ok(SequencedEntry::new_from_sequence(sequence, Time::from_date_time(timestamp), entry))
                 })
                 .boxed();
 
@@ -223,13 +307,13 @@ impl WriteBufferReading for KafkaBufferConsumer {
             };
             let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
 
-            streams.push((
+            streams.insert(
                 sequencer_id,
                 EntryStream {
                     stream,
                     fetch_high_watermark,
                 },
-            ));
+            );
         }
 
         streams
@@ -305,17 +389,8 @@ impl KafkaBufferConsumer {
         cfg.set("auto.offset.reset", "smallest");
 
         // figure out which partitions exists
-        let mut partitions = get_partitions(&database_name, &cfg).await?;
-        if partitions.is_empty() {
-            if let Some(cfg2) = creation_config {
-                create_kafka_topic(&conn, &database_name, cfg2.n_sequencers, &cfg2.options).await?;
-                partitions = get_partitions(&database_name, &cfg).await?;
-            } else {
-                return Err("no partitions found and auto-creation not requested"
-                    .to_string()
-                    .into());
-            }
-        }
+        let partitions =
+            maybe_auto_create_topics(&conn, &database_name, creation_config, &cfg).await?;
         info!(%database_name, ?partitions, "found Kafka partitions");
 
         // setup a single consumer per partition, at least until https://github.com/fede1024/rust-rdkafka/pull/351 is
@@ -351,7 +426,10 @@ impl KafkaBufferConsumer {
     }
 }
 
-async fn get_partitions(database_name: &str, cfg: &ClientConfig) -> Result<Vec<u32>, KafkaError> {
+async fn get_partitions(
+    database_name: &str,
+    cfg: &ClientConfig,
+) -> Result<BTreeSet<u32>, KafkaError> {
     let database_name = database_name.to_string();
     let cfg = cfg.clone();
 
@@ -365,12 +443,11 @@ async fn get_partitions(database_name: &str, cfg: &ClientConfig) -> Result<Vec<u
 
     let topic_metadata = metadata.topics().get(0).expect("requested a single topic");
 
-    let mut partitions: Vec<_> = topic_metadata
+    let partitions: BTreeSet<_> = topic_metadata
         .partitions()
         .iter()
         .map(|partition_metdata| partition_metdata.id().try_into().unwrap())
         .collect();
-    partitions.sort_unstable();
 
     Ok(partitions)
 }
@@ -418,6 +495,39 @@ async fn create_kafka_topic(
             Err(format!("Cannot create topic '{}': {}", topic, code).into())
         }
     }
+}
+
+async fn maybe_auto_create_topics(
+    kafka_connection: &str,
+    database_name: &str,
+    creation_config: Option<&WriteBufferCreationConfig>,
+    cfg: &ClientConfig,
+) -> Result<BTreeSet<u32>, WriteBufferError> {
+    let mut partitions = get_partitions(database_name, cfg).await?;
+    if partitions.is_empty() {
+        if let Some(creation_config) = creation_config {
+            create_kafka_topic(
+                kafka_connection,
+                database_name,
+                creation_config.n_sequencers,
+                &creation_config.options,
+            )
+            .await?;
+            partitions = get_partitions(database_name, cfg).await?;
+
+            // while the number of partitions might be different than `creation_cfg.n_sequencers` due to a
+            // conflicting, concurrent topic creation, it must not be empty at this point
+            if partitions.is_empty() {
+                return Err("Cannot create non-empty topic".to_string().into());
+            }
+        } else {
+            return Err("no partitions found and auto-creation not requested"
+                .to_string()
+                .into());
+        }
+    }
+
+    Ok(partitions)
 }
 
 pub mod test_utils {
@@ -518,9 +628,14 @@ mod tests {
         num::NonZeroU32,
         sync::atomic::{AtomicU32, Ordering},
     };
+    use time::TimeProvider;
+
+    use entry::test_helpers::lp_to_entry;
 
     use crate::{
-        core::test_utils::{perform_generic_tests, TestAdapter, TestContext},
+        core::test_utils::{
+            map_pop_first, perform_generic_tests, set_pop_first, TestAdapter, TestContext,
+        },
         kafka::test_utils::random_kafka_topic,
         maybe_skip_kafka_integration,
     };
@@ -541,12 +656,17 @@ mod tests {
     impl TestAdapter for KafkaTestAdapter {
         type Context = KafkaTestContext;
 
-        async fn new_context(&self, n_sequencers: NonZeroU32) -> Self::Context {
+        async fn new_context_with_time(
+            &self,
+            n_sequencers: NonZeroU32,
+            time_provider: Arc<dyn TimeProvider>,
+        ) -> Self::Context {
             KafkaTestContext {
                 conn: self.conn.clone(),
                 database_name: random_kafka_topic(),
                 server_id_counter: AtomicU32::new(1),
                 n_sequencers,
+                time_provider,
             }
         }
     }
@@ -556,6 +676,7 @@ mod tests {
         database_name: String,
         server_id_counter: AtomicU32,
         n_sequencers: NonZeroU32,
+        time_provider: Arc<dyn TimeProvider>,
     }
 
     impl KafkaTestContext {
@@ -579,6 +700,7 @@ mod tests {
                 &self.database_name,
                 &Default::default(),
                 self.creation_config(creation_config).as_ref(),
+                Arc::clone(&self.time_provider),
             )
             .await
         }
@@ -609,6 +731,7 @@ mod tests {
     async fn topic_create_twice() {
         let conn = maybe_skip_kafka_integration!();
         let database_name = random_kafka_topic();
+
         create_kafka_topic(
             &conn,
             &database_name,
@@ -617,6 +740,7 @@ mod tests {
         )
         .await
         .unwrap();
+
         create_kafka_topic(
             &conn,
             &database_name,
@@ -625,5 +749,91 @@ mod tests {
         )
         .await
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn error_no_payload() {
+        let conn = maybe_skip_kafka_integration!();
+        let adapter = KafkaTestAdapter::new(conn);
+        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
+
+        let writer = ctx.writing(true).await.unwrap();
+        let partition = set_pop_first(&mut writer.sequencer_ids()).unwrap() as i32;
+        let record: FutureRecord<'_, String, [u8]> =
+            FutureRecord::to(&writer.database_name).partition(partition);
+        writer.producer.send(record, Timeout::Never).await.unwrap();
+
+        let mut reader = ctx.reading(true).await.unwrap();
+        let mut streams = reader.streams();
+        assert_eq!(streams.len(), 1);
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+        let err = stream.stream.next().await.unwrap().unwrap_err();
+        assert_eq!(err.to_string(), "Payload missing");
+    }
+
+    #[tokio::test]
+    async fn content_type_header_missing() {
+        // Fallback for now https://github.com/influxdata/influxdb_iox/issues/2805
+        let conn = maybe_skip_kafka_integration!();
+        let adapter = KafkaTestAdapter::new(conn);
+        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
+
+        let writer = ctx.writing(true).await.unwrap();
+        let partition = set_pop_first(&mut writer.sequencer_ids()).unwrap() as i32;
+        let entry = lp_to_entry("upc,region=east user=1 100");
+        let record: FutureRecord<'_, String, _> = FutureRecord::to(&writer.database_name)
+            .payload(entry.data())
+            .partition(partition);
+        writer.producer.send(record, Timeout::Never).await.unwrap();
+
+        let mut reader = ctx.reading(true).await.unwrap();
+        let mut streams = reader.streams();
+        assert_eq!(streams.len(), 1);
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+        stream.stream.next().await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn content_type_header_unknown() {
+        let conn = maybe_skip_kafka_integration!();
+        let adapter = KafkaTestAdapter::new(conn);
+        let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
+
+        let writer = ctx.writing(true).await.unwrap();
+        let partition = set_pop_first(&mut writer.sequencer_ids()).unwrap() as i32;
+        let entry = lp_to_entry("upc,region=east user=1 100");
+        let record: FutureRecord<'_, String, _> = FutureRecord::to(&writer.database_name)
+            .payload(entry.data())
+            .partition(partition)
+            .headers(OwnedHeaders::new().add(HEADER_CONTENT_TYPE, "foo"));
+        writer.producer.send(record, Timeout::Never).await.unwrap();
+
+        let mut reader = ctx.reading(true).await.unwrap();
+        let mut streams = reader.streams();
+        assert_eq!(streams.len(), 1);
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+        let err = stream.stream.next().await.unwrap().unwrap_err();
+        assert_eq!(err.to_string(), "Unknown message format: foo");
+    }
+
+    #[test]
+    fn headers_roundtrip() {
+        let iox_headers1 = IoxHeaders::new();
+        let kafka_headers: OwnedHeaders = (&iox_headers1).into();
+        let iox_headers2: IoxHeaders = (&kafka_headers).into();
+        assert_eq!(iox_headers1, iox_headers2);
+    }
+
+    #[test]
+    fn headers_case_handling() {
+        let kafka_headers = OwnedHeaders::new()
+            .add("content-type", "a")
+            .add("CONTENT-TYPE", "b")
+            .add("content-TYPE", "c");
+        let actual: IoxHeaders = (&kafka_headers).into();
+        let expected = IoxHeaders {
+            content_type: Some("c".to_string()),
+        };
+        assert_eq!(actual, expected);
     }
 }

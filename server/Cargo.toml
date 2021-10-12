@@ -10,7 +10,7 @@ arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
 bytes = "1.0"
 chrono = "0.4"
-cache_loader_async = { version = "0.1.0", features = ["ttl-cache"] }
+cache_loader_async = { version = "0.1.2", features = ["ttl-cache"] }
 crc32fast = "1.2.0"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
@@ -48,6 +48,7 @@ serde = "1.0"
 serde_json = "1.0"
 snafu = "0.6"
 snap = "1.0.0"
+time = { path = "../time" }
 trace = { path = "../trace" }
 tokio = { version = "1.11", features = ["macros", "time"] }
 tokio-util = { version = "0.6.3" }

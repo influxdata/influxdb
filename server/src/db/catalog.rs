@@ -18,6 +18,7 @@ use self::metrics::CatalogMetrics;
 use self::partition::Partition;
 use self::table::Table;
 use data_types::write_summary::WriteSummary;
+use time::TimeProvider;
 
 pub mod chunk;
 mod metrics;
@@ -92,21 +93,32 @@ pub struct Catalog {
     tables: RwLock<HashMap<Arc<str>, Table>>,
 
     metrics: Arc<CatalogMetrics>,
+
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 impl Catalog {
     #[cfg(test)]
     fn test() -> Self {
-        Self::new(Arc::from("test"), Default::default())
+        Self::new(
+            Arc::from("test"),
+            Default::default(),
+            Arc::new(time::SystemProvider::new()),
+        )
     }
 
-    pub fn new(db_name: Arc<str>, metric_registry: Arc<::metric::Registry>) -> Self {
+    pub fn new(
+        db_name: Arc<str>,
+        metric_registry: Arc<::metric::Registry>,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Self {
         let metrics = Arc::new(CatalogMetrics::new(Arc::clone(&db_name), metric_registry));
 
         Self {
             db_name,
             tables: Default::default(),
             metrics,
+            time_provider,
         }
     }
 
@@ -194,6 +206,7 @@ impl Catalog {
                     Arc::clone(&self.db_name),
                     Arc::clone(&table_name),
                     self.metrics.new_table_metrics(table_name.as_ref()),
+                    Arc::clone(&self.time_provider),
                 );
 
                 (table_name, table)
@@ -317,13 +330,11 @@ mod tests {
     use entry::test_helpers::lp_to_entry;
 
     use super::*;
-    use chrono::Utc;
 
     fn create_open_chunk(partition: &Arc<RwLock<Partition>>) -> ChunkAddr {
         let mut partition = partition.write();
         let table = partition.table_name();
         let entry = lp_to_entry(&format!("{} bar=1 10", table));
-        let time_of_write = Utc::now();
         let write = entry.partition_writes().unwrap().remove(0);
         let batch = write.table_batches().remove(0);
 
@@ -334,7 +345,7 @@ mod tests {
         )
         .unwrap();
 
-        let chunk = partition.create_open_chunk(mb_chunk, time_of_write);
+        let chunk = partition.create_open_chunk(mb_chunk);
         let chunk = chunk.read();
         chunk.addr().clone()
     }

@@ -69,7 +69,6 @@
 )]
 
 use async_trait::async_trait;
-use chrono::Utc;
 use data_types::{
     chunk_metadata::ChunkId,
     database_rules::{NodeGroup, RoutingRules, ShardId, Sink},
@@ -918,7 +917,7 @@ where
         use database::WriteError;
 
         self.active_database(db_name)?
-            .write_entry(entry, Utc::now())
+            .write_entry(entry)
             .await
             .map_err(|e| match e {
                 WriteError::NotInitialized { .. } => Error::DatabaseNotInitialized {
@@ -1251,6 +1250,7 @@ mod tests {
         path::{parsed::DirsAndFileName, ObjectStorePath},
         ObjectStore, ObjectStoreApi,
     };
+    use parquet_file::catalog::core::PreservedCatalogConfig;
     use parquet_file::catalog::{
         core::PreservedCatalog,
         test_helpers::{load_ok, new_empty},
@@ -2206,9 +2206,12 @@ mod tests {
             .await
             .unwrap();
 
-        let (preserved_catalog, _catalog) = load_ok(&catalog_broken.iox_object_store().unwrap())
-            .await
-            .unwrap();
+        let config = PreservedCatalogConfig::new(
+            catalog_broken.iox_object_store().unwrap(),
+            Arc::clone(application.time_provider()),
+        );
+
+        let (preserved_catalog, _catalog) = load_ok(config).await.unwrap();
 
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
@@ -2287,7 +2290,13 @@ mod tests {
             .await
             .unwrap(),
         );
-        new_empty(&non_existing_iox_object_store).await;
+
+        let config = PreservedCatalogConfig::new(
+            non_existing_iox_object_store,
+            Arc::clone(application.time_provider()),
+        );
+        new_empty(config).await;
+
         assert_eq!(
             server
                 .wipe_preserved_catalog(&db_name_non_existing)
@@ -2382,8 +2391,11 @@ mod tests {
                 .unwrap(),
         );
 
+        let config =
+            PreservedCatalogConfig::new(iox_object_store, Arc::clone(application.time_provider()));
+
         // create catalog
-        new_empty(&iox_object_store).await;
+        new_empty(config).await;
 
         // creating database will now result in an error
         let err = create_simple_database(&server, db_name).await.unwrap_err();
@@ -2396,13 +2408,13 @@ mod tests {
 
     #[tokio::test]
     async fn write_buffer_errors_propagate() {
-        let mut factory = WriteBufferConfigFactory::new();
+        let application = ApplicationState::new(Arc::new(ObjectStore::new_in_memory()), None);
+
+        let mut factory = WriteBufferConfigFactory::new(Arc::clone(application.time_provider()));
         factory.register_always_fail_mock("my_mock".to_string());
-        let application = Arc::new(ApplicationState::with_write_buffer_factory(
-            Arc::new(ObjectStore::new_in_memory()),
-            Arc::new(factory),
-            None,
-        ));
+
+        let application = Arc::new(application.with_write_buffer_factory(Arc::new(factory)));
+
         let server = make_server(application);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.wait_for_init().await.unwrap();

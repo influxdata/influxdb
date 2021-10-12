@@ -288,7 +288,8 @@ jobs:
           name: buf lint
           command: buf lint
 
-  # Check that the generated flatbuffers code is up-to-date with the changes in this PR.
+  # Check that any generated files are  is up-to-date with the changes in this PR.
+  # named "check-flatbuffers" because that name is hardcoded into github checks
   check-flatbuffers:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -296,6 +297,9 @@ jobs:
     steps:
       - checkout
       - rust_components # Regenerating flatbuffers uses rustfmt
+      - run:
+          name: Check Query Tests
+          command: ./query_tests/check-generated.sh
       - run:
           name: Check Flatbuffers
           command: INFLUXDB_IOX_INTEGRATION_LOCAL=1 ./entry/check-flatbuffers.sh

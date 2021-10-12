@@ -8,6 +8,7 @@ use schema::{
     Schema,
 };
 use std::{ops::Deref, result::Result, sync::Arc};
+use time::TimeProvider;
 use tracker::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 /// A `Table` is a collection of `Partition` each of which is a collection of `Chunk`
@@ -31,6 +32,8 @@ pub struct Table {
     /// - the outer `Arc<RwLock<...>>` so so that we can reference the locked schema w/o a lifetime to the table
     /// - the inner `Arc<Schema>` is a schema that we don't need to copy when moving it around the query stack
     schema: Arc<RwLock<Arc<Schema>>>,
+
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 impl Table {
@@ -39,7 +42,12 @@ impl Table {
     /// This function is not pub because `Table`s should be
     /// created using the interfaces on [`Catalog`](crate::db::catalog::Catalog) and not
     /// instantiated directly.
-    pub(super) fn new(db_name: Arc<str>, table_name: Arc<str>, metrics: TableMetrics) -> Self {
+    pub(super) fn new(
+        db_name: Arc<str>,
+        table_name: Arc<str>,
+        metrics: TableMetrics,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Self {
         // build empty schema for this table
         let mut builder = SchemaBuilder::new();
         builder.measurement(table_name.as_ref());
@@ -52,6 +60,7 @@ impl Table {
             partitions: Default::default(),
             metrics: Arc::new(metrics),
             schema,
+            time_provider,
         }
     }
 
@@ -70,6 +79,7 @@ impl Table {
         let metrics = &self.metrics;
         let db_name = &self.db_name;
         let table_name = &self.table_name;
+        let time_provider = &self.time_provider;
         let (_, partition) = self
             .partitions
             .raw_entry_mut()
@@ -84,6 +94,7 @@ impl Table {
                         partition_key: Arc::clone(&partition_key),
                     },
                     partition_metrics,
+                    Arc::clone(time_provider),
                 );
                 let partition = Arc::new(metrics.new_partition_lock(partition));
                 (partition_key, partition)

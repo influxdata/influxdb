@@ -225,30 +225,31 @@ mod tests {
             interface::CatalogParquetInfo,
             test_helpers::{TestCatalogState, DB_NAME},
         },
-        test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize},
+        test_utils::{chunk_addr, make_config, make_metadata, TestSize},
     };
-    use chrono::{TimeZone, Utc};
+    use time::Time;
     use uuid::Uuid;
 
     #[tokio::test]
     async fn test_dump_default_options() {
-        let iox_object_store = make_iox_object_store().await;
+        let time_provider = Arc::new(time::MockProvider::new(Time::from_timestamp(10, 20)));
+        let config = make_config()
+            .await
+            .with_fixed_uuid(Uuid::nil())
+            .with_time_provider(time_provider);
+
+        let iox_object_store = &config.iox_object_store;
 
         // build catalog with some data
-        let (catalog, _state) = PreservedCatalog::new_empty_for_testing::<TestCatalogState>(
-            DB_NAME,
-            Arc::clone(&iox_object_store),
-            (),
-            Uuid::nil(),
-            Utc.timestamp(10, 20),
-        )
-        .await
-        .unwrap();
+        let (catalog, _state) =
+            PreservedCatalog::new_empty::<TestCatalogState>(DB_NAME, config.clone(), ())
+                .await
+                .unwrap();
         {
             let mut transaction = catalog.open_transaction().await;
 
             let (path, metadata) =
-                make_metadata(&iox_object_store, "foo", chunk_addr(0), TestSize::Minimal).await;
+                make_metadata(iox_object_store, "foo", chunk_addr(0), TestSize::Minimal).await;
             let info = CatalogParquetInfo {
                 path,
                 file_size_bytes: 33,
@@ -261,7 +262,7 @@ mod tests {
 
         let mut buf = std::io::Cursor::new(Vec::new());
         let options = DumpOptions::default();
-        dump(&iox_object_store, &mut buf, options).await.unwrap();
+        dump(iox_object_store, &mut buf, options).await.unwrap();
         let actual = String::from_utf8(buf.into_inner()).unwrap();
         let actual = actual.trim();
 
@@ -352,23 +353,23 @@ File {
 
     #[tokio::test]
     async fn test_dump_show_parsed_data() {
-        let iox_object_store = make_iox_object_store().await;
+        let time_provider = Arc::new(time::MockProvider::new(Time::from_timestamp(10, 20)));
+        let config = make_config()
+            .await
+            .with_fixed_uuid(Uuid::nil())
+            .with_time_provider(time_provider);
+        let iox_object_store = &config.iox_object_store;
 
         // build catalog with some data
-        let (catalog, _state) = PreservedCatalog::new_empty_for_testing::<TestCatalogState>(
-            DB_NAME,
-            Arc::clone(&iox_object_store),
-            (),
-            Uuid::nil(),
-            Utc.timestamp(10, 20),
-        )
-        .await
-        .unwrap();
+        let (catalog, _state) =
+            PreservedCatalog::new_empty::<TestCatalogState>(DB_NAME, config.clone(), ())
+                .await
+                .unwrap();
         {
             let mut transaction = catalog.open_transaction().await;
 
             let (path, metadata) =
-                make_metadata(&iox_object_store, "foo", chunk_addr(0), TestSize::Minimal).await;
+                make_metadata(iox_object_store, "foo", chunk_addr(0), TestSize::Minimal).await;
             let info = CatalogParquetInfo {
                 path,
                 file_size_bytes: 33,
@@ -386,7 +387,7 @@ File {
             show_statistics: true,
             ..Default::default()
         };
-        dump(&iox_object_store, &mut buf, options).await.unwrap();
+        dump(iox_object_store, &mut buf, options).await.unwrap();
         let actual = String::from_utf8(buf.into_inner()).unwrap();
         let actual = actual.trim();
 
@@ -463,9 +464,9 @@ File {
                 Metadata {
                     iox_metadata: Ok(
                         IoxMetadata {
-                            creation_timestamp: 1970-01-01T00:00:10.000000020Z,
-                            time_of_first_write: 1970-01-01T00:00:30.000000040Z,
-                            time_of_last_write: 1970-01-01T00:00:50.000000060Z,
+                            creation_timestamp: 1970-01-01T00:00:10.000000020+00:00,
+                            time_of_first_write: 1970-01-01T00:00:30.000000040+00:00,
+                            time_of_last_write: 1970-01-01T00:00:50.000000060+00:00,
                             table_name: "table1",
                             partition_key: "part1",
                             chunk_id: ChunkId(
@@ -486,7 +487,7 @@ File {
                                         max: 28,
                                     },
                                 },
-                                flush_timestamp: 1970-01-01T00:00:10.000000020Z,
+                                flush_timestamp: 1970-01-01T00:00:10.000000020+00:00,
                             },
                             database_checkpoint: DatabaseCheckpoint {
                                 sequencer_numbers: {

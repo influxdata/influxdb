@@ -408,7 +408,6 @@ mod tests {
     };
     use arrow::array::{ArrayRef, StringArray};
     use arrow_util::assert_batches_eq;
-    use chrono::Utc;
     use data_types::{
         chunk_metadata::{ChunkId, ChunkOrder},
         partition_metadata::TableSummary,
@@ -416,6 +415,7 @@ mod tests {
     use datafusion::physical_plan::common::SizedRecordBatchStream;
     use datafusion_util::MemoryStream;
     use parquet::schema::types::ColumnPath;
+    use time::Time;
 
     #[tokio::test]
     async fn test_parquet_contains_key_value_metadata() {
@@ -426,14 +426,14 @@ mod tests {
             Arc::clone(&partition_key),
         );
         let metadata = IoxMetadata {
-            creation_timestamp: Utc::now(),
+            creation_timestamp: Time::from_timestamp_nanos(3453),
             table_name,
             partition_key,
             chunk_id: ChunkId::new_test(1337),
             partition_checkpoint,
             database_checkpoint,
-            time_of_first_write: Utc::now(),
-            time_of_last_write: Utc::now(),
+            time_of_first_write: Time::from_timestamp_nanos(456),
+            time_of_last_write: Time::from_timestamp_nanos(43069346),
             chunk_order: ChunkOrder::new(5).unwrap(),
         };
 
@@ -502,14 +502,14 @@ mod tests {
             Arc::clone(&partition_key),
         );
         let metadata = IoxMetadata {
-            creation_timestamp: Utc::now(),
+            creation_timestamp: Time::from_timestamp_nanos(43069346),
             table_name: Arc::clone(&table_name),
             partition_key: Arc::clone(&partition_key),
             chunk_id,
             partition_checkpoint,
             database_checkpoint,
-            time_of_first_write: Utc::now(),
-            time_of_last_write: Utc::now(),
+            time_of_first_write: Time::from_timestamp_nanos(234),
+            time_of_last_write: Time::from_timestamp_nanos(4784),
             chunk_order: ChunkOrder::new(5).unwrap(),
         };
 
