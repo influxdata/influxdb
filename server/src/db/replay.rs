@@ -418,7 +418,6 @@ mod tests {
     };
 
     use arrow_util::assert_batches_eq;
-    use chrono::Utc;
     use data_types::{
         database_rules::{PartitionTemplate, Partitioner, TemplatePart},
         sequence::Sequence,
@@ -463,7 +462,7 @@ mod tests {
 
             SequencedEntry::new_from_sequence(
                 Sequence::new(sequencer_id, sequence_number),
-                Utc::now(),
+                Time::from_timestamp_nanos(0),
                 entries.pop().unwrap(),
             )
         }
@@ -2618,12 +2617,12 @@ mod tests {
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 0),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             lp_to_entry("cpu bar=1 0"),
         ));
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 2),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             lp_to_entry("cpu bar=1 10"),
         ));
         let mut write_buffer = MockBufferForReading::new(write_buffer_state, None).unwrap();
@@ -2668,17 +2667,17 @@ mod tests {
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(3).unwrap());
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 0),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             lp_to_entry("cpu bar=0 0"),
         ));
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 3),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             lp_to_entry("cpu bar=3 3"),
         ));
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(1, 1),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             lp_to_entry("cpu bar=11 11"),
         ));
         let mut write_buffer = MockBufferForReading::new(write_buffer_state.clone(), None).unwrap();
@@ -2693,17 +2692,17 @@ mod tests {
         // add more data
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 4),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             lp_to_entry("cpu bar=4 4"),
         ));
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(1, 9),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             lp_to_entry("cpu bar=19 19"),
         ));
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(2, 0),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             lp_to_entry("cpu bar=20 20"),
         ));
 

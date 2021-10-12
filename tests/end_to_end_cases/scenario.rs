@@ -717,6 +717,7 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
         db_name,
         &Default::default(),
         creation_config.as_ref(),
+        Arc::new(time::SystemProvider::new()),
     )
     .await
     .unwrap();

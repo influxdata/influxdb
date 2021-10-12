@@ -7,7 +7,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{TimeZone, Utc};
 use data_types::{
     database_rules::WriteBufferCreationConfig, sequence::Sequence, server_id::ServerId,
 };
@@ -24,6 +24,7 @@ use rdkafka::{
     util::Timeout,
     ClientConfig, Message, Offset, TopicPartitionList,
 };
+use time::{Time, TimeProvider};
 
 use crate::core::{
     EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
@@ -33,6 +34,7 @@ use crate::core::{
 pub struct KafkaBufferProducer {
     conn: String,
     database_name: String,
+    time_provider: Arc<dyn TimeProvider>,
     producer: FutureProducer,
     partitions: BTreeSet<u32>,
 }
@@ -58,12 +60,13 @@ impl WriteBufferWriting for KafkaBufferProducer {
         &self,
         entry: &Entry,
         sequencer_id: u32,
-    ) -> Result<(Sequence, DateTime<Utc>), WriteBufferError> {
+    ) -> Result<(Sequence, Time), WriteBufferError> {
         let partition = i32::try_from(sequencer_id)?;
 
         // truncate milliseconds from timestamps because that's what Kafka supports
-        let timestamp_millis = Utc::now().timestamp_millis();
-        let timestamp = Utc.timestamp_millis(timestamp_millis);
+        let date_time = self.time_provider.now().date_time();
+        let timestamp_millis = date_time.timestamp_millis();
+        let timestamp = Time::from_timestamp_millis(timestamp_millis);
 
         // This type annotation is necessary because `FutureRecord` is generic over key type, but
         // key is optional and we're not setting a key. `String` is arbitrary.
@@ -102,6 +105,7 @@ impl KafkaBufferProducer {
         database_name: impl Into<String> + Send,
         connection_config: &HashMap<String, String>,
         creation_config: Option<&WriteBufferCreationConfig>,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> Result<Self, WriteBufferError> {
         let conn = conn.into();
         let database_name = database_name.into();
@@ -134,6 +138,7 @@ impl KafkaBufferProducer {
         Ok(Self {
             conn,
             database_name,
+            time_provider,
             producer,
             partitions,
         })
@@ -193,7 +198,7 @@ impl WriteBufferReading for KafkaBufferConsumer {
                         number: message.offset().try_into()?,
                     };
 
-                    Ok(SequencedEntry::new_from_sequence(sequence, timestamp, entry))
+                    Ok(SequencedEntry::new_from_sequence(sequence, Time::from_date_time(timestamp), entry))
                 })
                 .boxed();
 
@@ -543,6 +548,7 @@ mod tests {
         num::NonZeroU32,
         sync::atomic::{AtomicU32, Ordering},
     };
+    use time::TimeProvider;
 
     use crate::{
         core::test_utils::{perform_generic_tests, TestAdapter, TestContext},
@@ -566,12 +572,17 @@ mod tests {
     impl TestAdapter for KafkaTestAdapter {
         type Context = KafkaTestContext;
 
-        async fn new_context(&self, n_sequencers: NonZeroU32) -> Self::Context {
+        async fn new_context_with_time(
+            &self,
+            n_sequencers: NonZeroU32,
+            time_provider: Arc<dyn TimeProvider>,
+        ) -> Self::Context {
             KafkaTestContext {
                 conn: self.conn.clone(),
                 database_name: random_kafka_topic(),
                 server_id_counter: AtomicU32::new(1),
                 n_sequencers,
+                time_provider,
             }
         }
     }
@@ -581,6 +592,7 @@ mod tests {
         database_name: String,
         server_id_counter: AtomicU32,
         n_sequencers: NonZeroU32,
+        time_provider: Arc<dyn TimeProvider>,
     }
 
     impl KafkaTestContext {
@@ -604,6 +616,7 @@ mod tests {
                 &self.database_name,
                 &Default::default(),
                 self.creation_config(creation_config).as_ref(),
+                Arc::clone(&self.time_provider),
             )
             .await
         }

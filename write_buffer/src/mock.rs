@@ -6,13 +6,13 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use futures::{stream, FutureExt, StreamExt};
 use parking_lot::Mutex;
 
 use data_types::database_rules::WriteBufferCreationConfig;
 use data_types::sequence::Sequence;
 use entry::{Entry, SequencedEntry};
+use time::{Time, TimeProvider};
 
 use crate::core::{
     EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
@@ -199,12 +199,14 @@ impl MockBufferSharedState {
 #[derive(Debug)]
 pub struct MockBufferForWriting {
     state: MockBufferSharedState,
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 impl MockBufferForWriting {
     pub fn new(
         state: MockBufferSharedState,
         creation_config: Option<&WriteBufferCreationConfig>,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> Result<Self, WriteBufferError> {
         state.maybe_auto_init(creation_config);
 
@@ -215,7 +217,10 @@ impl MockBufferForWriting {
             }
         }
 
-        Ok(Self { state })
+        Ok(Self {
+            state,
+            time_provider,
+        })
     }
 }
 
@@ -231,7 +236,7 @@ impl WriteBufferWriting for MockBufferForWriting {
         &self,
         entry: &Entry,
         sequencer_id: u32,
-    ) -> Result<(Sequence, DateTime<Utc>), WriteBufferError> {
+    ) -> Result<(Sequence, Time), WriteBufferError> {
         let mut guard = self.state.entries.lock();
         let entries = guard.as_mut().unwrap();
         let sequencer_entries = entries.get_mut(&sequencer_id).unwrap();
@@ -242,7 +247,7 @@ impl WriteBufferWriting for MockBufferForWriting {
             id: sequencer_id,
             number: sequence_number,
         };
-        let timestamp = Utc::now();
+        let timestamp = self.time_provider.now();
         sequencer_entries.push(Ok(SequencedEntry::new_from_sequence(
             sequence,
             timestamp,
@@ -271,7 +276,7 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
         &self,
         _entry: &Entry,
         _sequencer_id: u32,
-    ) -> Result<(Sequence, DateTime<Utc>), WriteBufferError> {
+    ) -> Result<(Sequence, Time), WriteBufferError> {
         Err(String::from(
             "Something bad happened on the way to writing an entry in the write buffer",
         )
@@ -492,6 +497,7 @@ mod tests {
     use std::time::Duration;
 
     use entry::test_helpers::lp_to_entry;
+    use time::TimeProvider;
 
     use crate::core::test_utils::{map_pop_first, perform_generic_tests, TestAdapter, TestContext};
 
@@ -503,10 +509,15 @@ mod tests {
     impl TestAdapter for MockTestAdapter {
         type Context = MockTestContext;
 
-        async fn new_context(&self, n_sequencers: NonZeroU32) -> Self::Context {
+        async fn new_context_with_time(
+            &self,
+            n_sequencers: NonZeroU32,
+            time_provider: Arc<dyn TimeProvider>,
+        ) -> Self::Context {
             MockTestContext {
                 state: MockBufferSharedState::uninitialized(),
                 n_sequencers,
+                time_provider,
             }
         }
     }
@@ -514,6 +525,7 @@ mod tests {
     struct MockTestContext {
         state: MockBufferSharedState,
         n_sequencers: NonZeroU32,
+        time_provider: Arc<dyn TimeProvider>,
     }
 
     impl MockTestContext {
@@ -535,6 +547,7 @@ mod tests {
             MockBufferForWriting::new(
                 self.state.clone(),
                 self.creation_config(creation_config).as_ref(),
+                Arc::clone(&self.time_provider),
             )
         }
 
@@ -569,7 +582,7 @@ mod tests {
         let sequence = Sequence::new(2, 0);
         state.push_entry(SequencedEntry::new_from_sequence(
             sequence,
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry,
         ));
     }
@@ -582,7 +595,7 @@ mod tests {
         let sequence = Sequence::new(0, 0);
         state.push_entry(SequencedEntry::new_from_sequence(
             sequence,
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry,
         ));
     }
@@ -598,12 +611,12 @@ mod tests {
         let sequence = Sequence::new(1, 13);
         state.push_entry(SequencedEntry::new_from_sequence(
             sequence,
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry.clone(),
         ));
         state.push_entry(SequencedEntry::new_from_sequence(
             sequence,
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry,
         ));
     }
@@ -620,12 +633,12 @@ mod tests {
         let sequence_2 = Sequence::new(1, 12);
         state.push_entry(SequencedEntry::new_from_sequence(
             sequence_1,
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry.clone(),
         ));
         state.push_entry(SequencedEntry::new_from_sequence(
             sequence_2,
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry,
         ));
     }
@@ -687,12 +700,12 @@ mod tests {
         let sequence_2 = Sequence::new(1, 12);
         state.push_entry(SequencedEntry::new_from_sequence(
             sequence_1,
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry.clone(),
         ));
         state.push_entry(SequencedEntry::new_from_sequence(
             sequence_2,
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry,
         ));
 
@@ -749,7 +762,7 @@ mod tests {
         let sequence_1 = Sequence::new(0, 11);
         state.push_entry(SequencedEntry::new_from_sequence(
             sequence_1,
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry,
         ));
 
@@ -786,13 +799,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_delayed_insert() {
-        let now = Utc::now();
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
 
         state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 0),
-            now,
+            Time::from_timestamp_nanos(0),
             lp_to_entry("mem foo=1 10"),
         ));
 
@@ -812,7 +824,7 @@ mod tests {
 
         state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 1),
-            now,
+            Time::from_timestamp_nanos(0),
             lp_to_entry("mem foo=2 20"),
         ));
 

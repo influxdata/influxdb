@@ -1197,7 +1197,6 @@ impl DatabaseStateInitialized {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
     use data_types::database_rules::{
         PartitionTemplate, TemplatePart, WriteBufferConnection, WriteBufferDirection,
     };
@@ -1209,6 +1208,7 @@ mod tests {
         num::NonZeroU32,
         time::Instant,
     };
+    use time::Time;
     use uuid::Uuid;
     use write_buffer::{config::WriteBufferConfigFactory, mock::MockBufferSharedState};
 
@@ -1383,19 +1383,19 @@ mod tests {
             .unwrap();
         state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 10),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry_a,
         ));
         state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 11),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry_b,
         ));
 
         // setup application
         let application = ApplicationState::new(Arc::new(ObjectStore::new_in_memory()), None);
 
-        let mut factory = WriteBufferConfigFactory::new();
+        let mut factory = WriteBufferConfigFactory::new(Arc::clone(application.time_provider()));
         factory.register_mock("my_mock".to_string(), state.clone());
 
         let application = Arc::new(application.with_write_buffer_factory(Arc::new(factory)));
@@ -1471,7 +1471,7 @@ mod tests {
             .unwrap();
         state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 12),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry_c,
         ));
 
@@ -1492,7 +1492,7 @@ mod tests {
             .unwrap();
         state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 13),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry_d,
         ));
         let db = database.initialized_db().unwrap();

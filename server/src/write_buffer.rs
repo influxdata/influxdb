@@ -196,8 +196,6 @@ mod tests {
     use std::convert::TryFrom;
     use std::num::{NonZeroU32, NonZeroUsize};
 
-    use chrono::{TimeZone, Utc};
-
     use ::test_helpers::assert_contains;
     use arrow_util::assert_batches_eq;
     use data_types::database_rules::{PartitionTemplate, TemplatePart};
@@ -215,6 +213,7 @@ mod tests {
 
     use super::*;
     use metric::{Attributes, Metric, U64Counter, U64Gauge};
+    use time::Time;
 
     #[tokio::test]
     async fn read_from_write_buffer_updates_persistence_windows() {
@@ -225,22 +224,22 @@ mod tests {
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(2).unwrap());
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 0),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry.clone(),
         ));
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(1, 0),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry.clone(),
         ));
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(1, 2),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry.clone(),
         ));
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 1),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             entry,
         ));
         let db = TestDb::builder().build().await.db;
@@ -293,8 +292,8 @@ mod tests {
     async fn read_from_write_buffer_write_to_mutable_buffer() {
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
-        let ingest_ts1 = Utc.timestamp_millis(42);
-        let ingest_ts2 = Utc.timestamp_millis(1337);
+        let ingest_ts1 = Time::from_timestamp_millis(42);
+        let ingest_ts2 = Time::from_timestamp_millis(1337);
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, 0),
             ingest_ts1,
@@ -454,13 +453,13 @@ mod tests {
             );
             write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
                 Sequence::new(0, sequence_number),
-                Utc::now(),
+                Time::from_timestamp_nanos(0),
                 lp_to_entry(&lp),
             ));
         }
         write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
             Sequence::new(0, n_entries),
-            Utc::now(),
+            Time::from_timestamp_nanos(0),
             lp_to_entry("table_2,partition_by=a foo=1 0"),
         ));
 

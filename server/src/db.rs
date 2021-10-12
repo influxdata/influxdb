@@ -1510,8 +1510,10 @@ mod tests {
         // configured and the mutable buffer isn't
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
-        let write_buffer =
-            Arc::new(MockBufferForWriting::new(write_buffer_state.clone(), None).unwrap());
+        let time_provider = Arc::new(time::MockProvider::new(Time::from_timestamp_nanos(0)));
+        let write_buffer = Arc::new(
+            MockBufferForWriting::new(write_buffer_state.clone(), None, time_provider).unwrap(),
+        );
         let test_db = TestDb::builder()
             .write_buffer_producer(write_buffer)
             .lifecycle_rules(LifecycleRules {
@@ -1534,8 +1536,10 @@ mod tests {
         // configured.
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
-        let write_buffer =
-            Arc::new(MockBufferForWriting::new(write_buffer_state.clone(), None).unwrap());
+        let time_provider = Arc::new(time::MockProvider::new(Time::from_timestamp_nanos(0)));
+        let write_buffer = Arc::new(
+            MockBufferForWriting::new(write_buffer_state.clone(), None, time_provider).unwrap(),
+        );
         let db = TestDb::builder()
             .write_buffer_producer(write_buffer)
             .build()
@@ -2467,7 +2471,10 @@ mod tests {
         // is a write buffer configured.
         let write_buffer_state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
-        let write_buffer = Arc::new(MockBufferForWriting::new(write_buffer_state, None).unwrap());
+        let time_provider = Arc::new(time::MockProvider::new(Time::from_timestamp_nanos(0)));
+        let write_buffer = Arc::new(
+            MockBufferForWriting::new(write_buffer_state.clone(), None, time_provider).unwrap(),
+        );
         let db = TestDb::builder()
             .write_buffer_producer(write_buffer)
             .build()

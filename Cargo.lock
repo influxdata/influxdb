@@ -1700,6 +1700,7 @@ dependencies = [
  "thiserror",
  "tikv-jemalloc-ctl",
  "tikv-jemalloc-sys",
+ "time 0.1.0",
  "tokio",
  "tokio-stream",
  "tokio-util",
@@ -4987,6 +4988,7 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "rdkafka",
+ "time 0.1.0",
  "tokio",
  "uuid",
 ]

@@ -2401,7 +2401,7 @@ mod tests {
     async fn write_buffer_errors_propagate() {
         let application = ApplicationState::new(Arc::new(ObjectStore::new_in_memory()), None);
 
-        let mut factory = WriteBufferConfigFactory::new();
+        let mut factory = WriteBufferConfigFactory::new(Arc::clone(application.time_provider()));
         factory.register_always_fail_mock("my_mock".to_string());
 
         let application = Arc::new(application.with_write_buffer_factory(Arc::new(factory)));
