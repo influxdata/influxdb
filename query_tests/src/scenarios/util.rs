@@ -11,8 +11,8 @@ use server::utils::make_db;
 use super::DbScenario;
 
 
-// =========================================================================================================================
-// Structs, enums, and functions used to exhaust all test scenarios of chunk life cycle & when delete predicates are applied
+// Structs, enums, and functions used to exhaust all test scenarios of chunk life cycle 
+// & when delete predicates are applied
 
 // STRUCTs & ENUMs
 #[derive(Debug, Clone)]
@@ -105,14 +105,14 @@ impl DeleteTime {
     }
 }
 
-// ------------------------------------------------------------------------------------------------------------------------
-// MAJOR FUNCTIONS TO GET INVOKED IN TEST SETUPS
+// --------------------------------------------------------------------------------------------
 
-/// Exhaust tests of chunk stages and their life cycle moves for given set of delete predicates
-pub async fn all_delete_scenarios_for_one_chunk(
+/// All scenarios chunk stages and their life cycle moves for given set of delete predicates
+/// If the delete predicates are empty, all scenarios of different chunk stages will return
+pub async fn all_scenarios_for_one_chunk(
     // These delete predicates are applied at all stages of the chunk life cycle
     chunk_stage_preds: Vec<&DeletePredicate>,
-    // These delete predicates are applied all chunks at their final stages
+    // These delete predicates are applied to all chunks at their final stages
     at_end_preds: Vec<&DeletePredicate>,
     // Single chunk data
     lp_lines: Vec<&str>,

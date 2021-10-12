@@ -2,7 +2,7 @@
 #[cfg(test)]
 use super::util::run_series_set_plan;
 
-use crate::scenarios::{DbScenario, DbSetup, NoData, TwoMeasurements, TwoMeasurementsManyFields, util::all_delete_scenarios_for_one_chunk};
+use crate::scenarios::{DbScenario, DbSetup, NoData, TwoMeasurements, TwoMeasurementsManyFields, util::all_scenarios_for_one_chunk};
 use async_trait::async_trait;
 use datafusion::logical_plan::{col, lit};
 use predicate::predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE};
@@ -28,7 +28,7 @@ impl DbSetup for TwoMeasurementsMultiSeries {
         lp_lines.swap(0, 2);
         lp_lines.swap(4, 5);
 
-        all_delete_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
     }
 }
 
@@ -445,7 +445,7 @@ impl DbSetup for MeasurementsSortableTags {
             "h2o,state=MA,city=Boston temp=70.5,other=5.0 250",
         ];
 
-        all_delete_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
     }
 }
 

@@ -6,7 +6,7 @@ use predicate::delete_predicate::DeletePredicate;
 
 use async_trait::async_trait;
 
-use crate::scenarios::util::{ChunkData, ChunkStage, all_delete_scenarios_for_one_chunk, make_different_stage_chunks_with_deletes_scenario};
+use crate::scenarios::util::{ChunkData, ChunkStage, all_scenarios_for_one_chunk, make_different_stage_chunks_with_deletes_scenario};
 
 use super::{DbScenario, DbSetup};
 
@@ -33,7 +33,7 @@ impl DbSetup for OneDeleteSimpleExprOneChunkDeleteAll {
         };
 
         // this returns 15 scenarios
-        all_delete_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key)
+        all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key)
             .await
     }
 }
@@ -61,7 +61,7 @@ impl DbSetup for OneDeleteSimpleExprOneChunk {
         };
 
         // this returns 15 scenarios
-        all_delete_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key)
+        all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key)
             .await
     }
 }
@@ -84,7 +84,7 @@ impl DbSetup for NoDeleteOneChunk {
         ];
 
         // this returns 15 scenarios
-        all_delete_scenarios_for_one_chunk(vec![], vec![], lp_lines, table_name, partition_key)
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, table_name, partition_key)
             .await
     }
 }
@@ -122,7 +122,7 @@ impl DbSetup for OneDeleteMultiExprsOneChunk {
         };
 
         // this returns 15 scenarios
-        all_delete_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key)
+        all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key)
             .await
     }
 }
@@ -176,7 +176,7 @@ impl DbSetup for TwoDeletesMultiExprsOneChunk {
         };
 
         // build all possible scenarios
-        all_delete_scenarios_for_one_chunk(
+        all_scenarios_for_one_chunk(
             vec![&pred1],
             vec![&pred2],
             lp_lines,

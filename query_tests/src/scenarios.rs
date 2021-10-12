@@ -19,7 +19,7 @@ use server::utils::{
 };
 use server::{db::test_helpers::write_lp, Db};
 
-use crate::scenarios::util::all_delete_scenarios_for_one_chunk;
+use crate::scenarios::util::all_scenarios_for_one_chunk;
 
 /// Holds a database and a description of how its data was configured
 #[derive(Debug)]
@@ -207,7 +207,7 @@ impl DbSetup for OneMeasurementRealisticTimes {
         ];
 
         // return all possible scenarios a chunk: MUB open, MUB frozen, RUB, RUB & OS, OS
-        all_delete_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu", partition_key).await
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu", partition_key).await
     }
 }
 
@@ -260,7 +260,7 @@ impl DbSetup for TwoMeasurements {
         ];
 
         // return all possible scenarios a chunk: MUB open, MUB frozen, RUB, RUB & OS, OS
-        all_delete_scenarios_for_one_chunk(vec![], vec![], lp_lines, "disk", partition_key).await
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "disk", partition_key).await
     }
 }
 
@@ -296,7 +296,7 @@ impl DbSetup for TwoMeasurementsUnsignedType {
             "school,town=andover count=25u 160",
         ];
 
-        all_delete_scenarios_for_one_chunk(vec![], vec![], lp_lines, "restaurant", partition_key).await
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "restaurant", partition_key).await
     }
 }
 
@@ -653,7 +653,7 @@ impl DbSetup for OneMeasurementManyFields {
             "h2o,tag1=foo,tag2=bar field1=70.6,field4=true 1000",
         ];
 
-        all_delete_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
     }
 }
 
@@ -679,7 +679,7 @@ impl DbSetup for EndToEndTest {
 
         let partition_key = "1970-01-01T00";
         // return all possible scenarios a chunk: MUB open, MUB frozen, RUB, RUB & OS, OS
-        all_delete_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu_load_short", partition_key).await
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu_load_short", partition_key).await
     }
 }
 
