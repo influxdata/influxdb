@@ -398,7 +398,7 @@ func determineAggregateMethod(agg string) (datatypes.Aggregate_AggregateType, er
 		return datatypes.Aggregate_AggregateTypeNone, nil
 	}
 
-	if t, ok := datatypes.Aggregate_AggregateType_value[strings.ToUpper(agg)]; ok {
+	if t, ok := datatypes.AggregateNameMap[strings.ToUpper(agg)]; ok {
 		return datatypes.Aggregate_AggregateType(t), nil
 	}
 	return 0, fmt.Errorf("unknown aggregate type %q", agg)
