@@ -1,5 +1,5 @@
 //! Tests for the Influx gRPC queries
-use crate::scenarios::*;
+use crate::scenarios::{util::all_scenarios_for_one_chunk, *};
 
 use server::{db::test_helpers::write_lp, utils::make_db};
 
@@ -264,6 +264,109 @@ async fn test_read_window_aggregate_months() {
 
     run_read_window_aggregate_test_case(
         MeasurementForWindowAggregateMonths {},
+        predicate,
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
+}
+
+// Test data to validate fix for:
+// https://github.com/influxdata/influxdb_iox/issues/2697
+struct MeasurementForDefect2697 {}
+#[async_trait]
+impl DbSetup for MeasurementForDefect2697 {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2021-01-01T00";
+
+        let lp = vec![
+            "mm,section=1a bar=5.0 1609459201000000011",
+            "mm,section=1a bar=0.28 1609459201000000031",
+            "mm,section=2b bar=4.0 1609459201000000009",
+            "mm,section=2b bar=6.0 1609459201000000015",
+            "mm,section=2b bar=1.2 1609459201000000022",
+            "mm,section=1a foo=1.0 1609459201000000001",
+            "mm,section=1a foo=3.0 1609459201000000005",
+            "mm,section=1a foo=11.24 1609459201000000024",
+            "mm,section=2b foo=2.0 1609459201000000002",
+        ];
+
+        all_scenarios_for_one_chunk(vec![], vec![], lp, "mm", partition_key).await
+    }
+}
+
+// See https://github.com/influxdata/influxdb_iox/issues/2697
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697() {
+    let predicate = PredicateBuilder::default()
+        // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
+        .timestamp_range(1609459201000000001, 1609459201000000031)
+        .build();
+
+    let agg = Aggregate::Min;
+    let every = WindowDuration::from_nanoseconds(10);
+    let offset = WindowDuration::from_nanoseconds(0);
+
+    // Because the windowed aggregate is using a selector aggregate (one of MIN,
+    // MAX, FIRST, LAST) we need to run a plan that brings along the timestamps
+    // for the chosen aggregate in the window.
+    //
+    // The window is defined by the `time` column
+    let expected_results = vec![
+        "+---------+--------------------------------+-----+--------------------------------+-------+--------------------------------+",
+        "| section | time                           | bar | time_bar                       | foo   | time_foo                       |",
+        "+---------+--------------------------------+-----+--------------------------------+-------+--------------------------------+",
+        "| 1a      | 2021-01-01T00:00:01.000000010Z |     |                                | 1     | 2021-01-01T00:00:01.000000001Z |",
+        "| 1a      | 2021-01-01T00:00:01.000000020Z | 5   | 2021-01-01T00:00:01.000000011Z |       |                                |",
+        "| 1a      | 2021-01-01T00:00:01.000000030Z |     |                                | 11.24 | 2021-01-01T00:00:01.000000024Z |",
+        "| 2b      | 2021-01-01T00:00:01.000000010Z | 4   | 2021-01-01T00:00:01.000000009Z | 2     | 2021-01-01T00:00:01.000000002Z |",
+        "| 2b      | 2021-01-01T00:00:01.000000020Z | 6   | 2021-01-01T00:00:01.000000015Z |       |                                |",
+        "| 2b      | 2021-01-01T00:00:01.000000030Z | 1.2 | 2021-01-01T00:00:01.000000022Z |       |                                |",
+        "+---------+--------------------------------+-----+--------------------------------+-------+--------------------------------+",
+    ];
+
+    run_read_window_aggregate_test_case(
+        MeasurementForDefect2697 {},
+        predicate,
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
+}
+
+// See https://github.com/influxdata/influxdb_iox/issues/2697
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697() {
+    let predicate = PredicateBuilder::default()
+        // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
+        .timestamp_range(1609459201000000001, 1609459201000000031)
+        .build();
+
+    let agg = Aggregate::Sum;
+    let every = WindowDuration::from_nanoseconds(10);
+    let offset = WindowDuration::from_nanoseconds(0);
+
+    // The windowed aggregate is using a non-selector aggregate (SUM, COUNT).
+    // For each distinct series the window defines the `time` column
+    let expected_results = vec![
+        "+---------+--------------------------------+-----+-------+",
+        "| section | time                           | bar | foo   |",
+        "+---------+--------------------------------+-----+-------+",
+        "| 1a      | 2021-01-01T00:00:01.000000010Z |     | 4     |",
+        "| 1a      | 2021-01-01T00:00:01.000000020Z | 5   |       |",
+        "| 1a      | 2021-01-01T00:00:01.000000030Z |     | 11.24 |",
+        "| 2b      | 2021-01-01T00:00:01.000000010Z | 4   | 2     |",
+        "| 2b      | 2021-01-01T00:00:01.000000020Z | 6   |       |",
+        "| 2b      | 2021-01-01T00:00:01.000000030Z | 1.2 |       |",
+        "+---------+--------------------------------+-----+-------+",
+    ];
+
+    run_read_window_aggregate_test_case(
+        MeasurementForDefect2697 {},
         predicate,
         agg,
         every,
