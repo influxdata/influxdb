@@ -32,13 +32,69 @@ use crate::core::{
     WriteBufferWriting,
 };
 
-/// Message header that determines message format.
-pub const HEADER_FORMAT: &str = "IOX:FORMAT";
+/// Message header that determines message content type.
+pub const HEADER_CONTENT_TYPE: &str = "content-type";
 
-/// Current flatbuffer-based.
+/// Current flatbuffer-based content type.
 ///
-/// This is a value for [`HEADER_FORMAT`].
-pub const FORMAT_FLATBUFFER: &str = "iox:flatbuffer_v1";
+/// This is a value for [`HEADER_CONTENT_TYPE`].
+///
+/// Inspired by:
+/// - <https://stackoverflow.com/a/56502135>
+/// - <https://stackoverflow.com/a/48051331>
+pub const CONTENT_TYPE_FLATBUFFER: &str =
+    r#"application/x-flatbuffers; schema="influxdata.iox.write.v1.Entry""#;
+
+/// IOx-specific headers attached to every Kafka message.
+#[derive(Debug, PartialEq)]
+struct IoxHeaders {
+    content_type: Option<String>,
+}
+
+impl IoxHeaders {
+    /// Create new headers with sane default values.
+    fn new() -> Self {
+        Self {
+            content_type: Some(CONTENT_TYPE_FLATBUFFER.to_string()),
+        }
+    }
+
+    /// Create new headers where all information is missing.
+    fn empty() -> Self {
+        Self { content_type: None }
+    }
+}
+
+impl<H> From<&H> for IoxHeaders
+where
+    H: Headers,
+{
+    fn from(headers: &H) -> Self {
+        let mut res = Self { content_type: None };
+
+        for i in 0..headers.count() {
+            if let Some((name, value)) = headers.get(i) {
+                if name.eq_ignore_ascii_case(HEADER_CONTENT_TYPE) {
+                    res.content_type = String::from_utf8(value.to_vec()).ok();
+                }
+            }
+        }
+
+        res
+    }
+}
+
+impl From<&IoxHeaders> for OwnedHeaders {
+    fn from(iox_headers: &IoxHeaders) -> Self {
+        let mut res = Self::new();
+
+        if let Some(content_type) = iox_headers.content_type.as_ref() {
+            res = res.add(HEADER_CONTENT_TYPE, content_type);
+        }
+
+        res
+    }
+}
 
 pub struct KafkaBufferProducer {
     conn: String,
@@ -77,13 +133,15 @@ impl WriteBufferWriting for KafkaBufferProducer {
         let timestamp_millis = date_time.timestamp_millis();
         let timestamp = Time::from_timestamp_millis(timestamp_millis);
 
+        let headers = IoxHeaders::new();
+
         // This type annotation is necessary because `FutureRecord` is generic over key type, but
         // key is optional and we're not setting a key. `String` is arbitrary.
         let record: FutureRecord<'_, String, _> = FutureRecord::to(&self.database_name)
             .payload(entry.data())
             .partition(partition)
             .timestamp(timestamp_millis)
-            .headers(OwnedHeaders::new().add(HEADER_FORMAT, FORMAT_FLATBUFFER));
+            .headers((&headers).into());
 
         debug!(db_name=%self.database_name, partition, size=entry.data().len(), "writing to kafka");
 
@@ -186,21 +244,12 @@ impl WriteBufferReading for KafkaBufferConsumer {
                 .map(move |message| {
                     let message = message?;
 
-                    let format = message.headers().map(|headers| {
-                        for i in 0..headers.count() {
-                            if let Some((name, value)) = headers.get(i) {
-                                if name == HEADER_FORMAT {
-                                    return String::from_utf8(value.to_vec()).ok()
-                                }
-                            }
-                        }
+                    let headers: IoxHeaders = message.headers().map(|headers| headers.into()).unwrap_or_else(IoxHeaders::empty);
 
-                        None
-                    }).flatten();
                     // Fallback for now https://github.com/influxdata/influxdb_iox/issues/2805
-                    let format = format.unwrap_or_else(|| FORMAT_FLATBUFFER.to_string());
-                    if format != FORMAT_FLATBUFFER {
-                        return Err(format!("Unknown message format: {}", format).into());
+                    let content_type = headers.content_type.unwrap_or_else(|| CONTENT_TYPE_FLATBUFFER.to_string());
+                    if content_type != CONTENT_TYPE_FLATBUFFER {
+                        return Err(format!("Unknown message format: {}", content_type).into());
                     }
 
                     let payload = message.payload().ok_or_else::<WriteBufferError, _>(|| {
@@ -723,7 +772,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn format_header_missing() {
+    async fn content_type_header_missing() {
+        // Fallback for now https://github.com/influxdata/influxdb_iox/issues/2805
         let conn = maybe_skip_kafka_integration!();
         let adapter = KafkaTestAdapter::new(conn);
         let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
@@ -744,7 +794,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn format_header_unknown() {
+    async fn content_type_header_unknown() {
         let conn = maybe_skip_kafka_integration!();
         let adapter = KafkaTestAdapter::new(conn);
         let ctx = adapter.new_context(NonZeroU32::new(1).unwrap()).await;
@@ -755,7 +805,7 @@ mod tests {
         let record: FutureRecord<'_, String, _> = FutureRecord::to(&writer.database_name)
             .payload(entry.data())
             .partition(partition)
-            .headers(OwnedHeaders::new().add(HEADER_FORMAT, "foo"));
+            .headers(OwnedHeaders::new().add(HEADER_CONTENT_TYPE, "foo"));
         writer.producer.send(record, Timeout::Never).await.unwrap();
 
         let mut reader = ctx.reading(true).await.unwrap();
@@ -764,5 +814,26 @@ mod tests {
         let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
         let err = stream.stream.next().await.unwrap().unwrap_err();
         assert_eq!(err.to_string(), "Unknown message format: foo");
+    }
+
+    #[test]
+    fn headers_roundtrip() {
+        let iox_headers1 = IoxHeaders::new();
+        let kafka_headers: OwnedHeaders = (&iox_headers1).into();
+        let iox_headers2: IoxHeaders = (&kafka_headers).into();
+        assert_eq!(iox_headers1, iox_headers2);
+    }
+
+    #[test]
+    fn headers_case_handling() {
+        let kafka_headers = OwnedHeaders::new()
+            .add("content-type", "a")
+            .add("CONTENT-TYPE", "b")
+            .add("content-TYPE", "c");
+        let actual: IoxHeaders = (&kafka_headers).into();
+        let expected = IoxHeaders {
+            content_type: Some("c".to_string()),
+        };
+        assert_eq!(actual, expected);
     }
 }
