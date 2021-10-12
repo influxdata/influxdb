@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     convert::{TryFrom, TryInto},
     num::NonZeroU32,
     sync::Arc,
@@ -34,6 +34,7 @@ pub struct KafkaBufferProducer {
     conn: String,
     database_name: String,
     producer: FutureProducer,
+    partitions: BTreeSet<u32>,
 }
 
 // Needed because rdkafka's FutureProducer doesn't impl Debug
@@ -48,6 +49,10 @@ impl std::fmt::Debug for KafkaBufferProducer {
 
 #[async_trait]
 impl WriteBufferWriting for KafkaBufferProducer {
+    fn sequencer_ids(&self) -> BTreeSet<u32> {
+        self.partitions.clone()
+    }
+
     /// Send an `Entry` to Kafka using the sequencer ID as a partition.
     async fn store_entry(
         &self,
@@ -121,15 +126,8 @@ impl KafkaBufferProducer {
         cfg.set("allow.auto.create.topics", "false");
 
         // handle auto-creation
-        if get_partitions(&database_name, &cfg).await?.is_empty() {
-            if let Some(cfg) = creation_config {
-                create_kafka_topic(&conn, &database_name, cfg.n_sequencers, &cfg.options).await?;
-            } else {
-                return Err("no partitions found and auto-creation not requested"
-                    .to_string()
-                    .into());
-            }
-        }
+        let partitions =
+            maybe_auto_create_topics(&conn, &database_name, creation_config, &cfg).await?;
 
         let producer: FutureProducer = cfg.create()?;
 
@@ -137,6 +135,7 @@ impl KafkaBufferProducer {
             conn,
             database_name,
             producer,
+            partitions,
         })
     }
 }
@@ -159,8 +158,8 @@ impl std::fmt::Debug for KafkaBufferConsumer {
 
 #[async_trait]
 impl WriteBufferReading for KafkaBufferConsumer {
-    fn streams(&mut self) -> Vec<(u32, EntryStream<'_>)> {
-        let mut streams = vec![];
+    fn streams(&mut self) -> BTreeMap<u32, EntryStream<'_>> {
+        let mut streams = BTreeMap::new();
 
         for (sequencer_id, consumer) in &self.consumers {
             let sequencer_id = *sequencer_id;
@@ -223,13 +222,13 @@ impl WriteBufferReading for KafkaBufferConsumer {
             };
             let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
 
-            streams.push((
+            streams.insert(
                 sequencer_id,
                 EntryStream {
                     stream,
                     fetch_high_watermark,
                 },
-            ));
+            );
         }
 
         streams
@@ -305,17 +304,8 @@ impl KafkaBufferConsumer {
         cfg.set("auto.offset.reset", "smallest");
 
         // figure out which partitions exists
-        let mut partitions = get_partitions(&database_name, &cfg).await?;
-        if partitions.is_empty() {
-            if let Some(cfg2) = creation_config {
-                create_kafka_topic(&conn, &database_name, cfg2.n_sequencers, &cfg2.options).await?;
-                partitions = get_partitions(&database_name, &cfg).await?;
-            } else {
-                return Err("no partitions found and auto-creation not requested"
-                    .to_string()
-                    .into());
-            }
-        }
+        let partitions =
+            maybe_auto_create_topics(&conn, &database_name, creation_config, &cfg).await?;
         info!(%database_name, ?partitions, "found Kafka partitions");
 
         // setup a single consumer per partition, at least until https://github.com/fede1024/rust-rdkafka/pull/351 is
@@ -351,7 +341,10 @@ impl KafkaBufferConsumer {
     }
 }
 
-async fn get_partitions(database_name: &str, cfg: &ClientConfig) -> Result<Vec<u32>, KafkaError> {
+async fn get_partitions(
+    database_name: &str,
+    cfg: &ClientConfig,
+) -> Result<BTreeSet<u32>, KafkaError> {
     let database_name = database_name.to_string();
     let cfg = cfg.clone();
 
@@ -365,12 +358,11 @@ async fn get_partitions(database_name: &str, cfg: &ClientConfig) -> Result<Vec<u
 
     let topic_metadata = metadata.topics().get(0).expect("requested a single topic");
 
-    let mut partitions: Vec<_> = topic_metadata
+    let partitions: BTreeSet<_> = topic_metadata
         .partitions()
         .iter()
         .map(|partition_metdata| partition_metdata.id().try_into().unwrap())
         .collect();
-    partitions.sort_unstable();
 
     Ok(partitions)
 }
@@ -418,6 +410,39 @@ async fn create_kafka_topic(
             Err(format!("Cannot create topic '{}': {}", topic, code).into())
         }
     }
+}
+
+async fn maybe_auto_create_topics(
+    kafka_connection: &str,
+    database_name: &str,
+    creation_config: Option<&WriteBufferCreationConfig>,
+    cfg: &ClientConfig,
+) -> Result<BTreeSet<u32>, WriteBufferError> {
+    let mut partitions = get_partitions(database_name, cfg).await?;
+    if partitions.is_empty() {
+        if let Some(creation_config) = creation_config {
+            create_kafka_topic(
+                kafka_connection,
+                database_name,
+                creation_config.n_sequencers,
+                &creation_config.options,
+            )
+            .await?;
+            partitions = get_partitions(database_name, cfg).await?;
+
+            // while the number of partitions might be different than `creation_cfg.n_sequencers` due to a
+            // conflicting, concurrent topic creation, it must not be empty at this point
+            if partitions.is_empty() {
+                return Err("Cannot create non-empty topic".to_string().into());
+            }
+        } else {
+            return Err("no partitions found and auto-creation not requested"
+                .to_string()
+                .into());
+        }
+    }
+
+    Ok(partitions)
 }
 
 pub mod test_utils {
