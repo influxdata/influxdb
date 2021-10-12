@@ -1,10 +1,10 @@
 use std::{convert::TryInto, num::TryFromIntError};
 
-use chrono::{DateTime, Utc};
 use generated_types::influxdata::iox::catalog::v1 as proto;
 use iox_object_store::{ParquetFilePath, ParquetFilePathParseError};
 use object_store::path::{parsed::DirsAndFileName, parts::PathPart};
 use snafu::{OptionExt, ResultExt, Snafu};
+use time::Time;
 use uuid::Uuid;
 
 #[derive(Debug, Snafu)]
@@ -81,13 +81,11 @@ pub fn unparse_dirs_and_filename(path: &ParquetFilePath) -> proto::Path {
 }
 
 /// Parse timestamp from protobuf.
-pub fn parse_timestamp(
-    ts: &Option<generated_types::google::protobuf::Timestamp>,
-) -> Result<DateTime<Utc>> {
+pub fn parse_timestamp(ts: &Option<generated_types::google::protobuf::Timestamp>) -> Result<Time> {
     let ts: generated_types::google::protobuf::Timestamp =
         ts.as_ref().context(DateTimeRequired)?.clone();
-    let ts: DateTime<Utc> = ts.try_into().context(DateTimeParseError)?;
-    Ok(ts)
+    let ts = ts.try_into().context(DateTimeParseError)?;
+    Ok(Time::from_date_time(ts))
 }
 
 /// Parse encoding from protobuf.

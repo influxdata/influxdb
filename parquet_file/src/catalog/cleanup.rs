@@ -9,7 +9,6 @@ use parking_lot::Mutex;
 use predicate::delete_predicate::DeletePredicate;
 use snafu::{ResultExt, Snafu};
 
-use crate::catalog::core::PreservedCatalogConfig;
 use crate::catalog::{
     core::PreservedCatalog,
     interface::{
@@ -62,14 +61,11 @@ pub async fn get_unreferenced_parquet_files(
     let iox_object_store = catalog.iox_object_store();
     let all_known = {
         // replay catalog transactions to track ALL (even dropped) files that are referenced
-        let (_catalog, state) = PreservedCatalog::load::<TracerCatalogState>(
-            db_name,
-            PreservedCatalogConfig::new(Arc::clone(&iox_object_store)),
-            (),
-        )
-        .await
-        .context(CatalogLoadError)?
-        .expect("catalog gone while reading it?");
+        let (_catalog, state) =
+            PreservedCatalog::load::<TracerCatalogState>(db_name, catalog.config(), ())
+                .await
+                .context(CatalogLoadError)?
+                .expect("catalog gone while reading it?");
 
         state.files.into_inner()
     };

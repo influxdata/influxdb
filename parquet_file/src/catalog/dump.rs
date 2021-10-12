@@ -227,15 +227,16 @@ mod tests {
         },
         test_utils::{chunk_addr, make_config, make_metadata, TestSize},
     };
-    use chrono::{TimeZone, Utc};
+    use time::Time;
     use uuid::Uuid;
 
     #[tokio::test]
     async fn test_dump_default_options() {
+        let time_provider = Arc::new(time::MockProvider::new(Time::from_timestamp(10, 20)));
         let config = make_config()
             .await
             .with_fixed_uuid(Uuid::nil())
-            .with_fixed_timestamp(Utc.timestamp(10, 20));
+            .with_time_provider(time_provider);
 
         let iox_object_store = &config.iox_object_store;
 
@@ -352,10 +353,11 @@ File {
 
     #[tokio::test]
     async fn test_dump_show_parsed_data() {
+        let time_provider = Arc::new(time::MockProvider::new(Time::from_timestamp(10, 20)));
         let config = make_config()
             .await
             .with_fixed_uuid(Uuid::nil())
-            .with_fixed_timestamp(Utc.timestamp(10, 20));
+            .with_time_provider(time_provider);
         let iox_object_store = &config.iox_object_store;
 
         // build catalog with some data

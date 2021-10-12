@@ -10,7 +10,6 @@ use data_types::{
 };
 use iox_object_store::IoxObjectStore;
 use object_store::ObjectStore;
-use parquet_file::catalog::core::PreservedCatalogConfig;
 use persistence_windows::checkpoint::ReplayPlan;
 use query::exec::ExecutorConfig;
 use query::{exec::Executor, QueryDatabase};
@@ -82,7 +81,6 @@ impl TestDbBuilder {
         };
 
         let iox_object_store = Arc::new(iox_object_store);
-        let config = PreservedCatalogConfig::new(Arc::clone(&iox_object_store));
 
         // deterministic thread and concurrency count
         let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
@@ -94,7 +92,7 @@ impl TestDbBuilder {
 
         let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
             db_name.as_str(),
-            config,
+            Arc::clone(&iox_object_store),
             Arc::clone(&metric_registry),
             Arc::clone(&time_provider),
             false,
