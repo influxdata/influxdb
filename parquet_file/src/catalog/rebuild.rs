@@ -182,11 +182,11 @@ mod tests {
             create_partition_and_database_checkpoint, make_config, make_record_batch, TestSize,
         },
     };
-    use chrono::Utc;
     use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
     use datafusion::physical_plan::SendableRecordBatchStream;
     use datafusion_util::MemoryStream;
     use parquet::arrow::ArrowWriter;
+    use time::Time;
     use tokio_stream::StreamExt;
 
     #[tokio::test]
@@ -373,14 +373,14 @@ mod tests {
             Arc::clone(&partition_key),
         );
         let metadata = IoxMetadata {
-            creation_timestamp: Utc::now(),
+            creation_timestamp: Time::from_timestamp_nanos(0),
             table_name: Arc::clone(&table_name),
             partition_key: Arc::clone(&partition_key),
             chunk_id,
             partition_checkpoint,
             database_checkpoint,
-            time_of_first_write: Utc::now(),
-            time_of_last_write: Utc::now(),
+            time_of_first_write: Time::from_timestamp_nanos(0),
+            time_of_last_write: Time::from_timestamp_nanos(0),
             chunk_order: ChunkOrder::new(5).unwrap(),
         };
         let stream: SendableRecordBatchStream = Box::pin(MemoryStream::new(record_batches));

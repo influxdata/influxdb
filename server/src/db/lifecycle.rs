@@ -331,7 +331,7 @@ impl LifecycleChunk for CatalogChunk {
         self.access_recorder().get_metrics()
     }
 
-    fn time_of_last_write(&self) -> DateTime<Utc> {
+    fn time_of_last_write(&self) -> Time {
         self.time_of_last_write()
     }
 

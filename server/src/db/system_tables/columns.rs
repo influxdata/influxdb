@@ -218,11 +218,11 @@ fn assemble_chunk_columns(
 mod tests {
     use super::*;
     use arrow_util::assert_batches_eq;
-    use chrono::{TimeZone, Utc};
     use data_types::{
         chunk_metadata::{ChunkColumnSummary, ChunkId, ChunkOrder, ChunkStorage, ChunkSummary},
         partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
     };
+    use time::Time;
 
     #[test]
     fn test_from_partition_summaries() {
@@ -318,8 +318,8 @@ mod tests {
                         object_store_bytes: 0,
                         row_count: 11,
                         time_of_last_access: None,
-                        time_of_first_write: Utc.timestamp_nanos(1),
-                        time_of_last_write: Utc.timestamp_nanos(2),
+                        time_of_first_write: Time::from_timestamp_nanos(1),
+                        time_of_last_write: Time::from_timestamp_nanos(2),
                         order: ChunkOrder::new(5).unwrap(),
                     },
                     columns: vec![
@@ -354,8 +354,8 @@ mod tests {
                         object_store_bytes: 0,
                         row_count: 11,
                         time_of_last_access: None,
-                        time_of_first_write: Utc.timestamp_nanos(1),
-                        time_of_last_write: Utc.timestamp_nanos(2),
+                        time_of_first_write: Time::from_timestamp_nanos(1),
+                        time_of_last_write: Time::from_timestamp_nanos(2),
                         order: ChunkOrder::new(6).unwrap(),
                     },
                     columns: vec![ChunkColumnSummary {
@@ -384,8 +384,8 @@ mod tests {
                         object_store_bytes: 0,
                         row_count: 11,
                         time_of_last_access: None,
-                        time_of_first_write: Utc.timestamp_nanos(1),
-                        time_of_last_write: Utc.timestamp_nanos(2),
+                        time_of_first_write: Time::from_timestamp_nanos(1),
+                        time_of_last_write: Time::from_timestamp_nanos(2),
                         order: ChunkOrder::new(5).unwrap(),
                     },
                     columns: vec![ChunkColumnSummary {

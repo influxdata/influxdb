@@ -5,9 +5,9 @@ use arrow::{
     error::Result,
     record_batch::RecordBatch,
 };
-use chrono::{DateTime, Utc};
 use data_types::{chunk_metadata::ChunkSummary, error::ErrorLogger};
 use std::sync::Arc;
+use time::Time;
 
 /// Implementation of system.chunks table
 #[derive(Debug)]
@@ -55,11 +55,11 @@ fn chunk_summaries_schema() -> SchemaRef {
 }
 
 // TODO: Use a custom proc macro or serde to reduce the boilerplate
-fn optional_time_to_ts(time: Option<DateTime<Utc>>) -> Option<i64> {
+fn optional_time_to_ts(time: Option<Time>) -> Option<i64> {
     time.and_then(time_to_ts)
 }
 
-fn time_to_ts(ts: DateTime<Utc>) -> Option<i64> {
+fn time_to_ts(ts: Time) -> Option<i64> {
     Some(ts.timestamp_nanos())
 }
 
@@ -139,7 +139,6 @@ fn from_chunk_summaries(schema: SchemaRef, chunks: Vec<ChunkSummary>) -> Result<
 mod tests {
     use super::*;
     use arrow_util::assert_batches_eq;
-    use chrono::{TimeZone, Utc};
     use data_types::chunk_metadata::{ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkStorage};
 
     #[test]
@@ -155,8 +154,8 @@ mod tests {
                 object_store_bytes: 0,
                 row_count: 11,
                 time_of_last_access: None,
-                time_of_first_write: Utc.timestamp_nanos(10_000_000_000),
-                time_of_last_write: Utc.timestamp_nanos(10_000_000_000),
+                time_of_first_write: Time::from_timestamp_nanos(10_000_000_000),
+                time_of_last_write: Time::from_timestamp_nanos(10_000_000_000),
                 order: ChunkOrder::new(5).unwrap(),
             },
             ChunkSummary {
@@ -168,9 +167,9 @@ mod tests {
                 memory_bytes: 23455,
                 object_store_bytes: 0,
                 row_count: 22,
-                time_of_last_access: Some(Utc.timestamp_nanos(754_000_000_000)),
-                time_of_first_write: Utc.timestamp_nanos(80_000_000_000),
-                time_of_last_write: Utc.timestamp_nanos(80_000_000_000),
+                time_of_last_access: Some(Time::from_timestamp_nanos(754_000_000_000)),
+                time_of_first_write: Time::from_timestamp_nanos(80_000_000_000),
+                time_of_last_write: Time::from_timestamp_nanos(80_000_000_000),
                 order: ChunkOrder::new(6).unwrap(),
             },
             ChunkSummary {
@@ -182,9 +181,9 @@ mod tests {
                 memory_bytes: 1234,
                 object_store_bytes: 5678,
                 row_count: 33,
-                time_of_last_access: Some(Utc.timestamp_nanos(5_000_000_000)),
-                time_of_first_write: Utc.timestamp_nanos(100_000_000_000),
-                time_of_last_write: Utc.timestamp_nanos(200_000_000_000),
+                time_of_last_access: Some(Time::from_timestamp_nanos(5_000_000_000)),
+                time_of_first_write: Time::from_timestamp_nanos(100_000_000_000),
+                time_of_last_write: Time::from_timestamp_nanos(200_000_000_000),
                 order: ChunkOrder::new(7).unwrap(),
             },
         ];

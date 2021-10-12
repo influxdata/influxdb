@@ -69,7 +69,6 @@
 )]
 
 use async_trait::async_trait;
-use chrono::Utc;
 use data_types::{
     chunk_metadata::ChunkId,
     database_rules::{NodeGroup, RoutingRules, ShardId, Sink},
@@ -918,7 +917,7 @@ where
         use database::WriteError;
 
         self.active_database(db_name)?
-            .write_entry(entry, Utc::now())
+            .write_entry(entry)
             .await
             .map_err(|e| match e {
                 WriteError::NotInitialized { .. } => Error::DatabaseNotInitialized {

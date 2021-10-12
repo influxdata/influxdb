@@ -9,6 +9,7 @@ use std::{
     convert::{TryFrom, TryInto},
     sync::Arc,
 };
+use time::Time;
 
 /// Conversion code to management API chunk structure
 impl From<ChunkSummary> for management::Chunk {
@@ -37,9 +38,9 @@ impl From<ChunkSummary> for management::Chunk {
             memory_bytes: memory_bytes as u64,
             object_store_bytes: object_store_bytes as u64,
             row_count: row_count as u64,
-            time_of_last_access: time_of_last_access.map(Into::into),
-            time_of_first_write: Some(time_of_first_write.into()),
-            time_of_last_write: Some(time_of_last_write.into()),
+            time_of_last_access: time_of_last_access.map(|t| t.date_time().into()),
+            time_of_first_write: Some(time_of_first_write.date_time().into()),
+            time_of_last_write: Some(time_of_last_write.date_time().into()),
             order: order.get(),
         }
     }
@@ -74,10 +75,11 @@ impl TryFrom<management::Chunk> for ChunkSummary {
 
     fn try_from(proto: management::Chunk) -> Result<Self, Self::Error> {
         let convert_timestamp = |t: pbjson_types::Timestamp, field: &'static str| {
-            t.try_into().map_err(|_| FieldViolation {
+            let date_time = t.try_into().map_err(|_| FieldViolation {
                 field: field.to_string(),
                 description: "Timestamp must be positive".to_string(),
-            })
+            })?;
+            Ok(Time::from_date_time(date_time))
         };
 
         let timestamp = |t: Option<pbjson_types::Timestamp>, field: &'static str| {
@@ -166,12 +168,12 @@ impl TryFrom<management::ChunkLifecycleAction> for Option<ChunkLifecycleAction> 
 mod test {
     use super::*;
     use bytes::Bytes;
-    use chrono::{TimeZone, Utc};
     use data_types::chunk_metadata::ChunkOrder;
+    use time::Time;
 
     #[test]
     fn valid_proto_to_summary() {
-        let now = Utc::now();
+        let now = Time::from_timestamp(2, 6);
         let proto = management::Chunk {
             partition_key: "foo".to_string(),
             table_name: "bar".to_string(),
@@ -182,8 +184,8 @@ mod test {
 
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
             lifecycle_action: management::ChunkLifecycleAction::Compacting.into(),
-            time_of_first_write: Some(now.into()),
-            time_of_last_write: Some(now.into()),
+            time_of_first_write: Some(now.date_time().into()),
+            time_of_last_write: Some(now.date_time().into()),
             time_of_last_access: Some(pbjson_types::Timestamp {
                 seconds: 50,
                 nanos: 7,
@@ -203,7 +205,7 @@ mod test {
             lifecycle_action: Some(ChunkLifecycleAction::Compacting),
             time_of_first_write: now,
             time_of_last_write: now,
-            time_of_last_access: Some(Utc.timestamp_nanos(50_000_000_007)),
+            time_of_last_access: Some(Time::from_timestamp_nanos(50_000_000_007)),
             order: ChunkOrder::new(5).unwrap(),
         };
 
@@ -216,7 +218,7 @@ mod test {
 
     #[test]
     fn valid_summary_to_proto() {
-        let now = Utc::now();
+        let now = Time::from_timestamp(756, 23);
         let summary = ChunkSummary {
             partition_key: Arc::from("foo"),
             table_name: Arc::from("bar"),
@@ -228,7 +230,7 @@ mod test {
             lifecycle_action: Some(ChunkLifecycleAction::Persisting),
             time_of_first_write: now,
             time_of_last_write: now,
-            time_of_last_access: Some(Utc.timestamp_nanos(12_000_100_007)),
+            time_of_last_access: Some(Time::from_timestamp_nanos(12_000_100_007)),
             order: ChunkOrder::new(5).unwrap(),
         };
 
@@ -243,8 +245,8 @@ mod test {
             row_count: 321,
             storage: management::ChunkStorage::ObjectStoreOnly.into(),
             lifecycle_action: management::ChunkLifecycleAction::Persisting.into(),
-            time_of_first_write: Some(now.into()),
-            time_of_last_write: Some(now.into()),
+            time_of_first_write: Some(now.date_time().into()),
+            time_of_last_write: Some(now.date_time().into()),
             time_of_last_access: Some(pbjson_types::Timestamp {
                 seconds: 12,
                 nanos: 100_007,

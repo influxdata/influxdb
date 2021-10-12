@@ -237,7 +237,6 @@ pub async fn perform_replay(
                         |sequence, partition_key, table_batch| {
                             filter_entry(sequence, partition_key, table_batch, replay_plan)
                         },
-                        db.utc_now(),
                     ) {
                         Ok(_) => {
                             break;

@@ -19,6 +19,7 @@ use persistence_windows::checkpoint::{ReplayPlan, ReplayPlanner};
 use predicate::delete_predicate::DeletePredicate;
 use snafu::{ResultExt, Snafu};
 use std::sync::Arc;
+use time::TimeProvider;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -54,6 +55,7 @@ pub async fn load_or_create_preserved_catalog(
     db_name: &str,
     config: PreservedCatalogConfig,
     metric_registry: Arc<::metric::Registry>,
+    time_provider: Arc<dyn TimeProvider>,
     wipe_on_error: bool,
     skip_replay: bool,
 ) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
@@ -61,7 +63,11 @@ pub async fn load_or_create_preserved_catalog(
     match PreservedCatalog::load(
         db_name,
         config.clone(),
-        LoaderEmptyInput::new(Arc::clone(&metric_registry), skip_replay),
+        LoaderEmptyInput::new(
+            Arc::clone(&metric_registry),
+            Arc::clone(&time_provider),
+            skip_replay,
+        ),
     )
     .await
     {
@@ -84,7 +90,8 @@ pub async fn load_or_create_preserved_catalog(
                 db_name
             );
 
-            create_preserved_catalog(db_name, config, metric_registry, skip_replay).await
+            create_preserved_catalog(db_name, config, metric_registry, time_provider, skip_replay)
+                .await
         }
         Err(e) => {
             if wipe_on_error {
@@ -96,7 +103,14 @@ pub async fn load_or_create_preserved_catalog(
                     .await
                     .context(CannotWipeCatalog)?;
 
-                create_preserved_catalog(db_name, config, metric_registry, skip_replay).await
+                create_preserved_catalog(
+                    db_name,
+                    config,
+                    metric_registry,
+                    time_provider,
+                    skip_replay,
+                )
+                .await
             } else {
                 Err(Error::CannotLoadCatalog { source: e })
             }
@@ -111,12 +125,13 @@ pub async fn create_preserved_catalog(
     db_name: &str,
     config: PreservedCatalogConfig,
     metric_registry: Arc<metric::Registry>,
+    time_provider: Arc<dyn TimeProvider>,
     skip_replay: bool,
 ) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
     let (preserved_catalog, loader) = PreservedCatalog::new_empty(
         db_name,
         config,
-        LoaderEmptyInput::new(metric_registry, skip_replay),
+        LoaderEmptyInput::new(metric_registry, time_provider, skip_replay),
     )
     .await
     .context(CannotCreateCatalog)?;
@@ -135,13 +150,19 @@ pub async fn create_preserved_catalog(
 #[derive(Debug)]
 struct LoaderEmptyInput {
     metric_registry: Arc<::metric::Registry>,
+    time_provider: Arc<dyn TimeProvider>,
     skip_replay: bool,
 }
 
 impl LoaderEmptyInput {
-    fn new(metric_registry: Arc<metric::Registry>, skip_replay: bool) -> Self {
+    fn new(
+        metric_registry: Arc<metric::Registry>,
+        time_provider: Arc<dyn TimeProvider>,
+        skip_replay: bool,
+    ) -> Self {
         Self {
             metric_registry,
+            time_provider,
             skip_replay,
         }
     }
@@ -159,8 +180,14 @@ impl CatalogState for Loader {
     type EmptyInput = LoaderEmptyInput;
 
     fn new_empty(db_name: &str, data: Self::EmptyInput) -> Self {
+        let catalog = Catalog::new(
+            Arc::from(db_name),
+            Arc::clone(&data.metric_registry),
+            Arc::clone(&data.time_provider),
+        );
+
         Self {
-            catalog: Catalog::new(Arc::from(db_name), Arc::clone(&data.metric_registry)),
+            catalog,
             planner: (!data.skip_replay).then(ReplayPlanner::new),
             metric_registry: Arc::new(Default::default()),
         }
@@ -306,6 +333,7 @@ mod tests {
     #[tokio::test]
     async fn load_or_create_preserved_catalog_recovers_from_error() {
         let object_store = Arc::new(ObjectStore::new_in_memory());
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(time::SystemProvider::new());
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = DatabaseName::new("preserved_catalog_test").unwrap();
         let iox_object_store = Arc::new(
@@ -319,9 +347,16 @@ mod tests {
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
 
-        load_or_create_preserved_catalog(&db_name, config, Default::default(), true, false)
-            .await
-            .unwrap();
+        load_or_create_preserved_catalog(
+            &db_name,
+            config,
+            Default::default(),
+            time_provider,
+            true,
+            false,
+        )
+        .await
+        .unwrap();
     }
 
     fn checkpoint_data_from_loader(loader: &Loader) -> CheckpointData {
@@ -332,6 +367,7 @@ mod tests {
     async fn test_catalog_state() {
         let empty_input = LoaderEmptyInput {
             metric_registry: Default::default(),
+            time_provider: Arc::new(time::SystemProvider::new()),
             skip_replay: false,
         };
         assert_catalog_state_implementation::<Loader, _>(empty_input, checkpoint_data_from_loader)

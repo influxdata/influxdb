@@ -96,6 +96,7 @@ impl TestDbBuilder {
             db_name.as_str(),
             config,
             Arc::clone(&metric_registry),
+            Arc::clone(&time_provider),
             false,
             false,
         )

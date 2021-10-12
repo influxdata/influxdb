@@ -125,7 +125,7 @@ pub(super) fn write_chunk_to_object_store(
             // IMPORTANT: Writing must take place while holding the cleanup lock, otherwise the file might be deleted
             //            between creation and the transaction commit.
             let metadata = IoxMetadata {
-                creation_timestamp: db.utc_now(),
+                creation_timestamp: db.time_provider.now(),
                 table_name: Arc::clone(&table_name),
                 partition_key: Arc::clone(&partition_key),
                 chunk_id: addr.chunk_id,

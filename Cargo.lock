@@ -1271,6 +1271,7 @@ dependencies = [
  "regex",
  "serde",
  "thiserror",
+ "time 0.1.0",
  "tonic",
  "tonic-build",
 ]
@@ -1802,6 +1803,7 @@ dependencies = [
  "futures",
  "parking_lot",
  "snafu",
+ "time 0.1.0",
  "tokio",
 ]
 

@@ -12,7 +12,6 @@ use arrow::{
     datatypes::{Int32Type, SchemaRef},
     record_batch::RecordBatch,
 };
-use chrono::{TimeZone, Utc};
 use data_types::{
     chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder},
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary},
@@ -174,14 +173,14 @@ pub async fn make_chunk_given_record_batch(
         Arc::clone(&addr.partition_key),
     );
     let metadata = IoxMetadata {
-        creation_timestamp: Utc.timestamp(10, 20),
+        creation_timestamp: Time::from_timestamp(10, 20),
         table_name: Arc::clone(&addr.table_name),
         partition_key: Arc::clone(&addr.partition_key),
         chunk_id: addr.chunk_id,
         partition_checkpoint,
         database_checkpoint,
-        time_of_first_write: Utc.timestamp(30, 40),
-        time_of_last_write: Utc.timestamp(50, 60),
+        time_of_first_write: Time::from_timestamp(30, 40),
+        time_of_last_write: Time::from_timestamp(50, 60),
         chunk_order: ChunkOrder::new(5).unwrap(),
     };
     let (path, file_size_bytes, parquet_metadata) = storage
@@ -935,12 +934,12 @@ pub fn create_partition_and_database_checkpoint(
     let mut sequencer_numbers_1 = BTreeMap::new();
     sequencer_numbers_1.insert(1, OptionalMinMaxSequence::new(None, 18));
     sequencer_numbers_1.insert(2, OptionalMinMaxSequence::new(Some(25), 28));
-    let flush_timestamp = Utc.timestamp(10, 20);
+    let flush_timestamp = Time::from_timestamp(10, 20);
     let partition_checkpoint_1 = PartitionCheckpoint::new(
         Arc::clone(&table_name),
         Arc::clone(&partition_key),
         sequencer_numbers_1,
-        Time::from_date_time(flush_timestamp),
+        flush_timestamp,
     );
 
     // create second partition

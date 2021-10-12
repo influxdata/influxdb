@@ -582,7 +582,8 @@ fn can_move<C: LifecycleChunk>(rules: &LifecycleRules, chunk: &C, now: DateTime<
         return true;
     }
 
-    elapsed_seconds(now, chunk.time_of_last_write()) >= rules.late_arrive_window_seconds.get()
+    elapsed_seconds(now, chunk.time_of_last_write().date_time())
+        >= rules.late_arrive_window_seconds.get()
 }
 
 /// An action to free up memory
@@ -754,7 +755,7 @@ mod tests {
         row_count: usize,
         min_timestamp: Option<DateTime<Utc>>,
         access_metrics: AccessMetrics,
-        time_of_last_write: DateTime<Utc>,
+        time_of_last_write: Time,
         lifecycle_action: Option<TaskTracker<ChunkLifecycleAction>>,
         storage: ChunkStorage,
         order: ChunkOrder,
@@ -775,9 +776,9 @@ mod tests {
                 min_timestamp: None,
                 access_metrics: AccessMetrics {
                     count: 0,
-                    last_access: Utc::now(),
+                    last_access: Time::from_timestamp(0, 0),
                 },
-                time_of_last_write: from_secs(time_of_last_write),
+                time_of_last_write: Time::from_timestamp(time_of_last_write, 0),
                 lifecycle_action: None,
                 storage,
                 order: ChunkOrder::MIN,
@@ -1041,7 +1042,7 @@ mod tests {
             self.access_metrics.clone()
         }
 
-        fn time_of_last_write(&self) -> DateTime<Utc> {
+        fn time_of_last_write(&self) -> Time {
             self.time_of_last_write
         }
 
@@ -1184,10 +1185,10 @@ mod tests {
 
     #[test]
     fn test_sort_free_candidates() {
-        let now = Utc::now();
-        let access_metrics = |secs: i64| AccessMetrics {
+        let now = Time::from_timestamp_nanos(0);
+        let access_metrics = |secs: u64| AccessMetrics {
             count: 1,
-            last_access: now + chrono::Duration::seconds(secs),
+            last_access: now + Duration::from_secs(secs),
         };
 
         let mut candidates = vec![
@@ -1377,8 +1378,6 @@ mod tests {
         lifecycle.check_for_work(from_secs(10));
         assert_eq!(*db.events.read(), vec![]);
 
-        let now = Utc::now();
-
         let chunks = vec![
             // two "open" chunks => they must not be dropped (yet)
             TestChunk::new(ChunkId::new_test(0), 0, ChunkStorage::OpenMutableBuffer),
@@ -1396,7 +1395,7 @@ mod tests {
             )
             .with_access_metrics(AccessMetrics {
                 count: 1,
-                last_access: now,
+                last_access: Time::from_timestamp(5, 0),
             }),
             // "written" chunk => can be unloaded
             TestChunk::new(
@@ -1406,7 +1405,7 @@ mod tests {
             )
             .with_access_metrics(AccessMetrics {
                 count: 12,
-                last_access: now - chrono::Duration::seconds(1),
+                last_access: Time::from_timestamp(4, 0),
             }),
         ];
 

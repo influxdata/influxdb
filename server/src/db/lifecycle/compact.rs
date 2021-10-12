@@ -6,13 +6,13 @@ use crate::db::{
     lifecycle::collect_rub,
     DbChunk,
 };
-use chrono::{DateTime, Utc};
 use data_types::{chunk_metadata::ChunkOrder, job::Job};
 use lifecycle::LifecycleWriteGuard;
 use observability_deps::tracing::info;
 use predicate::delete_predicate::DeletePredicate;
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use std::{collections::HashSet, future::Future, sync::Arc};
+use time::Time;
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 /// Compact the provided chunks into a single chunk,
@@ -45,8 +45,8 @@ pub(crate) fn compact_chunks(
 
     // Mark and snapshot chunks, then drop locks
     let mut input_rows = 0;
-    let mut time_of_first_write: Option<DateTime<Utc>> = None;
-    let mut time_of_last_write: Option<DateTime<Utc>> = None;
+    let mut time_of_first_write: Option<Time> = None;
+    let mut time_of_last_write: Option<Time> = None;
     let mut delete_predicates_before: HashSet<Arc<DeletePredicate>> = HashSet::new();
     let mut min_order = ChunkOrder::MAX;
     let query_chunks = chunks
@@ -168,24 +168,26 @@ pub(crate) fn compact_chunks(
 mod tests {
     use super::*;
     use crate::db::test_helpers::write_lp;
-    use crate::{db::test_helpers::write_lp_with_time, utils::make_db};
+    use crate::utils::{make_db, make_db_time};
     use data_types::chunk_metadata::ChunkStorage;
     use data_types::timestamp::TimestampRange;
     use lifecycle::{LockableChunk, LockablePartition};
     use predicate::delete_expr::{DeleteExpr, Op, Scalar};
     use query::QueryDatabase;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_compact_freeze() {
-        let db = make_db().await.db;
+        let (db, time) = make_db_time().await;
 
-        let t_first_write = Utc::now();
-        write_lp_with_time(db.as_ref(), "cpu,tag1=cupcakes bar=1 10", t_first_write).await;
-        write_lp_with_time(db.as_ref(), "cpu,tag1=asfd,tag2=foo bar=2 20", Utc::now()).await;
-        write_lp_with_time(db.as_ref(), "cpu,tag1=bingo,tag2=foo bar=2 10", Utc::now()).await;
-        write_lp_with_time(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 20", Utc::now()).await;
-        let t_last_write = Utc::now();
-        write_lp_with_time(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 10", t_last_write).await;
+        let t_first_write = time.inc(Duration::from_secs(1));
+        write_lp(db.as_ref(), "cpu,tag1=cupcakes bar=1 10").await;
+        write_lp(db.as_ref(), "cpu,tag1=asfd,tag2=foo bar=2 20").await;
+        write_lp(db.as_ref(), "cpu,tag1=bingo,tag2=foo bar=2 10").await;
+        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 20").await;
+
+        let t_last_write = time.inc(Duration::from_secs(1));
+        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 10").await;
 
         let partition_keys = db.partition_keys().unwrap();
         assert_eq!(partition_keys.len(), 1);
@@ -201,8 +203,8 @@ mod tests {
 
         let (_, fut) = compact_chunks(partition.upgrade(), vec![chunk.upgrade()]).unwrap();
         // NB: perform the write before spawning the background task that performs the compaction
-        let t_later_write = Utc::now();
-        write_lp_with_time(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 40", t_later_write).await;
+        let t_later_write = time.inc(Duration::from_secs(1));
+        write_lp(db.as_ref(), "cpu,tag1=bongo,tag2=a bar=2 40").await;
         tokio::spawn(fut).await.unwrap().unwrap().unwrap();
 
         let mut chunk_summaries: Vec<_> = db_partition.read().chunk_summaries().collect();

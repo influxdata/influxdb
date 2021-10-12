@@ -7,7 +7,6 @@ use crate::{
     rules::ProvidedDatabaseRules,
     ApplicationState, Db,
 };
-use chrono::{DateTime, Utc};
 use data_types::{
     database_rules::WriteBufferDirection, detailed_database::GenerationId, server_id::ServerId,
     DatabaseName,
@@ -216,6 +215,7 @@ impl Database {
             db_name,
             config,
             Arc::clone(application.metric_registry()),
+            Arc::clone(application.time_provider()),
             true,
         )
         .await
@@ -543,11 +543,7 @@ impl Database {
     /// - write it to a write buffer
     /// - write it to a local `Db`
     ///
-    pub async fn write_entry(
-        &self,
-        entry: entry::Entry,
-        time_of_write: DateTime<Utc>,
-    ) -> Result<(), WriteError> {
+    pub async fn write_entry(&self, entry: entry::Entry) -> Result<(), WriteError> {
         let recorder = self.shared.metrics.entry_ingest(entry.data().len());
 
         let db = {
@@ -566,7 +562,7 @@ impl Database {
             }
         };
 
-        db.store_entry(entry, time_of_write).await.map_err(|e| {
+        db.store_entry(entry).await.map_err(|e| {
             use super::db::Error;
             match e {
                 // TODO: Pull write buffer producer out of Db
@@ -1081,6 +1077,7 @@ impl DatabaseStateRulesLoaded {
             shared.config.name.as_str(),
             self.catalog_config.clone(),
             Arc::clone(shared.application.metric_registry()),
+            Arc::clone(shared.application.time_provider()),
             shared.config.wipe_catalog_on_error,
             shared.config.skip_replay,
         )

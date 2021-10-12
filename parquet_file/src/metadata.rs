@@ -86,7 +86,6 @@
 //! [Apache Parquet]: https://parquet.apache.org/
 //! [Apache Thrift]: https://thrift.apache.org/
 //! [Thrift Compact Protocol]: https://github.com/apache/thrift/blob/master/doc/specs/thrift-compact-protocol.md
-use chrono::{DateTime, Utc};
 use data_types::{
     chunk_metadata::{ChunkId, ChunkOrder},
     partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics},
@@ -263,10 +262,11 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct IoxMetadata {
     /// Timestamp when this file was created.
-    pub creation_timestamp: DateTime<Utc>,
+    pub creation_timestamp: Time,
 
-    pub time_of_first_write: DateTime<Utc>,
-    pub time_of_last_write: DateTime<Utc>,
+    pub time_of_first_write: Time,
+
+    pub time_of_last_write: Time,
 
     /// Table that holds this parquet file.
     pub table_name: Arc<str>,
@@ -345,7 +345,7 @@ impl IoxMetadata {
             Arc::clone(&table_name),
             Arc::clone(&partition_key),
             sequencer_numbers,
-            Time::from_date_time(flush_timestamp),
+            flush_timestamp,
         );
 
         // extract database checkpoint
@@ -433,9 +433,9 @@ impl IoxMetadata {
 
         let proto_msg = proto::IoxMetadata {
             version: METADATA_VERSION,
-            creation_timestamp: Some(self.creation_timestamp.into()),
-            time_of_first_write: Some(self.time_of_first_write.into()),
-            time_of_last_write: Some(self.time_of_last_write.into()),
+            creation_timestamp: Some(self.creation_timestamp.date_time().into()),
+            time_of_first_write: Some(self.time_of_first_write.date_time().into()),
+            time_of_last_write: Some(self.time_of_last_write.date_time().into()),
             table_name: self.table_name.to_string(),
             partition_key: self.partition_key.to_string(),
             chunk_id: self.chunk_id.into(),
@@ -454,12 +454,14 @@ impl IoxMetadata {
 fn decode_timestamp_from_field(
     value: Option<pbjson_types::Timestamp>,
     field: &'static str,
-) -> Result<DateTime<Utc>> {
-    value
+) -> Result<Time> {
+    let date_time = value
         .context(IoxMetadataFieldMissing { field })?
         .try_into()
         .map_err(|e| Box::new(e) as _)
-        .context(IoxMetadataBroken)
+        .context(IoxMetadataBroken)?;
+
+    Ok(Time::from_date_time(date_time))
 }
 
 /// Parquet metadata with IOx-specific wrapper.
@@ -1077,14 +1079,14 @@ mod tests {
             Arc::clone(&partition_key),
         );
         let metadata = IoxMetadata {
-            creation_timestamp: Utc::now(),
+            creation_timestamp: Time::from_timestamp(3234, 0),
             table_name,
             partition_key,
             chunk_id: ChunkId::new_test(1337),
             partition_checkpoint,
             database_checkpoint,
-            time_of_first_write: Utc::now(),
-            time_of_last_write: Utc::now(),
+            time_of_first_write: Time::from_timestamp(3234, 0),
+            time_of_last_write: Time::from_timestamp(3234, 3456),
             chunk_order: ChunkOrder::new(5).unwrap(),
         };
 

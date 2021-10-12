@@ -6,7 +6,6 @@ use crate::db::{
     lifecycle::{collect_rub, merge_schemas, write::write_chunk_to_object_store},
     DbChunk,
 };
-use chrono::{DateTime, Utc};
 use data_types::{chunk_metadata::ChunkOrder, job::Job};
 use lifecycle::{LifecycleWriteGuard, LockableChunk, LockablePartition};
 use observability_deps::tracing::info;
@@ -14,6 +13,7 @@ use persistence_windows::persistence_windows::FlushHandle;
 use predicate::delete_predicate::DeletePredicate;
 use query::{compute_sort_key, exec::ExecutorType, frontend::reorg::ReorgPlanner, QueryChunkMeta};
 use std::{collections::HashSet, future::Future, sync::Arc};
+use time::Time;
 use tracker::{TaskTracker, TrackedFuture, TrackedFutureExt};
 
 /// Split and then persist the provided chunks
@@ -47,8 +47,8 @@ pub fn persist_chunks(
 
     // Mark and snapshot chunks, then drop locks
     let mut input_rows = 0;
-    let mut time_of_first_write: Option<DateTime<Utc>> = None;
-    let mut time_of_last_write: Option<DateTime<Utc>> = None;
+    let mut time_of_first_write: Option<Time> = None;
+    let mut time_of_last_write: Option<Time> = None;
     let mut query_chunks = vec![];
     let mut delete_predicates_before: HashSet<Arc<DeletePredicate>> = HashSet::new();
     let mut min_order = ChunkOrder::MAX;
@@ -561,10 +561,16 @@ mod tests {
         // check object store delete predicates
         let metric_registry = Arc::new(metric::Registry::new());
         let config = PreservedCatalogConfig::new(Arc::clone(&db.iox_object_store));
-        let (_preserved_catalog, catalog, _replay_plan) =
-            load_or_create_preserved_catalog(db_name, config, metric_registry, false, false)
-                .await
-                .unwrap();
+        let (_preserved_catalog, catalog, _replay_plan) = load_or_create_preserved_catalog(
+            db_name,
+            config,
+            metric_registry,
+            Arc::clone(&db.time_provider),
+            false,
+            false,
+        )
+        .await
+        .unwrap();
         check_closure(&catalog);
     }
 }
