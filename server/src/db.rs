@@ -659,11 +659,15 @@ impl Db {
             // Get a list of all the chunks to compact
             let chunks = LockablePartition::chunks(&partition);
             let partition = partition.upgrade();
-            let chunks = chunks
+            let chunks: Vec<_> = chunks
                 .iter()
                 .map(|chunk| chunk.write())
                 .filter(|chunk| predicate(&*chunk))
                 .collect();
+
+            if chunks.is_empty() {
+                return Ok(None);
+            }
 
             let (_, fut) = lifecycle::compact_chunks(partition, chunks).context(LifecycleError)?;
             fut
