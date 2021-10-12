@@ -57,6 +57,7 @@ pub fn get_all_setups() -> &'static HashMap<String, Arc<dyn DbSetup>> {
             register_setup!(OneMeasurementAllChunksDropped),
             register_setup!(ChunkOrder),
             register_setup!(ThreeDeleteThreeChunks),
+            register_setup!(OneMeasurementRealisticTimes),
         ]
         .into_iter()
         .map(|(name, setup)| (name.to_string(), setup as Arc<dyn DbSetup>))

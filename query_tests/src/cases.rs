@@ -19,6 +19,20 @@ async fn test_cases_all_chunks_dropped_sql() {
 }
 
 #[tokio::test]
+// Tests from "basic.sql",
+async fn test_cases_basic_sql() {
+    let input_path = Path::new("cases").join("in").join("basic.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
 // Tests from "chunk_order.sql",
 async fn test_cases_chunk_order_sql() {
     let input_path = Path::new("cases").join("in").join("chunk_order.sql");
@@ -78,6 +92,20 @@ async fn test_cases_pushdown_sql() {
 // Tests from "stats_plans.sql",
 async fn test_cases_stats_plans_sql() {
     let input_path = Path::new("cases").join("in").join("stats_plans.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
+// Tests from "timestamps.sql",
+async fn test_cases_timestamps_sql() {
+    let input_path = Path::new("cases").join("in").join("timestamps.sql");
     let mut runner = Runner::new();
     runner
         .run(input_path)

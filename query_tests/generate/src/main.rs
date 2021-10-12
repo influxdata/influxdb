@@ -1,26 +1,41 @@
-//! Finds all .sql files in `cases/in/` and creates corresponding entries in src/cases.rs
-//! native Rust types.
+//! Finds all .sql files in `cases/in/` and creates corresponding
+//! entries in src/cases.rs as native Rust test runner tests
 
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 type Error = Box<dyn std::error::Error>;
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 fn main() -> Result<()> {
+    // Ignores all args and finds relative paths based on PWD and the command
+
+    // example: query_tests/generate/target/debug/generate
+    let current_exe = std::env::current_exe()?;
+
+    // walk up parent tree looking for query_tests
+    let mut query_tests = current_exe.clone();
+    let needle = OsStr::new("query_tests");
+    loop {
+        if query_tests.file_name() == Some(&needle) {
+            break;
+        }
+        if !query_tests.pop() {
+            panic!("Can not find 'query_tests' in the path: {:?}", current_exe);
+        }
+    }
+
     // crate root
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let cases = root.join("cases").join("in");
+    let cases = query_tests.join("cases").join("in");
 
     let sql_files = find_sql_files(&cases);
 
-    // Tell cargo to recompile if anything in the cases directory changes
-    println!("cargo:rerun-if-changed={}", cases.display());
-
     // Now create the generated sql file
     let output_content = make_cases_rs(&sql_files).join("\n");
-    let output_file = root.join("src").join("cases.rs");
+    let output_file = query_tests.join("src").join("cases.rs");
     write_if_changed(&output_file, &output_content);
 
+    println!("Done");
     Ok(())
 }
 
@@ -94,6 +109,8 @@ fn write_if_changed(path: &Path, content: &str) {
     };
 
     if changed {
+        println!("Writing changes to {}", path.display());
+
         std::fs::write(path, content)
             .map_err(|e| format!("Error writing to {:?}: {}", path, e))
             .unwrap();
