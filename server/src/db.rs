@@ -298,7 +298,7 @@ pub struct Db {
     /// This is stored here for the following reasons:
     /// - to control the persistence suppression via a [`Db::unsuppress_persistence`]
     /// - to keep the lifecycle state (e.g. the number of running compactions) around
-    lifecycle_policy: tokio::sync::Mutex<Option<::lifecycle::LifecyclePolicy<WeakDb>>>,
+    lifecycle_policy: Mutex<Option<::lifecycle::LifecyclePolicy<WeakDb>>>,
 
     time_provider: Arc<dyn TimeProvider>,
 
@@ -360,7 +360,7 @@ impl Db {
             worker_iterations_delete_predicate_preservation: AtomicUsize::new(0),
             write_buffer_producer: database_to_commit.write_buffer_producer,
             cleanup_lock: Default::default(),
-            lifecycle_policy: tokio::sync::Mutex::new(None),
+            lifecycle_policy: Mutex::new(None),
             time_provider: database_to_commit.time_provider,
             delete_predicates_mailbox: Default::default(),
             persisted_chunk_id_override: Default::default(),
@@ -378,8 +378,8 @@ impl Db {
     }
 
     /// Allow persistence if database rules all it.
-    pub async fn unsuppress_persistence(&self) {
-        let mut guard = self.lifecycle_policy.lock().await;
+    pub fn unsuppress_persistence(&self) {
+        let mut guard = self.lifecycle_policy.lock();
         let policy = guard
             .as_mut()
             .expect("lifecycle policy should be initialized");
@@ -819,15 +819,16 @@ impl Db {
             loop {
                 self.worker_iterations_lifecycle
                     .fetch_add(1, Ordering::Relaxed);
-                let mut guard = self.lifecycle_policy.lock().await;
 
-                let policy = guard
-                    .as_mut()
-                    .expect("lifecycle policy should be initialized");
+                let fut = {
+                    let mut guard = self.lifecycle_policy.lock();
+                    let policy = guard
+                        .as_mut()
+                        .expect("lifecycle policy should be initialized");
 
-                policy
-                    .check_for_work(self.time_provider.now().date_time())
-                    .await
+                    policy.check_for_work(self.time_provider.now().date_time())
+                };
+                fut.await
             }
         };
 

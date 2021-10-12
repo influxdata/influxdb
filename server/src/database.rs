@@ -1133,7 +1133,7 @@ impl DatabaseStateCatalogLoaded {
         let db = Arc::clone(&self.db);
 
         // TODO: Pull write buffer and lifecycle out of Db
-        db.unsuppress_persistence().await;
+        db.unsuppress_persistence();
 
         let rules = self.provided_rules.rules();
         let write_buffer_factory = shared.application.write_buffer_factory();

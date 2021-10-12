@@ -439,7 +439,7 @@ where
     /// The core policy logic
     ///
     /// Returns a future that resolves when this method should be called next
-    pub fn check_for_work(&mut self, now: DateTime<Utc>) -> BoxFuture<'_, ()> {
+    pub fn check_for_work(&mut self, now: DateTime<Utc>) -> BoxFuture<'static, ()> {
         // Any time-consuming work should be spawned as tokio tasks and not
         // run directly within this loop
 

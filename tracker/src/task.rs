@@ -116,6 +116,58 @@ struct TrackerState {
     notify: Notify,
 }
 
+impl TrackerState {
+    fn get_status(&self) -> TaskStatus {
+        // The atomic decrement in TrackerRegistration::drop has release semantics
+        // acquire here ensures that if a thread observes the tracker to have
+        // no pending_registrations it cannot subsequently observe pending_futures
+        // to increase. If it could, observing pending_futures==0 would be insufficient
+        // to conclude there are no outstanding futures
+        let pending_registrations = self.pending_registrations.load(Ordering::Acquire);
+
+        // The atomic decrement in TrackedFuture::drop has release semantics
+        // acquire therefore ensures that if a thread observes the completion of
+        // a TrackedFuture, it is guaranteed to see its updates (e.g. wall_nanos)
+        let pending_futures = self.pending_futures.load(Ordering::Acquire);
+
+        match (pending_registrations == 0, pending_futures == 0) {
+            (false, _) => TaskStatus::Creating,
+            (true, false) => TaskStatus::Running {
+                total_count: self.created_futures.load(Ordering::Relaxed),
+                pending_count: self.pending_futures.load(Ordering::Relaxed),
+                cpu_nanos: self.cpu_nanos.load(Ordering::Relaxed),
+            },
+            (true, true) => {
+                let total_count = self.created_futures.load(Ordering::Relaxed);
+                let success_count = self.ok_futures.load(Ordering::Relaxed);
+                let error_count = self.err_futures.load(Ordering::Relaxed);
+                let cancelled_count = self.cancelled_futures.load(Ordering::Relaxed);
+
+                // Failure of this would imply a future reported its completion status multiple
+                // times or a future was created without incrementing created_futures.
+                // Both of these should be impossible
+                let dropped_count = total_count
+                    .checked_sub(success_count + error_count + cancelled_count)
+                    .expect("invalid tracker state");
+
+                TaskStatus::Complete {
+                    total_count,
+                    success_count,
+                    error_count,
+                    cancelled_count,
+                    dropped_count,
+                    cpu_nanos: self.cpu_nanos.load(Ordering::Relaxed),
+                    wall_nanos: self.wall_nanos.load(Ordering::Relaxed),
+                }
+            }
+        }
+    }
+
+    fn is_complete(&self) -> bool {
+        matches!(self.get_status(), TaskStatus::Complete { .. })
+    }
+}
+
 /// Returns a summary of the task execution
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum TaskResult {
@@ -323,54 +375,12 @@ where
     /// Returns true if all futures associated with this tracker have
     /// been dropped and no more can be created
     pub fn is_complete(&self) -> bool {
-        matches!(self.get_status(), TaskStatus::Complete { .. })
+        self.state.is_complete()
     }
 
     /// Gets the status of the tracker
     pub fn get_status(&self) -> TaskStatus {
-        // The atomic decrement in TrackerRegistration::drop has release semantics
-        // acquire here ensures that if a thread observes the tracker to have
-        // no pending_registrations it cannot subsequently observe pending_futures
-        // to increase. If it could, observing pending_futures==0 would be insufficient
-        // to conclude there are no outstanding futures
-        let pending_registrations = self.state.pending_registrations.load(Ordering::Acquire);
-
-        // The atomic decrement in TrackedFuture::drop has release semantics
-        // acquire therefore ensures that if a thread observes the completion of
-        // a TrackedFuture, it is guaranteed to see its updates (e.g. wall_nanos)
-        let pending_futures = self.state.pending_futures.load(Ordering::Acquire);
-
-        match (pending_registrations == 0, pending_futures == 0) {
-            (false, _) => TaskStatus::Creating,
-            (true, false) => TaskStatus::Running {
-                total_count: self.state.created_futures.load(Ordering::Relaxed),
-                pending_count: self.state.pending_futures.load(Ordering::Relaxed),
-                cpu_nanos: self.state.cpu_nanos.load(Ordering::Relaxed),
-            },
-            (true, true) => {
-                let total_count = self.state.created_futures.load(Ordering::Relaxed);
-                let success_count = self.state.ok_futures.load(Ordering::Relaxed);
-                let error_count = self.state.err_futures.load(Ordering::Relaxed);
-                let cancelled_count = self.state.cancelled_futures.load(Ordering::Relaxed);
-
-                // Failure of this would imply a future reported its completion status multiple
-                // times or a future was created without incrementing created_futures.
-                // Both of these should be impossible
-                let dropped_count = total_count
-                    .checked_sub(success_count + error_count + cancelled_count)
-                    .expect("invalid tracker state");
-
-                TaskStatus::Complete {
-                    total_count,
-                    success_count,
-                    error_count,
-                    cancelled_count,
-                    dropped_count,
-                    cpu_nanos: self.state.cpu_nanos.load(Ordering::Relaxed),
-                    wall_nanos: self.state.wall_nanos.load(Ordering::Relaxed),
-                }
-            }
-        }
+        self.state.get_status()
     }
 
     /// Returns the instant the tracker was created
@@ -385,21 +395,24 @@ where
 
     /// Blocks until all futures associated with the tracker have been
     /// dropped and no more can be created
-    pub async fn join(&self) {
-        // Notify is notified when pending_futures hits 0 AND when pending_registrations
-        // hits 0. In almost all cases join won't be called before pending_registrations
-        // has already hit 0, but in the extremely rare case this occurs the loop
-        // handles the spurious wakeup
-        loop {
-            // Request notification before checking if complete
-            // to avoid a race condition
-            let notify = self.state.notify.notified();
+    pub fn join(&self) -> impl std::future::Future<Output = ()> {
+        let state = Arc::clone(&self.state);
+        async move {
+            // Notify is notified when pending_futures hits 0 AND when pending_registrations
+            // hits 0. In almost all cases join won't be called before pending_registrations
+            // has already hit 0, but in the extremely rare case this occurs the loop
+            // handles the spurious wakeup
+            loop {
+                // Request notification before checking if complete
+                // to avoid a race condition
+                let notify = state.notify.notified();
 
-            if self.is_complete() {
-                return;
+                if state.is_complete() {
+                    return;
+                }
+
+                notify.await
             }
-
-            notify.await
         }
     }
 }

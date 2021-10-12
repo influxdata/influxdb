@@ -711,7 +711,7 @@ mod tests {
                         }
 
                         let db = &test_db.db;
-                        db.unsuppress_persistence().await;
+                        db.unsuppress_persistence();
 
                         // wait until checks pass
                         let t_0 = Instant::now();
