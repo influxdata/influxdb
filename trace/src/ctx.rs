@@ -72,7 +72,7 @@ impl SpanContext {
             trace_id: TraceId(NonZeroU128::new(trace_id).unwrap()),
             parent_span_id: None,
             span_id: SpanId(NonZeroU64::new(span_id).unwrap()),
-            links: Vec::with_capacity(0),
+            links: vec![],
             collector: Some(collector),
         }
     }
@@ -85,7 +85,7 @@ impl SpanContext {
                 trace_id: self.trace_id,
                 span_id: SpanId::gen(),
                 collector: self.collector.clone(),
-                links: Vec::with_capacity(0),
+                links: vec![],
                 parent_span_id: Some(self.span_id),
             },
             start: None,

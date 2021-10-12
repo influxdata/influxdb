@@ -155,7 +155,7 @@ fn decode_b3(
     }
 
     // Links cannot be specified via the HTTP header
-    let links = Vec::with_capacity(0);
+    let links = vec![];
 
     Ok(Some(SpanContext {
         trace_id: required_header(headers, B3_TRACE_ID_HEADER, parse_trace)?,
@@ -216,7 +216,7 @@ fn decode_jaeger(
     }
 
     // Links cannot be specified via the HTTP header
-    let links = Vec::with_capacity(0);
+    let links = vec![];
 
     Ok(Some(SpanContext {
         trace_id: decoded.trace_id,
