@@ -124,14 +124,10 @@ generate-web-assets: static/static_gen.go
 
 # generate-sources outputs all the Go files generated from protobufs, tmpls, and other tooling.
 # These files are tracked by git; CI will enforce that they are up-to-date.
-generate-sources: gogo tmpl stringer goimports
+generate-sources: tmpl stringer goimports
 	$(GO_GENERATE) ./influxql/... ./models/... ./pkg/... ./storage/... ./tsdb/... ./v1/...
 
 generate: generate-web-assets generate-sources
-
-gogo:
-	$(GO_INSTALL) github.com/gogo/protobuf/protoc-gen-gogo
-	$(GO_INSTALL) github.com/gogo/protobuf/protoc-gen-gogofaster
 
 tmpl:
 	$(GO_INSTALL) github.com/benbjohnson/tmpl
