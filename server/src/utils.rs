@@ -124,6 +124,11 @@ impl TestDbBuilder {
             };
         }
 
+        let jobs = Arc::new(JobRegistry::new(
+            Default::default(),
+            Arc::clone(&time_provider),
+        ));
+
         let database_to_commit = DatabaseToCommit {
             rules: Arc::new(rules),
             server_id,
@@ -138,10 +143,7 @@ impl TestDbBuilder {
 
         TestDb {
             metric_registry,
-            db: Db::new(
-                database_to_commit,
-                Arc::new(JobRegistry::new(Default::default())),
-            ),
+            db: Db::new(database_to_commit, jobs),
             replay_plan: replay_plan.expect("did not skip replay"),
         }
     }

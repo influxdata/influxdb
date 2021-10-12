@@ -18,7 +18,6 @@ tonic = "0.5"
 time = { path = "../time" }
 
 [dev-dependencies]
-chrono = { version = "0.4", features = ["serde"] }
 num_cpus = "1.13.0"
 
 [build-dependencies] # In alphabetical order

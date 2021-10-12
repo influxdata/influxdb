@@ -7,7 +7,6 @@ description = "InfluxDB IOx internal types, shared between IOx instances"
 readme = "README.md"
 
 [dependencies]
-chrono = "0.4"
 parking_lot = "0.11"
 snafu = "0.6"
 time = { path = "../time" }

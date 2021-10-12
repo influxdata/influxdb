@@ -826,7 +826,7 @@ impl Db {
                         .as_mut()
                         .expect("lifecycle policy should be initialized");
 
-                    policy.check_for_work(self.time_provider.now().date_time())
+                    policy.check_for_work()
                 };
                 fut.await
             }

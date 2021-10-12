@@ -1,15 +1,19 @@
-use super::partition::Partition;
-use crate::db::catalog::metrics::TableMetrics;
-use data_types::partition_metadata::{PartitionAddr, PartitionSummary};
+use std::{ops::Deref, result::Result, sync::Arc};
+
 use hashbrown::HashMap;
+
+use data_types::partition_metadata::{PartitionAddr, PartitionSummary};
 use schema::{
     builder::SchemaBuilder,
     merge::{Error as SchemaMergerError, SchemaMerger},
     Schema,
 };
-use std::{ops::Deref, result::Result, sync::Arc};
 use time::TimeProvider;
 use tracker::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+
+use crate::db::catalog::metrics::TableMetrics;
+
+use super::partition::Partition;
 
 /// A `Table` is a collection of `Partition` each of which is a collection of `Chunk`
 #[derive(Debug)]

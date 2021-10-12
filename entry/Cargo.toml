@@ -6,7 +6,7 @@ edition = "2018"
 description = "The entry format used by the write buffer"
 
 [dependencies]
-chrono = { version = "0.4", features = ["serde"] }
+chrono = "0.4"
 data_types = { path = "../data_types" }
 # See docs/regenerating_flatbuffers.md about updating generated code when updating the
 # version of the flatbuffers crate

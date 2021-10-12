@@ -1258,7 +1258,6 @@ name = "generated_types"
 version = "0.1.0"
 dependencies = [
  "bytes",
- "chrono",
  "data_types",
  "num_cpus",
  "observability_deps",
@@ -1799,7 +1798,6 @@ checksum = "90c11140ffea82edce8dcd74137ce9324ec24b3cf0175fc9d7e29164da9915b8"
 name = "internal_types"
 version = "0.1.0"
 dependencies = [
- "chrono",
  "futures",
  "parking_lot",
  "snafu",
@@ -1971,12 +1969,12 @@ dependencies = [
 name = "lifecycle"
 version = "0.1.0"
 dependencies = [
- "chrono",
  "data_types",
  "futures",
  "hashbrown 0.11.2",
  "internal_types",
  "observability_deps",
+ "parking_lot",
  "time 0.1.0",
  "tokio",
  "tracker",
@@ -2206,7 +2204,6 @@ dependencies = [
  "arrow",
  "arrow_util",
  "async-trait",
- "chrono",
  "data_types",
  "entry",
  "hashbrown 0.11.2",
@@ -3353,7 +3350,6 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow_util",
- "chrono",
  "criterion",
  "croaring",
  "data_types",
@@ -4644,7 +4640,6 @@ dependencies = [
 name = "tracker"
 version = "0.1.0"
 dependencies = [
- "chrono",
  "futures",
  "hashbrown 0.11.2",
  "lock_api",
@@ -4652,6 +4647,7 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "pin-project",
+ "time 0.1.0",
  "tokio",
  "tokio-util",
 ]
@@ -4982,7 +4978,6 @@ name = "write_buffer"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "chrono",
  "data_types",
  "dotenv",
  "entry",

@@ -5,7 +5,6 @@ edition = "2018"
 
 [dependencies]
 async-trait = "0.1"
-chrono = "0.4"
 data_types = { path = "../data_types" }
 dotenv = "0.15.0"
 entry = { path = "../entry" }

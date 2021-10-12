@@ -7,7 +7,6 @@ description = "Utilities for tracking resource utilisation within IOx"
 
 [dependencies]
 
-chrono = "0.4"
 futures = "0.3"
 hashbrown = "0.11"
 lock_api = "0.4.4"
@@ -15,6 +14,7 @@ metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11.2"
 pin-project = "1.0"
+time = { path = "../time" }
 tokio = { version = "1.11", features = ["macros", "time"] }
 tokio-util = { version = "0.6.3" }
 

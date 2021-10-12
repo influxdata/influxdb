@@ -93,16 +93,13 @@ impl<F: TryFuture> Future for TrackedFuture<F> {
 #[pinned_drop]
 impl<F: TryFuture> PinnedDrop for TrackedFuture<F> {
     fn drop(self: Pin<&mut Self>) {
-        use std::convert::TryInto;
-
         let state: &TrackerState = self.project().tracker;
 
-        let elapsed: i64 = chrono::Utc::now()
-            .signed_duration_since(state.start_time)
-            .num_nanoseconds()
-            .unwrap();
-
-        let wall_nanos: usize = elapsed.try_into().unwrap_or_default();
+        let now = state.time_provider.now();
+        let wall_nanos = now
+            .checked_duration_since(state.start_time)
+            .unwrap_or_default()
+            .as_nanos() as usize;
 
         state.wall_nanos.fetch_max(wall_nanos, Ordering::Relaxed);
 

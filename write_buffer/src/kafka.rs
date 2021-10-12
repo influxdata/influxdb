@@ -7,7 +7,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::{TimeZone, Utc};
 use data_types::{
     database_rules::WriteBufferCreationConfig, sequence::Sequence, server_id::ServerId,
 };
@@ -269,7 +268,8 @@ impl WriteBufferReading for KafkaBufferConsumer {
                     let timestamp_millis = message.timestamp().to_millis().ok_or_else::<WriteBufferError, _>(|| {
                         "The connected Kafka does not seem to support message timestamps (KIP-32). Please upgrade to >= 0.10.0.0".to_string().into()
                     })?;
-                    let timestamp = Utc.timestamp_millis_opt(timestamp_millis).single().ok_or_else::<WriteBufferError, _>(|| {
+
+                    let timestamp = Time::from_timestamp_millis_opt(timestamp_millis).ok_or_else::<WriteBufferError, _>(|| {
                         format!("Cannot parse timestamp for milliseconds: {}", timestamp_millis).into()
                     })?;
 
@@ -278,7 +278,7 @@ impl WriteBufferReading for KafkaBufferConsumer {
                         number: message.offset().try_into()?,
                     };
 
-                    Ok(SequencedEntry::new_from_sequence(sequence, Time::from_date_time(timestamp), entry))
+                    Ok(SequencedEntry::new_from_sequence(sequence, timestamp, entry))
                 })
                 .boxed();
 
