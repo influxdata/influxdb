@@ -236,9 +236,14 @@ mod tests {
             trace_id: TraceId::new(43434).unwrap(),
             parent_span_id: None,
             span_id: SpanId::new(3495993).unwrap(),
+            links: vec![],
             collector: None,
         };
         let mut span = ctx.child("foo");
+        span.ctx.links = vec![
+            (TraceId::new(12).unwrap(), SpanId::new(123).unwrap()),
+            (TraceId::new(45).unwrap(), SpanId::new(456).unwrap()),
+        ];
         span.status = SpanStatus::Ok;
         span.events = vec![SpanEvent {
             time: Utc.timestamp_nanos(200000),
@@ -282,6 +287,14 @@ mod tests {
             b1_s0.parent_span_id,
             span.ctx.parent_span_id.unwrap().get() as i64
         );
+
+        // test links
+        let b1_s0_refs = b1_s0.references.as_ref().unwrap();
+        assert_eq!(b1_s0_refs.len(), 2);
+        let b1_s0_r0 = &b1_s0_refs[0];
+        let b1_s0_r1 = &b1_s0_refs[1];
+        assert_eq!(b1_s0_r0.span_id, span.ctx.links[0].1.get() as i64);
+        assert_eq!(b1_s0_r1.span_id, span.ctx.links[1].1.get() as i64);
 
         // microseconds not nanoseconds
         assert_eq!(b1_s0.start_time, 100);

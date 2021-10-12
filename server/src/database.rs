@@ -20,7 +20,7 @@ use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
-use parquet_file::catalog::core::{PreservedCatalog, PreservedCatalogConfig};
+use parquet_file::catalog::core::PreservedCatalog;
 use persistence_windows::checkpoint::ReplayPlan;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{future::Future, sync::Arc, time::Duration};
@@ -210,10 +210,9 @@ impl Database {
             .await
             .context(SavingRules)?;
 
-        let config = PreservedCatalogConfig::new(iox_object_store);
         create_preserved_catalog(
             db_name,
-            config,
+            iox_object_store,
             Arc::clone(application.metric_registry()),
             Arc::clone(application.time_provider()),
             true,
@@ -1050,12 +1049,9 @@ impl DatabaseStateDatabaseObjectStoreFound {
             .fail();
         }
 
-        let catalog_config = PreservedCatalogConfig::new(Arc::clone(&self.iox_object_store));
-
         Ok(DatabaseStateRulesLoaded {
             provided_rules: Arc::new(rules),
             iox_object_store: Arc::clone(&self.iox_object_store),
-            catalog_config,
         })
     }
 }
@@ -1064,7 +1060,6 @@ impl DatabaseStateDatabaseObjectStoreFound {
 struct DatabaseStateRulesLoaded {
     provided_rules: Arc<ProvidedDatabaseRules>,
     iox_object_store: Arc<IoxObjectStore>,
-    catalog_config: PreservedCatalogConfig,
 }
 
 impl DatabaseStateRulesLoaded {
@@ -1075,7 +1070,7 @@ impl DatabaseStateRulesLoaded {
     ) -> Result<DatabaseStateCatalogLoaded, InitError> {
         let (preserved_catalog, catalog, replay_plan) = load_or_create_preserved_catalog(
             shared.config.name.as_str(),
-            self.catalog_config.clone(),
+            Arc::clone(&self.iox_object_store),
             Arc::clone(shared.application.metric_registry()),
             Arc::clone(shared.application.time_provider()),
             shared.config.wipe_catalog_on_error,

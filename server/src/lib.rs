@@ -2206,11 +2206,12 @@ mod tests {
             .await
             .unwrap();
 
-        let (preserved_catalog, _catalog) = load_ok(PreservedCatalogConfig::new(
+        let config = PreservedCatalogConfig::new(
             catalog_broken.iox_object_store().unwrap(),
-        ))
-        .await
-        .unwrap();
+            Arc::clone(application.time_provider()),
+        );
+
+        let (preserved_catalog, _catalog) = load_ok(config).await.unwrap();
 
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
@@ -2289,7 +2290,13 @@ mod tests {
             .await
             .unwrap(),
         );
-        new_empty(PreservedCatalogConfig::new(non_existing_iox_object_store)).await;
+
+        let config = PreservedCatalogConfig::new(
+            non_existing_iox_object_store,
+            Arc::clone(application.time_provider()),
+        );
+        new_empty(config).await;
+
         assert_eq!(
             server
                 .wipe_preserved_catalog(&db_name_non_existing)
@@ -2384,8 +2391,11 @@ mod tests {
                 .unwrap(),
         );
 
+        let config =
+            PreservedCatalogConfig::new(iox_object_store, Arc::clone(application.time_provider()));
+
         // create catalog
-        new_empty(PreservedCatalogConfig::new(iox_object_store)).await;
+        new_empty(config).await;
 
         // creating database will now result in an error
         let err = create_simple_database(&server, db_name).await.unwrap_err();

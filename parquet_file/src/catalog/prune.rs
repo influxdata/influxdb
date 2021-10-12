@@ -1,11 +1,11 @@
 //! Tooling to remove parts of the preserved catalog that are no longer needed.
 use std::{collections::BTreeMap, sync::Arc};
 
-use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use iox_object_store::{IoxObjectStore, TransactionFilePath};
 use object_store::{ObjectStore, ObjectStoreApi};
 use snafu::{ResultExt, Snafu};
+use time::Time;
 
 use crate::catalog::{
     core::{ProtoIOError, ProtoParseError},
@@ -52,10 +52,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// This will delete the following content: C1, T2, and T3. C3 and T4 cannot be deleted because it is required to
 /// recover T5 which is AFTER `before`.
-pub async fn prune_history(
-    iox_object_store: Arc<IoxObjectStore>,
-    before: DateTime<Utc>,
-) -> Result<()> {
+pub async fn prune_history(iox_object_store: Arc<IoxObjectStore>, before: Time) -> Result<()> {
     // collect all files so we can quickly filter them later for deletion
     // Use a btree-map so we can iterate from oldest to newest revision.
     let mut files: BTreeMap<u64, Vec<TransactionFilePath>> = Default::default();
@@ -122,7 +119,7 @@ fn is_checkpoint_or_zero(path: &TransactionFilePath) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Duration;
+    use std::time::Duration;
 
     use crate::{
         catalog::{
@@ -139,7 +136,9 @@ mod tests {
     async fn test_empty_store() {
         let iox_object_store = make_iox_object_store().await;
 
-        prune_history(iox_object_store, Utc::now()).await.unwrap();
+        prune_history(iox_object_store, Time::from_timestamp_nanos(0))
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -148,22 +147,32 @@ mod tests {
 
         new_empty(config.clone()).await;
 
-        prune_history(Arc::clone(&config.iox_object_store), Utc::now())
-            .await
-            .unwrap();
+        prune_history(
+            Arc::clone(&config.iox_object_store),
+            Time::from_timestamp_nanos(0),
+        )
+        .await
+        .unwrap();
 
         load_ok(config).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_complex_1() {
-        let config = make_config().await;
+        let time = Arc::new(time::MockProvider::new(Time::from_timestamp(0, 32)));
+        let config = make_config()
+            .await
+            .with_time_provider(Arc::<time::MockProvider>::clone(&time));
+
         let iox_object_store = &config.iox_object_store;
 
         let (catalog, _state) = new_empty(config.clone()).await;
         create_transaction(&catalog).await;
         create_transaction_and_checkpoint(&catalog).await;
-        let before = Utc::now();
+
+        let before = time.inc(Duration::from_secs(21));
+        time.inc(Duration::from_secs(1));
+
         create_transaction(&catalog).await;
 
         prune_history(Arc::clone(iox_object_store), before)
@@ -178,14 +187,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_complex_2() {
-        let config = make_config().await;
+        let time = Arc::new(time::MockProvider::new(Time::from_timestamp(0, 32)));
+        let config = make_config()
+            .await
+            .with_time_provider(Arc::<time::MockProvider>::clone(&time));
+
         let iox_object_store = &config.iox_object_store;
 
         let (catalog, _state) = new_empty(config.clone()).await;
+
         create_transaction(&catalog).await;
         create_transaction_and_checkpoint(&catalog).await;
         create_transaction(&catalog).await;
-        let before = Utc::now();
+
+        let before = time.inc(Duration::from_secs(25));
+        time.inc(Duration::from_secs(1));
+
         create_transaction(&catalog).await;
         create_transaction_and_checkpoint(&catalog).await;
         create_transaction(&catalog).await;
@@ -217,7 +234,7 @@ mod tests {
         create_transaction_and_checkpoint(&catalog).await;
         create_transaction(&catalog).await;
 
-        let before = Utc::now() - Duration::seconds(1_000);
+        let before = config.time_provider.now() - Duration::from_secs(1_000);
         prune_history(Arc::clone(iox_object_store), before)
             .await
             .unwrap();
