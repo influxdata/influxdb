@@ -267,6 +267,8 @@ async fn test_read_filter_data_pred_refers_to_non_existent_column() {
     run_read_filter_test_case(TwoMeasurements {}, predicate, expected_results).await;
 }
 
+// BUG: https://github.com/influxdata/influxdb_iox/issues/2817
+#[ignore]
 #[tokio::test]
 async fn test_read_filter_data_pred_refers_to_non_existent_column_with_delete() {
     let predicate = PredicateBuilder::default()
@@ -318,47 +320,6 @@ async fn test_read_filter_data_pred_no_columns() {
     ];
 
     run_read_filter_test_case(TwoMeasurements {}, predicate, expected_results).await;
-}
-
-#[tokio::test]
-async fn test_read_filter_data_pred_no_columns_with_delete() {
-    // predicate with no columns,
-    let predicate = PredicateBuilder::default()
-        .add_expr(lit("foo").eq(lit("foo")))
-        .build();
-
-    let expected_results = vec![
-        "SeriesSet",
-        "table_name: cpu",
-        "tags",
-        "  (region, west)",
-        "field_indexes:",
-        "  (value_index: 1, timestamp_index: 2)",
-        "start_row: 0",
-        "num_rows: 1",
-        "Batches:",
-        "+--------+------+--------------------------------+",
-        "| region | user | time                           |",
-        "+--------+------+--------------------------------+",
-        "| west   | 23.2 | 1970-01-01T00:00:00.000000100Z |",
-        "+--------+------+--------------------------------+",
-        "SeriesSet",
-        "table_name: disk",
-        "tags",
-        "  (region, east)",
-        "field_indexes:",
-        "  (value_index: 1, timestamp_index: 2)",
-        "start_row: 0",
-        "num_rows: 1",
-        "Batches:",
-        "+--------+-------+--------------------------------+",
-        "| region | bytes | time                           |",
-        "+--------+-------+--------------------------------+",
-        "| east   | 99    | 1970-01-01T00:00:00.000000200Z |",
-        "+--------+-------+--------------------------------+",
-    ];
-
-    run_read_filter_test_case(TwoMeasurementsWithDelete {}, predicate, expected_results).await;
 }
 
 #[tokio::test]
