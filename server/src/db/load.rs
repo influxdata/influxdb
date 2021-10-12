@@ -4,10 +4,9 @@
 use super::catalog::{chunk::ChunkStage, table::TableSchemaUpsertHandle, Catalog};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use observability_deps::tracing::{error, info};
-use parquet_file::catalog::core::PreservedCatalogConfig;
 use parquet_file::{
     catalog::{
-        core::PreservedCatalog,
+        core::{PreservedCatalog, PreservedCatalogConfig},
         interface::{
             CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError,
             ChunkAddrWithoutDatabase, ChunkCreationFailed,
@@ -53,7 +52,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// <https://github.com/influxdata/influxdb_iox/issues/1522>
 pub async fn load_or_create_preserved_catalog(
     db_name: &str,
-    config: PreservedCatalogConfig,
+    iox_object_store: Arc<IoxObjectStore>,
     metric_registry: Arc<::metric::Registry>,
     time_provider: Arc<dyn TimeProvider>,
     wipe_on_error: bool,
@@ -62,7 +61,7 @@ pub async fn load_or_create_preserved_catalog(
     // first try to load existing catalogs
     match PreservedCatalog::load(
         db_name,
-        config.clone(),
+        PreservedCatalogConfig::new(Arc::clone(&iox_object_store), Arc::clone(&time_provider)),
         LoaderEmptyInput::new(
             Arc::clone(&metric_registry),
             Arc::clone(&time_provider),
@@ -90,8 +89,14 @@ pub async fn load_or_create_preserved_catalog(
                 db_name
             );
 
-            create_preserved_catalog(db_name, config, metric_registry, time_provider, skip_replay)
-                .await
+            create_preserved_catalog(
+                db_name,
+                iox_object_store,
+                metric_registry,
+                time_provider,
+                skip_replay,
+            )
+            .await
         }
         Err(e) => {
             if wipe_on_error {
@@ -99,13 +104,13 @@ pub async fn load_or_create_preserved_catalog(
                 // broken => wipe for now (at least during early iterations)
                 error!("cannot load catalog, so wipe it: {}", e);
 
-                PreservedCatalog::wipe_with_config(&config)
+                PreservedCatalog::wipe(&iox_object_store)
                     .await
                     .context(CannotWipeCatalog)?;
 
                 create_preserved_catalog(
                     db_name,
-                    config,
+                    iox_object_store,
                     metric_registry,
                     time_provider,
                     skip_replay,
@@ -123,11 +128,13 @@ pub async fn load_or_create_preserved_catalog(
 /// This will fail if a preserved catalog already exists.
 pub async fn create_preserved_catalog(
     db_name: &str,
-    config: PreservedCatalogConfig,
+    iox_object_store: Arc<IoxObjectStore>,
     metric_registry: Arc<metric::Registry>,
     time_provider: Arc<dyn TimeProvider>,
     skip_replay: bool,
 ) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
+    let config = PreservedCatalogConfig::new(iox_object_store, Arc::clone(&time_provider));
+
     let (preserved_catalog, loader) = PreservedCatalog::new_empty(
         db_name,
         config,
@@ -341,15 +348,16 @@ mod tests {
                 .await
                 .unwrap(),
         );
-        let config = PreservedCatalogConfig::new(iox_object_store);
+        let config =
+            PreservedCatalogConfig::new(Arc::clone(&iox_object_store), Arc::clone(&time_provider));
 
-        let (preserved_catalog, _catalog) = new_empty(config.clone()).await;
+        let (preserved_catalog, _catalog) = new_empty(config).await;
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
 
         load_or_create_preserved_catalog(
             &db_name,
-            config,
+            iox_object_store,
             Default::default(),
             time_provider,
             true,

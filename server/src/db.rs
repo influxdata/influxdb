@@ -14,7 +14,6 @@ use std::{
 
 use ::lifecycle::select_persistable_chunks;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use parking_lot::{Mutex, RwLock};
 use rand_distr::{Distribution, Poisson};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -826,7 +825,9 @@ impl Db {
                     .as_mut()
                     .expect("lifecycle policy should be initialized");
 
-                policy.check_for_work(self.utc_now()).await
+                policy
+                    .check_for_work(self.time_provider.now().date_time())
+                    .await
             }
         };
 
@@ -854,20 +855,13 @@ impl Db {
                 debug!(?duration, "cleanup worker sleeps");
                 tokio::time::sleep(duration).await;
 
-                match chrono::Duration::from_std(catalog_transaction_prune_age) {
-                    Ok(catalog_transaction_prune_age) => {
-                        if let Err(e) = prune_catalog_transaction_history(
-                            self.iox_object_store(),
-                            Utc::now() - catalog_transaction_prune_age,
-                        )
-                        .await
-                        {
-                            error!(%e, "error while pruning catalog transactions");
-                        }
-                    }
-                    Err(e) => {
-                        error!(%e, "cannot convert `catalog_transaction_prune_age`, skipping transaction pruning");
-                    }
+                if let Err(e) = prune_catalog_transaction_history(
+                    self.iox_object_store(),
+                    self.time_provider.now() - catalog_transaction_prune_age,
+                )
+                .await
+                {
+                    error!(%e, "error while pruning catalog transactions");
                 }
 
                 if let Err(e) = self.cleanup_unreferenced_parquet_files().await {
@@ -914,13 +908,6 @@ impl Db {
         }
 
         info!("finished db background worker");
-    }
-
-    /// `Utc::now()` that is used by `Db`. Can be mocked for testing.
-    ///
-    /// TODO: Remove (#2722)
-    fn utc_now(&self) -> DateTime<Utc> {
-        self.time_provider.now().date_time()
     }
 
     async fn cleanup_unreferenced_parquet_files(
@@ -1422,7 +1409,6 @@ mod tests {
     use iox_object_store::ParquetFilePath;
     use metric::{Attributes, CumulativeGauge, Metric, Observation};
     use object_store::ObjectStore;
-    use parquet_file::catalog::core::PreservedCatalogConfig;
     use parquet_file::{
         catalog::test_helpers::load_ok,
         metadata::IoxParquetMetaData,
@@ -3252,7 +3238,7 @@ mod tests {
 
         // ==================== check: empty catalog created ====================
         // at this point, an empty preserved catalog exists
-        let config = PreservedCatalogConfig::new(Arc::clone(&db.iox_object_store));
+        let config = db.preserved_catalog.config();
         let maybe_preserved_catalog = load_ok(config.clone()).await;
         assert!(maybe_preserved_catalog.is_some());
 
