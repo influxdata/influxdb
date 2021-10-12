@@ -145,3 +145,18 @@ fn tag_from_meta(key: String, value: MetaValue) -> jaeger::Tag {
     };
     tag
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_split_trace_id_integer_conversion() {
+        // test case from
+        // https://github.com/open-telemetry/opentelemetry-specification/blob/639c7443e78800b085d2c9826d1b300f5e81fded/specification/trace/sdk_exporters/jaeger.md#ids
+        let trace_id = TraceId::new(0xFF00000000000000).unwrap();
+        let (high, low) = split_trace_id(trace_id);
+        assert_eq!(high, 0);
+        assert_eq!(low, -72057594037927936);
+    }
+}
