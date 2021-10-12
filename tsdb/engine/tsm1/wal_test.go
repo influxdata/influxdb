@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -449,20 +448,24 @@ func TestWALRollSegment(t *testing.T) {
 	_, err := w.WriteMulti(context.Background(), values)
 	require.NoError(t, err)
 
-	files, err := ioutil.ReadDir(w.Path())
+	files, err := os.ReadDir(w.Path())
 	require.NoError(t, err)
 	require.Equal(t, 1, len(files))
 
-	encodeSize := files[0].Size()
+	file, err := files[0].Info()
+	require.NoError(t, err)
+	encodeSize := file.Size()
 
 	for i := 0; i < 100; i++ {
 		_, err := w.WriteMulti(context.Background(), values)
 		require.NoError(t, err)
 	}
-	files, err = ioutil.ReadDir(w.Path())
+	files, err = os.ReadDir(w.Path())
 	require.NoError(t, err)
 	for _, f := range files {
-		require.True(t, f.Size() <= int64(segSize)+encodeSize)
+		file, err := f.Info()
+		require.NoError(t, err)
+		require.True(t, file.Size() <= int64(segSize)+encodeSize)
 	}
 	require.NoError(t, w.Close())
 }
@@ -470,7 +473,7 @@ func TestWALRollSegment(t *testing.T) {
 func TestWAL_DiskSize(t *testing.T) {
 	test := func(w *tsm1.WAL, oldZero, curZero bool) {
 		// get disk size by reading file
-		files, err := ioutil.ReadDir(w.Path())
+		files, err := os.ReadDir(w.Path())
 		require.NoError(t, err)
 
 		sort.Slice(files, func(i, j int) bool {
@@ -479,9 +482,13 @@ func TestWAL_DiskSize(t *testing.T) {
 
 		var old, cur int64
 		if len(files) > 0 {
-			cur = files[len(files)-1].Size()
+			file, err := files[len(files)-1].Info()
+			require.NoError(t, err)
+			cur = file.Size()
 			for i := 0; i < len(files)-1; i++ {
-				old += files[i].Size()
+				file, err := files[i].Info()
+				require.NoError(t, err)
+				old += file.Size()
 			}
 		}
 
