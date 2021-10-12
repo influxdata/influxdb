@@ -154,10 +154,14 @@ fn decode_b3(
         return Ok(None);
     }
 
+    // Links cannot be specified via the HTTP header
+    let links = Vec::with_capacity(0);
+
     Ok(Some(SpanContext {
         trace_id: required_header(headers, B3_TRACE_ID_HEADER, parse_trace)?,
         parent_span_id: parsed_header(headers, B3_PARENT_SPAN_ID_HEADER, parse_span)?,
         span_id: required_header(headers, B3_SPAN_ID_HEADER, parse_span)?,
+        links,
         collector: Some(Arc::clone(collector)),
     }))
 }
@@ -211,10 +215,14 @@ fn decode_jaeger(
         return Ok(None);
     }
 
+    // Links cannot be specified via the HTTP header
+    let links = Vec::with_capacity(0);
+
     Ok(Some(SpanContext {
         trace_id: decoded.trace_id,
         parent_span_id: decoded.parent_span_id,
         span_id: decoded.span_id,
+        links,
         collector: Some(Arc::clone(collector)),
     }))
 }

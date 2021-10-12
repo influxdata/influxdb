@@ -1,12 +1,21 @@
 /// Contains the conversion logic from a `trace::span::Span` to `thrift::jaeger::Span`
-use crate::thrift::jaeger;
-use trace::span::{MetaValue, Span, SpanEvent, SpanStatus};
+use crate::thrift::jaeger::{self, SpanRef};
+use trace::{
+    ctx::TraceId,
+    span::{MetaValue, Span, SpanEvent, SpanStatus},
+};
+
+/// Split [`TraceId`] into high and low part.
+fn split_trace_id(trace_id: TraceId) -> (i64, i64) {
+    let trace_id = trace_id.get();
+    let trace_id_high = (trace_id >> 64) as i64;
+    let trace_id_low = trace_id as i64;
+    (trace_id_high, trace_id_low)
+}
 
 impl From<Span> for jaeger::Span {
     fn from(mut s: Span) -> Self {
-        let trace_id = s.ctx.trace_id.get();
-        let trace_id_high = (trace_id >> 64) as i64;
-        let trace_id_low = trace_id as i64;
+        let (trace_id_high, trace_id_low) = split_trace_id(s.ctx.trace_id);
 
         // A parent span id of 0 indicates no parent span ID (span IDs are non-zero)
         let parent_span_id = s.ctx.parent_span_id.map(|id| id.get()).unwrap_or_default() as i64;
@@ -51,13 +60,34 @@ impl From<Span> for jaeger::Span {
             false => Some(s.events.into_iter().map(Into::into).collect()),
         };
 
+        let references = if s.ctx.links.is_empty() {
+            None
+        } else {
+            Some(
+                s.ctx
+                    .links
+                    .into_iter()
+                    .map(|(trace_id, span_id)| {
+                        // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/sdk_exporters/jaeger.md#links
+                        let (trace_id_high, trace_id_low) = split_trace_id(trace_id);
+                        SpanRef {
+                            ref_type: jaeger::SpanRefType::FollowsFrom,
+                            trace_id_high,
+                            trace_id_low,
+                            span_id: span_id.get() as i64,
+                        }
+                    })
+                    .collect(),
+            )
+        };
+
         Self {
             trace_id_low,
             trace_id_high,
             span_id: s.ctx.span_id.get() as i64,
             parent_span_id,
             operation_name: s.name.to_string(),
-            references: None,
+            references,
             flags: 0,
             start_time,
             duration,
