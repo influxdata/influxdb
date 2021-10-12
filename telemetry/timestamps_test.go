@@ -1,11 +1,11 @@
 package telemetry
 
 import (
+	"google.golang.org/protobuf/proto"
 	"reflect"
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	pr "github.com/influxdata/influxdb/v2/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )

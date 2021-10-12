@@ -2,11 +2,11 @@ package influxdb_test
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
 	"testing"
 	"time"
 
 	"github.com/apache/arrow/go/arrow/memory"
-	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/table"
@@ -33,22 +33,22 @@ func TestProvider_SeriesCardinalityReader(t *testing.T) {
 
 	store := &mock.ReadsStore{
 		ReadSeriesCardinalityFn: func(ctx context.Context, req *datatypes.ReadSeriesCardinalityRequest) (cursors.Int64Iterator, error) {
-			source, err := storage.GetReadSource(*req.ReadSource)
+			source, err := storage.GetReadSource(req.GetReadSource())
 			if err != nil {
 				return nil, err
 			}
 
-			if want, got := orgID, source.GetOrgID(); want != got {
+			if want, got := orgID, platform.ID(source.GetOrgID()); want != got {
 				t.Errorf("unexpected org id -want/+got:\n\t- %d\n\t+ %d", want, got)
 			}
-			if want, got := bucketID, source.GetBucketID(); want != got {
+			if want, got := bucketID, platform.ID(source.GetBucketID()); want != got {
 				t.Errorf("unexpected org id -want/+got:\n\t- %d\n\t+ %d", want, got)
 			}
 
-			if want, got := req.Range.Start, int64(1000000000); want != got {
+			if want, got := req.Range.GetStart(), int64(1000000000); want != got {
 				t.Errorf("unexpected start range -want/+got:\n\t- %d\n\t+ %d", want, got)
 			}
-			if want, got := req.Range.End, int64(2000000000); want != got {
+			if want, got := req.Range.GetEnd(), int64(2000000000); want != got {
 				t.Errorf("unexpected end range -want/+got:\n\t- %d\n\t+ %d", want, got)
 			}
 

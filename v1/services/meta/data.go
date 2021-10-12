@@ -3,6 +3,7 @@ package meta
 import (
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/proto"
 	"net"
 	"net/url"
 	"sort"
@@ -11,7 +12,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/models"
 	influxdb "github.com/influxdata/influxdb/v2/v1"

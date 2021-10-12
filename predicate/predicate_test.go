@@ -1,6 +1,7 @@
 package predicate
 
 import (
+	"github.com/influxdata/influxdb/v2/pkg/cmputil"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -30,15 +31,15 @@ func TestDataTypeConversion(t *testing.T) {
 				},
 			},
 			dataType: &datatypes.Node{
-				NodeType: datatypes.NodeTypeComparisonExpression,
-				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+				NodeType: datatypes.Node_TypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonEqual},
 				Children: []*datatypes.Node{
 					{
-						NodeType: datatypes.NodeTypeTagRef,
+						NodeType: datatypes.Node_TypeTagRef,
 						Value:    &datatypes.Node_TagRefValue{TagRefValue: "k1"},
 					},
 					{
-						NodeType: datatypes.NodeTypeLiteral,
+						NodeType: datatypes.Node_TypeLiteral,
 						Value: &datatypes.Node_StringValue{
 							StringValue: "v1",
 						},
@@ -56,15 +57,15 @@ func TestDataTypeConversion(t *testing.T) {
 				},
 			},
 			dataType: &datatypes.Node{
-				NodeType: datatypes.NodeTypeComparisonExpression,
-				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonNotEqual},
+				NodeType: datatypes.Node_TypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonNotEqual},
 				Children: []*datatypes.Node{
 					{
-						NodeType: datatypes.NodeTypeTagRef,
+						NodeType: datatypes.Node_TypeTagRef,
 						Value:    &datatypes.Node_TagRefValue{TagRefValue: "k1"},
 					},
 					{
-						NodeType: datatypes.NodeTypeLiteral,
+						NodeType: datatypes.Node_TypeLiteral,
 						Value: &datatypes.Node_StringValue{
 							StringValue: "v1",
 						},
@@ -82,15 +83,15 @@ func TestDataTypeConversion(t *testing.T) {
 				},
 			},
 			dataType: &datatypes.Node{
-				NodeType: datatypes.NodeTypeComparisonExpression,
-				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+				NodeType: datatypes.Node_TypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonEqual},
 				Children: []*datatypes.Node{
 					{
-						NodeType: datatypes.NodeTypeTagRef,
+						NodeType: datatypes.Node_TypeTagRef,
 						Value:    &datatypes.Node_TagRefValue{TagRefValue: models.MeasurementTagKey},
 					},
 					{
-						NodeType: datatypes.NodeTypeLiteral,
+						NodeType: datatypes.Node_TypeLiteral,
 						Value: &datatypes.Node_StringValue{
 							StringValue: "cpu",
 						},
@@ -108,15 +109,15 @@ func TestDataTypeConversion(t *testing.T) {
 				},
 			},
 			dataType: &datatypes.Node{
-				NodeType: datatypes.NodeTypeComparisonExpression,
-				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonNotEqual},
+				NodeType: datatypes.Node_TypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonNotEqual},
 				Children: []*datatypes.Node{
 					{
-						NodeType: datatypes.NodeTypeTagRef,
+						NodeType: datatypes.Node_TypeTagRef,
 						Value:    &datatypes.Node_TagRefValue{TagRefValue: models.MeasurementTagKey},
 					},
 					{
-						NodeType: datatypes.NodeTypeLiteral,
+						NodeType: datatypes.Node_TypeLiteral,
 						Value: &datatypes.Node_StringValue{
 							StringValue: "cpu",
 						},
@@ -134,15 +135,15 @@ func TestDataTypeConversion(t *testing.T) {
 				},
 			},
 			dataType: &datatypes.Node{
-				NodeType: datatypes.NodeTypeComparisonExpression,
-				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+				NodeType: datatypes.Node_TypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonEqual},
 				Children: []*datatypes.Node{
 					{
-						NodeType: datatypes.NodeTypeTagRef,
+						NodeType: datatypes.Node_TypeTagRef,
 						Value:    &datatypes.Node_TagRefValue{TagRefValue: models.FieldKeyTagKey},
 					},
 					{
-						NodeType: datatypes.NodeTypeLiteral,
+						NodeType: datatypes.Node_TypeLiteral,
 						Value: &datatypes.Node_StringValue{
 							StringValue: "cpu",
 						},
@@ -160,15 +161,15 @@ func TestDataTypeConversion(t *testing.T) {
 				},
 			},
 			dataType: &datatypes.Node{
-				NodeType: datatypes.NodeTypeComparisonExpression,
-				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonNotEqual},
+				NodeType: datatypes.Node_TypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonNotEqual},
 				Children: []*datatypes.Node{
 					{
-						NodeType: datatypes.NodeTypeTagRef,
+						NodeType: datatypes.Node_TypeTagRef,
 						Value:    &datatypes.Node_TagRefValue{TagRefValue: models.FieldKeyTagKey},
 					},
 					{
-						NodeType: datatypes.NodeTypeLiteral,
+						NodeType: datatypes.Node_TypeLiteral,
 						Value: &datatypes.Node_StringValue{
 							StringValue: "cpu",
 						},
@@ -198,21 +199,21 @@ func TestDataTypeConversion(t *testing.T) {
 				},
 			},
 			dataType: &datatypes.Node{
-				NodeType: datatypes.NodeTypeLogicalExpression,
+				NodeType: datatypes.Node_TypeLogicalExpression,
 				Value: &datatypes.Node_Logical_{
-					Logical: datatypes.LogicalAnd,
+					Logical: datatypes.Node_LogicalAnd,
 				},
 				Children: []*datatypes.Node{
 					{
-						NodeType: datatypes.NodeTypeComparisonExpression,
-						Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+						NodeType: datatypes.Node_TypeComparisonExpression,
+						Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonEqual},
 						Children: []*datatypes.Node{
 							{
-								NodeType: datatypes.NodeTypeTagRef,
+								NodeType: datatypes.Node_TypeTagRef,
 								Value:    &datatypes.Node_TagRefValue{TagRefValue: "k1"},
 							},
 							{
-								NodeType: datatypes.NodeTypeLiteral,
+								NodeType: datatypes.Node_TypeLiteral,
 								Value: &datatypes.Node_StringValue{
 									StringValue: "v1",
 								},
@@ -220,15 +221,15 @@ func TestDataTypeConversion(t *testing.T) {
 						},
 					},
 					{
-						NodeType: datatypes.NodeTypeComparisonExpression,
-						Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+						NodeType: datatypes.Node_TypeComparisonExpression,
+						Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonEqual},
 						Children: []*datatypes.Node{
 							{
-								NodeType: datatypes.NodeTypeTagRef,
+								NodeType: datatypes.Node_TypeTagRef,
 								Value:    &datatypes.Node_TagRefValue{TagRefValue: "k2"},
 							},
 							{
-								NodeType: datatypes.NodeTypeLiteral,
+								NodeType: datatypes.Node_TypeLiteral,
 								Value: &datatypes.Node_StringValue{
 									StringValue: "v2",
 								},
@@ -272,27 +273,27 @@ func TestDataTypeConversion(t *testing.T) {
 				},
 			},
 			dataType: &datatypes.Node{
-				NodeType: datatypes.NodeTypeLogicalExpression,
+				NodeType: datatypes.Node_TypeLogicalExpression,
 				Value: &datatypes.Node_Logical_{
-					Logical: datatypes.LogicalAnd,
+					Logical: datatypes.Node_LogicalAnd,
 				},
 				Children: []*datatypes.Node{
 					{
-						NodeType: datatypes.NodeTypeLogicalExpression,
+						NodeType: datatypes.Node_TypeLogicalExpression,
 						Value: &datatypes.Node_Logical_{
-							Logical: datatypes.LogicalAnd,
+							Logical: datatypes.Node_LogicalAnd,
 						},
 						Children: []*datatypes.Node{
 							{
-								NodeType: datatypes.NodeTypeComparisonExpression,
-								Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+								NodeType: datatypes.Node_TypeComparisonExpression,
+								Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonEqual},
 								Children: []*datatypes.Node{
 									{
-										NodeType: datatypes.NodeTypeTagRef,
+										NodeType: datatypes.Node_TypeTagRef,
 										Value:    &datatypes.Node_TagRefValue{TagRefValue: "k3"},
 									},
 									{
-										NodeType: datatypes.NodeTypeLiteral,
+										NodeType: datatypes.Node_TypeLiteral,
 										Value: &datatypes.Node_StringValue{
 											StringValue: "v3",
 										},
@@ -300,15 +301,15 @@ func TestDataTypeConversion(t *testing.T) {
 								},
 							},
 							{
-								NodeType: datatypes.NodeTypeComparisonExpression,
-								Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+								NodeType: datatypes.Node_TypeComparisonExpression,
+								Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonEqual},
 								Children: []*datatypes.Node{
 									{
-										NodeType: datatypes.NodeTypeTagRef,
+										NodeType: datatypes.Node_TypeTagRef,
 										Value:    &datatypes.Node_TagRefValue{TagRefValue: "k4"},
 									},
 									{
-										NodeType: datatypes.NodeTypeLiteral,
+										NodeType: datatypes.Node_TypeLiteral,
 										Value: &datatypes.Node_StringValue{
 											StringValue: "v4",
 										},
@@ -318,15 +319,15 @@ func TestDataTypeConversion(t *testing.T) {
 						},
 					},
 					{
-						NodeType: datatypes.NodeTypeComparisonExpression,
-						Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+						NodeType: datatypes.Node_TypeComparisonExpression,
+						Value:    &datatypes.Node_Comparison_{Comparison: datatypes.Node_ComparisonEqual},
 						Children: []*datatypes.Node{
 							{
-								NodeType: datatypes.NodeTypeTagRef,
+								NodeType: datatypes.Node_TypeTagRef,
 								Value:    &datatypes.Node_TagRefValue{TagRefValue: "k2"},
 							},
 							{
-								NodeType: datatypes.NodeTypeLiteral,
+								NodeType: datatypes.Node_TypeLiteral,
 								Value: &datatypes.Node_StringValue{
 									StringValue: "v2",
 								},
@@ -344,7 +345,7 @@ func TestDataTypeConversion(t *testing.T) {
 			if c.err != nil {
 				continue
 			}
-			if diff := cmp.Diff(dataType, c.dataType); diff != "" {
+			if diff := cmp.Diff(dataType, c.dataType, cmputil.IgnoreProtobufUnexported()); diff != "" {
 				t.Fatalf("%s failed nodes are different, diff: %s", c.name, diff)
 			}
 		}

@@ -10,19 +10,19 @@ import (
 func TestHasFieldValueKey(t *testing.T) {
 	predicates := []*datatypes.Node{
 		{
-			NodeType: datatypes.NodeTypeComparisonExpression,
+			NodeType: datatypes.Node_TypeComparisonExpression,
 			Value: &datatypes.Node_Comparison_{
-				Comparison: datatypes.ComparisonLess,
+				Comparison: datatypes.Node_ComparisonLess,
 			},
 			Children: []*datatypes.Node{
 				{
-					NodeType: datatypes.NodeTypeFieldRef,
+					NodeType: datatypes.Node_TypeFieldRef,
 					Value: &datatypes.Node_FieldRefValue{
 						FieldRefValue: "_value",
 					},
 				},
 				{
-					NodeType: datatypes.NodeTypeLiteral,
+					NodeType: datatypes.Node_TypeLiteral,
 					Value: &datatypes.Node_IntegerValue{
 						IntegerValue: 3000,
 					},
@@ -30,25 +30,25 @@ func TestHasFieldValueKey(t *testing.T) {
 			},
 		},
 		{
-			NodeType: datatypes.NodeTypeLogicalExpression,
+			NodeType: datatypes.Node_TypeLogicalExpression,
 			Value: &datatypes.Node_Logical_{
-				Logical: datatypes.LogicalAnd,
+				Logical: datatypes.Node_LogicalAnd,
 			},
 			Children: []*datatypes.Node{
 				{
-					NodeType: datatypes.NodeTypeComparisonExpression,
+					NodeType: datatypes.Node_TypeComparisonExpression,
 					Value: &datatypes.Node_Comparison_{
-						Comparison: datatypes.ComparisonEqual,
+						Comparison: datatypes.Node_ComparisonEqual,
 					},
 					Children: []*datatypes.Node{
 						{
-							NodeType: datatypes.NodeTypeTagRef,
+							NodeType: datatypes.Node_TypeTagRef,
 							Value: &datatypes.Node_TagRefValue{
 								TagRefValue: "_measurement",
 							},
 						},
 						{
-							NodeType: datatypes.NodeTypeLiteral,
+							NodeType: datatypes.Node_TypeLiteral,
 							Value: &datatypes.Node_StringValue{
 								StringValue: "cpu",
 							},
@@ -56,19 +56,19 @@ func TestHasFieldValueKey(t *testing.T) {
 					},
 				},
 				{
-					NodeType: datatypes.NodeTypeComparisonExpression,
+					NodeType: datatypes.Node_TypeComparisonExpression,
 					Value: &datatypes.Node_Comparison_{
-						Comparison: datatypes.ComparisonLess,
+						Comparison: datatypes.Node_ComparisonLess,
 					},
 					Children: []*datatypes.Node{
 						{
-							NodeType: datatypes.NodeTypeFieldRef,
+							NodeType: datatypes.Node_TypeFieldRef,
 							Value: &datatypes.Node_FieldRefValue{
 								FieldRefValue: "_value",
 							},
 						},
 						{
-							NodeType: datatypes.NodeTypeLiteral,
+							NodeType: datatypes.Node_TypeLiteral,
 							Value: &datatypes.Node_IntegerValue{
 								IntegerValue: 3000,
 							},

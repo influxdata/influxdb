@@ -3,6 +3,7 @@ package tsm1
 import (
 	"bytes"
 	"fmt"
+	"google.golang.org/protobuf/proto"
 	"regexp"
 
 	"github.com/influxdata/influxdb/v2"
@@ -29,7 +30,7 @@ func UnmarshalPredicate(data []byte) (Predicate, error) {
 	}
 
 	pred := new(datatypes.Predicate)
-	if err := pred.Unmarshal(data[1:]); err != nil {
+	if err := proto.Unmarshal(data[1:], pred); err != nil {
 		return nil, err
 	}
 	return NewProtobufPredicate(pred)
@@ -74,7 +75,7 @@ func NewProtobufPredicate(pred *datatypes.Predicate) (Predicate, error) {
 	// Walk the predicate to collect the tag refs
 	locs := make(map[string]int)
 	walkPredicateNodes(pred.Root, func(node *datatypes.Node) {
-		if node.GetNodeType() == datatypes.NodeTypeTagRef {
+		if node.GetNodeType() == datatypes.Node_TypeTagRef {
 			switch value := node.GetValue().(type) {
 			case *datatypes.Node_TagRefValue:
 				// Only add to the matcher locations the first time we encounter
@@ -161,10 +162,8 @@ func (p *predicateMatcher) Matches(key []byte) bool {
 // Marshal returns a buffer representing the protobuf predicate.
 func (p *predicateMatcher) Marshal() ([]byte, error) {
 	// Prefix it with the version byte so that we can change in the future if necessary
-	buf := make([]byte, 1+p.pred.Size())
-	buf[0] = predicateVersionZero
-	_, err := p.pred.MarshalTo(buf[1:])
-	return buf, err
+	buf, err := proto.Marshal(p.pred)
+	return append([]byte{predicateVersionZero}, buf...), err
 }
 
 // walkPredicateNodes recursively calls the function for each node.
@@ -179,7 +178,7 @@ func walkPredicateNodes(node *datatypes.Node, fn func(node *datatypes.Node)) {
 // in what it accepts.
 func buildPredicateNode(state *predicateState, node *datatypes.Node) (predicateNode, error) {
 	switch node.GetNodeType() {
-	case datatypes.NodeTypeComparisonExpression:
+	case datatypes.Node_TypeComparisonExpression:
 		children := node.GetChildren()
 		if len(children) != 2 {
 			return nil, fmt.Errorf("invalid number of children for logical expression: %v", len(children))
@@ -194,7 +193,7 @@ func buildPredicateNode(state *predicateState, node *datatypes.Node) (predicateN
 		// Fill in the left side of the comparison
 		switch left.GetNodeType() {
 		// Tag refs look up the location of the tag in the state
-		case datatypes.NodeTypeTagRef:
+		case datatypes.Node_TypeTagRef:
 			idx, ok := state.locs[left.GetTagRefValue()]
 			if !ok {
 				return nil, fmt.Errorf("invalid tag ref in comparison: %v", left.GetTagRefValue())
@@ -202,7 +201,7 @@ func buildPredicateNode(state *predicateState, node *datatypes.Node) (predicateN
 			comp.leftIndex = idx
 
 		// Left literals are only allowed to be strings
-		case datatypes.NodeTypeLiteral:
+		case datatypes.Node_TypeLiteral:
 			lit, ok := left.GetValue().(*datatypes.Node_StringValue)
 			if !ok {
 				return nil, fmt.Errorf("invalid left literal in comparison: %v", left.GetValue())
@@ -216,7 +215,7 @@ func buildPredicateNode(state *predicateState, node *datatypes.Node) (predicateN
 		// Fill in the right side of the comparison
 		switch right.GetNodeType() {
 		// Tag refs look up the location of the tag in the state
-		case datatypes.NodeTypeTagRef:
+		case datatypes.Node_TypeTagRef:
 			idx, ok := state.locs[right.GetTagRefValue()]
 			if !ok {
 				return nil, fmt.Errorf("invalid tag ref in comparison: %v", right.GetTagRefValue())
@@ -224,7 +223,7 @@ func buildPredicateNode(state *predicateState, node *datatypes.Node) (predicateN
 			comp.rightIndex = idx
 
 		// Right literals are allowed to be regexes as well as strings
-		case datatypes.NodeTypeLiteral:
+		case datatypes.Node_TypeLiteral:
 			switch lit := right.GetValue().(type) {
 			case *datatypes.Node_StringValue:
 				comp.rightLiteral = []byte(lit.StringValue)
@@ -246,18 +245,18 @@ func buildPredicateNode(state *predicateState, node *datatypes.Node) (predicateN
 
 		// Ensure that a regex is set on the right if and only if the comparison is a regex
 		if comp.rightReg == nil {
-			if comp.comp == datatypes.ComparisonRegex || comp.comp == datatypes.ComparisonNotRegex {
+			if comp.comp == datatypes.Node_ComparisonRegex || comp.comp == datatypes.Node_ComparisonNotRegex {
 				return nil, fmt.Errorf("invalid comparison involving regex: %v", node)
 			}
 		} else {
-			if comp.comp != datatypes.ComparisonRegex && comp.comp != datatypes.ComparisonNotRegex {
+			if comp.comp != datatypes.Node_ComparisonRegex && comp.comp != datatypes.Node_ComparisonNotRegex {
 				return nil, fmt.Errorf("invalid comparison not against regex: %v", node)
 			}
 		}
 
 		return comp, nil
 
-	case datatypes.NodeTypeLogicalExpression:
+	case datatypes.Node_TypeLogicalExpression:
 		children := node.GetChildren()
 		if len(children) != 2 {
 			return nil, fmt.Errorf("invalid number of children for logical expression: %v", len(children))
@@ -273,14 +272,14 @@ func buildPredicateNode(state *predicateState, node *datatypes.Node) (predicateN
 		}
 
 		switch node.GetLogical() {
-		case datatypes.LogicalAnd:
+		case datatypes.Node_LogicalAnd:
 			return &predicateNodeAnd{
 				predicateCache: newPredicateCache(state),
 				left:           left,
 				right:          right,
 			}, nil
 
-		case datatypes.LogicalOr:
+		case datatypes.Node_LogicalOr:
 			return &predicateNodeOr{
 				predicateCache: newPredicateCache(state),
 				left:           left,
@@ -574,23 +573,23 @@ func (p *predicateNodeComparison) Update() predicateResponse {
 // enumeration value was passed.
 func predicateEval(comp datatypes.Node_Comparison, left, right []byte, rightReg *regexp.Regexp) bool {
 	switch comp {
-	case datatypes.ComparisonEqual:
+	case datatypes.Node_ComparisonEqual:
 		return string(left) == string(right)
-	case datatypes.ComparisonNotEqual:
+	case datatypes.Node_ComparisonNotEqual:
 		return string(left) != string(right)
-	case datatypes.ComparisonStartsWith:
+	case datatypes.Node_ComparisonStartsWith:
 		return bytes.HasPrefix(left, right)
-	case datatypes.ComparisonLess:
+	case datatypes.Node_ComparisonLess:
 		return string(left) < string(right)
-	case datatypes.ComparisonLessEqual:
+	case datatypes.Node_ComparisonLessEqual:
 		return string(left) <= string(right)
-	case datatypes.ComparisonGreater:
+	case datatypes.Node_ComparisonGreater:
 		return string(left) > string(right)
-	case datatypes.ComparisonGreaterEqual:
+	case datatypes.Node_ComparisonGreaterEqual:
 		return string(left) >= string(right)
-	case datatypes.ComparisonRegex:
+	case datatypes.Node_ComparisonRegex:
 		return rightReg.Match(left)
-	case datatypes.ComparisonNotRegex:
+	case datatypes.Node_ComparisonNotRegex:
 		return !rightReg.Match(left)
 	}
 	return false

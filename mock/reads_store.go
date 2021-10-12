@@ -2,8 +2,8 @@ package mock
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"

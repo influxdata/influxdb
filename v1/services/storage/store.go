@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/proto"
 	"sort"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/models"
@@ -52,12 +52,12 @@ func (s *Store) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAg
 		return nil, ErrMissingReadSource
 	}
 
-	source, err := GetReadSource(*req.ReadSource)
+	source, err := GetReadSource(req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.GetOrgID(), source.GetBucketID(), req.Range.GetStart(), req.Range.GetEnd())
 	if err != nil {
 		return nil, err
 	}
@@ -152,12 +152,12 @@ func (s *Store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 		return nil, ErrMissingReadSource
 	}
 
-	source, err := GetReadSource(*req.ReadSource)
+	source, err := GetReadSource(req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.GetStart(), req.Range.GetEnd())
 	if err != nil {
 		return nil, err
 	}
@@ -179,10 +179,12 @@ func (s *Store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 		cur = ic
 	}
 
-	req.Range.Start = start
-	req.Range.End = end
+	req.Range = &datatypes.TimestampRange{
+		Start: start,
+		End:   end,
+	}
 
-	return reads.NewFilteredResultSet(ctx, req.Range.Start, req.Range.End, cur), nil
+	return reads.NewFilteredResultSet(ctx, req.Range.GetStart(), req.Range.GetEnd(), cur), nil
 }
 
 func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
@@ -190,12 +192,12 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 		return nil, ErrMissingReadSource
 	}
 
-	source, err := GetReadSource(*req.ReadSource)
+	source, err := GetReadSource(req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.Start, req.Range.End)
+	database, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.GetStart(), req.Range.GetEnd())
 	if err != nil {
 		return nil, err
 	}
@@ -214,8 +216,10 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 
 	shards := s.TSDBStore.Shards(shardIDs)
 
-	req.Range.Start = start
-	req.Range.End = end
+	req.Range = &datatypes.TimestampRange{
+		Start: start,
+		End:   end,
+	}
 
 	newCursor := func() (reads.SeriesCursor, error) {
 		cur, err := newIndexSeriesCursor(ctx, req.Predicate, shards)
@@ -280,11 +284,11 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 	if req.TagsSource == nil {
 		return nil, ErrMissingReadSource
 	}
-	source, err := GetReadSource(*req.TagsSource)
+	source, err := GetReadSource(req.TagsSource)
 	if err != nil {
 		return nil, err
 	}
-	db, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.Start, req.Range.End)
+	db, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.GetStart(), req.Range.GetEnd())
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +314,7 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 		}
 		if found := reads.ExprHasKey(expr, fieldKey); found {
 			mqAttrs := &metaqueryAttributes{
-				orgID: source.GetOrgID(),
+				orgID: platform.ID(source.GetOrgID()),
 				db:    db,
 				rp:    rp,
 				start: start,
@@ -355,12 +359,12 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 		return nil, ErrMissingReadSource
 	}
 
-	source, err := GetReadSource(*req.TagsSource)
+	source, err := GetReadSource(req.TagsSource)
 	if err != nil {
 		return nil, err
 	}
 
-	db, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.Start, req.Range.End)
+	db, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.GetStart(), req.Range.GetEnd())
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +388,7 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 	}
 
 	mqAttrs := &metaqueryAttributes{
-		orgID: source.GetOrgID(),
+		orgID: platform.ID(source.GetOrgID()),
 		db:    db,
 		rp:    rp,
 		start: start,
@@ -642,12 +646,12 @@ func (s *Store) ReadSeriesCardinality(ctx context.Context, req *datatypes.ReadSe
 		return nil, ErrMissingReadSource
 	}
 
-	source, err := GetReadSource(*req.ReadSource)
+	source, err := GetReadSource(req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
-	db, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.Start, req.Range.End)
+	db, rp, start, end, err := s.validateArgs(source.OrgID, source.BucketID, req.Range.GetStart(), req.Range.GetEnd())
 	if err != nil {
 		return nil, err
 	}

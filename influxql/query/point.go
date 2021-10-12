@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"google.golang.org/protobuf/proto"
 	"io"
 	"math"
 	"sort"
 
-	"github.com/gogo/protobuf/proto"
 	internal "github.com/influxdata/influxdb/v2/influxql/query/internal"
 	"github.com/influxdata/influxql"
 )

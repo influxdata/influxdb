@@ -5,11 +5,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/proto"
 	"io"
 	"regexp"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	internal "github.com/influxdata/influxdb/v2/influxql/query/internal"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxql"
