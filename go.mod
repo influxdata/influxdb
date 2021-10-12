@@ -42,6 +42,7 @@ require (
 	github.com/influxdata/flux v0.133.1-0.20211007185412-3d6c47d9113f
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influxql v1.1.1-0.20211004132434-7e7d61973256
+	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839
 	github.com/influxdata/pkg-config v0.2.9-0.20210928145121-f721f9766b86
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/jsternberg/zap-logfmt v1.2.0
@@ -166,7 +167,6 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/influxdata/influx-cli/v2 v2.1.1-0.20211007122339-c4a5a13c8ee3
 	github.com/influxdata/influxdb-client-go/v2 v2.3.1-0.20210518120617-5d1fff431040 // indirect
-	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839 // indirect
 	github.com/influxdata/tdigest v0.0.2-0.20210216194612-fc98d27c9e8b // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jstemmer/go-junit-report v0.9.1 // indirect

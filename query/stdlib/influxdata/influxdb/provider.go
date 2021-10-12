@@ -14,8 +14,11 @@ import (
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
+	protocol "github.com/influxdata/line-protocol"
 )
 
 type (
@@ -56,6 +59,70 @@ func (p Provider) SeriesCardinalityReaderFor(ctx context.Context, conf influxdb.
 		spec: query.ReadSeriesCardinalitySpec{
 			ReadFilterSpec: spec,
 		},
+	}, nil
+}
+
+func (p Provider) WriterFor(ctx context.Context, conf influxdb.Config) (influxdb.Writer, error) {
+	// If a host is specified, writes must be sent through the http provider.
+	if conf.Host != "" {
+		return p.HttpProvider.WriterFor(ctx, conf)
+	}
+
+	deps := GetStorageDependencies(ctx).ToDeps
+	req := query.RequestFromContext(ctx)
+	if req == nil {
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "missing request on context",
+		}
+	}
+	reqOrgID := req.OrganizationID
+
+	// Check if the to() spec is pointing to an org. If so, ensure it's the same as the org executing the request.
+	//
+	// It's possible for flux to write points into an org other than the one running the query, but only via an HTTP
+	// request (which requires a `host` to be set). Specifying an `org` that's == to the one executing the query is
+	// redundant, but we allow it in order to support running the e2e tests imported from the flux codebase.
+	var orgID platform.ID
+	switch {
+	case conf.Org.Name != "":
+		var ok bool
+		orgID, ok = deps.OrganizationLookup.Lookup(ctx, conf.Org.Name)
+		if !ok {
+			return nil, &flux.Error{
+				Code: codes.NotFound,
+				Msg:  fmt.Sprintf("could not find org %q", conf.Org.Name),
+			}
+		}
+	case conf.Org.ID != "":
+		if err := orgID.DecodeFromString(conf.Org.ID); err != nil {
+			return nil, &flux.Error{
+				Code: codes.Invalid,
+				Msg:  "invalid org id",
+				Err:  err,
+			}
+		}
+	default:
+	}
+
+	if orgID.Valid() && orgID != reqOrgID {
+		return nil, &flux.Error{
+			Code: codes.Invalid,
+			Msg:  "host must be specified when writing points to another org",
+		}
+	}
+
+	bucketID, err := p.lookupBucketID(ctx, reqOrgID, conf.Bucket)
+	if err != nil {
+		return nil, err
+	}
+
+	return &localPointsWriter{
+		ctx:      ctx,
+		buf:      make([]models.Point, 1<<14),
+		orgID:    orgID,
+		bucketID: bucketID,
+		wr:       deps.PointsWriter,
 	}, nil
 }
 
@@ -163,4 +230,81 @@ func (s seriesCardinalityReader) Read(ctx context.Context, f func(flux.Table) er
 	}
 
 	return reader.Do(f)
+}
+
+type localPointsWriter struct {
+	ctx      context.Context
+	buf      []models.Point
+	orgID    platform.ID
+	bucketID platform.ID
+	n        int
+	wr       storage.PointsWriter
+	err      error
+}
+
+func (w *localPointsWriter) Write(ms ...protocol.Metric) error {
+	copyPoints := func() int {
+		n := 0
+		for _, m := range ms {
+			if w.n+n == len(w.buf) {
+				break
+			}
+			mtags := m.TagList()
+			mfields := m.FieldList()
+
+			tags := make(models.Tags, len(mtags))
+			fields := make(models.Fields, len(mfields))
+			for ti, t := range mtags {
+				tags[ti] = models.Tag{Key: []byte(t.Key), Value: []byte(t.Value)}
+			}
+			for _, f := range mfields {
+				fields[f.Key] = f.Value
+			}
+			w.buf[w.n+n], w.err = models.NewPoint(m.Name(), tags, fields, m.Time())
+			if w.err != nil {
+				return n
+			}
+			n++
+		}
+		return n
+	}
+
+	for len(ms) > w.available() {
+		n := copyPoints()
+		if w.err != nil {
+			return w.err
+		}
+		w.n += n
+		w.err = w.flush()
+		if w.err != nil {
+			return w.err
+		}
+		ms = ms[n:]
+	}
+	w.n += copyPoints()
+	return w.err
+}
+
+func (w *localPointsWriter) available() int {
+	return len(w.buf) - w.n
+}
+
+func (w *localPointsWriter) flush() error {
+	if w.err != nil {
+		return w.err
+	}
+	if w.n == 0 {
+		return nil
+	}
+
+	w.err = w.wr.WritePoints(w.ctx, w.orgID, w.bucketID, w.buf[:w.n])
+	if w.err != nil {
+		return w.err
+	}
+	w.n = 0
+	return nil
+}
+
+func (w *localPointsWriter) Close() error {
+	return w.flush()
 }
