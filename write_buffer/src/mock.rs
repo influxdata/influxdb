@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     num::NonZeroU32,
     sync::Arc,
     task::{Poll, Waker},
@@ -221,7 +221,7 @@ impl MockBufferForWriting {
 
 #[async_trait]
 impl WriteBufferWriting for MockBufferForWriting {
-    fn sequencer_ids(&self) -> Vec<u32> {
+    fn sequencer_ids(&self) -> BTreeSet<u32> {
         let mut guard = self.state.entries.lock();
         let entries = guard.as_mut().unwrap();
         entries.keys().copied().collect()
@@ -263,8 +263,8 @@ pub struct MockBufferForWritingThatAlwaysErrors;
 
 #[async_trait]
 impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
-    fn sequencer_ids(&self) -> Vec<u32> {
-        vec![0]
+    fn sequencer_ids(&self) -> BTreeSet<u32> {
+        IntoIterator::into_iter([0]).collect()
     }
 
     async fn store_entry(
@@ -341,13 +341,13 @@ impl std::fmt::Debug for MockBufferForReading {
 
 #[async_trait]
 impl WriteBufferReading for MockBufferForReading {
-    fn streams(&mut self) -> Vec<(u32, EntryStream<'_>)> {
+    fn streams(&mut self) -> BTreeMap<u32, EntryStream<'_>> {
         let sequencer_ids: Vec<_> = {
             let playback_states = self.playback_states.lock();
             playback_states.keys().copied().collect()
         };
 
-        let mut streams = vec![];
+        let mut streams = BTreeMap::new();
         for sequencer_id in sequencer_ids {
             let shared_state = self.shared_state.clone();
             let playback_states = Arc::clone(&self.playback_states);
@@ -409,13 +409,13 @@ impl WriteBufferReading for MockBufferForReading {
             };
             let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
 
-            streams.push((
+            streams.insert(
                 sequencer_id,
                 EntryStream {
                     stream,
                     fetch_high_watermark,
                 },
-            ));
+            );
         }
 
         streams
@@ -448,7 +448,7 @@ pub struct MockBufferForReadingThatAlwaysErrors;
 
 #[async_trait]
 impl WriteBufferReading for MockBufferForReadingThatAlwaysErrors {
-    fn streams(&mut self) -> Vec<(u32, EntryStream<'_>)> {
+    fn streams(&mut self) -> BTreeMap<u32, EntryStream<'_>> {
         let stream = stream::poll_fn(|_ctx| {
             Poll::Ready(Some(Err(String::from(
                 "Something bad happened while reading from stream",
@@ -463,13 +463,14 @@ impl WriteBufferReading for MockBufferForReadingThatAlwaysErrors {
             fut.boxed() as FetchHighWatermarkFut<'_>
         };
         let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
-        vec![(
+        IntoIterator::into_iter([(
             0,
             EntryStream {
                 stream,
                 fetch_high_watermark,
             },
-        )]
+        )])
+        .collect()
     }
 
     async fn seek(
@@ -492,7 +493,7 @@ mod tests {
 
     use entry::test_helpers::lp_to_entry;
 
-    use crate::core::test_utils::{perform_generic_tests, TestAdapter, TestContext};
+    use crate::core::test_utils::{map_pop_first, perform_generic_tests, TestAdapter, TestContext};
 
     use super::*;
 
@@ -714,7 +715,7 @@ mod tests {
         );
 
         let mut streams = reader.streams();
-        let (_id, mut stream) = streams.pop().unwrap();
+        let (_id, mut stream) = map_pop_first(&mut streams).unwrap();
         assert_eq!(
             stream.stream.next().await.unwrap().unwrap_err().to_string(),
             "Something bad happened while reading from stream"
@@ -799,7 +800,7 @@ mod tests {
         let playback_state = Arc::clone(&read.playback_states);
 
         let consumer = tokio::spawn(async move {
-            let mut stream = read.streams().pop().unwrap().1.stream;
+            let mut stream = map_pop_first(&mut read.streams()).unwrap().1.stream;
             stream.next().await.unwrap().unwrap();
             stream.next().await.unwrap().unwrap();
         });

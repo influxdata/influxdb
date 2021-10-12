@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     convert::{TryFrom, TryInto},
     num::NonZeroU32,
     sync::Arc,
@@ -34,7 +34,7 @@ pub struct KafkaBufferProducer {
     conn: String,
     database_name: String,
     producer: FutureProducer,
-    partitions: Vec<u32>,
+    partitions: BTreeSet<u32>,
 }
 
 // Needed because rdkafka's FutureProducer doesn't impl Debug
@@ -49,7 +49,7 @@ impl std::fmt::Debug for KafkaBufferProducer {
 
 #[async_trait]
 impl WriteBufferWriting for KafkaBufferProducer {
-    fn sequencer_ids(&self) -> Vec<u32> {
+    fn sequencer_ids(&self) -> BTreeSet<u32> {
         self.partitions.clone()
     }
 
@@ -158,8 +158,8 @@ impl std::fmt::Debug for KafkaBufferConsumer {
 
 #[async_trait]
 impl WriteBufferReading for KafkaBufferConsumer {
-    fn streams(&mut self) -> Vec<(u32, EntryStream<'_>)> {
-        let mut streams = vec![];
+    fn streams(&mut self) -> BTreeMap<u32, EntryStream<'_>> {
+        let mut streams = BTreeMap::new();
 
         for (sequencer_id, consumer) in &self.consumers {
             let sequencer_id = *sequencer_id;
@@ -222,13 +222,13 @@ impl WriteBufferReading for KafkaBufferConsumer {
             };
             let fetch_high_watermark = Box::new(fetch_high_watermark) as FetchHighWatermark<'_>;
 
-            streams.push((
+            streams.insert(
                 sequencer_id,
                 EntryStream {
                     stream,
                     fetch_high_watermark,
                 },
-            ));
+            );
         }
 
         streams
@@ -341,7 +341,10 @@ impl KafkaBufferConsumer {
     }
 }
 
-async fn get_partitions(database_name: &str, cfg: &ClientConfig) -> Result<Vec<u32>, KafkaError> {
+async fn get_partitions(
+    database_name: &str,
+    cfg: &ClientConfig,
+) -> Result<BTreeSet<u32>, KafkaError> {
     let database_name = database_name.to_string();
     let cfg = cfg.clone();
 
@@ -355,12 +358,11 @@ async fn get_partitions(database_name: &str, cfg: &ClientConfig) -> Result<Vec<u
 
     let topic_metadata = metadata.topics().get(0).expect("requested a single topic");
 
-    let mut partitions: Vec<_> = topic_metadata
+    let partitions: BTreeSet<_> = topic_metadata
         .partitions()
         .iter()
         .map(|partition_metdata| partition_metdata.id().try_into().unwrap())
         .collect();
-    partitions.sort_unstable();
 
     Ok(partitions)
 }
@@ -415,7 +417,7 @@ async fn maybe_auto_create_topics(
     database_name: &str,
     creation_config: Option<&WriteBufferCreationConfig>,
     cfg: &ClientConfig,
-) -> Result<Vec<u32>, WriteBufferError> {
+) -> Result<BTreeSet<u32>, WriteBufferError> {
     let mut partitions = get_partitions(database_name, cfg).await?;
     if partitions.is_empty() {
         if let Some(creation_config) = creation_config {

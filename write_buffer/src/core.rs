@@ -1,4 +1,7 @@
-use std::fmt::Debug;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Debug,
+};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -17,8 +20,8 @@ pub type WriteBufferError = Box<dyn std::error::Error + Sync + Send>;
 pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
     /// List all known sequencers.
     ///
-    /// This list is sorted and not empty.
-    fn sequencer_ids(&self) -> Vec<u32>;
+    /// This set  not empty.
+    fn sequencer_ids(&self) -> BTreeSet<u32>;
 
     /// Send an `Entry` to the write buffer using the specified sequencer ID.
     ///
@@ -63,7 +66,7 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
     /// [`WriteBufferReading`] instance at the same time. If all streams are dropped and requested again, the last
     /// offsets of the old streams will be the start offsets for the new streams. If you want to prevent that either
     /// create a new [`WriteBufferReading`] or use [`seek`](Self::seek).
-    fn streams(&mut self) -> Vec<(u32, EntryStream<'_>)>;
+    fn streams(&mut self) -> BTreeMap<u32, EntryStream<'_>>;
 
     /// Seek given sequencer to given sequence number. The next output of related streams will be an entry with at least
     /// the given sequence number (the actual sequence number might be skipped due to "holes" in the stream).
@@ -81,7 +84,12 @@ pub trait WriteBufferReading: Sync + Send + Debug + 'static {
 
 pub mod test_utils {
     //! Generic tests for all write buffer implementations.
-    use std::{convert::TryFrom, num::NonZeroU32, time::Duration};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        convert::TryFrom,
+        num::NonZeroU32,
+        time::Duration,
+    };
 
     use async_trait::async_trait;
     use chrono::{DateTime, TimeZone, Utc};
@@ -163,7 +171,7 @@ pub mod test_utils {
 
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
-        let (sequencer_id, mut stream) = streams.pop().unwrap();
+        let (sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
 
         let waker = futures::task::noop_waker();
         let mut cx = futures::task::Context::from_waker(&waker);
@@ -224,12 +232,12 @@ pub mod test_utils {
         // creating stream, drop stream, re-create it => still starts at first entry
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
-        let (_sequencer_id, stream) = streams.pop().unwrap();
+        let (_sequencer_id, stream) = map_pop_first(&mut streams).unwrap();
         drop(stream);
         drop(streams);
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
-        let (_sequencer_id, mut stream) = streams.pop().unwrap();
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
         assert_eq!(
             stream.stream.next().await.unwrap().unwrap().entry(),
             &entry_1
@@ -240,7 +248,7 @@ pub mod test_utils {
         drop(streams);
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
-        let (_sequencer_id, mut stream) = streams.pop().unwrap();
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
         assert_eq!(
             stream.stream.next().await.unwrap().unwrap().entry(),
             &entry_2
@@ -255,7 +263,7 @@ pub mod test_utils {
         drop(streams);
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
-        let (_sequencer_id, mut stream) = streams.pop().unwrap();
+        let (_sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
         assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
     }
 
@@ -279,8 +287,8 @@ pub mod test_utils {
 
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 2);
-        let (sequencer_id_1, mut stream_1) = streams.pop().unwrap();
-        let (sequencer_id_2, mut stream_2) = streams.pop().unwrap();
+        let (sequencer_id_1, mut stream_1) = map_pop_first(&mut streams).unwrap();
+        let (sequencer_id_2, mut stream_2) = map_pop_first(&mut streams).unwrap();
         assert_ne!(sequencer_id_1, sequencer_id_2);
 
         let waker = futures::task::noop_waker();
@@ -343,8 +351,8 @@ pub mod test_utils {
         let sequencer_ids_2 = writer_2.sequencer_ids();
         assert_eq!(sequencer_ids_1, sequencer_ids_2);
         assert_eq!(sequencer_ids_1.len(), 2);
-        let sequencer_id_1 = sequencer_ids_1.pop().unwrap();
-        let sequencer_id_2 = sequencer_ids_1.pop().unwrap();
+        let sequencer_id_1 = set_pop_first(&mut sequencer_ids_1).unwrap();
+        let sequencer_id_2 = set_pop_first(&mut sequencer_ids_1).unwrap();
 
         writer_1
             .store_entry(&entry_east_1, sequencer_id_1)
@@ -432,8 +440,8 @@ pub mod test_utils {
         let _sequence_number_east_3 = writer.store_entry(&entry_east_3, 0).await.unwrap().0.number;
         let mut streams = reader_1.streams();
         assert_eq!(streams.len(), 2);
-        let (_sequencer_id, mut stream_1) = streams.pop().unwrap();
-        let (_sequencer_id, mut stream_2) = streams.pop().unwrap();
+        let (_sequencer_id, mut stream_1) = map_pop_first(&mut streams).unwrap();
+        let (_sequencer_id, mut stream_2) = map_pop_first(&mut streams).unwrap();
         assert!(stream_1.stream.poll_next_unpin(&mut cx).is_pending());
         assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
         drop(stream_1);
@@ -464,8 +472,8 @@ pub mod test_utils {
 
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 2);
-        let (sequencer_id_1, stream_1) = streams.pop().unwrap();
-        let (sequencer_id_2, stream_2) = streams.pop().unwrap();
+        let (sequencer_id_1, stream_1) = map_pop_first(&mut streams).unwrap();
+        let (sequencer_id_2, stream_2) = map_pop_first(&mut streams).unwrap();
 
         // start at watermark 0
         assert_eq!((stream_1.fetch_high_watermark)().await.unwrap(), 0);
@@ -506,7 +514,7 @@ pub mod test_utils {
 
         let mut streams = reader.streams();
         assert_eq!(streams.len(), 1);
-        let (sequencer_id, mut stream) = streams.pop().unwrap();
+        let (sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
 
         // ingest data
         //
@@ -566,7 +574,6 @@ pub mod test_utils {
     ///
     /// This tests that:
     /// - all sequencers are reported
-    /// - the list is sorted
     async fn test_sequencer_ids<T>(adapter: &T)
     where
         T: TestAdapter,
@@ -583,13 +590,6 @@ pub mod test_utils {
         let sequencer_ids_2 = writer_2.sequencer_ids();
         assert_eq!(sequencer_ids_1, sequencer_ids_2);
         assert_eq!(sequencer_ids_1.len(), n_sequencers as usize);
-
-        let sorted = {
-            let mut tmp = sequencer_ids_1.clone();
-            tmp.sort_unstable();
-            tmp
-        };
-        assert_eq!(sequencer_ids_1, sorted);
     }
 
     /// Assert that the content of the reader is as expected.
@@ -607,9 +607,8 @@ pub mod test_utils {
         };
 
         // Ensure content of the streams
-        let mut streams = reader.streams();
+        let streams = reader.streams();
         assert_eq!(streams.len(), expected.len());
-        streams.sort_by_key(|(sequencer_id, _stream)| *sequencer_id);
 
         for ((actual_sequencer_id, actual_stream), (expected_sequencer_id, expected_entries)) in
             streams.into_iter().zip(expected.iter())
@@ -628,9 +627,8 @@ pub mod test_utils {
         }
 
         // Ensure that streams a pending
-        let mut streams = reader.streams();
+        let streams = reader.streams();
         assert_eq!(streams.len(), expected.len());
-        streams.sort_by_key(|(sequencer_id, _stream)| *sequencer_id);
 
         let waker = futures::task::noop_waker();
         let mut cx = futures::task::Context::from_waker(&waker);
@@ -667,5 +665,29 @@ pub mod test_utils {
         } else {
             ts2
         }
+    }
+
+    /// Pops first entry from map.
+    ///
+    /// Helper until <https://github.com/rust-lang/rust/issues/62924> is stable.
+    pub(crate) fn map_pop_first<K, V>(map: &mut BTreeMap<K, V>) -> Option<(K, V)>
+    where
+        K: Clone + Ord,
+    {
+        map.keys()
+            .next()
+            .cloned()
+            .map(|k| map.remove_entry(&k))
+            .flatten()
+    }
+
+    /// Pops first entry from set.
+    ///
+    /// Helper until <https://github.com/rust-lang/rust/issues/62924> is stable.
+    pub(crate) fn set_pop_first<T>(set: &mut BTreeSet<T>) -> Option<T>
+    where
+        T: Clone + Ord,
+    {
+        set.iter().next().cloned().map(|k| set.take(&k)).flatten()
     }
 }
