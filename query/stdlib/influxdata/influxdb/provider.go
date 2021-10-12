@@ -269,7 +269,7 @@ func (w *localPointsWriter) Write(ms ...protocol.Metric) error {
 		return n
 	}
 
-	for len(ms) > w.available() && w.err == nil {
+	for len(ms) > w.available() {
 		n := copyPoints()
 		if w.err != nil {
 			return w.err
@@ -282,7 +282,7 @@ func (w *localPointsWriter) Write(ms ...protocol.Metric) error {
 		ms = ms[n:]
 	}
 	w.n += copyPoints()
-	return nil
+	return w.err
 }
 
 func (w *localPointsWriter) available() int {
