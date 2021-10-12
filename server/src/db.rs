@@ -1383,6 +1383,7 @@ pub mod test_helpers {
 
         let mut tables: Vec<_> = tables.into_iter().collect();
         tables.sort();
+        println!(" === lp tables: {:#?}", tables);
         Ok(tables)
     }
 

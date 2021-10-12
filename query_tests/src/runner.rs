@@ -388,10 +388,7 @@ SELECT * from disk;
             format!("expected output in {:?}", &expected_path)
         );
         assert_contains!(&runner_log, "Setup: TwoMeasurements");
-        assert_contains!(
-            &runner_log,
-            "Running scenario"
-        );
+        assert_contains!(&runner_log, "Running scenario");
     }
 
     #[tokio::test]

@@ -10,8 +10,7 @@ use server::utils::make_db;
 
 use super::DbScenario;
 
-
-// Structs, enums, and functions used to exhaust all test scenarios of chunk life cycle 
+// Structs, enums, and functions used to exhaust all test scenarios of chunk life cycle
 // & when delete predicates are applied
 
 // STRUCTs & ENUMs
@@ -138,7 +137,9 @@ pub async fn all_scenarios_for_one_chunk(
         // But only need to get all delete time if chunk_stage_preds is not empty,
         // otherwise, produce only one scenario of each chunk stage
         let mut delete_times = vec![DeleteTime::Mubo];
-        if !chunk_stage_preds.is_empty() { delete_times = DeleteTime::all_from_and_before(chunk_stage.clone()) } ;
+        if !chunk_stage_preds.is_empty() {
+            delete_times = DeleteTime::all_from_and_before(chunk_stage.clone())
+        };
 
         for delete_time in delete_times {
             // make delete predicate with time it happens
@@ -183,7 +184,8 @@ pub async fn make_chunk_with_deletes_at_different_stages(
 
     // ----------
     // Make an open MUB
-    write_lp(&db, &lp_lines.join("\n")).await;
+    // There may be more than one tables in the lp data
+    let _tables = write_lp(&db, &lp_lines.join("\n")).await;
     // 0 does not represent the real chunk id. It is here just to initialize the chunk_id  variable for later assignment
     let mut chunk_id = db.chunk_summaries().unwrap()[0].id;
     // Apply delete predicate
@@ -237,6 +239,7 @@ pub async fn make_chunk_with_deletes_at_different_stages(
     // Move MUB to RUB
     match chunk_stage {
         ChunkStage::Rub | ChunkStage::RubOs | ChunkStage::Os => {
+            println!(" === MUB -> RUB chunk_id = {}", chunk_id);
             let chunk_result = db
                 .compact_chunks(table_name, partition_key, |chunk| chunk.id() == chunk_id)
                 .await

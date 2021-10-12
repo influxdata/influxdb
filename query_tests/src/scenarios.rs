@@ -6,13 +6,19 @@ pub mod util;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use data_types::timestamp::TimestampRange;
 use once_cell::sync::OnceCell;
 
+use predicate::delete_expr::DeleteExpr;
+use predicate::delete_predicate::DeletePredicate;
 use query::QueryChunk;
 
 use async_trait::async_trait;
 
-use delete::ThreeDeleteThreeChunks;
+use delete::{
+    OneDeleteMultiExprsOneChunk, OneDeleteSimpleExprOneChunk, OneDeleteSimpleExprOneChunkDeleteAll,
+    ThreeDeleteThreeChunks, TwoDeletesMultiExprsOneChunk,
+};
 use server::db::{LockableChunk, LockablePartition};
 use server::utils::{
     count_mutable_buffer_chunks, count_object_store_chunks, count_read_buffer_chunks, make_db,
@@ -60,6 +66,10 @@ pub fn get_all_setups() -> &'static HashMap<String, Arc<dyn DbSetup>> {
             register_setup!(OneMeasurementAllChunksDropped),
             register_setup!(ChunkOrder),
             register_setup!(ThreeDeleteThreeChunks),
+            register_setup!(OneDeleteSimpleExprOneChunkDeleteAll),
+            register_setup!(OneDeleteSimpleExprOneChunk),
+            register_setup!(OneDeleteMultiExprsOneChunk),
+            register_setup!(TwoDeletesMultiExprsOneChunk),
         ]
         .into_iter()
         .map(|(name, setup)| (name.to_string(), setup as Arc<dyn DbSetup>))
@@ -260,11 +270,91 @@ impl DbSetup for TwoMeasurements {
         ];
 
         // return all possible scenarios a chunk: MUB open, MUB frozen, RUB, RUB & OS, OS
-        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "disk", partition_key).await
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu", partition_key).await
     }
 }
 
-// NGA todo: similar test with deleted data
+/// Two measurements data in different chunk scenarios
+/// with one delete applied at different stages of the chunk
+#[derive(Debug)]
+pub struct TwoMeasurementsWithDelete {}
+#[async_trait]
+impl DbSetup for TwoMeasurementsWithDelete {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines = vec![
+            "cpu,region=west user=23.2 100",
+            "cpu,region=west user=21.0 150",
+            "disk,region=east bytes=99i 200",
+        ];
+
+        // pred: delete from cpu where 120 <= time <= 160 and region="west"
+        let table_name = "cpu";
+        let pred = DeletePredicate {
+            range: TimestampRange {
+                start: 120,
+                end: 160,
+            },
+            exprs: vec![DeleteExpr::new(
+                "region".to_string(),
+                predicate::delete_expr::Op::Eq,
+                predicate::delete_expr::Scalar::String("west".to_string()),
+            )],
+        };
+
+        // return all possible combination scenarios of a chunk stage and when the delete predicates are applied
+        all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key).await
+    }
+}
+
+/// Two measurements data in different chunk scenarios
+/// with 2 deletes that remove all data from one table
+#[derive(Debug)]
+pub struct TwoMeasurementsWithDeleteAll {}
+#[async_trait]
+impl DbSetup for TwoMeasurementsWithDeleteAll {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines = vec![
+            "cpu,region=west user=23.2 100",
+            "cpu,region=west user=21.0 150",
+            "disk,region=east bytes=99i 200",
+        ];
+
+        // pred: delete from cpu where 120 <= time <= 160 and region="west"
+        // which will delete second row of the cpu
+        let table_name = "cpu";
+        let pred1 = DeletePredicate {
+            range: TimestampRange {
+                start: 120,
+                end: 160,
+            },
+            exprs: vec![DeleteExpr::new(
+                "region".to_string(),
+                predicate::delete_expr::Op::Eq,
+                predicate::delete_expr::Scalar::String("west".to_string()),
+            )],
+        };
+
+        // delete the first row of the cpu
+        let pred2 = DeletePredicate {
+            range: TimestampRange { start: 0, end: 110 },
+            exprs: vec![],
+        };
+
+        // return all possible combination scenarios of a chunk stage and when the delete predicates are applied
+        all_scenarios_for_one_chunk(
+            vec![&pred1],
+            vec![&pred2],
+            lp_lines,
+            table_name,
+            partition_key,
+        )
+        .await
+    }
+}
 
 #[derive(Debug)]
 pub struct TwoMeasurementsUnsignedTypeMubScenario {}

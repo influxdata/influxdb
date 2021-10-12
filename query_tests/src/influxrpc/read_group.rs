@@ -1,5 +1,7 @@
 //! Tests for the Influx gRPC queries
-use crate::scenarios::{DbScenario, DbSetup, NoData, make_two_chunk_scenarios, util::all_scenarios_for_one_chunk};
+use crate::scenarios::{
+    make_two_chunk_scenarios, util::all_scenarios_for_one_chunk, DbScenario, DbSetup, NoData,
+};
 
 use arrow_util::display::pretty_format_batches;
 use async_trait::async_trait;
@@ -88,7 +90,7 @@ impl DbSetup for OneMeasurementNoTags {
     }
 }
 
-// NGA todo: similar test with deleted data 
+// NGA todo: similar test with deleted data
 
 #[tokio::test]
 async fn test_read_group_data_no_tag_columns() {

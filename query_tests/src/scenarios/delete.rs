@@ -6,7 +6,10 @@ use predicate::delete_predicate::DeletePredicate;
 
 use async_trait::async_trait;
 
-use crate::scenarios::util::{ChunkData, ChunkStage, all_scenarios_for_one_chunk, make_different_stage_chunks_with_deletes_scenario};
+use crate::scenarios::util::{
+    all_scenarios_for_one_chunk, make_different_stage_chunks_with_deletes_scenario, ChunkData,
+    ChunkStage,
+};
 
 use super::{DbScenario, DbSetup};
 
@@ -33,8 +36,7 @@ impl DbSetup for OneDeleteSimpleExprOneChunkDeleteAll {
         };
 
         // this returns 15 scenarios
-        all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key)
-            .await
+        all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key).await
     }
 }
 
@@ -61,8 +63,7 @@ impl DbSetup for OneDeleteSimpleExprOneChunk {
         };
 
         // this returns 15 scenarios
-        all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key)
-            .await
+        all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key).await
     }
 }
 
@@ -84,8 +85,7 @@ impl DbSetup for NoDeleteOneChunk {
         ];
 
         // this returns 15 scenarios
-        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, table_name, partition_key)
-            .await
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, table_name, partition_key).await
     }
 }
 
@@ -122,8 +122,7 @@ impl DbSetup for OneDeleteMultiExprsOneChunk {
         };
 
         // this returns 15 scenarios
-        all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key)
-            .await
+        all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key).await
     }
 }
 
@@ -408,4 +407,3 @@ impl DbSetup for ThreeDeleteThreeChunks {
         ]
     }
 }
-

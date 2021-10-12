@@ -246,8 +246,6 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
     }
 }
 
-
-
 #[tokio::test]
 async fn test_read_window_aggregate_months() {
     let predicate = PredicateBuilder::default().build();

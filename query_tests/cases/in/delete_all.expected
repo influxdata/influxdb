@@ -1,0 +1,25 @@
+-- Test Setup: OneDeleteSimpleExprOneChunkDeleteAll
+-- SQL: SELECT * from cpu;
+++
+++
+-- SQL: SELECT time from cpu;
+++
+++
+-- SQL: SELECT count(*), count(bar), count(time) from cpu;
++-----------------+----------------+-----------------+
+| COUNT(UInt8(1)) | COUNT(cpu.bar) | COUNT(cpu.time) |
++-----------------+----------------+-----------------+
+| 0               | 0              | 0               |
++-----------------+----------------+-----------------+
+-- SQL: SELECT min(bar), max(bar), min(time), max(time) from cpu;
++--------------+--------------+---------------+---------------+
+| MIN(cpu.bar) | MAX(cpu.bar) | MIN(cpu.time) | MAX(cpu.time) |
++--------------+--------------+---------------+---------------+
+|              |              |               |               |
++--------------+--------------+---------------+---------------+
+-- SQL: SELECT max(bar) from cpu;
++--------------+
+| MAX(cpu.bar) |
++--------------+
+|              |
++--------------+

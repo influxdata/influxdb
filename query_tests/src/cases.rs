@@ -33,6 +33,76 @@ async fn test_cases_chunk_order_sql() {
 }
 
 #[tokio::test]
+// Tests from "delete_all.sql",
+async fn test_cases_delete_all_sql() {
+    let input_path = Path::new("cases").join("in").join("delete_all.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
+// Tests from "delete_multi_expr_one_chunk.sql",
+async fn test_cases_delete_multi_expr_one_chunk_sql() {
+    let input_path = Path::new("cases").join("in").join("delete_multi_expr_one_chunk.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
+// Tests from "delete_simple_pred_one_chunk.sql",
+async fn test_cases_delete_simple_pred_one_chunk_sql() {
+    let input_path = Path::new("cases").join("in").join("delete_simple_pred_one_chunk.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
+// Tests from "delete_three_delete_three_chunks.sql",
+async fn test_cases_delete_three_delete_three_chunks_sql() {
+    let input_path = Path::new("cases").join("in").join("delete_three_delete_three_chunks.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
+// Tests from "delete_two_del_multi_expr_one_chunk.sql",
+async fn test_cases_delete_two_del_multi_expr_one_chunk_sql() {
+    let input_path = Path::new("cases").join("in").join("delete_two_del_multi_expr_one_chunk.sql");
+    let mut runner = Runner::new();
+    runner
+        .run(input_path)
+        .await
+        .expect("test failed");
+    runner
+        .flush()
+        .expect("flush worked");
+}
+
+#[tokio::test]
 // Tests from "duplicates.sql",
 async fn test_cases_duplicates_sql() {
     let input_path = Path::new("cases").join("in").join("duplicates.sql");
