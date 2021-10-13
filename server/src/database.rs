@@ -293,7 +293,7 @@ impl Database {
         let mut state = state.unfreeze(handle);
         *state = DatabaseState::Known(DatabaseStateKnown {});
         self.shared.state_notify.notify_waiters();
-        info!(%db_name, "set database state to object store found");
+        info!(%db_name, "set database state to known");
 
         Ok(())
     }
@@ -302,6 +302,25 @@ impl Database {
     pub fn shutdown(&self) {
         info!(db_name=%self.shared.config.name, "database shutting down");
         self.shared.shutdown.cancel()
+    }
+
+    /// Triggers a restart of this `Database` and wait for it to re-initialize
+    pub async fn restart(&self) -> Result<(), Arc<InitError>> {
+        let db_name = &self.shared.config.name;
+        info!(%db_name, "restarting database");
+
+        let handle = self.shared.state.read().freeze();
+        let handle = handle.await;
+
+        {
+            let mut state = self.shared.state.write();
+            let mut state = state.unfreeze(handle);
+            *state = DatabaseState::Known(DatabaseStateKnown {});
+        }
+        self.shared.state_notify.notify_waiters();
+        info!(%db_name, "set database state to known");
+
+        self.wait_for_init().await
     }
 
     /// Waits for the background worker of this `Database` to exit
@@ -1357,6 +1376,26 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn database_restart() {
+        test_helpers::maybe_start_logging();
+        let (_application, database) = initialized_database().await;
+
+        // Restart successful
+        database.restart().await.unwrap();
+
+        let iox_object_store = database.iox_object_store().unwrap();
+        iox_object_store.delete_database_rules_file().await.unwrap();
+
+        // Restart should fail
+        let err = database.restart().await.unwrap_err();
+        assert!(
+            matches!(err.as_ref(), InitError::LoadingRules { .. }),
+            "{:?}",
+            err
+        );
     }
 
     #[tokio::test]
