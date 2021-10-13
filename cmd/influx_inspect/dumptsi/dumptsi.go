@@ -135,8 +135,8 @@ func (cmd *Command) run() error {
 
 	// If this is an ad-hoc fileset then process it and close afterward.
 	if fs != nil {
-		defer fs.Release()
 		defer fs.Close()
+		defer fs.Release()
 		if cmd.showSeries || cmd.showMeasurements {
 			return cmd.printMeasurements(sfile, fs)
 		}
