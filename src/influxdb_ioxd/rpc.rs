@@ -10,7 +10,7 @@ use tonic::transport::NamedService;
 use trace_http::ctx::TraceHeaderParser;
 
 use crate::influxdb_ioxd::serving_readiness::ServingReadiness;
-use server::{ApplicationState, ConnectionManager, Server};
+use server::{connection::ConnectionManager, ApplicationState, Server};
 use trace::TraceCollector;
 
 pub mod error;

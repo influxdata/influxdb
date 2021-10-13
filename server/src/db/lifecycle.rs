@@ -4,13 +4,12 @@ use crate::{
     Db,
 };
 use ::lifecycle::LifecycleDb;
-use chrono::{DateTime, TimeZone, Utc};
 use data_types::{
     chunk_metadata::{ChunkAddr, ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkStorage},
     database_rules::LifecycleRules,
     error::ErrorLogger,
     job::Job,
-    partition_metadata::Statistics,
+    partition_metadata::{PartitionAddr, Statistics},
     DatabaseName,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -28,11 +27,10 @@ use std::{
     fmt::Display,
     sync::{Arc, Weak},
 };
-use time::Time;
+use time::{Time, TimeProvider};
 use tracker::{RwLock, TaskTracker};
 
 pub(crate) use compact::compact_chunks;
-use data_types::partition_metadata::PartitionAddr;
 pub(crate) use drop::{drop_chunk, drop_partition};
 pub(crate) use error::{Error, Result};
 pub(crate) use persist::persist_chunks;
@@ -46,6 +44,8 @@ mod unload;
 mod write;
 
 /// A newtype wrapper around `Weak<Db>` to workaround trait orphan rules
+///
+/// TODO: Pull LifecyclePolicy out of Db to allow strong reference (#2242)
 #[derive(Debug, Clone)]
 pub struct WeakDb(pub(super) Weak<Db>);
 
@@ -276,6 +276,16 @@ impl LifecycleDb for WeakDb {
             .map(|db| db.rules.read().name.clone())
             .unwrap_or_else(|| "gone".to_string().try_into().unwrap())
     }
+
+    fn time_provider(&self) -> Arc<dyn TimeProvider> {
+        Arc::clone(
+            &self
+                .0
+                .upgrade()
+                .expect("database dropped without shutting down lifecycle")
+                .time_provider,
+        )
+    }
 }
 
 impl LifecyclePartition for Partition {
@@ -311,7 +321,7 @@ impl LifecycleChunk for CatalogChunk {
             .expect("failed to clear lifecycle action")
     }
 
-    fn min_timestamp(&self) -> DateTime<Utc> {
+    fn min_timestamp(&self) -> Time {
         let table_summary = self.table_summary();
         let col = table_summary
             .columns
@@ -324,7 +334,7 @@ impl LifecycleChunk for CatalogChunk {
             _ => panic!("unexpected time column type"),
         };
 
-        Utc.timestamp_nanos(min)
+        Time::from_timestamp_nanos(min)
     }
 
     fn access_metrics(&self) -> AccessMetrics {

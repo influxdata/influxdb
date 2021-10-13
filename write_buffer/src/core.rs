@@ -93,7 +93,6 @@ pub mod test_utils {
     };
 
     use async_trait::async_trait;
-    use chrono::{TimeZone, Utc};
     use entry::{test_helpers::lp_to_entry, Entry};
     use futures::{StreamExt, TryStreamExt};
     use time::{Time, TimeProvider};
@@ -517,7 +516,7 @@ pub mod test_utils {
         T: TestAdapter,
     {
         // Note: Roundtrips are only guaranteed for millisecond-precision
-        let t0 = Time::from_date_time(Utc.timestamp_millis(129));
+        let t0 = Time::from_timestamp_millis(129);
         let time = Arc::new(time::MockProvider::new(t0));
         let context = adapter
             .new_context_with_time(

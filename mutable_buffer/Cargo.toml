@@ -17,7 +17,6 @@ edition = "2018"
 arrow = { version = "5.5", features = ["prettyprint"] }
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1"
-chrono = "0.4"
 data_types = { path = "../data_types" }
 entry = { path = "../entry" }
 hashbrown = "0.11"

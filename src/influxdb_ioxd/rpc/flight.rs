@@ -21,7 +21,7 @@ use tonic::{Request, Response, Streaming};
 use data_types::{DatabaseName, DatabaseNameError};
 use observability_deps::tracing::{info, warn};
 use query::exec::ExecutionContextProvider;
-use server::{ConnectionManager, Server};
+use server::{connection::ConnectionManager, Server};
 
 use crate::influxdb_ioxd::rpc::error::default_server_error_handler;
 

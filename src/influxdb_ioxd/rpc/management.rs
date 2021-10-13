@@ -9,7 +9,7 @@ use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *
 use predicate::delete_predicate::DeletePredicate;
 use query::QueryDatabase;
 use server::rules::ProvidedDatabaseRules;
-use server::{ApplicationState, ConnectionManager, Error, Server};
+use server::{connection::ConnectionManager, ApplicationState, Error, Server};
 use tonic::{Request, Response, Status};
 
 struct ManagementService<M: ConnectionManager> {

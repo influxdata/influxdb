@@ -68,7 +68,9 @@
     clippy::future_not_send
 )]
 
+use ::lifecycle::{LockableChunk, LockablePartition};
 use async_trait::async_trait;
+use connection::{ConnectionManager, RemoteServer};
 use data_types::{
     chunk_metadata::ChunkId,
     database_rules::{NodeGroup, RoutingRules, ShardId, Sink},
@@ -86,7 +88,6 @@ use hashbrown::HashMap;
 use influxdb_line_protocol::ParsedLine;
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
-use lifecycle::{LockableChunk, LockablePartition};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use rand::seq::SliceRandom;
@@ -100,13 +101,12 @@ use tracker::{TaskTracker, TrackedFutureExt};
 use uuid::Uuid;
 
 pub use application::ApplicationState;
-pub use connection::{ConnectionManager, ConnectionManagerImpl, RemoteServer};
 pub use db::Db;
 pub use job::JobRegistry;
 pub use resolver::{GrpcConnectionString, RemoteTemplate};
 
 mod application;
-mod connection;
+pub mod connection;
 pub mod database;
 pub mod db;
 mod job;
@@ -1233,9 +1233,8 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use bytes::Bytes;
     use connection::test_helpers::{TestConnectionManager, TestRemoteServer};
-    use data_types::chunk_metadata::ChunkStorage;
     use data_types::{
-        chunk_metadata::ChunkAddr,
+        chunk_metadata::{ChunkAddr, ChunkStorage},
         database_rules::{
             DatabaseRules, HashRing, LifecycleRules, PartitionTemplate, ShardConfig, TemplatePart,
             WriteBufferConnection, WriteBufferDirection, NO_SHARD_CONFIG,

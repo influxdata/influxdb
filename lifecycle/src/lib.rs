@@ -8,20 +8,20 @@
     clippy::clone_on_ref_ptr
 )]
 
-use chrono::{DateTime, Utc};
 use data_types::{
     chunk_metadata::{ChunkAddr, ChunkId, ChunkLifecycleAction, ChunkOrder, ChunkStorage},
     database_rules::LifecycleRules,
     DatabaseName,
 };
 use internal_types::access::AccessMetrics;
+use std::sync::Arc;
 use tracker::TaskTracker;
 
 mod guard;
 pub use guard::*;
 mod policy;
 pub use policy::*;
-use time::Time;
+use time::{Time, TimeProvider};
 
 /// A trait that encapsulates the database logic that is automated by `LifecyclePolicy`
 pub trait LifecycleDb {
@@ -40,6 +40,9 @@ pub trait LifecycleDb {
 
     /// Return the database name.
     fn name(&self) -> DatabaseName<'static>;
+
+    /// Return the time provider for this database
+    fn time_provider(&self) -> Arc<dyn TimeProvider>;
 }
 
 /// A `LockablePartition` is a wrapper around a `LifecyclePartition` that allows
@@ -170,7 +173,7 @@ pub trait LifecycleChunk {
     fn clear_lifecycle_action(&mut self);
 
     /// Returns the min timestamp contained within this chunk
-    fn min_timestamp(&self) -> DateTime<Utc>;
+    fn min_timestamp(&self) -> Time;
 
     /// Returns the access metrics for this chunk
     fn access_metrics(&self) -> AccessMetrics;

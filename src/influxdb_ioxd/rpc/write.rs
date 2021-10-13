@@ -12,7 +12,7 @@ use generated_types::{
 };
 use influxdb_line_protocol::parse_lines;
 use observability_deps::tracing::debug;
-use server::{ConnectionManager, Server};
+use server::{connection::ConnectionManager, Server};
 
 use super::error::default_server_error_handler;
 

@@ -1,6 +1,7 @@
 use super::{
     catalog::chunk::ChunkMetadata, pred::to_read_buffer_predicate, streams::ReadFilterResultsStream,
 };
+use data_types::chunk_metadata::ChunkAddr;
 use data_types::{
     chunk_metadata::{ChunkId, ChunkOrder},
     partition_metadata,
@@ -76,8 +77,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// MutableBuffer, ReadBuffer, or a ParquetFile
 #[derive(Debug)]
 pub struct DbChunk {
-    id: ChunkId,
-    table_name: Arc<str>,
+    addr: ChunkAddr,
     access_recorder: AccessRecorder,
     state: State,
     meta: Arc<ChunkMetadata>,
@@ -88,22 +88,15 @@ pub struct DbChunk {
 
 #[derive(Debug)]
 enum State {
-    MutableBuffer {
-        chunk: Arc<ChunkSnapshot>,
-    },
-    ReadBuffer {
-        chunk: Arc<RBChunk>,
-        partition_key: Arc<str>,
-    },
-    ParquetFile {
-        chunk: Arc<ParquetChunk>,
-    },
+    MutableBuffer { chunk: Arc<ChunkSnapshot> },
+    ReadBuffer { chunk: Arc<RBChunk> },
+    ParquetFile { chunk: Arc<ParquetChunk> },
 }
 
 impl DbChunk {
     /// Create a DBChunk snapshot of the catalog chunk
     pub fn snapshot(chunk: &super::catalog::chunk::CatalogChunk) -> Arc<Self> {
-        let partition_key = Arc::from(chunk.key());
+        let addr = chunk.addr().clone();
 
         use super::catalog::chunk::{ChunkStage, ChunkStageFrozenRepr};
 
@@ -137,7 +130,6 @@ impl DbChunk {
                     },
                     ChunkStageFrozenRepr::ReadBuffer(repr) => State::ReadBuffer {
                         chunk: Arc::clone(repr),
-                        partition_key,
                     },
                 };
                 (state, Arc::clone(meta))
@@ -151,7 +143,6 @@ impl DbChunk {
                 let state = if let Some(read_buffer) = &read_buffer {
                     State::ReadBuffer {
                         chunk: Arc::clone(read_buffer),
-                        partition_key,
                     }
                 } else {
                     State::ParquetFile {
@@ -163,8 +154,7 @@ impl DbChunk {
         };
 
         Arc::new(Self {
-            id: chunk.id(),
-            table_name: chunk.table_name(),
+            addr,
             access_recorder: chunk.access_recorder().clone(),
             state,
             meta,
@@ -193,8 +183,7 @@ impl DbChunk {
             }
         };
         Arc::new(Self {
-            id: chunk.id(),
-            table_name: chunk.table_name(),
+            addr: chunk.addr().clone(),
             meta,
             state,
             access_recorder: chunk.access_recorder().clone(),
@@ -213,9 +202,14 @@ impl DbChunk {
         }
     }
 
+    /// Return the address of this chunk
+    pub fn addr(&self) -> &ChunkAddr {
+        &self.addr
+    }
+
     /// Return the name of the table in this chunk
     pub fn table_name(&self) -> &Arc<str> {
-        &self.table_name
+        &self.addr.table_name
     }
 
     pub fn time_of_first_write(&self) -> Time {
@@ -249,11 +243,11 @@ impl QueryChunk for DbChunk {
     type Error = Error;
 
     fn id(&self) -> ChunkId {
-        self.id
+        self.addr.chunk_id
     }
 
     fn table_name(&self) -> &str {
-        self.table_name.as_ref()
+        self.addr.table_name.as_ref()
     }
 
     fn may_contain_pk_duplicates(&self) -> bool {
@@ -663,7 +657,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap()
-            .id;
+            .id();
 
         db.unload_read_buffer("cpu", "1970-01-01T00", id).unwrap();
 

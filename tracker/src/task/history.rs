@@ -3,6 +3,8 @@ use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
 use observability_deps::tracing::info;
 use std::hash::Hash;
+use std::sync::Arc;
+use time::TimeProvider;
 
 /// A wrapper around a TaskRegistry that automatically retains a history
 #[derive(Debug)]
@@ -18,10 +20,10 @@ impl<T: std::fmt::Debug> TaskRegistryWithHistory<T>
 where
     T: Send + Sync,
 {
-    pub fn new(capacity: usize) -> Self {
+    pub fn new(time_provider: Arc<dyn TimeProvider>, capacity: usize) -> Self {
         Self {
             history: SizeLimitedHashMap::new(capacity),
-            registry: TaskRegistry::new(),
+            registry: TaskRegistry::new(time_provider),
         }
     }
 
@@ -192,7 +194,8 @@ mod tests {
             assert_eq!(&collected, expected_ids);
         };
 
-        let mut archive = TaskRegistryWithHistory::new(4);
+        let time_provider = Arc::new(time::SystemProvider::new());
+        let mut archive = TaskRegistryWithHistory::new(time_provider, 4);
 
         for i in 0..=3 {
             archive.register(i);

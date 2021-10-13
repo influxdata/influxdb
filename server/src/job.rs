@@ -7,6 +7,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use time::TimeProvider;
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
 
 const JOB_HISTORY_SIZE: usize = 1000;
@@ -24,10 +25,13 @@ pub struct JobRegistryInner {
 }
 
 impl JobRegistry {
-    pub fn new(metric_registry: Arc<metric::Registry>) -> Self {
+    pub fn new(
+        metric_registry: Arc<metric::Registry>,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Self {
         Self {
             inner: Mutex::new(JobRegistryInner {
-                registry: TaskRegistryWithHistory::new(JOB_HISTORY_SIZE),
+                registry: TaskRegistryWithHistory::new(time_provider, JOB_HISTORY_SIZE),
                 metrics: JobRegistryMetrics::new(metric_registry),
             }),
         }

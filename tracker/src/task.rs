@@ -80,11 +80,11 @@
 //! etc... between threads as any such functionality must perform the necessary
 //! synchronisation to be well-formed.
 
-use chrono::{DateTime, Utc};
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
+use time::{Time, TimeProvider};
 
 use tokio_util::sync::CancellationToken;
 
@@ -100,7 +100,9 @@ mod registry;
 /// The state shared between all sibling tasks
 #[derive(Debug)]
 struct TrackerState {
-    start_time: DateTime<Utc>,
+    start_time: Time,
+    time_provider: Arc<dyn TimeProvider>,
+
     cancel_token: CancellationToken,
     cpu_nanos: AtomicUsize,
     wall_nanos: AtomicUsize,
@@ -346,12 +348,6 @@ where
         }
     }
 
-    /// Returns a complete task tracker
-    pub fn complete(metadata: T) -> Self {
-        let registration = TaskRegistration::new();
-        Self::new(TaskId(0), &registration, metadata)
-    }
-
     /// Returns the ID of the Tracker - these are unique per TrackerRegistry
     pub fn id(&self) -> TaskId {
         self.id
@@ -384,7 +380,7 @@ where
     }
 
     /// Returns the instant the tracker was created
-    pub fn start_time(&self) -> DateTime<Utc> {
+    pub fn start_time(&self) -> Time {
         self.state.start_time
     }
 
@@ -441,10 +437,11 @@ impl Clone for TaskRegistration {
     }
 }
 
-impl Default for TaskRegistration {
-    fn default() -> Self {
+impl TaskRegistration {
+    pub fn new(time_provider: Arc<dyn TimeProvider>) -> Self {
         let state = Arc::new(TrackerState {
-            start_time: Utc::now(),
+            start_time: time_provider.now(),
+            time_provider,
             cpu_nanos: AtomicUsize::new(0),
             wall_nanos: AtomicUsize::new(0),
             cancel_token: CancellationToken::new(),
@@ -458,12 +455,6 @@ impl Default for TaskRegistration {
         });
 
         Self { state }
-    }
-}
-
-impl TaskRegistration {
-    pub fn new() -> Self {
-        Self::default()
     }
 
     /// Converts the registration into a tracker with id 0 and specified metadata
@@ -515,10 +506,14 @@ mod tests {
         futures::future::ready(Ok(()))
     }
 
+    fn test_registry<T: Send + Sync>() -> TaskRegistry<T> {
+        TaskRegistry::new(Arc::new(time::SystemProvider::new()))
+    }
+
     #[tokio::test]
     async fn test_lifecycle() {
         let (sender, receive) = oneshot::channel();
-        let mut registry = TaskRegistry::new();
+        let mut registry = test_registry();
         let (tracker, registration) = registry.register(());
 
         tokio::spawn(receive.track(registration));
@@ -535,7 +530,7 @@ mod tests {
     async fn test_interleaved() {
         let (sender1, receive1) = oneshot::channel();
         let (sender2, receive2) = oneshot::channel();
-        let mut registry = TaskRegistry::new();
+        let mut registry = test_registry();
         let (t1, registration1) = registry.register(1);
         let (t2, registration2) = registry.register(2);
 
@@ -559,7 +554,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_drop() {
-        let mut registry = TaskRegistry::new();
+        let mut registry = test_registry();
         let (_, registration) = registry.register(());
 
         {
@@ -575,7 +570,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_drop_multiple() {
-        let mut registry = TaskRegistry::new();
+        let mut registry = test_registry();
         let (_, registration) = registry.register(());
 
         {
@@ -594,7 +589,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_terminate() {
-        let mut registry = TaskRegistry::new();
+        let mut registry = test_registry();
         let (_, registration) = registry.register(());
 
         let task = tokio::spawn(pending().track(registration));
@@ -611,7 +606,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_terminate_early() {
-        let mut registry = TaskRegistry::new();
+        let mut registry = test_registry();
         let (tracker, registration) = registry.register(());
         tracker.cancel();
 
@@ -624,7 +619,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_terminate_multiple() {
-        let mut registry = TaskRegistry::new();
+        let mut registry = test_registry();
         let (_, registration) = registry.register(());
 
         let task1 = tokio::spawn(pending().track(registration.clone()));
@@ -645,7 +640,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reclaim() {
-        let mut registry = TaskRegistry::new();
+        let mut registry = test_registry();
 
         let (_, registration1) = registry.register(1);
         let (_, registration2) = registry.register(2);
@@ -744,7 +739,7 @@ mod tests {
     // to prevent stalling the tokio executor
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_timing() {
-        let mut registry = TaskRegistry::new();
+        let mut registry = test_registry();
         let (tracker1, registration1) = registry.register(1);
         let (tracker2, registration2) = registry.register(2);
         let (tracker3, registration3) = registry.register(3);
@@ -819,7 +814,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_register_race() {
-        let mut registry = TaskRegistry::new();
+        let mut registry = test_registry();
         let (_, registration) = registry.register(());
 
         let task1 = tokio::spawn(ready_ok().track(registration.clone()));
@@ -842,7 +837,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_failure() {
-        let mut registry = TaskRegistry::new();
+        let mut registry = test_registry();
         let zero_clocks = |mut status: TaskStatus| {
             match &mut status {
                 TaskStatus::Creating => {}
@@ -970,7 +965,7 @@ mod tests {
         use std::future::Future;
         use std::task::Poll;
 
-        let mut registry = TaskRegistry::new();
+        let mut registry = test_registry();
         let (tracker, registration) = registry.register(());
 
         let (s1, r1) = oneshot::channel();
@@ -1022,7 +1017,7 @@ mod tests {
         use std::future::Future;
         use std::task::Poll;
 
-        let mut registry = TaskRegistry::new();
+        let mut registry = test_registry();
         let (tracker, registration) = registry.register(());
 
         // This executor goop is necessary to get a future into

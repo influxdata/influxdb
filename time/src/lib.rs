@@ -82,6 +82,14 @@ impl Time {
         Self(Utc.timestamp_millis(millis))
     }
 
+    /// Makes a new `DateTime` from the number of non-leap milliseconds
+    /// since January 1, 1970 0:00:00 UTC (aka "UNIX timestamp").
+    ///
+    /// Returns None if out of range
+    pub fn from_timestamp_millis_opt(millis: i64) -> Option<Self> {
+        Some(Self(Utc.timestamp_millis_opt(millis).single()?))
+    }
+
     /// Makes a new `Time` from the number of non-leap seconds
     /// since January 1, 1970 0:00:00 UTC (aka "UNIX timestamp")
     /// and the number of nanoseconds since the last whole non-leap second.
@@ -307,6 +315,8 @@ mod test {
         assert!(chrono::Duration::from_std(duration).is_err());
         assert!(time.checked_add(duration).is_none());
         assert!(time.checked_sub(duration).is_none());
+
+        assert!(Time::from_timestamp_millis_opt(i64::MAX).is_none())
     }
 
     #[test]

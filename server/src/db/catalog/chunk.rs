@@ -939,7 +939,7 @@ mod tests {
     #[tokio::test]
     async fn set_compacting_freezes_chunk() {
         let mut chunk = make_open_chunk();
-        let registration = TaskRegistration::new();
+        let registration = TaskRegistration::new(Arc::clone(&chunk.time_provider));
 
         assert!(matches!(chunk.stage, ChunkStage::Open { .. }));
         chunk.set_compacting(&registration).unwrap();
@@ -956,7 +956,7 @@ mod tests {
         assert_ne!(size_before, 0);
 
         // start dropping it
-        let registration = TaskRegistration::new();
+        let registration = TaskRegistration::new(Arc::clone(&chunk.time_provider));
         chunk.set_dropping(&registration).unwrap();
 
         // size should now be reported as zero
@@ -968,7 +968,7 @@ mod tests {
         assert_eq!(memory_metrics.total(), size_before);
 
         // when the lifecycle action cannot be set (e.g. due to an action already in progress), do NOT zero out the size
-        let registration = TaskRegistration::new();
+        let registration = TaskRegistration::new(Arc::clone(&chunk.time_provider));
         chunk.set_compacting(&registration).unwrap();
         let size_before = memory_metrics.total();
         chunk.set_dropping(&registration).unwrap_err();
@@ -978,7 +978,7 @@ mod tests {
     #[test]
     fn test_lifecycle_action() {
         let mut chunk = make_open_chunk();
-        let registration = TaskRegistration::new();
+        let registration = TaskRegistration::new(Arc::clone(&chunk.time_provider));
 
         // no action to begin with
         assert!(chunk.lifecycle_action().is_none());
@@ -1040,7 +1040,7 @@ mod tests {
     #[test]
     fn test_clear_lifecycle_action() {
         let mut chunk = make_open_chunk();
-        let registration = TaskRegistration::new();
+        let registration = TaskRegistration::new(Arc::clone(&chunk.time_provider));
 
         // clearing w/o any action in-progress works
         chunk.clear_lifecycle_action().unwrap();

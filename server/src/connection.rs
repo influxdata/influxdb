@@ -120,8 +120,7 @@ impl RemoteServer for RemoteServerImpl {
     }
 }
 
-#[cfg(test)]
-pub(crate) mod test_helpers {
+pub mod test_helpers {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     use super::*;
@@ -130,6 +129,12 @@ pub(crate) mod test_helpers {
     #[derive(Debug)]
     pub struct TestConnectionManager {
         pub remotes: BTreeMap<String, Arc<TestRemoteServer>>,
+    }
+
+    impl Default for TestConnectionManager {
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl TestConnectionManager {

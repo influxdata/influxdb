@@ -30,7 +30,10 @@ impl ApplicationState {
 
         let metric_registry = Arc::new(metric::Registry::new());
         let time_provider: Arc<dyn TimeProvider> = Arc::new(time::SystemProvider::new());
-        let job_registry = Arc::new(JobRegistry::new(Arc::clone(&metric_registry)));
+        let job_registry = Arc::new(JobRegistry::new(
+            Arc::clone(&metric_registry),
+            Arc::clone(&time_provider),
+        ));
 
         let write_buffer_factory =
             Arc::new(WriteBufferConfigFactory::new(Arc::clone(&time_provider)));
