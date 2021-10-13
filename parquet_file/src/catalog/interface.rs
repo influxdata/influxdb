@@ -98,14 +98,6 @@ pub enum CatalogStateRemoveError {
 
 /// Abstraction over how the in-memory state of the catalog works.
 pub trait CatalogState {
-    /// Input to create a new empty instance.
-    ///
-    /// See [`new_empty`](Self::new_empty) for details.
-    type EmptyInput: Send;
-
-    /// Create empty state w/o any known files.
-    fn new_empty(db_name: &str, data: Self::EmptyInput) -> Self;
-
     /// Add parquet file to state.
     fn add(
         &mut self,

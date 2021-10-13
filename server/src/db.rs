@@ -919,8 +919,7 @@ impl Db {
         self: &Arc<Self>,
     ) -> std::result::Result<(), parquet_file::catalog::cleanup::Error> {
         let guard = self.cleanup_lock.write().await;
-        let files =
-            get_unreferenced_parquet_files(&self.name(), &self.preserved_catalog, 1_000).await?;
+        let files = get_unreferenced_parquet_files(&self.preserved_catalog, 1_000).await?;
         drop(guard);
 
         delete_parquet_files(&self.preserved_catalog, &files).await

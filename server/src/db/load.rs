@@ -60,9 +60,13 @@ pub async fn load_or_create_preserved_catalog(
 ) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
     // first try to load existing catalogs
     match PreservedCatalog::load(
-        db_name,
-        PreservedCatalogConfig::new(Arc::clone(&iox_object_store), Arc::clone(&time_provider)),
-        LoaderEmptyInput::new(
+        PreservedCatalogConfig::new(
+            Arc::clone(&iox_object_store),
+            db_name.to_string(),
+            Arc::clone(&time_provider),
+        ),
+        Loader::new(
+            db_name,
             Arc::clone(&metric_registry),
             Arc::clone(&time_provider),
             skip_replay,
@@ -133,46 +137,24 @@ pub async fn create_preserved_catalog(
     time_provider: Arc<dyn TimeProvider>,
     skip_replay: bool,
 ) -> Result<(PreservedCatalog, Catalog, Option<ReplayPlan>)> {
-    let config = PreservedCatalogConfig::new(iox_object_store, Arc::clone(&time_provider));
+    let config = PreservedCatalogConfig::new(
+        iox_object_store,
+        db_name.to_string(),
+        Arc::clone(&time_provider),
+    );
 
-    let (preserved_catalog, loader) = PreservedCatalog::new_empty(
-        db_name,
-        config,
-        LoaderEmptyInput::new(metric_registry, time_provider, skip_replay),
-    )
-    .await
-    .context(CannotCreateCatalog)?;
+    let preserved_catalog = PreservedCatalog::new_empty(config)
+        .await
+        .context(CannotCreateCatalog)?;
 
     let Loader {
         catalog, planner, ..
-    } = loader;
+    } = Loader::new(db_name, metric_registry, time_provider, skip_replay);
     let plan = planner
         .map(|planner| planner.build())
         .transpose()
         .context(CannotBuildReplayPlan)?;
     Ok((preserved_catalog, catalog, plan))
-}
-
-/// All input required to create an empty [`Loader`]
-#[derive(Debug)]
-struct LoaderEmptyInput {
-    metric_registry: Arc<::metric::Registry>,
-    time_provider: Arc<dyn TimeProvider>,
-    skip_replay: bool,
-}
-
-impl LoaderEmptyInput {
-    fn new(
-        metric_registry: Arc<metric::Registry>,
-        time_provider: Arc<dyn TimeProvider>,
-        skip_replay: bool,
-    ) -> Self {
-        Self {
-            metric_registry,
-            time_provider,
-            skip_replay,
-        }
-    }
 }
 
 /// Helper to track data during catalog loading.
@@ -183,23 +165,24 @@ struct Loader {
     metric_registry: Arc<metric::Registry>,
 }
 
-impl CatalogState for Loader {
-    type EmptyInput = LoaderEmptyInput;
-
-    fn new_empty(db_name: &str, data: Self::EmptyInput) -> Self {
-        let catalog = Catalog::new(
-            Arc::from(db_name),
-            Arc::clone(&data.metric_registry),
-            Arc::clone(&data.time_provider),
-        );
+impl Loader {
+    fn new(
+        db_name: &str,
+        metric_registry: Arc<metric::Registry>,
+        time_provider: Arc<dyn TimeProvider>,
+        skip_replay: bool,
+    ) -> Self {
+        let catalog = Catalog::new(Arc::from(db_name), metric_registry, time_provider);
 
         Self {
             catalog,
-            planner: (!data.skip_replay).then(ReplayPlanner::new),
+            planner: (!skip_replay).then(ReplayPlanner::new),
             metric_registry: Arc::new(Default::default()),
         }
     }
+}
 
+impl CatalogState for Loader {
     fn add(
         &mut self,
         iox_object_store: Arc<IoxObjectStore>,
@@ -348,10 +331,13 @@ mod tests {
                 .await
                 .unwrap(),
         );
-        let config =
-            PreservedCatalogConfig::new(Arc::clone(&iox_object_store), Arc::clone(&time_provider));
+        let config = PreservedCatalogConfig::new(
+            Arc::clone(&iox_object_store),
+            db_name.to_string(),
+            Arc::clone(&time_provider),
+        );
 
-        let (preserved_catalog, _catalog) = new_empty(config).await;
+        let preserved_catalog = new_empty(config).await;
         parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
             .await;
 
@@ -373,12 +359,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_catalog_state() {
-        let empty_input = LoaderEmptyInput {
-            metric_registry: Default::default(),
-            time_provider: Arc::new(time::SystemProvider::new()),
-            skip_replay: false,
-        };
-        assert_catalog_state_implementation::<Loader, _>(empty_input, checkpoint_data_from_loader)
-            .await;
+        let loader = Loader::new(
+            "db1",
+            Default::default(),
+            Arc::new(time::SystemProvider::new()),
+            false,
+        );
+        assert_catalog_state_implementation(loader, checkpoint_data_from_loader).await;
     }
 }

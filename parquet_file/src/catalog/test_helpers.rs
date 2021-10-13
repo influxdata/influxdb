@@ -1,7 +1,6 @@
-use crate::catalog::core::PreservedCatalogConfig;
 use crate::{
     catalog::{
-        core::PreservedCatalog,
+        core::{PreservedCatalog, PreservedCatalogConfig},
         interface::{
             CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError,
             CheckpointData, ChunkAddrWithoutDatabase,
@@ -12,7 +11,7 @@ use crate::{
         },
     },
     metadata::IoxParquetMetaData,
-    test_utils::{chunk_addr, make_config, make_metadata, TestSize},
+    test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize},
 };
 use data_types::{chunk_metadata::ChunkId, timestamp::TimestampRange};
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
@@ -146,14 +145,6 @@ impl TestCatalogState {
 }
 
 impl CatalogState for TestCatalogState {
-    type EmptyInput = ();
-
-    fn new_empty(_db_name: &str, _data: Self::EmptyInput) -> Self {
-        Self {
-            tables: HashMap::new(),
-        }
-    }
-
     fn add(
         &mut self,
         _iox_object_store: Arc<IoxObjectStore>,
@@ -222,21 +213,21 @@ pub async fn exists(iox_object_store: &Arc<IoxObjectStore>) -> bool {
 pub async fn load_ok(
     config: PreservedCatalogConfig,
 ) -> Option<(PreservedCatalog, TestCatalogState)> {
-    PreservedCatalog::load(DB_NAME, config, ()).await.unwrap()
+    PreservedCatalog::load(config, TestCatalogState::default())
+        .await
+        .unwrap()
 }
 
 /// Load a `PreservedCatalog` and unwrap the error, expecting the operation to fail
 pub async fn load_err(config: PreservedCatalogConfig) -> crate::catalog::core::Error {
-    PreservedCatalog::load::<TestCatalogState>(DB_NAME, config, ())
+    PreservedCatalog::load(config, TestCatalogState::default())
         .await
         .unwrap_err()
 }
 
 /// Create a new empty catalog with the TestCatalogState, expecting the operation to succeed
-pub async fn new_empty(config: PreservedCatalogConfig) -> (PreservedCatalog, TestCatalogState) {
-    PreservedCatalog::new_empty(DB_NAME, config, ())
-        .await
-        .unwrap()
+pub async fn new_empty(config: PreservedCatalogConfig) -> PreservedCatalog {
+    PreservedCatalog::new_empty(config).await.unwrap()
 }
 
 /// Break preserved catalog by moving one of the transaction files into a weird unknown version.
@@ -265,17 +256,12 @@ fn get_tkey(catalog: &PreservedCatalog) -> TransactionKey {
 /// Torture-test implementations for [`CatalogState`].
 ///
 /// A function to extract [`CheckpointData`] from the [`CatalogState`] must be provided.
-pub async fn assert_catalog_state_implementation<S, F>(state_data: S::EmptyInput, f: F)
+pub async fn assert_catalog_state_implementation<S, F>(mut state: S, f: F)
 where
     S: CatalogState + Debug + Send + Sync,
     F: Fn(&S) -> CheckpointData + Send,
 {
-    // empty state
     let config = make_config().await;
-    let (_catalog, mut state) =
-        PreservedCatalog::new_empty::<S>(DB_NAME, config.clone(), state_data)
-            .await
-            .unwrap();
 
     // The expected state of the catalog
     let mut expected_files: HashMap<ChunkId, (ParquetFilePath, Arc<IoxParquetMetaData>)> =
@@ -675,14 +661,21 @@ pub fn create_delete_predicate(value: i64) -> Arc<DeletePredicate> {
     })
 }
 
+/// Creates a new [`PreservedCatalogConfig`] with an in-memory object store
+pub async fn make_config() -> PreservedCatalogConfig {
+    let iox_object_store = make_iox_object_store().await;
+    let time_provider = Arc::new(time::SystemProvider::new());
+    PreservedCatalogConfig::new(iox_object_store, DB_NAME.to_string(), time_provider)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[tokio::test]
     async fn test_catalog_state() {
-        assert_catalog_state_implementation::<TestCatalogState, _>(
-            (),
+        assert_catalog_state_implementation(
+            TestCatalogState::default(),
             TestCatalogState::checkpoint_data,
         )
         .await;

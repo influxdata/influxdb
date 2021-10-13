@@ -169,6 +169,9 @@ pub struct PreservedCatalogConfig {
     /// Object store that backs the catalog
     pub(crate) iox_object_store: Arc<IoxObjectStore>,
 
+    /// Database name
+    pub(crate) db_name: String,
+
     /// Fixed UUID for testing
     pub(crate) fixed_uuid: Option<Uuid>,
 
@@ -179,10 +182,12 @@ pub struct PreservedCatalogConfig {
 impl PreservedCatalogConfig {
     pub fn new(
         iox_object_store: Arc<IoxObjectStore>,
+        db_name: String,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         Self {
             iox_object_store,
+            db_name,
             fixed_uuid: None,
             time_provider,
         }
@@ -230,6 +235,9 @@ pub struct PreservedCatalog {
 
     /// Object store that backs this catalog.
     iox_object_store: Arc<IoxObjectStore>,
+
+    /// Database name
+    db_name: String,
 
     /// If set, this UUID will be used for all transactions instead of a fresh UUIDv4.
     ///
@@ -304,23 +312,16 @@ impl PreservedCatalog {
     ///
     /// An empty transaction will be used to mark the catalog start so that concurrent open but
     /// still-empty catalogs can easily be detected.
-    pub async fn new_empty<S>(
-        db_name: &str,
-        config: PreservedCatalogConfig,
-        state_data: S::EmptyInput,
-    ) -> Result<(Self, S)>
-    where
-        S: CatalogState + Send + Sync,
-    {
+    pub async fn new_empty(config: PreservedCatalogConfig) -> Result<Self> {
         if Self::exists(&config.iox_object_store).await? {
             return Err(Error::AlreadyExists {});
         }
-        let state = S::new_empty(db_name, state_data);
 
         let catalog = Self {
             previous_tkey: RwLock::new(None),
             transaction_semaphore: Semaphore::new(1),
             iox_object_store: config.iox_object_store,
+            db_name: config.db_name,
             fixed_uuid: config.fixed_uuid,
             time_provider: config.time_provider,
         };
@@ -333,18 +334,14 @@ impl PreservedCatalog {
             .map_err(Box::new)
             .context(CommitError)?;
 
-        Ok((catalog, state))
+        Ok(catalog)
     }
 
     /// Load existing catalog from store, if it exists.
     ///
     /// Loading starts at the latest checkpoint or -- if none exists -- at transaction `0`.
     /// Transactions before that point are neither verified nor are they required to exist.
-    pub async fn load<S>(
-        db_name: &str,
-        config: PreservedCatalogConfig,
-        state_data: S::EmptyInput,
-    ) -> Result<Option<(Self, S)>>
+    pub async fn load<S>(config: PreservedCatalogConfig, mut state: S) -> Result<Option<(Self, S)>>
     where
         S: CatalogState + Send + Sync,
     {
@@ -408,10 +405,6 @@ impl PreservedCatalog {
             return Ok(None);
         }
 
-        // setup empty state
-        let mut state = S::new_empty(db_name, state_data);
-        let mut last_tkey = None;
-
         // detect replay start
         let start_revision = last_checkpoint.unwrap_or(0);
 
@@ -419,6 +412,7 @@ impl PreservedCatalog {
         let max_revision = max_revision.expect("transactions list is not empty here");
 
         // read and replay delta revisions
+        let mut last_tkey = None;
         for rev in start_revision..=max_revision {
             let uuid = transactions.get(&rev).context(MissingTransaction {
                 revision_counter: rev,
@@ -448,6 +442,7 @@ impl PreservedCatalog {
                 previous_tkey: RwLock::new(last_tkey),
                 transaction_semaphore: Semaphore::new(1),
                 iox_object_store: config.iox_object_store,
+                db_name: config.db_name,
                 fixed_uuid: config.fixed_uuid,
                 time_provider: config.time_provider,
             },
@@ -486,6 +481,7 @@ impl PreservedCatalog {
     pub fn config(&self) -> PreservedCatalogConfig {
         PreservedCatalogConfig {
             iox_object_store: Arc::clone(&self.iox_object_store),
+            db_name: self.db_name.clone(),
             fixed_uuid: self.fixed_uuid,
             time_provider: Arc::clone(&self.time_provider),
         }
@@ -1074,11 +1070,9 @@ mod tests {
     use super::*;
     use crate::catalog::test_helpers::{
         break_catalog_with_weird_version, create_delete_predicate, exists, load_err, load_ok,
-        new_empty, TestCatalogState, DB_NAME,
+        make_config, new_empty, TestCatalogState,
     };
-    use crate::test_utils::{
-        chunk_addr, make_config, make_iox_object_store, make_metadata, TestSize,
-    };
+    use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize};
 
     #[tokio::test]
     async fn test_create_empty() {
@@ -1364,7 +1358,7 @@ mod tests {
     #[tokio::test]
     async fn test_transaction_handle_debug() {
         let config = make_config().await;
-        let (catalog, _state) = new_empty(config).await;
+        let catalog = new_empty(config).await;
         let mut t = catalog.open_transaction().await;
 
         // open transaction
@@ -1722,7 +1716,8 @@ mod tests {
         let config = make_config().await;
         let iox_object_store = &config.iox_object_store;
 
-        let (catalog, mut state) = new_empty(config.clone()).await;
+        let catalog = new_empty(config.clone()).await;
+        let mut state = TestCatalogState::default();
 
         {
             let mut t = catalog.open_transaction().await;
@@ -1879,7 +1874,8 @@ mod tests {
 
     async fn assert_single_catalog_inmem_works(config: PreservedCatalogConfig) -> TestTrace {
         let iox_object_store = &config.iox_object_store;
-        let (catalog, mut state) = new_empty(config.clone()).await;
+        let catalog = new_empty(config.clone()).await;
+        let mut state = TestCatalogState::default();
 
         // track all the intermediate results
         let mut trace = TestTrace::new();
@@ -2002,7 +1998,7 @@ mod tests {
 
         new_empty(config.clone()).await;
 
-        let res = PreservedCatalog::new_empty::<TestCatalogState>(DB_NAME, config, ()).await;
+        let res = PreservedCatalog::new_empty(config).await;
         assert_eq!(res.unwrap_err().to_string(), "Catalog already exists");
     }
 
@@ -2056,7 +2052,7 @@ mod tests {
     #[tokio::test]
     async fn test_transaction_handle_revision_counter() {
         let config = make_config().await;
-        let (catalog, _state) = new_empty(config).await;
+        let catalog = new_empty(config).await;
         let t = catalog.open_transaction().await;
 
         assert_eq!(t.revision_counter(), 1);
@@ -2065,7 +2061,7 @@ mod tests {
     #[tokio::test]
     async fn test_transaction_handle_uuid() {
         let config = make_config().await;
-        let (catalog, _state) = new_empty(config).await;
+        let catalog = new_empty(config).await;
         let mut t = catalog.open_transaction().await;
 
         t.transaction.as_mut().unwrap().proto.uuid = Uuid::nil().as_bytes().to_vec().into();
@@ -2272,7 +2268,8 @@ mod tests {
 
         assert!(!exists(iox_object_store).await);
 
-        let (catalog, state) = new_empty(config.clone()).await;
+        let catalog = new_empty(config.clone()).await;
+        let state = TestCatalogState::default();
 
         // delete transaction file
         let tkey = catalog.previous_tkey.read().unwrap();

@@ -221,11 +221,9 @@ mod tests {
     use super::*;
     use crate::{
         catalog::{
-            core::PreservedCatalog,
-            interface::CatalogParquetInfo,
-            test_helpers::{TestCatalogState, DB_NAME},
+            core::PreservedCatalog, interface::CatalogParquetInfo, test_helpers::make_config,
         },
-        test_utils::{chunk_addr, make_config, make_metadata, TestSize},
+        test_utils::{chunk_addr, make_metadata, TestSize},
     };
     use time::Time;
     use uuid::Uuid;
@@ -241,10 +239,7 @@ mod tests {
         let iox_object_store = &config.iox_object_store;
 
         // build catalog with some data
-        let (catalog, _state) =
-            PreservedCatalog::new_empty::<TestCatalogState>(DB_NAME, config.clone(), ())
-                .await
-                .unwrap();
+        let catalog = PreservedCatalog::new_empty(config.clone()).await.unwrap();
         {
             let mut transaction = catalog.open_transaction().await;
 
@@ -361,10 +356,7 @@ File {
         let iox_object_store = &config.iox_object_store;
 
         // build catalog with some data
-        let (catalog, _state) =
-            PreservedCatalog::new_empty::<TestCatalogState>(DB_NAME, config.clone(), ())
-                .await
-                .unwrap();
+        let catalog = PreservedCatalog::new_empty(config.clone()).await.unwrap();
         {
             let mut transaction = catalog.open_transaction().await;
 
