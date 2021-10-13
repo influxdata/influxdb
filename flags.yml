@@ -97,3 +97,11 @@
   contact: Edge Team
   expose: true
   lifetime: temporary
+
+- name: New Dashboard Autorefresh
+  description: Enables the new dashboard autorefresh controls in the UI
+  key: newAutoRefresh
+  default: true
+  contact: Monitoring Team
+  expose: true
+  lifetime: temporary
