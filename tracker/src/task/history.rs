@@ -16,7 +16,7 @@ where
     history: SizeLimitedHashMap<TaskId, TaskTracker<T>>,
 }
 
-impl<T: std::fmt::Debug> TaskRegistryWithHistory<T>
+impl<T: std::fmt::Display> TaskRegistryWithHistory<T>
 where
     T: Send + Sync,
 {
@@ -64,7 +64,7 @@ where
         let mut pruned = vec![];
 
         for job in self.registry.reclaim() {
-            info!(?job, "job finished");
+            info!(%job, "job finished");
             reclaimed.push(job.clone());
             if let Some((_pruned_id, pruned_job)) = self.history.push(job.id(), job) {
                 pruned.push(pruned_job);

@@ -1,3 +1,4 @@
+use std::fmt::Formatter;
 use std::sync::Arc;
 
 use crate::{
@@ -104,6 +105,22 @@ impl Job {
                 "Drop partition from memory and (if persisted) from object store"
             }
             Self::WipePreservedCatalog { .. } => "Wipe preserved catalog",
+        }
+    }
+}
+
+impl std::fmt::Display for Job {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Job::Dummy { .. } => write!(f, "Job::Dummy"),
+            Job::WriteChunk { chunk } => write!(f, "Job::WriteChunk({}))", chunk),
+            Job::CompactChunks { partition, .. } => write!(f, "Job::CompactChunks({})", partition),
+            Job::PersistChunks { partition, .. } => write!(f, "Job::PersistChunks({})", partition),
+            Job::DropChunk { chunk } => write!(f, "Job::DropChunk({})", chunk),
+            Job::DropPartition { partition } => write!(f, "Job::DropPartition({})", partition),
+            Job::WipePreservedCatalog { db_name } => {
+                write!(f, "Job::WipePreservedCatalog({})", db_name)
+            }
         }
     }
 }
