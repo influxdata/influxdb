@@ -8,7 +8,7 @@ use object_store::{self, ObjectStore};
 use observability_deps::tracing::{error, info, warn};
 use panic_logging::SendPanicsToTracing;
 use server::{
-    ApplicationState, ConnectionManagerImpl as ConnectionManager, RemoteTemplate,
+    connection::ConnectionManagerImpl as ConnectionManager, ApplicationState, RemoteTemplate,
     Server as AppServer, ServerConfig,
 };
 use snafu::{ResultExt, Snafu};

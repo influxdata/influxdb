@@ -28,7 +28,7 @@ use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
 use predicate::delete_predicate::{parse_delete, DeletePredicate};
 use query::exec::ExecutionContextProvider;
-use server::{ApplicationState, ConnectionManager, Error, Server as AppServer};
+use server::{connection::ConnectionManager, ApplicationState, Error, Server as AppServer};
 
 // External crates
 use bytes::{Bytes, BytesMut};
@@ -910,7 +910,9 @@ mod tests {
     use metric::{Attributes, DurationHistogram, Metric, U64Counter};
     use object_store::ObjectStore;
     use serde::de::DeserializeOwned;
-    use server::{db::Db, rules::ProvidedDatabaseRules, ApplicationState, ConnectionManagerImpl};
+    use server::{
+        connection::ConnectionManagerImpl, db::Db, rules::ProvidedDatabaseRules, ApplicationState,
+    };
     use tokio_stream::wrappers::ReceiverStream;
     use trace::RingBufferTraceCollector;
 
