@@ -62,6 +62,7 @@ impl Observer {
     pub async fn run_query(&mut self, sql: &str) -> Result<Vec<RecordBatch>> {
         self.context
             .sql(sql)
+            .await
             .context(Query)?
             .collect()
             .await
