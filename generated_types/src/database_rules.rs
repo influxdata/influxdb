@@ -1,6 +1,7 @@
 use crate::{
     google::{FieldViolation, FieldViolationExt, FromFieldOpt},
     influxdata::iox::management::v1 as management,
+    ProstError,
 };
 use data_types::{
     database_rules::{
@@ -14,7 +15,6 @@ use std::{
     num::NonZeroU32,
     time::Duration,
 };
-use thiserror::Error;
 
 mod lifecycle;
 mod partition;
@@ -122,18 +122,6 @@ impl TryFrom<management::RoutingConfig> for RoutingConfig {
     }
 }
 
-/// Wrapper around a `prost` error so that
-/// users of this crate do not have a direct dependency
-/// on the prost crate.
-#[derive(Debug, Error)]
-pub enum ProstError {
-    #[error("failed to encode protobuf: {0}")]
-    EncodeError(#[from] prost::EncodeError),
-
-    #[error("failed to decode protobuf: {0}")]
-    DecodeError(#[from] prost::DecodeError),
-}
-
 /// Decode database rules that were encoded using `encode_persisted_database_rules`
 pub fn decode_persisted_database_rules(
     bytes: prost::bytes::Bytes,
@@ -151,8 +139,7 @@ pub fn decode_database_rules(
     Ok(prost::Message::decode(bytes)?)
 }
 
-/// Encode database rules into a serialized format suitable for
-/// storage in objet store
+/// Encode database rules into a serialized format suitable for storage in object store
 pub fn encode_persisted_database_rules(
     rules: &management::PersistedDatabaseRules,
     bytes: &mut prost::bytes::BytesMut,

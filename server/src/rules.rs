@@ -20,14 +20,10 @@ pub enum Error {
     },
 
     #[snafu(display("error deserializing database rules: {}", source))]
-    Deserialization {
-        source: generated_types::database_rules::ProstError,
-    },
+    Deserialization { source: generated_types::ProstError },
 
     #[snafu(display("error serializing database rules: {}", source))]
-    Serialization {
-        source: generated_types::database_rules::ProstError,
-    },
+    Serialization { source: generated_types::ProstError },
 
     #[snafu(display("error fetching rules: {}", source))]
     RulesFetch { source: object_store::Error },

@@ -153,6 +153,18 @@ pub mod detailed_database;
 #[cfg(feature = "data_types_conversions")]
 pub mod job;
 
+use thiserror::Error;
+/// Wrapper around a `prost` error so that users of this crate do not have a direct dependency
+/// on the prost crate.
+#[derive(Debug, Error)]
+pub enum ProstError {
+    #[error("failed to encode protobuf: {0}")]
+    EncodeError(#[from] prost::EncodeError),
+
+    #[error("failed to decode protobuf: {0}")]
+    DecodeError(#[from] prost::DecodeError),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
