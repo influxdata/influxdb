@@ -620,10 +620,26 @@ impl InfluxRpcPlanner {
         Ok(ss_plans.into())
     }
 
-    /// Creates a GroupedSeriesSet plan that produces an output table
-    /// with rows grouped by an aggregate function. Note that we still
-    /// group by all tags (so group within series) and the
-    /// group_columns define the order of the result
+    /// Creates one or more GroupedSeriesSet plans that produces an
+    /// output table with rows grouped according to group_columns and
+    /// an aggregate function which is applied to each *series* (aka
+    /// distinct set of tag value). Note the aggregate is not applied
+    /// across series within the same group.
+    ///
+    /// Specifically the data that is output from the plans is
+    /// guaranteed to be sorted such that:
+    ///
+    ///   1. The group_columns are a prefix of the sort key
+    ///
+    ///   2. All remaining tags appear in the sort key, in order,
+    ///   after the prefix (as the tag key may also appear as a group
+    ///   key)
+    ///
+    /// Schematically, the plan looks like:
+    ///
+    /// (order by {group_coumns, remaining tags})
+    ///   (aggregate by group -- agg, gby_exprs=tags)
+    ///      (apply filters)
     pub fn read_group<D>(
         &self,
         database: &D,
