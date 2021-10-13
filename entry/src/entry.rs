@@ -18,6 +18,7 @@ use schema::{
     IOxValueType, InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME,
 };
 use time::Time;
+use trace::ctx::SpanContext;
 
 use crate::entry_fb;
 
@@ -1750,6 +1751,9 @@ pub struct SequencedEntry {
     /// At the time of writing, sequences will not be present when there is no configured mechanism to define the order
     /// of all writes.
     sequence_and_producer_ts: Option<(Sequence, Time)>,
+
+    // Optional span context associated w/ this entry.
+    span_context: Option<SpanContext>,
 }
 
 impl SequencedEntry {
@@ -1761,6 +1765,20 @@ impl SequencedEntry {
         Self {
             entry,
             sequence_and_producer_ts: Some((sequence, producer_wallclock_timestamp)),
+            span_context: None,
+        }
+    }
+
+    pub fn new_from_sequence_and_span_context(
+        sequence: Sequence,
+        producer_wallclock_timestamp: Time,
+        entry: Entry,
+        span_context: Option<SpanContext>,
+    ) -> Self {
+        Self {
+            entry,
+            sequence_and_producer_ts: Some((sequence, producer_wallclock_timestamp)),
+            span_context,
         }
     }
 
@@ -1768,6 +1786,7 @@ impl SequencedEntry {
         Self {
             entry,
             sequence_and_producer_ts: None,
+            span_context: None,
         }
     }
 
@@ -1789,6 +1808,10 @@ impl SequencedEntry {
 
     pub fn entry(&self) -> &Entry {
         &self.entry
+    }
+
+    pub fn span_context(&self) -> Option<&SpanContext> {
+        self.span_context.as_ref()
     }
 }
 

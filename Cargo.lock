@@ -1019,6 +1019,7 @@ dependencies = [
  "schema",
  "snafu",
  "time 0.1.0",
+ "trace",
 ]
 
 [[package]]
@@ -4982,11 +4983,14 @@ dependencies = [
  "dotenv",
  "entry",
  "futures",
+ "http",
  "observability_deps",
  "parking_lot",
  "rdkafka",
  "time 0.1.0",
  "tokio",
+ "trace",
+ "trace_http",
  "uuid",
 ]
 
