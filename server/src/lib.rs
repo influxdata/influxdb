@@ -355,7 +355,7 @@ struct ServerShared {
 #[derive(Debug, Snafu)]
 pub enum InitError {
     #[snafu(display("error listing databases in object storage: {}", source))]
-    ListRules { source: object_store::Error },
+    ListDatabases { source: object_store::Error },
 }
 
 /// The stage of the server in the startup process
@@ -1159,7 +1159,7 @@ async fn maybe_initialize_server(shared: &ServerShared) {
         }
         Err(e) => {
             error!(server_id=%init_ready.server_id, %e, "error initializing server");
-            ServerState::InitError(init_ready, Arc::new(InitError::ListRules { source: e }))
+            ServerState::InitError(init_ready, Arc::new(InitError::ListDatabases { source: e }))
         }
     };
 
@@ -1886,7 +1886,7 @@ mod tests {
 
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         let err = server.wait_for_init().await.unwrap_err();
-        assert!(matches!(err.as_ref(), InitError::ListRules { .. }));
+        assert!(matches!(err.as_ref(), InitError::ListDatabases { .. }));
         assert_contains!(
             server.server_init_error().unwrap().to_string(),
             "error listing databases in object storage:"
