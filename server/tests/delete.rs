@@ -191,13 +191,8 @@ async fn delete_predicate_preservation() {
 
     // ==================== do: re-load DB ====================
     // Re-create database with same store, serverID, and DB name
-    server.shutdown();
-    server.join().await.unwrap();
-
-    drop(db);
-    drop(server);
-    let server = start_server(server_id, Arc::clone(&application)).await;
-    let db = server.db(&db_name).unwrap();
+    database.restart().await.unwrap();
+    let db = database.initialized_db().unwrap();
 
     // ==================== check: delete predicates ====================
     closure_check_delete_predicates(&db);
@@ -217,11 +212,7 @@ async fn delete_predicate_preservation() {
     let batches = run_query(Arc::clone(&db), "select * from cpu order by time").await;
     assert_batches_sorted_eq!(&expected, &batches);
 
-    server.shutdown();
-    server.join().await.unwrap();
-
-    drop(db);
-    drop(server);
+    database.restart().await.unwrap();
 
     // ==================== do: remove checkpoint files ====================
     let iox_object_store =
@@ -252,8 +243,8 @@ async fn delete_predicate_preservation() {
 
     // ==================== do: re-load DB ====================
     // Re-create database with same store, serverID, and DB name
-    let server = start_server(server_id, Arc::clone(&application)).await;
-    let db = server.db(&db_name).unwrap();
+    database.restart().await.unwrap();
+    let db = database.initialized_db().unwrap();
 
     // ==================== check: delete predicates ====================
     closure_check_delete_predicates(&db);
@@ -271,4 +262,7 @@ async fn delete_predicate_preservation() {
     ];
     let batches = run_query(Arc::clone(&db), "select * from cpu order by time").await;
     assert_batches_sorted_eq!(&expected, &batches);
+
+    server.shutdown();
+    server.join().await.unwrap();
 }

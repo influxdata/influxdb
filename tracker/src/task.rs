@@ -80,6 +80,7 @@
 //! etc... between threads as any such functionality must perform the necessary
 //! synchronisation to be well-formed.
 
+use std::fmt::Formatter;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
@@ -243,6 +244,50 @@ pub enum TaskStatus {
     },
 }
 
+impl std::fmt::Display for TaskStatus {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TaskStatus::Creating => {
+                write!(f, "TaskStatus(status=creating)")
+            }
+            TaskStatus::Running {
+                total_count,
+                pending_count,
+                cpu_nanos,
+            } => {
+                write!(
+                    f,
+                    "TaskStatus(status=running,total={},pending={},cpu={}s)",
+                    total_count,
+                    pending_count,
+                    (*cpu_nanos as f64) / 1_000_000_000_f64
+                )
+            }
+            TaskStatus::Complete {
+                total_count,
+                success_count,
+                error_count,
+                cancelled_count,
+                dropped_count,
+                cpu_nanos,
+                wall_nanos,
+            } => {
+                write!(
+                    f,
+                    "TaskStatus(status=complete,total={},success={},error={},cancelled={},dropped={},cpu={}s,wall={}s)",
+                    total_count,
+                    success_count,
+                    error_count,
+                    cancelled_count,
+                    dropped_count,
+                    (*cpu_nanos as f64) / 1_000_000_000_f64,
+                    (*wall_nanos as f64) / 1_000_000_000_f64
+                )
+            }
+        }
+    }
+}
+
 impl TaskStatus {
     /// return a human readable name for this status
     pub fn name(&self) -> &'static str {
@@ -323,6 +368,19 @@ where
             state: Arc::clone(&self.state),
             metadata: Arc::clone(&self.metadata),
         }
+    }
+}
+
+impl<T: std::fmt::Display + Send + Sync> std::fmt::Display for TaskTracker<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let status = self.state.get_status();
+        write!(
+            f,
+            "Task(start={},status={},metadata={})",
+            self.state.start_time,
+            status,
+            self.metadata.as_ref()
+        )
     }
 }
 
@@ -1037,6 +1095,33 @@ mod tests {
         let poll = std::pin::Pin::new(&mut fut).poll(&mut cx);
 
         assert_eq!(poll, Poll::Ready(()));
+    }
+
+    #[test]
+    fn display() {
+        let state = TaskStatus::Creating;
+        assert_eq!(state.to_string(), "TaskStatus(status=creating)");
+
+        let state = TaskStatus::Running {
+            total_count: 45,
+            pending_count: 3,
+            cpu_nanos: 3_365_354_646,
+        };
+        assert_eq!(
+            state.to_string(),
+            "TaskStatus(status=running,total=45,pending=3,cpu=3.365354646s)"
+        );
+
+        let state = TaskStatus::Complete {
+            total_count: 45,
+            success_count: 40,
+            error_count: 2,
+            cancelled_count: 1,
+            dropped_count: 2,
+            cpu_nanos: 33_653_354_646,
+            wall_nanos: 456_235_452,
+        };
+        assert_eq!(state.to_string(), "TaskStatus(status=complete,total=45,success=40,error=2,cancelled=1,dropped=2,cpu=33.653354646s,wall=0.456235452s)");
     }
 
     fn sorted(mut input: Vec<TaskTracker<i32>>) -> Vec<TaskTracker<i32>> {

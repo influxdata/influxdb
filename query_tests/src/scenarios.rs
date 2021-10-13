@@ -1,22 +1,31 @@
 //! This module contains testing scenarios for Db
 
 pub mod delete;
+pub mod util;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use data_types::timestamp::TimestampRange;
 use once_cell::sync::OnceCell;
 
+use predicate::delete_expr::DeleteExpr;
+use predicate::delete_predicate::DeletePredicate;
 use query::QueryChunk;
 
 use async_trait::async_trait;
 
-use delete::ThreeDeleteThreeChunks;
+use delete::{
+    OneDeleteMultiExprsOneChunk, OneDeleteSimpleExprOneChunk, OneDeleteSimpleExprOneChunkDeleteAll,
+    ThreeDeleteThreeChunks, TwoDeletesMultiExprsOneChunk,
+};
 use server::db::{LockableChunk, LockablePartition};
 use server::utils::{
     count_mutable_buffer_chunks, count_object_store_chunks, count_read_buffer_chunks, make_db,
 };
 use server::{db::test_helpers::write_lp, Db};
+
+use crate::scenarios::util::all_scenarios_for_one_chunk;
 
 /// Holds a database and a description of how its data was configured
 #[derive(Debug)]
@@ -57,6 +66,10 @@ pub fn get_all_setups() -> &'static HashMap<String, Arc<dyn DbSetup>> {
             register_setup!(OneMeasurementAllChunksDropped),
             register_setup!(ChunkOrder),
             register_setup!(ThreeDeleteThreeChunks),
+            register_setup!(OneDeleteSimpleExprOneChunkDeleteAll),
+            register_setup!(OneDeleteSimpleExprOneChunk),
+            register_setup!(OneDeleteMultiExprsOneChunk),
+            register_setup!(TwoDeletesMultiExprsOneChunk),
             register_setup!(OneMeasurementRealisticTimes),
         ]
         .into_iter()
@@ -204,7 +217,8 @@ impl DbSetup for OneMeasurementRealisticTimes {
             "cpu,region=west user=21.0 1626809430000000000",
         ];
 
-        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
+        // return all possible scenarios a chunk: MUB open, MUB frozen, RUB, RUB & OS, OS
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu", partition_key).await
     }
 }
 
@@ -256,7 +270,90 @@ impl DbSetup for TwoMeasurements {
             "disk,region=east bytes=99i 200",
         ];
 
-        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
+        // return all possible scenarios a chunk: MUB open, MUB frozen, RUB, RUB & OS, OS
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu", partition_key).await
+    }
+}
+
+/// Two measurements data in different chunk scenarios
+/// with one delete applied at different stages of the chunk
+#[derive(Debug)]
+pub struct TwoMeasurementsWithDelete {}
+#[async_trait]
+impl DbSetup for TwoMeasurementsWithDelete {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines = vec![
+            "cpu,region=west user=23.2 100",
+            "cpu,region=west user=21.0 150",
+            "disk,region=east bytes=99i 200",
+        ];
+
+        // pred: delete from cpu where 120 <= time <= 160 and region="west"
+        let table_name = "cpu";
+        let pred = DeletePredicate {
+            range: TimestampRange {
+                start: 120,
+                end: 160,
+            },
+            exprs: vec![DeleteExpr::new(
+                "region".to_string(),
+                predicate::delete_expr::Op::Eq,
+                predicate::delete_expr::Scalar::String("west".to_string()),
+            )],
+        };
+
+        // return all possible combination scenarios of a chunk stage and when the delete predicates are applied
+        all_scenarios_for_one_chunk(vec![&pred], vec![], lp_lines, table_name, partition_key).await
+    }
+}
+
+/// Two measurements data in different chunk scenarios
+/// with 2 deletes that remove all data from one table
+#[derive(Debug)]
+pub struct TwoMeasurementsWithDeleteAll {}
+#[async_trait]
+impl DbSetup for TwoMeasurementsWithDeleteAll {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines = vec![
+            "cpu,region=west user=23.2 100",
+            "cpu,region=west user=21.0 150",
+            "disk,region=east bytes=99i 200",
+        ];
+
+        // pred: delete from cpu where 120 <= time <= 160 and region="west"
+        // which will delete second row of the cpu
+        let table_name = "cpu";
+        let pred1 = DeletePredicate {
+            range: TimestampRange {
+                start: 120,
+                end: 160,
+            },
+            exprs: vec![DeleteExpr::new(
+                "region".to_string(),
+                predicate::delete_expr::Op::Eq,
+                predicate::delete_expr::Scalar::String("west".to_string()),
+            )],
+        };
+
+        // delete the first row of the cpu
+        let pred2 = DeletePredicate {
+            range: TimestampRange { start: 0, end: 110 },
+            exprs: vec![],
+        };
+
+        // return all possible combination scenarios of a chunk stage and when the delete predicates are applied
+        all_scenarios_for_one_chunk(
+            vec![&pred1],
+            vec![&pred2],
+            lp_lines,
+            table_name,
+            partition_key,
+        )
+        .await
     }
 }
 
@@ -290,7 +387,7 @@ impl DbSetup for TwoMeasurementsUnsignedType {
             "school,town=andover count=25u 160",
         ];
 
-        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "restaurant", partition_key).await
     }
 }
 
@@ -643,7 +740,7 @@ impl DbSetup for OneMeasurementManyFields {
             "h2o,tag1=foo,tag2=bar field1=70.6,field4=true 1000",
         ];
 
-        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
     }
 }
 
@@ -665,16 +762,9 @@ impl DbSetup for EndToEndTest {
             "attributes color=\"blue\" 8000",
         ];
 
-        let lp_data = lp_lines.join("\n");
-
-        let db = make_db().await.db;
-        write_lp(&db, &lp_data).await;
-
-        let scenario1 = DbScenario {
-            scenario_name: "Data in open chunk of mutable buffer".into(),
-            db,
-        };
-        vec![scenario1]
+        let partition_key = "1970-01-01T00";
+        // return all possible scenarios a chunk: MUB open, MUB frozen, RUB, RUB & OS, OS
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "cpu_load_short", partition_key).await
     }
 }
 
@@ -745,86 +835,6 @@ impl DbSetup for OneMeasurementAllChunksDropped {
             db,
         }]
     }
-}
-
-/// This function loads one chunk of lp data into different scenarios that simulates
-/// the data life cycle.
-///
-pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) -> Vec<DbScenario> {
-    // Scenario 1: One open chunk in MUB
-    let db = make_db().await.db;
-    write_lp(&db, data).await;
-    let scenario1 = DbScenario {
-        scenario_name: "Data in open chunk of mutable buffer".into(),
-        db,
-    };
-
-    // Scenario 2: One closed chunk in MUB
-    let db = make_db().await.db;
-    let table_names = write_lp(&db, data).await;
-    for table_name in &table_names {
-        db.rollover_partition(table_name, partition_key)
-            .await
-            .unwrap();
-    }
-    let scenario2 = DbScenario {
-        scenario_name: "Data in closed chunk of mutable buffer".into(),
-        db,
-    };
-
-    // Scenario 3: One closed chunk in RUB
-    let db = make_db().await.db;
-    let table_names = write_lp(&db, data).await;
-    for table_name in &table_names {
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
-    }
-    let scenario3 = DbScenario {
-        scenario_name: "Data in read buffer".into(),
-        db,
-    };
-
-    // Scenario 4: One closed chunk in both RUb and OS
-    let db = make_db().await.db;
-    let table_names = write_lp(&db, data).await;
-    for table_name in &table_names {
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
-
-        db.persist_partition(table_name, partition_key, true)
-            .await
-            .unwrap();
-    }
-    let scenario4 = DbScenario {
-        scenario_name: "Data in both read buffer and object store".into(),
-        db,
-    };
-
-    // Scenario 5: One closed chunk in OS only
-    let db = make_db().await.db;
-    let table_names = write_lp(&db, data).await;
-    for table_name in &table_names {
-        db.compact_partition(table_name, partition_key)
-            .await
-            .unwrap();
-
-        let id = db
-            .persist_partition(table_name, partition_key, true)
-            .await
-            .unwrap()
-            .unwrap()
-            .id();
-        db.unload_read_buffer(table_name, partition_key, id)
-            .unwrap();
-    }
-    let scenario5 = DbScenario {
-        scenario_name: "Data in object store only".into(),
-        db,
-    };
-
-    vec![scenario1, scenario2, scenario3, scenario4, scenario5]
 }
 
 /// This function loads two chunks of lp data into 4 different scenarios
@@ -976,7 +986,7 @@ pub async fn rollover_and_load(db: &Arc<Db>, partition_key: &str, table_name: &s
         .unwrap();
 }
 
-// This function loads one chunk of lp data into RUB for testing predicate pushdown
+// // This function loads one chunk of lp data into RUB for testing predicate pushdown
 pub(crate) async fn make_one_rub_or_parquet_chunk_scenario(
     partition_key: &str,
     data: &str,

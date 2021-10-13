@@ -2,7 +2,10 @@
 #[cfg(test)]
 use super::util::run_series_set_plan;
 
-use crate::scenarios::*;
+use crate::scenarios::{
+    util::all_scenarios_for_one_chunk, DbScenario, DbSetup, NoData, TwoMeasurements,
+    TwoMeasurementsManyFields, TwoMeasurementsWithDelete,
+};
 use async_trait::async_trait;
 use datafusion::logical_plan::{col, lit};
 use predicate::predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE};
@@ -28,7 +31,7 @@ impl DbSetup for TwoMeasurementsMultiSeries {
         lp_lines.swap(0, 2);
         lp_lines.swap(4, 5);
 
-        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
     }
 }
 
@@ -262,6 +265,19 @@ async fn test_read_filter_data_pred_refers_to_non_existent_column() {
     run_read_filter_test_case(TwoMeasurements {}, predicate, expected_results).await;
 }
 
+// BUG: https://github.com/influxdata/influxdb_iox/issues/2817
+#[ignore]
+#[tokio::test]
+async fn test_read_filter_data_pred_refers_to_non_existent_column_with_delete() {
+    let predicate = PredicateBuilder::default()
+        .add_expr(col("tag_not_in_h20").eq(lit("foo")))
+        .build();
+
+    let expected_results = vec![] as Vec<&str>;
+
+    run_read_filter_test_case(TwoMeasurementsWithDelete {}, predicate, expected_results).await;
+}
+
 #[tokio::test]
 async fn test_read_filter_data_pred_no_columns() {
     // predicate with no columns,
@@ -443,7 +459,7 @@ impl DbSetup for MeasurementsSortableTags {
             "h2o,state=MA,city=Boston temp=70.5,other=5.0 250",
         ];
 
-        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
     }
 }
 
