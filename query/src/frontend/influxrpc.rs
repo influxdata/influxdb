@@ -1491,7 +1491,7 @@ impl AggExprs {
     // provided schema. Selectors ensure that the relevant aggregate functions
     // are also provided to a distinct time column for each field column.
     //
-    // Equivalent SWL would look like:
+    // Equivalent SQL would look like:
     //
     //   agg_function(_val1) as _value1
     //   agg_function(time) as time1
