@@ -380,7 +380,7 @@ SELECT * from disk;
         // Test should have succeeded
         runner_results.expect("successful run");
 
-        // examine the output log and ensure it contains expected resouts
+        // examine the output log and ensure it contains expected results
         let runner_log = runner_to_log(runner);
         assert_contains!(&runner_log, format!("writing output to {:?}", &output_path));
         assert_contains!(
@@ -388,10 +388,7 @@ SELECT * from disk;
             format!("expected output in {:?}", &expected_path)
         );
         assert_contains!(&runner_log, "Setup: TwoMeasurements");
-        assert_contains!(
-            &runner_log,
-            "Running scenario 'Data in open chunk of mutable buffer'"
-        );
+        assert_contains!(&runner_log, "Running scenario");
     }
 
     #[tokio::test]

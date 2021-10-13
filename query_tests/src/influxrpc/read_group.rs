@@ -1,5 +1,7 @@
 //! Tests for the Influx gRPC queries
-use crate::scenarios::*;
+use crate::scenarios::{
+    make_two_chunk_scenarios, util::all_scenarios_for_one_chunk, DbScenario, DbSetup, NoData,
+};
 
 use arrow_util::display::pretty_format_batches;
 use async_trait::async_trait;
@@ -84,7 +86,7 @@ impl DbSetup for OneMeasurementNoTags {
     async fn make(&self) -> Vec<DbScenario> {
         let partition_key = "1970-01-01T00";
         let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
-        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "m0", partition_key).await
     }
 }
 
