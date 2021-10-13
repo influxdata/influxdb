@@ -7,7 +7,10 @@ import (
 	"strings"
 )
 
-const tokenScheme = "Token " // TODO(goller): I'd like this to be Bearer
+const (
+	tokenScheme  = "Token "
+	bearerScheme = "Bearer "
+)
 
 // errors
 var (
@@ -21,10 +24,16 @@ func GetToken(r *http.Request) (string, error) {
 	if header == "" {
 		return "", ErrAuthHeaderMissing
 	}
-	if !strings.HasPrefix(header, tokenScheme) {
-		return "", ErrAuthBadScheme
+
+	if len(header) >= len(tokenScheme) &&
+		strings.EqualFold(header[:len(tokenScheme)], tokenScheme) {
+		return header[len(tokenScheme):], nil
+	} else if len(header) > len(bearerScheme) &&
+		strings.EqualFold(header[:len(bearerScheme)], bearerScheme) {
+		return header[len(bearerScheme):], nil
 	}
-	return header[len(tokenScheme):], nil
+
+	return "", ErrAuthBadScheme
 }
 
 // SetToken adds the token to the request.
