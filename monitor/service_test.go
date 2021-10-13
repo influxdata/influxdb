@@ -220,7 +220,7 @@ func TestMonitor_Reporter(t *testing.T) {
 	defer s.Close()
 	defer cancel()
 
-	timer := time.NewTimer(300 * time.Millisecond)
+	timer := time.NewTimer(5 * time.Second)
 	select {
 	case points := <-ch:
 		timer.Stop()
