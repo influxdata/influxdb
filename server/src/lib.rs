@@ -1979,10 +1979,6 @@ mod tests {
         let application = make_application();
         let server_id = ServerId::try_from(1).unwrap();
 
-        let server = make_server(Arc::clone(&application));
-        server.set_id(server_id).unwrap();
-        server.wait_for_init().await.unwrap();
-
         let foo_db_name = DatabaseName::new("foo").unwrap();
 
         // create a directory in object storage that looks like it could
