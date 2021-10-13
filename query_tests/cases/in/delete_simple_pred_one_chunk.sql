@@ -22,7 +22,7 @@ SELECT count(time)  from cpu;
 SELECT count(time), count(*), count(bar), min(bar), max(bar), min(time), max(time)  from cpu;
 
 ----------------------------------------------------------------
--- Now att spection predicate
+-- Now add spection predicate
 SELECT * from cpu where bar = 2.0;
 
 SELECT * from cpu where bar != 2.0;

@@ -4,11 +4,15 @@ use super::util::run_series_set_plan;
 
 use crate::scenarios::{
     util::all_scenarios_for_one_chunk, DbScenario, DbSetup, NoData, TwoMeasurements,
-    TwoMeasurementsManyFields, TwoMeasurementsWithDelete,
+    TwoMeasurementsManyFields, TwoMeasurementsWithDelete, TwoMeasurementsWithDeleteAll,
 };
 use async_trait::async_trait;
+use data_types::timestamp::TimestampRange;
 use datafusion::logical_plan::{col, lit};
-use predicate::predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE};
+use predicate::{
+    delete_predicate::DeletePredicate,
+    predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
+};
 use query::frontend::influxrpc::InfluxRpcPlanner;
 
 #[derive(Debug)]
@@ -32,6 +36,89 @@ impl DbSetup for TwoMeasurementsMultiSeries {
         lp_lines.swap(4, 5);
 
         all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "h2o", partition_key).await
+    }
+}
+
+#[derive(Debug)]
+pub struct TwoMeasurementsMultiSeriesWithDelete {}
+#[async_trait]
+impl DbSetup for TwoMeasurementsMultiSeriesWithDelete {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let mut lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 100", // to row 2
+            "h2o,state=MA,city=Boston temp=72.4 250", // to row 1
+            "h2o,state=CA,city=LA temp=90.0 200",     // to row 0
+            "h2o,state=CA,city=LA temp=90.0 350",     // to row 3
+            "o2,state=MA,city=Boston temp=50.4,reading=50 100", // to row 5
+            "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
+        ];
+
+        // Swap around  data is not inserted in series order
+        lp_lines.swap(0, 2);
+        lp_lines.swap(4, 5);
+
+        // pred: delete from h20 where 120 <= time <= 250
+        let delete_table_name = "h2o";
+        let pred = DeletePredicate {
+            range: TimestampRange {
+                start: 120,
+                end: 250,
+            },
+            exprs: vec![],
+        };
+
+        all_scenarios_for_one_chunk(
+            vec![&pred],
+            vec![],
+            lp_lines,
+            delete_table_name,
+            partition_key,
+        )
+        .await
+    }
+}
+
+#[derive(Debug)]
+pub struct TwoMeasurementsMultiSeriesWithDeleteAll {}
+#[async_trait]
+impl DbSetup for TwoMeasurementsMultiSeriesWithDeleteAll {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let mut lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 100", // to row 2
+            "h2o,state=MA,city=Boston temp=72.4 250", // to row 1
+            "h2o,state=CA,city=LA temp=90.0 200",     // to row 0
+            "h2o,state=CA,city=LA temp=90.0 350",     // to row 3
+            "o2,state=MA,city=Boston temp=50.4,reading=50 100", // to row 5
+            "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
+        ];
+
+        // Swap around  data is not inserted in series order
+        lp_lines.swap(0, 2);
+        lp_lines.swap(4, 5);
+
+        // Delete all data form h2o
+        // pred: delete from h20 where 100 <= time <= 360
+        let delete_table_name = "h2o";
+        let pred = DeletePredicate {
+            range: TimestampRange {
+                start: 100,
+                end: 360,
+            },
+            exprs: vec![],
+        };
+
+        all_scenarios_for_one_chunk(
+            vec![&pred],
+            vec![],
+            lp_lines,
+            delete_table_name,
+            partition_key,
+        )
+        .await
     }
 }
 
@@ -137,6 +224,101 @@ async fn test_read_filter_data_no_pred() {
     ];
 
     run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
+async fn test_read_filter_data_no_pred_with_delete() {
+    let predicate = EMPTY_PREDICATE;
+    let expected_results = vec![
+        "SeriesSet",
+        "table_name: h2o",
+        "tags",
+        "  (city, Boston)",
+        "  (state, MA)",
+        "field_indexes:",
+        "  (value_index: 2, timestamp_index: 3)",
+        "start_row: 0",
+        "num_rows: 1",
+        "Batches:",
+        "+--------+-------+------+--------------------------------+",
+        "| city   | state | temp | time                           |",
+        "+--------+-------+------+--------------------------------+",
+        "| Boston | MA    | 70.4 | 1970-01-01T00:00:00.000000100Z |",
+        "| LA     | CA    | 90   | 1970-01-01T00:00:00.000000350Z |",
+        "+--------+-------+------+--------------------------------+",
+        "SeriesSet",
+        "table_name: h2o",
+        "tags",
+        "  (city, LA)",
+        "  (state, CA)",
+        "field_indexes:",
+        "  (value_index: 2, timestamp_index: 3)",
+        "start_row: 1",
+        "num_rows: 1",
+        "Batches:",
+        "+--------+-------+------+--------------------------------+",
+        "| city   | state | temp | time                           |",
+        "+--------+-------+------+--------------------------------+",
+        "| Boston | MA    | 70.4 | 1970-01-01T00:00:00.000000100Z |",
+        "| LA     | CA    | 90   | 1970-01-01T00:00:00.000000350Z |",
+        "+--------+-------+------+--------------------------------+",
+        "SeriesSet",
+        "table_name: o2",
+        "tags",
+        "  (city, Boston)",
+        "  (state, MA)",
+        "field_indexes:",
+        "  (value_index: 2, timestamp_index: 4)",
+        "  (value_index: 3, timestamp_index: 4)",
+        "start_row: 0",
+        "num_rows: 2",
+        "Batches:",
+        "+--------+-------+---------+------+--------------------------------+",
+        "| city   | state | reading | temp | time                           |",
+        "+--------+-------+---------+------+--------------------------------+",
+        "| Boston | MA    | 50      | 50.4 | 1970-01-01T00:00:00.000000100Z |",
+        "| Boston | MA    | 51      | 53.4 | 1970-01-01T00:00:00.000000250Z |",
+        "+--------+-------+---------+------+--------------------------------+",
+    ];
+
+    run_read_filter_test_case(
+        TwoMeasurementsMultiSeriesWithDelete {},
+        predicate,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_read_filter_data_no_pred_with_delete_all() {
+    let predicate = EMPTY_PREDICATE;
+    // nothing from h2o table because all rows were deleted
+    let expected_results = vec![
+        "SeriesSet",
+        "table_name: o2",
+        "tags",
+        "  (city, Boston)",
+        "  (state, MA)",
+        "field_indexes:",
+        "  (value_index: 2, timestamp_index: 4)",
+        "  (value_index: 3, timestamp_index: 4)",
+        "start_row: 0",
+        "num_rows: 2",
+        "Batches:",
+        "+--------+-------+---------+------+--------------------------------+",
+        "| city   | state | reading | temp | time                           |",
+        "+--------+-------+---------+------+--------------------------------+",
+        "| Boston | MA    | 50      | 50.4 | 1970-01-01T00:00:00.000000100Z |",
+        "| Boston | MA    | 51      | 53.4 | 1970-01-01T00:00:00.000000250Z |",
+        "+--------+-------+---------+------+--------------------------------+",
+    ];
+
+    run_read_filter_test_case(
+        TwoMeasurementsMultiSeriesWithDeleteAll {},
+        predicate,
+        expected_results,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -265,8 +447,6 @@ async fn test_read_filter_data_pred_refers_to_non_existent_column() {
     run_read_filter_test_case(TwoMeasurements {}, predicate, expected_results).await;
 }
 
-// BUG: https://github.com/influxdata/influxdb_iox/issues/2817
-#[ignore]
 #[tokio::test]
 async fn test_read_filter_data_pred_refers_to_non_existent_column_with_delete() {
     let predicate = PredicateBuilder::default()
@@ -321,6 +501,75 @@ async fn test_read_filter_data_pred_no_columns() {
 }
 
 #[tokio::test]
+async fn test_read_filter_data_pred_no_columns_with_delete() {
+    // predicate with no columns,
+    let predicate = PredicateBuilder::default()
+        .add_expr(lit("foo").eq(lit("foo")))
+        .build();
+
+    let expected_results = vec![
+        "SeriesSet",
+        "table_name: cpu",
+        "tags",
+        "  (region, west)",
+        "field_indexes:",
+        "  (value_index: 1, timestamp_index: 2)",
+        "start_row: 0",
+        "num_rows: 1",
+        "Batches:",
+        "+--------+------+--------------------------------+",
+        "| region | user | time                           |",
+        "+--------+------+--------------------------------+",
+        "| west   | 23.2 | 1970-01-01T00:00:00.000000100Z |",
+        "+--------+------+--------------------------------+",
+        "SeriesSet",
+        "table_name: disk",
+        "tags",
+        "  (region, east)",
+        "field_indexes:",
+        "  (value_index: 1, timestamp_index: 2)",
+        "start_row: 0",
+        "num_rows: 1",
+        "Batches:",
+        "+--------+-------+--------------------------------+",
+        "| region | bytes | time                           |",
+        "+--------+-------+--------------------------------+",
+        "| east   | 99    | 1970-01-01T00:00:00.000000200Z |",
+        "+--------+-------+--------------------------------+",
+    ];
+
+    run_read_filter_test_case(TwoMeasurementsWithDelete {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
+async fn test_read_filter_data_pred_no_columns_with_delete_all() {
+    // predicate with no columns,
+    let predicate = PredicateBuilder::default()
+        .add_expr(lit("foo").eq(lit("foo")))
+        .build();
+
+    // Only table disk has no deleted data
+    let expected_results = vec![
+        "SeriesSet",
+        "table_name: disk",
+        "tags",
+        "  (region, east)",
+        "field_indexes:",
+        "  (value_index: 1, timestamp_index: 2)",
+        "start_row: 0",
+        "num_rows: 1",
+        "Batches:",
+        "+--------+-------+--------------------------------+",
+        "| region | bytes | time                           |",
+        "+--------+-------+--------------------------------+",
+        "| east   | 99    | 1970-01-01T00:00:00.000000200Z |",
+        "+--------+-------+--------------------------------+",
+    ];
+
+    run_read_filter_test_case(TwoMeasurementsWithDeleteAll {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
 async fn test_read_filter_data_pred_refers_to_good_and_non_existent_columns() {
     // predicate with both a column that does and does not appear
     let predicate = PredicateBuilder::default()
@@ -330,7 +579,19 @@ async fn test_read_filter_data_pred_refers_to_good_and_non_existent_columns() {
 
     let expected_results = vec![] as Vec<&str>;
 
-    run_read_filter_test_case(TwoMeasurements {}, predicate, expected_results).await;
+    run_read_filter_test_case(
+        TwoMeasurements {},
+        predicate.clone(),
+        expected_results.clone(),
+    )
+    .await;
+    run_read_filter_test_case(
+        TwoMeasurementsWithDelete {},
+        predicate.clone(),
+        expected_results.clone(),
+    )
+    .await;
+    run_read_filter_test_case(TwoMeasurementsWithDeleteAll {}, predicate, expected_results).await;
 }
 
 #[tokio::test]
