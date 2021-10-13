@@ -1,4 +1,3 @@
-use crate::catalog::core::PreservedCatalogConfig;
 use crate::{
     chunk::{self, ChunkMetrics, ParquetChunk},
     metadata::{IoxMetadata, IoxParquetMetaData},
@@ -866,13 +865,6 @@ pub async fn make_iox_object_store() -> Arc<IoxObjectStore> {
         .await
         .unwrap(),
     )
-}
-
-/// Creates a new [`PreservedCatalogConfig`] with an in-memory object store
-pub async fn make_config() -> PreservedCatalogConfig {
-    let iox_object_store = make_iox_object_store().await;
-    let time_provider = Arc::new(time::SystemProvider::new());
-    PreservedCatalogConfig::new(iox_object_store, time_provider)
 }
 
 pub fn read_data_from_parquet_data(schema: SchemaRef, parquet_data: Vec<u8>) -> Vec<RecordBatch> {

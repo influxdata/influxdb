@@ -54,18 +54,19 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// The exclusive access can be dropped after this method returned and before calling
 /// [`delete_files`].
 pub async fn get_unreferenced_parquet_files(
-    db_name: &str,
     catalog: &PreservedCatalog,
     max_files: usize,
 ) -> Result<Vec<ParquetFilePath>> {
     let iox_object_store = catalog.iox_object_store();
     let all_known = {
         // replay catalog transactions to track ALL (even dropped) files that are referenced
-        let (_catalog, state) =
-            PreservedCatalog::load::<TracerCatalogState>(db_name, catalog.config(), ())
-                .await
-                .context(CatalogLoadError)?
-                .expect("catalog gone while reading it?");
+        let (_catalog, state) = PreservedCatalog::load::<TracerCatalogState>(
+            catalog.config(),
+            TracerCatalogState::default(),
+        )
+        .await
+        .context(CatalogLoadError)?
+        .expect("catalog gone while reading it?");
 
         state.files.into_inner()
     };
@@ -120,19 +121,12 @@ pub async fn delete_files(catalog: &PreservedCatalog, files: &[ParquetFilePath])
 }
 
 /// Catalog state that traces all used parquet files.
+#[derive(Debug, Default)]
 struct TracerCatalogState {
     files: Mutex<HashSet<ParquetFilePath>>,
 }
 
 impl CatalogState for TracerCatalogState {
-    type EmptyInput = ();
-
-    fn new_empty(_db_name: &str, _data: Self::EmptyInput) -> Self {
-        Self {
-            files: Default::default(),
-        }
-    }
-
     fn add(
         &mut self,
         _iox_object_store: Arc<IoxObjectStore>,
@@ -161,8 +155,8 @@ impl CatalogState for TracerCatalogState {
 mod tests {
     use super::*;
     use crate::{
-        catalog::test_helpers::{new_empty, DB_NAME},
-        test_utils::{chunk_addr, make_config, make_metadata, TestSize},
+        catalog::test_helpers::{make_config, new_empty},
+        test_utils::{chunk_addr, make_metadata, TestSize},
     };
     use std::{collections::HashSet, sync::Arc};
     use tokio::sync::RwLock;
@@ -171,10 +165,10 @@ mod tests {
     async fn test_cleanup_empty() {
         let config = make_config().await;
 
-        let (catalog, _state) = new_empty(config).await;
+        let catalog = new_empty(config).await;
 
         // run clean-up
-        let files = get_unreferenced_parquet_files(DB_NAME, &catalog, 1_000)
+        let files = get_unreferenced_parquet_files(&catalog, 1_000)
             .await
             .unwrap();
         delete_files(&catalog, &files).await.unwrap();
@@ -185,7 +179,7 @@ mod tests {
         let config = make_config().await;
         let iox_object_store = &config.iox_object_store;
 
-        let (catalog, _state) = new_empty(config.clone()).await;
+        let catalog = new_empty(config.clone()).await;
 
         // create some data
         let mut paths_keep = vec![];
@@ -229,7 +223,7 @@ mod tests {
         }
 
         // run clean-up
-        let files = get_unreferenced_parquet_files(DB_NAME, &catalog, 1_000)
+        let files = get_unreferenced_parquet_files(&catalog, 1_000)
             .await
             .unwrap();
         delete_files(&catalog, &files).await.unwrap();
@@ -253,7 +247,7 @@ mod tests {
         let iox_object_store = &config.iox_object_store;
         let lock: RwLock<()> = Default::default();
 
-        let (catalog, _state) = new_empty(config.clone()).await;
+        let catalog = new_empty(config.clone()).await;
 
         // try multiple times to provoke a conflict
         for i in 0..100 {
@@ -287,7 +281,7 @@ mod tests {
                 },
                 async {
                     let guard = lock.write().await;
-                    let files = get_unreferenced_parquet_files(DB_NAME, &catalog, 1_000)
+                    let files = get_unreferenced_parquet_files(&catalog, 1_000)
                         .await
                         .unwrap();
                     drop(guard);
@@ -306,7 +300,7 @@ mod tests {
         let config = make_config().await;
         let iox_object_store = &config.iox_object_store;
 
-        let (catalog, _state) = new_empty(config.clone()).await;
+        let catalog = new_empty(config.clone()).await;
 
         // create some files
         let mut to_remove = HashSet::default();
@@ -322,9 +316,7 @@ mod tests {
         }
 
         // run clean-up
-        let files = get_unreferenced_parquet_files(DB_NAME, &catalog, 2)
-            .await
-            .unwrap();
+        let files = get_unreferenced_parquet_files(&catalog, 2).await.unwrap();
         assert_eq!(files.len(), 2);
         delete_files(&catalog, &files).await.unwrap();
 
@@ -334,9 +326,7 @@ mod tests {
         assert_eq!(leftover.len(), 1);
 
         // run clean-up again
-        let files = get_unreferenced_parquet_files(DB_NAME, &catalog, 2)
-            .await
-            .unwrap();
+        let files = get_unreferenced_parquet_files(&catalog, 2).await.unwrap();
         assert_eq!(files.len(), 1);
         delete_files(&catalog, &files).await.unwrap();
 

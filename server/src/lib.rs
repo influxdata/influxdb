@@ -2207,6 +2207,7 @@ mod tests {
 
         let config = PreservedCatalogConfig::new(
             catalog_broken.iox_object_store().unwrap(),
+            db_name_catalog_broken.to_string(),
             Arc::clone(application.time_provider()),
         );
 
@@ -2292,6 +2293,7 @@ mod tests {
 
         let config = PreservedCatalogConfig::new(
             non_existing_iox_object_store,
+            db_name_non_existing.to_string(),
             Arc::clone(application.time_provider()),
         );
         new_empty(config).await;
@@ -2390,8 +2392,11 @@ mod tests {
                 .unwrap(),
         );
 
-        let config =
-            PreservedCatalogConfig::new(iox_object_store, Arc::clone(application.time_provider()));
+        let config = PreservedCatalogConfig::new(
+            iox_object_store,
+            db_name.to_string(),
+            Arc::clone(application.time_provider()),
+        );
 
         // create catalog
         new_empty(config).await;

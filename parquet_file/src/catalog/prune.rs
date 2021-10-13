@@ -125,9 +125,9 @@ mod tests {
         catalog::{
             core::PreservedCatalog,
             interface::CheckpointData,
-            test_helpers::{load_ok, new_empty},
+            test_helpers::{load_ok, make_config, new_empty},
         },
-        test_utils::{make_config, make_iox_object_store},
+        test_utils::make_iox_object_store,
     };
 
     use super::*;
@@ -166,7 +166,7 @@ mod tests {
 
         let iox_object_store = &config.iox_object_store;
 
-        let (catalog, _state) = new_empty(config.clone()).await;
+        let catalog = new_empty(config.clone()).await;
         create_transaction(&catalog).await;
         create_transaction_and_checkpoint(&catalog).await;
 
@@ -194,7 +194,7 @@ mod tests {
 
         let iox_object_store = &config.iox_object_store;
 
-        let (catalog, _state) = new_empty(config.clone()).await;
+        let catalog = new_empty(config.clone()).await;
 
         create_transaction(&catalog).await;
         create_transaction_and_checkpoint(&catalog).await;
@@ -229,7 +229,7 @@ mod tests {
         let config = make_config().await;
         let iox_object_store = &config.iox_object_store;
 
-        let (catalog, _state) = new_empty(config.clone()).await;
+        let catalog = new_empty(config.clone()).await;
         create_transaction(&catalog).await;
         create_transaction_and_checkpoint(&catalog).await;
         create_transaction(&catalog).await;
