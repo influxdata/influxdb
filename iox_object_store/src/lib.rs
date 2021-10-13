@@ -110,8 +110,36 @@ impl Generation {
 }
 
 impl IoxObjectStore {
+    /// Get the data for the server config to determine the names and locations of the databases
+    /// that this server owns.
+    // TODO: this is in the process of replacing list_possible_databases for the floating databases
+    // design
+    pub async fn get_server_config_file(inner: &ObjectStore, server_id: ServerId) -> Result<Bytes> {
+        let path = paths::server_config_path(inner, server_id);
+        let mut stream = inner.get(&path).await?;
+        let mut bytes = BytesMut::new();
+
+        while let Some(buf) = stream.next().await {
+            bytes.extend(buf?);
+        }
+
+        Ok(bytes.freeze())
+    }
+
+    /// Store the data for the server config with the names and locations of the databases
+    /// that this server owns.
+    pub async fn put_server_config_file(
+        inner: &ObjectStore,
+        server_id: ServerId,
+        bytes: Bytes,
+    ) -> Result<()> {
+        let path = paths::server_config_path(inner, server_id);
+        inner.put(&path, bytes).await
+    }
+
     /// List database names in object storage that need to be further checked for generations
     /// and whether they're marked as deleted or not.
+    // TODO: this is in the process of being deprecated in favor of get_server_config_file
     pub async fn list_possible_databases(
         inner: &ObjectStore,
         server_id: ServerId,

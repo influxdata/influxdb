@@ -13,8 +13,20 @@ use parquet_file::ParquetFilePath;
 pub mod transaction_file;
 use transaction_file::TransactionFilePath;
 
+const SERVER_CONFIG_FILE_NAME: &str = "config.pb";
+
+/// The path to the server file containing the list of databases this server owns.
+// TODO: this is in the process of replacing all_databases_path for the floating databases design
+pub(crate) fn server_config_path(object_store: &ObjectStore, server_id: ServerId) -> Path {
+    let mut path = object_store.new_path();
+    path.push_dir(server_id.to_string());
+    path.set_file_name(SERVER_CONFIG_FILE_NAME);
+    path
+}
+
 /// The path all database root paths should be in. Used for listing all databases and building
 /// database `RootPath`s in the same way. Not its own type because it's only needed ephemerally.
+// TODO: this is in the process of being deprecated in favor of server_config_path
 pub(crate) fn all_databases_path(object_store: &ObjectStore, server_id: ServerId) -> Path {
     let mut path = object_store.new_path();
     path.push_dir(server_id.to_string());
