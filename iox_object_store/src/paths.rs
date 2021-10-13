@@ -6,6 +6,7 @@ use object_store::{
     path::{ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
+use std::fmt;
 
 pub mod parquet_file;
 use parquet_file::ParquetFilePath;
@@ -33,10 +34,11 @@ pub(crate) fn all_databases_path(object_store: &ObjectStore, server_id: ServerId
     path
 }
 
-/// A database-specific object store path that all `IoxPath`s should be within.
-/// This should not be leaked outside this crate.
+/// A database-specific object store path that all `IoxObjectStore` `Path`s should be within.
+/// This can be serialized to facilitate initial loading of a database from object storage, but
+/// the path should not be parsed into its component parts as the format might change.
 #[derive(Debug, Clone)]
-pub(crate) struct RootPath {
+pub struct RootPath {
     pub(crate) inner: Path,
 }
 
@@ -60,6 +62,12 @@ impl RootPath {
 
     pub(crate) fn generation_path(&self, generation: Generation) -> GenerationPath {
         GenerationPath::new(self, generation)
+    }
+}
+
+impl fmt::Display for RootPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.inner)
     }
 }
 

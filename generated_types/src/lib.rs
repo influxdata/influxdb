@@ -152,6 +152,8 @@ pub mod database_state;
 pub mod detailed_database;
 #[cfg(feature = "data_types_conversions")]
 pub mod job;
+#[cfg(feature = "data_types_conversions")]
+pub mod server_config;
 
 use thiserror::Error;
 /// Wrapper around a `prost` error so that users of this crate do not have a direct dependency

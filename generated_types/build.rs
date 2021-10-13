@@ -43,6 +43,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("database_rules.proto"),
         management_path.join("chunk.proto"),
         management_path.join("partition.proto"),
+        management_path.join("server_config.proto"),
         management_path.join("service.proto"),
         management_path.join("shard.proto"),
         management_path.join("jobs.proto"),

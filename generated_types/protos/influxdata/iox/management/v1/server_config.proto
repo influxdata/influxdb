@@ -1,0 +1,22 @@
+syntax = "proto3";
+package influxdata.iox.management.v1;
+option go_package = "github.com/influxdata/iox/management/v1";
+
+// Stores a server's list of the databases it owns, including the database names and locations
+// in object storage.
+message ServerConfig {
+  repeated Database databases = 1;
+}
+
+message Database {
+  // The unencoded name of the database
+  //
+  // Must be a non-empty string containing no control characters
+  string name = 1;
+
+  // The location of the database's files in object storage relative to the application's
+  // object storage bucket configuration
+  //
+  // Must be a non-empty string
+  string location = 2;
+}

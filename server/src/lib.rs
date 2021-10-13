@@ -83,7 +83,7 @@ use data_types::{
 use database::{Database, DatabaseConfig};
 use entry::{lines_to_sharded_entries, pb_to_entry, Entry};
 use futures::future::{BoxFuture, Future, FutureExt, Shared, TryFutureExt};
-use generated_types::influxdata::pbdata::v1 as pb;
+use generated_types::{influxdata::iox::management, influxdata::pbdata::v1 as pb};
 use hashbrown::HashMap;
 use influxdb_line_protocol::ParsedLine;
 use internal_types::freezable::Freezable;
@@ -265,6 +265,9 @@ pub enum Error {
 
     #[snafu(display("error listing detailed databases in object storage: {}", source))]
     ListDetailedDatabases { source: object_store::Error },
+
+    #[snafu(display("error persisting server config to object storage: {}", source))]
+    PersistServerConfig { source: object_store::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -356,6 +359,9 @@ struct ServerShared {
 pub enum InitError {
     #[snafu(display("error listing databases in object storage: {}", source))]
     ListDatabases { source: object_store::Error },
+
+    #[snafu(display("error persisting initial server config to object storage: {}", source))]
+    PersistInitialServerConfig { source: object_store::Error },
 }
 
 /// The stage of the server in the startup process
@@ -473,9 +479,17 @@ impl ServerStateInitialized {
                 Ok(_) => info!(%db_name, "server observed clean shutdown of database worker"),
                 Err(e) => {
                     if e.is_panic() {
-                        error!(%db_name, %e, "panic in database worker - shutting down server");
+                        error!(
+                            %db_name,
+                            %e,
+                            "panic in database worker - shutting down server"
+                        );
                     } else {
-                        error!(%db_name, %e, "unexpected database worker shut down - shutting down server");
+                        error!(
+                            %db_name,
+                            %e,
+                            "unexpected database worker shut down - shutting down server"
+                        );
                     }
 
                     shutdown.cancel();
@@ -484,6 +498,26 @@ impl ServerStateInitialized {
         });
 
         Ok(database)
+    }
+
+    /// Serialize the list of databases this server owns with their names and object storage
+    /// locations into protobuf.
+    fn server_config(&self) -> bytes::Bytes {
+        let data = management::v1::ServerConfig {
+            databases: self
+                .databases
+                .iter()
+                .map(|(name, database)| management::v1::Database {
+                    name: name.to_string(),
+                    location: database.location(),
+                })
+                .collect(),
+        };
+
+        let mut encoded = bytes::BytesMut::new();
+        generated_types::server_config::encode_persisted_server_config(&data, &mut encoded)
+            .expect("server config serialization should be valid");
+        encoded.freeze()
     }
 }
 
@@ -698,6 +732,9 @@ where
             Arc::clone(database)
         };
 
+        // Save the database to the server config as soon as it's added to the `ServerState`
+        self.persist_server_config().await?;
+
         database.wait_for_init().await.context(DatabaseInit)?;
 
         Ok(database)
@@ -779,6 +816,25 @@ where
         )
         .await
         .context(ListDetailedDatabases)?)
+    }
+
+    /// Write this server's databases out to the server config in object storage.
+    async fn persist_server_config(&self) -> Result<()> {
+        let (server_id, bytes) = {
+            let state = self.shared.state.read();
+            let initialized = state.initialized()?;
+            (initialized.server_id, initialized.server_config())
+        };
+
+        IoxObjectStore::put_server_config_file(
+            self.shared.application.object_store(),
+            server_id,
+            bytes,
+        )
+        .await
+        .context(PersistServerConfig)?;
+
+        Ok(())
     }
 
     pub async fn write_pb(&self, database_batch: pb::DatabaseBatch) -> Result<()> {
@@ -1154,8 +1210,32 @@ async fn maybe_initialize_server(shared: &ServerShared) {
                     .expect("database unique");
             }
 
-            info!(server_id=%init_ready.server_id, "server initialized");
-            ServerState::Initialized(state)
+            let bytes = state.server_config();
+
+            let config_written = IoxObjectStore::put_server_config_file(
+                shared.application.object_store(),
+                init_ready.server_id,
+                bytes,
+            )
+            .await;
+
+            match config_written {
+                Ok(_) => {
+                    info!(server_id=%init_ready.server_id, "server initialized");
+                    ServerState::Initialized(state)
+                }
+                Err(e) => {
+                    error!(
+                        server_id=%init_ready.server_id,
+                        %e,
+                        "error persisting initial server config to object storage"
+                    );
+                    ServerState::InitError(
+                        init_ready,
+                        Arc::new(InitError::PersistInitialServerConfig { source: e }),
+                    )
+                }
+            }
         }
         Err(e) => {
             error!(server_id=%init_ready.server_id, %e, "error initializing server");
@@ -1322,12 +1402,56 @@ mod tests {
         assert!(matches!(resp, Error::IdNotSet));
     }
 
+    async fn server_config_contents(object_store: &ObjectStore, server_id: ServerId) -> Bytes {
+        IoxObjectStore::get_server_config_file(object_store, server_id)
+            .await
+            .unwrap_or_else(|_| Bytes::new())
+    }
+
+    async fn server_config(
+        object_store: &ObjectStore,
+        server_id: ServerId,
+    ) -> management::v1::ServerConfig {
+        let server_config_contents = server_config_contents(object_store, server_id).await;
+        generated_types::server_config::decode_persisted_server_config(server_config_contents)
+            .unwrap()
+    }
+
+    fn assert_config_contents(
+        config: &management::v1::ServerConfig,
+        expected: &[(&DatabaseName<'_>, String)],
+    ) {
+        assert_eq!(config.databases.len(), expected.len());
+
+        for entry in expected {
+            let (expected_name, expected_location) = entry;
+            let db = config
+                .databases
+                .iter()
+                .find(|db| db.name == expected_name.as_str())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Could not find database named {} in server config",
+                        expected_name
+                    )
+                });
+
+            assert_eq!(&db.location, expected_location);
+        }
+    }
+
     #[tokio::test]
-    async fn create_database_persists_rules() {
+    async fn create_database_persists_rules_and_server_config() {
         let application = make_application();
         let server = make_server(Arc::clone(&application));
-        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        let server_id = ServerId::try_from(1).unwrap();
+        server.set_id(server_id).unwrap();
         server.wait_for_init().await.unwrap();
+
+        // assert server config file either doesn't exist or exists but has 0 entries
+        let server_config_contents =
+            server_config_contents(application.object_store(), server_id).await;
+        assert_eq!(server_config_contents.len(), 0);
 
         let name = DatabaseName::new("bananas").unwrap();
 
@@ -1364,16 +1488,30 @@ mod tests {
         // rules that are being used are the same
         assert_eq!(provided_rules.rules(), read_rules.rules());
 
+        // assert server config file exists and has 1 entry
+        let config = server_config(application.object_store(), server_id).await;
+        assert_config_contents(&config, &[(&name, iox_object_store.root_path())]);
+
         let db2 = DatabaseName::new("db_awesome").unwrap();
         let rules2 = DatabaseRules::new(db2.clone());
         let provided_rules2 = make_provided_rules(rules2);
 
-        server
+        let awesome = server
             .create_database(provided_rules2)
             .await
             .expect("failed to create 2nd db");
 
-        let server2 = make_server(application);
+        // assert server config file exists and has 2 entries
+        let config = server_config(application.object_store(), server_id).await;
+        assert_config_contents(
+            &config,
+            &[
+                (&name, iox_object_store.root_path()),
+                (&db2, awesome.iox_object_store().unwrap().root_path()),
+            ],
+        );
+
+        let server2 = make_server(Arc::clone(&application));
         server2.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server2.wait_for_init().await.unwrap();
 
@@ -1385,6 +1523,16 @@ mod tests {
 
         assert!(server2.db(&db2).is_ok());
         assert!(server2.db(&name).is_ok());
+
+        // assert server config file still exists and has 2 entries
+        let config = server_config(application.object_store(), server_id).await;
+        assert_config_contents(
+            &config,
+            &[
+                (&name, iox_object_store.root_path()),
+                (&db2, awesome.iox_object_store().unwrap().root_path()),
+            ],
+        );
     }
 
     #[tokio::test]
@@ -1439,11 +1587,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_databases() {
+    async fn load_databases_and_transition_to_server_config() {
         let application = make_application();
 
         let server = make_server(Arc::clone(&application));
-        server.set_id(ServerId::try_from(1).unwrap()).unwrap();
+        let server_id = ServerId::try_from(1).unwrap();
+        server.set_id(server_id).unwrap();
         server.wait_for_init().await.unwrap();
         let bananas = create_simple_database(&server, "bananas")
             .await
@@ -1455,7 +1604,7 @@ mod tests {
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.wait_for_init().await.unwrap();
 
-        create_simple_database(&server, "apples")
+        let apples = create_simple_database(&server, "apples")
             .await
             .expect("failed to create database");
 
@@ -1470,17 +1619,41 @@ mod tests {
             .await
             .expect("cannot delete rules file");
 
-        let server = make_server(application);
+        // delete server config file - this is not something that's supposed to happen but is
+        // what will happen during the transition to using the server config file
+        let mut path = application.object_store().new_path();
+        path.push_dir(server_id.to_string());
+        path.set_file_name("config.pb");
+        application.object_store().delete(&path).await.unwrap();
+
+        let server = make_server(Arc::clone(&application));
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         server.wait_for_init().await.unwrap();
 
         assert_eq!(server.db_names_sorted(), vec!["apples", "bananas"]);
 
-        let bananas = DatabaseName::new("bananas").unwrap();
-        let apples = DatabaseName::new("apples").unwrap();
+        // assert server config file has been recreated and contains 2 entries, even though
+        // the databases fail to initialize
+        let config = server_config(application.object_store(), server_id).await;
+        assert_config_contents(
+            &config,
+            &[
+                (
+                    &apples.config().name,
+                    apples.iox_object_store().unwrap().root_path(),
+                ),
+                (
+                    &bananas.config().name,
+                    bananas.iox_object_store().unwrap().root_path(),
+                ),
+            ],
+        );
 
-        let apples_database = server.database(&apples).unwrap();
-        let bananas_database = server.database(&bananas).unwrap();
+        let apples_name = DatabaseName::new("apples").unwrap();
+        let bananas_name = DatabaseName::new("bananas").unwrap();
+
+        let apples_database = server.database(&apples_name).unwrap();
+        let bananas_database = server.database(&bananas_name).unwrap();
 
         apples_database.wait_for_init().await.unwrap();
         let err = bananas_database.wait_for_init().await.unwrap_err();
@@ -1986,15 +2159,16 @@ mod tests {
         // directories in it
         let mut fake_db_path = application.object_store().new_path();
         fake_db_path.push_all_dirs(&[server_id.to_string().as_str(), foo_db_name.as_str()]);
-        fake_db_path.set_file_name("not-a-generation");
+        let mut not_generation_file = fake_db_path.clone();
+        not_generation_file.set_file_name("not-a-generation");
         application
             .object_store()
-            .put(&fake_db_path, Bytes::new())
+            .put(&not_generation_file, Bytes::new())
             .await
             .unwrap();
 
         // start server
-        let server = make_server(application);
+        let server = make_server(Arc::clone(&application));
         server.set_id(server_id).unwrap();
         server.wait_for_init().await.unwrap();
 
@@ -2007,6 +2181,10 @@ mod tests {
         // DB names contains foo
         assert_eq!(server.db_names_sorted().len(), 1);
         assert!(server.db_names_sorted().contains(&String::from("foo")));
+
+        // server config contains foo
+        let config = server_config(application.object_store(), server_id).await;
+        assert_config_contents(&config, &[(&foo_db_name, fake_db_path.to_string())]);
 
         // can't delete an inactive database
         let err = server.delete_database(&foo_db_name).await;
@@ -2026,13 +2204,23 @@ mod tests {
         assert!(Arc::ptr_eq(&err, &foo_database.init_error().unwrap()));
 
         // creating a new DB with the deleted db's name works
-        create_simple_database(&server, &foo_db_name)
+        let new_foo_db = create_simple_database(&server, &foo_db_name)
             .await
             .expect("failed to create database");
 
         // DB names contains foo
         assert_eq!(server.db_names_sorted().len(), 1);
         assert!(server.db_names_sorted().contains(&String::from("foo")));
+
+        // server config contains foo
+        let config = server_config(application.object_store(), server_id).await;
+        assert_config_contents(
+            &config,
+            &[(
+                &foo_db_name,
+                new_foo_db.iox_object_store().unwrap().root_path(),
+            )],
+        );
 
         // calling delete database works
         server.delete_database(&foo_db_name).await.unwrap();
