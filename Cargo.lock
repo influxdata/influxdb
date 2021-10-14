@@ -2200,16 +2200,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "mutable_batch"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow_util",
+ "data_types",
+ "entry",
+ "hashbrown 0.11.2",
+ "schema",
+ "snafu",
+]
+
+[[package]]
 name = "mutable_buffer"
 version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow_util",
- "async-trait",
  "data_types",
  "entry",
- "hashbrown 0.11.2",
  "metric",
+ "mutable_batch",
  "observability_deps",
  "parking_lot",
  "schema",

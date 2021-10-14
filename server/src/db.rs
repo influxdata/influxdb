@@ -30,7 +30,7 @@ use data_types::{
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use entry::{Entry, SequencedEntry, TableBatch};
 use iox_object_store::IoxObjectStore;
-use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
+use mutable_buffer::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info, warn};
 use parquet_catalog::{
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
@@ -104,13 +104,13 @@ pub enum Error {
     WriteEntry {
         partition_key: String,
         chunk_id: ChunkId,
-        source: mutable_buffer::chunk::Error,
+        source: mutable_buffer::Error,
     },
 
     #[snafu(display("Cannot write entry to new open chunk {}: {}", partition_key, source))]
     WriteEntryInitial {
         partition_key: String,
-        source: mutable_buffer::chunk::Error,
+        source: mutable_buffer::Error,
     },
 
     #[snafu(display(

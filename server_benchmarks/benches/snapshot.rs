@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use entry::test_helpers::{hour_partitioner, lp_to_entries};
 use flate2::read::GzDecoder;
-use mutable_buffer::chunk::{ChunkMetrics, MBChunk};
+use mutable_buffer::{ChunkMetrics, MBChunk};
 use std::io::Read;
 
 #[inline]

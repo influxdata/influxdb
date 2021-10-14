@@ -10,7 +10,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use datafusion_util::MemoryStream;
 use internal_types::access::AccessRecorder;
 use iox_object_store::ParquetFilePath;
-use mutable_buffer::chunk::snapshot::ChunkSnapshot;
+use mutable_buffer::snapshot::ChunkSnapshot;
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use partition_metadata::TableSummary;
@@ -33,7 +33,7 @@ use time::Time;
 pub enum Error {
     #[snafu(display("Mutable Buffer Chunk Error: {}", source))]
     MutableBufferChunk {
-        source: mutable_buffer::chunk::snapshot::Error,
+        source: mutable_buffer::snapshot::Error,
     },
 
     #[snafu(display("Read Buffer Error in chunk {}: {}", chunk_id, source))]
