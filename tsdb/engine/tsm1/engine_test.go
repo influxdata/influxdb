@@ -480,6 +480,22 @@ func TestEngine_Backup(t *testing.T) {
 	if !strings.Contains(mostRecentFile, th.Name) || th.Name == "" {
 		t.Fatalf("file name doesn't match:\n\tgot: %s\n\texp: %s", th.Name, mostRecentFile)
 	}
+	storeDir := filepath.Dir(e.FileStore.Files()[0].Path())
+	dfd, err := os.Open(storeDir)
+	if err != nil {
+		t.Fatalf("cannot open filestore directory %s: %q", storeDir, err)
+	} else {
+		defer dfd.Close()
+	}
+	files, err := dfd.Readdirnames(0)
+	if err != nil {
+		t.Fatalf("cannot read directory %s: %q", storeDir, err)
+	}
+	for _, f := range files {
+		if strings.HasSuffix(f, tsm1.TmpTSMFileExtension) {
+			t.Fatalf("temporary directory for backup not cleaned up: %s", f)
+		}
+	}
 }
 
 func TestEngine_Export(t *testing.T) {
