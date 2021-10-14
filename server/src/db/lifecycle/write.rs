@@ -14,8 +14,8 @@ use ::lifecycle::LifecycleWriteGuard;
 
 use data_types::{chunk_metadata::ChunkLifecycleAction, job::Job};
 use observability_deps::tracing::{debug, warn};
+use parquet_catalog::interface::CatalogParquetInfo;
 use parquet_file::{
-    catalog::interface::CatalogParquetInfo,
     chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
     metadata::IoxMetadata,
     storage::Storage,

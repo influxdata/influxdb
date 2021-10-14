@@ -1678,6 +1678,7 @@ dependencies = [
  "panic_logging",
  "parking_lot",
  "parquet",
+ "parquet_catalog",
  "parquet_file",
  "pprof",
  "predicate",
@@ -2685,6 +2686,42 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a5bc6b23543b5dedc8f6cce50758a35e5582e148e0cfa26bd0cacd569cda5b71"
 dependencies = [
  "thrift",
+]
+
+[[package]]
+name = "parquet_catalog"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "base64 0.13.0",
+ "bytes",
+ "chrono",
+ "data_types",
+ "datafusion 0.1.0",
+ "datafusion_util",
+ "futures",
+ "generated_types",
+ "iox_object_store",
+ "metric",
+ "object_store",
+ "observability_deps",
+ "parking_lot",
+ "parquet",
+ "parquet-format",
+ "parquet_file",
+ "pbjson-types",
+ "persistence_windows",
+ "predicate",
+ "prost",
+ "schema",
+ "snafu",
+ "tempfile",
+ "thrift",
+ "time 0.1.0",
+ "tokio",
+ "tokio-stream",
+ "uuid",
+ "zstd",
 ]
 
 [[package]]
@@ -3851,6 +3888,7 @@ dependencies = [
  "observability_deps",
  "once_cell",
  "parking_lot",
+ "parquet_catalog",
  "parquet_file",
  "persistence_windows",
  "predicate",

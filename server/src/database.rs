@@ -20,7 +20,7 @@ use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
-use parquet_file::catalog::core::PreservedCatalog;
+use parquet_catalog::core::PreservedCatalog;
 use persistence_windows::checkpoint::ReplayPlan;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{future::Future, sync::Arc, time::Duration};
@@ -64,7 +64,7 @@ pub enum Error {
     ))]
     WipePreservedCatalog {
         db_name: String,
-        source: Box<parquet_file::catalog::core::Error>,
+        source: Box<parquet_catalog::core::Error>,
     },
 
     #[snafu(display("failed to skip replay for database ({}): {}", db_name, source))]

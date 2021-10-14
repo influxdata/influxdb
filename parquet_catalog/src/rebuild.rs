@@ -4,41 +4,38 @@ use std::{fmt::Debug, sync::Arc};
 use futures::TryStreamExt;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use observability_deps::tracing::error;
+use parquet_file::metadata::IoxParquetMetaData;
 use snafu::{ResultExt, Snafu};
 
-use crate::catalog::core::PreservedCatalogConfig;
 use crate::{
-    catalog::{
-        core::PreservedCatalog,
-        interface::{CatalogParquetInfo, CatalogState},
-    },
-    metadata::IoxParquetMetaData,
+    core::{PreservedCatalog, PreservedCatalogConfig},
+    interface::{CatalogParquetInfo, CatalogState},
 };
 
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Cannot create new empty catalog: {}", source))]
-    NewEmptyFailure { source: crate::catalog::core::Error },
+    NewEmptyFailure { source: crate::core::Error },
 
     #[snafu(display("Cannot read store: {}", source))]
     ReadFailure { source: object_store::Error },
 
     #[snafu(display("Cannot read IOx metadata from parquet file ({:?}): {}", path, source))]
     MetadataReadFailure {
-        source: crate::metadata::Error,
+        source: parquet_file::metadata::Error,
         path: ParquetFilePath,
     },
 
     #[snafu(display("Cannot add file to transaction: {}", source))]
     FileRecordFailure {
-        source: crate::catalog::interface::CatalogStateAddError,
+        source: crate::interface::CatalogStateAddError,
     },
 
     #[snafu(display("Cannot commit transaction: {}", source))]
-    CommitFailure { source: crate::catalog::core::Error },
+    CommitFailure { source: crate::core::Error },
 
     #[snafu(display("Cannot create checkpoint: {}", source))]
-    CheckpointFailure { source: crate::catalog::core::Error },
+    CheckpointFailure { source: crate::core::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -170,18 +167,18 @@ async fn read_parquet(
 mod tests {
     use super::*;
     use crate::{
-        catalog::{
-            core::PreservedCatalog,
-            test_helpers::{exists, make_config, new_empty, TestCatalogState},
-        },
-        metadata::IoxMetadata,
-        storage::{MemWriter, Storage},
-        test_utils::{create_partition_and_database_checkpoint, make_record_batch, TestSize},
+        core::PreservedCatalog,
+        test_helpers::{exists, make_config, new_empty, TestCatalogState},
     };
     use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
     use datafusion::physical_plan::SendableRecordBatchStream;
     use datafusion_util::MemoryStream;
     use parquet::arrow::ArrowWriter;
+    use parquet_file::{
+        metadata::IoxMetadata,
+        storage::{MemWriter, Storage},
+        test_utils::{create_partition_and_database_checkpoint, make_record_batch, TestSize},
+    };
     use time::Time;
     use tokio_stream::StreamExt;
 

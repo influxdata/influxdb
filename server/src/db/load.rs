@@ -1,19 +1,17 @@
 //! Functionality to load a [`Catalog`](crate::db::catalog::Catalog) and other information from a
-//! [`PreservedCatalog`](parquet_file::catalog::core::PreservedCatalog).
+//! [`PreservedCatalog`](parquet_catalog::core::PreservedCatalog).
 
 use super::catalog::{chunk::ChunkStage, table::TableSchemaUpsertHandle, Catalog};
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use observability_deps::tracing::{error, info};
-use parquet_file::{
-    catalog::{
-        core::{PreservedCatalog, PreservedCatalogConfig},
-        interface::{
-            CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError,
-            ChunkAddrWithoutDatabase, ChunkCreationFailed,
-        },
+use parquet_catalog::{
+    core::{PreservedCatalog, PreservedCatalogConfig},
+    interface::{
+        CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError,
+        ChunkAddrWithoutDatabase, ChunkCreationFailed,
     },
-    chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk},
 };
+use parquet_file::chunk::{ChunkMetrics as ParquetChunkMetrics, ParquetChunk};
 use persistence_windows::checkpoint::{ReplayPlan, ReplayPlanner};
 use predicate::delete_predicate::DeletePredicate;
 use snafu::{ResultExt, Snafu};
@@ -29,17 +27,17 @@ pub enum Error {
 
     #[snafu(display("Cannot create new empty preserved catalog: {}", source))]
     CannotCreateCatalog {
-        source: parquet_file::catalog::core::Error,
+        source: parquet_catalog::core::Error,
     },
 
     #[snafu(display("Cannot load preserved catalog: {}", source))]
     CannotLoadCatalog {
-        source: parquet_file::catalog::core::Error,
+        source: parquet_catalog::core::Error,
     },
 
     #[snafu(display("Cannot wipe preserved catalog: {}", source))]
     CannotWipeCatalog {
-        source: parquet_file::catalog::core::Error,
+        source: parquet_catalog::core::Error,
     },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -188,9 +186,7 @@ impl CatalogState for Loader {
         iox_object_store: Arc<IoxObjectStore>,
         info: CatalogParquetInfo,
     ) -> Result<(), CatalogStateAddError> {
-        use parquet_file::catalog::interface::{
-            MetadataExtractFailed, ReplayPlanError, SchemaError,
-        };
+        use parquet_catalog::interface::{MetadataExtractFailed, ReplayPlanError, SchemaError};
 
         // extract relevant bits from parquet file metadata
         let iox_md = info
@@ -314,7 +310,7 @@ mod tests {
     use crate::db::checkpoint_data_from_catalog;
     use data_types::{server_id::ServerId, DatabaseName};
     use object_store::ObjectStore;
-    use parquet_file::catalog::{
+    use parquet_catalog::{
         interface::CheckpointData,
         test_helpers::{assert_catalog_state_implementation, new_empty},
     };
@@ -338,8 +334,7 @@ mod tests {
         );
 
         let preserved_catalog = new_empty(config).await;
-        parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
-            .await;
+        parquet_catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog).await;
 
         load_or_create_preserved_catalog(
             &db_name,
