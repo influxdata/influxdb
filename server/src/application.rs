@@ -48,17 +48,6 @@ impl ApplicationState {
         }
     }
 
-    /// Overrides the write_buffer_factory
-    pub fn with_write_buffer_factory(
-        self,
-        write_buffer_factory: Arc<WriteBufferConfigFactory>,
-    ) -> Self {
-        Self {
-            write_buffer_factory,
-            ..self
-        }
-    }
-
     pub fn object_store(&self) -> &Arc<ObjectStore> {
         &self.object_store
     }
