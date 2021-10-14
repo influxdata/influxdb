@@ -227,7 +227,33 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID platform.I
 		return nil, err
 	}
 
-	cursor, err := idx.ForwardCursor(key, kv.WithCursorPrefix(key))
+	start := key
+	opts := []kv.CursorOption{kv.WithCursorPrefix(key)}
+	if o.Descending {
+		// To list in descending order, we have to find the last entry prefixed
+		// by the org ID. AFAICT the only way to do this given our current indexing
+		// scheme is to iterate through all entries in the org once, remembering the
+		// last-seen key.
+		start, err = func() ([]byte, error) {
+			cursor, err := idx.ForwardCursor(start, opts...)
+			if err != nil {
+				return nil, err
+			}
+			defer cursor.Close()
+
+			lastKey := start
+			for k, _ := cursor.Next(); k != nil; k, _ = cursor.Next() {
+				lastKey = k
+			}
+			return lastKey, nil
+		}()
+		if err != nil {
+			return nil, err
+		}
+		// Once we've found the end, walk backwards from it on the next iteration.
+		opts = append(opts, kv.WithCursorDirection(kv.CursorDescending))
+	}
+	cursor, err := idx.ForwardCursor(start, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -235,6 +261,7 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID platform.I
 
 	count := 0
 	bs := []*influxdb.Bucket{}
+	searchingForAfter := o.After != nil
 	for k, v := cursor.Next(); k != nil; k, v = cursor.Next() {
 		if o.Offset != 0 && count < o.Offset {
 			count++
@@ -250,6 +277,10 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID platform.I
 			return nil, &errors.Error{
 				Err: err,
 			}
+		}
+		if searchingForAfter {
+			searchingForAfter = id != *o.After
+			continue
 		}
 		b, err := s.GetBucket(ctx, tx, id)
 		if err != nil {

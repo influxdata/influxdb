@@ -221,6 +221,84 @@ func TestBucket(t *testing.T) {
 			},
 		},
 		{
+			name:  "list in org with pagination",
+			setup: simpleSetup,
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
+				allBuckets := testBuckets(10, withCrudLog)
+				orgID := secondOrgID
+				allInOrg := []*influxdb.Bucket{
+					allBuckets[9], // id 10 => 000a which is alphabetically first
+					allBuckets[1],
+					allBuckets[3],
+					allBuckets[5],
+					allBuckets[7],
+				}
+
+				buckets, err := store.ListBuckets(context.Background(), tx, tenant.BucketFilter{OrganizationID: &orgID})
+				require.NoError(t, err)
+				require.Equal(t, allInOrg, buckets)
+
+				// Test pagination using `after` and `limit`.
+				afterBuckets, err := store.ListBuckets(
+					context.Background(), tx,
+					tenant.BucketFilter{OrganizationID: &orgID},
+					influxdb.FindOptions{After: &allInOrg[1].ID, Limit: 2},
+				)
+				require.NoError(t, err)
+				assert.Equal(t, allInOrg[2:4], afterBuckets)
+
+				// Test pagination using `offset` and `limit`.
+				offsetBuckets, err := store.ListBuckets(
+					context.Background(), tx,
+					tenant.BucketFilter{OrganizationID: &orgID},
+					influxdb.FindOptions{Offset: 3, Limit: 1},
+				)
+				require.NoError(t, err)
+				assert.Equal(t, allInOrg[3:4], offsetBuckets)
+			},
+		},
+		{
+			name:  "list descending in org with pagination",
+			setup: simpleSetup,
+			results: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
+				allBuckets := testBuckets(10, withCrudLog)
+				orgID := secondOrgID
+				allInOrg := []*influxdb.Bucket{
+					allBuckets[7],
+					allBuckets[5],
+					allBuckets[3],
+					allBuckets[1],
+					allBuckets[9], // id 10 => 000a which is alphabetically first
+				}
+
+				buckets, err := store.ListBuckets(
+					context.Background(), tx,
+					tenant.BucketFilter{OrganizationID: &orgID},
+					influxdb.FindOptions{Descending: true},
+				)
+				require.NoError(t, err)
+				require.Equal(t, allInOrg, buckets)
+
+				// Test pagination using `after` and `limit`.
+				afterBuckets, err := store.ListBuckets(
+					context.Background(), tx,
+					tenant.BucketFilter{OrganizationID: &orgID},
+					influxdb.FindOptions{After: &allInOrg[1].ID, Limit: 2, Descending: true},
+				)
+				require.NoError(t, err)
+				assert.Equal(t, allInOrg[2:4], afterBuckets)
+
+				// Test pagination using `offset` and `limit`.
+				offsetBuckets, err := store.ListBuckets(
+					context.Background(), tx,
+					tenant.BucketFilter{OrganizationID: &orgID},
+					influxdb.FindOptions{Offset: 3, Limit: 1, Descending: true},
+				)
+				require.NoError(t, err)
+				assert.Equal(t, allInOrg[3:4], offsetBuckets)
+			},
+		},
+		{
 			name:  "update",
 			setup: simpleSetup,
 			update: func(t *testing.T, store *tenant.Store, tx kv.Tx) {
