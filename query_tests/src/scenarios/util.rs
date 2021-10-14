@@ -5,8 +5,10 @@ use query::{QueryChunk, QueryDatabase};
 use std::fmt::Display;
 use std::sync::Arc;
 
-use server::db::test_helpers::write_lp;
-use server::utils::make_db;
+use server::db::test_helpers::{read_buffer_table_chunk_ids, write_lp};
+use server::utils::{
+    count_mub_table_chunks, count_os_table_chunks, count_rub_table_chunks, make_db,
+};
 
 use super::DbScenario;
 
@@ -177,7 +179,7 @@ pub async fn make_chunk_with_deletes_at_different_stages(
     lp_lines: Vec<&str>,
     chunk_stage: ChunkStage,
     preds: Vec<Pred<'_>>,
-    delete_table_name: &str, // table of deleting data
+    delete_table_name: &str,
     partition_key: &str,
 ) -> DbScenario {
     let db = make_db().await.db;
@@ -189,7 +191,7 @@ pub async fn make_chunk_with_deletes_at_different_stages(
     let tables = write_lp(&db, &lp_lines.join("\n")).await;
     //let table_count = tables.len();
     for table in &tables {
-        let num_mubs = db.num_mub_table_chunks(table.as_str(), partition_key);
+        let num_mubs = count_mub_table_chunks(&db, table.as_str(), partition_key);
         // must be one MUB per table
         assert_eq!(num_mubs, 1);
     }
@@ -234,8 +236,8 @@ pub async fn make_chunk_with_deletes_at_different_stages(
 
             // Verify still one MUB and no RUB for each table
             for table in &tables {
-                let num_mubs = db.num_mub_table_chunks(table.as_str(), partition_key);
-                let num_rubs = db.num_rub_table_chunks(table.as_str(), partition_key);
+                let num_mubs = count_mub_table_chunks(&db, table.as_str(), partition_key);
+                let num_rubs = count_rub_table_chunks(&db, table.as_str(), partition_key);
                 assert_eq!(num_mubs, 1);
                 assert_eq!(num_rubs, 0);
             }
@@ -266,8 +268,8 @@ pub async fn make_chunk_with_deletes_at_different_stages(
                 let chunk_result = db.compact_partition(table, partition_key).await.unwrap();
 
                 // Verify no MUB and one RUB if not all data was soft deleted
-                let num_mubs = db.num_mub_table_chunks(table.as_str(), partition_key);
-                let num_rubs = db.num_rub_table_chunks(table.as_str(), partition_key);
+                let num_mubs = count_mub_table_chunks(&db, table.as_str(), partition_key);
+                let num_rubs = count_rub_table_chunks(&db, table.as_str(), partition_key);
                 assert_eq!(num_mubs, 0);
 
                 // Stop if compaction result is nothing which means MUB has
@@ -323,22 +325,23 @@ pub async fn make_chunk_with_deletes_at_different_stages(
                     .unwrap();
 
                 // Verify no MUB and one RUB if not all data was soft deleted
-                let num_mubs = db.num_mub_table_chunks(table.as_str(), partition_key);
-                let num_rubs = db.num_rub_table_chunks(table.as_str(), partition_key);
-                let num_os = db.num_os_table_chunks(table.as_str(), partition_key);
+                let num_mubs = count_mub_table_chunks(&db, table.as_str(), partition_key);
+                let num_rubs = count_rub_table_chunks(&db, table.as_str(), partition_key);
+                let num_os = count_os_table_chunks(&db, table.as_str(), partition_key);
                 assert_eq!(num_mubs, 0);
 
-                // Stop if persistent result is nothing which means RUB has
-                // all soft deleted data and no OS is created. No more data
-                // to affect further delete
+                // For delete table, two different things can happen
                 if table == delete_table_name {
                     match chunk_result {
+                        // Not all rows were soft deleted
                         Some(_chunk) => {
                             assert_eq!(num_rubs, 1); // still have RUB with the persisted OS
                             assert_eq!(num_os, 1);
                         }
+                        // All rows in the RUB were soft deleted. There is nothing after compacting and hence
+                        // nothing will be left and persisted.
                         None => {
-                            assert_eq!(num_rubs, 0); //  ask Raphael if we also empty RUB of all soft deleted rows at persistence
+                            assert_eq!(num_rubs, 0);
                             assert_eq!(num_os, 0);
                             no_more_data = true;
                         }
@@ -371,20 +374,20 @@ pub async fn make_chunk_with_deletes_at_different_stages(
         display.push_str(format!(", with {} deletes from RUB & OS", count).as_str());
     }
 
-    // ----------
+    // ----------------------
     // Unload RUB
     if let ChunkStage::Os = chunk_stage {
         for table in &tables {
             // retrieve its chunk_id first
-            let rub_chunk_ids = db.read_buffer_table_chunk_ids(table.as_str(), partition_key);
+            let rub_chunk_ids = read_buffer_table_chunk_ids(&db, table.as_str(), partition_key);
             assert_eq!(rub_chunk_ids.len(), 1);
             db.unload_read_buffer(table.as_str(), partition_key, rub_chunk_ids[0])
                 .unwrap();
 
             // verify chunk stages
-            let num_mubs = db.num_mub_table_chunks(table.as_str(), partition_key);
-            let num_rubs = db.num_rub_table_chunks(table.as_str(), partition_key);
-            let num_os = db.num_os_table_chunks(table.as_str(), partition_key);
+            let num_mubs = count_mub_table_chunks(&db, table.as_str(), partition_key);
+            let num_rubs = count_rub_table_chunks(&db, table.as_str(), partition_key);
+            let num_os = count_os_table_chunks(&db, table.as_str(), partition_key);
             assert_eq!(num_mubs, 0);
             assert_eq!(num_rubs, 0);
             assert_eq!(num_os, 1);
