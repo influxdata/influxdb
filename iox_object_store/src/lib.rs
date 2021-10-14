@@ -155,7 +155,7 @@ impl IoxObjectStore {
     pub async fn list_possible_databases(
         inner: &ObjectStore,
         server_id: ServerId,
-    ) -> Result<Vec<DatabaseName<'static>>> {
+    ) -> Result<Vec<(DatabaseName<'static>, String)>> {
         let path = paths::all_databases_path(inner, server_id);
 
         let list_result = inner.list_with_delimiter(&path).await?;
@@ -164,7 +164,7 @@ impl IoxObjectStore {
             .common_prefixes
             .into_iter()
             .filter_map(|prefix| {
-                let prefix_parsed: DirsAndFileName = prefix.into();
+                let prefix_parsed: DirsAndFileName = prefix.clone().into();
                 let last = prefix_parsed
                     .directories
                     .last()
@@ -173,7 +173,7 @@ impl IoxObjectStore {
                     .log_if_error("invalid database directory")
                     .ok()?;
 
-                Some(db_name)
+                Some((db_name, prefix.to_raw()))
             })
             .collect())
     }
@@ -1100,11 +1100,12 @@ mod tests {
             .await
             .unwrap();
 
-        let mut possible = IoxObjectStore::list_possible_databases(&object_store, server_id)
+        let possible = IoxObjectStore::list_possible_databases(&object_store, server_id)
             .await
             .unwrap();
-        possible.sort();
-        assert_eq!(possible, vec![db_deleted, db_normal, not_a_db]);
+        let mut names: Vec<_> = possible.into_iter().map(|d| d.0).collect();
+        names.sort();
+        assert_eq!(names, vec![db_deleted, db_normal, not_a_db]);
     }
 
     #[tokio::test]

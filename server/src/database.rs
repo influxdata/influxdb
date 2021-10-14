@@ -152,6 +152,7 @@ pub struct Database {
 /// and how to perform startup activities.
 pub struct DatabaseConfig {
     pub name: DatabaseName<'static>,
+    pub location: String,
     // TODO: this should be required when UUID is used in the database's object store path
     pub uuid: Option<Uuid>,
     pub server_id: ServerId,
@@ -194,7 +195,7 @@ impl Database {
         uuid: Uuid,
         provided_rules: &ProvidedDatabaseRules,
         server_id: ServerId,
-    ) -> Result<(), InitError> {
+    ) -> Result<String, InitError> {
         let db_name = provided_rules.db_name();
         let iox_object_store = Arc::new(
             match IoxObjectStore::new(Arc::clone(application.object_store()), server_id, db_name)
@@ -207,6 +208,8 @@ impl Database {
                 Err(source) => return Err(InitError::IoxObjectStoreError { source }),
             },
         );
+
+        let location = iox_object_store.root_path();
 
         provided_rules
             .persist(uuid, &iox_object_store)
@@ -223,7 +226,7 @@ impl Database {
         .await
         .context(CannotCreatePreservedCatalog)?;
 
-        Ok(())
+        Ok(location)
     }
 
     /// Mark this database as deleted.
@@ -1065,10 +1068,11 @@ impl DatabaseStateKnown {
         &self,
         shared: &DatabaseShared,
     ) -> Result<DatabaseStateDatabaseObjectStoreFound, InitError> {
-        let iox_object_store = IoxObjectStore::find_existing(
+        let iox_object_store = IoxObjectStore::find_at_root_path(
             Arc::clone(shared.application.object_store()),
             shared.config.server_id,
             &shared.config.name,
+            &shared.config.location,
         )
         .await
         .context(DatabaseObjectStoreLookup)?
@@ -1278,6 +1282,7 @@ mod tests {
             Arc::clone(&application),
             DatabaseConfig {
                 name: DatabaseName::new("test").unwrap(),
+                location: String::from("arbitrary"),
                 uuid: Some(Uuid::new_v4()),
                 server_id: ServerId::new(NonZeroU32::new(23).unwrap()),
                 wipe_catalog_on_error: false,
@@ -1338,12 +1343,13 @@ mod tests {
         let uuid = Uuid::new_v4();
         let provided_rules = ProvidedDatabaseRules::new_empty(db_name.clone());
 
-        Database::create(Arc::clone(&application), uuid, &provided_rules, server_id)
+        let location = Database::create(Arc::clone(&application), uuid, &provided_rules, server_id)
             .await
             .unwrap();
 
         let db_config = DatabaseConfig {
             name: db_name,
+            location,
             uuid: Some(uuid),
             server_id,
             wipe_catalog_on_error: false,
@@ -1497,7 +1503,7 @@ mod tests {
                 ..Default::default()
             }),
         };
-        Database::create(
+        let location = Database::create(
             Arc::clone(&application),
             uuid,
             &make_provided_rules(rules),
@@ -1507,6 +1513,7 @@ mod tests {
         .unwrap();
         let db_config = DatabaseConfig {
             name: db_name,
+            location,
             uuid: Some(uuid),
             server_id,
             wipe_catalog_on_error: false,
