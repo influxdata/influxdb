@@ -26,6 +26,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{future::Future, sync::Arc, time::Duration};
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
+use trace::{RingBufferTraceCollector, TraceCollector};
 use uuid::Uuid;
 
 const INIT_BACKOFF: Duration = Duration::from_secs(1);
@@ -1151,6 +1152,9 @@ impl DatabaseStateCatalogLoaded {
     ) -> Result<DatabaseStateInitialized, InitError> {
         let db = Arc::clone(&self.db);
 
+        // TODO: use proper trace collector
+        let trace_collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+
         let rules = self.provided_rules.rules();
         let write_buffer_factory = shared.application.write_buffer_factory();
         let write_buffer_consumer = match rules.write_buffer_connection.as_ref() {
@@ -1159,6 +1163,7 @@ impl DatabaseStateCatalogLoaded {
                     .new_config_read(
                         shared.config.server_id,
                         shared.config.name.as_str(),
+                        &trace_collector,
                         connection,
                     )
                     .await

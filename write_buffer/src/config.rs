@@ -9,6 +9,7 @@ use data_types::{
     server_id::ServerId,
 };
 use time::TimeProvider;
+use trace::TraceCollector;
 
 use crate::{
     core::{WriteBufferError, WriteBufferReading, WriteBufferWriting},
@@ -138,6 +139,7 @@ impl WriteBufferConfigFactory {
         &self,
         server_id: ServerId,
         db_name: &str,
+        trace_collector: &Arc<dyn TraceCollector>,
         cfg: &WriteBufferConnection,
     ) -> Result<Box<dyn WriteBufferReading>, WriteBufferError> {
         assert_eq!(cfg.direction, WriteBufferDirection::Read);
@@ -150,6 +152,7 @@ impl WriteBufferConfigFactory {
                     db_name,
                     &cfg.connection_config,
                     cfg.creation_config.as_ref(),
+                    trace_collector,
                 )
                 .await?;
                 Box::new(kafka_buffer) as _
@@ -179,6 +182,7 @@ mod tests {
     use std::{convert::TryFrom, num::NonZeroU32};
 
     use data_types::{database_rules::WriteBufferCreationConfig, DatabaseName};
+    use trace::RingBufferTraceCollector;
 
     use crate::{
         kafka::test_utils::random_kafka_topic, maybe_skip_kafka_integration,
@@ -210,6 +214,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_reading_kafka() {
+        let trace_collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+
         let conn = maybe_skip_kafka_integration!();
         let time = Arc::new(time::SystemProvider::new());
         let factory = WriteBufferConfigFactory::new(time);
@@ -225,7 +231,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_read(server_id, db_name.as_str(), &cfg)
+            .new_config_read(server_id, db_name.as_str(), &trace_collector, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "kafka");
@@ -271,6 +277,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_reading_mock() {
+        let trace_collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+
         let time = Arc::new(time::SystemProvider::new());
         let factory = WriteBufferConfigFactory::new(time);
 
@@ -289,7 +297,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_read(server_id, db_name.as_str(), &cfg)
+            .new_config_read(server_id, db_name.as_str(), &trace_collector, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "mock");
@@ -302,7 +310,7 @@ mod tests {
             ..Default::default()
         };
         let err = factory
-            .new_config_read(server_id, db_name.as_str(), &cfg)
+            .new_config_read(server_id, db_name.as_str(), &trace_collector, &cfg)
             .await
             .unwrap_err();
         assert!(err.to_string().starts_with("Unknown mock ID:"));
@@ -346,6 +354,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_reading_mock_failing() {
+        let trace_collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+
         let time = Arc::new(time::SystemProvider::new());
         let factory = WriteBufferConfigFactory::new(time);
 
@@ -363,7 +373,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_read(server_id, db_name.as_str(), &cfg)
+            .new_config_read(server_id, db_name.as_str(), &trace_collector, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "mock_failing");
@@ -376,7 +386,7 @@ mod tests {
             ..Default::default()
         };
         let err = factory
-            .new_config_read(server_id, db_name.as_str(), &cfg)
+            .new_config_read(server_id, db_name.as_str(), &trace_collector, &cfg)
             .await
             .unwrap_err();
         assert!(err.to_string().starts_with("Unknown mock ID:"));

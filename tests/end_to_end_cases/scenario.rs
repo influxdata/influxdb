@@ -727,6 +727,7 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
                 .pop()
                 .unwrap(),
             0,
+            None,
         )
         .await
         .unwrap();
@@ -736,6 +737,7 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
                 .pop()
                 .unwrap(),
             0,
+            None,
         )
         .await
         .unwrap();
@@ -745,6 +747,7 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
                 .pop()
                 .unwrap(),
             0,
+            None,
         )
         .await
         .unwrap();
@@ -771,6 +774,7 @@ pub async fn fixture_replay_broken(db_name: &str, kafka_connection: &str) -> Ser
                 .pop()
                 .unwrap(),
             0,
+            None,
         )
         .await
         .unwrap();

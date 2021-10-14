@@ -978,8 +978,9 @@ impl Db {
                 // will get picked up when data is read from the write buffer.
 
                 // TODO: be smarter than always using sequencer 0
+                // TODO: propgate span context
                 let _ = write_buffer
-                    .store_entry(&entry, 0)
+                    .store_entry(&entry, 0, None)
                     .await
                     .context(WriteBufferWritingError)?;
                 Ok(())
@@ -989,8 +990,9 @@ impl Db {
                 // buffer to return success before adding the entry to the mutable buffer.
 
                 // TODO: be smarter than always using sequencer 0
+                // TODO: propagate span context
                 let (sequence, producer_wallclock_timestamp) = write_buffer
-                    .store_entry(&entry, 0)
+                    .store_entry(&entry, 0, None)
                     .await
                     .context(WriteBufferWritingError)?;
                 let sequenced_entry = Arc::new(SequencedEntry::new_from_sequence(
