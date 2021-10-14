@@ -187,7 +187,6 @@ pub async fn make_chunk_with_deletes_at_different_stages(
     //
     // There may be more than one tables in the lp data
     let tables = write_lp(&db, &lp_lines.join("\n")).await;
-    //let table_count = tables.len();
     for table in &tables {
         let num_mubs = db.num_mub_table_chunks(table.as_str(), partition_key);
         // must be one MUB per table
