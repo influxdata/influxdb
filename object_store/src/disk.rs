@@ -30,7 +30,9 @@ pub enum Error {
     },
 
     #[snafu(display("Unable to walk dir: {}", source))]
-    UnableToWalkDir { source: walkdir::Error },
+    UnableToWalkDir {
+        source: walkdir::Error,
+    },
 
     #[snafu(display("Unable to access metadata for {}: {}", path.display(), source))]
     UnableToAccessMetadata {
@@ -39,22 +41,44 @@ pub enum Error {
     },
 
     #[snafu(display("Unable to copy data to file: {}", source))]
-    UnableToCopyDataToFile { source: io::Error },
+    UnableToCopyDataToFile {
+        source: io::Error,
+    },
 
     #[snafu(display("Unable to create dir {}: {}", path.display(), source))]
-    UnableToCreateDir { source: io::Error, path: PathBuf },
+    UnableToCreateDir {
+        source: io::Error,
+        path: PathBuf,
+    },
 
     #[snafu(display("Unable to create file {}: {}", path.display(), err))]
-    UnableToCreateFile { path: PathBuf, err: io::Error },
+    UnableToCreateFile {
+        path: PathBuf,
+        err: io::Error,
+    },
 
     #[snafu(display("Unable to delete file {}: {}", path.display(), source))]
-    UnableToDeleteFile { source: io::Error, path: PathBuf },
+    UnableToDeleteFile {
+        source: io::Error,
+        path: PathBuf,
+    },
 
     #[snafu(display("Unable to open file {}: {}", path.display(), source))]
-    UnableToOpenFile { source: io::Error, path: PathBuf },
+    UnableToOpenFile {
+        source: io::Error,
+        path: PathBuf,
+    },
 
     #[snafu(display("Unable to read data from file {}: {}", path.display(), source))]
-    UnableToReadBytes { source: io::Error, path: PathBuf },
+    UnableToReadBytes {
+        source: io::Error,
+        path: PathBuf,
+    },
+
+    NotFound {
+        location: String,
+        source: io::Error,
+    },
 }
 
 /// Local filesystem storage suitable for testing or for opting out of using a
@@ -110,9 +134,19 @@ impl ObjectStoreApi for File {
     async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>> {
         let path = self.path(location);
 
-        let file = fs::File::open(&path)
-            .await
-            .context(UnableToOpenFile { path: &path })?;
+        let file = fs::File::open(&path).await.map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                Error::NotFound {
+                    location: location.to_string(),
+                    source: e,
+                }
+            } else {
+                Error::UnableToOpenFile {
+                    path: path.clone(),
+                    source: e,
+                }
+            }
+        })?;
 
         let s = FramedRead::new(file, BytesCodec::new())
             .map_ok(|b| b.freeze())
@@ -297,14 +331,12 @@ impl File {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs::set_permissions, os::unix::prelude::PermissionsExt};
-
     use super::*;
-
     use crate::{
-        tests::{list_with_delimiter, put_get_delete_list},
-        ObjectStore, ObjectStoreApi, ObjectStorePath,
+        tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
+        Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
     };
+    use std::{fs::set_permissions, os::unix::prelude::PermissionsExt};
     use tempfile::TempDir;
 
     #[tokio::test]
@@ -394,5 +426,33 @@ mod tests {
 
         // `list_with_delimiter
         assert!(store.list_with_delimiter(&store.new_path()).await.is_err());
+    }
+
+    const NON_EXISTENT_NAME: &str = "nonexistentname";
+
+    #[tokio::test]
+    async fn get_nonexistent_location() {
+        let root = TempDir::new().unwrap();
+        let integration = ObjectStore::new_file(root.path());
+
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
+
+        let err = get_nonexistent_object(&integration, Some(location))
+            .await
+            .unwrap_err();
+        if let Some(ObjectStoreError::NotFound { location, source }) =
+            err.downcast_ref::<ObjectStoreError>()
+        {
+            let source_variant = source.downcast_ref::<std::io::Error>();
+            assert!(
+                matches!(source_variant, Some(std::io::Error { .. }),),
+                "got: {:?}",
+                source_variant
+            );
+            assert_eq!(location, NON_EXISTENT_NAME);
+        } else {
+            panic!("unexpected error type: {:?}", err);
+        }
     }
 }

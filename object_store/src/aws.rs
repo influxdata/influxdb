@@ -131,6 +131,11 @@ pub enum Error {
 
     #[snafu(display("Missing aws-secret-access-key"))]
     MissingSecretAccessKey,
+
+    NotFound {
+        location: String,
+        source: rusoto_core::RusotoError<rusoto_s3::GetObjectError>,
+    },
 }
 
 /// Configuration for connecting to [Amazon S3](https://aws.amazon.com/s3/).
@@ -208,9 +213,18 @@ impl ObjectStoreApi for AmazonS3 {
             .client
             .get_object(get_request)
             .await
-            .context(UnableToGetData {
-                bucket: self.bucket_name.to_owned(),
-                location: key.clone(),
+            .map_err(|e| match e {
+                rusoto_core::RusotoError::Service(rusoto_s3::GetObjectError::NoSuchKey(_)) => {
+                    Error::NotFound {
+                        location: key.clone(),
+                        source: e,
+                    }
+                }
+                _ => Error::UnableToGetData {
+                    bucket: self.bucket_name.to_owned(),
+                    location: key.clone(),
+                    source: e,
+                },
             })?
             .body
             .context(NoData {
@@ -729,20 +743,20 @@ mod tests {
         let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
-        if let Some(ObjectStoreError::AwsObjectStoreError {
-            source:
-                Error::UnableToGetData {
-                    source,
-                    bucket,
-                    location,
-                },
-        }) = err.downcast_ref::<ObjectStoreError>()
+        if let Some(ObjectStoreError::NotFound { location, source }) =
+            err.downcast_ref::<ObjectStoreError>()
         {
-            assert!(matches!(
-                source,
-                rusoto_core::RusotoError::Service(rusoto_s3::GetObjectError::NoSuchKey(_))
-            ));
-            assert_eq!(bucket, &config.bucket);
+            let source_variant = source.downcast_ref::<rusoto_core::RusotoError<_>>();
+            assert!(
+                matches!(
+                    source_variant,
+                    Some(rusoto_core::RusotoError::Service(
+                        rusoto_s3::GetObjectError::NoSuchKey(_)
+                    )),
+                ),
+                "got: {:?}",
+                source_variant
+            );
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type: {:?}", err);
