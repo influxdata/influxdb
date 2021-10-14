@@ -1,20 +1,20 @@
 use crate::{
-    catalog::{
-        core::{PreservedCatalog, PreservedCatalogConfig},
-        interface::{
-            CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError,
-            CheckpointData, ChunkAddrWithoutDatabase,
-        },
-        internals::{
-            proto_io::{load_transaction_proto, store_transaction_proto},
-            types::TransactionKey,
-        },
+    core::{PreservedCatalog, PreservedCatalogConfig},
+    interface::{
+        CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError,
+        CheckpointData, ChunkAddrWithoutDatabase,
     },
-    metadata::IoxParquetMetaData,
-    test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize},
+    internals::{
+        proto_io::{load_transaction_proto, store_transaction_proto},
+        types::TransactionKey,
+    },
 };
 use data_types::{chunk_metadata::ChunkId, timestamp::TimestampRange};
 use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
+use parquet_file::{
+    metadata::IoxParquetMetaData,
+    test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize},
+};
 use predicate::{
     delete_expr::{DeleteExpr, Op, Scalar},
     delete_predicate::DeletePredicate,
@@ -112,7 +112,7 @@ impl TestCatalogState {
 
     /// Inserts a file into this catalog state
     pub fn insert(&mut self, info: CatalogParquetInfo) -> Result<(), CatalogStateAddError> {
-        use crate::catalog::interface::MetadataExtractFailed;
+        use crate::interface::MetadataExtractFailed;
 
         let iox_md = info
             .metadata
@@ -219,7 +219,7 @@ pub async fn load_ok(
 }
 
 /// Load a `PreservedCatalog` and unwrap the error, expecting the operation to fail
-pub async fn load_err(config: PreservedCatalogConfig) -> crate::catalog::core::Error {
+pub async fn load_err(config: PreservedCatalogConfig) -> crate::core::Error {
     PreservedCatalog::load(config, TestCatalogState::default())
         .await
         .unwrap_err()

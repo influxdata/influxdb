@@ -1287,9 +1287,8 @@ mod tests {
         path::{parsed::DirsAndFileName, ObjectStorePath},
         ObjectStore, ObjectStoreApi,
     };
-    use parquet_file::catalog::core::PreservedCatalogConfig;
-    use parquet_file::catalog::{
-        core::PreservedCatalog,
+    use parquet_catalog::{
+        core::{PreservedCatalog, PreservedCatalogConfig},
         test_helpers::{load_ok, new_empty},
     };
     use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner, QueryDatabase};
@@ -2236,8 +2235,7 @@ mod tests {
 
         let (preserved_catalog, _catalog) = load_ok(config).await.unwrap();
 
-        parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
-            .await;
+        parquet_catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog).await;
         drop(preserved_catalog);
 
         rules_broken

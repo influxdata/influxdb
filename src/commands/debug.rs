@@ -32,7 +32,7 @@ pub enum Error {
 
     #[snafu(display("Cannot dump catalog: {}", source))]
     DumpCatalogFailure {
-        source: parquet_file::catalog::dump::Error,
+        source: parquet_catalog::dump::Error,
     },
 }
 
@@ -103,7 +103,7 @@ struct DumpOptions {
     show_unparsed_metadata: bool,
 }
 
-impl From<DumpOptions> for parquet_file::catalog::dump::DumpOptions {
+impl From<DumpOptions> for parquet_catalog::dump::DumpOptions {
     fn from(options: DumpOptions) -> Self {
         Self {
             show_parquet_metadata: options.show_parquet_metadata,
@@ -134,7 +134,7 @@ pub async fn command(config: Config) -> Result<()> {
 
             let mut writer = std::io::stdout();
             let options = dump_catalog.dump_options.into();
-            parquet_file::catalog::dump::dump(&iox_object_store, &mut writer, options)
+            parquet_catalog::dump::dump(&iox_object_store, &mut writer, options)
                 .await
                 .context(DumpCatalogFailure)?;
         }

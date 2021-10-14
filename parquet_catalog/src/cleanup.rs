@@ -9,7 +9,7 @@ use parking_lot::Mutex;
 use predicate::delete_predicate::DeletePredicate;
 use snafu::{ResultExt, Snafu};
 
-use crate::catalog::{
+use crate::{
     core::PreservedCatalog,
     interface::{
         CatalogParquetInfo, CatalogState, CatalogStateAddError, CatalogStateRemoveError,
@@ -30,7 +30,7 @@ pub enum Error {
     },
 
     #[snafu(display("Error from catalog loading while cleaning object store: {}", source))]
-    CatalogLoadError { source: crate::catalog::core::Error },
+    CatalogLoadError { source: crate::core::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -154,10 +154,8 @@ impl CatalogState for TracerCatalogState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        catalog::test_helpers::{make_config, new_empty},
-        test_utils::{chunk_addr, make_metadata, TestSize},
-    };
+    use crate::test_helpers::{make_config, new_empty};
+    use parquet_file::test_utils::{chunk_addr, make_metadata, TestSize};
     use std::{collections::HashSet, sync::Arc};
     use tokio::sync::RwLock;
 

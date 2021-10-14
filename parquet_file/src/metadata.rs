@@ -119,8 +119,8 @@ use time::Time;
 ///
 /// For breaking changes, this will change.
 ///
-/// **Important: When changing this structure, consider bumping the
-///   [catalog transaction version](crate::catalog::core::TRANSACTION_VERSION)!**
+/// **Important: When changing this structure, consider bumping the catalog transaction version (`TRANSACTION_VERSION`
+///              in the `parquet_catalog` crate)!**
 pub const METADATA_VERSION: u32 = 10;
 
 /// File-level metadata key to store the IOx-specific data.

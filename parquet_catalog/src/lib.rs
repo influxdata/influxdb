@@ -8,7 +8,14 @@
     clippy::clone_on_ref_ptr
 )]
 
-pub mod chunk;
-pub mod metadata;
-pub mod storage;
-pub mod test_utils;
+pub mod cleanup;
+pub mod core;
+pub mod dump;
+pub mod interface;
+mod internals;
+pub mod prune;
+pub mod rebuild;
+pub mod test_helpers;
+
+pub use crate::internals::proto_io::Error as ProtoIOError;
+pub use crate::internals::proto_parse::Error as ProtoParseError;

@@ -1,16 +1,5 @@
 //! Catalog preservation and transaction handling.
 
-use crate::{
-    catalog::{
-        interface::{CatalogParquetInfo, CatalogState, CheckpointData, ChunkAddrWithoutDatabase},
-        internals::{
-            proto_io::{load_transaction_proto, store_transaction_proto},
-            proto_parse,
-            types::{FileType, TransactionKey},
-        },
-    },
-    metadata::IoxParquetMetaData,
-};
 use bytes::Bytes;
 use futures::{StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::catalog::v1 as proto;
@@ -18,6 +7,7 @@ use iox_object_store::{IoxObjectStore, ParquetFilePath, TransactionFilePath};
 use object_store::{ObjectStore, ObjectStoreApi};
 use observability_deps::tracing::{info, warn};
 use parking_lot::RwLock;
+use parquet_file::metadata::IoxParquetMetaData;
 use predicate::delete_predicate::DeletePredicate;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
@@ -33,8 +23,15 @@ use time::{Time, TimeProvider};
 use tokio::sync::{Semaphore, SemaphorePermit};
 use uuid::Uuid;
 
-pub use crate::catalog::internals::proto_io::Error as ProtoIOError;
-pub use crate::catalog::internals::proto_parse::Error as ProtoParseError;
+use crate::{
+    interface::{CatalogParquetInfo, CatalogState, CheckpointData, ChunkAddrWithoutDatabase},
+    internals::{
+        proto_io::{load_transaction_proto, store_transaction_proto},
+        proto_parse,
+        types::{FileType, TransactionKey},
+    },
+    ProtoIOError, ProtoParseError,
+};
 
 /// Current version for serialized transactions.
 ///
@@ -119,7 +116,9 @@ pub enum Error {
     UnsupportedUpgrade { format: String },
 
     #[snafu(display("Cannot decode parquet metadata: {}", source))]
-    MetadataDecodingFailed { source: crate::metadata::Error },
+    MetadataDecodingFailed {
+        source: parquet_file::metadata::Error,
+    },
 
     #[snafu(display("Catalog already exists"))]
     AlreadyExists {},
@@ -139,12 +138,12 @@ pub enum Error {
 
     #[snafu(display("Cannot add parquet file during load: {}", source))]
     AddError {
-        source: crate::catalog::interface::CatalogStateAddError,
+        source: crate::interface::CatalogStateAddError,
     },
 
     #[snafu(display("Cannot remove parquet file during load: {}", source))]
     RemoveError {
-        source: crate::catalog::interface::CatalogStateRemoveError,
+        source: crate::interface::CatalogStateRemoveError,
     },
 
     #[snafu(display("Delete predicate missing"))]
@@ -286,7 +285,7 @@ impl PreservedCatalog {
                         }
                         Err(e) => warn!(%e, ?transaction_file_path, "Cannot parse timestamp"),
                     },
-                    Err(e @ crate::catalog::internals::proto_io::Error::Read { .. }) => {
+                    Err(e @ crate::internals::proto_io::Error::Read { .. }) => {
                         // bubble up IO error
                         return Err(Error::ProtobufIOError { source: e });
                     }
@@ -1066,13 +1065,13 @@ mod tests {
     use std::vec;
 
     use bytes::Bytes;
+    use parquet_file::test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize};
 
     use super::*;
-    use crate::catalog::test_helpers::{
+    use crate::test_helpers::{
         break_catalog_with_weird_version, create_delete_predicate, exists, load_err, load_ok,
         make_config, new_empty, TestCatalogState,
     };
-    use crate::test_utils::{chunk_addr, make_iox_object_store, make_metadata, TestSize};
 
     #[tokio::test]
     async fn test_create_empty() {
