@@ -1,5 +1,5 @@
 use crate::{
-    db::{load::load_or_create_preserved_catalog, DatabaseToCommit, Db},
+    db::{catalog::TableNameFilter, load::load_or_create_preserved_catalog, DatabaseToCommit, Db},
     JobRegistry,
 };
 use data_types::{
@@ -13,7 +13,10 @@ use object_store::ObjectStore;
 use persistence_windows::checkpoint::ReplayPlan;
 use query::exec::ExecutorConfig;
 use query::{exec::Executor, QueryDatabase};
-use std::{borrow::Cow, convert::TryFrom, num::NonZeroU32, sync::Arc, time::Duration};
+use std::{
+    borrow::Cow, collections::BTreeSet, convert::TryFrom, num::NonZeroU32, sync::Arc,
+    time::Duration,
+};
 use time::{Time, TimeProvider};
 use write_buffer::core::WriteBufferWriting;
 
@@ -224,6 +227,26 @@ pub fn count_mutable_buffer_chunks(db: &Db) -> usize {
         .count()
 }
 
+/// return number of MUB chunks of a given table of a partition
+pub fn count_mub_table_chunks(db: &Db, table_name: &str, partition_key: &str) -> usize {
+    let mut table_names = BTreeSet::new();
+    table_names.insert(table_name.to_string());
+    count_mub_tables_chunks(
+        db,
+        TableNameFilter::NamedTables(&table_names),
+        partition_key,
+    )
+}
+pub fn count_mub_tables_chunks(db: &Db, tables: TableNameFilter<'_>, partition_key: &str) -> usize {
+    db.partition_tables_chunk_summaries(tables, partition_key)
+        .into_iter()
+        .filter_map(|chunk| match chunk.storage {
+            ChunkStorage::OpenMutableBuffer | ChunkStorage::ClosedMutableBuffer => Some(1),
+            _ => None,
+        })
+        .count()
+}
+
 /// Returns the number of read buffer chunks in the specified database
 pub fn count_read_buffer_chunks(db: &Db) -> usize {
     chunk_summary_iter(db)
@@ -234,12 +257,52 @@ pub fn count_read_buffer_chunks(db: &Db) -> usize {
         .count()
 }
 
+/// return number of RUB chunks of a given table of a partition
+pub fn count_rub_table_chunks(db: &Db, table_name: &str, partition_key: &str) -> usize {
+    let mut table_names = BTreeSet::new();
+    table_names.insert(table_name.to_string());
+    count_rub_tables_chunks(
+        db,
+        TableNameFilter::NamedTables(&table_names),
+        partition_key,
+    )
+}
+pub fn count_rub_tables_chunks(db: &Db, tables: TableNameFilter<'_>, partition_key: &str) -> usize {
+    db.partition_tables_chunk_summaries(tables, partition_key)
+        .into_iter()
+        .filter_map(|chunk| match chunk.storage {
+            ChunkStorage::ReadBuffer | ChunkStorage::ReadBufferAndObjectStore => Some(1),
+            _ => None,
+        })
+        .count()
+}
+
 /// Returns the number of object store chunks in the specified database
 pub fn count_object_store_chunks(db: &Db) -> usize {
     chunk_summary_iter(db)
         .filter(|s| {
             s.storage == ChunkStorage::ReadBufferAndObjectStore
                 || s.storage == ChunkStorage::ObjectStoreOnly
+        })
+        .count()
+}
+
+/// return number of OS chunks of a given table of a partition
+pub fn count_os_table_chunks(db: &Db, table_name: &str, partition_key: &str) -> usize {
+    let mut table_names = BTreeSet::new();
+    table_names.insert(table_name.to_string());
+    count_os_tables_chunks(
+        db,
+        TableNameFilter::NamedTables(&table_names),
+        partition_key,
+    )
+}
+pub fn count_os_tables_chunks(db: &Db, tables: TableNameFilter<'_>, partition_key: &str) -> usize {
+    db.partition_tables_chunk_summaries(tables, partition_key)
+        .into_iter()
+        .filter_map(|chunk| match chunk.storage {
+            ChunkStorage::ObjectStoreOnly | ChunkStorage::ReadBufferAndObjectStore => Some(1),
+            _ => None,
         })
         .count()
 }
