@@ -14,42 +14,26 @@ use data_types::{
     DatabaseName,
 };
 use iox_object_store::IoxObjectStore;
-use object_store::ObjectStore;
 use predicate::{delete_expr::DeleteExpr, delete_predicate::DeletePredicate};
 use query::{QueryChunk, QueryChunkMeta, QueryDatabase};
 use server::{
-    connection::test_helpers::TestConnectionManager,
     db::test_helpers::{run_query, write_lp},
     rules::ProvidedDatabaseRules,
-    ApplicationState, Db, Server,
+    test_utils::{make_application, make_initialized_server},
+    Db,
 };
 use test_helpers::maybe_start_logging;
-
-async fn start_server(
-    server_id: ServerId,
-    application: Arc<ApplicationState>,
-) -> Arc<Server<TestConnectionManager>> {
-    let server = Arc::new(Server::new(
-        TestConnectionManager::new(),
-        application,
-        Default::default(),
-    ));
-    server.set_id(server_id).unwrap();
-    server.wait_for_init().await.unwrap();
-    server
-}
 
 #[tokio::test]
 async fn delete_predicate_preservation() {
     maybe_start_logging();
 
     // ==================== setup ====================
-    let object_store = Arc::new(ObjectStore::new_in_memory());
     let server_id = ServerId::new(NonZeroU32::new(1).unwrap());
     let db_name = DatabaseName::new("delete_predicate_preservation_test").unwrap();
 
-    let application = Arc::new(ApplicationState::new(Arc::clone(&object_store), None));
-    let server = start_server(server_id, Arc::clone(&application)).await;
+    let application = make_application();
+    let server = make_initialized_server(server_id, Arc::clone(&application)).await;
 
     // Test that delete predicates are stored within the preserved catalog
 

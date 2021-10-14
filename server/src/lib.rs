@@ -1225,9 +1225,48 @@ where
     }
 }
 
+pub mod test_utils {
+    use super::*;
+    use crate::connection::test_helpers::TestConnectionManager;
+    use object_store::ObjectStore;
+
+    /// Create a new [`ApplicationState`] with an in-memory object store
+    pub fn make_application() -> Arc<ApplicationState> {
+        Arc::new(ApplicationState::new(
+            Arc::new(ObjectStore::new_in_memory()),
+            None,
+        ))
+    }
+
+    /// Creates a new server with the provided [`ApplicationState`]
+    pub fn make_server(application: Arc<ApplicationState>) -> Arc<Server<TestConnectionManager>> {
+        Arc::new(Server::new(
+            TestConnectionManager::new(),
+            application,
+            Default::default(),
+        ))
+    }
+
+    /// Creates a new server with the provided [`ApplicationState`]
+    ///
+    /// Sets the `server_id` provided and waits for it to initialize
+    pub async fn make_initialized_server(
+        server_id: ServerId,
+        application: Arc<ApplicationState>,
+    ) -> Arc<Server<TestConnectionManager>> {
+        let server = make_server(application);
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+        server
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        test_utils::{make_application, make_server},
+        *,
+    };
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
     use bytes::Bytes;
@@ -1265,21 +1304,6 @@ mod tests {
     use test_helpers::assert_contains;
 
     const ARBITRARY_DEFAULT_TIME: i64 = 456;
-
-    fn make_application() -> Arc<ApplicationState> {
-        Arc::new(ApplicationState::new(
-            Arc::new(ObjectStore::new_in_memory()),
-            None,
-        ))
-    }
-
-    fn make_server(application: Arc<ApplicationState>) -> Arc<Server<TestConnectionManager>> {
-        Arc::new(Server::new(
-            TestConnectionManager::new(),
-            application,
-            Default::default(),
-        ))
-    }
 
     #[tokio::test]
     async fn server_api_calls_return_error_with_no_id_set() {
