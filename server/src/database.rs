@@ -1151,9 +1151,6 @@ impl DatabaseStateCatalogLoaded {
     ) -> Result<DatabaseStateInitialized, InitError> {
         let db = Arc::clone(&self.db);
 
-        // TODO: Pull write buffer and lifecycle out of Db
-        db.unsuppress_persistence();
-
         let rules = self.provided_rules.rules();
         let write_buffer_factory = shared.application.write_buffer_factory();
         let write_buffer_consumer = match rules.write_buffer_connection.as_ref() {
@@ -1179,6 +1176,9 @@ impl DatabaseStateCatalogLoaded {
             }
             _ => None,
         };
+
+        // TODO: Pull write buffer and lifecycle out of Db
+        db.unsuppress_persistence();
 
         Ok(DatabaseStateInitialized {
             db,
