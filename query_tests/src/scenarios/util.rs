@@ -108,17 +108,18 @@ impl DeleteTime {
 
 // --------------------------------------------------------------------------------------------
 
-/// All scenarios chunk stages and their life cycle moves for given set of delete predicates
-/// If the delete predicates are empty, all scenarios of different chunk stages will return
+/// All scenarios chunk stages and their life cycle moves for given set of delete predicates.
+/// If the delete predicates are empty, all scenarios of different chunk stages will be returned.
 pub async fn all_scenarios_for_one_chunk(
     // These delete predicates are applied at all stages of the chunk life cycle
     chunk_stage_preds: Vec<&DeletePredicate>,
     // These delete predicates are applied to all chunks at their final stages
     at_end_preds: Vec<&DeletePredicate>,
-    // Single chunk data
+    // Input data, formatted as line protocol.  One chunk will be created for each measurement
+    // (table) that appears in the input
     lp_lines: Vec<&str>,
-    // Table of the chunk
-    table_name: &str,
+    // Table to which the delete predicates will be applied
+    delete_table_name: &str,
     // Partition of the chunk
     partition_key: &str,
 ) -> Vec<DbScenario> {
@@ -161,7 +162,7 @@ pub async fn all_scenarios_for_one_chunk(
                     lp_lines.clone(),
                     chunk_stage.clone(),
                     preds,
-                    table_name,
+                    delete_table_name,
                     partition_key,
                 )
                 .await,
