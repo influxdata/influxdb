@@ -1,3 +1,4 @@
+use parking_lot::RwLock;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     sync::Arc,
@@ -34,7 +35,7 @@ enum Mock {
 /// from [`WriteBufferConnection`].
 #[derive(Debug)]
 pub struct WriteBufferConfigFactory {
-    mocks: BTreeMap<String, Mock>,
+    mocks: RwLock<BTreeMap<String, Mock>>,
     time_provider: Arc<dyn TimeProvider>,
 }
 
@@ -51,7 +52,7 @@ impl WriteBufferConfigFactory {
     ///
     /// # Panics
     /// When mock with identical name is already registered.
-    pub fn register_mock(&mut self, name: String, state: MockBufferSharedState) {
+    pub fn register_mock(&self, name: String, state: MockBufferSharedState) {
         self.set_mock(name, Mock::Normal(state));
     }
 
@@ -59,12 +60,13 @@ impl WriteBufferConfigFactory {
     ///
     /// # Panics
     /// When mock with identical name is already registered.
-    pub fn register_always_fail_mock(&mut self, name: String) {
+    pub fn register_always_fail_mock(&self, name: String) {
         self.set_mock(name, Mock::AlwaysFailing);
     }
 
-    fn set_mock(&mut self, name: String, mock: Mock) {
-        match self.mocks.entry(name) {
+    fn set_mock(&self, name: String, mock: Mock) {
+        let mut mocks = self.mocks.write();
+        match mocks.entry(name) {
             Entry::Vacant(v) => {
                 v.insert(mock);
             }
@@ -76,6 +78,7 @@ impl WriteBufferConfigFactory {
 
     fn get_mock(&self, name: &str) -> Result<Mock, WriteBufferError> {
         self.mocks
+            .read()
             .get(name)
             .cloned()
             .ok_or_else::<WriteBufferError, _>(|| format!("Unknown mock ID: {}", name).into())
@@ -231,7 +234,7 @@ mod tests {
     #[tokio::test]
     async fn test_writing_mock() {
         let time = Arc::new(time::SystemProvider::new());
-        let mut factory = WriteBufferConfigFactory::new(time);
+        let factory = WriteBufferConfigFactory::new(time);
 
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
@@ -269,7 +272,7 @@ mod tests {
     #[tokio::test]
     async fn test_reading_mock() {
         let time = Arc::new(time::SystemProvider::new());
-        let mut factory = WriteBufferConfigFactory::new(time);
+        let factory = WriteBufferConfigFactory::new(time);
 
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
@@ -308,7 +311,7 @@ mod tests {
     #[tokio::test]
     async fn test_writing_mock_failing() {
         let time = Arc::new(time::SystemProvider::new());
-        let mut factory = WriteBufferConfigFactory::new(time);
+        let factory = WriteBufferConfigFactory::new(time);
 
         let mock_name = "some_mock";
         factory.register_always_fail_mock(mock_name.to_string());
@@ -344,7 +347,7 @@ mod tests {
     #[tokio::test]
     async fn test_reading_mock_failing() {
         let time = Arc::new(time::SystemProvider::new());
-        let mut factory = WriteBufferConfigFactory::new(time);
+        let factory = WriteBufferConfigFactory::new(time);
 
         let mock_name = "some_mock";
         factory.register_always_fail_mock(mock_name.to_string());
@@ -383,7 +386,7 @@ mod tests {
     #[should_panic(expected = "Mock with the name 'some_mock' already registered")]
     fn test_register_mock_twice_panics() {
         let time = Arc::new(time::SystemProvider::new());
-        let mut factory = WriteBufferConfigFactory::new(time);
+        let factory = WriteBufferConfigFactory::new(time);
 
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());

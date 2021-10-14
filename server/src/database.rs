@@ -1221,7 +1221,7 @@ mod tests {
     };
     use time::Time;
     use uuid::Uuid;
-    use write_buffer::{config::WriteBufferConfigFactory, mock::MockBufferSharedState};
+    use write_buffer::mock::MockBufferSharedState;
 
     #[tokio::test]
     async fn database_shutdown_waits_for_jobs() {
@@ -1424,12 +1424,13 @@ mod tests {
         ));
 
         // setup application
-        let application = ApplicationState::new(Arc::new(ObjectStore::new_in_memory()), None);
-
-        let mut factory = WriteBufferConfigFactory::new(Arc::clone(application.time_provider()));
-        factory.register_mock("my_mock".to_string(), state.clone());
-
-        let application = Arc::new(application.with_write_buffer_factory(Arc::new(factory)));
+        let application = Arc::new(ApplicationState::new(
+            Arc::new(ObjectStore::new_in_memory()),
+            None,
+        ));
+        application
+            .write_buffer_factory()
+            .register_mock("my_mock".to_string(), state.clone());
 
         let server_id = ServerId::try_from(1).unwrap();
 

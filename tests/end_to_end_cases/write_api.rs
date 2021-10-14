@@ -113,7 +113,7 @@ async fn test_write_entry() {
         lines_to_sharded_entries(&lines, default_time, sharder(1).as_ref(), &partitioner(1))
             .unwrap();
 
-    let entry: Vec<u8> = sharded_entries.into_iter().next().unwrap().entry.into();
+    let entry = sharded_entries.into_iter().next().unwrap().entry;
 
     write_client.write_entry(&db_name, entry).await.unwrap();
 
