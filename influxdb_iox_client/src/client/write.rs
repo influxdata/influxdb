@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use thiserror::Error;
 
 use generated_types::influxdata::iox::write::v1 as write;
@@ -88,7 +89,7 @@ impl Client {
     pub async fn write_entry(
         &mut self,
         db_name: impl Into<String> + Send,
-        entry: impl Into<Vec<u8>> + Send,
+        entry: impl Into<Bytes> + Send,
     ) -> Result<(), WriteError> {
         let db_name = db_name.into();
         let entry = entry.into();

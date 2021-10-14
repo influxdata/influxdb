@@ -1,6 +1,7 @@
 //! This module contains helper code for building `Entry` from line protocol and the
 //! `DatabaseRules` configuration.
 
+use bytes::Bytes;
 use std::{collections::BTreeMap, convert::TryFrom, fmt::Formatter};
 
 use chrono::{DateTime, TimeZone, Utc};
@@ -737,7 +738,7 @@ pub struct ShardedEntry {
 /// iterating through the partitioned writes.
 #[self_referencing]
 pub struct Entry {
-    data: Vec<u8>,
+    data: Bytes,
     #[borrows(data)]
     #[covariant]
     fb: entry_fb::Entry<'this>,
@@ -798,6 +799,14 @@ impl TryFrom<Vec<u8>> for Entry {
     type Error = flatbuffers::InvalidFlatbuffer;
 
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::try_from(Bytes::from(data))
+    }
+}
+
+impl TryFrom<Bytes> for Entry {
+    type Error = flatbuffers::InvalidFlatbuffer;
+
+    fn try_from(data: Bytes) -> Result<Self, Self::Error> {
         EntryTryBuilder {
             data,
             fb_builder: |data| flatbuffers::root::<entry_fb::Entry<'_>>(data),
@@ -806,7 +815,7 @@ impl TryFrom<Vec<u8>> for Entry {
     }
 }
 
-impl From<Entry> for Vec<u8> {
+impl From<Entry> for Bytes {
     fn from(entry: Entry) -> Self {
         entry.into_heads().data
     }
@@ -814,8 +823,8 @@ impl From<Entry> for Vec<u8> {
 
 impl Clone for Entry {
     fn clone(&self) -> Self {
-        Self::try_from(self.data().to_vec())
-            .expect("flatbuffer was valid, should not be broken now")
+        let bytes: &Bytes = self.borrow_data();
+        Self::try_from(bytes.clone()).expect("flatbuffer was valid, should not be broken now")
     }
 }
 
