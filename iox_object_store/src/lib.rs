@@ -114,8 +114,6 @@ impl Generation {
 impl IoxObjectStore {
     /// Get the data for the server config to determine the names and locations of the databases
     /// that this server owns.
-    // TODO: this is in the process of replacing list_possible_databases for the floating databases
-    // design
     pub async fn get_server_config_file(inner: &ObjectStore, server_id: ServerId) -> Result<Bytes> {
         let path = paths::server_config_path(inner, server_id);
         let mut stream = inner.get(&path).await?;
@@ -208,8 +206,7 @@ impl IoxObjectStore {
 
     /// List database names in object storage along with all existing generations for each database
     /// and whether the generations are marked as deleted or not. Useful for finding candidates
-    /// to restore or to permanently delete. Makes many more calls to object storage than
-    /// [`IoxObjectStore::list_possible_databases`].
+    /// to restore or to permanently delete. Makes many calls to object storage.
     async fn list_all_databases(
         inner: &ObjectStore,
         server_id: ServerId,
@@ -1115,50 +1112,6 @@ mod tests {
 
     async fn delete_database(iox_object_store: &IoxObjectStore) {
         iox_object_store.write_tombstone().await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn list_possible_databases_returns_all_potential_databases() {
-        let object_store = make_object_store();
-        let server_id = make_server_id();
-
-        // Create a normal database, will be in the list
-        let db_normal = DatabaseName::new("db_normal").unwrap();
-        create_database(Arc::clone(&object_store), server_id, &db_normal).await;
-
-        // Create a database, then delete it - will still be in the list
-        let db_deleted = DatabaseName::new("db_deleted").unwrap();
-        let db_deleted_iox_store =
-            create_database(Arc::clone(&object_store), server_id, &db_deleted).await;
-        delete_database(&db_deleted_iox_store).await;
-
-        // Put a file in a directory that looks like a database directory but has no rules,
-        // will still be in the list
-        let not_a_db = DatabaseName::new("not_a_db").unwrap();
-        let mut not_rules_path = object_store.new_path();
-        not_rules_path.push_all_dirs(&[&server_id.to_string(), not_a_db.as_str(), "0"]);
-        not_rules_path.set_file_name("not_rules.txt");
-        object_store
-            .put(&not_rules_path, Bytes::new())
-            .await
-            .unwrap();
-
-        // Put a file in a directory that's an invalid database name - this WON'T be in the list
-        let invalid_db_name = ("a".repeat(65)).to_string();
-        let mut invalid_db_name_rules_path = object_store.new_path();
-        invalid_db_name_rules_path.push_all_dirs(&[&server_id.to_string(), &invalid_db_name, "0"]);
-        invalid_db_name_rules_path.set_file_name("rules.pb");
-        object_store
-            .put(&invalid_db_name_rules_path, Bytes::new())
-            .await
-            .unwrap();
-
-        let possible = IoxObjectStore::list_possible_databases(&object_store, server_id)
-            .await
-            .unwrap();
-        let mut names: Vec<_> = possible.into_iter().map(|d| d.0).collect();
-        names.sort();
-        assert_eq!(names, vec![db_deleted, db_normal, not_a_db]);
     }
 
     #[tokio::test]

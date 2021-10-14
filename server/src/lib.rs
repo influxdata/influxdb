@@ -1189,7 +1189,13 @@ async fn maybe_initialize_server(shared: &ServerShared) {
         init_ready.server_id,
     )
     .await
-    .map_err(|e| InitError::GetServerConfig { source: e })
+    .or_else(|e| match e {
+        // If this is the first time starting up this server and there is no config file yet,
+        // this isn't a problem. Start an empty server config.
+        object_store::Error::NotFound { .. } => Ok(bytes::Bytes::new()),
+        // Any other error is a problem.
+        _ => Err(InitError::GetServerConfig { source: e }),
+    })
     .and_then(|config| {
         generated_types::server_config::decode_persisted_server_config(config)
             .map_err(|e| InitError::DeserializeServerConfig { source: e })
@@ -1204,20 +1210,8 @@ async fn maybe_initialize_server(shared: &ServerShared) {
                     location,
                 )
             })
-            .collect()
+            .collect::<Vec<_>>()
     });
-
-    // TODO: This is a temporary fallback until the transition to server config files being the
-    // source of truth for database name and location is finished.
-    let maybe_databases = match maybe_databases {
-        Ok(maybe) => Ok(maybe),
-        Err(_) => IoxObjectStore::list_possible_databases(
-            shared.application.object_store(),
-            init_ready.server_id,
-        )
-        .await
-        .map_err(|e| InitError::ListDatabases { source: e }),
-    };
 
     let next_state = match maybe_databases {
         Ok(databases) => {
@@ -1630,7 +1624,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_databases_and_transition_to_server_config() {
+    async fn load_databases() {
         let application = make_application();
 
         let server = make_server(Arc::clone(&application));
@@ -1661,13 +1655,6 @@ mod tests {
             .delete_database_rules_file()
             .await
             .expect("cannot delete rules file");
-
-        // delete server config file - this is not something that's supposed to happen but is
-        // what will happen during the transition to using the server config file
-        let mut path = application.object_store().new_path();
-        path.push_dir(server_id.to_string());
-        path.set_file_name("config.pb");
-        application.object_store().delete(&path).await.unwrap();
 
         let server = make_server(Arc::clone(&application));
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
@@ -2096,10 +2083,14 @@ mod tests {
 
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();
         let err = server.wait_for_init().await.unwrap_err();
-        assert!(matches!(err.as_ref(), InitError::ListDatabases { .. }));
+        assert!(
+            matches!(err.as_ref(), InitError::GetServerConfig { .. }),
+            "got: {:?}",
+            err
+        );
         assert_contains!(
             server.server_init_error().unwrap().to_string(),
-            "error listing databases in object storage:"
+            "error getting server config from object storage:"
         );
     }
 
@@ -2217,20 +2208,23 @@ mod tests {
 
         let foo_db_name = DatabaseName::new("foo").unwrap();
 
-        // create a directory in object storage that looks like it could
-        // be a database directory, but doesn't have any valid generation
-        // directories in it
-        let mut fake_db_path = application.object_store().new_path();
-        fake_db_path.push_all_dirs(&[server_id.to_string().as_str(), foo_db_name.as_str()]);
-        let mut not_generation_file = fake_db_path.clone();
-        not_generation_file.set_file_name("not-a-generation");
-        application
-            .object_store()
-            .put(&not_generation_file, Bytes::new())
-            .await
-            .unwrap();
-
         // start server
+        let server = make_server(Arc::clone(&application));
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+
+        // create database
+        create_simple_database(&server, &foo_db_name)
+            .await
+            .expect("failed to create database");
+
+        // delete database
+        server
+            .delete_database(&foo_db_name)
+            .await
+            .expect("failed to delete database");
+
+        // restart server
         let server = make_server(Arc::clone(&application));
         server.set_id(server_id).unwrap();
         server.wait_for_init().await.unwrap();
