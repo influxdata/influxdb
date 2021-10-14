@@ -350,7 +350,7 @@ async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697() {
     let every = WindowDuration::from_nanoseconds(10);
     let offset = WindowDuration::from_nanoseconds(0);
 
-    // The windowed aggregate is using a non-selector aggregate (SUM, COUNT).
+    // The windowed aggregate is using a non-selector aggregate (SUM, COUNT, MEAD).
     // For each distinct series the window defines the `time` column
     let expected_results = vec![
         "+---------+--------------------------------+-----+-------+",
