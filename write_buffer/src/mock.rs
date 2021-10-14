@@ -13,6 +13,7 @@ use data_types::database_rules::WriteBufferCreationConfig;
 use data_types::sequence::Sequence;
 use entry::{Entry, SequencedEntry};
 use time::{Time, TimeProvider};
+use trace::ctx::SpanContext;
 
 use crate::core::{
     EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
@@ -236,6 +237,7 @@ impl WriteBufferWriting for MockBufferForWriting {
         &self,
         entry: &Entry,
         sequencer_id: u32,
+        span_context: Option<&SpanContext>,
     ) -> Result<(Sequence, Time), WriteBufferError> {
         let mut guard = self.state.entries.lock();
         let entries = guard.as_mut().unwrap();
@@ -248,10 +250,11 @@ impl WriteBufferWriting for MockBufferForWriting {
             number: sequence_number,
         };
         let timestamp = self.time_provider.now();
-        sequencer_entries.push(Ok(SequencedEntry::new_from_sequence(
+        sequencer_entries.push(Ok(SequencedEntry::new_from_sequence_and_span_context(
             sequence,
             timestamp,
             entry.clone(),
+            span_context.cloned(),
         )));
 
         Ok((sequence, timestamp))
@@ -276,6 +279,7 @@ impl WriteBufferWriting for MockBufferForWritingThatAlwaysErrors {
         &self,
         _entry: &Entry,
         _sequencer_id: u32,
+        _span_context: Option<&SpanContext>,
     ) -> Result<(Sequence, Time), WriteBufferError> {
         Err(String::from(
             "Something bad happened on the way to writing an entry in the write buffer",
@@ -748,7 +752,11 @@ mod tests {
 
         let entry = lp_to_entry("upc user=1 100");
         assert_eq!(
-            writer.store_entry(&entry, 0).await.unwrap_err().to_string(),
+            writer
+                .store_entry(&entry, 0, None)
+                .await
+                .unwrap_err()
+                .to_string(),
             "Something bad happened on the way to writing an entry in the write buffer"
         );
     }

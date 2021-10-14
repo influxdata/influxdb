@@ -1,0 +1,36 @@
+[package]
+name = "parquet_catalog"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+arrow = { version = "5.0", features = ["prettyprint"] }
+base64 = "0.13"
+bytes = "1.0"
+chrono = "0.4"
+data_types = { path = "../data_types" }
+datafusion = { path = "../datafusion" }
+datafusion_util = { path = "../datafusion_util" }
+futures = "0.3.7"
+generated_types = { path = "../generated_types" }
+iox_object_store = { path = "../iox_object_store" }
+metric = { path = "../metric" }
+object_store = { path = "../object_store" }
+observability_deps = { path = "../observability_deps" }
+parquet = "5.0"
+parquet_file = { path = "../parquet_file" }
+parquet-format = "2.6"
+parking_lot = "0.11.1"
+pbjson-types = "0.1"
+persistence_windows = { path = "../persistence_windows" }
+predicate = { path = "../predicate" }
+prost = "0.8"
+snafu = "0.6"
+schema = { path = "../schema" }
+tempfile = "3.1.0"
+thrift = "0.13"
+time = { path = "../time" }
+tokio = { version = "1.0", features = ["macros", "rt", "rt-multi-thread", "sync"] }
+tokio-stream = "0.1"
+uuid = { version = "0.8", features = ["serde", "v4"] }
+zstd = "0.9"

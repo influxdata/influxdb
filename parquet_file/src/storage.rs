@@ -8,8 +8,11 @@ use arrow::{
 use bytes::Bytes;
 use data_types::chunk_metadata::ChunkAddr;
 use datafusion::{
+    datasource::{object_store::local::LocalFileSystem, PartitionedFile},
     logical_plan::Expr,
-    physical_plan::{parquet::ParquetExec, ExecutionPlan, Partitioning, SendableRecordBatchStream},
+    physical_plan::{
+        file_format::ParquetExec, ExecutionPlan, Partitioning, SendableRecordBatchStream,
+    },
 };
 use datafusion_util::AdapterStream;
 use futures::StreamExt;
@@ -70,13 +73,11 @@ pub enum Error {
     #[snafu(display("Error writing to temp file: {}", source))]
     WriteTempFile { source: std::io::Error },
 
+    #[snafu(display("Error getting metadata from temp file: {}", source))]
+    MetaTempFile { source: std::io::Error },
+
     #[snafu(display("Internal error: can not get temp file as str: {}", path))]
     TempFilePathAsStr { path: String },
-
-    #[snafu(display("Error creating parquet reader: {}", source))]
-    CreatingParquetReader {
-        source: datafusion::error::DataFusionError,
-    },
 
     #[snafu(display(
         "Internal error: unexpected partitioning in parquet reader: {:?}",
@@ -227,6 +228,7 @@ impl Storage {
     ///
     /// The resulting record batches from Parquet are sent back to `tx`
     async fn download_and_scan_parquet(
+        schema: SchemaRef,
         predicate: Option<Expr>,
         projection: Vec<usize>,
         path: ParquetFilePath,
@@ -235,13 +237,15 @@ impl Storage {
     ) -> Result<()> {
         // Size of each batch
         let batch_size = 1024; // Todo: make a constant or policy for this
-        let max_concurrency = 1; // Todo: make a constant or policy for this
 
         // Limit of total rows to read
         let limit: Option<usize> = None; // Todo: this should be a parameter of the function
 
         // todo(paul): Here is where I'd get the cache from object store. If it has
         //  one, I'd do the `fs_path_or_cache`. Otherwise, do the temp file like below.
+
+        // TODO use DataFusion ObjectStore implementation rather than
+        // download the file directly
 
         // read parquet file to local file
         let mut temp_file = tempfile::Builder::new()
@@ -262,6 +266,8 @@ impl Storage {
             temp_file.write_all(&bytes).context(WriteTempFile)?;
         }
 
+        let file_size = temp_file.as_file().metadata().context(MetaTempFile)?.len();
+
         // now, create the appropriate parquet exec from datafusion and make it
         let temp_path = temp_file.into_temp_path();
         debug!(?temp_path, "Completed read parquet to tempfile");
@@ -278,15 +284,26 @@ impl Storage {
         }
         let predicate = None;
 
-        let parquet_exec = ParquetExec::try_from_path(
-            temp_path,
+        let object_store = Arc::new(LocalFileSystem {});
+
+        // TODO real statistics so we can use parquet row group
+        // pruning (needs both a real predicate and the formats to be
+        // exposed)
+        let statistics = datafusion::physical_plan::Statistics::default();
+
+        let part_file = PartitionedFile::new(temp_path.to_string(), file_size);
+        let files = vec![vec![part_file]];
+
+        let parquet_exec = ParquetExec::new(
+            object_store,
+            files,
+            statistics,
+            schema,
             Some(projection),
             predicate,
             batch_size,
-            max_concurrency,
             limit,
-        )
-        .context(CreatingParquetReader)?;
+        );
 
         // We are assuming there is only a single stream in the
         // call to execute(0) below
@@ -317,6 +334,8 @@ impl Storage {
         // fire up a async task that will fetch the parquet file
         // locally, start it executing and send results
 
+        let parquet_schema = Arc::clone(&schema);
+
         // Indices of columns in the schema needed to read
         let projection: Vec<usize> = Self::column_indices(selection, Arc::clone(&schema));
 
@@ -337,9 +356,15 @@ impl Storage {
         // `download_and_scan_parquet` is sent back to the reader and
         // not silently ignored
         tokio::task::spawn(async move {
-            let download_result =
-                Self::download_and_scan_parquet(predicate, projection, path, store, tx.clone())
-                    .await;
+            let download_result = Self::download_and_scan_parquet(
+                parquet_schema,
+                predicate,
+                projection,
+                path,
+                store,
+                tx.clone(),
+            )
+            .await;
 
             // If there was an error returned from download_and_scan_parquet send it back to the receiver.
             if let Err(e) = download_result {

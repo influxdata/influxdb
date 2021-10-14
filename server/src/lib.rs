@@ -1225,10 +1225,48 @@ where
     }
 }
 
+pub mod test_utils {
+    use super::*;
+    use crate::connection::test_helpers::TestConnectionManager;
+    use object_store::ObjectStore;
+
+    /// Create a new [`ApplicationState`] with an in-memory object store
+    pub fn make_application() -> Arc<ApplicationState> {
+        Arc::new(ApplicationState::new(
+            Arc::new(ObjectStore::new_in_memory()),
+            None,
+        ))
+    }
+
+    /// Creates a new server with the provided [`ApplicationState`]
+    pub fn make_server(application: Arc<ApplicationState>) -> Arc<Server<TestConnectionManager>> {
+        Arc::new(Server::new(
+            TestConnectionManager::new(),
+            application,
+            Default::default(),
+        ))
+    }
+
+    /// Creates a new server with the provided [`ApplicationState`]
+    ///
+    /// Sets the `server_id` provided and waits for it to initialize
+    pub async fn make_initialized_server(
+        server_id: ServerId,
+        application: Arc<ApplicationState>,
+    ) -> Arc<Server<TestConnectionManager>> {
+        let server = make_server(application);
+        server.set_id(server_id).unwrap();
+        server.wait_for_init().await.unwrap();
+        server
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use ::write_buffer::config::WriteBufferConfigFactory;
+    use super::{
+        test_utils::{make_application, make_server},
+        *,
+    };
     use arrow::record_batch::RecordBatch;
     use arrow_util::assert_batches_eq;
     use bytes::Bytes;
@@ -1249,9 +1287,8 @@ mod tests {
         path::{parsed::DirsAndFileName, ObjectStorePath},
         ObjectStore, ObjectStoreApi,
     };
-    use parquet_file::catalog::core::PreservedCatalogConfig;
-    use parquet_file::catalog::{
-        core::PreservedCatalog,
+    use parquet_catalog::{
+        core::{PreservedCatalog, PreservedCatalogConfig},
         test_helpers::{load_ok, new_empty},
     };
     use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner, QueryDatabase};
@@ -1266,21 +1303,6 @@ mod tests {
     use test_helpers::assert_contains;
 
     const ARBITRARY_DEFAULT_TIME: i64 = 456;
-
-    fn make_application() -> Arc<ApplicationState> {
-        Arc::new(ApplicationState::new(
-            Arc::new(ObjectStore::new_in_memory()),
-            None,
-        ))
-    }
-
-    fn make_server(application: Arc<ApplicationState>) -> Arc<Server<TestConnectionManager>> {
-        Arc::new(Server::new(
-            TestConnectionManager::new(),
-            application,
-            Default::default(),
-        ))
-    }
 
     #[tokio::test]
     async fn server_api_calls_return_error_with_no_id_set() {
@@ -2207,13 +2229,13 @@ mod tests {
 
         let config = PreservedCatalogConfig::new(
             catalog_broken.iox_object_store().unwrap(),
+            db_name_catalog_broken.to_string(),
             Arc::clone(application.time_provider()),
         );
 
         let (preserved_catalog, _catalog) = load_ok(config).await.unwrap();
 
-        parquet_file::catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog)
-            .await;
+        parquet_catalog::test_helpers::break_catalog_with_weird_version(&preserved_catalog).await;
         drop(preserved_catalog);
 
         rules_broken
@@ -2292,6 +2314,7 @@ mod tests {
 
         let config = PreservedCatalogConfig::new(
             non_existing_iox_object_store,
+            db_name_non_existing.to_string(),
             Arc::clone(application.time_provider()),
         );
         new_empty(config).await;
@@ -2390,8 +2413,11 @@ mod tests {
                 .unwrap(),
         );
 
-        let config =
-            PreservedCatalogConfig::new(iox_object_store, Arc::clone(application.time_provider()));
+        let config = PreservedCatalogConfig::new(
+            iox_object_store,
+            db_name.to_string(),
+            Arc::clone(application.time_provider()),
+        );
 
         // create catalog
         new_empty(config).await;
@@ -2407,12 +2433,11 @@ mod tests {
 
     #[tokio::test]
     async fn write_buffer_errors_propagate() {
-        let application = ApplicationState::new(Arc::new(ObjectStore::new_in_memory()), None);
+        let application = make_application();
 
-        let mut factory = WriteBufferConfigFactory::new(Arc::clone(application.time_provider()));
-        factory.register_always_fail_mock("my_mock".to_string());
-
-        let application = Arc::new(application.with_write_buffer_factory(Arc::new(factory)));
+        application
+            .write_buffer_factory()
+            .register_always_fail_mock("my_mock".to_string());
 
         let server = make_server(application);
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();

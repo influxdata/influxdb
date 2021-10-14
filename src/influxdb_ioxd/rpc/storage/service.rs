@@ -21,7 +21,7 @@ use generated_types::{
 use observability_deps::tracing::{error, info};
 use predicate::predicate::PredicateBuilder;
 use query::exec::{
-    fieldlist::FieldList, seriesset::Error as SeriesSetError, ExecutionContextProvider,
+    fieldlist::FieldList, seriesset::converter::Error as SeriesSetError, ExecutionContextProvider,
 };
 use server::DatabaseStore;
 

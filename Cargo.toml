@@ -56,6 +56,8 @@ members = [
     "observability_deps",
     "packers",
     "panic_logging",
+    "parquet_catalog",
+    "parquet_file",
     "persistence_windows",
     "predicate",
     "query",
@@ -101,6 +103,7 @@ num_cpus = "1.13.0"
 object_store = { path = "object_store" }
 observability_deps = { path = "observability_deps" }
 panic_logging = { path = "panic_logging" }
+parquet_catalog = { path = "parquet_catalog" }
 parquet_file = { path = "parquet_file" }
 predicate = { path = "predicate" }
 query = { path = "query" }

@@ -32,7 +32,7 @@ use entry::{Entry, SequencedEntry, TableBatch};
 use iox_object_store::IoxObjectStore;
 use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info, warn};
-use parquet_file::catalog::{
+use parquet_catalog::{
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
     core::PreservedCatalog,
     interface::{CatalogParquetInfo, CheckpointData, ChunkAddrWithoutDatabase},
@@ -170,7 +170,7 @@ pub enum Error {
         source
     ))]
     CommitDeletePredicateError {
-        source: parquet_file::catalog::core::Error,
+        source: parquet_catalog::core::Error,
     },
 }
 
@@ -926,10 +926,9 @@ impl Db {
 
     async fn cleanup_unreferenced_parquet_files(
         self: &Arc<Self>,
-    ) -> std::result::Result<(), parquet_file::catalog::cleanup::Error> {
+    ) -> std::result::Result<(), parquet_catalog::cleanup::Error> {
         let guard = self.cleanup_lock.write().await;
-        let files =
-            get_unreferenced_parquet_files(&self.name(), &self.preserved_catalog, 1_000).await?;
+        let files = get_unreferenced_parquet_files(&self.preserved_catalog, 1_000).await?;
         drop(guard);
 
         delete_parquet_files(&self.preserved_catalog, &files).await
@@ -938,7 +937,7 @@ impl Db {
     async fn preserve_delete_predicates(
         self: &Arc<Self>,
         predicates: &[(Arc<DeletePredicate>, Vec<ChunkAddrWithoutDatabase>)],
-    ) -> Result<(), parquet_file::catalog::core::Error> {
+    ) -> Result<(), parquet_catalog::core::Error> {
         let mut transaction = self.preserved_catalog.open_transaction().await;
         for (predicate, chunks) in predicates {
             transaction.delete_predicate(predicate, chunks);
@@ -988,8 +987,9 @@ impl Db {
                 // will get picked up when data is read from the write buffer.
 
                 // TODO: be smarter than always using sequencer 0
+                // TODO: propgate span context
                 let _ = write_buffer
-                    .store_entry(&entry, 0)
+                    .store_entry(&entry, 0, None)
                     .await
                     .context(WriteBufferWritingError)?;
                 Ok(())
@@ -999,8 +999,9 @@ impl Db {
                 // buffer to return success before adding the entry to the mutable buffer.
 
                 // TODO: be smarter than always using sequencer 0
+                // TODO: propagate span context
                 let (sequence, producer_wallclock_timestamp) = write_buffer
-                    .store_entry(&entry, 0)
+                    .store_entry(&entry, 0, None)
                     .await
                     .context(WriteBufferWritingError)?;
                 let sequenced_entry = Arc::new(SequencedEntry::new_from_sequence(
@@ -1502,8 +1503,8 @@ mod tests {
     use iox_object_store::ParquetFilePath;
     use metric::{Attributes, CumulativeGauge, Metric, Observation};
     use object_store::ObjectStore;
+    use parquet_catalog::test_helpers::load_ok;
     use parquet_file::{
-        catalog::test_helpers::load_ok,
         metadata::IoxParquetMetaData,
         test_utils::{load_parquet_from_store_for_path, read_data_from_parquet_data},
     };

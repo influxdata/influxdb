@@ -4,41 +4,38 @@ use std::{fmt::Debug, sync::Arc};
 use futures::TryStreamExt;
 use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use observability_deps::tracing::error;
+use parquet_file::metadata::IoxParquetMetaData;
 use snafu::{ResultExt, Snafu};
 
-use crate::catalog::core::PreservedCatalogConfig;
 use crate::{
-    catalog::{
-        core::PreservedCatalog,
-        interface::{CatalogParquetInfo, CatalogState},
-    },
-    metadata::IoxParquetMetaData,
+    core::{PreservedCatalog, PreservedCatalogConfig},
+    interface::{CatalogParquetInfo, CatalogState},
 };
 
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Cannot create new empty catalog: {}", source))]
-    NewEmptyFailure { source: crate::catalog::core::Error },
+    NewEmptyFailure { source: crate::core::Error },
 
     #[snafu(display("Cannot read store: {}", source))]
     ReadFailure { source: object_store::Error },
 
     #[snafu(display("Cannot read IOx metadata from parquet file ({:?}): {}", path, source))]
     MetadataReadFailure {
-        source: crate::metadata::Error,
+        source: parquet_file::metadata::Error,
         path: ParquetFilePath,
     },
 
     #[snafu(display("Cannot add file to transaction: {}", source))]
     FileRecordFailure {
-        source: crate::catalog::interface::CatalogStateAddError,
+        source: crate::interface::CatalogStateAddError,
     },
 
     #[snafu(display("Cannot commit transaction: {}", source))]
-    CommitFailure { source: crate::catalog::core::Error },
+    CommitFailure { source: crate::core::Error },
 
     #[snafu(display("Cannot create checkpoint: {}", source))]
-    CheckpointFailure { source: crate::catalog::core::Error },
+    CheckpointFailure { source: crate::core::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -69,9 +66,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// - **Metadata Read Failure:** There is a parquet file with metadata that cannot be read. Set
 ///   `ignore_metadata_read_failure` to `true` to ignore these cases.
 pub async fn rebuild_catalog<S>(
-    db_name: &str,
     config: PreservedCatalogConfig,
-    catalog_empty_input: S::EmptyInput,
+    mut state: S,
     ignore_metadata_read_failure: bool,
 ) -> Result<(PreservedCatalog, S)>
 where
@@ -81,10 +77,9 @@ where
     let files = collect_files(&config.iox_object_store, ignore_metadata_read_failure).await?;
 
     // create new empty catalog
-    let (catalog, mut state) =
-        PreservedCatalog::new_empty::<S>(db_name, config.clone(), catalog_empty_input)
-            .await
-            .context(NewEmptyFailure)?;
+    let catalog = PreservedCatalog::new_empty(config.clone())
+        .await
+        .context(NewEmptyFailure)?;
 
     // create single transaction with all files
     if !files.is_empty() {
@@ -172,20 +167,18 @@ async fn read_parquet(
 mod tests {
     use super::*;
     use crate::{
-        catalog::{
-            core::PreservedCatalog,
-            test_helpers::{exists, new_empty, TestCatalogState, DB_NAME},
-        },
-        metadata::IoxMetadata,
-        storage::{MemWriter, Storage},
-        test_utils::{
-            create_partition_and_database_checkpoint, make_config, make_record_batch, TestSize,
-        },
+        core::PreservedCatalog,
+        test_helpers::{exists, make_config, new_empty, TestCatalogState},
     };
     use data_types::chunk_metadata::{ChunkAddr, ChunkId, ChunkOrder};
     use datafusion::physical_plan::SendableRecordBatchStream;
     use datafusion_util::MemoryStream;
     use parquet::arrow::ArrowWriter;
+    use parquet_file::{
+        metadata::IoxMetadata,
+        storage::{MemWriter, Storage},
+        test_utils::{create_partition_and_database_checkpoint, make_record_batch, TestSize},
+    };
     use time::Time;
     use tokio_stream::StreamExt;
 
@@ -196,7 +189,8 @@ mod tests {
         let db_name = Arc::from("db1");
 
         // build catalog with some data
-        let (catalog, mut state) = new_empty(config.clone()).await;
+        let catalog = new_empty(config.clone()).await;
+        let mut state = TestCatalogState::default();
         {
             let mut transaction = catalog.open_transaction().await;
 
@@ -237,7 +231,7 @@ mod tests {
         PreservedCatalog::wipe(iox_object_store).await.unwrap();
 
         // rebuild
-        let (catalog, state) = rebuild_catalog::<TestCatalogState>(DB_NAME, config, (), false)
+        let (catalog, state) = rebuild_catalog(config, TestCatalogState::default(), false)
             .await
             .unwrap();
 
@@ -256,7 +250,7 @@ mod tests {
         let config = make_config().await;
 
         // build empty catalog
-        let (catalog, _state) = new_empty(config.clone()).await;
+        let catalog = new_empty(config.clone()).await;
 
         // wipe catalog
         drop(catalog);
@@ -265,7 +259,7 @@ mod tests {
             .unwrap();
 
         // rebuild
-        let (catalog, state) = rebuild_catalog::<TestCatalogState>(DB_NAME, config, (), false)
+        let (catalog, state) = rebuild_catalog(config, TestCatalogState::default(), false)
             .await
             .unwrap();
 
@@ -293,15 +287,14 @@ mod tests {
         PreservedCatalog::wipe(iox_object_store).await.unwrap();
 
         // rebuild (do not ignore errors)
-        let res = rebuild_catalog::<TestCatalogState>(DB_NAME, config.clone(), (), false).await;
+        let res = rebuild_catalog(config.clone(), TestCatalogState::default(), false).await;
         assert!(dbg!(res.unwrap_err().to_string())
             .starts_with("Cannot read IOx metadata from parquet file"));
 
         // rebuild (ignore errors)
-        let (catalog, state) =
-            rebuild_catalog::<TestCatalogState>(DB_NAME, config.clone(), (), true)
-                .await
-                .unwrap();
+        let (catalog, state) = rebuild_catalog(config.clone(), TestCatalogState::default(), true)
+            .await
+            .unwrap();
         assert!(state.files().next().is_none());
         assert_eq!(catalog.revision_counter(), 0);
     }
@@ -320,7 +313,7 @@ mod tests {
         let iox_object_store = &config.iox_object_store;
 
         // build catalog with some data (2 transactions + initial empty one)
-        let (catalog, _state) = new_empty(config.clone()).await;
+        let catalog = new_empty(config.clone()).await;
         assert_eq!(catalog.revision_counter(), 0);
 
         // wipe catalog
@@ -328,7 +321,7 @@ mod tests {
         PreservedCatalog::wipe(iox_object_store).await.unwrap();
 
         // rebuild
-        let catalog = rebuild_catalog::<TestCatalogState>(DB_NAME, config.clone(), (), false)
+        let catalog = rebuild_catalog(config.clone(), TestCatalogState::default(), false)
             .await
             .unwrap();
         drop(catalog);

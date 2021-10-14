@@ -192,18 +192,14 @@ async fn stream_in_sequenced_entries<'a>(
 mod tests {
     use std::collections::BTreeMap;
     use std::convert::TryFrom;
-    use std::num::{NonZeroU32, NonZeroUsize};
+    use std::num::NonZeroU32;
 
-    use ::test_helpers::assert_contains;
     use arrow_util::assert_batches_eq;
-    use data_types::database_rules::{PartitionTemplate, TemplatePart};
     use data_types::sequence::Sequence;
     use entry::test_helpers::lp_to_entry;
     use persistence_windows::min_max_sequence::MinMaxSequence;
     use query::exec::ExecutionContextProvider;
     use query::frontend::sql::SqlQueryPlanner;
-    use query::QueryDatabase;
-    use test_helpers::tracing::TracingCapture;
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
 
     use crate::db::test_helpers::run_query;
@@ -433,87 +429,6 @@ mod tests {
             "+-----+--------------------------------+",
         ];
         assert_batches_eq!(expected, &batches);
-    }
-
-    #[tokio::test]
-    async fn write_buffer_reads_wait_for_compaction() {
-        let tracing_capture = TracingCapture::new();
-
-        // setup write buffer
-        // these numbers are handtuned to trigger hard buffer limits w/o making the test too big
-        let n_entries = 50u64;
-        let write_buffer_state =
-            MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
-        for sequence_number in 0..n_entries {
-            let lp = format!(
-                "table_1,tag_partition_by=a foo=\"hello\",bar=1 {}",
-                sequence_number / 2
-            );
-            write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
-                Sequence::new(0, sequence_number),
-                Time::from_timestamp_nanos(0),
-                lp_to_entry(&lp),
-            ));
-        }
-        write_buffer_state.push_entry(SequencedEntry::new_from_sequence(
-            Sequence::new(0, n_entries),
-            Time::from_timestamp_nanos(0),
-            lp_to_entry("table_2,partition_by=a foo=1 0"),
-        ));
-
-        // create DB
-        let partition_template = PartitionTemplate {
-            parts: vec![TemplatePart::Column("tag_partition_by".to_string())],
-        };
-        let test_db = TestDb::builder()
-            .lifecycle_rules(data_types::database_rules::LifecycleRules {
-                buffer_size_hard: Some(NonZeroUsize::new(10_000).unwrap()),
-                mub_row_threshold: NonZeroUsize::new(10).unwrap(),
-                ..Default::default()
-            })
-            .partition_template(partition_template)
-            .build()
-            .await;
-        let db = test_db.db;
-
-        // start background task loop
-        let shutdown: CancellationToken = Default::default();
-        let shutdown_captured = shutdown.clone();
-        let db_captured = Arc::clone(&db);
-        let join_handle =
-            tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
-
-        let consumer = WriteBufferConsumer::new(
-            Box::new(MockBufferForReading::new(write_buffer_state, None).unwrap()),
-            Arc::clone(&db),
-            test_db.metric_registry.as_ref(),
-        );
-
-        // after a while the table should exist
-        let t_0 = Instant::now();
-        loop {
-            if db.table_schema("table_2").is_some() {
-                break;
-            }
-
-            assert!(t_0.elapsed() < Duration::from_secs(10));
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-
-        // do: stop background task loop
-        shutdown.cancel();
-        join_handle.await.unwrap();
-
-        consumer.shutdown();
-        consumer.join().await.unwrap();
-
-        // no rows should be dropped
-        let batches = run_query(db, "select sum(bar) as n from table_1").await;
-        let expected = vec!["+----+", "| n  |", "+----+", "| 25 |", "+----+"];
-        assert_batches_eq!(expected, &batches);
-
-        // check that hard buffer limit was actually hit (otherwise this test is pointless/outdated)
-        assert_contains!(tracing_capture.to_string(), "Hard limit reached while reading from write buffer, waiting for compaction to catch up");
     }
 
     #[tokio::test]

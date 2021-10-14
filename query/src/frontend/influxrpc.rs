@@ -8,7 +8,7 @@ use arrow::datatypes::{DataType, Field};
 use data_types::chunk_metadata::ChunkId;
 use datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
-    logical_plan::{lit, Column, Expr, ExprRewriter, LogicalPlan, LogicalPlanBuilder},
+    logical_plan::{lit, Column, DFSchemaRef, Expr, ExprRewriter, LogicalPlan, LogicalPlanBuilder},
     optimizer::utils::expr_to_columns,
     prelude::col,
 };
@@ -620,10 +620,26 @@ impl InfluxRpcPlanner {
         Ok(ss_plans.into())
     }
 
-    /// Creates a GroupedSeriesSet plan that produces an output table
-    /// with rows grouped by an aggregate function. Note that we still
-    /// group by all tags (so group within series) and the
-    /// group_columns define the order of the result
+    /// Creates one or more GroupedSeriesSet plans that produces an
+    /// output table with rows grouped according to group_columns and
+    /// an aggregate function which is applied to each *series* (aka
+    /// distinct set of tag value). Note the aggregate is not applied
+    /// across series within the same group.
+    ///
+    /// Specifically the data that is output from the plans is
+    /// guaranteed to be sorted such that:
+    ///
+    ///   1. The group_columns are a prefix of the sort key
+    ///
+    ///   2. All remaining tags appear in the sort key, in order,
+    ///   after the prefix (as the tag key may also appear as a group
+    ///   key)
+    ///
+    /// Schematically, the plan looks like:
+    ///
+    /// (order by {group_coumns, remaining tags})
+    ///   (aggregate by group -- agg, gby_exprs=tags)
+    ///      (apply filters)
     pub fn read_group<D>(
         &self,
         database: &D,
@@ -988,7 +1004,7 @@ impl InfluxRpcPlanner {
     ///   agg_function(_valN) as _valueN
     ///   agg_function(time) as time
     /// GROUP BY
-    ///   group_key1, group_key2, remaining tags,
+    ///   tags,
     /// ORDER BY
     ///   group_key1, group_key2, remaining tags
     ///
@@ -1006,7 +1022,7 @@ impl InfluxRpcPlanner {
     ///   agg_function(_valN) as _valueN
     ///   agg_function(time) as timeN
     /// GROUP BY
-    ///   group_key1, group_key2, remaining tags,
+    ///   tags
     /// ORDER BY
     ///   group_key1, group_key2, remaining tags
     ///
@@ -1045,11 +1061,6 @@ impl InfluxRpcPlanner {
         // order in the same order)
         let tag_columns: Vec<_> = schema.tags_iter().map(|f| f.name() as &str).collect();
 
-        let tag_columns: Vec<Arc<str>> = reorder_prefix(group_columns, tag_columns)?
-            .into_iter()
-            .map(Arc::from)
-            .collect();
-
         // Group by all tag columns
         let group_exprs = tag_columns
             .iter()
@@ -1059,25 +1070,58 @@ impl InfluxRpcPlanner {
         let AggExprs {
             agg_exprs,
             field_columns,
-        } = AggExprs::try_new(agg, &schema, &predicate)?;
-
-        let sort_exprs = group_exprs
-            .iter()
-            .map(|expr| expr.as_sort_expr())
-            .collect::<Vec<_>>();
+        } = AggExprs::try_new_for_read_group(agg, &schema, &predicate)?;
 
         let plan_builder = plan_builder
             .aggregate(group_exprs, agg_exprs)
             .context(BuildingPlan)?;
 
+        // Reorganize the output so the group columns are first and
+        // the output is sorted first on the group columns and then
+        // any remaining tags
+        //
+        // This ensures that the `group_columns` are next to each
+        // other in the output in the order expected by flux
+        let reordered_tag_columns: Vec<Arc<str>> = reorder_prefix(group_columns, tag_columns)?
+            .into_iter()
+            .map(Arc::from)
+            .collect();
+
+        // no columns if there are no tags in the input and no group columns in the query
+        let plan_builder = if !reordered_tag_columns.is_empty() {
+            // reorder columns
+            let reorder_exprs = reordered_tag_columns
+                .iter()
+                .map(|tag_name| tag_name.as_expr())
+                .collect::<Vec<_>>();
+
+            let sort_exprs = reorder_exprs
+                .iter()
+                .map(|expr| expr.as_sort_expr())
+                .collect::<Vec<_>>();
+
+            let project_exprs =
+                project_exprs_in_schema(&reordered_tag_columns, plan_builder.schema());
+
+            plan_builder
+                .project(project_exprs)
+                .context(BuildingPlan)?
+                .sort(sort_exprs)
+                .context(BuildingPlan)?
+        } else {
+            plan_builder
+        };
+
         let plan_builder = cast_aggregates(plan_builder, agg, &field_columns)?;
 
-        let plan_builder = add_sort(plan_builder, sort_exprs)?;
-
-        // and finally create the plan
         let plan = plan_builder.build().context(BuildingPlan)?;
 
-        let ss_plan = SeriesSetPlan::new(Arc::from(table_name), plan, tag_columns, field_columns);
+        let ss_plan = SeriesSetPlan::new(
+            Arc::from(table_name),
+            plan,
+            reordered_tag_columns,
+            field_columns,
+        );
 
         Ok(Some(ss_plan))
     }
@@ -1146,10 +1190,10 @@ impl InfluxRpcPlanner {
             .chain(std::iter::once(window_bound))
             .collect::<Vec<_>>();
 
-        // aggregate each field
-        let agg_exprs = filtered_fields_iter(&schema, &predicate)
-            .map(|field| make_agg_expr(agg, field.name()))
-            .collect::<Result<Vec<_>>>()?;
+        let AggExprs {
+            agg_exprs,
+            field_columns,
+        } = AggExprs::try_new_for_read_window_aggregate(agg, &schema, &predicate)?;
 
         // sort by the group by expressions as well
         let sort_exprs = group_exprs
@@ -1171,21 +1215,12 @@ impl InfluxRpcPlanner {
             .map(|field| Arc::from(field.name().as_str()))
             .collect();
 
-        let field_columns = filtered_fields_iter(&schema, &predicate)
-            .map(|field| Arc::from(field.name().as_str()))
-            .collect();
-
-        // TODO: remove the use of tag_columns and field_column names
-        // and instead use the schema directly)
-
-        let ss_plan = SeriesSetPlan::new_from_shared_timestamp(
+        Ok(Some(SeriesSetPlan::new(
             Arc::from(table_name),
             plan,
             tag_columns,
             field_columns,
-        );
-
-        Ok(Some(ss_plan))
+        )))
     }
 
     /// Create a plan that scans the specified table, and applies any
@@ -1271,13 +1306,22 @@ impl InfluxRpcPlanner {
     }
 }
 
-/// Adds a sort to the plan_builder if there are any sort exprs
-fn add_sort(plan_builder: LogicalPlanBuilder, sort_exprs: Vec<Expr>) -> Result<LogicalPlanBuilder> {
-    if sort_exprs.is_empty() {
-        Ok(plan_builder)
-    } else {
-        plan_builder.sort(sort_exprs).context(BuildingPlan)
-    }
+/// Return a `Vec` of `Exprs` such that it starts with `prefix` cols and
+/// then has all columns in `schema` that are not already in the prefix.
+fn project_exprs_in_schema(prefix: &[Arc<str>], schema: &DFSchemaRef) -> Vec<Expr> {
+    let seen: HashSet<_> = prefix.iter().map(|s| s.as_ref()).collect();
+
+    let prefix_exprs = prefix.iter().map(|name| col(name));
+    let new_exprs = schema.fields().iter().filter_map(|f| {
+        let name = f.name().as_str();
+        if !seen.contains(name) {
+            Some(col(name))
+        } else {
+            None
+        }
+    });
+
+    prefix_exprs.chain(new_exprs).collect()
 }
 
 /// casts aggregates (fields named in field_columns) to the types
@@ -1408,74 +1452,143 @@ fn filtered_fields_iter<'a>(
 /// the rules explained on `read_group_plan`
 impl AggExprs {
     /// Create the appropriate aggregate expressions, based on the type of the
-    /// field
-    pub fn try_new(agg: Aggregate, schema: &Schema, predicate: &Predicate) -> Result<Self> {
+    /// field for a `read_group` plan.
+    pub fn try_new_for_read_group(
+        agg: Aggregate,
+        schema: &Schema,
+        predicate: &Predicate,
+    ) -> Result<Self> {
         match agg {
             Aggregate::Sum | Aggregate::Count | Aggregate::Mean => {
-                //  agg_function(_val1) as _value1
-                //  ...
-                //  agg_function(_valN) as _valueN
-                //  agg_function(time) as time
-
-                let agg_exprs = filtered_fields_iter(schema, predicate)
-                    .chain(schema.time_iter())
-                    .map(|field| make_agg_expr(agg, field.name()))
-                    .collect::<Result<Vec<_>>>()?;
-
-                let field_columns = filtered_fields_iter(schema, predicate)
-                    .map(|field| Arc::from(field.name().as_str()))
-                    .collect::<Vec<_>>()
-                    .into();
-
-                Ok(Self {
-                    agg_exprs,
-                    field_columns,
-                })
+                Self::agg_for_read_group(agg, schema, predicate)
             }
             Aggregate::First | Aggregate::Last | Aggregate::Min | Aggregate::Max => {
-                //   agg_function(_val1) as _value1
-                //   agg_function(time) as time1
-                //   ..
-                //   agg_function(_valN) as _valueN
-                //   agg_function(time) as timeN
-
-                // might be nice to use a more functional style here
-                let mut agg_exprs = Vec::new();
-                let mut field_list = Vec::new();
-
-                for field in filtered_fields_iter(schema, predicate) {
-                    agg_exprs.push(make_selector_expr(
-                        agg,
-                        SelectorOutput::Value,
-                        field.name(),
-                        field.data_type(),
-                        field.name(),
-                    )?);
-
-                    let time_column_name = format!("{}_{}", TIME_COLUMN_NAME, field.name());
-
-                    agg_exprs.push(make_selector_expr(
-                        agg,
-                        SelectorOutput::Time,
-                        field.name(),
-                        field.data_type(),
-                        &time_column_name,
-                    )?);
-
-                    field_list.push((
-                        Arc::from(field.name().as_str()), // value name
-                        Arc::from(time_column_name.as_str()),
-                    ));
-                }
-
-                let field_columns = field_list.into();
-                Ok(Self {
-                    agg_exprs,
-                    field_columns,
-                })
+                Self::selector_aggregates(agg, schema, predicate)
             }
             Aggregate::None => InternalUnexpectedNoneAggregate.fail(),
         }
+    }
+
+    /// Create the appropriate aggregate expressions, based on the type of the
+    /// field for a `read_window_aggregate` plan.
+    pub fn try_new_for_read_window_aggregate(
+        agg: Aggregate,
+        schema: &Schema,
+        predicate: &Predicate,
+    ) -> Result<Self> {
+        match agg {
+            Aggregate::Sum | Aggregate::Count | Aggregate::Mean => {
+                Self::agg_for_read_window_aggregate(agg, schema, predicate)
+            }
+            Aggregate::First | Aggregate::Last | Aggregate::Min | Aggregate::Max => {
+                Self::selector_aggregates(agg, schema, predicate)
+            }
+            Aggregate::None => InternalUnexpectedNoneAggregate.fail(),
+        }
+    }
+
+    // Creates special aggregate "selector" expressions for the fields in the
+    // provided schema. Selectors ensure that the relevant aggregate functions
+    // are also provided to a distinct time column for each field column.
+    //
+    // Equivalent SQL would look like:
+    //
+    //   agg_function(_val1) as _value1
+    //   agg_function(time) as time1
+    //   ..
+    //   agg_function(_valN) as _valueN
+    //   agg_function(time) as timeN
+    fn selector_aggregates(agg: Aggregate, schema: &Schema, predicate: &Predicate) -> Result<Self> {
+        // might be nice to use a more functional style here
+        let mut agg_exprs = Vec::new();
+        let mut field_list = Vec::new();
+
+        for field in filtered_fields_iter(schema, predicate) {
+            agg_exprs.push(make_selector_expr(
+                agg,
+                SelectorOutput::Value,
+                field.name(),
+                field.data_type(),
+                field.name(),
+            )?);
+
+            let time_column_name = format!("{}_{}", TIME_COLUMN_NAME, field.name());
+
+            agg_exprs.push(make_selector_expr(
+                agg,
+                SelectorOutput::Time,
+                field.name(),
+                field.data_type(),
+                &time_column_name,
+            )?);
+
+            field_list.push((
+                Arc::from(field.name().as_str()), // value name
+                Arc::from(time_column_name.as_str()),
+            ));
+        }
+
+        let field_columns = field_list.into();
+        Ok(Self {
+            agg_exprs,
+            field_columns,
+        })
+    }
+
+    // Creates aggregate expressions for use in a read_group plan, which
+    // includes the time column.
+    //
+    // Equivalent SQL would look like this:
+    //
+    //  agg_function(_val1) as _value1
+    //  ...
+    //  agg_function(_valN) as _valueN
+    //  agg_function(time) as time
+    fn agg_for_read_group(agg: Aggregate, schema: &Schema, predicate: &Predicate) -> Result<Self> {
+        let agg_exprs = filtered_fields_iter(schema, predicate)
+            .chain(schema.time_iter())
+            .map(|field| make_agg_expr(agg, field.name()))
+            .collect::<Result<Vec<_>>>()?;
+
+        let field_columns = filtered_fields_iter(schema, predicate)
+            .map(|field| Arc::from(field.name().as_str()))
+            .collect::<Vec<_>>()
+            .into();
+
+        Ok(Self {
+            agg_exprs,
+            field_columns,
+        })
+    }
+
+    // Creates aggregate expressions for use in a read_window_aggregate plan. No
+    // aggregates are created for the time column because the
+    // `read_window_aggregate` uses a time column calculated using window
+    // bounds.
+    //
+    // Equivalent SQL would look like this:
+    //
+    //  agg_function(_val1) as _value1
+    //  ...
+    //  agg_function(_valN) as _valueN
+    fn agg_for_read_window_aggregate(
+        agg: Aggregate,
+        schema: &Schema,
+        predicate: &Predicate,
+    ) -> Result<Self> {
+        let agg_exprs = filtered_fields_iter(schema, predicate)
+            .map(|field| make_agg_expr(agg, field.name()))
+            .collect::<Result<Vec<_>>>()?;
+
+        let field_columns = filtered_fields_iter(schema, predicate)
+            .map(|field| Arc::from(field.name().as_str()))
+            .collect::<Vec<_>>()
+            .into();
+
+        Ok(Self {
+            agg_exprs,
+            field_columns,
+        })
     }
 }
 

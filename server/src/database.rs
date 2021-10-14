@@ -20,12 +20,13 @@ use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
-use parquet_file::catalog::core::PreservedCatalog;
+use parquet_catalog::core::PreservedCatalog;
 use persistence_windows::checkpoint::ReplayPlan;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{future::Future, sync::Arc, time::Duration};
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
+use trace::{RingBufferTraceCollector, TraceCollector};
 use uuid::Uuid;
 
 const INIT_BACKOFF: Duration = Duration::from_secs(1);
@@ -63,7 +64,7 @@ pub enum Error {
     ))]
     WipePreservedCatalog {
         db_name: String,
-        source: Box<parquet_file::catalog::core::Error>,
+        source: Box<parquet_catalog::core::Error>,
     },
 
     #[snafu(display("failed to skip replay for database ({}): {}", db_name, source))]
@@ -293,7 +294,7 @@ impl Database {
         let mut state = state.unfreeze(handle);
         *state = DatabaseState::Known(DatabaseStateKnown {});
         self.shared.state_notify.notify_waiters();
-        info!(%db_name, "set database state to object store found");
+        info!(%db_name, "set database state to known");
 
         Ok(())
     }
@@ -302,6 +303,25 @@ impl Database {
     pub fn shutdown(&self) {
         info!(db_name=%self.shared.config.name, "database shutting down");
         self.shared.shutdown.cancel()
+    }
+
+    /// Triggers a restart of this `Database` and wait for it to re-initialize
+    pub async fn restart(&self) -> Result<(), Arc<InitError>> {
+        let db_name = &self.shared.config.name;
+        info!(%db_name, "restarting database");
+
+        let handle = self.shared.state.read().freeze();
+        let handle = handle.await;
+
+        {
+            let mut state = self.shared.state.write();
+            let mut state = state.unfreeze(handle);
+            *state = DatabaseState::Known(DatabaseStateKnown {});
+        }
+        self.shared.state_notify.notify_waiters();
+        info!(%db_name, "set database state to known");
+
+        self.wait_for_init().await
     }
 
     /// Waits for the background worker of this `Database` to exit
@@ -1132,8 +1152,8 @@ impl DatabaseStateCatalogLoaded {
     ) -> Result<DatabaseStateInitialized, InitError> {
         let db = Arc::clone(&self.db);
 
-        // TODO: Pull write buffer and lifecycle out of Db
-        db.unsuppress_persistence();
+        // TODO: use proper trace collector
+        let trace_collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
 
         let rules = self.provided_rules.rules();
         let write_buffer_factory = shared.application.write_buffer_factory();
@@ -1143,6 +1163,7 @@ impl DatabaseStateCatalogLoaded {
                     .new_config_read(
                         shared.config.server_id,
                         shared.config.name.as_str(),
+                        &trace_collector,
                         connection,
                     )
                     .await
@@ -1160,6 +1181,9 @@ impl DatabaseStateCatalogLoaded {
             }
             _ => None,
         };
+
+        // TODO: Pull write buffer and lifecycle out of Db
+        db.unsuppress_persistence();
 
         Ok(DatabaseStateInitialized {
             db,
@@ -1202,7 +1226,7 @@ mod tests {
     };
     use time::Time;
     use uuid::Uuid;
-    use write_buffer::{config::WriteBufferConfigFactory, mock::MockBufferSharedState};
+    use write_buffer::mock::MockBufferSharedState;
 
     #[tokio::test]
     async fn database_shutdown_waits_for_jobs() {
@@ -1360,6 +1384,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn database_restart() {
+        test_helpers::maybe_start_logging();
+        let (_application, database) = initialized_database().await;
+
+        // Restart successful
+        database.restart().await.unwrap();
+
+        let iox_object_store = database.iox_object_store().unwrap();
+        iox_object_store.delete_database_rules_file().await.unwrap();
+
+        // Restart should fail
+        let err = database.restart().await.unwrap_err();
+        assert!(
+            matches!(err.as_ref(), InitError::LoadingRules { .. }),
+            "{:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
     async fn skip_replay() {
         // create write buffer
         let state =
@@ -1385,12 +1429,13 @@ mod tests {
         ));
 
         // setup application
-        let application = ApplicationState::new(Arc::new(ObjectStore::new_in_memory()), None);
-
-        let mut factory = WriteBufferConfigFactory::new(Arc::clone(application.time_provider()));
-        factory.register_mock("my_mock".to_string(), state.clone());
-
-        let application = Arc::new(application.with_write_buffer_factory(Arc::new(factory)));
+        let application = Arc::new(ApplicationState::new(
+            Arc::new(ObjectStore::new_in_memory()),
+            None,
+        ));
+        application
+            .write_buffer_factory()
+            .register_mock("my_mock".to_string(), state.clone());
 
         let server_id = ServerId::try_from(1).unwrap();
 

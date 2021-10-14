@@ -6,9 +6,8 @@ use futures::TryStreamExt;
 use generated_types::influxdata::iox::catalog::v1 as proto;
 use iox_object_store::{IoxObjectStore, TransactionFilePath};
 use object_store::{ObjectStore, ObjectStoreApi};
+use parquet_file::metadata::{DecodedIoxParquetMetaData, IoxParquetMetaData};
 use snafu::{ResultExt, Snafu};
-
-use crate::metadata::{DecodedIoxParquetMetaData, IoxParquetMetaData};
 
 use super::internals::proto_io::load_transaction_proto;
 
@@ -33,7 +32,7 @@ pub struct DumpOptions {
     /// recommended.
     pub show_parquet_metadata: bool,
 
-    /// Show debug output of [`IoxMetadata`](crate::metadata::IoxMetadata) if decoding succeeds, show the decoding
+    /// Show debug output of [`IoxMetadata`](parquet_file::metadata::IoxMetadata) if decoding succeeds, show the decoding
     /// error otherwise.
     pub show_iox_metadata: bool,
 
@@ -95,8 +94,8 @@ where
 /// Wrapper around [`proto::Transaction`] with additional debug output (e.g. to show nested data).
 struct File {
     path: TransactionFilePath,
-    proto: Result<proto::Transaction, crate::catalog::internals::proto_io::Error>,
-    md: Option<Vec<Result<Metadata, crate::metadata::Error>>>,
+    proto: Result<proto::Transaction, crate::internals::proto_io::Error>,
+    md: Option<Vec<Result<Metadata, parquet_file::metadata::Error>>>,
 }
 
 impl File {
@@ -179,7 +178,10 @@ struct Metadata {
 
 impl Metadata {
     /// Read metadata (in form of [`IoxParquetMetaData`]) from bytes, encoded as Apache Thrift.
-    fn read(data: &Bytes, options: Arc<DumpOptions>) -> Result<Self, crate::metadata::Error> {
+    fn read(
+        data: &Bytes,
+        options: Arc<DumpOptions>,
+    ) -> Result<Self, parquet_file::metadata::Error> {
         let iox_md = IoxParquetMetaData::from_thrift_bytes(data.as_ref().to_vec());
         let md = iox_md.decode()?;
         Ok(Self { md, options })
@@ -219,14 +221,8 @@ impl Debug for Metadata {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        catalog::{
-            core::PreservedCatalog,
-            interface::CatalogParquetInfo,
-            test_helpers::{TestCatalogState, DB_NAME},
-        },
-        test_utils::{chunk_addr, make_config, make_metadata, TestSize},
-    };
+    use crate::{core::PreservedCatalog, interface::CatalogParquetInfo, test_helpers::make_config};
+    use parquet_file::test_utils::{chunk_addr, make_metadata, TestSize};
     use time::Time;
     use uuid::Uuid;
 
@@ -241,10 +237,7 @@ mod tests {
         let iox_object_store = &config.iox_object_store;
 
         // build catalog with some data
-        let (catalog, _state) =
-            PreservedCatalog::new_empty::<TestCatalogState>(DB_NAME, config.clone(), ())
-                .await
-                .unwrap();
+        let catalog = PreservedCatalog::new_empty(config.clone()).await.unwrap();
         {
             let mut transaction = catalog.open_transaction().await;
 
@@ -361,10 +354,7 @@ File {
         let iox_object_store = &config.iox_object_store;
 
         // build catalog with some data
-        let (catalog, _state) =
-            PreservedCatalog::new_empty::<TestCatalogState>(DB_NAME, config.clone(), ())
-                .await
-                .unwrap();
+        let catalog = PreservedCatalog::new_empty(config.clone()).await.unwrap();
         {
             let mut transaction = catalog.open_transaction().await;
 

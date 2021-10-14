@@ -9,7 +9,7 @@ use iox_object_store::{IoxObjectStore, ParquetFilePath};
 use predicate::delete_predicate::DeletePredicate;
 use snafu::Snafu;
 
-use crate::metadata::IoxParquetMetaData;
+use parquet_file::metadata::IoxParquetMetaData;
 
 /// Struct containing all information that a catalog received for a new parquet file.
 #[derive(Debug, Clone)]
@@ -57,7 +57,7 @@ impl std::fmt::Display for ChunkAddrWithoutDatabase {
 pub enum CatalogStateAddError {
     #[snafu(display("Cannot extract metadata from {:?}: {}", path, source))]
     MetadataExtractFailed {
-        source: crate::metadata::Error,
+        source: parquet_file::metadata::Error,
         path: ParquetFilePath,
     },
 
@@ -81,7 +81,7 @@ pub enum CatalogStateAddError {
 
     #[snafu(display("Cannot create parquet chunk from {:?}: {}", path, source))]
     ChunkCreationFailed {
-        source: crate::chunk::Error,
+        source: parquet_file::chunk::Error,
         path: ParquetFilePath,
     },
 
@@ -98,14 +98,6 @@ pub enum CatalogStateRemoveError {
 
 /// Abstraction over how the in-memory state of the catalog works.
 pub trait CatalogState {
-    /// Input to create a new empty instance.
-    ///
-    /// See [`new_empty`](Self::new_empty) for details.
-    type EmptyInput: Send;
-
-    /// Create empty state w/o any known files.
-    fn new_empty(db_name: &str, data: Self::EmptyInput) -> Self;
-
     /// Add parquet file to state.
     fn add(
         &mut self,

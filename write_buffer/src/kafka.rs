@@ -12,6 +12,7 @@ use data_types::{
 };
 use entry::{Entry, SequencedEntry};
 use futures::{FutureExt, StreamExt};
+use http::{HeaderMap, HeaderValue};
 use observability_deps::tracing::{debug, info};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
@@ -25,6 +26,8 @@ use rdkafka::{
     ClientConfig, Message, Offset, TopicPartitionList,
 };
 use time::{Time, TimeProvider};
+use trace::{ctx::SpanContext, TraceCollector};
+use trace_http::ctx::TraceHeaderParser;
 
 use crate::core::{
     EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
@@ -33,6 +36,9 @@ use crate::core::{
 
 /// Message header that determines message content type.
 pub const HEADER_CONTENT_TYPE: &str = "content-type";
+
+/// Message header for tracing context.
+pub const HEADER_TRACE_CONTEXT: &str = "uber-trace-id";
 
 /// Current flatbuffer-based content type.
 ///
@@ -45,36 +51,51 @@ pub const CONTENT_TYPE_FLATBUFFER: &str =
     r#"application/x-flatbuffers; schema="influxdata.iox.write.v1.Entry""#;
 
 /// IOx-specific headers attached to every Kafka message.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 struct IoxHeaders {
     content_type: Option<String>,
+    span_context: Option<SpanContext>,
 }
 
 impl IoxHeaders {
-    /// Create new headers with sane default values.
-    fn new() -> Self {
+    /// Create new headers with sane default values and given span context.
+    fn new(span_context: Option<SpanContext>) -> Self {
         Self {
             content_type: Some(CONTENT_TYPE_FLATBUFFER.to_string()),
+            span_context,
         }
     }
 
     /// Create new headers where all information is missing.
     fn empty() -> Self {
-        Self { content_type: None }
+        Self {
+            content_type: None,
+            span_context: None,
+        }
     }
-}
 
-impl<H> From<&H> for IoxHeaders
-where
-    H: Headers,
-{
-    fn from(headers: &H) -> Self {
-        let mut res = Self { content_type: None };
+    /// Parse from Kafka headers.
+    fn from_kafka<H>(headers: &H, collector: &Arc<dyn TraceCollector>) -> Self
+    where
+        H: Headers,
+    {
+        let mut res = Self::empty();
 
         for i in 0..headers.count() {
             if let Some((name, value)) = headers.get(i) {
                 if name.eq_ignore_ascii_case(HEADER_CONTENT_TYPE) {
                     res.content_type = String::from_utf8(value.to_vec()).ok();
+                }
+
+                if name.eq_ignore_ascii_case(HEADER_TRACE_CONTEXT) {
+                    if let Ok(header_value) = HeaderValue::from_bytes(value) {
+                        let mut headers = HeaderMap::new();
+                        headers.insert(HEADER_TRACE_CONTEXT, header_value);
+
+                        let parser = TraceHeaderParser::new()
+                            .with_jaeger_trace_context_header_name(HEADER_TRACE_CONTEXT);
+                        res.span_context = parser.parse(collector, &headers).ok().flatten();
+                    }
                 }
             }
         }
@@ -89,6 +110,22 @@ impl From<&IoxHeaders> for OwnedHeaders {
 
         if let Some(content_type) = iox_headers.content_type.as_ref() {
             res = res.add(HEADER_CONTENT_TYPE, content_type);
+        }
+
+        if let Some(span_context) = iox_headers.span_context.as_ref() {
+            res = res.add(
+                HEADER_TRACE_CONTEXT,
+                &format!(
+                    "{:x}:{:x}:{:x}:1",
+                    span_context.trace_id.get(),
+                    span_context.span_id.get(),
+                    span_context
+                        .parent_span_id
+                        .as_ref()
+                        .map(|span_id| span_id.get())
+                        .unwrap_or_default()
+                ),
+            )
         }
 
         res
@@ -124,6 +161,7 @@ impl WriteBufferWriting for KafkaBufferProducer {
         &self,
         entry: &Entry,
         sequencer_id: u32,
+        span_context: Option<&SpanContext>,
     ) -> Result<(Sequence, Time), WriteBufferError> {
         let partition = i32::try_from(sequencer_id)?;
 
@@ -132,7 +170,7 @@ impl WriteBufferWriting for KafkaBufferProducer {
         let timestamp_millis = date_time.timestamp_millis();
         let timestamp = Time::from_timestamp_millis(timestamp_millis);
 
-        let headers = IoxHeaders::new();
+        let headers = IoxHeaders::new(span_context.cloned());
 
         // This type annotation is necessary because `FutureRecord` is generic over key type, but
         // key is optional and we're not setting a key. `String` is arbitrary.
@@ -216,6 +254,7 @@ pub struct KafkaBufferConsumer {
     conn: String,
     database_name: String,
     consumers: BTreeMap<u32, Arc<StreamConsumer>>,
+    trace_collector: Arc<dyn TraceCollector>,
 }
 
 // Needed because rdkafka's StreamConsumer doesn't impl Debug
@@ -237,13 +276,14 @@ impl WriteBufferReading for KafkaBufferConsumer {
             let sequencer_id = *sequencer_id;
             let consumer_cloned = Arc::clone(consumer);
             let database_name = self.database_name.clone();
+            let trace_collector = Arc::clone(&self.trace_collector);
 
             let stream = consumer
                 .stream()
                 .map(move |message| {
                     let message = message?;
 
-                    let headers: IoxHeaders = message.headers().map(|headers| headers.into()).unwrap_or_else(IoxHeaders::empty);
+                    let headers: IoxHeaders = message.headers().map(|headers| IoxHeaders::from_kafka(headers, &trace_collector)).unwrap_or_else(IoxHeaders::empty);
 
                     // Fallback for now https://github.com/influxdata/influxdb_iox/issues/2805
                     let content_type = headers.content_type.unwrap_or_else(|| CONTENT_TYPE_FLATBUFFER.to_string());
@@ -278,7 +318,7 @@ impl WriteBufferReading for KafkaBufferConsumer {
                         number: message.offset().try_into()?,
                     };
 
-                    Ok(SequencedEntry::new_from_sequence(sequence, timestamp, entry))
+                    Ok(SequencedEntry::new_from_sequence_and_span_context(sequence, timestamp, entry, headers.span_context))
                 })
                 .boxed();
 
@@ -360,6 +400,8 @@ impl KafkaBufferConsumer {
         database_name: impl Into<String> + Send + Sync,
         connection_config: &HashMap<String, String>,
         creation_config: Option<&WriteBufferCreationConfig>,
+        // `trace_collector` has to be a reference due to https://github.com/rust-lang/rust/issues/63033
+        trace_collector: &Arc<dyn TraceCollector>,
     ) -> Result<Self, WriteBufferError> {
         let conn = conn.into();
         let database_name = database_name.into();
@@ -422,6 +464,7 @@ impl KafkaBufferConsumer {
             conn,
             database_name,
             consumers,
+            trace_collector: Arc::clone(trace_collector),
         })
     }
 }
@@ -628,13 +671,15 @@ mod tests {
         num::NonZeroU32,
         sync::atomic::{AtomicU32, Ordering},
     };
-    use time::TimeProvider;
 
     use entry::test_helpers::lp_to_entry;
+    use time::TimeProvider;
+    use trace::{RingBufferTraceCollector, TraceCollector};
 
     use crate::{
         core::test_utils::{
-            map_pop_first, perform_generic_tests, set_pop_first, TestAdapter, TestContext,
+            assert_span_context_eq, map_pop_first, perform_generic_tests, set_pop_first,
+            TestAdapter, TestContext,
         },
         kafka::test_utils::random_kafka_topic,
         maybe_skip_kafka_integration,
@@ -709,12 +754,15 @@ mod tests {
             let server_id = self.server_id_counter.fetch_add(1, Ordering::SeqCst);
             let server_id = ServerId::try_from(server_id).unwrap();
 
+            let collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+
             KafkaBufferConsumer::new(
                 &self.conn,
                 server_id,
                 &self.database_name,
                 &Default::default(),
                 self.creation_config(creation_config).as_ref(),
+                &collector,
             )
             .await
         }
@@ -818,22 +866,32 @@ mod tests {
 
     #[test]
     fn headers_roundtrip() {
-        let iox_headers1 = IoxHeaders::new();
+        let collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+
+        let span_context_parent = SpanContext::new(Arc::clone(&collector));
+        let span_context = span_context_parent.child("foo").ctx;
+
+        let iox_headers1 = IoxHeaders::new(Some(span_context));
+
         let kafka_headers: OwnedHeaders = (&iox_headers1).into();
-        let iox_headers2: IoxHeaders = (&kafka_headers).into();
-        assert_eq!(iox_headers1, iox_headers2);
+        let iox_headers2 = IoxHeaders::from_kafka(&kafka_headers, &collector);
+
+        assert_eq!(iox_headers1.content_type, iox_headers2.content_type);
+        assert_span_context_eq(
+            iox_headers1.span_context.as_ref().unwrap(),
+            iox_headers2.span_context.as_ref().unwrap(),
+        );
     }
 
     #[test]
     fn headers_case_handling() {
+        let collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+
         let kafka_headers = OwnedHeaders::new()
             .add("content-type", "a")
             .add("CONTENT-TYPE", "b")
             .add("content-TYPE", "c");
-        let actual: IoxHeaders = (&kafka_headers).into();
-        let expected = IoxHeaders {
-            content_type: Some("c".to_string()),
-        };
-        assert_eq!(actual, expected);
+        let actual = IoxHeaders::from_kafka(&kafka_headers, &collector);
+        assert_eq!(actual.content_type, Some("c".to_string()));
     }
 }

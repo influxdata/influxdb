@@ -8,6 +8,7 @@ use data_types::sequence::Sequence;
 use entry::{Entry, SequencedEntry};
 use futures::{future::BoxFuture, stream::BoxStream};
 use time::Time;
+use trace::ctx::SpanContext;
 
 /// Generic boxed error type that is used in this crate.
 ///
@@ -25,11 +26,14 @@ pub trait WriteBufferWriting: Sync + Send + Debug + 'static {
 
     /// Send an `Entry` to the write buffer using the specified sequencer ID.
     ///
+    /// You can attach an optional [`SpanContext`] which will be propagated to the reader side.
+    ///
     /// Returns information that can be used to restore entries at a later time.
     async fn store_entry(
         &self,
         entry: &Entry,
         sequencer_id: u32,
+        span_context: Option<&SpanContext>,
     ) -> Result<(Sequence, Time), WriteBufferError>;
 
     /// Return type (like `"mock"` or `"kafka"`) of this writer.
@@ -96,6 +100,7 @@ pub mod test_utils {
     use entry::{test_helpers::lp_to_entry, Entry};
     use futures::{StreamExt, TryStreamExt};
     use time::{Time, TimeProvider};
+    use trace::{ctx::SpanContext, RingBufferTraceCollector, TraceCollector};
 
     use super::{WriteBufferError, WriteBufferReading, WriteBufferWriting};
 
@@ -158,6 +163,7 @@ pub mod test_utils {
         test_timestamp(&adapter).await;
         test_sequencer_auto_creation(&adapter).await;
         test_sequencer_ids(&adapter).await;
+        test_span_context(&adapter).await;
     }
 
     /// Test IO with a single writer and single reader stream.
@@ -190,7 +196,10 @@ pub mod test_utils {
         assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
 
         // adding content allows us to get results
-        writer.store_entry(&entry_1, sequencer_id).await.unwrap();
+        writer
+            .store_entry(&entry_1, sequencer_id, None)
+            .await
+            .unwrap();
         assert_eq!(
             stream.stream.next().await.unwrap().unwrap().entry(),
             &entry_1
@@ -200,8 +209,14 @@ pub mod test_utils {
         assert!(stream.stream.poll_next_unpin(&mut cx).is_pending());
 
         // adding more data unblocks the stream
-        writer.store_entry(&entry_2, sequencer_id).await.unwrap();
-        writer.store_entry(&entry_3, sequencer_id).await.unwrap();
+        writer
+            .store_entry(&entry_2, sequencer_id, None)
+            .await
+            .unwrap();
+        writer
+            .store_entry(&entry_3, sequencer_id, None)
+            .await
+            .unwrap();
         assert_eq!(
             stream.stream.next().await.unwrap().unwrap().entry(),
             &entry_2
@@ -235,9 +250,9 @@ pub mod test_utils {
         let waker = futures::task::noop_waker();
         let mut cx = futures::task::Context::from_waker(&waker);
 
-        writer.store_entry(&entry_1, 0).await.unwrap();
-        writer.store_entry(&entry_2, 0).await.unwrap();
-        writer.store_entry(&entry_3, 0).await.unwrap();
+        writer.store_entry(&entry_1, 0, None).await.unwrap();
+        writer.store_entry(&entry_2, 0, None).await.unwrap();
+        writer.store_entry(&entry_3, 0, None).await.unwrap();
 
         // creating stream, drop stream, re-create it => still starts at first entry
         let mut streams = reader.streams();
@@ -309,21 +324,30 @@ pub mod test_utils {
         assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
 
         // entries arrive at the right target stream
-        writer.store_entry(&entry_1, sequencer_id_1).await.unwrap();
+        writer
+            .store_entry(&entry_1, sequencer_id_1, None)
+            .await
+            .unwrap();
         assert_eq!(
             stream_1.stream.next().await.unwrap().unwrap().entry(),
             &entry_1
         );
         assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
 
-        writer.store_entry(&entry_2, sequencer_id_2).await.unwrap();
+        writer
+            .store_entry(&entry_2, sequencer_id_2, None)
+            .await
+            .unwrap();
         assert!(stream_1.stream.poll_next_unpin(&mut cx).is_pending());
         assert_eq!(
             stream_2.stream.next().await.unwrap().unwrap().entry(),
             &entry_2
         );
 
-        writer.store_entry(&entry_3, sequencer_id_1).await.unwrap();
+        writer
+            .store_entry(&entry_3, sequencer_id_1, None)
+            .await
+            .unwrap();
         assert!(stream_2.stream.poll_next_unpin(&mut cx).is_pending());
         assert_eq!(
             stream_1.stream.next().await.unwrap().unwrap().entry(),
@@ -365,15 +389,15 @@ pub mod test_utils {
         let sequencer_id_2 = set_pop_first(&mut sequencer_ids_1).unwrap();
 
         writer_1
-            .store_entry(&entry_east_1, sequencer_id_1)
+            .store_entry(&entry_east_1, sequencer_id_1, None)
             .await
             .unwrap();
         writer_1
-            .store_entry(&entry_west_1, sequencer_id_2)
+            .store_entry(&entry_west_1, sequencer_id_2, None)
             .await
             .unwrap();
         writer_2
-            .store_entry(&entry_east_2, sequencer_id_1)
+            .store_entry(&entry_east_2, sequencer_id_1, None)
             .await
             .unwrap();
 
@@ -417,9 +441,24 @@ pub mod test_utils {
         let entry_west_1 = lp_to_entry("upc,region=west user=1 200");
 
         let writer = context.writing(true).await.unwrap();
-        let _sequence_number_east_1 = writer.store_entry(&entry_east_1, 0).await.unwrap().0.number;
-        let sequence_number_east_2 = writer.store_entry(&entry_east_2, 0).await.unwrap().0.number;
-        let _sequence_number_west_1 = writer.store_entry(&entry_west_1, 1).await.unwrap().0.number;
+        let _sequence_number_east_1 = writer
+            .store_entry(&entry_east_1, 0, None)
+            .await
+            .unwrap()
+            .0
+            .number;
+        let sequence_number_east_2 = writer
+            .store_entry(&entry_east_2, 0, None)
+            .await
+            .unwrap()
+            .0
+            .number;
+        let _sequence_number_west_1 = writer
+            .store_entry(&entry_west_1, 1, None)
+            .await
+            .unwrap()
+            .0
+            .number;
 
         let mut reader_1 = context.reading(true).await.unwrap();
         let mut reader_2 = context.reading(true).await.unwrap();
@@ -447,7 +486,12 @@ pub mod test_utils {
 
         // seek to far end and then at data
         reader_1.seek(0, 1_000_000).await.unwrap();
-        let _sequence_number_east_3 = writer.store_entry(&entry_east_3, 0).await.unwrap().0.number;
+        let _sequence_number_east_3 = writer
+            .store_entry(&entry_east_3, 0, None)
+            .await
+            .unwrap()
+            .0
+            .number;
         let mut streams = reader_1.streams();
         assert_eq!(streams.len(), 2);
         let (_sequencer_id, mut stream_1) = map_pop_first(&mut streams).unwrap();
@@ -491,17 +535,17 @@ pub mod test_utils {
 
         // high water mark moves
         writer
-            .store_entry(&entry_east_1, sequencer_id_1)
+            .store_entry(&entry_east_1, sequencer_id_1, None)
             .await
             .unwrap();
         let mark_1 = writer
-            .store_entry(&entry_east_2, sequencer_id_1)
+            .store_entry(&entry_east_2, sequencer_id_1, None)
             .await
             .unwrap()
             .0
             .number;
         let mark_2 = writer
-            .store_entry(&entry_west_1, sequencer_id_2)
+            .store_entry(&entry_west_1, sequencer_id_2, None)
             .await
             .unwrap()
             .0
@@ -534,7 +578,11 @@ pub mod test_utils {
         assert_eq!(streams.len(), 1);
         let (sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
 
-        let reported_ts = writer.store_entry(&entry, sequencer_id).await.unwrap().1;
+        let reported_ts = writer
+            .store_entry(&entry, sequencer_id, None)
+            .await
+            .unwrap()
+            .1;
 
         // advance time
         time.inc(Duration::from_secs(10));
@@ -595,6 +643,59 @@ pub mod test_utils {
         assert_eq!(sequencer_ids_1.len(), n_sequencers as usize);
     }
 
+    /// Test that span contexts are propagated through the system.
+    async fn test_span_context<T>(adapter: &T)
+    where
+        T: TestAdapter,
+    {
+        let context = adapter.new_context(NonZeroU32::try_from(1).unwrap()).await;
+
+        let entry = lp_to_entry("upc user=1 100");
+
+        let writer = context.writing(true).await.unwrap();
+        let mut reader = context.reading(true).await.unwrap();
+
+        let mut streams = reader.streams();
+        assert_eq!(streams.len(), 1);
+        let (sequencer_id, mut stream) = map_pop_first(&mut streams).unwrap();
+
+        // 1: no context
+        writer
+            .store_entry(&entry, sequencer_id, None)
+            .await
+            .unwrap();
+
+        // 2: some context
+        let collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+        let span_context_1 = SpanContext::new(Arc::clone(&collector));
+        writer
+            .store_entry(&entry, sequencer_id, Some(&span_context_1))
+            .await
+            .unwrap();
+
+        // 2: another context
+        let span_context_parent = SpanContext::new(collector);
+        let span_context_2 = span_context_parent.child("foo").ctx;
+        writer
+            .store_entry(&entry, sequencer_id, Some(&span_context_2))
+            .await
+            .unwrap();
+
+        // check entry 1
+        let sequenced_entry_1 = stream.stream.next().await.unwrap().unwrap();
+        assert!(sequenced_entry_1.span_context().is_none());
+
+        // check entry 2
+        let sequenced_entry_2 = stream.stream.next().await.unwrap().unwrap();
+        let actual_context_1 = sequenced_entry_2.span_context().unwrap();
+        assert_span_context_eq(actual_context_1, &span_context_1);
+
+        // check entry 3
+        let sequenced_entry_3 = stream.stream.next().await.unwrap().unwrap();
+        let actual_context_2 = sequenced_entry_3.span_context().unwrap();
+        assert_span_context_eq(actual_context_2, &span_context_2);
+    }
+
     /// Assert that the content of the reader is as expected.
     ///
     /// This will read `expected.len()` from the reader and then ensures that the stream is pending.
@@ -646,6 +747,18 @@ pub mod test_utils {
             // empty stream is pending
             assert!(actual_stream.stream.poll_next_unpin(&mut cx).is_pending());
         }
+    }
+
+    /// Asserts that given span context are the same.
+    ///
+    /// "Same" means:
+    /// - identical trace ID
+    /// - identical span ID
+    /// - identical parent span ID
+    pub(crate) fn assert_span_context_eq(lhs: &SpanContext, rhs: &SpanContext) {
+        assert_eq!(lhs.trace_id, rhs.trace_id);
+        assert_eq!(lhs.span_id, rhs.span_id);
+        assert_eq!(lhs.parent_span_id, rhs.parent_span_id);
     }
 
     /// Pops first entry from map.

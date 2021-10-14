@@ -828,7 +828,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "5.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=4687899957463ce81c4795a6d35d31320db0252b#4687899957463ce81c4795a6d35d31320db0252b"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=2454e468641d4d98af211c2800c0afec2732385b#2454e468641d4d98af211c2800c0afec2732385b"
 dependencies = [
  "ahash",
  "arrow",
@@ -1010,6 +1010,7 @@ checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
 name = "entry"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "chrono",
  "data_types",
  "flatbuffers",
@@ -1019,6 +1020,7 @@ dependencies = [
  "schema",
  "snafu",
  "time 0.1.0",
+ "trace",
 ]
 
 [[package]]
@@ -1676,6 +1678,7 @@ dependencies = [
  "panic_logging",
  "parking_lot",
  "parquet",
+ "parquet_catalog",
  "parquet_file",
  "pprof",
  "predicate",
@@ -1800,7 +1803,6 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "parking_lot",
- "snafu",
  "time 0.1.0",
  "tokio",
 ]
@@ -2684,6 +2686,42 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a5bc6b23543b5dedc8f6cce50758a35e5582e148e0cfa26bd0cacd569cda5b71"
 dependencies = [
  "thrift",
+]
+
+[[package]]
+name = "parquet_catalog"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "base64 0.13.0",
+ "bytes",
+ "chrono",
+ "data_types",
+ "datafusion 0.1.0",
+ "datafusion_util",
+ "futures",
+ "generated_types",
+ "iox_object_store",
+ "metric",
+ "object_store",
+ "observability_deps",
+ "parking_lot",
+ "parquet",
+ "parquet-format",
+ "parquet_file",
+ "pbjson-types",
+ "persistence_windows",
+ "predicate",
+ "prost",
+ "schema",
+ "snafu",
+ "tempfile",
+ "thrift",
+ "time 0.1.0",
+ "tokio",
+ "tokio-stream",
+ "uuid",
+ "zstd",
 ]
 
 [[package]]
@@ -3850,6 +3888,7 @@ dependencies = [
  "observability_deps",
  "once_cell",
  "parking_lot",
+ "parquet_catalog",
  "parquet_file",
  "persistence_windows",
  "predicate",
@@ -4982,11 +5021,14 @@ dependencies = [
  "dotenv",
  "entry",
  "futures",
+ "http",
  "observability_deps",
  "parking_lot",
  "rdkafka",
  "time 0.1.0",
  "tokio",
+ "trace",
+ "trace_http",
  "uuid",
 ]
 

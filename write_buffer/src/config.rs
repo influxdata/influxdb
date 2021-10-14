@@ -1,3 +1,4 @@
+use parking_lot::RwLock;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     sync::Arc,
@@ -8,6 +9,7 @@ use data_types::{
     server_id::ServerId,
 };
 use time::TimeProvider;
+use trace::TraceCollector;
 
 use crate::{
     core::{WriteBufferError, WriteBufferReading, WriteBufferWriting},
@@ -34,7 +36,7 @@ enum Mock {
 /// from [`WriteBufferConnection`].
 #[derive(Debug)]
 pub struct WriteBufferConfigFactory {
-    mocks: BTreeMap<String, Mock>,
+    mocks: RwLock<BTreeMap<String, Mock>>,
     time_provider: Arc<dyn TimeProvider>,
 }
 
@@ -51,7 +53,7 @@ impl WriteBufferConfigFactory {
     ///
     /// # Panics
     /// When mock with identical name is already registered.
-    pub fn register_mock(&mut self, name: String, state: MockBufferSharedState) {
+    pub fn register_mock(&self, name: String, state: MockBufferSharedState) {
         self.set_mock(name, Mock::Normal(state));
     }
 
@@ -59,12 +61,13 @@ impl WriteBufferConfigFactory {
     ///
     /// # Panics
     /// When mock with identical name is already registered.
-    pub fn register_always_fail_mock(&mut self, name: String) {
+    pub fn register_always_fail_mock(&self, name: String) {
         self.set_mock(name, Mock::AlwaysFailing);
     }
 
-    fn set_mock(&mut self, name: String, mock: Mock) {
-        match self.mocks.entry(name) {
+    fn set_mock(&self, name: String, mock: Mock) {
+        let mut mocks = self.mocks.write();
+        match mocks.entry(name) {
             Entry::Vacant(v) => {
                 v.insert(mock);
             }
@@ -76,6 +79,7 @@ impl WriteBufferConfigFactory {
 
     fn get_mock(&self, name: &str) -> Result<Mock, WriteBufferError> {
         self.mocks
+            .read()
             .get(name)
             .cloned()
             .ok_or_else::<WriteBufferError, _>(|| format!("Unknown mock ID: {}", name).into())
@@ -135,6 +139,7 @@ impl WriteBufferConfigFactory {
         &self,
         server_id: ServerId,
         db_name: &str,
+        trace_collector: &Arc<dyn TraceCollector>,
         cfg: &WriteBufferConnection,
     ) -> Result<Box<dyn WriteBufferReading>, WriteBufferError> {
         assert_eq!(cfg.direction, WriteBufferDirection::Read);
@@ -147,6 +152,7 @@ impl WriteBufferConfigFactory {
                     db_name,
                     &cfg.connection_config,
                     cfg.creation_config.as_ref(),
+                    trace_collector,
                 )
                 .await?;
                 Box::new(kafka_buffer) as _
@@ -176,6 +182,7 @@ mod tests {
     use std::{convert::TryFrom, num::NonZeroU32};
 
     use data_types::{database_rules::WriteBufferCreationConfig, DatabaseName};
+    use trace::RingBufferTraceCollector;
 
     use crate::{
         kafka::test_utils::random_kafka_topic, maybe_skip_kafka_integration,
@@ -207,6 +214,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_reading_kafka() {
+        let trace_collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+
         let conn = maybe_skip_kafka_integration!();
         let time = Arc::new(time::SystemProvider::new());
         let factory = WriteBufferConfigFactory::new(time);
@@ -222,7 +231,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_read(server_id, db_name.as_str(), &cfg)
+            .new_config_read(server_id, db_name.as_str(), &trace_collector, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "kafka");
@@ -231,7 +240,7 @@ mod tests {
     #[tokio::test]
     async fn test_writing_mock() {
         let time = Arc::new(time::SystemProvider::new());
-        let mut factory = WriteBufferConfigFactory::new(time);
+        let factory = WriteBufferConfigFactory::new(time);
 
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
@@ -268,8 +277,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_reading_mock() {
+        let trace_collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+
         let time = Arc::new(time::SystemProvider::new());
-        let mut factory = WriteBufferConfigFactory::new(time);
+        let factory = WriteBufferConfigFactory::new(time);
 
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());
@@ -286,7 +297,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_read(server_id, db_name.as_str(), &cfg)
+            .new_config_read(server_id, db_name.as_str(), &trace_collector, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "mock");
@@ -299,7 +310,7 @@ mod tests {
             ..Default::default()
         };
         let err = factory
-            .new_config_read(server_id, db_name.as_str(), &cfg)
+            .new_config_read(server_id, db_name.as_str(), &trace_collector, &cfg)
             .await
             .unwrap_err();
         assert!(err.to_string().starts_with("Unknown mock ID:"));
@@ -308,7 +319,7 @@ mod tests {
     #[tokio::test]
     async fn test_writing_mock_failing() {
         let time = Arc::new(time::SystemProvider::new());
-        let mut factory = WriteBufferConfigFactory::new(time);
+        let factory = WriteBufferConfigFactory::new(time);
 
         let mock_name = "some_mock";
         factory.register_always_fail_mock(mock_name.to_string());
@@ -343,8 +354,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_reading_mock_failing() {
+        let trace_collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+
         let time = Arc::new(time::SystemProvider::new());
-        let mut factory = WriteBufferConfigFactory::new(time);
+        let factory = WriteBufferConfigFactory::new(time);
 
         let mock_name = "some_mock";
         factory.register_always_fail_mock(mock_name.to_string());
@@ -360,7 +373,7 @@ mod tests {
         };
 
         let conn = factory
-            .new_config_read(server_id, db_name.as_str(), &cfg)
+            .new_config_read(server_id, db_name.as_str(), &trace_collector, &cfg)
             .await
             .unwrap();
         assert_eq!(conn.type_name(), "mock_failing");
@@ -373,7 +386,7 @@ mod tests {
             ..Default::default()
         };
         let err = factory
-            .new_config_read(server_id, db_name.as_str(), &cfg)
+            .new_config_read(server_id, db_name.as_str(), &trace_collector, &cfg)
             .await
             .unwrap_err();
         assert!(err.to_string().starts_with("Unknown mock ID:"));
@@ -383,7 +396,7 @@ mod tests {
     #[should_panic(expected = "Mock with the name 'some_mock' already registered")]
     fn test_register_mock_twice_panics() {
         let time = Arc::new(time::SystemProvider::new());
-        let mut factory = WriteBufferConfigFactory::new(time);
+        let factory = WriteBufferConfigFactory::new(time);
 
         let state =
             MockBufferSharedState::empty_with_n_sequencers(NonZeroU32::try_from(1).unwrap());

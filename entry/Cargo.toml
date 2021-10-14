@@ -6,6 +6,7 @@ edition = "2018"
 description = "The entry format used by the write buffer"
 
 [dependencies]
+bytes = "1.0"
 chrono = "0.4"
 data_types = { path = "../data_types" }
 # See docs/regenerating_flatbuffers.md about updating generated code when updating the
@@ -13,6 +14,7 @@ data_types = { path = "../data_types" }
 flatbuffers = "2"
 snafu = "0.6"
 time = { path = "../time" }
+trace = { path = "../trace" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 ouroboros = "0.13.0"
 schema = { path = "../schema" }
