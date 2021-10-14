@@ -26,7 +26,7 @@ use crate::exec::{
     fieldlist::{FieldList, IntoFieldList},
     query_tracing::TracedStream,
     schema_pivot::{SchemaPivotExec, SchemaPivotNode},
-    seriesset::{SeriesSetConverter, SeriesSetItem},
+    seriesset::{converter::SeriesSetConverter, SeriesSetItem},
     split::StreamSplitExec,
     stringset::{IntoStringSet, StringSetRef},
 };
