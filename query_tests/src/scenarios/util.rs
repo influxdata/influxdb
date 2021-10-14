@@ -115,7 +115,7 @@ pub async fn all_scenarios_for_one_chunk(
     chunk_stage_preds: Vec<&DeletePredicate>,
     // These delete predicates are applied to all chunks at their final stages
     at_end_preds: Vec<&DeletePredicate>,
-    // Input data, formatted as line protocol.  One chunk will be created for each measurement 
+    // Input data, formatted as line protocol.  One chunk will be created for each measurement
     // (table) that appears in the input
     lp_lines: Vec<&str>,
     // Table to which the delete predicates will be applied
