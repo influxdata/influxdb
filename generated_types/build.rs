@@ -78,6 +78,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
             ".influxdata.iox.management.v1.PersistChunks.chunks",
             ".influxdata.iox.management.v1.WriteChunk.chunk_id",
             ".influxdata.iox.management.v1.UnloadPartitionChunkRequest.chunk_id",
+            ".influxdata.iox.write.v1.WriteEntryRequest.entry",
         ])
         .btree_map(&[
             ".influxdata.iox.catalog.v1.DatabaseCheckpoint.sequencer_numbers",
