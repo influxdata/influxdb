@@ -493,6 +493,7 @@ async fn write<M>(
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
+    let span_ctx = req.extensions().get().cloned();
     let Server {
         app_server: server,
         lp_metrics,
@@ -535,7 +536,10 @@ where
     let num_lines = lines.len();
     debug!(num_lines, num_fields, body_size=body.len(), %db_name, org=%write_info.org, bucket=%write_info.bucket, "inserting lines into database");
 
-    match server.write_lines(&db_name, &lines, default_time).await {
+    match server
+        .write_lines(&db_name, &lines, default_time, span_ctx)
+        .await
+    {
         Ok(_) => {
             lp_metrics.record_write(&db_name, lines.len(), num_fields, body.len(), true);
             Ok(Response::builder()

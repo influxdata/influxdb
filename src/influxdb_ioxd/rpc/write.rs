@@ -30,6 +30,7 @@ where
         &self,
         request: tonic::Request<WriteRequest>,
     ) -> Result<tonic::Response<WriteResponse>, tonic::Status> {
+        let span_ctx = request.extensions().get().cloned();
         let request = request.into_inner();
 
         // The time, in nanoseconds since the epoch, to assign to any points that don't
@@ -57,7 +58,7 @@ where
         debug!(%db_name, %lp_chars, lp_line_count, body_size=lp_data.len(), num_fields, "Writing lines into database");
 
         self.server
-            .write_lines(&db_name, &lines, default_time)
+            .write_lines(&db_name, &lines, default_time, span_ctx)
             .await
             .map_err(default_server_error_handler)?;
 
@@ -69,6 +70,7 @@ where
         &self,
         request: tonic::Request<WriteEntryRequest>,
     ) -> Result<tonic::Response<WriteEntryResponse>, tonic::Status> {
+        let span_ctx = request.extensions().get().cloned();
         let request = request.into_inner();
         let db_name = DatabaseName::new(&request.db_name).field("db_name")?;
 
@@ -79,7 +81,7 @@ where
         let entry = entry::Entry::try_from(request.entry).field("entry")?;
 
         self.server
-            .write_entry_local(&db_name, entry)
+            .write_entry_local(&db_name, entry, span_ctx)
             .await
             .map_err(default_server_error_handler)?;
 
