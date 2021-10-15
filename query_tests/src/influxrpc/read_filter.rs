@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use data_types::timestamp::TimestampRange;
 use datafusion::logical_plan::{col, lit};
 use predicate::{
+    delete_expr::DeleteExpr,
     delete_predicate::DeletePredicate,
     predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
 };
@@ -58,7 +59,8 @@ impl DbSetup for TwoMeasurementsMultiSeriesWithDelete {
         lp_lines.swap(0, 2);
         lp_lines.swap(4, 5);
 
-        // pred: delete from h20 where 120 <= time <= 250
+        // pred: delete from h2o where 120 <= time <= 250
+        // 2 rows of h2o with timestamp 200 and 350 will be deleted
         let delete_table_name = "h2o";
         let pred = DeletePredicate {
             range: TimestampRange {
@@ -240,6 +242,55 @@ async fn test_read_filter_data_filter() {
 }
 
 #[tokio::test]
+async fn test_read_filter_data_filter_with_delete() {
+    // filter out one row in h20 but the leftover row was deleted to nothing will be returned
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(200, 300)
+        .add_expr(col("state").eq(lit("CA"))) // state=CA
+        .build();
+
+    let expected_results = vec![];
+
+    run_read_filter_test_case(
+        TwoMeasurementsMultiSeriesWithDelete {},
+        predicate,
+        expected_results.clone(),
+    )
+    .await;
+
+    // Same results via a != predicate.
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(200, 300)
+        .add_expr(col("state").not_eq(lit("MA"))) // state=CA
+        .build();
+
+    run_read_filter_test_case(
+        TwoMeasurementsMultiSeriesWithDelete {},
+        predicate,
+        expected_results,
+    )
+    .await;
+
+    // Use different predicate to have data returned
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(100, 300)
+        .add_expr(col("state").eq(lit("MA"))) // state=MA
+        .add_expr(col("_measurement").eq(lit("h2o")))
+        .build();
+
+    let expected_results = vec![
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [100], values: [70.4]",
+    ];
+
+    run_read_filter_test_case(
+        TwoMeasurementsMultiSeriesWithDelete {},
+        predicate,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn test_read_filter_data_filter_fields() {
     // filter out one row in h20
     let predicate = PredicateBuilder::default()
@@ -254,6 +305,8 @@ async fn test_read_filter_data_filter_fields() {
 
     run_read_filter_test_case(TwoMeasurementsManyFields {}, predicate, expected_results).await;
 }
+
+// NGA todo: add delete tests here after we have delete scenarios for 2 chunks for 1 table
 
 #[tokio::test]
 async fn test_read_filter_data_filter_measurement_pred() {
@@ -379,6 +432,50 @@ async fn test_read_filter_data_pred_using_regex_match() {
 }
 
 #[tokio::test]
+async fn test_read_filter_data_pred_using_regex_match_with_delete() {
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(200, 300)
+        // will match CA state
+        .build_regex_match_expr("state", "C.*")
+        .build();
+
+    // the selected row was soft deleted
+    let expected_results = vec![];
+    run_read_filter_test_case(
+        TwoMeasurementsMultiSeriesWithDelete {},
+        predicate,
+        expected_results,
+    )
+    .await;
+
+    // Different predicate to have data returned
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(200, 400)
+        // will match CA state
+        .build_regex_match_expr("state", "C.*")
+        .build();
+
+    let expected_results = vec![
+    "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [350], values: [90.0]",
+    ];
+    run_read_filter_test_case(
+        TwoMeasurementsMultiSeriesWithDelete {},
+        predicate.clone(),
+        expected_results,
+    )
+    .await;
+
+    // Try same predicate but on delete_all data
+    let expected_results = vec![];
+    run_read_filter_test_case(
+        TwoMeasurementsMultiSeriesWithDeleteAll {},
+        predicate,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn test_read_filter_data_pred_using_regex_not_match() {
     let predicate = PredicateBuilder::default()
         .timestamp_range(200, 300)
@@ -413,8 +510,58 @@ async fn test_read_filter_data_pred_unsupported_in_scan() {
         "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
         "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
     ];
+    // // correct one
+    // let expected_results = vec![
+    // "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [200, 350], values: [90.0, 90.0]",
+    // "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
+    // "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
+    // ];
 
     run_read_filter_test_case(TwoMeasurementsMultiSeries {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
+async fn test_read_filter_data_pred_unsupported_in_scan_with_delete() {
+    test_helpers::maybe_start_logging();
+
+    // These predicates can't be pushed down into chunks, but they can
+    // be evaluated by the general purpose DataFusion plan
+    // https://github.com/influxdata/influxdb_iox/issues/883
+    // (STATE = 'CA') OR (READING > 0)
+    let predicate = PredicateBuilder::default()
+        .add_expr(col("state").eq(lit("CA")).or(col("reading").gt(lit(0))))
+        .build();
+
+    // Note these results are incorrect (they do not include data from h2o where
+    // state = CA)
+    let expected_results = vec![
+        "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
+        "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
+    ];
+    // // correct one
+    // let expected_results = vec![
+    // "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [350], values: [90.0]",
+    // "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
+    // "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
+    // ];
+    run_read_filter_test_case(
+        TwoMeasurementsMultiSeriesWithDelete {},
+        predicate.clone(),
+        expected_results,
+    )
+    .await;
+
+    // With delete all from h2o, no rows from h2p should be returned
+    let expected_results = vec![
+        "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.0, 51.0]",
+        "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  FloatPoints timestamps: [100, 250], values: [50.4, 53.4]",
+    ];
+    run_read_filter_test_case(
+        TwoMeasurementsMultiSeriesWithDeleteAll {},
+        predicate,
+        expected_results,
+    )
+    .await;
 }
 
 #[derive(Debug)]
@@ -436,6 +583,47 @@ impl DbSetup for MeasurementsSortableTags {
     }
 }
 
+#[derive(Debug)]
+pub struct MeasurementsSortableTagsWithDelete {}
+#[async_trait]
+impl DbSetup for MeasurementsSortableTagsWithDelete {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines = vec![
+            "h2o,zz_tag=A,state=MA,city=Kingston temp=70.1 800",
+            "h2o,state=MA,city=Kingston,zz_tag=B temp=70.2 100",
+            "h2o,state=CA,city=Boston temp=70.3 250", // soft deleted
+            "h2o,state=MA,city=Boston,zz_tag=A temp=70.4 1000",
+            "h2o,state=MA,city=Boston temp=70.5,other=5.0 250",
+        ];
+
+        // pred: delete from h2o where 120 <= time <= 350 and state=CA
+        // 1 rows of h2o with timestamp 250 will be deleted
+        let delete_table_name = "h2o";
+        let pred = DeletePredicate {
+            range: TimestampRange {
+                start: 120,
+                end: 350,
+            },
+            exprs: vec![DeleteExpr::new(
+                "state".to_string(),
+                predicate::delete_expr::Op::Eq,
+                predicate::delete_expr::Scalar::String(("CA").to_string()),
+            )],
+        };
+
+        all_scenarios_for_one_chunk(
+            vec![&pred],
+            vec![],
+            lp_lines,
+            delete_table_name,
+            partition_key,
+        )
+        .await
+    }
+}
+
 #[tokio::test]
 async fn test_read_filter_data_plan_order() {
     test_helpers::maybe_start_logging();
@@ -450,4 +638,24 @@ async fn test_read_filter_data_plan_order() {
     ];
 
     run_read_filter_test_case(MeasurementsSortableTags {}, predicate, expected_results).await;
+}
+
+#[tokio::test]
+async fn test_read_filter_data_plan_order_with_delete() {
+    test_helpers::maybe_start_logging();
+    let predicate = Predicate::default();
+    let expected_results = vec![
+        "Series tags={_field=other, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [250], values: [5.0]",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [250], values: [70.5]",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA, zz_tag=A}\n  FloatPoints timestamps: [1000], values: [70.4]",
+        "Series tags={_field=temp, _measurement=h2o, city=Kingston, state=MA, zz_tag=A}\n  FloatPoints timestamps: [800], values: [70.1]",
+        "Series tags={_field=temp, _measurement=h2o, city=Kingston, state=MA, zz_tag=B}\n  FloatPoints timestamps: [100], values: [70.2]",
+    ];
+
+    run_read_filter_test_case(
+        MeasurementsSortableTagsWithDelete {},
+        predicate,
+        expected_results,
+    )
+    .await;
 }
