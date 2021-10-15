@@ -406,7 +406,8 @@ impl IoxObjectStore {
     }
 
     /// The possibly valid location in object storage for this database. Suitable for serialization
-    /// to use during initial database load, but not parsing, as its format is subject to change!
+    /// to use during initial database load, but not parsing for semantic meaning, as its format is
+    /// subject to change!
     pub fn root_path(&self) -> String {
         self.root_path.inner.to_string()
     }
