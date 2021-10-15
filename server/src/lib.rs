@@ -507,10 +507,7 @@ impl ServerStateInitialized {
             databases: self
                 .databases
                 .iter()
-                .map(|(name, database)| management::v1::Database {
-                    name: name.to_string(),
-                    location: database.location(),
-                })
+                .map(|(name, database)| (name.to_string(), database.location()))
                 .collect(),
         };
 
@@ -1425,10 +1422,9 @@ mod tests {
 
         for entry in expected {
             let (expected_name, expected_location) = entry;
-            let db = config
+            let location = config
                 .databases
-                .iter()
-                .find(|db| db.name == expected_name.as_str())
+                .get(expected_name.as_str())
                 .unwrap_or_else(|| {
                     panic!(
                         "Could not find database named {} in server config",
@@ -1436,7 +1432,7 @@ mod tests {
                     )
                 });
 
-            assert_eq!(&db.location, expected_location);
+            assert_eq!(location, expected_location);
         }
     }
 
