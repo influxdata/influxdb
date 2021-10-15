@@ -152,6 +152,10 @@ pub mod database_state;
 pub mod detailed_database;
 #[cfg(feature = "data_types_conversions")]
 pub mod job;
+#[cfg(feature = "data_types_conversions")]
+pub mod server_config;
+
+pub use prost::{DecodeError, EncodeError};
 
 #[cfg(test)]
 mod tests {

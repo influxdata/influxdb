@@ -21,12 +21,12 @@ pub enum Error {
 
     #[snafu(display("error deserializing database rules: {}", source))]
     Deserialization {
-        source: generated_types::database_rules::ProstError,
+        source: generated_types::DecodeError,
     },
 
     #[snafu(display("error serializing database rules: {}", source))]
     Serialization {
-        source: generated_types::database_rules::ProstError,
+        source: generated_types::EncodeError,
     },
 
     #[snafu(display("error fetching rules: {}", source))]

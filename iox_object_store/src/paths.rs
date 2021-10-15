@@ -6,6 +6,7 @@ use object_store::{
     path::{ObjectStorePath, Path},
     ObjectStore, ObjectStoreApi,
 };
+use std::fmt;
 
 pub mod parquet_file;
 use parquet_file::ParquetFilePath;
@@ -13,18 +14,31 @@ use parquet_file::ParquetFilePath;
 pub mod transaction_file;
 use transaction_file::TransactionFilePath;
 
+const SERVER_CONFIG_FILE_NAME: &str = "config.pb";
+
+/// The path to the server file containing the list of databases this server owns.
+// TODO: this is in the process of replacing all_databases_path for the floating databases design
+pub(crate) fn server_config_path(object_store: &ObjectStore, server_id: ServerId) -> Path {
+    let mut path = object_store.new_path();
+    path.push_dir(server_id.to_string());
+    path.set_file_name(SERVER_CONFIG_FILE_NAME);
+    path
+}
+
 /// The path all database root paths should be in. Used for listing all databases and building
 /// database `RootPath`s in the same way. Not its own type because it's only needed ephemerally.
+// TODO: this is in the process of being deprecated in favor of server_config_path
 pub(crate) fn all_databases_path(object_store: &ObjectStore, server_id: ServerId) -> Path {
     let mut path = object_store.new_path();
     path.push_dir(server_id.to_string());
     path
 }
 
-/// A database-specific object store path that all `IoxPath`s should be within.
-/// This should not be leaked outside this crate.
+/// A database-specific object store path that all `IoxObjectStore` `Path`s should be within.
+/// This can be serialized to facilitate initial loading of a database from object storage, but
+/// the path should not be parsed into its component parts as the format might change.
 #[derive(Debug, Clone)]
-pub(crate) struct RootPath {
+pub struct RootPath {
     pub(crate) inner: Path,
 }
 
@@ -48,6 +62,12 @@ impl RootPath {
 
     pub(crate) fn generation_path(&self, generation: Generation) -> GenerationPath {
         GenerationPath::new(self, generation)
+    }
+}
+
+impl fmt::Display for RootPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.inner)
     }
 }
 

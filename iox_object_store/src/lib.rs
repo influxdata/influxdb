@@ -37,8 +37,9 @@ mod paths;
 pub use paths::{
     parquet_file::{ParquetFilePath, ParquetFilePathParseError},
     transaction_file::TransactionFilePath,
+    RootPath,
 };
-use paths::{DataPath, GenerationPath, RootPath, TombstonePath, TransactionsPath};
+use paths::{DataPath, GenerationPath, TombstonePath, TransactionsPath};
 
 const DB_RULES_FILE_NAME: &str = "rules.pb";
 
@@ -84,6 +85,7 @@ pub struct IoxObjectStore {
     inner: Arc<ObjectStore>,
     server_id: ServerId,
     database_name: DatabaseName<'static>,
+    root_path: RootPath,
     generation_path: GenerationPath,
     data_path: DataPath,
     transactions_path: TransactionsPath,
@@ -110,8 +112,46 @@ impl Generation {
 }
 
 impl IoxObjectStore {
+    /// Get the data for the server config to determine the names and locations of the databases
+    /// that this server owns.
+    // TODO: this is in the process of replacing list_possible_databases for the floating databases
+    // design
+    pub async fn get_server_config_file(inner: &ObjectStore, server_id: ServerId) -> Result<Bytes> {
+        let path = paths::server_config_path(inner, server_id);
+        let mut stream = inner.get(&path).await?;
+        let mut bytes = BytesMut::new();
+
+        while let Some(buf) = stream.next().await {
+            bytes.extend(buf?);
+        }
+
+        Ok(bytes.freeze())
+    }
+
+    /// Store the data for the server config with the names and locations of the databases
+    /// that this server owns.
+    pub async fn put_server_config_file(
+        inner: &ObjectStore,
+        server_id: ServerId,
+        bytes: Bytes,
+    ) -> Result<()> {
+        let path = paths::server_config_path(inner, server_id);
+        inner.put(&path, bytes).await
+    }
+
+    /// Returns what the root path would be for a given database. Does not check existence or
+    /// validity of the path in object storage.
+    pub fn root_path_for(
+        inner: &ObjectStore,
+        server_id: ServerId,
+        database_name: &DatabaseName<'static>,
+    ) -> RootPath {
+        RootPath::new(inner, server_id, database_name)
+    }
+
     /// List database names in object storage that need to be further checked for generations
     /// and whether they're marked as deleted or not.
+    // TODO: this is in the process of being deprecated in favor of get_server_config_file
     pub async fn list_possible_databases(
         inner: &ObjectStore,
         server_id: ServerId,
@@ -210,7 +250,7 @@ impl IoxObjectStore {
             if let Ok(db_name) = DatabaseName::new(last.encoded().to_string())
                 .log_if_error("invalid database directory")
             {
-                let root_path = RootPath::new(inner, server_id, &db_name);
+                let root_path = Self::root_path_for(inner, server_id, &db_name);
                 let generations = Self::list_generations(inner, &root_path).await?;
 
                 all_dbs.insert(db_name, generations);
@@ -271,7 +311,7 @@ impl IoxObjectStore {
         server_id: ServerId,
         database_name: &DatabaseName<'static>,
     ) -> Result<Self, IoxObjectStoreError> {
-        let root_path = RootPath::new(&inner, server_id, database_name);
+        let root_path = Self::root_path_for(&inner, server_id, database_name);
 
         let generations = Self::list_generations(&inner, &root_path)
             .await
@@ -308,7 +348,7 @@ impl IoxObjectStore {
         server_id: ServerId,
         database_name: &DatabaseName<'static>,
     ) -> Result<Option<Self>, IoxObjectStoreError> {
-        let root_path = RootPath::new(&inner, server_id, database_name);
+        let root_path = Self::root_path_for(&inner, server_id, database_name);
 
         let generations = Self::list_generations(&inner, &root_path)
             .await
@@ -352,16 +392,24 @@ impl IoxObjectStore {
             inner,
             server_id,
             database_name: database_name.to_owned(),
+            root_path,
             generation_path,
             data_path,
             transactions_path,
         }
     }
 
-    /// The location in object storage for all files for this database, suitable for logging
-    /// or debugging purposes only. Do not parse this, as its format is subject to change!
+    /// The location in object storage for all files for this database's generation, suitable for
+    /// logging or debugging purposes only. Do not parse this, as its format is subject to change!
     pub fn debug_database_path(&self) -> String {
         self.generation_path.inner.to_string()
+    }
+
+    /// The possibly valid location in object storage for this database. Suitable for serialization
+    /// to use during initial database load, but not parsing for semantic meaning, as its format is
+    /// subject to change!
+    pub fn root_path(&self) -> String {
+        self.root_path.inner.to_string()
     }
 
     // Deliberately private; this should not leak outside this crate
@@ -386,7 +434,7 @@ impl IoxObjectStore {
         database_name: &DatabaseName<'static>,
         generation_id: GenerationId,
     ) -> Result<Self, IoxObjectStoreError> {
-        let root_path = RootPath::new(&inner, server_id, database_name);
+        let root_path = Self::root_path_for(&inner, server_id, database_name);
 
         let generations = Self::list_generations(&inner, &root_path)
             .await
@@ -913,7 +961,7 @@ mod tests {
         let object_store = make_object_store();
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
-        let root_path = RootPath::new(&object_store, server_id, &database_name);
+        let root_path = IoxObjectStore::root_path_for(&object_store, server_id, &database_name);
 
         let iox_object_store =
             IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)

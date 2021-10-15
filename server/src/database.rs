@@ -360,6 +360,16 @@ impl Database {
         self.shared.state.read().provided_rules()
     }
 
+    /// Always-constructable location in object store; may not actually exist yet
+    pub fn location(&self) -> String {
+        IoxObjectStore::root_path_for(
+            self.shared.application.object_store(),
+            self.shared.config.server_id,
+            &self.shared.config.name,
+        )
+        .to_string()
+    }
+
     /// Update the database rules, panic'ing if the state is invalid
     pub async fn update_provided_rules(
         &self,
