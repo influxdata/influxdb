@@ -130,9 +130,6 @@ pub enum Error {
         source: super::expr::Error,
     },
 
-    #[snafu(display("Error computing series: {}", source))]
-    ComputingSeriesSet { source: SeriesSetError },
-
     #[snafu(display("Error converting tag_key to UTF-8 in tag_values request, tag_key value '{}': {}", String::from_utf8_lossy(source.as_bytes()), source))]
     ConvertingTagKeyInTagValues { source: std::string::FromUtf8Error },
 
@@ -195,7 +192,6 @@ impl Error {
             Self::ConvertingReadGroupAggregate { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingReadGroupType { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingWindowAggregate { .. } => Status::invalid_argument(self.to_string()),
-            Self::ComputingSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingTagKeyInTagValues { .. } => Status::invalid_argument(self.to_string()),
             Self::ComputingGroupedSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingSeriesSet { .. } => Status::invalid_argument(self.to_string()),

@@ -1,9 +1,11 @@
 //! Tests for the Influx gRPC queries
-use crate::scenarios::{
-    make_two_chunk_scenarios, util::all_scenarios_for_one_chunk, DbScenario, DbSetup, NoData,
+use crate::{
+    influxrpc::util::run_series_set_plan,
+    scenarios::{
+        make_two_chunk_scenarios, util::all_scenarios_for_one_chunk, DbScenario, DbSetup, NoData,
+    },
 };
 
-use arrow_util::display::pretty_format_batches;
 use async_trait::async_trait;
 use datafusion::prelude::*;
 use predicate::predicate::{Predicate, PredicateBuilder};
@@ -35,32 +37,7 @@ async fn run_read_group_test_case<D>(
             .read_group(db.as_ref(), predicate.clone(), agg, &group_columns)
             .expect("built plan successfully");
 
-        let plans = plans.into_inner();
-
-        for (i, plan) in plans.iter().enumerate() {
-            assert_eq!(
-                plan.num_prefix_tag_group_columns,
-                Some(group_columns.len()),
-                "Mismatch in plan index {}",
-                i
-            );
-        }
-
-        let mut string_results = vec![];
-        for plan in plans.into_iter() {
-            let batches = ctx
-                .run_logical_plan(plan.plan)
-                .await
-                .expect("ok running plan");
-
-            string_results.extend(
-                pretty_format_batches(&batches)
-                    .expect("formatting results")
-                    .trim()
-                    .split('\n')
-                    .map(|s| s.to_string()),
-            );
-        }
+        let string_results = run_series_set_plan(&ctx, plans).await;
 
         assert_eq!(
             expected_results, string_results,
@@ -96,11 +73,8 @@ async fn test_read_group_data_no_tag_columns() {
     let agg = Aggregate::Count;
     let group_columns = vec![];
     let expected_results = vec![
-        "+-----+--------------------------------+",
-        "| foo | time                           |",
-        "+-----+--------------------------------+",
-        "| 2   | 1970-01-01T00:00:00.000000002Z |",
-        "+-----+--------------------------------+",
+        "Group tag_keys: _field, _measurement partition_key_vals: ",
+        "Series tags={_field=foo, _measurement=m0}\n  IntegerPoints timestamps: [2], values: [2]",
     ];
 
     run_read_group_test_case(
@@ -141,11 +115,8 @@ async fn test_read_group_data_pred() {
     let agg = Aggregate::Sum;
     let group_columns = vec!["state"];
     let expected_results = vec![
-        "+-------+------+------+--------------------------------+",
-        "| state | city | temp | time                           |",
-        "+-------+------+------+--------------------------------+",
-        "| CA    | LA   | 90   | 1970-01-01T00:00:00.000000200Z |",
-        "+-------+------+------+--------------------------------+",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: CA",
+        "Series tags={_field=temp, _measurement=h2o, state=CA, city=LA}\n  FloatPoints timestamps: [200], values: [90.0]",
     ];
 
     run_read_group_test_case(
@@ -167,12 +138,10 @@ async fn test_read_group_data_field_restriction() {
     let agg = Aggregate::Sum;
     let group_columns = vec!["state"];
     let expected_results = vec![
-        "+-------+--------+-------+--------------------------------+",
-        "| state | city   | temp  | time                           |",
-        "+-------+--------+-------+--------------------------------+",
-        "| CA    | LA     | 180   | 1970-01-01T00:00:00.000000350Z |",
-        "| MA    | Boston | 142.8 | 1970-01-01T00:00:00.000000250Z |",
-        "+-------+--------+-------+--------------------------------+",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: CA",
+        "Series tags={_field=temp, _measurement=h2o, state=CA, city=LA}\n  FloatPoints timestamps: [350], values: [180.0]",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
+        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Boston}\n  FloatPoints timestamps: [250], values: [142.8]",
     ];
 
     run_read_group_test_case(
@@ -226,12 +195,9 @@ async fn test_grouped_series_set_plan_sum() {
     // The null field (after predicates) are not sent as series
     // Note order of city key (boston --> cambridge)
     let expected_results = vec![
-        "+-------+-----------+----------+------+--------------------------------+",
-        "| state | city      | humidity | temp | time                           |",
-        "+-------+-----------+----------+------+--------------------------------+",
-        "| MA    | Boston    |          | 141  | 1970-01-01T00:00:00.000000400Z |",
-        "| MA    | Cambridge |          | 163  | 1970-01-01T00:00:00.000000200Z |",
-        "+-------+-----------+----------+------+--------------------------------+",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
+        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Boston}\n  FloatPoints timestamps: [400], values: [141.0]",
+        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Cambridge}\n  FloatPoints timestamps: [200], values: [163.0]",
     ];
 
     run_read_group_test_case(
@@ -261,12 +227,11 @@ async fn test_grouped_series_set_plan_count() {
     let group_columns = vec!["state"];
 
     let expected_results = vec![
-        "+-------+-----------+----------+------+--------------------------------+",
-        "| state | city      | humidity | temp | time                           |",
-        "+-------+-----------+----------+------+--------------------------------+",
-        "| MA    | Boston    | 0        | 2    | 1970-01-01T00:00:00.000000400Z |",
-        "| MA    | Cambridge | 0        | 2    | 1970-01-01T00:00:00.000000200Z |",
-        "+-------+-----------+----------+------+--------------------------------+",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
+        "Series tags={_field=humidity, _measurement=h2o, state=MA, city=Boston}\n  IntegerPoints timestamps: [400], values: [0]",
+        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Boston}\n  IntegerPoints timestamps: [400], values: [2]",
+        "Series tags={_field=humidity, _measurement=h2o, state=MA, city=Cambridge}\n  IntegerPoints timestamps: [200], values: [0]",
+        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Cambridge}\n  IntegerPoints timestamps: [200], values: [2]",
     ];
 
     run_read_group_test_case(
@@ -296,12 +261,9 @@ async fn test_grouped_series_set_plan_mean() {
     let group_columns = vec!["state"];
 
     let expected_results = vec![
-        "+-------+-----------+----------+------+--------------------------------+",
-        "| state | city      | humidity | temp | time                           |",
-        "+-------+-----------+----------+------+--------------------------------+",
-        "| MA    | Boston    |          | 70.5 | 1970-01-01T00:00:00.000000400Z |",
-        "| MA    | Cambridge |          | 81.5 | 1970-01-01T00:00:00.000000200Z |",
-        "+-------+-----------+----------+------+--------------------------------+",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
+        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Boston}\n  FloatPoints timestamps: [400], values: [70.5]",
+        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Cambridge}\n  FloatPoints timestamps: [200], values: [81.5]",
     ];
 
     run_read_group_test_case(
@@ -348,16 +310,10 @@ async fn test_grouped_series_set_plan_count_measurement_pred() {
     let group_columns = vec!["state"];
 
     let expected_results = vec![
-        "+-------+--------+------+--------------------------------+",
-        "| state | city   | temp | time                           |",
-        "+-------+--------+------+--------------------------------+",
-        "| MA    | Boston | 2    | 1970-01-01T00:00:00.000000250Z |",
-        "+-------+--------+------+--------------------------------+",
-        "+-------+------+------+--------------------------------+",
-        "| state | city | temp | time                           |",
-        "+-------+------+------+--------------------------------+",
-        "| CA    | LA   | 2    | 1970-01-01T00:00:00.000000350Z |",
-        "+-------+------+------+--------------------------------+",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
+        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Boston}\n  IntegerPoints timestamps: [250], values: [2]",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: CA",
+        "Series tags={_field=temp, _measurement=o2, state=CA, city=LA}\n  IntegerPoints timestamps: [350], values: [2]",
     ];
 
     run_read_group_test_case(
@@ -398,11 +354,11 @@ async fn test_grouped_series_set_plan_first() {
     let group_columns = vec!["state"];
 
     let expected_results = vec![
-        "+-------+-----------+------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
-        "| state | city      | b    | time_b                      | f | time_f                      | i | time_i                      | s | time_s                      |",
-        "+-------+-----------+------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
-        "| MA    | Cambridge | true | 1970-01-01T00:00:00.000002Z | 7 | 1970-01-01T00:00:00.000002Z | 7 | 1970-01-01T00:00:00.000002Z | c | 1970-01-01T00:00:00.000002Z |",
-        "+-------+-----------+------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
+        "Series tags={_field=b, _measurement=h2o, state=MA, city=Cambridge}\n  BooleanPoints timestamps: [2000], values: [true]",
+        "Series tags={_field=f, _measurement=h2o, state=MA, city=Cambridge}\n  FloatPoints timestamps: [2000], values: [7.0]",
+        "Series tags={_field=i, _measurement=h2o, state=MA, city=Cambridge}\n  IntegerPoints timestamps: [2000], values: [7]",
+        "Series tags={_field=s, _measurement=h2o, state=MA, city=Cambridge}\n  StringPoints timestamps: [2000], values: [\"c\"]",
     ];
 
     run_read_group_test_case(
@@ -426,11 +382,11 @@ async fn test_grouped_series_set_plan_last() {
     let group_columns = vec!["state"];
 
     let expected_results = vec![
-        "+-------+-----------+-------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
-        "| state | city      | b     | time_b                      | f | time_f                      | i | time_i                      | s | time_s                      |",
-        "+-------+-----------+-------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
-        "| MA    | Cambridge | false | 1970-01-01T00:00:00.000003Z | 6 | 1970-01-01T00:00:00.000003Z | 6 | 1970-01-01T00:00:00.000003Z | b | 1970-01-01T00:00:00.000003Z |",
-        "+-------+-----------+-------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
+        "Series tags={_field=b, _measurement=h2o, state=MA, city=Cambridge}\n  BooleanPoints timestamps: [3000], values: [false]",
+        "Series tags={_field=f, _measurement=h2o, state=MA, city=Cambridge}\n  FloatPoints timestamps: [3000], values: [6.0]",
+        "Series tags={_field=i, _measurement=h2o, state=MA, city=Cambridge}\n  IntegerPoints timestamps: [3000], values: [6]",
+        "Series tags={_field=s, _measurement=h2o, state=MA, city=Cambridge}\n  StringPoints timestamps: [3000], values: [\"b\"]",
     ];
 
     run_read_group_test_case(
@@ -473,11 +429,11 @@ async fn test_grouped_series_set_plan_min() {
     let group_columns = vec!["state"];
 
     let expected_results = vec![
-        "+-------+-----------+-------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
-        "| state | city      | b     | time_b                      | f | time_f                      | i | time_i                      | s | time_s                      |",
-        "+-------+-----------+-------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
-        "| MA    | Cambridge | false | 1970-01-01T00:00:00.000001Z | 6 | 1970-01-01T00:00:00.000003Z | 6 | 1970-01-01T00:00:00.000003Z | a | 1970-01-01T00:00:00.000002Z |",
-        "+-------+-----------+-------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
+        "Series tags={_field=b, _measurement=h2o, state=MA, city=Cambridge}\n  BooleanPoints timestamps: [1000], values: [false]",
+        "Series tags={_field=f, _measurement=h2o, state=MA, city=Cambridge}\n  FloatPoints timestamps: [3000], values: [6.0]",
+        "Series tags={_field=i, _measurement=h2o, state=MA, city=Cambridge}\n  IntegerPoints timestamps: [3000], values: [6]",
+        "Series tags={_field=s, _measurement=h2o, state=MA, city=Cambridge}\n  StringPoints timestamps: [2000], values: [\"a\"]",
     ];
 
     run_read_group_test_case(
@@ -518,11 +474,11 @@ async fn test_grouped_series_set_plan_max() {
     let group_columns = vec!["state"];
 
     let expected_results = vec![
-        "+-------+-----------+------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
-        "| state | city      | b    | time_b                      | f | time_f                      | i | time_i                      | s | time_s                      |",
-        "+-------+-----------+------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
-        "| MA    | Cambridge | true | 1970-01-01T00:00:00.000003Z | 7 | 1970-01-01T00:00:00.000002Z | 7 | 1970-01-01T00:00:00.000002Z | z | 1970-01-01T00:00:00.000004Z |",
-        "+-------+-----------+------+-----------------------------+---+-----------------------------+---+-----------------------------+---+-----------------------------+",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
+        "Series tags={_field=b, _measurement=h2o, state=MA, city=Cambridge}\n  BooleanPoints timestamps: [3000], values: [true]",
+        "Series tags={_field=f, _measurement=h2o, state=MA, city=Cambridge}\n  FloatPoints timestamps: [2000], values: [7.0]",
+        "Series tags={_field=i, _measurement=h2o, state=MA, city=Cambridge}\n  IntegerPoints timestamps: [2000], values: [7]",
+        "Series tags={_field=s, _measurement=h2o, state=MA, city=Cambridge}\n  StringPoints timestamps: [4000], values: [\"z\"]",
     ];
 
     run_read_group_test_case(
@@ -566,13 +522,13 @@ async fn test_grouped_series_set_plan_group_by_state_city() {
     let group_columns = vec!["state", "city"];
 
     let expected_results = vec![
-        "+-------+-----------+----------+------+--------------------------------+",
-        "| state | city      | humidity | temp | time                           |",
-        "+-------+-----------+----------+------+--------------------------------+",
-        "| CA    | LA        | 21       | 181  | 1970-01-01T00:00:00.000000600Z |",
-        "| MA    | Boston    |          | 141  | 1970-01-01T00:00:00.000000400Z |",
-        "| MA    | Cambridge |          | 243  | 1970-01-01T00:00:00.000000200Z |",
-        "+-------+-----------+----------+------+--------------------------------+",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: CA, LA",
+        "Series tags={_field=humidity, _measurement=h2o, state=CA, city=LA}\n  FloatPoints timestamps: [600], values: [21.0]",
+        "Series tags={_field=temp, _measurement=h2o, state=CA, city=LA}\n  FloatPoints timestamps: [600], values: [181.0]",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA, Boston",
+        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Boston}\n  FloatPoints timestamps: [400], values: [141.0]",
+        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA, Cambridge",
+        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Cambridge}\n  FloatPoints timestamps: [200], values: [243.0]",
     ];
 
     run_read_group_test_case(
@@ -595,13 +551,13 @@ async fn test_grouped_series_set_plan_group_by_city_state() {
 
     // Test with alternate group key order (note the order of columns is different)
     let expected_results = vec![
-        "+-----------+-------+----------+------+--------------------------------+",
-        "| city      | state | humidity | temp | time                           |",
-        "+-----------+-------+----------+------+--------------------------------+",
-        "| Boston    | MA    |          | 141  | 1970-01-01T00:00:00.000000400Z |",
-        "| Cambridge | MA    |          | 243  | 1970-01-01T00:00:00.000000200Z |",
-        "| LA        | CA    | 21       | 181  | 1970-01-01T00:00:00.000000600Z |",
-        "+-----------+-------+----------+------+--------------------------------+",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: Boston, MA",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [400], values: [141.0]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: Cambridge, MA",
+        "Series tags={_field=temp, _measurement=h2o, city=Cambridge, state=MA}\n  FloatPoints timestamps: [200], values: [243.0]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: LA, CA",
+        "Series tags={_field=humidity, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [600], values: [21.0]",
+        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [600], values: [181.0]",
     ];
 
     run_read_group_test_case(
@@ -624,17 +580,13 @@ async fn test_grouped_series_set_plan_group_aggregate_none() {
 
     // Expect order of the columns to begin with city/state
     let expected_results = vec![
-        "+-----------+-------+----------+------+--------------------------------+",
-        "| city      | state | humidity | temp | time                           |",
-        "+-----------+-------+----------+------+--------------------------------+",
-        "| Boston    | MA    |          | 70   | 1970-01-01T00:00:00.000000300Z |",
-        "| Boston    | MA    |          | 71   | 1970-01-01T00:00:00.000000400Z |",
-        "| Cambridge | MA    |          | 80   | 1970-01-01T00:00:00.000000050Z |",
-        "| Cambridge | MA    |          | 81   | 1970-01-01T00:00:00.000000100Z |",
-        "| Cambridge | MA    |          | 82   | 1970-01-01T00:00:00.000000200Z |",
-        "| LA        | CA    | 10       | 90   | 1970-01-01T00:00:00.000000500Z |",
-        "| LA        | CA    | 11       | 91   | 1970-01-01T00:00:00.000000600Z |",
-        "+-----------+-------+----------+------+--------------------------------+",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: Boston, MA",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [300, 400], values: [70.0, 71.0]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: Cambridge, MA",
+        "Series tags={_field=temp, _measurement=h2o, city=Cambridge, state=MA}\n  FloatPoints timestamps: [50, 100, 200], values: [80.0, 81.0, 82.0]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: LA, CA",
+        "Series tags={_field=humidity, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [500, 600], values: [10.0, 11.0]",
+        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [500, 600], values: [90.0, 91.0]",
     ];
 
     run_read_group_test_case(

@@ -20,6 +20,7 @@
 //! and `service` as well.
 
 pub mod converter;
+pub mod series;
 
 use arrow::{self, record_batch::RecordBatch};
 

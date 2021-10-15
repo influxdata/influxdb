@@ -1,9 +1,11 @@
 //! Tests for the Influx gRPC queries
-use crate::scenarios::{util::all_scenarios_for_one_chunk, *};
+use crate::{
+    influxrpc::util::run_series_set_plan,
+    scenarios::{util::all_scenarios_for_one_chunk, *},
+};
 
 use server::{db::test_helpers::write_lp, utils::make_db};
 
-use arrow_util::display::pretty_format_batches;
 use async_trait::async_trait;
 use datafusion::prelude::*;
 use predicate::predicate::{Predicate, PredicateBuilder};
@@ -35,7 +37,7 @@ async fn run_read_window_aggregate_test_case<D>(
         let planner = InfluxRpcPlanner::new();
         let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
-        let plans = planner
+        let plan = planner
             .read_window_aggregate(
                 db.as_ref(),
                 predicate.clone(),
@@ -45,23 +47,7 @@ async fn run_read_window_aggregate_test_case<D>(
             )
             .expect("built plan successfully");
 
-        let plans = plans.into_inner();
-
-        let mut string_results = vec![];
-        for plan in plans.into_iter() {
-            let batches = ctx
-                .run_logical_plan(plan.plan)
-                .await
-                .expect("ok running plan");
-
-            string_results.extend(
-                pretty_format_batches(&batches)
-                    .expect("formatting results")
-                    .trim()
-                    .split('\n')
-                    .map(|s| s.to_string()),
-            );
-        }
+        let string_results = run_series_set_plan(&ctx, plan).await;
 
         assert_eq!(
             expected_results, string_results,
@@ -127,16 +113,8 @@ async fn test_read_window_aggregate_nanoseconds() {
 
     // note the name of the field is "temp" even though it is the average
     let expected_results = vec![
-        "+--------+-------+--------------------------------+------+",
-        "| city   | state | time                           | temp |",
-        "+--------+-------+--------------------------------+------+",
-        "| Boston | MA    | 1970-01-01T00:00:00.000000200Z | 70   |",
-        "| Boston | MA    | 1970-01-01T00:00:00.000000400Z | 71.5 |",
-        "| Boston | MA    | 1970-01-01T00:00:00.000000600Z | 73   |",
-        "| LA     | CA    | 1970-01-01T00:00:00.000000200Z | 90   |",
-        "| LA     | CA    | 1970-01-01T00:00:00.000000400Z | 91.5 |",
-        "| LA     | CA    | 1970-01-01T00:00:00.000000600Z | 93   |",
-        "+--------+-------+--------------------------------+------+",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [200, 400, 600], values: [70.0, 71.5, 73.0]",
+        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [200, 400, 600], values: [90.0, 91.5, 93.0]",
     ];
 
     run_read_window_aggregate_test_case(
@@ -167,16 +145,8 @@ async fn test_read_window_aggregate_nanoseconds_measurement_pred() {
     let offset = WindowDuration::from_nanoseconds(0);
 
     let expected_results = vec![
-        "+--------+-------+--------------------------------+------+",
-        "| city   | state | time                           | temp |",
-        "+--------+-------+--------------------------------+------+",
-        "| Boston | MA    | 1970-01-01T00:00:00.000000200Z | 70   |",
-        "| Boston | MA    | 1970-01-01T00:00:00.000000400Z | 71.5 |",
-        "| Boston | MA    | 1970-01-01T00:00:00.000000600Z | 73   |",
-        "| LA     | CA    | 1970-01-01T00:00:00.000000200Z | 90   |",
-        "| LA     | CA    | 1970-01-01T00:00:00.000000400Z | 91.5 |",
-        "| LA     | CA    | 1970-01-01T00:00:00.000000600Z | 93   |",
-        "+--------+-------+--------------------------------+------+",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [200, 400, 600], values: [70.0, 71.5, 73.0]",
+        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [200, 400, 600], values: [90.0, 91.5, 93.0]",
     ];
 
     run_read_window_aggregate_test_case(
@@ -254,12 +224,7 @@ async fn test_read_window_aggregate_months() {
 
     // note the name of the field is "temp" even though it is the average
     let expected_results = vec![
-        "+--------+-------+----------------------+------+",
-        "| city   | state | time                 | temp |",
-        "+--------+-------+----------------------+------+",
-        "| Boston | MA    | 2020-04-01T00:00:00Z | 70.5 |",
-        "| Boston | MA    | 2020-05-01T00:00:00Z | 72.5 |",
-        "+--------+-------+----------------------+------+",
+    "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [1585699200000000000, 1588291200000000000], values: [70.5, 72.5]",
     ];
 
     run_read_window_aggregate_test_case(
@@ -312,19 +277,11 @@ async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697() {
     // Because the windowed aggregate is using a selector aggregate (one of MIN,
     // MAX, FIRST, LAST) we need to run a plan that brings along the timestamps
     // for the chosen aggregate in the window.
-    //
-    // The window is defined by the `time` column
     let expected_results = vec![
-        "+---------+--------------------------------+-----+--------------------------------+-------+--------------------------------+",
-        "| section | time                           | bar | time_bar                       | foo   | time_foo                       |",
-        "+---------+--------------------------------+-----+--------------------------------+-------+--------------------------------+",
-        "| 1a      | 2021-01-01T00:00:01.000000010Z |     |                                | 1     | 2021-01-01T00:00:01.000000001Z |",
-        "| 1a      | 2021-01-01T00:00:01.000000020Z | 5   | 2021-01-01T00:00:01.000000011Z |       |                                |",
-        "| 1a      | 2021-01-01T00:00:01.000000030Z |     |                                | 11.24 | 2021-01-01T00:00:01.000000024Z |",
-        "| 2b      | 2021-01-01T00:00:01.000000010Z | 4   | 2021-01-01T00:00:01.000000009Z | 2     | 2021-01-01T00:00:01.000000002Z |",
-        "| 2b      | 2021-01-01T00:00:01.000000020Z | 6   | 2021-01-01T00:00:01.000000015Z |       |                                |",
-        "| 2b      | 2021-01-01T00:00:01.000000030Z | 1.2 | 2021-01-01T00:00:01.000000022Z |       |                                |",
-        "+---------+--------------------------------+-----+--------------------------------+-------+--------------------------------+",
+        "Series tags={_field=bar, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000011], values: [5.0]",
+        "Series tags={_field=foo, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000001, 1609459201000000024], values: [1.0, 11.24]",
+        "Series tags={_field=bar, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000009, 1609459201000000015, 1609459201000000022], values: [4.0, 6.0, 1.2]",
+        "Series tags={_field=foo, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000002], values: [2.0]",
     ];
 
     run_read_window_aggregate_test_case(
@@ -353,16 +310,10 @@ async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697() {
     // The windowed aggregate is using a non-selector aggregate (SUM, COUNT, MEAD).
     // For each distinct series the window defines the `time` column
     let expected_results = vec![
-        "+---------+--------------------------------+-----+-------+",
-        "| section | time                           | bar | foo   |",
-        "+---------+--------------------------------+-----+-------+",
-        "| 1a      | 2021-01-01T00:00:01.000000010Z |     | 4     |",
-        "| 1a      | 2021-01-01T00:00:01.000000020Z | 5   |       |",
-        "| 1a      | 2021-01-01T00:00:01.000000030Z |     | 11.24 |",
-        "| 2b      | 2021-01-01T00:00:01.000000010Z | 4   | 2     |",
-        "| 2b      | 2021-01-01T00:00:01.000000020Z | 6   |       |",
-        "| 2b      | 2021-01-01T00:00:01.000000030Z | 1.2 |       |",
-        "+---------+--------------------------------+-----+-------+",
+        "Series tags={_field=bar, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000020], values: [5.0]",
+        "Series tags={_field=foo, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000010, 1609459201000000030], values: [4.0, 11.24]",
+        "Series tags={_field=bar, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000010, 1609459201000000020, 1609459201000000030], values: [4.0, 6.0, 1.2]",
+        "Series tags={_field=foo, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000010], values: [2.0]",
     ];
 
     run_read_window_aggregate_test_case(

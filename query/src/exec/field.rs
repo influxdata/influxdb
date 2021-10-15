@@ -102,6 +102,10 @@ impl FieldIndexes {
     pub fn as_slice(&self) -> &[FieldIndex] {
         self.inner.as_ref()
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &FieldIndex> {
+        self.as_slice().iter()
+    }
 }
 
 impl From<Vec<FieldIndex>> for FieldIndexes {
