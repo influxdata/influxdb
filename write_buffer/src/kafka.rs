@@ -895,11 +895,14 @@ mod tests {
             .add("CONTENT-TYPE", "b")
             .add("content-TYPE", "c")
             .add("uber-trace-id", "1:2:3:1")
-            .add("uber-trace-ID", "10:20:30:1");
+            .add("uber-trace-ID", "5:6:7:1");
 
         let actual = IoxHeaders::from_kafka(&kafka_headers, Some(&collector));
         assert_eq!(actual.content_type, Some("c".to_string()));
-        assert_eq!(actual.span_context.unwrap().span_id.get(), 32);
+
+        let span_context = actual.span_context.unwrap();
+        assert_eq!(span_context.trace_id.get(), 5);
+        assert_eq!(span_context.span_id.get(), 6);
     }
 
     #[test]
