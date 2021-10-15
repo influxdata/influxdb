@@ -438,6 +438,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
 
+    use crate::lifecycle::LifecycleWorker;
     use crate::utils::TestDb;
     use crate::write_buffer::WriteBufferConsumer;
 
@@ -581,6 +582,8 @@ mod tests {
             )
             .await;
 
+            let mut lifecycle = LifecycleWorker::new(Arc::clone(&test_db.db));
+
             let mut maybe_consumer = Some(WriteBufferConsumer::new(
                 Box::new(MockBufferForReading::new(write_buffer_state.clone(), None).unwrap()),
                 Arc::clone(&test_db.db),
@@ -606,6 +609,9 @@ mod tests {
                             consumer.join().await.unwrap();
                         }
 
+                        lifecycle.shutdown();
+                        lifecycle.join().await.unwrap();
+
                         // stop background worker
                         shutdown.cancel();
                         join_handle.await.unwrap();
@@ -626,6 +632,7 @@ mod tests {
                         test_db = test_db_tmp;
                         shutdown = shutdown_tmp;
                         join_handle = join_handle_tmp;
+                        lifecycle = LifecycleWorker::new(Arc::clone(&test_db.db));
                     }
                     Step::Replay | Step::SkipReplay => {
                         assert!(maybe_consumer.is_none());
@@ -710,8 +717,7 @@ mod tests {
                             ));
                         }
 
-                        let db = &test_db.db;
-                        db.unsuppress_persistence();
+                        lifecycle.unsuppress_persistence();
 
                         // wait until checks pass
                         let t_0 = Instant::now();

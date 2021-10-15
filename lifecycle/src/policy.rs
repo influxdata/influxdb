@@ -21,10 +21,7 @@ pub const LIFECYCLE_ACTION_BACKOFF: Duration = Duration::from_secs(10);
 ///
 /// `LifecyclePolicy::check_for_work` can then be used to drive progress
 /// of the `LifecycleChunk` contained within this `LifecycleDb`
-pub struct LifecyclePolicy<M>
-where
-    M: LifecycleDb,
-{
+pub struct LifecyclePolicy<M> {
     /// The `LifecycleDb` this policy is automating
     db: M,
 
@@ -552,10 +549,7 @@ where
     }
 }
 
-impl<M> Debug for LifecyclePolicy<M>
-where
-    M: LifecycleDb,
-{
+impl<M> Debug for LifecyclePolicy<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "LifecyclePolicy{{..}}")
     }
@@ -1132,8 +1126,8 @@ mod tests {
             DatabaseName::new("test_db").unwrap()
         }
 
-        fn time_provider(&self) -> Arc<dyn TimeProvider> {
-            Arc::clone(&self.time_provider)
+        fn time_provider(&self) -> &Arc<dyn TimeProvider> {
+            &self.time_provider
         }
     }
 

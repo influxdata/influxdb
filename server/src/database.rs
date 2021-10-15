@@ -1,3 +1,4 @@
+use crate::lifecycle::LifecycleWorker;
 use crate::write_buffer::WriteBufferConsumer;
 use crate::{
     db::{
@@ -646,6 +647,7 @@ async fn background_worker(shared: Arc<DatabaseShared>) {
         initialize_database(shared.as_ref()).await;
 
         if shared.shutdown.is_cancelled() {
+            // TODO: Shutdown intermediate workers (#2813)
             info!(db_name=%shared.config.name, "database shutdown before finishing initialization");
             break;
         }
@@ -653,6 +655,7 @@ async fn background_worker(shared: Arc<DatabaseShared>) {
         let DatabaseStateInitialized {
             db,
             write_buffer_consumer,
+            lifecycle_worker,
             ..
         } = shared
             .state
@@ -681,6 +684,10 @@ async fn background_worker(shared: Arc<DatabaseShared>) {
         }
         .fuse();
         futures::pin_mut!(consumer_join);
+
+        // Future that completes if the LifecycleWorker exits
+        let lifecycle_join = lifecycle_worker.join().fuse();
+        futures::pin_mut!(lifecycle_join);
 
         // This inner loop runs until either:
         //
@@ -711,6 +718,10 @@ async fn background_worker(shared: Arc<DatabaseShared>) {
                     error!(db_name=%shared.config.name, "unexpected shutdown of write buffer consumer - bailing out");
                     shared.shutdown.cancel();
                 }
+                _ = lifecycle_join => {
+                    error!(db_name=%shared.config.name, "unexpected shutdown of lifecycle worker - bailing out");
+                    shared.shutdown.cancel();
+                }
                 _ = db_worker => {
                     error!(db_name=%shared.config.name, "unexpected shutdown of db - bailing out");
                     shared.shutdown.cancel();
@@ -723,6 +734,14 @@ async fn background_worker(shared: Arc<DatabaseShared>) {
             consumer.shutdown();
             if let Err(e) = consumer.join().await {
                 error!(db_name=%shared.config.name, %e, "error shutting down write buffer consumer")
+            }
+        }
+
+        if !lifecycle_join.is_terminated() {
+            info!(db_name=%shared.config.name, "shutting down lifecycle worker");
+            lifecycle_worker.shutdown();
+            if let Err(e) = lifecycle_worker.join().await {
+                error!(db_name=%shared.config.name, %e, "error shutting down lifecycle worker")
             }
         }
 
@@ -1124,13 +1143,16 @@ impl DatabaseStateRulesLoaded {
             time_provider: Arc::clone(shared.application.time_provider()),
         };
 
-        let db = Db::new(
+        let db = Arc::new(Db::new(
             database_to_commit,
             Arc::clone(shared.application.job_registry()),
-        );
+        ));
+
+        let lifecycle_worker = Arc::new(LifecycleWorker::new(Arc::clone(&db)));
 
         Ok(DatabaseStateCatalogLoaded {
             db,
+            lifecycle_worker,
             replay_plan: Arc::new(replay_plan),
             provided_rules: Arc::clone(&self.provided_rules),
         })
@@ -1140,6 +1162,7 @@ impl DatabaseStateRulesLoaded {
 #[derive(Debug, Clone)]
 struct DatabaseStateCatalogLoaded {
     db: Arc<Db>,
+    lifecycle_worker: Arc<LifecycleWorker>,
     replay_plan: Arc<Option<ReplayPlan>>,
     provided_rules: Arc<ProvidedDatabaseRules>,
 }
@@ -1182,12 +1205,12 @@ impl DatabaseStateCatalogLoaded {
             _ => None,
         };
 
-        // TODO: Pull write buffer and lifecycle out of Db
-        db.unsuppress_persistence();
+        self.lifecycle_worker.unsuppress_persistence();
 
         Ok(DatabaseStateInitialized {
             db,
             write_buffer_consumer,
+            lifecycle_worker: Arc::clone(&self.lifecycle_worker),
             provided_rules: Arc::clone(&self.provided_rules),
         })
     }
@@ -1197,6 +1220,7 @@ impl DatabaseStateCatalogLoaded {
 pub struct DatabaseStateInitialized {
     db: Arc<Db>,
     write_buffer_consumer: Option<Arc<WriteBufferConsumer>>,
+    lifecycle_worker: Arc<LifecycleWorker>,
     provided_rules: Arc<ProvidedDatabaseRules>,
 }
 

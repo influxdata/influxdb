@@ -118,6 +118,8 @@ pub mod utils;
 
 mod write_buffer;
 
+mod lifecycle;
+
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 #[derive(Debug, Snafu)]

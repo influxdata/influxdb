@@ -50,6 +50,7 @@ use trace::ctx::SpanContext;
 use write_buffer::core::{WriteBufferReading, WriteBufferWriting};
 
 pub(crate) use crate::db::chunk::DbChunk;
+pub(crate) use crate::db::lifecycle::ArcDb;
 use crate::{
     db::{
         access::QueryCatalogAccess,
@@ -59,7 +60,7 @@ use crate::{
             table::TableSchemaUpsertHandle,
             Catalog, Error as CatalogError, TableNameFilter,
         },
-        lifecycle::{LockableCatalogChunk, LockableCatalogPartition, WeakDb},
+        lifecycle::{LockableCatalogChunk, LockableCatalogPartition},
     },
     JobRegistry,
 };
@@ -271,9 +272,6 @@ pub struct Db {
     /// Catalog interface for query
     catalog_access: Arc<QueryCatalogAccess>,
 
-    /// Number of iterations of the worker lifecycle loop for this Db
-    worker_iterations_lifecycle: AtomicUsize,
-
     /// Number of iterations of the worker cleanup loop for this Db
     worker_iterations_cleanup: AtomicUsize,
 
@@ -290,15 +288,6 @@ pub struct Db {
     /// The cleanup job needs exclusive access and hence will acquire a write-guard. Creating parquet files and creating
     /// catalog transaction only needs shared access and hence will acquire a read-guard.
     cleanup_lock: Arc<tokio::sync::RwLock<()>>,
-
-    /// Lifecycle policy.
-    ///
-    /// Optional because it will be created after `Arc<Self>`.
-    ///
-    /// This is stored here for the following reasons:
-    /// - to control the persistence suppression via a [`Db::unsuppress_persistence`]
-    /// - to keep the lifecycle state (e.g. the number of running compactions) around
-    lifecycle_policy: Mutex<Option<::lifecycle::LifecyclePolicy<WeakDb>>>,
 
     time_provider: Arc<dyn TimeProvider>,
 
@@ -327,7 +316,7 @@ pub(crate) struct DatabaseToCommit {
 }
 
 impl Db {
-    pub(crate) fn new(database_to_commit: DatabaseToCommit, jobs: Arc<JobRegistry>) -> Arc<Self> {
+    pub(crate) fn new(database_to_commit: DatabaseToCommit, jobs: Arc<JobRegistry>) -> Self {
         let name = Arc::from(database_to_commit.rules.name.as_str());
 
         let rules = RwLock::new(database_to_commit.rules);
@@ -344,7 +333,7 @@ impl Db {
         );
         let catalog_access = Arc::new(catalog_access);
 
-        let this = Self {
+        Self {
             rules,
             name,
             server_id,
@@ -355,35 +344,19 @@ impl Db {
             jobs,
             metric_registry: database_to_commit.metric_registry,
             catalog_access,
-            worker_iterations_lifecycle: AtomicUsize::new(0),
             worker_iterations_cleanup: AtomicUsize::new(0),
             worker_iterations_delete_predicate_preservation: AtomicUsize::new(0),
             write_buffer_producer: database_to_commit.write_buffer_producer,
             cleanup_lock: Default::default(),
-            lifecycle_policy: Mutex::new(None),
             time_provider: database_to_commit.time_provider,
             delete_predicates_mailbox: Default::default(),
             persisted_chunk_id_override: Default::default(),
-        };
-        let this = Arc::new(this);
-        *this.lifecycle_policy.try_lock().expect("not used yet") = Some(
-            ::lifecycle::LifecyclePolicy::new_suppress_persistence(WeakDb(Arc::downgrade(&this))),
-        );
-        this
+        }
     }
 
     /// Return all table names of the DB
     pub fn table_names(&self) -> Vec<String> {
         self.catalog.table_names()
-    }
-
-    /// Allow persistence if database rules all it.
-    pub fn unsuppress_persistence(&self) {
-        let mut guard = self.lifecycle_policy.lock();
-        let policy = guard
-            .as_mut()
-            .expect("lifecycle policy should be initialized");
-        policy.unsuppress_persistence();
     }
 
     /// Return a handle to the executor used to run queries
@@ -786,11 +759,6 @@ impl Db {
     }
 
     /// Returns the number of iterations of the background worker lifecycle loop
-    pub fn worker_iterations_lifecycle(&self) -> usize {
-        self.worker_iterations_lifecycle.load(Ordering::Relaxed)
-    }
-
-    /// Returns the number of iterations of the background worker lifecycle loop
     pub fn worker_iterations_cleanup(&self) -> usize {
         self.worker_iterations_cleanup.load(Ordering::Relaxed)
     }
@@ -826,24 +794,6 @@ impl Db {
         shutdown: tokio_util::sync::CancellationToken,
     ) {
         info!("started background worker");
-
-        // Loop that drives the lifecycle for this database
-        let lifecycle_loop = async {
-            loop {
-                self.worker_iterations_lifecycle
-                    .fetch_add(1, Ordering::Relaxed);
-
-                let fut = {
-                    let mut guard = self.lifecycle_policy.lock();
-                    let policy = guard
-                        .as_mut()
-                        .expect("lifecycle policy should be initialized");
-
-                    policy.check_for_work()
-                };
-                fut.await
-            }
-        };
 
         // object store cleanup loop
         let object_store_cleanup_loop = async {
@@ -915,7 +865,6 @@ impl Db {
         // None of the futures need to perform drain logic on shutdown.
         // When the first one finishes, all of them are dropped
         tokio::select! {
-            _ = lifecycle_loop => error!("lifecycle loop exited - db worker bailing out"),
             _ = object_store_cleanup_loop => error!("object store cleanup loop exited - db worker bailing out"),
             _ = delete_predicate_persistence_loop => error!("delete predicate persistence loop exited - db worker bailing out"),
             _ = shutdown.cancelled() => info!("db worker shutting down"),

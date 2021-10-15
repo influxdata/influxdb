@@ -42,7 +42,7 @@ pub trait LifecycleDb {
     fn name(&self) -> DatabaseName<'static>;
 
     /// Return the time provider for this database
-    fn time_provider(&self) -> Arc<dyn TimeProvider>;
+    fn time_provider(&self) -> &Arc<dyn TimeProvider>;
 }
 
 /// A `LockablePartition` is a wrapper around a `LifecyclePartition` that allows
