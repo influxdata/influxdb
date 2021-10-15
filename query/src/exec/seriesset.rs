@@ -29,10 +29,40 @@ use std::sync::Arc;
 use super::field::FieldIndexes;
 
 #[derive(Debug)]
-/// Represents several logical timeseries that share the same
-/// timestamps and name=value tag keys.
+/// Information to map a slice of rows in a [`RecordBatch`] sorted by
+/// tags and timestamps to several timeseries that share the same
+/// tag keys and timestamps.
 ///
-/// The heavy use of `Arc` is to avoid many duplicated Strings given
+/// The information in a [`SeriesSet`] can be used to "unpivot" a
+/// [`RecordBatch`] into one or more Time Series as [`series::Series`]
+///
+/// For example, given the following set of rows from a [`RecordBatch`]
+/// which must be sorted by `(TagA, TagB, time)`:
+//
+/// TagA | TagB | Field1 | Field2 | time
+/// -----+------+--------+--------+-------
+///   a  |  b   |  1     | 10     | 100
+///   a  |  b   |  2     | 20     | 200
+///   a  |  b   |  3     | 30     | 300
+///   a  |  x   |  11    |        | 100
+///   a  |  x   |  12    |        | 200
+///
+/// Would be represented as
+/// * `SeriesSet` 1: For {TagA='a', TagB='b'}
+/// * `SeriesSet` 2: For {TagA='a', TagB='x'}
+///
+/// `SeriesSet` 1 would produce 2 series (one for each field):
+///
+/// {_field=Field1, TagA=a, TagB=b} timestamps = {100, 200, 300} values = {1, 2, 3}
+/// {_field=Field2, TagA=a, TagB=b} timestamps = {100, 200, 300} values = {100, 200, 300}
+///
+/// `SeriesSet` 2 would produce a single series for `Field1` (no
+/// series is created for `Field2` because there are no values for
+/// `Field2` where TagA=a, and TagB=x)
+///
+/// {_field=Field1, TagA=a, TagB=x} timestamps = {100, 200} values = {11, 12}
+///
+/// NB: The heavy use of `Arc` is to avoid many duplicated Strings given
 /// the the fact that many SeriesSets share the same tag keys and
 /// table name.
 pub struct SeriesSet {
