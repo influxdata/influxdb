@@ -11,7 +11,7 @@ use data_types::{
     write_summary::TimestampSummary,
 };
 use internal_types::access::AccessRecorder;
-use mutable_buffer::chunk::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
+use mutable_buffer::{snapshot::ChunkSnapshot as MBChunkSnapshot, MBChunk};
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use predicate::delete_predicate::DeletePredicate;
@@ -275,7 +275,7 @@ impl CatalogChunk {
     /// Panics if the provided chunk is empty, otherwise creates a new open chunk.
     pub(super) fn new_open(
         addr: ChunkAddr,
-        chunk: mutable_buffer::chunk::MBChunk,
+        chunk: mutable_buffer::MBChunk,
         metrics: ChunkMetrics,
         order: ChunkOrder,
         time_provider: Arc<dyn TimeProvider>,
@@ -900,7 +900,7 @@ mod tests {
     use data_types::timestamp::TimestampRange;
 
     use entry::test_helpers::lp_to_entry;
-    use mutable_buffer::chunk::ChunkMetrics as MBChunkMetrics;
+    use mutable_buffer::ChunkMetrics as MBChunkMetrics;
     use parquet_file::{
         chunk::ParquetChunk,
         test_utils::{

@@ -1,3 +1,5 @@
+//! A [`Column`] stores the rows for a given column name
+
 use std::iter::Enumerate;
 use std::mem;
 use std::sync::Arc;
@@ -18,10 +20,23 @@ use data_types::partition_metadata::{IsNan, StatValues, Statistics};
 use entry::Column as EntryColumn;
 use schema::{IOxValueType, InfluxColumnType, InfluxFieldType, TIME_DATA_TYPE};
 
-use crate::dictionary::{Dictionary, DID, INVALID_DID};
+/// A "dictionary ID" (DID) is a compact numeric representation of an interned
+/// string in the dictionary. The same string always maps the same DID.
+///
+/// DIDs can be compared, hashed and cheaply copied around, just like small integers.
+///
+/// An i32 is used to match the default for Arrow dictionaries
+#[allow(clippy::upper_case_acronyms)]
+type DID = i32;
+
+/// An invalid DID used for NULL rows
+const INVALID_DID: DID = -1;
+
+/// The type of the dictionary used
+type Dictionary = arrow_util::dictionary::StringDictionary<DID>;
 
 #[derive(Debug, Snafu)]
-#[allow(missing_copy_implementations)]
+#[allow(missing_copy_implementations, missing_docs)]
 pub enum Error {
     #[snafu(display("Unable to insert {} type into a column of {}", inserted, existing,))]
     TypeMismatch {
@@ -39,6 +54,8 @@ pub enum Error {
         actual_bytes: usize,
     },
 }
+
+/// A specialized `Error` for [`Column`] errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Stores the actual data for columns in a chunk along with summary
@@ -51,7 +68,7 @@ pub struct Column {
 }
 
 #[derive(Debug)]
-pub enum ColumnData {
+enum ColumnData {
     F64(Vec<f64>, StatValues<f64>),
     I64(Vec<i64>, StatValues<i64>),
     U64(Vec<u64>, StatValues<u64>),
@@ -61,7 +78,7 @@ pub enum ColumnData {
 }
 
 impl Column {
-    pub fn new(row_count: usize, column_type: InfluxColumnType) -> Self {
+    pub(crate) fn new(row_count: usize, column_type: InfluxColumnType) -> Self {
         let mut valid = BitSet::new();
         valid.append_unset(row_count);
 
@@ -108,7 +125,7 @@ impl Column {
         }
     }
 
-    pub fn validate_schema(&self, entry: &EntryColumn<'_>) -> Result<()> {
+    pub(crate) fn validate_schema(&self, entry: &EntryColumn<'_>) -> Result<()> {
         let entry_type = entry.influx_type();
 
         ensure!(
@@ -122,11 +139,12 @@ impl Column {
         Ok(())
     }
 
+    /// Returns the [`InfluxColumnType`] of this column
     pub fn influx_type(&self) -> InfluxColumnType {
         self.influx_type
     }
 
-    pub fn append(
+    pub(crate) fn append(
         &mut self,
         entry: &EntryColumn<'_>,
         inclusion_mask: Option<&[bool]>,
@@ -309,7 +327,7 @@ impl Column {
 
     /// Ensures that the total length of this column is `len` rows,
     /// padding it with trailing NULLs if necessary
-    pub fn push_nulls_to_len(&mut self, len: usize) {
+    pub(crate) fn push_nulls_to_len(&mut self, len: usize) {
         if self.valid.len() == len {
             return;
         }
@@ -345,10 +363,17 @@ impl Column {
         }
     }
 
+    /// Returns the number of rows in this column
     pub fn len(&self) -> usize {
         self.valid.len()
     }
 
+    /// Returns true if this column contains no rows
+    pub fn is_empty(&self) -> bool {
+        self.valid.is_empty()
+    }
+
+    /// Returns this column's [`Statistics`]
     pub fn stats(&self) -> Statistics {
         match &self.data {
             ColumnData::F64(_, stats) => Statistics::F64(stats.clone()),
@@ -394,6 +419,7 @@ impl Column {
         mem::size_of::<Self>() + data_size + self.valid.byte_len()
     }
 
+    /// Converts this column to an arrow [`ArrayRef`]
     pub fn to_arrow(&self) -> Result<ArrayRef> {
         let nulls = self.valid.to_arrow();
         let data: ArrayRef = match &self.data {

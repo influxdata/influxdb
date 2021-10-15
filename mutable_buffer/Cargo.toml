@@ -4,30 +4,20 @@ version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2018"
 
-# Note the long term goal is that this crate is standalone and not
-# dependent on the IOx Query Engine (even though this is not the case
-# now).
-#
-# The rationale for this is:
-#
-# 1. Keep the API clean (and concerns separated) and allow for potential future reuse outside of IOx
-# 2. Keep change/compile/link time down during development when working on just this crate
-
 [dependencies] # In alphabetical order
 arrow = { version = "5.5", features = ["prettyprint"] }
-arrow_util = { path = "../arrow_util" }
-async-trait = "0.1"
 data_types = { path = "../data_types" }
 entry = { path = "../entry" }
-hashbrown = "0.11"
 schema = { path = "../schema" }
 metric = { path = "../metric" }
+mutable_batch = { path = "../mutable_batch" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.11.2"
 snafu = "0.6.2"
-tokio = { version = "1.11", features = ["macros"] }
 
 [dev-dependencies] # In alphabetical order
+tokio = { version = "1.11", features = ["macros"] }
+arrow_util = { path = "../arrow_util" }
 test_helpers = { path = "../test_helpers" }
 
 [features]

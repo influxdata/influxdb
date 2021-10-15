@@ -4,7 +4,7 @@ use entry::{
     Entry,
 };
 use flate2::read::GzDecoder;
-use mutable_buffer::chunk::{ChunkMetrics, MBChunk};
+use mutable_buffer::{ChunkMetrics, MBChunk};
 use std::io::Read;
 
 #[inline]

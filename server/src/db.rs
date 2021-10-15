@@ -30,7 +30,7 @@ use data_types::{
 use datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use entry::{Entry, SequencedEntry, TableBatch};
 use iox_object_store::IoxObjectStore;
-use mutable_buffer::chunk::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
+use mutable_buffer::{ChunkMetrics as MutableBufferChunkMetrics, MBChunk};
 use observability_deps::tracing::{debug, error, info, warn};
 use parquet_catalog::{
     cleanup::{delete_files as delete_parquet_files, get_unreferenced_parquet_files},
@@ -104,13 +104,13 @@ pub enum Error {
     WriteEntry {
         partition_key: String,
         chunk_id: ChunkId,
-        source: mutable_buffer::chunk::Error,
+        source: mutable_buffer::Error,
     },
 
     #[snafu(display("Cannot write entry to new open chunk {}: {}", partition_key, source))]
     WriteEntryInitial {
         partition_key: String,
-        source: mutable_buffer::chunk::Error,
+        source: mutable_buffer::Error,
     },
 
     #[snafu(display(
@@ -744,10 +744,19 @@ impl Db {
     /// Return chunk summary information for all chunks in the specified
     /// partition across all storage systems
     pub fn partition_chunk_summaries(&self, partition_key: &str) -> Vec<ChunkSummary> {
+        self.partition_tables_chunk_summaries(TableNameFilter::AllTables, partition_key)
+    }
+
+    /// Return chunk summary information for all chunks in the specified
+    /// tables and partition across all storage systems
+    pub fn partition_tables_chunk_summaries(
+        &self,
+        table_name_filter: TableNameFilter<'_>,
+        partition_key: &str,
+    ) -> Vec<ChunkSummary> {
         let partition_key = Some(partition_key);
-        let table_names = TableNameFilter::AllTables;
         self.catalog
-            .filtered_chunks(table_names, partition_key, CatalogChunk::summary)
+            .filtered_chunks(table_name_filter, partition_key, CatalogChunk::summary)
     }
 
     /// Return Summary information for all columns in all chunks in the
@@ -1319,10 +1328,10 @@ pub(crate) fn checkpoint_data_from_catalog(catalog: &Catalog) -> CheckpointData 
 }
 
 pub mod test_helpers {
-    use std::collections::HashSet;
+    use std::collections::{BTreeSet, HashSet};
 
     use arrow::record_batch::RecordBatch;
-
+    use data_types::chunk_metadata::ChunkStorage;
     use entry::test_helpers::lp_to_entries;
     use query::frontend::sql::SqlQueryPlanner;
 
@@ -1383,6 +1392,87 @@ pub mod test_helpers {
         let physical_plan = planner.query(query, &ctx).await.unwrap();
         ctx.collect(physical_plan).await.unwrap()
     }
+
+    pub fn mutable_chunk_ids(db: &Db, partition_key: &str) -> Vec<ChunkId> {
+        mutable_tables_chunk_ids(db, TableNameFilter::AllTables, partition_key)
+    }
+
+    pub fn mutable_tables_chunk_ids(
+        db: &Db,
+        tables: TableNameFilter<'_>,
+        partition_key: &str,
+    ) -> Vec<ChunkId> {
+        let mut chunk_ids: Vec<ChunkId> = db
+            .partition_tables_chunk_summaries(tables, partition_key)
+            .into_iter()
+            .filter_map(|chunk| match chunk.storage {
+                ChunkStorage::OpenMutableBuffer | ChunkStorage::ClosedMutableBuffer => {
+                    Some(chunk.id)
+                }
+                _ => None,
+            })
+            .collect();
+        chunk_ids.sort_unstable();
+        chunk_ids
+    }
+
+    pub fn read_buffer_chunk_ids(db: &Db, partition_key: &str) -> Vec<ChunkId> {
+        read_buffer_tables_chunk_ids(db, TableNameFilter::AllTables, partition_key)
+    }
+
+    pub fn read_buffer_table_chunk_ids(
+        db: &Db,
+        table_name: &str,
+        partition_key: &str,
+    ) -> Vec<ChunkId> {
+        let mut table_names = BTreeSet::new();
+        table_names.insert(table_name.to_string());
+        read_buffer_tables_chunk_ids(
+            db,
+            TableNameFilter::NamedTables(&table_names),
+            partition_key,
+        )
+    }
+
+    pub fn read_buffer_tables_chunk_ids(
+        db: &Db,
+        tables: TableNameFilter<'_>,
+        partition_key: &str,
+    ) -> Vec<ChunkId> {
+        let mut chunk_ids: Vec<ChunkId> = db
+            .partition_tables_chunk_summaries(tables, partition_key)
+            .into_iter()
+            .filter_map(|chunk| match chunk.storage {
+                ChunkStorage::ReadBuffer => Some(chunk.id),
+                ChunkStorage::ReadBufferAndObjectStore => Some(chunk.id),
+                _ => None,
+            })
+            .collect();
+        chunk_ids.sort_unstable();
+        chunk_ids
+    }
+
+    pub fn parquet_file_chunk_ids(db: &Db, partition_key: &str) -> Vec<ChunkId> {
+        parquet_file_tables_chunk_ids(db, TableNameFilter::AllTables, partition_key)
+    }
+
+    pub fn parquet_file_tables_chunk_ids(
+        db: &Db,
+        tables: TableNameFilter<'_>,
+        partition_key: &str,
+    ) -> Vec<ChunkId> {
+        let mut chunk_ids: Vec<ChunkId> = db
+            .partition_tables_chunk_summaries(tables, partition_key)
+            .into_iter()
+            .filter_map(|chunk| match chunk.storage {
+                ChunkStorage::ReadBufferAndObjectStore => Some(chunk.id),
+                ChunkStorage::ObjectStoreOnly => Some(chunk.id),
+                _ => None,
+            })
+            .collect();
+        chunk_ids.sort_unstable();
+        chunk_ids
+    }
 }
 
 #[cfg(test)]
@@ -1427,7 +1517,6 @@ mod tests {
         MockBufferForWriting, MockBufferForWritingThatAlwaysErrors, MockBufferSharedState,
     };
 
-    use crate::utils::make_db_time;
     use crate::{
         assert_store_sequenced_entry_failures,
         db::{
@@ -1435,6 +1524,10 @@ mod tests {
             test_helpers::{run_query, try_write_lp, write_lp},
         },
         utils::{make_db, TestDb},
+    };
+    use crate::{
+        db::test_helpers::{mutable_chunk_ids, parquet_file_chunk_ids, read_buffer_chunk_ids},
+        utils::make_db_time,
     };
 
     use super::*;
@@ -1966,7 +2059,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(
-            read_buffer_chunk_ids(db.as_ref(), partition_key),
+            read_buffer_chunk_ids(&db, partition_key),
             vec![] as Vec<ChunkId>
         );
 
@@ -2979,49 +3072,6 @@ mod tests {
             "expected:\n{:#?}\n\nactual:{:#?}\n\n",
             expected, partition_summaries
         );
-    }
-
-    fn mutable_chunk_ids(db: &Db, partition_key: &str) -> Vec<ChunkId> {
-        let mut chunk_ids: Vec<ChunkId> = db
-            .partition_chunk_summaries(partition_key)
-            .into_iter()
-            .filter_map(|chunk| match chunk.storage {
-                ChunkStorage::OpenMutableBuffer | ChunkStorage::ClosedMutableBuffer => {
-                    Some(chunk.id)
-                }
-                _ => None,
-            })
-            .collect();
-        chunk_ids.sort_unstable();
-        chunk_ids
-    }
-
-    fn read_buffer_chunk_ids(db: &Db, partition_key: &str) -> Vec<ChunkId> {
-        let mut chunk_ids: Vec<ChunkId> = db
-            .partition_chunk_summaries(partition_key)
-            .into_iter()
-            .filter_map(|chunk| match chunk.storage {
-                ChunkStorage::ReadBuffer => Some(chunk.id),
-                ChunkStorage::ReadBufferAndObjectStore => Some(chunk.id),
-                _ => None,
-            })
-            .collect();
-        chunk_ids.sort_unstable();
-        chunk_ids
-    }
-
-    fn parquet_file_chunk_ids(db: &Db, partition_key: &str) -> Vec<ChunkId> {
-        let mut chunk_ids: Vec<ChunkId> = db
-            .partition_chunk_summaries(partition_key)
-            .into_iter()
-            .filter_map(|chunk| match chunk.storage {
-                ChunkStorage::ReadBufferAndObjectStore => Some(chunk.id),
-                ChunkStorage::ObjectStoreOnly => Some(chunk.id),
-                _ => None,
-            })
-            .collect();
-        chunk_ids.sort_unstable();
-        chunk_ids
     }
 
     #[tokio::test]

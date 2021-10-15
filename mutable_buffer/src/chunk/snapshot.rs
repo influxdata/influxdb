@@ -1,3 +1,5 @@
+//! An immutable snapshot of a [`MBChunk`]
+
 use super::MBChunk;
 use arrow::record_batch::RecordBatch;
 use data_types::{
@@ -12,6 +14,7 @@ use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, sync::Arc};
 
 #[derive(Debug, Snafu)]
+#[allow(missing_docs)]
 pub enum Error {
     #[snafu(display("Table not found: {}", table_name))]
     TableNotFound { table_name: String },
@@ -20,6 +23,7 @@ pub enum Error {
     SelectColumns { source: schema::Error },
 }
 
+/// A specialized `Error` for [`ChunkSnapshot`] errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A queryable snapshot of a mutable buffer chunk
@@ -129,6 +133,7 @@ impl ChunkSnapshot {
         self.batch.num_rows()
     }
 
+    /// Returns if this MUB contains rows matching the given time range
     pub fn has_timerange(&self, timestamp_range: &Option<TimestampRange>) -> bool {
         let timestamp_range = match timestamp_range {
             Some(t) => t,

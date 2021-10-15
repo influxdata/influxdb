@@ -205,7 +205,7 @@ impl Partition {
     /// Returns an error if the chunk is empty.
     pub fn create_open_chunk(
         &mut self,
-        chunk: mutable_buffer::chunk::MBChunk,
+        chunk: mutable_buffer::MBChunk,
     ) -> &Arc<RwLock<CatalogChunk>> {
         assert_eq!(chunk.table_name().as_ref(), self.table_name());
 
@@ -431,7 +431,7 @@ impl Display for Partition {
 #[cfg(test)]
 mod tests {
     use entry::test_helpers::lp_to_entry;
-    use mutable_buffer::chunk::{ChunkMetrics, MBChunk};
+    use mutable_buffer::{ChunkMetrics, MBChunk};
 
     use crate::db::catalog::metrics::CatalogMetrics;
 

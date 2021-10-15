@@ -1,0 +1,17 @@
+[package]
+name = "mutable_batch"
+version = "0.1.0"
+edition = "2018"
+description = "A mutable arrow RecordBatch"
+
+[dependencies]
+arrow = { version = "5.5", features = ["prettyprint"] }
+arrow_util = { path = "../arrow_util" }
+data_types = { path = "../data_types" }
+entry = { path = "../entry" }
+schema = { path = "../schema" }
+snafu = "0.6"
+hashbrown = "0.11"
+
+[dev-dependencies]
+arrow_util = { path = "../arrow_util" }
