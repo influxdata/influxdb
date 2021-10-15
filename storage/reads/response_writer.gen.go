@@ -9,6 +9,8 @@ package reads
 import (
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
+
+	"google.golang.org/protobuf/proto"
 )
 
 func (w *ResponseWriter) getFloatPointsFrame() *datatypes.ReadResponse_Frame_FloatPoints {
@@ -58,11 +60,11 @@ func (w *ResponseWriter) putFloatValues(f *datatypes.ReadResponse_AnyPoints_Floa
 }
 
 func (w *ResponseWriter) streamFloatArraySeries(cur cursors.FloatArrayCursor) {
-	w.sf.DataType = datatypes.DataTypeFloat
+	w.sf.DataType = datatypes.ReadResponse_DataTypeFloat
 	ss := len(w.res.Frames) - 1
 	a := cur.Next()
 	if len(a.Timestamps) == 0 {
-		w.sz -= w.sf.Size()
+		w.sz -= proto.Size(w.sf)
 		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
@@ -71,12 +73,12 @@ func (w *ResponseWriter) streamFloatArraySeries(cur cursors.FloatArrayCursor) {
 }
 
 func (w *ResponseWriter) streamFloatArrayPoints(cur cursors.FloatArrayCursor) {
-	w.sf.DataType = datatypes.DataTypeFloat
+	w.sf.DataType = datatypes.ReadResponse_DataTypeFloat
 	ss := len(w.res.Frames) - 1
 
 	p := w.getFloatPointsFrame()
 	frame := p.FloatPoints
-	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
 
 	var seriesValueCount = 0
 	for {
@@ -121,13 +123,13 @@ func (w *ResponseWriter) streamFloatArrayPoints(cur cursors.FloatArrayCursor) {
 			// to a minimum of batchSize length to reduce further allocations.
 			p = w.getFloatPointsFrame()
 			frame = p.FloatPoints
-			w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
 		}
 	}
 
 	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
-		w.sz -= w.sf.Size()
+		w.sz -= proto.Size(w.sf)
 		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
@@ -182,11 +184,11 @@ func (w *ResponseWriter) putIntegerValues(f *datatypes.ReadResponse_AnyPoints_In
 }
 
 func (w *ResponseWriter) streamIntegerArraySeries(cur cursors.IntegerArrayCursor) {
-	w.sf.DataType = datatypes.DataTypeInteger
+	w.sf.DataType = datatypes.ReadResponse_DataTypeInteger
 	ss := len(w.res.Frames) - 1
 	a := cur.Next()
 	if len(a.Timestamps) == 0 {
-		w.sz -= w.sf.Size()
+		w.sz -= proto.Size(w.sf)
 		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
@@ -195,12 +197,12 @@ func (w *ResponseWriter) streamIntegerArraySeries(cur cursors.IntegerArrayCursor
 }
 
 func (w *ResponseWriter) streamIntegerArrayPoints(cur cursors.IntegerArrayCursor) {
-	w.sf.DataType = datatypes.DataTypeInteger
+	w.sf.DataType = datatypes.ReadResponse_DataTypeInteger
 	ss := len(w.res.Frames) - 1
 
 	p := w.getIntegerPointsFrame()
 	frame := p.IntegerPoints
-	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
 
 	var seriesValueCount = 0
 	for {
@@ -245,13 +247,13 @@ func (w *ResponseWriter) streamIntegerArrayPoints(cur cursors.IntegerArrayCursor
 			// to a minimum of batchSize length to reduce further allocations.
 			p = w.getIntegerPointsFrame()
 			frame = p.IntegerPoints
-			w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
 		}
 	}
 
 	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
-		w.sz -= w.sf.Size()
+		w.sz -= proto.Size(w.sf)
 		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
@@ -306,11 +308,11 @@ func (w *ResponseWriter) putUnsignedValues(f *datatypes.ReadResponse_AnyPoints_U
 }
 
 func (w *ResponseWriter) streamUnsignedArraySeries(cur cursors.UnsignedArrayCursor) {
-	w.sf.DataType = datatypes.DataTypeUnsigned
+	w.sf.DataType = datatypes.ReadResponse_DataTypeUnsigned
 	ss := len(w.res.Frames) - 1
 	a := cur.Next()
 	if len(a.Timestamps) == 0 {
-		w.sz -= w.sf.Size()
+		w.sz -= proto.Size(w.sf)
 		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
@@ -319,12 +321,12 @@ func (w *ResponseWriter) streamUnsignedArraySeries(cur cursors.UnsignedArrayCurs
 }
 
 func (w *ResponseWriter) streamUnsignedArrayPoints(cur cursors.UnsignedArrayCursor) {
-	w.sf.DataType = datatypes.DataTypeUnsigned
+	w.sf.DataType = datatypes.ReadResponse_DataTypeUnsigned
 	ss := len(w.res.Frames) - 1
 
 	p := w.getUnsignedPointsFrame()
 	frame := p.UnsignedPoints
-	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
 
 	var seriesValueCount = 0
 	for {
@@ -369,13 +371,13 @@ func (w *ResponseWriter) streamUnsignedArrayPoints(cur cursors.UnsignedArrayCurs
 			// to a minimum of batchSize length to reduce further allocations.
 			p = w.getUnsignedPointsFrame()
 			frame = p.UnsignedPoints
-			w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
 		}
 	}
 
 	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
-		w.sz -= w.sf.Size()
+		w.sz -= proto.Size(w.sf)
 		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
@@ -430,11 +432,11 @@ func (w *ResponseWriter) putStringValues(f *datatypes.ReadResponse_AnyPoints_Str
 }
 
 func (w *ResponseWriter) streamStringArraySeries(cur cursors.StringArrayCursor) {
-	w.sf.DataType = datatypes.DataTypeString
+	w.sf.DataType = datatypes.ReadResponse_DataTypeString
 	ss := len(w.res.Frames) - 1
 	a := cur.Next()
 	if len(a.Timestamps) == 0 {
-		w.sz -= w.sf.Size()
+		w.sz -= proto.Size(w.sf)
 		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
@@ -443,12 +445,12 @@ func (w *ResponseWriter) streamStringArraySeries(cur cursors.StringArrayCursor) 
 }
 
 func (w *ResponseWriter) streamStringArrayPoints(cur cursors.StringArrayCursor) {
-	w.sf.DataType = datatypes.DataTypeString
+	w.sf.DataType = datatypes.ReadResponse_DataTypeString
 	ss := len(w.res.Frames) - 1
 
 	p := w.getStringPointsFrame()
 	frame := p.StringPoints
-	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
 
 	var seriesValueCount = 0
 	for {
@@ -493,13 +495,13 @@ func (w *ResponseWriter) streamStringArrayPoints(cur cursors.StringArrayCursor) 
 			// to a minimum of batchSize length to reduce further allocations.
 			p = w.getStringPointsFrame()
 			frame = p.StringPoints
-			w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
 		}
 	}
 
 	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
-		w.sz -= w.sf.Size()
+		w.sz -= proto.Size(w.sf)
 		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
@@ -554,11 +556,11 @@ func (w *ResponseWriter) putBooleanValues(f *datatypes.ReadResponse_AnyPoints_Bo
 }
 
 func (w *ResponseWriter) streamBooleanArraySeries(cur cursors.BooleanArrayCursor) {
-	w.sf.DataType = datatypes.DataTypeBoolean
+	w.sf.DataType = datatypes.ReadResponse_DataTypeBoolean
 	ss := len(w.res.Frames) - 1
 	a := cur.Next()
 	if len(a.Timestamps) == 0 {
-		w.sz -= w.sf.Size()
+		w.sz -= proto.Size(w.sf)
 		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
@@ -567,12 +569,12 @@ func (w *ResponseWriter) streamBooleanArraySeries(cur cursors.BooleanArrayCursor
 }
 
 func (w *ResponseWriter) streamBooleanArrayPoints(cur cursors.BooleanArrayCursor) {
-	w.sf.DataType = datatypes.DataTypeBoolean
+	w.sf.DataType = datatypes.ReadResponse_DataTypeBoolean
 	ss := len(w.res.Frames) - 1
 
 	p := w.getBooleanPointsFrame()
 	frame := p.BooleanPoints
-	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
 
 	var seriesValueCount = 0
 	for {
@@ -617,13 +619,13 @@ func (w *ResponseWriter) streamBooleanArrayPoints(cur cursors.BooleanArrayCursor
 			// to a minimum of batchSize length to reduce further allocations.
 			p = w.getBooleanPointsFrame()
 			frame = p.BooleanPoints
-			w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
 		}
 	}
 
 	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
-		w.sz -= w.sf.Size()
+		w.sz -= proto.Size(w.sf)
 		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {

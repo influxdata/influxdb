@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
 )
 
 type ResponseStream interface {
@@ -58,7 +59,7 @@ type ResponseWriter struct {
 func NewResponseWriter(stream ResponseStream, hints datatypes.HintFlags) *ResponseWriter {
 	rw := &ResponseWriter{stream: stream,
 		res: &datatypes.ReadResponse{
-			Frames: make([]datatypes.ReadResponse_Frame, 0, frameCount),
+			Frames: make([]*datatypes.ReadResponse_Frame, 0, frameCount),
 		},
 		hints: hints,
 	}
@@ -173,17 +174,17 @@ func (w *ResponseWriter) getSeriesFrame(next models.Tags) *datatypes.ReadRespons
 		res = &datatypes.ReadResponse_Frame_Series{Series: &datatypes.ReadResponse_SeriesFrame{}}
 	}
 
-	if cap(res.Series.Tags) < len(next) {
-		res.Series.Tags = make([]datatypes.Tag, len(next))
-	} else if len(res.Series.Tags) != len(next) {
-		res.Series.Tags = res.Series.Tags[:len(next)]
+	if cap(res.Series.GetTags()) < len(next) {
+		res.Series.Tags = make([]*datatypes.Tag, len(next))
+	} else if len(res.Series.GetTags()) != len(next) {
+		res.Series.Tags = res.Series.GetTags()[:len(next)]
 	}
 
 	return res
 }
 
 func (w *ResponseWriter) putSeriesFrame(f *datatypes.ReadResponse_Frame_Series) {
-	tags := f.Series.Tags
+	tags := f.Series.GetTags()
 	for i := range tags {
 		tags[i].Key = nil
 		tags[i].Value = nil
@@ -195,8 +196,9 @@ func (w *ResponseWriter) startGroup(keys, partitionKey [][]byte) {
 	f := w.getGroupFrame(keys, partitionKey)
 	copy(f.Group.TagKeys, keys)
 	copy(f.Group.PartitionKeyVals, partitionKey)
-	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: f})
-	w.sz += f.Size()
+	fr := &datatypes.ReadResponse_Frame{Data: f}
+	w.res.Frames = append(w.res.Frames, fr)
+	w.sz += proto.Size(fr)
 }
 
 func (w *ResponseWriter) startSeries(next models.Tags) {
@@ -209,13 +211,13 @@ func (w *ResponseWriter) startSeries(next models.Tags) {
 	f := w.getSeriesFrame(next)
 	w.sf = f.Series
 	for i, t := range next {
-		w.sf.Tags[i] = datatypes.Tag{
+		w.sf.Tags[i] = &datatypes.Tag{
 			Key:   t.Key,
 			Value: t.Value,
 		}
 	}
-	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: f})
-	w.sz += w.sf.Size()
+	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: f})
+	w.sz += proto.Size(w.sf)
 }
 
 func (w *ResponseWriter) streamCursor(cur cursors.Cursor) {
@@ -313,14 +315,14 @@ func (w *ResponseWriter) getMultiPointsFrameForMeanCount() *datatypes.ReadRespon
 			},
 		}
 	}
-	res.MultiPoints.ValueArrays = append(res.MultiPoints.ValueArrays, datatypes.ReadResponse_AnyPoints{Data: w.getFloatValues()})
-	res.MultiPoints.ValueArrays = append(res.MultiPoints.ValueArrays, datatypes.ReadResponse_AnyPoints{Data: w.getIntegerValues()})
+	res.MultiPoints.ValueArrays = append(res.MultiPoints.ValueArrays, &datatypes.ReadResponse_AnyPoints{Data: w.getFloatValues()})
+	res.MultiPoints.ValueArrays = append(res.MultiPoints.ValueArrays, &datatypes.ReadResponse_AnyPoints{Data: w.getIntegerValues()})
 	return res
 }
 
 func (w *ResponseWriter) putMultiPointsFrame(f *datatypes.ReadResponse_Frame_MultiPoints) {
 	f.MultiPoints.Timestamps = f.MultiPoints.Timestamps[:0]
-	for _, v := range f.MultiPoints.ValueArrays {
+	for _, v := range f.MultiPoints.GetValueArrays() {
 		switch v := v.Data.(type) {
 		case *datatypes.ReadResponse_AnyPoints_Floats:
 			w.putFloatValues(v)
@@ -339,11 +341,11 @@ func (w *ResponseWriter) putMultiPointsFrame(f *datatypes.ReadResponse_Frame_Mul
 }
 
 func (w *ResponseWriter) streamMeanCountArraySeries(cur cursors.MeanCountArrayCursor) {
-	w.sf.DataType = datatypes.DataTypeMulti
+	w.sf.DataType = datatypes.ReadResponse_DataTypeMulti
 	ss := len(w.res.Frames) - 1
 	a := cur.Next()
 	if len(a.Timestamps) == 0 {
-		w.sz -= w.sf.Size()
+		w.sz -= proto.Size(w.sf)
 		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {
@@ -352,12 +354,12 @@ func (w *ResponseWriter) streamMeanCountArraySeries(cur cursors.MeanCountArrayCu
 }
 
 func (w *ResponseWriter) streamMeanCountArrayPoints(cur cursors.MeanCountArrayCursor) {
-	w.sf.DataType = datatypes.DataTypeMulti
+	w.sf.DataType = datatypes.ReadResponse_DataTypeMulti
 	ss := len(w.res.Frames) - 1
 
 	p := w.getMultiPointsFrameForMeanCount()
 	frame := p.MultiPoints
-	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+	w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
 
 	var seriesValueCount = 0
 	for {
@@ -404,13 +406,13 @@ func (w *ResponseWriter) streamMeanCountArrayPoints(cur cursors.MeanCountArrayCu
 			// to a minimum of batchSize length to reduce further allocations.
 			p = w.getMultiPointsFrameForMeanCount()
 			frame = p.MultiPoints
-			w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
+			w.res.Frames = append(w.res.Frames, &datatypes.ReadResponse_Frame{Data: p})
 		}
 	}
 
 	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
-		w.sz -= w.sf.Size()
+		w.sz -= proto.Size(w.sf)
 		w.putSeriesFrame(w.res.Frames[ss].Data.(*datatypes.ReadResponse_Frame_Series))
 		w.res.Frames = w.res.Frames[:ss]
 	} else if w.sz > writeSize {

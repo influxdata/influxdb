@@ -1,21 +1,21 @@
 syntax = "proto3";
 package wire;
+option go_package = ".;wire";
 
-import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
 
 message SpanContext {
-  uint64 trace_id = 1 [(gogoproto.customname) = "TraceID"];
-  uint64 span_id = 2 [(gogoproto.customname) = "SpanID"];
+  uint64 TraceID = 1;
+  uint64 SpanID = 2;
 }
 
 message Span {
-  SpanContext context = 1 [(gogoproto.nullable) = false];
-  uint64 parent_span_id = 2 [(gogoproto.customname) = "ParentSpanID"];
+  SpanContext context = 1;
+  uint64 ParentSpanID = 2;
   string name = 3;
-  google.protobuf.Timestamp start_time = 4 [(gogoproto.customname) = "Start", (gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+  google.protobuf.Timestamp Start = 4;
   repeated string labels = 5;
-  repeated Field fields = 6 [(gogoproto.nullable) = false];
+  repeated Field fields = 6;
 }
 
 message Trace {
@@ -23,22 +23,21 @@ message Trace {
 }
 
 message Field {
-  enum FieldType {
-    option (gogoproto.goproto_enum_prefix) = false;
-
-    STRING = 0 [(gogoproto.enumvalue_customname) = "FieldTypeString"];
-    BOOL = 1 [(gogoproto.enumvalue_customname) = "FieldTypeBool"];
-    INT_64 = 2 [(gogoproto.enumvalue_customname) = "FieldTypeInt64"];
-    UINT_64 = 3 [(gogoproto.enumvalue_customname) = "FieldTypeUint64"];
-    DURATION = 4 [(gogoproto.enumvalue_customname) = "FieldTypeDuration"];
-    FLOAT_64 = 6 [(gogoproto.enumvalue_customname) = "FieldTypeFloat64"];
-  }
 
   string key = 1;
-  FieldType field_type = 2 [(gogoproto.customname) = "FieldType"];
+  FieldType FieldType = 2;
 
   oneof value {
-    sfixed64 numeric_val = 3 [(gogoproto.customname) = "NumericVal"];
-    string string_val = 4 [(gogoproto.customname) = "StringVal"];
+    sfixed64 NumericVal = 3;
+    string StringVal = 4;
   }
+}
+
+enum FieldType {
+  FieldTypeString = 0;
+  FieldTypeBool = 1;
+  FieldTypeInt64 = 2;
+  FieldTypeUint64 = 3;
+  FieldTypeDuration = 4;
+  FieldTypeFloat64 = 6;
 }

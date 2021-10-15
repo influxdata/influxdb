@@ -870,26 +870,26 @@ func (a *floatAggregateAccumulator) Result() (int64, float64, [][]byte) {
 // aggregate the aggregates.
 func makeFloatAggregateAccumulator(agg datatypes.Aggregate_AggregateType) (FloatAggregateAccumulator, error) {
 	switch agg {
-	case datatypes.AggregateTypeFirst:
+	case datatypes.Aggregate_AggregateTypeFirst:
 		return &floatSelectorAccumulator{selector: selectorFirstGroupsFloat}, nil
-	case datatypes.AggregateTypeLast:
+	case datatypes.Aggregate_AggregateTypeLast:
 		return &floatSelectorAccumulator{selector: selectorLastGroupsFloat}, nil
-	case datatypes.AggregateTypeCount:
+	case datatypes.Aggregate_AggregateTypeCount:
 
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate count: Float",
 		}
 
-	case datatypes.AggregateTypeSum:
+	case datatypes.Aggregate_AggregateTypeSum:
 
 		return &floatAggregateAccumulator{aggregate: aggregateSumGroupsFloat}, nil
 
-	case datatypes.AggregateTypeMin:
+	case datatypes.Aggregate_AggregateTypeMin:
 
 		return &floatSelectorAccumulator{selector: selectorMinGroupsFloat}, nil
 
-	case datatypes.AggregateTypeMax:
+	case datatypes.Aggregate_AggregateTypeMax:
 
 		return &floatSelectorAccumulator{selector: selectorMaxGroupsFloat}, nil
 
@@ -1847,23 +1847,23 @@ func (a *integerAggregateAccumulator) Result() (int64, int64, [][]byte) {
 // aggregate the aggregates.
 func makeIntegerAggregateAccumulator(agg datatypes.Aggregate_AggregateType) (IntegerAggregateAccumulator, error) {
 	switch agg {
-	case datatypes.AggregateTypeFirst:
+	case datatypes.Aggregate_AggregateTypeFirst:
 		return &integerSelectorAccumulator{selector: selectorFirstGroupsInteger}, nil
-	case datatypes.AggregateTypeLast:
+	case datatypes.Aggregate_AggregateTypeLast:
 		return &integerSelectorAccumulator{selector: selectorLastGroupsInteger}, nil
-	case datatypes.AggregateTypeCount:
+	case datatypes.Aggregate_AggregateTypeCount:
 
 		return &integerAggregateAccumulator{aggregate: aggregateCountGroupsInteger}, nil
 
-	case datatypes.AggregateTypeSum:
+	case datatypes.Aggregate_AggregateTypeSum:
 
 		return &integerAggregateAccumulator{aggregate: aggregateSumGroupsInteger}, nil
 
-	case datatypes.AggregateTypeMin:
+	case datatypes.Aggregate_AggregateTypeMin:
 
 		return &integerSelectorAccumulator{selector: selectorMinGroupsInteger}, nil
 
-	case datatypes.AggregateTypeMax:
+	case datatypes.Aggregate_AggregateTypeMax:
 
 		return &integerSelectorAccumulator{selector: selectorMaxGroupsInteger}, nil
 
@@ -2823,26 +2823,26 @@ func (a *unsignedAggregateAccumulator) Result() (int64, uint64, [][]byte) {
 // aggregate the aggregates.
 func makeUnsignedAggregateAccumulator(agg datatypes.Aggregate_AggregateType) (UnsignedAggregateAccumulator, error) {
 	switch agg {
-	case datatypes.AggregateTypeFirst:
+	case datatypes.Aggregate_AggregateTypeFirst:
 		return &unsignedSelectorAccumulator{selector: selectorFirstGroupsUnsigned}, nil
-	case datatypes.AggregateTypeLast:
+	case datatypes.Aggregate_AggregateTypeLast:
 		return &unsignedSelectorAccumulator{selector: selectorLastGroupsUnsigned}, nil
-	case datatypes.AggregateTypeCount:
+	case datatypes.Aggregate_AggregateTypeCount:
 
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate count: Unsigned",
 		}
 
-	case datatypes.AggregateTypeSum:
+	case datatypes.Aggregate_AggregateTypeSum:
 
 		return &unsignedAggregateAccumulator{aggregate: aggregateSumGroupsUnsigned}, nil
 
-	case datatypes.AggregateTypeMin:
+	case datatypes.Aggregate_AggregateTypeMin:
 
 		return &unsignedSelectorAccumulator{selector: selectorMinGroupsUnsigned}, nil
 
-	case datatypes.AggregateTypeMax:
+	case datatypes.Aggregate_AggregateTypeMax:
 
 		return &unsignedSelectorAccumulator{selector: selectorMaxGroupsUnsigned}, nil
 
@@ -3766,32 +3766,32 @@ func (a *stringSelectorAccumulator) Result() (int64, string, [][]byte) {
 // aggregate the aggregates.
 func makeStringAggregateAccumulator(agg datatypes.Aggregate_AggregateType) (StringAggregateAccumulator, error) {
 	switch agg {
-	case datatypes.AggregateTypeFirst:
+	case datatypes.Aggregate_AggregateTypeFirst:
 		return &stringSelectorAccumulator{selector: selectorFirstGroupsString}, nil
-	case datatypes.AggregateTypeLast:
+	case datatypes.Aggregate_AggregateTypeLast:
 		return &stringSelectorAccumulator{selector: selectorLastGroupsString}, nil
-	case datatypes.AggregateTypeCount:
+	case datatypes.Aggregate_AggregateTypeCount:
 
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate count: String",
 		}
 
-	case datatypes.AggregateTypeSum:
+	case datatypes.Aggregate_AggregateTypeSum:
 
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate sum: String",
 		}
 
-	case datatypes.AggregateTypeMin:
+	case datatypes.Aggregate_AggregateTypeMin:
 
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate min: String",
 		}
 
-	case datatypes.AggregateTypeMax:
+	case datatypes.Aggregate_AggregateTypeMax:
 
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
@@ -4685,32 +4685,32 @@ func (a *booleanSelectorAccumulator) Result() (int64, bool, [][]byte) {
 // aggregate the aggregates.
 func makeBooleanAggregateAccumulator(agg datatypes.Aggregate_AggregateType) (BooleanAggregateAccumulator, error) {
 	switch agg {
-	case datatypes.AggregateTypeFirst:
+	case datatypes.Aggregate_AggregateTypeFirst:
 		return &booleanSelectorAccumulator{selector: selectorFirstGroupsBoolean}, nil
-	case datatypes.AggregateTypeLast:
+	case datatypes.Aggregate_AggregateTypeLast:
 		return &booleanSelectorAccumulator{selector: selectorLastGroupsBoolean}, nil
-	case datatypes.AggregateTypeCount:
+	case datatypes.Aggregate_AggregateTypeCount:
 
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate count: Boolean",
 		}
 
-	case datatypes.AggregateTypeSum:
+	case datatypes.Aggregate_AggregateTypeSum:
 
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate sum: Boolean",
 		}
 
-	case datatypes.AggregateTypeMin:
+	case datatypes.Aggregate_AggregateTypeMin:
 
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate min: Boolean",
 		}
 
-	case datatypes.AggregateTypeMax:
+	case datatypes.Aggregate_AggregateTypeMax:
 
 		return nil, &errors.Error{
 			Code: errors.EInvalid,
