@@ -241,7 +241,11 @@ impl WriteBufferWriting for MockBufferForWriting {
     ) -> Result<(Sequence, Time), WriteBufferError> {
         let mut guard = self.state.entries.lock();
         let entries = guard.as_mut().unwrap();
-        let sequencer_entries = entries.get_mut(&sequencer_id).unwrap();
+        let sequencer_entries = entries
+            .get_mut(&sequencer_id)
+            .ok_or_else::<WriteBufferError, _>(|| {
+                format!("Unknown sequencer: {}", sequencer_id).into()
+            })?;
 
         let sequence_number = sequencer_entries.max_seqno.map(|n| n + 1).unwrap_or(0);
 
