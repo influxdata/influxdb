@@ -75,7 +75,7 @@ impl IoxHeaders {
     }
 
     /// Parse from Kafka headers.
-    fn from_kafka<H>(headers: &H, collector: &Arc<dyn TraceCollector>) -> Self
+    fn from_kafka<H>(headers: &H, trace_collector: Option<&Arc<dyn TraceCollector>>) -> Self
     where
         H: Headers,
     {
@@ -87,14 +87,17 @@ impl IoxHeaders {
                     res.content_type = String::from_utf8(value.to_vec()).ok();
                 }
 
-                if name.eq_ignore_ascii_case(HEADER_TRACE_CONTEXT) {
-                    if let Ok(header_value) = HeaderValue::from_bytes(value) {
-                        let mut headers = HeaderMap::new();
-                        headers.insert(HEADER_TRACE_CONTEXT, header_value);
+                if let Some(trace_collector) = trace_collector {
+                    if name.eq_ignore_ascii_case(HEADER_TRACE_CONTEXT) {
+                        if let Ok(header_value) = HeaderValue::from_bytes(value) {
+                            let mut headers = HeaderMap::new();
+                            headers.insert(HEADER_TRACE_CONTEXT, header_value);
 
-                        let parser = TraceHeaderParser::new()
-                            .with_jaeger_trace_context_header_name(HEADER_TRACE_CONTEXT);
-                        res.span_context = parser.parse(collector, &headers).ok().flatten();
+                            let parser = TraceHeaderParser::new()
+                                .with_jaeger_trace_context_header_name(HEADER_TRACE_CONTEXT);
+                            res.span_context =
+                                parser.parse(trace_collector, &headers).ok().flatten();
+                        }
                     }
                 }
             }
@@ -254,7 +257,7 @@ pub struct KafkaBufferConsumer {
     conn: String,
     database_name: String,
     consumers: BTreeMap<u32, Arc<StreamConsumer>>,
-    trace_collector: Arc<dyn TraceCollector>,
+    trace_collector: Option<Arc<dyn TraceCollector>>,
 }
 
 // Needed because rdkafka's StreamConsumer doesn't impl Debug
@@ -276,14 +279,14 @@ impl WriteBufferReading for KafkaBufferConsumer {
             let sequencer_id = *sequencer_id;
             let consumer_cloned = Arc::clone(consumer);
             let database_name = self.database_name.clone();
-            let trace_collector = Arc::clone(&self.trace_collector);
+            let trace_collector = self.trace_collector.clone();
 
             let stream = consumer
                 .stream()
                 .map(move |message| {
                     let message = message?;
 
-                    let headers: IoxHeaders = message.headers().map(|headers| IoxHeaders::from_kafka(headers, &trace_collector)).unwrap_or_else(IoxHeaders::empty);
+                    let headers: IoxHeaders = message.headers().map(|headers| IoxHeaders::from_kafka(headers, trace_collector.as_ref())).unwrap_or_else(IoxHeaders::empty);
 
                     // Fallback for now https://github.com/influxdata/influxdb_iox/issues/2805
                     let content_type = headers.content_type.unwrap_or_else(|| CONTENT_TYPE_FLATBUFFER.to_string());
@@ -401,7 +404,7 @@ impl KafkaBufferConsumer {
         connection_config: &HashMap<String, String>,
         creation_config: Option<&WriteBufferCreationConfig>,
         // `trace_collector` has to be a reference due to https://github.com/rust-lang/rust/issues/63033
-        trace_collector: &Arc<dyn TraceCollector>,
+        trace_collector: Option<&Arc<dyn TraceCollector>>,
     ) -> Result<Self, WriteBufferError> {
         let conn = conn.into();
         let database_name = database_name.into();
@@ -464,7 +467,7 @@ impl KafkaBufferConsumer {
             conn,
             database_name,
             consumers,
-            trace_collector: Arc::clone(trace_collector),
+            trace_collector: trace_collector.map(|x| Arc::clone(x)),
         })
     }
 }
@@ -762,7 +765,7 @@ mod tests {
                 &self.database_name,
                 &Default::default(),
                 self.creation_config(creation_config).as_ref(),
-                &collector,
+                Some(&collector),
             )
             .await
         }
@@ -874,7 +877,7 @@ mod tests {
         let iox_headers1 = IoxHeaders::new(Some(span_context));
 
         let kafka_headers: OwnedHeaders = (&iox_headers1).into();
-        let iox_headers2 = IoxHeaders::from_kafka(&kafka_headers, &collector);
+        let iox_headers2 = IoxHeaders::from_kafka(&kafka_headers, Some(&collector));
 
         assert_eq!(iox_headers1.content_type, iox_headers2.content_type);
         assert_span_context_eq(
@@ -890,8 +893,29 @@ mod tests {
         let kafka_headers = OwnedHeaders::new()
             .add("content-type", "a")
             .add("CONTENT-TYPE", "b")
-            .add("content-TYPE", "c");
-        let actual = IoxHeaders::from_kafka(&kafka_headers, &collector);
+            .add("content-TYPE", "c")
+            .add("uber-trace-id", "1:2:3:1")
+            .add("uber-trace-ID", "5:6:7:1");
+
+        let actual = IoxHeaders::from_kafka(&kafka_headers, Some(&collector));
         assert_eq!(actual.content_type, Some("c".to_string()));
+
+        let span_context = actual.span_context.unwrap();
+        assert_eq!(span_context.trace_id.get(), 5);
+        assert_eq!(span_context.span_id.get(), 6);
+    }
+
+    #[test]
+    fn headers_no_trace_collector_on_consumer_side() {
+        let collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
+
+        let span_context = SpanContext::new(Arc::clone(&collector));
+
+        let iox_headers1 = IoxHeaders::new(Some(span_context));
+
+        let kafka_headers: OwnedHeaders = (&iox_headers1).into();
+        let iox_headers2 = IoxHeaders::from_kafka(&kafka_headers, None);
+
+        assert!(iox_headers2.span_context.is_none());
     }
 }

@@ -1163,7 +1163,7 @@ impl DatabaseStateCatalogLoaded {
                     .new_config_read(
                         shared.config.server_id,
                         shared.config.name.as_str(),
-                        &trace_collector,
+                        Some(&trace_collector),
                         connection,
                     )
                     .await
