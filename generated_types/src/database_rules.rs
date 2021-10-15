@@ -1,7 +1,7 @@
 use crate::{
     google::{FieldViolation, FieldViolationExt, FromFieldOpt},
     influxdata::iox::management::v1 as management,
-    ProstError,
+    DecodeError, EncodeError,
 };
 use data_types::{
     database_rules::{
@@ -125,8 +125,8 @@ impl TryFrom<management::RoutingConfig> for RoutingConfig {
 /// Decode database rules that were encoded using `encode_persisted_database_rules`
 pub fn decode_persisted_database_rules(
     bytes: prost::bytes::Bytes,
-) -> Result<management::PersistedDatabaseRules, ProstError> {
-    Ok(prost::Message::decode(bytes)?)
+) -> Result<management::PersistedDatabaseRules, DecodeError> {
+    prost::Message::decode(bytes)
 }
 
 /// TEMPORARY FOR TRANSITION PURPOSES - if decoding rules file as `PersistedDatabaseRules` (which
@@ -135,16 +135,16 @@ pub fn decode_persisted_database_rules(
 /// `PersistedDatabaseRules`.
 pub fn decode_database_rules(
     bytes: prost::bytes::Bytes,
-) -> Result<management::DatabaseRules, ProstError> {
-    Ok(prost::Message::decode(bytes)?)
+) -> Result<management::DatabaseRules, DecodeError> {
+    prost::Message::decode(bytes)
 }
 
 /// Encode database rules into a serialized format suitable for storage in object store
 pub fn encode_persisted_database_rules(
     rules: &management::PersistedDatabaseRules,
     bytes: &mut prost::bytes::BytesMut,
-) -> Result<(), ProstError> {
-    Ok(prost::Message::encode(rules, bytes)?)
+) -> Result<(), EncodeError> {
+    prost::Message::encode(rules, bytes)
 }
 
 impl From<WriteBufferConnection> for management::WriteBufferConnection {
