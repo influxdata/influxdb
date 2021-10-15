@@ -4,6 +4,11 @@ option go_package = "github.com/influxdata/iox/management/v1";
 
 // Stores a server's map of the databases it owns. The keys are the database names and the values
 // are the database's location in object storage.
+//
+// Example (current): "foo" => "file:/1/foo" ("[object store root]/[server id]/[database name]")
+// Example (after completing the switch to floating databases):
+//         "foo" => "file:/dbs/3f25185a-0773-4ae8-abda-f9c3786f242b"
+//                  ("[object store root]/dbs/[database uuid]")
 message ServerConfig {
   map<string, string> databases = 1;
 }
