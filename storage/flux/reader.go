@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/interval"
@@ -18,6 +17,7 @@ import (
 	storage "github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // GroupCursorError is returned when two different cursor types
@@ -134,7 +134,7 @@ func (fi *filterIterator) Do(f func(flux.Table) error) error {
 	)
 
 	// Setup read request
-	any, err := types.MarshalAny(src)
+	any, err := anypb.New(src)
 	if err != nil {
 		return err
 	}
@@ -142,8 +142,10 @@ func (fi *filterIterator) Do(f func(flux.Table) error) error {
 	var req datatypes.ReadFilterRequest
 	req.ReadSource = any
 	req.Predicate = fi.spec.Predicate
-	req.Range.Start = int64(fi.spec.Bounds.Start)
-	req.Range.End = int64(fi.spec.Bounds.Stop)
+	req.Range = &datatypes.TimestampRange{
+		Start: int64(fi.spec.Bounds.Start),
+		End:   int64(fi.spec.Bounds.Stop),
+	}
 
 	rs, err := fi.s.ReadFilter(fi.ctx, &req)
 	if err != nil {
@@ -249,7 +251,7 @@ func (gi *groupIterator) Do(f func(flux.Table) error) error {
 	)
 
 	// Setup read request
-	any, err := types.MarshalAny(src)
+	any, err := anypb.New(src)
 	if err != nil {
 		return err
 	}
@@ -257,8 +259,10 @@ func (gi *groupIterator) Do(f func(flux.Table) error) error {
 	var req datatypes.ReadGroupRequest
 	req.ReadSource = any
 	req.Predicate = gi.spec.Predicate
-	req.Range.Start = int64(gi.spec.Bounds.Start)
-	req.Range.End = int64(gi.spec.Bounds.Stop)
+	req.Range = &datatypes.TimestampRange{
+		Start: int64(gi.spec.Bounds.Start),
+		End:   int64(gi.spec.Bounds.Stop),
+	}
 
 	if len(gi.spec.GroupKeys) > 0 && gi.spec.GroupMode == query.GroupModeNone {
 		return &errors.Error{
@@ -271,7 +275,7 @@ func (gi *groupIterator) Do(f func(flux.Table) error) error {
 
 	if agg, err := determineAggregateMethod(gi.spec.AggregateMethod); err != nil {
 		return err
-	} else if agg != datatypes.AggregateTypeNone {
+	} else if agg != datatypes.Aggregate_AggregateTypeNone {
 		req.Aggregate = &datatypes.Aggregate{Type: agg}
 	}
 
@@ -376,10 +380,10 @@ READ:
 
 func determineAggregateMethod(agg string) (datatypes.Aggregate_AggregateType, error) {
 	if agg == "" {
-		return datatypes.AggregateTypeNone, nil
+		return datatypes.Aggregate_AggregateTypeNone, nil
 	}
 
-	if t, ok := datatypes.Aggregate_AggregateType_value[strings.ToUpper(agg)]; ok {
+	if t, ok := datatypes.AggregateNameMap[strings.ToUpper(agg)]; ok {
 		return datatypes.Aggregate_AggregateType(t), nil
 	}
 	return 0, fmt.Errorf("unknown aggregate type %q", agg)
@@ -388,9 +392,9 @@ func determineAggregateMethod(agg string) (datatypes.Aggregate_AggregateType, er
 func convertGroupMode(m query.GroupMode) datatypes.ReadGroupRequest_Group {
 	switch m {
 	case query.GroupModeNone:
-		return datatypes.GroupNone
+		return datatypes.ReadGroupRequest_GroupNone
 	case query.GroupModeBy:
-		return datatypes.GroupBy
+		return datatypes.ReadGroupRequest_GroupBy
 	}
 	panic(fmt.Sprint("invalid group mode: ", m))
 }
@@ -503,8 +507,8 @@ func IsSelector(agg *datatypes.Aggregate) bool {
 	if agg == nil {
 		return false
 	}
-	return agg.Type == datatypes.AggregateTypeMin || agg.Type == datatypes.AggregateTypeMax ||
-		agg.Type == datatypes.AggregateTypeFirst || agg.Type == datatypes.AggregateTypeLast
+	return agg.Type == datatypes.Aggregate_AggregateTypeMin || agg.Type == datatypes.Aggregate_AggregateTypeMax ||
+		agg.Type == datatypes.Aggregate_AggregateTypeFirst || agg.Type == datatypes.Aggregate_AggregateTypeLast
 }
 
 func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType, agg *datatypes.Aggregate, groupKey flux.GroupKey) ([]flux.ColMeta, [][]byte) {
@@ -620,7 +624,7 @@ func (wai *windowAggregateIterator) Do(f func(flux.Table) error) error {
 	)
 
 	// Setup read request
-	any, err := types.MarshalAny(src)
+	any, err := anypb.New(src)
 	if err != nil {
 		return err
 	}
@@ -628,8 +632,10 @@ func (wai *windowAggregateIterator) Do(f func(flux.Table) error) error {
 	var req datatypes.ReadWindowAggregateRequest
 	req.ReadSource = any
 	req.Predicate = wai.spec.Predicate
-	req.Range.Start = int64(wai.spec.Bounds.Start)
-	req.Range.End = int64(wai.spec.Bounds.Stop)
+	req.Range = &datatypes.TimestampRange{
+		Start: int64(wai.spec.Bounds.Start),
+		End:   int64(wai.spec.Bounds.Stop),
+	}
 
 	req.Window = &datatypes.Window{
 		Every: &datatypes.Duration{
@@ -649,7 +655,7 @@ func (wai *windowAggregateIterator) Do(f func(flux.Table) error) error {
 	for i, aggKind := range wai.spec.Aggregates {
 		if agg, err := determineAggregateMethod(string(aggKind)); err != nil {
 			return err
-		} else if agg != datatypes.AggregateTypeNone {
+		} else if agg != datatypes.Aggregate_AggregateTypeNone {
 			req.Aggregate[i] = &datatypes.Aggregate{Type: agg}
 		}
 	}
@@ -851,15 +857,17 @@ func (ti *tagKeysIterator) Do(f func(flux.Table) error) error {
 	)
 
 	var req datatypes.TagKeysRequest
-	any, err := types.MarshalAny(src)
+	any, err := anypb.New(src)
 	if err != nil {
 		return err
 	}
 
 	req.TagsSource = any
 	req.Predicate = ti.predicate
-	req.Range.Start = int64(ti.bounds.Start)
-	req.Range.End = int64(ti.bounds.Stop)
+	req.Range = &datatypes.TimestampRange{
+		Start: int64(ti.bounds.Start),
+		End:   int64(ti.bounds.Stop),
+	}
 
 	rs, err := ti.s.TagKeys(ti.ctx, &req)
 	if err != nil {
@@ -934,7 +942,7 @@ func (ti *tagValuesIterator) Do(f func(flux.Table) error) error {
 	)
 
 	var req datatypes.TagValuesRequest
-	any, err := types.MarshalAny(src)
+	any, err := anypb.New(src)
 	if err != nil {
 		return err
 	}
@@ -949,8 +957,10 @@ func (ti *tagValuesIterator) Do(f func(flux.Table) error) error {
 		req.TagKey = ti.readSpec.TagKey
 	}
 	req.Predicate = ti.predicate
-	req.Range.Start = int64(ti.bounds.Start)
-	req.Range.End = int64(ti.bounds.Stop)
+	req.Range = &datatypes.TimestampRange{
+		Start: int64(ti.bounds.Start),
+		End:   int64(ti.bounds.Stop),
+	}
 
 	rs, err := ti.s.TagValues(ti.ctx, &req)
 	if err != nil {

@@ -8,9 +8,9 @@ import (
 	"math"
 	"sort"
 
-	"github.com/gogo/protobuf/proto"
 	internal "github.com/influxdata/influxdb/query/internal"
 	"github.com/influxdata/influxql"
+	"google.golang.org/protobuf/proto"
 )
 
 // ZeroTime is the Unix nanosecond timestamp for no time.

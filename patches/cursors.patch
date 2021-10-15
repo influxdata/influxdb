@@ -1,8 +1,0 @@
-diff --git b/tsdb/cursors/gen.go a/tsdb/cursors/gen.go
-index 63316e5c0..ee7a8876a 100644
---- b/tsdb/cursors/gen.go
-+++ a/tsdb/cursors/gen.go
-@@ -1,3 +1 @@
- package cursors
--
--//go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@arrayvalues.gen.go.tmpldata arrayvalues.gen.go.tmpl
