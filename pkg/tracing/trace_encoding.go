@@ -4,19 +4,20 @@ import (
 	"math"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/pkg/tracing/fields"
 	"github.com/influxdata/influxdb/pkg/tracing/labels"
 	"github.com/influxdata/influxdb/pkg/tracing/wire"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func fieldsToWire(set fields.Fields) []wire.Field {
-	var r []wire.Field
+func fieldsToWire(set fields.Fields) []*wire.Field {
+	var r []*wire.Field
 	for _, f := range set {
 		wf := wire.Field{Key: f.Key()}
 		switch val := f.Value().(type) {
 		case string:
-			wf.FieldType = wire.FieldTypeString
+			wf.FieldType = wire.FieldType_FieldTypeString
 			wf.Value = &wire.Field_StringVal{StringVal: val}
 
 		case bool:
@@ -24,30 +25,30 @@ func fieldsToWire(set fields.Fields) []wire.Field {
 			if val {
 				numericVal = 1
 			}
-			wf.FieldType = wire.FieldTypeBool
+			wf.FieldType = wire.FieldType_FieldTypeBool
 			wf.Value = &wire.Field_NumericVal{NumericVal: numericVal}
 
 		case int64:
-			wf.FieldType = wire.FieldTypeInt64
+			wf.FieldType = wire.FieldType_FieldTypeInt64
 			wf.Value = &wire.Field_NumericVal{NumericVal: val}
 
 		case uint64:
-			wf.FieldType = wire.FieldTypeUint64
+			wf.FieldType = wire.FieldType_FieldTypeUint64
 			wf.Value = &wire.Field_NumericVal{NumericVal: int64(val)}
 
 		case time.Duration:
-			wf.FieldType = wire.FieldTypeDuration
+			wf.FieldType = wire.FieldType_FieldTypeDuration
 			wf.Value = &wire.Field_NumericVal{NumericVal: int64(val)}
 
 		case float64:
-			wf.FieldType = wire.FieldTypeFloat64
+			wf.FieldType = wire.FieldType_FieldTypeFloat64
 			wf.Value = &wire.Field_NumericVal{NumericVal: int64(math.Float64bits(val))}
 
 		default:
 			continue
 		}
 
-		r = append(r, wf)
+		r = append(r, &wf)
 	}
 	return r
 }
@@ -63,14 +64,14 @@ func labelsToWire(set labels.Labels) []string {
 func (t *Trace) MarshalBinary() ([]byte, error) {
 	wt := wire.Trace{}
 	for _, sp := range t.spans {
-		wt.Spans = append(wt.Spans, &wire.Span{
-			Context: wire.SpanContext{
+		wt.Spans = append(wt.GetSpans(), &wire.Span{
+			Context: &wire.SpanContext{
 				TraceID: sp.Context.TraceID,
 				SpanID:  sp.Context.SpanID,
 			},
 			ParentSpanID: sp.ParentSpanID,
 			Name:         sp.Name,
-			Start:        sp.Start,
+			Start:        timestamppb.New(sp.Start),
 			Labels:       labelsToWire(sp.Labels),
 			Fields:       fieldsToWire(sp.Fields),
 		})
@@ -79,31 +80,31 @@ func (t *Trace) MarshalBinary() ([]byte, error) {
 	return proto.Marshal(&wt)
 }
 
-func wireToFields(wfs []wire.Field) fields.Fields {
+func wireToFields(wfs []*wire.Field) fields.Fields {
 	var fs []fields.Field
 	for _, wf := range wfs {
-		switch wf.FieldType {
-		case wire.FieldTypeString:
-			fs = append(fs, fields.String(wf.Key, wf.GetStringVal()))
+		switch wf.GetFieldType() {
+		case wire.FieldType_FieldTypeString:
+			fs = append(fs, fields.String(wf.GetKey(), wf.GetStringVal()))
 
-		case wire.FieldTypeBool:
+		case wire.FieldType_FieldTypeBool:
 			var boolVal bool
 			if wf.GetNumericVal() != 0 {
 				boolVal = true
 			}
-			fs = append(fs, fields.Bool(wf.Key, boolVal))
+			fs = append(fs, fields.Bool(wf.GetKey(), boolVal))
 
-		case wire.FieldTypeInt64:
-			fs = append(fs, fields.Int64(wf.Key, wf.GetNumericVal()))
+		case wire.FieldType_FieldTypeInt64:
+			fs = append(fs, fields.Int64(wf.GetKey(), wf.GetNumericVal()))
 
-		case wire.FieldTypeUint64:
-			fs = append(fs, fields.Uint64(wf.Key, uint64(wf.GetNumericVal())))
+		case wire.FieldType_FieldTypeUint64:
+			fs = append(fs, fields.Uint64(wf.GetKey(), uint64(wf.GetNumericVal())))
 
-		case wire.FieldTypeDuration:
-			fs = append(fs, fields.Duration(wf.Key, time.Duration(wf.GetNumericVal())))
+		case wire.FieldType_FieldTypeDuration:
+			fs = append(fs, fields.Duration(wf.GetKey(), time.Duration(wf.GetNumericVal())))
 
-		case wire.FieldTypeFloat64:
-			fs = append(fs, fields.Float64(wf.Key, math.Float64frombits(uint64(wf.GetNumericVal()))))
+		case wire.FieldType_FieldTypeFloat64:
+			fs = append(fs, fields.Float64(wf.GetKey(), math.Float64frombits(uint64(wf.GetNumericVal()))))
 		}
 	}
 
@@ -118,17 +119,17 @@ func (t *Trace) UnmarshalBinary(data []byte) error {
 
 	t.spans = make(map[uint64]RawSpan)
 
-	for _, sp := range wt.Spans {
-		t.spans[sp.Context.SpanID] = RawSpan{
+	for _, sp := range wt.GetSpans() {
+		t.spans[sp.Context.GetSpanID()] = RawSpan{
 			Context: SpanContext{
-				TraceID: sp.Context.TraceID,
-				SpanID:  sp.Context.SpanID,
+				TraceID: sp.Context.GetTraceID(),
+				SpanID:  sp.Context.GetSpanID(),
 			},
-			ParentSpanID: sp.ParentSpanID,
-			Name:         sp.Name,
-			Start:        sp.Start,
-			Labels:       labels.New(sp.Labels...),
-			Fields:       wireToFields(sp.Fields),
+			ParentSpanID: sp.GetParentSpanID(),
+			Name:         sp.GetName(),
+			Start:        sp.GetStart().AsTime(),
+			Labels:       labels.New(sp.GetLabels()...),
+			Fields:       wireToFields(sp.GetFields()),
 		}
 	}
 

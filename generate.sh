@@ -1,7 +1,6 @@
 #!/bin/bash -e
 
-go install github.com/gogo/protobuf/protoc-gen-gogofaster
-go install github.com/gogo/protobuf/protoc-gen-gogo
+go install google.golang.org/protobuf/cmd/protoc-gen-go
 go install golang.org/x/tools/cmd/stringer
 go install github.com/benbjohnson/tmpl
 

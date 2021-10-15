@@ -41,12 +41,12 @@ func TestNewAggregateArrayCursor_{{$ColType}}(t *testing.T) {
 		}
 		{{if eq $Agg "MeanCount"}}
 		agg := []*datatypes.Aggregate{
-			&datatypes.Aggregate{Type: datatypes.AggregateTypeMean},
-			&datatypes.Aggregate{Type: datatypes.AggregateTypeCount},
+			&datatypes.Aggregate{Type: datatypes.Aggregate_AggregateTypeMean},
+			&datatypes.Aggregate{Type: datatypes.Aggregate_AggregateTypeCount},
 		}
 		{{else}}
 		agg := []*datatypes.Aggregate{
-			&datatypes.Aggregate{Type: datatypes.AggregateType{{$Agg}}},
+			&datatypes.Aggregate{Type: datatypes.Aggregate_AggregateType{{$Agg}}},
 		}
 		{{end}}
 
@@ -78,12 +78,12 @@ func TestNewWindowAggregateArrayCursorMonths_{{$ColType}}(t *testing.T) {
 
 		{{if eq $Agg "MeanCount"}}
 		agg := []*datatypes.Aggregate{
-			&datatypes.Aggregate{Type: datatypes.AggregateTypeMean},
-			&datatypes.Aggregate{Type: datatypes.AggregateTypeCount},
+			&datatypes.Aggregate{Type: datatypes.Aggregate_AggregateTypeMean},
+			&datatypes.Aggregate{Type: datatypes.Aggregate_AggregateTypeCount},
 		}
 		{{else}}
 		agg := []*datatypes.Aggregate{
-			&datatypes.Aggregate{Type: datatypes.AggregateType{{$Agg}}},
+			&datatypes.Aggregate{Type: datatypes.Aggregate_AggregateType{{$Agg}}},
 		}
 		{{end}}
 
@@ -115,12 +115,12 @@ func TestNewWindowAggregateArrayCursor_{{$ColType}}(t *testing.T) {
 
 		{{if eq $Agg "MeanCount"}}
 		agg := []*datatypes.Aggregate{
-			&datatypes.Aggregate{Type: datatypes.AggregateTypeMean},
-			&datatypes.Aggregate{Type: datatypes.AggregateTypeCount},
+			&datatypes.Aggregate{Type: datatypes.Aggregate_AggregateTypeMean},
+			&datatypes.Aggregate{Type: datatypes.Aggregate_AggregateTypeCount},
 		}
 		{{else}}
 		agg := []*datatypes.Aggregate{
-			&datatypes.Aggregate{Type: datatypes.AggregateType{{$Agg}}},
+			&datatypes.Aggregate{Type: datatypes.Aggregate_AggregateType{{$Agg}}},
 		}
 		{{end}}
 

@@ -53,4 +53,5 @@ require (
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	golang.org/x/tools v0.0.0-20210106214847-113979e3529a
 	google.golang.org/grpc v1.29.1
+	google.golang.org/protobuf v1.27.1
 )

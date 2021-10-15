@@ -29,13 +29,13 @@ func TestNewFilteredResultSet_TimeRange(t *testing.T) {
 
 	ctx := context.Background()
 	req := datatypes.ReadFilterRequest{
-		Range: datatypes.TimestampRange{
+		Range: &datatypes.TimestampRange{
 			Start: 0,
 			End:   30,
 		},
 	}
 
-	resultSet := reads.NewFilteredResultSet(ctx, req.Range.Start, req.Range.End, &newCursor)
+	resultSet := reads.NewFilteredResultSet(ctx, req.Range.GetStart(), req.Range.GetEnd(), &newCursor)
 	if !resultSet.Next() {
 		t.Fatal("expected result")
 	}

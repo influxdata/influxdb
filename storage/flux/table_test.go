@@ -2700,19 +2700,19 @@ func TestStorageReader_EmptyTableNoEmptyWindows(t *testing.T) {
 func getStorageEqPred(lhsTagKey, rhsTagValue string) *storageproto.Predicate {
 	return &storageproto.Predicate{
 		Root: &storageproto.Node{
-			NodeType: storageproto.NodeTypeComparisonExpression,
+			NodeType: storageproto.Node_TypeComparisonExpression,
 			Value: &storageproto.Node_Comparison_{
-				Comparison: storageproto.ComparisonEqual,
+				Comparison: storageproto.Node_ComparisonEqual,
 			},
 			Children: []*storageproto.Node{
 				{
-					NodeType: storageproto.NodeTypeTagRef,
+					NodeType: storageproto.Node_TypeTagRef,
 					Value: &storageproto.Node_TagRefValue{
-						TagRefValue: lhsTagKey,
+						TagRefValue: []byte(lhsTagKey),
 					},
 				},
 				{
-					NodeType: storageproto.NodeTypeLiteral,
+					NodeType: storageproto.Node_TypeLiteral,
 					Value: &storageproto.Node_StringValue{
 						StringValue: rhsTagValue,
 					},

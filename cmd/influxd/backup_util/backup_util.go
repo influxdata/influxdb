@@ -12,12 +12,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gogo/protobuf/proto"
 	internal "github.com/influxdata/influxdb/cmd/influxd/backup_util/internal"
 	"github.com/influxdata/influxdb/services/snapshotter"
+	"google.golang.org/protobuf/proto"
 )
 
-//go:generate protoc --gogo_out=. internal/data.proto
+//go:generate protoc --go_out=./internal internal/data.proto
 
 const (
 	// Suffix is a suffix added to the backup while it's in-process.

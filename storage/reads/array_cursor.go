@@ -19,7 +19,7 @@ func (v *singleValue) Value(key string) (interface{}, bool) {
 
 func newAggregateArrayCursor(ctx context.Context, agg []*datatypes.Aggregate, cursor cursors.Cursor) (cursors.Cursor, error) {
 	switch agg[0].Type {
-	case datatypes.AggregateTypeFirst, datatypes.AggregateTypeLast:
+	case datatypes.Aggregate_AggregateTypeFirst, datatypes.Aggregate_AggregateTypeLast:
 		return newLimitArrayCursor(cursor), nil
 	}
 	return NewWindowAggregateArrayCursor(ctx, agg, interval.Window{}, cursor)
@@ -31,20 +31,20 @@ func NewWindowAggregateArrayCursor(ctx context.Context, agg []*datatypes.Aggrega
 	}
 
 	switch agg[0].Type {
-	case datatypes.AggregateTypeCount:
+	case datatypes.Aggregate_AggregateTypeCount:
 		return newWindowCountArrayCursor(cursor, window), nil
-	case datatypes.AggregateTypeSum:
+	case datatypes.Aggregate_AggregateTypeSum:
 		return newWindowSumArrayCursor(cursor, window)
-	case datatypes.AggregateTypeFirst:
+	case datatypes.Aggregate_AggregateTypeFirst:
 		return newWindowFirstArrayCursor(cursor, window), nil
-	case datatypes.AggregateTypeLast:
+	case datatypes.Aggregate_AggregateTypeLast:
 		return newWindowLastArrayCursor(cursor, window), nil
-	case datatypes.AggregateTypeMin:
+	case datatypes.Aggregate_AggregateTypeMin:
 		return newWindowMinArrayCursor(cursor, window), nil
-	case datatypes.AggregateTypeMax:
+	case datatypes.Aggregate_AggregateTypeMax:
 		return newWindowMaxArrayCursor(cursor, window), nil
-	case datatypes.AggregateTypeMean:
-		if len(agg) == 2 && agg[1].Type == datatypes.AggregateTypeCount {
+	case datatypes.Aggregate_AggregateTypeMean:
+		if len(agg) == 2 && agg[1].Type == datatypes.Aggregate_AggregateTypeCount {
 			return newWindowMeanCountArrayCursor(cursor, window)
 		}
 		return newWindowMeanArrayCursor(cursor, window)

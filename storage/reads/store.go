@@ -3,10 +3,10 @@ package reads
 import (
 	"context"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
+	"google.golang.org/protobuf/proto"
 )
 
 type ResultSet interface {

@@ -1,6 +1,6 @@
 package tsdb
 
-//go:generate protoc --gogo_out=. internal/meta.proto
+//go:generate protoc --go_out=./internal internal/fieldsindex.proto
 
 import (
 	"sort"

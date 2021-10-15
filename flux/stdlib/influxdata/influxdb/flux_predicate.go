@@ -34,9 +34,9 @@ func MergePredicates(op ast.LogicalOperatorKind, predicates ...*datatypes.Predic
 	var value datatypes.Node_Logical
 	switch op {
 	case ast.AndOperator:
-		value = datatypes.LogicalAnd
+		value = datatypes.Node_LogicalAnd
 	case ast.OrOperator:
-		value = datatypes.LogicalOr
+		value = datatypes.Node_LogicalOr
 	default:
 		return nil, fmt.Errorf("unknown logical operator %v", op)
 	}
@@ -46,7 +46,7 @@ func MergePredicates(op ast.LogicalOperatorKind, predicates ...*datatypes.Predic
 	root := predicates[len(predicates)-1].Root
 	for i := len(predicates) - 2; i >= 0; i-- {
 		root = &datatypes.Node{
-			NodeType: datatypes.NodeTypeLogicalExpression,
+			NodeType: datatypes.Node_TypeLogicalExpression,
 			Value:    &datatypes.Node_Logical_{Logical: value},
 			Children: []*datatypes.Node{
 				predicates[i].Root,
@@ -74,14 +74,14 @@ func toStoragePredicateHelper(n semantic.Expression, objectName string) (*dataty
 		switch n.Operator {
 		case ast.AndOperator:
 			return &datatypes.Node{
-				NodeType: datatypes.NodeTypeLogicalExpression,
-				Value:    &datatypes.Node_Logical_{Logical: datatypes.LogicalAnd},
+				NodeType: datatypes.Node_TypeLogicalExpression,
+				Value:    &datatypes.Node_Logical_{Logical: datatypes.Node_LogicalAnd},
 				Children: children,
 			}, nil
 		case ast.OrOperator:
 			return &datatypes.Node{
-				NodeType: datatypes.NodeTypeLogicalExpression,
-				Value:    &datatypes.Node_Logical_{Logical: datatypes.LogicalOr},
+				NodeType: datatypes.Node_TypeLogicalExpression,
+				Value:    &datatypes.Node_Logical_{Logical: datatypes.Node_LogicalOr},
 				Children: children,
 			}, nil
 		default:
@@ -102,41 +102,41 @@ func toStoragePredicateHelper(n semantic.Expression, objectName string) (*dataty
 			return nil, err
 		}
 		return &datatypes.Node{
-			NodeType: datatypes.NodeTypeComparisonExpression,
+			NodeType: datatypes.Node_TypeComparisonExpression,
 			Value:    &datatypes.Node_Comparison_{Comparison: op},
 			Children: children,
 		}, nil
 	case *semantic.StringLiteral:
 		return &datatypes.Node{
-			NodeType: datatypes.NodeTypeLiteral,
+			NodeType: datatypes.Node_TypeLiteral,
 			Value: &datatypes.Node_StringValue{
 				StringValue: n.Value,
 			},
 		}, nil
 	case *semantic.IntegerLiteral:
 		return &datatypes.Node{
-			NodeType: datatypes.NodeTypeLiteral,
+			NodeType: datatypes.Node_TypeLiteral,
 			Value: &datatypes.Node_IntegerValue{
 				IntegerValue: n.Value,
 			},
 		}, nil
 	case *semantic.BooleanLiteral:
 		return &datatypes.Node{
-			NodeType: datatypes.NodeTypeLiteral,
+			NodeType: datatypes.Node_TypeLiteral,
 			Value: &datatypes.Node_BooleanValue{
 				BooleanValue: n.Value,
 			},
 		}, nil
 	case *semantic.FloatLiteral:
 		return &datatypes.Node{
-			NodeType: datatypes.NodeTypeLiteral,
+			NodeType: datatypes.Node_TypeLiteral,
 			Value: &datatypes.Node_FloatValue{
 				FloatValue: n.Value,
 			},
 		}, nil
 	case *semantic.RegexpLiteral:
 		return &datatypes.Node{
-			NodeType: datatypes.NodeTypeLiteral,
+			NodeType: datatypes.Node_TypeLiteral,
 			Value: &datatypes.Node_RegexValue{
 				RegexValue: n.Value.String(),
 			},
@@ -149,21 +149,21 @@ func toStoragePredicateHelper(n semantic.Expression, objectName string) (*dataty
 		switch n.Property {
 		case fieldKey:
 			return &datatypes.Node{
-				NodeType: datatypes.NodeTypeTagRef,
+				NodeType: datatypes.Node_TypeTagRef,
 				Value: &datatypes.Node_TagRefValue{
-					TagRefValue: models.FieldKeyTagKey,
+					TagRefValue: []byte(models.FieldKeyTagKey),
 				},
 			}, nil
 		case measurementKey:
 			return &datatypes.Node{
-				NodeType: datatypes.NodeTypeTagRef,
+				NodeType: datatypes.Node_TypeTagRef,
 				Value: &datatypes.Node_TagRefValue{
-					TagRefValue: models.MeasurementTagKey,
+					TagRefValue: []byte(models.MeasurementTagKey),
 				},
 			}, nil
 		case valueKey:
 			return &datatypes.Node{
-				NodeType: datatypes.NodeTypeFieldRef,
+				NodeType: datatypes.Node_TypeFieldRef,
 				Value: &datatypes.Node_FieldRefValue{
 					FieldRefValue: valueKey,
 				},
@@ -171,9 +171,9 @@ func toStoragePredicateHelper(n semantic.Expression, objectName string) (*dataty
 
 		}
 		return &datatypes.Node{
-			NodeType: datatypes.NodeTypeTagRef,
+			NodeType: datatypes.Node_TypeTagRef,
 			Value: &datatypes.Node_TagRefValue{
-				TagRefValue: n.Property,
+				TagRefValue: []byte(n.Property),
 			},
 		}, nil
 	case *semantic.DurationLiteral:
@@ -188,23 +188,23 @@ func toStoragePredicateHelper(n semantic.Expression, objectName string) (*dataty
 func toComparisonOperator(o ast.OperatorKind) (datatypes.Node_Comparison, error) {
 	switch o {
 	case ast.EqualOperator:
-		return datatypes.ComparisonEqual, nil
+		return datatypes.Node_ComparisonEqual, nil
 	case ast.NotEqualOperator:
-		return datatypes.ComparisonNotEqual, nil
+		return datatypes.Node_ComparisonNotEqual, nil
 	case ast.RegexpMatchOperator:
-		return datatypes.ComparisonRegex, nil
+		return datatypes.Node_ComparisonRegex, nil
 	case ast.NotRegexpMatchOperator:
-		return datatypes.ComparisonNotRegex, nil
+		return datatypes.Node_ComparisonNotRegex, nil
 	case ast.StartsWithOperator:
-		return datatypes.ComparisonStartsWith, nil
+		return datatypes.Node_ComparisonStartsWith, nil
 	case ast.LessThanOperator:
-		return datatypes.ComparisonLess, nil
+		return datatypes.Node_ComparisonLess, nil
 	case ast.LessThanEqualOperator:
-		return datatypes.ComparisonLessEqual, nil
+		return datatypes.Node_ComparisonLessEqual, nil
 	case ast.GreaterThanOperator:
-		return datatypes.ComparisonGreater, nil
+		return datatypes.Node_ComparisonGreater, nil
 	case ast.GreaterThanEqualOperator:
-		return datatypes.ComparisonGreaterEqual, nil
+		return datatypes.Node_ComparisonGreaterEqual, nil
 	default:
 		return 0, fmt.Errorf("unknown operator %v", o)
 	}
