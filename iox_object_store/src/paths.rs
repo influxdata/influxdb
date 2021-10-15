@@ -37,7 +37,7 @@ pub(crate) fn all_databases_path(object_store: &ObjectStore, server_id: ServerId
 /// A database-specific object store path that all `IoxObjectStore` `Path`s should be within.
 /// This can be serialized to facilitate initial loading of a database from object storage, but
 /// the path should not be parsed into its component parts as the format might change.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RootPath {
     pub(crate) inner: Path,
 }
@@ -54,6 +54,12 @@ impl RootPath {
         Self { inner }
     }
 
+    pub(crate) fn from_str(object_store: &ObjectStore, raw: &str) -> Self {
+        Self {
+            inner: object_store.path_from_raw(raw),
+        }
+    }
+
     fn join(&self, dir: &str) -> Path {
         let mut result = self.inner.clone();
         result.push_dir(dir);
@@ -67,7 +73,7 @@ impl RootPath {
 
 impl fmt::Display for RootPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.inner)
+        write!(f, "{}", self.inner.to_raw())
     }
 }
 

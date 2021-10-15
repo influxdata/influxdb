@@ -43,6 +43,10 @@ impl ObjectStoreApi for DummyObjectStore {
         CloudPath::default()
     }
 
+    fn path_from_raw(&self, raw: &str) -> Self::Path {
+        CloudPath::raw(raw)
+    }
+
     async fn put(&self, _location: &Self::Path, _bytes: Bytes) -> crate::Result<(), Self::Error> {
         NotSupported { name: &self.name }.fail()
     }

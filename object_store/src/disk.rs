@@ -73,6 +73,10 @@ impl ObjectStoreApi for File {
         FilePath::default()
     }
 
+    fn path_from_raw(&self, raw: &str) -> Self::Path {
+        FilePath::raw(raw, true)
+    }
+
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {
         let content = bytes::BytesMut::from(&*bytes);
 
@@ -131,7 +135,7 @@ impl ObjectStoreApi for File {
         &'a self,
         prefix: Option<&'a Self::Path>,
     ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
-        let root_path = self.root.to_raw();
+        let root_path = self.root.to_path_buf();
         let walkdir = WalkDir::new(&root_path)
             // Don't include the root directory itself
             .min_depth(1);
@@ -175,14 +179,14 @@ impl ObjectStoreApi for File {
         let mut search_path = resolved_prefix.clone();
         search_path.unset_file_name();
 
-        let walkdir = WalkDir::new(&search_path.to_raw())
+        let walkdir = WalkDir::new(&search_path.to_path_buf())
             .min_depth(1)
             .max_depth(1);
 
         let mut common_prefixes = BTreeSet::new();
         let mut objects = Vec::new();
 
-        let root_path = self.root.to_raw();
+        let root_path = self.root.to_path_buf();
         for entry_res in walkdir.into_iter().map(convert_walkdir_result) {
             if let Some(entry) = entry_res? {
                 let entry_location = FilePath::raw(entry.path(), false);
@@ -287,7 +291,7 @@ impl File {
     pub fn path(&self, location: &FilePath) -> PathBuf {
         let mut path = self.root.clone();
         path.push_path(location);
-        path.to_raw()
+        path.to_path_buf()
     }
 }
 

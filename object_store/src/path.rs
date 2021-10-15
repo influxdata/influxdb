@@ -39,6 +39,10 @@ pub trait ObjectStorePath:
 
     /// Push a bunch of parts as directories in one go.
     fn push_all_dirs<'a>(&mut self, parts: impl AsRef<[&'a str]>);
+
+    /// Return a string representation relative to the root of the object storage that can be
+    /// serialized for later deserialization.
+    fn to_raw(&self) -> String;
 }
 
 /// Defines which object stores use which path logic.
@@ -92,6 +96,16 @@ impl ObjectStorePath for Path {
             Self::GoogleCloudStorage(path) => path.push_all_dirs(parts),
             Self::InMemory(path) => path.push_all_dirs(parts),
             Self::MicrosoftAzure(path) => path.push_all_dirs(parts),
+        }
+    }
+
+    fn to_raw(&self) -> String {
+        match self {
+            Self::AmazonS3(path) => path.to_raw(),
+            Self::File(path) => path.to_raw(),
+            Self::GoogleCloudStorage(path) => path.to_raw(),
+            Self::InMemory(path) => path.to_raw(),
+            Self::MicrosoftAzure(path) => path.to_raw(),
         }
     }
 }
@@ -178,6 +192,32 @@ mod tests {
                 Path::InMemory(parsed_path!(["foo", "bar"], "baz.json"))
             ),
             "mem:foo/bar/baz.json"
+        );
+    }
+
+    #[test]
+    fn test_to_raw_string() {
+        assert_eq!(
+            Path::AmazonS3(CloudPath::raw("/foo/bar/baz.json")).to_raw(),
+            "/foo/bar/baz.json"
+        );
+        assert_eq!(
+            Path::GoogleCloudStorage(CloudPath::raw("/foo/bar/baz.json")).to_raw(),
+            "/foo/bar/baz.json"
+        );
+        assert_eq!(
+            Path::MicrosoftAzure(CloudPath::raw("/foo/bar/baz.json")).to_raw(),
+            "/foo/bar/baz.json"
+        );
+
+        assert_eq!(
+            Path::File(FilePath::raw(&PathBuf::from("/foo/bar/baz.json"), false)).to_raw(),
+            "/foo/bar/baz.json"
+        );
+
+        assert_eq!(
+            Path::InMemory(parsed_path!(["foo", "bar"], "baz.json")).to_raw(),
+            "foo/bar/baz.json"
         );
     }
 }

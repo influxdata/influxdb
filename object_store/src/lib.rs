@@ -73,6 +73,9 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
     /// Return a new location path appropriate for this object storage
     fn new_path(&self) -> Self::Path;
 
+    /// Return a new location path constructed from a string appropriate for this object storage
+    fn path_from_raw(&self, raw: &str) -> Self::Path;
+
     /// Save the provided bytes to the specified location.
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error>;
 
@@ -230,6 +233,20 @@ impl ObjectStoreApi for ObjectStore {
             }
             File(file) => path::Path::File(file.new_path()),
             MicrosoftAzure(azure) => path::Path::MicrosoftAzure(azure.new_path()),
+        }
+    }
+
+    fn path_from_raw(&self, raw: &str) -> Self::Path {
+        use ObjectStoreIntegration::*;
+        match &self.integration {
+            AmazonS3(s3) => path::Path::AmazonS3(s3.path_from_raw(raw)),
+            GoogleCloudStorage(gcs) => path::Path::GoogleCloudStorage(gcs.path_from_raw(raw)),
+            InMemory(in_mem) => path::Path::InMemory(in_mem.path_from_raw(raw)),
+            InMemoryThrottled(in_mem_throttled) => {
+                path::Path::InMemory(in_mem_throttled.path_from_raw(raw))
+            }
+            File(file) => path::Path::File(file.path_from_raw(raw)),
+            MicrosoftAzure(azure) => path::Path::MicrosoftAzure(azure.path_from_raw(raw)),
         }
     }
 

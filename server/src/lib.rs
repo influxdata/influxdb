@@ -1486,13 +1486,13 @@ mod tests {
 
         // assert server config file exists and has 1 entry
         let config = server_config(application.object_store(), server_id).await;
-        assert_config_contents(&config, &[(&name, iox_object_store.root_path())]);
+        assert_config_contents(&config, &[(&name, String::from("1/bananas/"))]);
 
         let db2 = DatabaseName::new("db_awesome").unwrap();
         let rules2 = DatabaseRules::new(db2.clone());
         let provided_rules2 = make_provided_rules(rules2);
 
-        let awesome = server
+        server
             .create_database(provided_rules2)
             .await
             .expect("failed to create 2nd db");
@@ -1502,8 +1502,8 @@ mod tests {
         assert_config_contents(
             &config,
             &[
-                (&name, iox_object_store.root_path()),
-                (&db2, awesome.iox_object_store().unwrap().root_path()),
+                (&name, String::from("1/bananas/")),
+                (&db2, String::from("1/db_awesome/")),
             ],
         );
 
@@ -1525,8 +1525,8 @@ mod tests {
         assert_config_contents(
             &config,
             &[
-                (&name, iox_object_store.root_path()),
-                (&db2, awesome.iox_object_store().unwrap().root_path()),
+                (&name, String::from("1/bananas/")),
+                (&db2, String::from("1/db_awesome/")),
             ],
         );
     }
@@ -1634,14 +1634,8 @@ mod tests {
         assert_config_contents(
             &config,
             &[
-                (
-                    &apples.config().name,
-                    apples.iox_object_store().unwrap().root_path(),
-                ),
-                (
-                    &bananas.config().name,
-                    bananas.iox_object_store().unwrap().root_path(),
-                ),
+                (&apples.config().name, String::from("1/apples/")),
+                (&bananas.config().name, String::from("1/bananas/")),
             ],
         );
 
@@ -2180,7 +2174,7 @@ mod tests {
 
         // server config contains foo
         let config = server_config(application.object_store(), server_id).await;
-        assert_config_contents(&config, &[(&foo_db_name, fake_db_path.to_string())]);
+        assert_config_contents(&config, &[(&foo_db_name, String::from("1/foo/"))]);
 
         // can't delete an inactive database
         let err = server.delete_database(&foo_db_name).await;
@@ -2200,7 +2194,7 @@ mod tests {
         assert!(Arc::ptr_eq(&err, &foo_database.init_error().unwrap()));
 
         // creating a new DB with the deleted db's name works
-        let new_foo_db = create_simple_database(&server, &foo_db_name)
+        create_simple_database(&server, &foo_db_name)
             .await
             .expect("failed to create database");
 
@@ -2210,13 +2204,7 @@ mod tests {
 
         // server config contains foo
         let config = server_config(application.object_store(), server_id).await;
-        assert_config_contents(
-            &config,
-            &[(
-                &foo_db_name,
-                new_foo_db.iox_object_store().unwrap().root_path(),
-            )],
-        );
+        assert_config_contents(&config, &[(&foo_db_name, String::from("1/foo/"))]);
 
         // calling delete database works
         server.delete_database(&foo_db_name).await.unwrap();
