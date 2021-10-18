@@ -37,11 +37,14 @@ set -eu -o pipefail
 # without needing to duplicate the entire private test infrastructure provided in monitor-ci.
 #
 # Required Env Vars for Testing Changes to OSS Master with the Latest Image Published from UI Master:
+# - API_KEY: See "Required Env Vars for Running from the UI Repository".
 # - OSS_SHA: the influxdb repo commit SHA we're running against
 # - MONITOR_CI_BRANCH: the branch of the monitor-ci repo to start a pipeline with (usually 'master')
 #
 # Required Env Vars for Testing Changes to an OSS Image with Embedded UI with e2e tests from a Specific UI Commit:
+# - API_KEY: See "Required Env Vars for Running from the UI Repository".
 # - SHA: the UI repo commit SHA we want to build and run e2e tests from
+# - UI_BRANCH: the branch of the UI repo we're running against
 # - OSS_SHA: the influxdb repo commit SHA we're running against
 # - MONITOR_CI_BRANCH: the branch of the monitor-ci repo to start a pipeline with (usually 'master')
 
