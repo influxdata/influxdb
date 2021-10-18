@@ -149,7 +149,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - "2.1"
           requires:
             - e2e-monitor-ci
 
@@ -826,8 +826,8 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Run the tests
-          command: API_KEY=${MONITOR_CI_API_KEY} MONITOR_CI_BRANCH="master" OSS_SHA=${CIRCLE_SHA1} ./scripts/ci/run-monitor-ci-tests.bash
+          # OSS_SHA refers to the current commit from the InfluxDB OSS repo; SHA refers to the commit in the UI repo that the OSS backend should be tested against.
+          command: API_KEY=${MONITOR_CI_API_KEY} MONITOR_CI_BRANCH="master" OSS_SHA=${CIRCLE_SHA1} SHA="3cfb5669fae5ebd33f44d9ab15eed35eb1fc9670" UI_BRANCH="OSS-2.1" ./scripts/ci/run-monitor-ci-tests.bash
       - store_artifacts:
           path: monitor-ci/test-artifacts/results/build-oss-image
           destination: test_artifacts/results/build-oss-image
@@ -918,8 +918,8 @@ jobs:
           name: Push the image to Quay
           command: |
             docker load < docker-image.tar
-            docker tag quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} quay.io/influxdb/oss-acceptance:latest
-            docker push quay.io/influxdb/oss-acceptance:latest
+            docker tag quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} quay.io/influxdb/oss-acceptance:2.1
+            docker push quay.io/influxdb/oss-acceptance:2.1
   changelog:
     machine:
       image: ubuntu-2004:202010-01
