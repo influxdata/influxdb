@@ -466,12 +466,18 @@ impl IOxExecutionContext {
     pub async fn to_string_set(&self, plan: StringSetPlan) -> Result<StringSetRef> {
         let ctx = self.child_ctx("to_string_set");
         match plan {
-            StringSetPlan::Known(ss) => Ok(ss),
-            StringSetPlan::Plan(plans) => ctx
+            StringSetPlan::Known(ss) => {
+                println!(" ====== StringSetPlan::Known. Fast path");
+                Ok(ss)
+            },
+            StringSetPlan::Plan(plans) => { 
+                println!(" ====== StringSetPlan::Plan. Slow/Scan path");
+                ctx
                 .run_logical_plans(plans)
                 .await?
                 .into_stringset()
-                .map_err(|e| Error::Execution(format!("Error converting to stringset: {}", e))),
+                .map_err(|e| Error::Execution(format!("Error converting to stringset: {}", e)))
+            },
         }
     }
 

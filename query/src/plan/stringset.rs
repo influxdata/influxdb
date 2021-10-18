@@ -88,11 +88,17 @@ pub struct StringSetPlanBuilder {
     strings: StringSet,
     /// General plans
     plans: Vec<LogicalPlan>,
+    /// This is  builder of chunks with delete predicate
+    has_delete_predicates: bool, 
 }
 
 impl StringSetPlanBuilder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn has_deleted_data(&mut self) {
+        self.has_delete_predicates = true;
     }
 
     /// Returns a reference to any strings already known to be in this
@@ -134,9 +140,10 @@ impl StringSetPlanBuilder {
     /// Create a StringSetPlan that produces the deduplicated (union)
     /// of all plans `append`ed to this builder.
     pub fn build(self) -> Result<StringSetPlan> {
-        let Self { strings, mut plans } = self;
+        let Self { strings, mut plans, has_delete_predicates } = self;
 
-        if plans.is_empty() {
+        // Only use fast path if there is no soft delete and no plans provided
+        if plans.is_empty() && !has_delete_predicates {
             // only a known set of strings
             Ok(StringSetPlan::Known(Arc::new(strings)))
         } else {
@@ -147,6 +154,8 @@ impl StringSetPlanBuilder {
                     str_iter_to_batch(TABLE_NAMES_COLUMN_NAME, strings.into_iter().map(Some))
                         .context(InternalConvertingToArrow)?;
 
+                println!(" ===== Got here. About to create a scan plan");
+                // NGA todo: need a different batch here
                 let plan = make_scan_plan(batch).context(InternalPlanningStringSet)?;
 
                 plans.push(plan)

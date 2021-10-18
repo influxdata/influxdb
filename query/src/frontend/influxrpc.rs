@@ -216,6 +216,7 @@ impl InfluxRpcPlanner {
             // Try and apply the predicate using only metadata
             let table_name = chunk.table_name();
             let predicate = normalizer.normalized(table_name);
+            if chunk.has_delete_predicates() { builder.has_deleted_data(); }
 
             let pred_result = chunk
                 .apply_predicate_to_metadata(&predicate)
@@ -276,7 +277,9 @@ impl InfluxRpcPlanner {
         let mut normalizer = PredicateNormalizer::new(predicate);
 
         let mut known_columns = BTreeSet::new();
+        let mut do_full_plan = false;
         for chunk in database.chunks(normalizer.unnormalized()) {
+            if chunk.has_delete_predicates() { do_full_plan = true; }
             let table_name = chunk.table_name();
             let predicate = normalizer.normalized(table_name);
 
@@ -308,30 +311,37 @@ impl InfluxRpcPlanner {
                 .map_err(|e| Box::new(e) as _)
                 .context(FindingColumnNames)?;
 
-            match maybe_names {
-                Some(mut names) => {
-                    debug!(
-                        table_name,
-                        names=?names,
-                        chunk_id=%chunk.id().get(),
-                        "column names found from metadata",
-                    );
-                    known_columns.append(&mut names);
+            if !do_full_plan {
+                match maybe_names {
+                    Some(mut names) => {
+                        debug!(
+                            table_name,
+                            names=?names,
+                            chunk_id=%chunk.id().get(),
+                            "column names found from metadata",
+                        );
+                        known_columns.append(&mut names);
+                    }
+                    None => {
+                        debug!(
+                            table_name,
+                            chunk_id=%chunk.id().get(),
+                            "column names need full plan"
+                        );
+                        // can't get columns only from metadata, need
+                        // a general purpose plan
+                        do_full_plan = true;
+                    }
                 }
-                None => {
-                    debug!(
-                        table_name,
-                        chunk_id=%chunk.id().get(),
-                        "column names need full plan"
-                    );
-                    // can't get columns only from metadata, need
-                    // a general purpose plan
-                    need_full_plans
+            }
+            
+            if do_full_plan {
+                need_full_plans
                         .entry(table_name.to_string())
                         .or_insert_with(Vec::new)
                         .push(Arc::clone(&chunk));
-                }
             }
+
         }
 
         let mut builder = StringSetPlanBuilder::new();
@@ -1503,7 +1513,7 @@ impl AggExprs {
     }
 }
 
-/// Creates a DataFusion expression suitable for calculating an aggregate:
+/// Creates a DataFusion expression suitable for calculating an aggregate: 
 ///
 /// equivalent to `CAST agg(field) as field`
 fn make_agg_expr(agg: Aggregate, field_name: &str) -> Result<Expr> {

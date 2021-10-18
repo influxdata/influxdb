@@ -145,7 +145,7 @@ async fn list_tag_name_end_to_end() {
 }
 
 // https://github.com/influxdata/influxdb_iox/issues/2863
-#[ignore]
+// #[ignore]
 #[tokio::test]
 async fn list_tag_name_end_to_end_with_delete() {
     let predicate = PredicateBuilder::default()
