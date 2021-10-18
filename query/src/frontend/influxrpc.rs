@@ -215,7 +215,7 @@ impl InfluxRpcPlanner {
         for chunk in database.chunks(normalizer.unnormalized()) {
             // Try and apply the predicate using only metadata
             let table_name = chunk.table_name();
-            let predicate = normalizer.normalized(table_name);
+            let predicate = normalizer.normalized(table_name, chunk.schema());
 
             let pred_result = chunk
                 .apply_predicate_to_metadata(&predicate)
@@ -282,7 +282,7 @@ impl InfluxRpcPlanner {
             let mut do_full_plan = chunk.has_delete_predicates();
 
             let table_name = chunk.table_name();
-            let predicate = normalizer.normalized(table_name);
+            let predicate = normalizer.normalized(table_name, chunk.schema());
 
             // Try and apply the predicate using only metadata
             let pred_result = chunk
@@ -415,7 +415,7 @@ impl InfluxRpcPlanner {
             let mut do_full_plan = chunk.has_delete_predicates();
 
             let table_name = chunk.table_name();
-            let predicate = normalizer.normalized(table_name);
+            let predicate = normalizer.normalized(table_name, chunk.schema());
 
             // Try and apply the predicate using only metadata
             let pred_result = chunk
@@ -774,7 +774,7 @@ impl InfluxRpcPlanner {
     {
         let mut table_chunks = BTreeMap::new();
         for chunk in chunks {
-            let predicate = normalizer.normalized(chunk.table_name());
+            let predicate = normalizer.normalized(chunk.table_name(), chunk.schema());
             // Try and apply the predicate using only metadata
             let pred_result = chunk
                 .apply_predicate_to_metadata(&predicate)
@@ -934,8 +934,9 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.as_ref();
-        let scan_and_filter = self.scan_and_filter(table_name, schema, normalizer, chunks)?;
-        let predicate = normalizer.normalized(table_name);
+        let scan_and_filter =
+            self.scan_and_filter(table_name, Arc::clone(&schema), normalizer, chunks)?;
+        let predicate = normalizer.normalized(table_name, schema);
 
         let TableScanAndFilter {
             plan_builder,
@@ -1045,8 +1046,9 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter = self.scan_and_filter(&table_name, schema, normalizer, chunks)?;
-        let predicate = normalizer.normalized(&table_name);
+        let scan_and_filter =
+            self.scan_and_filter(&table_name, Arc::clone(&schema), normalizer, chunks)?;
+        let predicate = normalizer.normalized(&table_name, schema);
 
         let TableScanAndFilter {
             plan_builder,
@@ -1155,8 +1157,9 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter = self.scan_and_filter(&table_name, schema, normalizer, chunks)?;
-        let predicate = normalizer.normalized(&table_name);
+        let scan_and_filter =
+            self.scan_and_filter(&table_name, Arc::clone(&schema), normalizer, chunks)?;
+        let predicate = normalizer.normalized(&table_name, schema);
 
         let TableScanAndFilter {
             plan_builder,
@@ -1233,7 +1236,7 @@ impl InfluxRpcPlanner {
     where
         C: QueryChunk + 'static,
     {
-        let predicate = normalizer.normalized(table_name);
+        let predicate = normalizer.normalized(table_name, Arc::clone(&schema));
 
         // Scan all columns to begin with (DataFusion projection
         // push-down optimization will prune out unneeded columns later)
@@ -1569,7 +1572,8 @@ fn make_selector_expr(
         .alias(column_name))
 }
 
-/// Creates specialized / normalized predicates
+/// Creates specialized / normalized predicates that are tailored to a specific
+/// table.
 #[derive(Debug)]
 struct PredicateNormalizer {
     unnormalized: Predicate,
@@ -1589,14 +1593,15 @@ impl PredicateNormalizer {
         &self.unnormalized
     }
 
-    /// Return a reference to a predicate specialized for `table_name`
-    fn normalized(&mut self, table_name: &str) -> Arc<Predicate> {
+    /// Return a reference to a predicate specialized for `table_name` based on
+    /// its `schema`.
+    fn normalized(&mut self, table_name: &str, schema: Arc<Schema>) -> Arc<Predicate> {
         if let Some(normalized_predicate) = self.normalized.get(table_name) {
             return normalized_predicate.inner();
         }
 
         let normalized_predicate =
-            TableNormalizedPredicate::new(table_name, self.unnormalized.clone());
+            TableNormalizedPredicate::new(table_name, schema, self.unnormalized.clone());
 
         self.normalized
             .entry(table_name.to_string())
@@ -1626,7 +1631,7 @@ struct TableNormalizedPredicate {
 }
 
 impl TableNormalizedPredicate {
-    fn new(table_name: &str, mut inner: Predicate) -> Self {
+    fn new(table_name: &str, _: Arc<Schema>, mut inner: Predicate) -> Self {
         inner.exprs = inner
             .exprs
             .into_iter()
