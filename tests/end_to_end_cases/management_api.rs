@@ -1177,12 +1177,25 @@ async fn test_get_server_status_db_error() {
     let server_fixture = ServerFixture::create_single_use().await;
     let mut client = server_fixture.management_client();
 
-    // create malformed DB config
+    // All databases are owned by server 42
+    let owner_info = OwnerInfo {
+        id: 42,
+        location: "arbitrary".to_string(),
+    };
+    let mut owner_info_bytes = bytes::BytesMut::new();
+    generated_types::server_config::encode_database_owner_info(&owner_info, &mut owner_info_bytes)
+        .expect("owner info serialization should be valid");
+    let owner_info_bytes = owner_info_bytes.freeze();
+
+    // create valid owner info but malformed DB rules
     let mut path = server_fixture.dir().to_path_buf();
     path.push("42");
     path.push("my_db");
     path.push("0");
     std::fs::create_dir_all(path.clone()).unwrap();
+    let mut owner_info_path = path.clone();
+    owner_info_path.push("owner.pb");
+    std::fs::write(owner_info_path, &owner_info_bytes).unwrap();
     path.push("rules.pb");
     std::fs::write(path, "foo").unwrap();
 
@@ -1192,6 +1205,9 @@ async fn test_get_server_status_db_error() {
     path.push("soft_deleted");
     path.push("0");
     std::fs::create_dir_all(path.clone()).unwrap();
+    let mut owner_info_path = path.clone();
+    owner_info_path.push("owner.pb");
+    std::fs::write(owner_info_path, &owner_info_bytes).unwrap();
     path.push("DELETED");
     std::fs::write(path, "foo").unwrap();
 
@@ -1202,10 +1218,16 @@ async fn test_get_server_status_db_error() {
     let mut other_gen_path = path.clone();
     path.push("0");
     std::fs::create_dir_all(path.clone()).unwrap();
+    let mut owner_info_path = path.clone();
+    owner_info_path.push("owner.pb");
+    std::fs::write(owner_info_path, &owner_info_bytes).unwrap();
     path.push("rules.pb");
     std::fs::write(path, "foo").unwrap();
     other_gen_path.push("1");
     std::fs::create_dir_all(other_gen_path.clone()).unwrap();
+    let mut owner_info_path = other_gen_path.clone();
+    owner_info_path.push("owner.pb");
+    std::fs::write(owner_info_path, &owner_info_bytes).unwrap();
     other_gen_path.push("rules.pb");
     std::fs::write(other_gen_path, "foo").unwrap();
 

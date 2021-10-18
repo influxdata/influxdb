@@ -403,6 +403,9 @@ message DatabaseStatus {
     // No active database
     DATABASE_STATE_NO_ACTIVE_DATABASE = 10;
 
+    // Database owner info has been loaded
+    DATABASE_STATE_OWNER_INFO_LOADED = 11;
+
     // Rules are loaded
     DATABASE_STATE_RULES_LOADED = 2;
 
@@ -414,6 +417,9 @@ message DatabaseStatus {
 
     // Error loading rules
     DATABASE_STATE_RULES_LOAD_ERROR = 5;
+
+    // Error loading owner info
+    DATABASE_STATE_OWNER_INFO_LOAD_ERROR = 12;
 
     // Error during catalog load
     DATABASE_STATE_CATALOG_LOAD_ERROR = 6;

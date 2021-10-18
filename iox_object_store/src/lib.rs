@@ -139,6 +139,12 @@ impl IoxObjectStore {
         inner.put(&path, bytes).await
     }
 
+    /// Return the path to the server config file to be used in database ownership information to
+    /// identify the current server that a database thinks is its owner.
+    pub fn server_config_path(inner: &ObjectStore, server_id: ServerId) -> Path {
+        paths::server_config_path(inner, server_id)
+    }
+
     /// Returns what the root path would be for a given database. Does not check existence or
     /// validity of the path in object storage.
     pub fn root_path_for(
@@ -419,6 +425,29 @@ impl IoxObjectStore {
             data_path,
             transactions_path,
         }
+    }
+
+    /// In the database's root directory, write out a file pointing to the server's config. This
+    /// data can serve as an extra check on which server owns this database.
+    pub async fn put_owner_file(&self, bytes: Bytes) -> Result<()> {
+        let owner_path = self.generation_path.owner_path();
+
+        self.inner.put(&owner_path, bytes).await
+    }
+
+    /// Return the contents of the owner file in the database's root directory that provides
+    /// information on the server that owns this database.
+    pub async fn get_owner_file(&self) -> Result<Bytes> {
+        let owner_path = self.generation_path.owner_path();
+
+        let mut stream = self.inner.get(&owner_path).await?;
+        let mut bytes = BytesMut::new();
+
+        while let Some(buf) = stream.next().await {
+            bytes.extend(buf?);
+        }
+
+        Ok(bytes.freeze())
     }
 
     /// The location in object storage for all files for this database's generation, suitable for
@@ -943,6 +972,56 @@ mod tests {
             .unwrap();
 
         assert_eq!(file_count, 0);
+    }
+
+    fn make_owner_path(object_store: &ObjectStore, server_id: ServerId, db_name: &str) -> Path {
+        let mut p = object_store.new_path();
+        p.push_all_dirs(&[&server_id.to_string(), db_name, "0"]);
+        p.set_file_name("owner.pb");
+        p
+    }
+
+    #[tokio::test]
+    async fn owner_should_be_a_file() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+        let database_name = DatabaseName::new("clouds").unwrap();
+        let owner_path = make_owner_path(&object_store, server_id, "clouds");
+        let iox_object_store =
+            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
+                .await
+                .unwrap();
+
+        // PUT
+        let original_file_content = Bytes::from("hello world");
+        iox_object_store
+            .put_owner_file(original_file_content.clone())
+            .await
+            .unwrap();
+
+        let actual_content = object_store
+            .get(&owner_path)
+            .await
+            .unwrap()
+            .next()
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(original_file_content, actual_content);
+
+        // GET
+        let updated_file_content = Bytes::from("goodbye moon");
+        let expected_content = updated_file_content.clone();
+
+        object_store
+            .put(&owner_path, updated_file_content)
+            .await
+            .unwrap();
+
+        let actual_content = iox_object_store.get_owner_file().await.unwrap();
+
+        assert_eq!(expected_content, actual_content);
     }
 
     #[tokio::test]
