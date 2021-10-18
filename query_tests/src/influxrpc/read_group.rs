@@ -7,8 +7,13 @@ use crate::{
 };
 
 use async_trait::async_trait;
+use data_types::timestamp::TimestampRange;
 use datafusion::prelude::*;
-use predicate::predicate::{Predicate, PredicateBuilder};
+use predicate::{
+    delete_expr::DeleteExpr,
+    delete_predicate::DeletePredicate,
+    predicate::{Predicate, PredicateBuilder},
+};
 use query::{frontend::influxrpc::InfluxRpcPlanner, group_by::Aggregate};
 
 /// runs read_group(predicate) and compares it to the expected
@@ -67,9 +72,65 @@ impl DbSetup for OneMeasurementNoTags {
     }
 }
 
+struct OneMeasurementNoTagsWithDelete {}
+#[async_trait]
+impl DbSetup for OneMeasurementNoTagsWithDelete {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+        let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
+
+        // pred: delete from m0 where 1 <= time <= 1 and foo=1.0
+        // 1 row of m0 with timestamp 1
+        let delete_table_name = "m0";
+        let pred = DeletePredicate {
+            range: TimestampRange { start: 1, end: 1 },
+            exprs: vec![DeleteExpr::new(
+                "foo".to_string(),
+                predicate::delete_expr::Op::Eq,
+                predicate::delete_expr::Scalar::F64((1.0).into()),
+            )],
+        };
+
+        all_scenarios_for_one_chunk(
+            vec![&pred],
+            vec![],
+            lp_lines,
+            delete_table_name,
+            partition_key,
+        )
+        .await
+    }
+}
+
+struct OneMeasurementNoTagsWithDeleteAll {}
+#[async_trait]
+impl DbSetup for OneMeasurementNoTagsWithDeleteAll {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+        let lp_lines = vec!["m0 foo=1.0 1", "m0 foo=2.0 2"];
+
+        // pred: delete from m0 where 1 <= time <= 2
+        let delete_table_name = "m0";
+        let pred = DeletePredicate {
+            range: TimestampRange { start: 1, end: 2 },
+            exprs: vec![],
+        };
+
+        all_scenarios_for_one_chunk(
+            vec![&pred],
+            vec![],
+            lp_lines,
+            delete_table_name,
+            partition_key,
+        )
+        .await
+    }
+}
+
 #[tokio::test]
 async fn test_read_group_data_no_tag_columns() {
     let predicate = Predicate::default();
+    // Count
     let agg = Aggregate::Count;
     let group_columns = vec![];
     let expected_results = vec![
@@ -79,6 +140,95 @@ async fn test_read_group_data_no_tag_columns() {
 
     run_read_group_test_case(
         OneMeasurementNoTags {},
+        predicate.clone(),
+        agg,
+        group_columns.clone(),
+        expected_results,
+    )
+    .await;
+
+    // min
+    let agg = Aggregate::Min;
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement partition_key_vals: ",
+        "Series tags={_field=foo, _measurement=m0}\n  FloatPoints timestamps: [1], values: [1.0]",
+    ];
+
+    run_read_group_test_case(
+        OneMeasurementNoTags {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_read_group_data_no_tag_columns_with_delete() {
+    let predicate = Predicate::default();
+
+    // count
+    let agg = Aggregate::Count;
+    let group_columns = vec![];
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement partition_key_vals: ",
+        "Series tags={_field=foo, _measurement=m0}\n  IntegerPoints timestamps: [2], values: [1]",
+    ];
+    run_read_group_test_case(
+        OneMeasurementNoTagsWithDelete {},
+        predicate.clone(),
+        agg,
+        group_columns.clone(),
+        expected_results,
+    )
+    .await;
+
+    // min
+    let agg = Aggregate::Min;
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement partition_key_vals: ",
+        "Series tags={_field=foo, _measurement=m0}\n  FloatPoints timestamps: [2], values: [2.0]",
+    ];
+
+    run_read_group_test_case(
+        OneMeasurementNoTagsWithDelete {},
+        predicate.clone(),
+        agg,
+        group_columns.clone(),
+        expected_results,
+    )
+    .await;
+}
+
+// BUG: https://github.com/influxdata/influxdb_iox/issues/2859
+// Inconsistent results when data in MUB and RUB
+#[ignore]
+#[tokio::test]
+async fn test_read_group_data_no_tag_columns_with_delete_all() {
+    let predicate = Predicate::default();
+
+    // count
+    let agg = Aggregate::Count;
+    let group_columns = vec![];
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement partition_key_vals: ",
+        "Series tags={_field=foo, _measurement=m0}\n  IntegerPoints timestamps: [0], values: [0]",
+    ];
+    run_read_group_test_case(
+        OneMeasurementNoTagsWithDeleteAll {},
+        predicate.clone(),
+        agg,
+        group_columns.clone(),
+        expected_results,
+    )
+    .await;
+
+    // min
+    let agg = Aggregate::Min;
+    let expected_results = vec!["Group tag_keys: _field, _measurement partition_key_vals: "];
+    run_read_group_test_case(
+        OneMeasurementNoTagsWithDeleteAll {},
         predicate,
         agg,
         group_columns,
@@ -105,6 +255,8 @@ impl DbSetup for OneMeasurementForAggs {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
+
+// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
 
 #[tokio::test]
 async fn test_read_group_data_pred() {
@@ -175,6 +327,8 @@ impl DbSetup for AnotherMeasurementForAggs {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
+
+// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_sum() {
@@ -295,6 +449,8 @@ impl DbSetup for TwoMeasurementForAggs {
     }
 }
 
+// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
+
 #[tokio::test]
 async fn test_grouped_series_set_plan_count_measurement_pred() {
     let predicate = PredicateBuilder::default()
@@ -342,6 +498,8 @@ impl DbSetup for MeasurementForSelectors {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
+
+// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_first() {
@@ -418,6 +576,8 @@ impl DbSetup for MeasurementForMin {
     }
 }
 
+// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
+
 #[tokio::test]
 async fn test_grouped_series_set_plan_min() {
     let predicate = PredicateBuilder::default()
@@ -462,6 +622,8 @@ impl DbSetup for MeasurementForMax {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
+
+// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_max() {
@@ -512,6 +674,8 @@ impl DbSetup for MeasurementForGroupKeys {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
+
+// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
 
 #[tokio::test]
 async fn test_grouped_series_set_plan_group_by_state_city() {

@@ -54,8 +54,47 @@ async fn list_table_names_no_data_pred() {
 }
 
 #[tokio::test]
+async fn list_table_names_no_data_pred_with_delete() {
+    run_table_names_test_case(
+        TwoMeasurementsWithDelete {},
+        EMPTY_PREDICATE,
+        vec!["cpu", "disk"],
+    )
+    .await;
+}
+
+// https://github.com/influxdata/influxdb_iox/issues/2861
+// And all other ignored tests
+#[ignore]
+#[tokio::test]
+async fn list_table_names_no_data_pred_with_delete_all() {
+    run_table_names_test_case(
+        TwoMeasurementsWithDeleteAll {},
+        EMPTY_PREDICATE,
+        vec!["disk"],
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn list_table_names_data_pred_0_201() {
     run_table_names_test_case(TwoMeasurements {}, tsp(0, 201), vec!["cpu", "disk"]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_data_pred_0_201_with_delete() {
+    run_table_names_test_case(
+        TwoMeasurementsWithDelete {},
+        tsp(0, 201),
+        vec!["cpu", "disk"],
+    )
+    .await;
+}
+
+#[ignore]
+#[tokio::test]
+async fn list_table_names_data_pred_0_201_with_delete_all() {
+    run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(0, 201), vec!["disk"]).await;
 }
 
 #[tokio::test]
@@ -64,13 +103,62 @@ async fn list_table_names_data_pred_0_200() {
 }
 
 #[tokio::test]
+async fn list_table_names_data_pred_0_200_with_delete() {
+    run_table_names_test_case(TwoMeasurementsWithDelete {}, tsp(0, 200), vec!["cpu"]).await;
+}
+
+#[ignore]
+#[tokio::test]
+async fn list_table_names_data_pred_0_200_with_delete_all() {
+    run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(0, 200), vec![]).await;
+}
+
+#[tokio::test]
 async fn list_table_names_data_pred_50_101() {
     run_table_names_test_case(TwoMeasurements {}, tsp(50, 101), vec!["cpu"]).await;
 }
 
 #[tokio::test]
+async fn list_table_names_data_pred_50_101_with_delete() {
+    run_table_names_test_case(TwoMeasurementsWithDelete {}, tsp(50, 101), vec!["cpu"]).await;
+}
+
+#[ignore]
+#[tokio::test]
+async fn list_table_names_data_pred_50_101_with_delete_all() {
+    run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(50, 101), vec![]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_data_pred_101_160() {
+    run_table_names_test_case(TwoMeasurements {}, tsp(101, 160), vec!["cpu"]).await;
+}
+
+#[ignore]
+#[tokio::test]
+async fn list_table_names_data_pred_101_160_with_delete() {
+    run_table_names_test_case(TwoMeasurementsWithDelete {}, tsp(101, 160), vec![]).await;
+}
+
+#[ignore]
+#[tokio::test]
+async fn list_table_names_data_pred_101_160_with_delete_all() {
+    run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(101, 160), vec![]).await;
+}
+
+#[tokio::test]
 async fn list_table_names_data_pred_250_300() {
     run_table_names_test_case(TwoMeasurements {}, tsp(250, 300), vec![]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_data_pred_250_300_with_delete() {
+    run_table_names_test_case(TwoMeasurementsWithDelete {}, tsp(250, 300), vec![]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_data_pred_250_300_with_delete_all() {
+    run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(250, 300), vec![]).await;
 }
 
 // Note when table names supports general purpose predicates, add a

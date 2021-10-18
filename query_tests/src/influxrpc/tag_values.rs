@@ -62,6 +62,8 @@ async fn list_tag_values_no_tag() {
     .await;
 }
 
+// NGA todo: add delete tests when TwoMeasurementsManyNullsWithDelete available
+
 #[tokio::test]
 async fn list_tag_values_no_predicate_state_col() {
     let predicate = PredicateBuilder::default().build();
@@ -69,6 +71,37 @@ async fn list_tag_values_no_predicate_state_col() {
     let expected_tag_keys = vec!["CA", "MA", "NY"];
     run_tag_values_test_case(
         TwoMeasurementsManyNulls {},
+        tag_name,
+        predicate,
+        expected_tag_keys,
+    )
+    .await;
+}
+
+// https://github.com/influxdata/influxdb_iox/issues/2864
+#[ignore]
+#[tokio::test]
+async fn list_tag_values_no_predicate_state_col_with_delete() {
+    let predicate = PredicateBuilder::default().build();
+    let tag_name = "state";
+    let expected_tag_keys = vec!["CA", "MA"];
+    run_tag_values_test_case(
+        OneMeasurementManyNullTagsWithDelete {},
+        tag_name,
+        predicate,
+        expected_tag_keys,
+    )
+    .await;
+}
+
+#[ignore]
+#[tokio::test]
+async fn list_tag_values_no_predicate_state_col_with_delete_all() {
+    let predicate = PredicateBuilder::default().build();
+    let tag_name = "state";
+    let expected_tag_keys = vec![];
+    run_tag_values_test_case(
+        OneMeasurementManyNullTagsWithDeleteAll {},
         tag_name,
         predicate,
         expected_tag_keys,
