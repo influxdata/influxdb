@@ -280,6 +280,25 @@ fn required_header<T, F: FnOnce(&str) -> Result<T, DecodeError>>(
     })
 }
 
+/// Format span context as Jaeger trace context.
+///
+/// This only emits the value-part required for tracer. You must still add the header name to the framework / output
+/// stream you're using.
+///
+/// You may use [`TraceHeaderParser`] to parse the resulting value.
+pub fn format_jaeger_trace_context(span_context: &SpanContext) -> String {
+    format!(
+        "{:x}:{:x}:{:x}:1",
+        span_context.trace_id.get(),
+        span_context.span_id.get(),
+        span_context
+            .parent_span_id
+            .as_ref()
+            .map(|span_id| span_id.get())
+            .unwrap_or_default()
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use http::HeaderValue;
@@ -462,5 +481,43 @@ mod tests {
         assert_eq!(span.trace_id.0.get(), 1);
         assert_eq!(span.span_id.0.get(), 2);
         assert_eq!(span.parent_span_id.unwrap().get(), 3);
+    }
+
+    #[test]
+    fn test_format_jaeger_trace_context() {
+        const TRACE_HEADER: &str = "uber-trace-id";
+
+        let parser = TraceHeaderParser::new().with_jaeger_trace_context_header_name(TRACE_HEADER);
+        let collector: Arc<dyn TraceCollector> = Arc::new(trace::LogTraceCollector::new());
+
+        let assert_roundtrip = |orig: SpanContext| {
+            let formatted = format_jaeger_trace_context(&orig);
+
+            let mut headers = HeaderMap::new();
+            headers.insert(TRACE_HEADER, HeaderValue::from_str(&formatted).unwrap());
+            let parsed = parser.parse(&collector, &headers).unwrap().unwrap();
+
+            assert_eq!(parsed.trace_id, orig.trace_id);
+            assert_eq!(parsed.span_id, orig.span_id);
+            assert_eq!(parsed.parent_span_id, orig.parent_span_id);
+        };
+
+        // w/o parent span ID
+        assert_roundtrip(SpanContext {
+            trace_id: TraceId::new(1234).unwrap(),
+            span_id: SpanId::new(5678).unwrap(),
+            parent_span_id: None,
+            links: vec![],
+            collector: None,
+        });
+
+        // w/ parent span ID
+        assert_roundtrip(SpanContext {
+            trace_id: TraceId::new(1234).unwrap(),
+            span_id: SpanId::new(5678).unwrap(),
+            parent_span_id: Some(SpanId::new(1357).unwrap()),
+            links: vec![],
+            collector: None,
+        });
     }
 }
