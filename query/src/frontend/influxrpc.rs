@@ -603,13 +603,11 @@ impl InfluxRpcPlanner {
         // now, build up plans for each table
         let mut ss_plans = Vec::with_capacity(table_chunks.len());
         for (table_name, chunks) in table_chunks {
-            let prefix_columns: Option<&[&str]> = None;
             let schema = database.table_schema(&table_name).context(TableRemoved {
                 table_name: &table_name,
             })?;
 
-            let ss_plan =
-                self.read_filter_plan(table_name, schema, prefix_columns, &mut normalizer, chunks)?;
+            let ss_plan = self.read_filter_plan(table_name, schema, &mut normalizer, chunks)?;
             // If we have to do real work, add it to the list of plans
             if let Some(ss_plan) = ss_plan {
                 ss_plans.push(ss_plan);
@@ -617,7 +615,7 @@ impl InfluxRpcPlanner {
         }
 
         info!(" = End building plan for read_filter");
-        Ok(ss_plans.into())
+        Ok(SeriesSetPlans::new(ss_plans))
     }
 
     /// Creates one or more GroupedSeriesSet plans that produces an
@@ -658,7 +656,6 @@ impl InfluxRpcPlanner {
         // group tables by chunk, pruning if possible
         let chunks = database.chunks(normalizer.unnormalized());
         let table_chunks = self.group_chunks_by_table(&mut normalizer, chunks)?;
-        let num_prefix_tag_group_columns = group_columns.len();
 
         // now, build up plans for each table
         let mut ss_plans = Vec::with_capacity(table_chunks.len());
@@ -667,32 +664,28 @@ impl InfluxRpcPlanner {
                 table_name: &table_name,
             })?;
             let ss_plan = match agg {
-                Aggregate::None => self.read_filter_plan(
-                    table_name,
-                    Arc::clone(&schema),
-                    Some(group_columns),
-                    &mut normalizer,
-                    chunks,
-                )?,
-                _ => self.read_group_plan(
-                    table_name,
-                    schema,
-                    &mut normalizer,
-                    agg,
-                    group_columns,
-                    chunks,
-                )?,
+                Aggregate::None => {
+                    self.read_filter_plan(table_name, Arc::clone(&schema), &mut normalizer, chunks)?
+                }
+                _ => self.read_group_plan(table_name, schema, &mut normalizer, agg, chunks)?,
             };
 
             // If we have to do real work, add it to the list of plans
             if let Some(ss_plan) = ss_plan {
-                let grouped_plan = ss_plan.grouped(num_prefix_tag_group_columns);
-                ss_plans.push(grouped_plan);
+                ss_plans.push(ss_plan);
             }
         }
 
         info!(" = End building plan for read_group");
-        Ok(ss_plans.into())
+        let plan = SeriesSetPlans::new(ss_plans);
+
+        // Note always group (which will resort the frames)
+        // by tag, even if there are 0 columns
+        let group_columns = group_columns
+            .iter()
+            .map(|s| Arc::from(s.as_ref()))
+            .collect();
+        Ok(plan.grouped_by(group_columns))
     }
 
     /// Creates a GroupedSeriesSet plan that produces an output table with rows
@@ -745,7 +738,7 @@ impl InfluxRpcPlanner {
         }
 
         info!(" = End building plan for read_window_aggregate");
-        Ok(ss_plans.into())
+        Ok(SeriesSetPlans::new(ss_plans))
     }
 
     /// Creates a map of table_name --> Chunks that have that table that *may* pass the predicate
@@ -901,8 +894,6 @@ impl InfluxRpcPlanner {
     /// Creates a plan for computing series sets for a given table,
     /// returning None if the predicate rules out matching any rows in
     /// the table
-    ///
-    /// prefix_columns, if any, are the prefix of the ordering.
     //
     /// The created plan looks like:
     ///
@@ -914,7 +905,6 @@ impl InfluxRpcPlanner {
         &self,
         table_name: impl AsRef<str>,
         schema: Arc<Schema>,
-        prefix_columns: Option<&[impl AsRef<str>]>,
         normalizer: &mut PredicateNormalizer,
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<SeriesSetPlan>>
@@ -937,17 +927,7 @@ impl InfluxRpcPlanner {
             .tags_iter()
             .chain(schema.time_iter())
             .map(|f| f.name() as &str)
-            .collect();
-
-        // Reorder, if requested
-        let tags_and_timestamp: Vec<_> = match prefix_columns {
-            Some(prefix_columns) => reorder_prefix(prefix_columns, tags_and_timestamp)?,
-            None => tags_and_timestamp,
-        };
-
-        // Convert to SortExprs to pass to the plan builder
-        let tags_and_timestamp: Vec<_> = tags_and_timestamp
-            .into_iter()
+            // Convert to SortExprs to pass to the plan builder
             .map(|n| n.as_sort_expr())
             .collect();
 
@@ -992,9 +972,8 @@ impl InfluxRpcPlanner {
     }
 
     /// Creates a GroupedSeriesSet plan that produces an output table
-    /// with rows grouped by an aggregate function. Note that we still
-    /// group by all tags (so group within series) and the
-    /// group_columns define the order of the result
+    /// with one row per tagset and the values aggregated using a
+    /// specific function.
     ///
     /// Equivalent to this SQL query for 'aggregates': sum, count, mean
     /// SELECT
@@ -1006,7 +985,7 @@ impl InfluxRpcPlanner {
     /// GROUP BY
     ///   tags,
     /// ORDER BY
-    ///   group_key1, group_key2, remaining tags
+    ///   tags
     ///
     /// Note the columns are the same but in a different order
     /// for GROUP BY / ORDER BY
@@ -1024,7 +1003,7 @@ impl InfluxRpcPlanner {
     /// GROUP BY
     ///   tags
     /// ORDER BY
-    ///   group_key1, group_key2, remaining tags
+    ///   tags
     ///
     /// The created plan looks like:
     ///
@@ -1038,7 +1017,6 @@ impl InfluxRpcPlanner {
         schema: Arc<Schema>,
         normalizer: &mut PredicateNormalizer,
         agg: Aggregate,
-        group_columns: &[impl AsRef<str>],
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<SeriesSetPlan>>
     where
@@ -1076,21 +1054,12 @@ impl InfluxRpcPlanner {
             .aggregate(group_exprs, agg_exprs)
             .context(BuildingPlan)?;
 
-        // Reorganize the output so the group columns are first and
-        // the output is sorted first on the group columns and then
-        // any remaining tags
-        //
-        // This ensures that the `group_columns` are next to each
-        // other in the output in the order expected by flux
-        let reordered_tag_columns: Vec<Arc<str>> = reorder_prefix(group_columns, tag_columns)?
-            .into_iter()
-            .map(Arc::from)
-            .collect();
+        // Reorganize the output so it is ordered and sorted on tag columns
 
         // no columns if there are no tags in the input and no group columns in the query
-        let plan_builder = if !reordered_tag_columns.is_empty() {
+        let plan_builder = if !tag_columns.is_empty() {
             // reorder columns
-            let reorder_exprs = reordered_tag_columns
+            let reorder_exprs = tag_columns
                 .iter()
                 .map(|tag_name| tag_name.as_expr())
                 .collect::<Vec<_>>();
@@ -1100,8 +1069,7 @@ impl InfluxRpcPlanner {
                 .map(|expr| expr.as_sort_expr())
                 .collect::<Vec<_>>();
 
-            let project_exprs =
-                project_exprs_in_schema(&reordered_tag_columns, plan_builder.schema());
+            let project_exprs = project_exprs_in_schema(&tag_columns, plan_builder.schema());
 
             plan_builder
                 .project(project_exprs)
@@ -1116,17 +1084,13 @@ impl InfluxRpcPlanner {
 
         let plan = plan_builder.build().context(BuildingPlan)?;
 
-        let ss_plan = SeriesSetPlan::new(
-            Arc::from(table_name),
-            plan,
-            reordered_tag_columns,
-            field_columns,
-        );
+        let tag_columns = tag_columns.iter().map(|s| Arc::from(*s)).collect();
+        let ss_plan = SeriesSetPlan::new(Arc::from(table_name), plan, tag_columns, field_columns);
 
         Ok(Some(ss_plan))
     }
 
-    /// Creates a GroupedSeriesSet plan that produces an output table with rows
+    /// Creates a SeriesSetPlan that produces an output table with rows
     /// that are grouped by window definitions
     ///
     /// The order of the tag_columns
@@ -1308,8 +1272,8 @@ impl InfluxRpcPlanner {
 
 /// Return a `Vec` of `Exprs` such that it starts with `prefix` cols and
 /// then has all columns in `schema` that are not already in the prefix.
-fn project_exprs_in_schema(prefix: &[Arc<str>], schema: &DFSchemaRef) -> Vec<Expr> {
-    let seen: HashSet<_> = prefix.iter().map(|s| s.as_ref()).collect();
+fn project_exprs_in_schema(prefix: &[&str], schema: &DFSchemaRef) -> Vec<Expr> {
+    let seen: HashSet<_> = prefix.iter().cloned().collect();
 
     let prefix_exprs = prefix.iter().map(|name| col(name));
     let new_exprs = schema.fields().iter().filter_map(|f| {
@@ -1377,59 +1341,6 @@ struct TableScanAndFilter {
     plan_builder: LogicalPlanBuilder,
     /// The IOx schema of the result
     schema: Arc<Schema>,
-}
-
-/// Reorders tag_columns so that its prefix matches exactly
-/// prefix_columns. Returns an error if there are duplicates, or other
-/// untoward inputs
-fn reorder_prefix<'a>(
-    prefix_columns: &[impl AsRef<str>],
-    tag_columns: Vec<&'a str>,
-) -> Result<Vec<&'a str>> {
-    // tag_used_set[i] is true if we have used the value in tag_columns[i]
-    let mut tag_used_set = vec![false; tag_columns.len()];
-
-    // Note that this is an O(N^2) algorithm. We are assuming the
-    // number of tag columns is reasonably small
-
-    let mut new_tag_columns = prefix_columns
-        .iter()
-        .map(|pc| {
-            let found_location = tag_columns
-                .iter()
-                .enumerate()
-                .find(|(_, c)| pc.as_ref() == c as &str);
-
-            if let Some((index, &tag_column)) = found_location {
-                if tag_used_set[index] {
-                    DuplicateGroupColumn {
-                        column_name: pc.as_ref(),
-                    }
-                    .fail()
-                } else {
-                    tag_used_set[index] = true;
-                    Ok(tag_column)
-                }
-            } else {
-                GroupColumnNotFound {
-                    column_name: pc.as_ref(),
-                    all_tag_column_names: tag_columns.join(", "),
-                }
-                .fail()
-            }
-        })
-        .collect::<Result<Vec<_>>>()?;
-
-    new_tag_columns.extend(tag_columns.into_iter().enumerate().filter_map(|(i, c)| {
-        // already used in prefix
-        if tag_used_set[i] {
-            None
-        } else {
-            Some(c)
-        }
-    }));
-
-    Ok(new_tag_columns)
 }
 
 /// Helper for creating aggregates
@@ -1752,87 +1663,6 @@ mod tests {
     use schema::builder::SchemaBuilder;
 
     use super::*;
-
-    #[test]
-    fn test_reorder_prefix() {
-        assert_eq!(reorder_prefix_ok(&[], &[]), &[] as &[&str]);
-
-        assert_eq!(reorder_prefix_ok(&[], &["one"]), &["one"]);
-        assert_eq!(reorder_prefix_ok(&["one"], &["one"]), &["one"]);
-
-        assert_eq!(reorder_prefix_ok(&[], &["one", "two"]), &["one", "two"]);
-        assert_eq!(
-            reorder_prefix_ok(&["one"], &["one", "two"]),
-            &["one", "two"]
-        );
-        assert_eq!(
-            reorder_prefix_ok(&["two"], &["one", "two"]),
-            &["two", "one"]
-        );
-        assert_eq!(
-            reorder_prefix_ok(&["two", "one"], &["one", "two"]),
-            &["two", "one"]
-        );
-
-        assert_eq!(
-            reorder_prefix_ok(&[], &["one", "two", "three"]),
-            &["one", "two", "three"]
-        );
-        assert_eq!(
-            reorder_prefix_ok(&["one"], &["one", "two", "three"]),
-            &["one", "two", "three"]
-        );
-        assert_eq!(
-            reorder_prefix_ok(&["two"], &["one", "two", "three"]),
-            &["two", "one", "three"]
-        );
-        assert_eq!(
-            reorder_prefix_ok(&["three", "one"], &["one", "two", "three"]),
-            &["three", "one", "two"]
-        );
-
-        // errors
-        assert_eq!(
-            reorder_prefix_err(&["one"], &[]),
-            "Group column \'one\' not found in tag columns: "
-        );
-        assert_eq!(
-            reorder_prefix_err(&["one"], &["two", "three"]),
-            "Group column \'one\' not found in tag columns: two, three"
-        );
-        assert_eq!(
-            reorder_prefix_err(&["two", "one", "two"], &["one", "two"]),
-            "Duplicate group column \'two\'"
-        );
-    }
-
-    fn reorder_prefix_ok(prefix: &[&str], table_columns: &[&str]) -> Vec<String> {
-        let table_columns = table_columns.to_vec();
-
-        let res = reorder_prefix(prefix, table_columns);
-        let message = format!("Expected OK, got {:?}", res);
-        let res = res.expect(&message);
-
-        res.into_iter().map(|s| s.to_string()).collect()
-    }
-
-    // returns the error string or panics if `reorder_prefix` doesn't return an
-    // error
-    fn reorder_prefix_err(prefix: &[&str], table_columns: &[&str]) -> String {
-        let table_columns = table_columns.to_vec();
-
-        let res = reorder_prefix(prefix, table_columns);
-
-        match res {
-            Ok(r) => {
-                panic!(
-                    "Expected error result from reorder_prefix_err, but was OK: '{:?}'",
-                    r
-                );
-            }
-            Err(e) => format!("{}", e),
-        }
-    }
 
     #[test]
     fn test_schema_has_all_exprs_() {

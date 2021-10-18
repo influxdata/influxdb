@@ -12,10 +12,7 @@ use arrow::{
     datatypes::DataType as ArrowDataType,
 };
 
-use crate::exec::{
-    field::FieldIndex,
-    seriesset::{GroupDescription, SeriesSet},
-};
+use crate::exec::{field::FieldIndex, seriesset::SeriesSet};
 use snafu::Snafu;
 
 #[derive(Debug, Snafu)]
@@ -242,6 +239,10 @@ impl SeriesSet {
     fn create_frame_tags(&self, field_name: &str) -> Vec<Tag> {
         // Special case "measurement" name which is modeled as a tag of
         // "_measurement" and "field" which is modeled as a tag of "_field"
+        //
+        // Note by placing these tags at the front of the keys, it
+        // means the output will be sorted first by _field and then
+        // _measurement even when there are no groups requested
         let mut converted_tags = vec![
             Tag {
                 key: "_field".into(),
@@ -266,39 +267,19 @@ impl SeriesSet {
 /// Represents a group of `Series`
 #[derive(Debug, Default)]
 pub struct Group {
-    /// Contains *ALL* tag keys
+    /// Contains *ALL* tag keys (not just those used for grouping)
     pub tag_keys: Vec<Arc<str>>,
 
     /// Contains the values that define the group (may be values from
     /// fields other than tags).
+    ///
+    /// the values of the group tags that defined the group.
+    /// For example,
+    ///
+    /// If there were tags `t0`, `t1`, and `t2`, and the query had
+    /// group_keys of `[t1, t2]` then this list would have the values
+    /// of the t1 and t2 columns
     pub partition_key_vals: Vec<Arc<str>>,
-    // TODO: add Series that are part of this group, in order by
-    // tag_keys
-    //pub series: Vec<Series>
-}
-
-impl From<GroupDescription> for Group {
-    fn from(val: GroupDescription) -> Self {
-        // split key=value pairs into two separate vectors
-        let GroupDescription { all_tags, gby_vals } = val;
-
-        // Flux expects there to be `_field` and `_measurement` as the
-        // first two "tags". Note this means the lengths of tag_keys and
-        // partition_key_values is different.
-        //
-        // See https://github.com/influxdata/influxdb_iox/issues/2690 for gory details
-        let tag_keys = vec!["_field".into(), "_measurement".into()]
-            .into_iter()
-            .chain(all_tags)
-            .collect::<Vec<_>>();
-
-        let partition_key_vals = gby_vals.into_iter().collect::<Vec<_>>();
-
-        Self {
-            tag_keys,
-            partition_key_vals,
-        }
-    }
 }
 
 impl fmt::Display for Group {
@@ -308,6 +289,33 @@ impl fmt::Display for Group {
         write!(f, " partition_key_vals: ")?;
         fmt_strings(f, &self.partition_key_vals)?;
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub enum Either {
+    Series(Series),
+    Group(Group),
+}
+
+impl From<Series> for Either {
+    fn from(value: Series) -> Self {
+        Self::Series(value)
+    }
+}
+
+impl From<Group> for Either {
+    fn from(value: Group) -> Self {
+        Self::Group(value)
+    }
+}
+
+impl fmt::Display for Either {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Series(series) => series.fmt(f),
+            Self::Group(group) => group.fmt(f),
+        }
     }
 }
 
@@ -590,19 +598,6 @@ mod tests {
             "Expected:\n{:#?}\nActual:\n{:#?}",
             expected, series_strings
         );
-    }
-
-    #[test]
-    fn test_group_group_conversion() {
-        let group_description = GroupDescription {
-            all_tags: vec![Arc::from("tag1"), Arc::from("tag2")],
-            gby_vals: vec![Arc::from("val1"), Arc::from("val2")],
-        };
-
-        let group: Group = group_description.try_into().unwrap();
-        let expected =
-            "Group tag_keys: _field, _measurement, tag1, tag2 partition_key_vals: val1, val2";
-        assert_eq!(group.to_string(), expected);
     }
 
     fn make_record_batch() -> RecordBatch {

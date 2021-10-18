@@ -267,8 +267,8 @@ async fn test_read_group_data_pred() {
     let agg = Aggregate::Sum;
     let group_columns = vec!["state"];
     let expected_results = vec![
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: CA",
-        "Series tags={_field=temp, _measurement=h2o, state=CA, city=LA}\n  FloatPoints timestamps: [200], values: [90.0]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: CA",
+        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [200], values: [90.0]",
     ];
 
     run_read_group_test_case(
@@ -290,10 +290,10 @@ async fn test_read_group_data_field_restriction() {
     let agg = Aggregate::Sum;
     let group_columns = vec!["state"];
     let expected_results = vec![
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: CA",
-        "Series tags={_field=temp, _measurement=h2o, state=CA, city=LA}\n  FloatPoints timestamps: [350], values: [180.0]",
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
-        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Boston}\n  FloatPoints timestamps: [250], values: [142.8]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: CA",
+        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [350], values: [180.0]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [250], values: [142.8]",
     ];
 
     run_read_group_test_case(
@@ -349,9 +349,9 @@ async fn test_grouped_series_set_plan_sum() {
     // The null field (after predicates) are not sent as series
     // Note order of city key (boston --> cambridge)
     let expected_results = vec![
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
-        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Boston}\n  FloatPoints timestamps: [400], values: [141.0]",
-        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Cambridge}\n  FloatPoints timestamps: [200], values: [163.0]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [400], values: [141.0]",
+        "Series tags={_field=temp, _measurement=h2o, city=Cambridge, state=MA}\n  FloatPoints timestamps: [200], values: [163.0]",
     ];
 
     run_read_group_test_case(
@@ -381,11 +381,11 @@ async fn test_grouped_series_set_plan_count() {
     let group_columns = vec!["state"];
 
     let expected_results = vec![
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
-        "Series tags={_field=humidity, _measurement=h2o, state=MA, city=Boston}\n  IntegerPoints timestamps: [400], values: [0]",
-        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Boston}\n  IntegerPoints timestamps: [400], values: [2]",
-        "Series tags={_field=humidity, _measurement=h2o, state=MA, city=Cambridge}\n  IntegerPoints timestamps: [200], values: [0]",
-        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Cambridge}\n  IntegerPoints timestamps: [200], values: [2]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA",
+        "Series tags={_field=humidity, _measurement=h2o, city=Boston, state=MA}\n  IntegerPoints timestamps: [400], values: [0]",
+        "Series tags={_field=humidity, _measurement=h2o, city=Cambridge, state=MA}\n  IntegerPoints timestamps: [200], values: [0]",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  IntegerPoints timestamps: [400], values: [2]",
+        "Series tags={_field=temp, _measurement=h2o, city=Cambridge, state=MA}\n  IntegerPoints timestamps: [200], values: [2]",
     ];
 
     run_read_group_test_case(
@@ -415,9 +415,9 @@ async fn test_grouped_series_set_plan_mean() {
     let group_columns = vec!["state"];
 
     let expected_results = vec![
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
-        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Boston}\n  FloatPoints timestamps: [400], values: [70.5]",
-        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Cambridge}\n  FloatPoints timestamps: [200], values: [81.5]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [400], values: [70.5]",
+        "Series tags={_field=temp, _measurement=h2o, city=Cambridge, state=MA}\n  FloatPoints timestamps: [200], values: [81.5]",
     ];
 
     run_read_group_test_case(
@@ -466,10 +466,10 @@ async fn test_grouped_series_set_plan_count_measurement_pred() {
     let group_columns = vec!["state"];
 
     let expected_results = vec![
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
-        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Boston}\n  IntegerPoints timestamps: [250], values: [2]",
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: CA",
-        "Series tags={_field=temp, _measurement=o2, state=CA, city=LA}\n  IntegerPoints timestamps: [350], values: [2]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: CA",
+        "Series tags={_field=temp, _measurement=o2, city=LA, state=CA}\n  IntegerPoints timestamps: [350], values: [2]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  IntegerPoints timestamps: [250], values: [2]",
     ];
 
     run_read_group_test_case(
@@ -512,11 +512,11 @@ async fn test_grouped_series_set_plan_first() {
     let group_columns = vec!["state"];
 
     let expected_results = vec![
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
-        "Series tags={_field=b, _measurement=h2o, state=MA, city=Cambridge}\n  BooleanPoints timestamps: [2000], values: [true]",
-        "Series tags={_field=f, _measurement=h2o, state=MA, city=Cambridge}\n  FloatPoints timestamps: [2000], values: [7.0]",
-        "Series tags={_field=i, _measurement=h2o, state=MA, city=Cambridge}\n  IntegerPoints timestamps: [2000], values: [7]",
-        "Series tags={_field=s, _measurement=h2o, state=MA, city=Cambridge}\n  StringPoints timestamps: [2000], values: [\"c\"]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA",
+        "Series tags={_field=b, _measurement=h2o, city=Cambridge, state=MA}\n  BooleanPoints timestamps: [2000], values: [true]",
+        "Series tags={_field=f, _measurement=h2o, city=Cambridge, state=MA}\n  FloatPoints timestamps: [2000], values: [7.0]",
+        "Series tags={_field=i, _measurement=h2o, city=Cambridge, state=MA}\n  IntegerPoints timestamps: [2000], values: [7]",
+        "Series tags={_field=s, _measurement=h2o, city=Cambridge, state=MA}\n  StringPoints timestamps: [2000], values: [\"c\"]",
     ];
 
     run_read_group_test_case(
@@ -540,11 +540,11 @@ async fn test_grouped_series_set_plan_last() {
     let group_columns = vec!["state"];
 
     let expected_results = vec![
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
-        "Series tags={_field=b, _measurement=h2o, state=MA, city=Cambridge}\n  BooleanPoints timestamps: [3000], values: [false]",
-        "Series tags={_field=f, _measurement=h2o, state=MA, city=Cambridge}\n  FloatPoints timestamps: [3000], values: [6.0]",
-        "Series tags={_field=i, _measurement=h2o, state=MA, city=Cambridge}\n  IntegerPoints timestamps: [3000], values: [6]",
-        "Series tags={_field=s, _measurement=h2o, state=MA, city=Cambridge}\n  StringPoints timestamps: [3000], values: [\"b\"]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA",
+        "Series tags={_field=b, _measurement=h2o, city=Cambridge, state=MA}\n  BooleanPoints timestamps: [3000], values: [false]",
+        "Series tags={_field=f, _measurement=h2o, city=Cambridge, state=MA}\n  FloatPoints timestamps: [3000], values: [6.0]",
+        "Series tags={_field=i, _measurement=h2o, city=Cambridge, state=MA}\n  IntegerPoints timestamps: [3000], values: [6]",
+        "Series tags={_field=s, _measurement=h2o, city=Cambridge, state=MA}\n  StringPoints timestamps: [3000], values: [\"b\"]",
     ];
 
     run_read_group_test_case(
@@ -589,11 +589,11 @@ async fn test_grouped_series_set_plan_min() {
     let group_columns = vec!["state"];
 
     let expected_results = vec![
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
-        "Series tags={_field=b, _measurement=h2o, state=MA, city=Cambridge}\n  BooleanPoints timestamps: [1000], values: [false]",
-        "Series tags={_field=f, _measurement=h2o, state=MA, city=Cambridge}\n  FloatPoints timestamps: [3000], values: [6.0]",
-        "Series tags={_field=i, _measurement=h2o, state=MA, city=Cambridge}\n  IntegerPoints timestamps: [3000], values: [6]",
-        "Series tags={_field=s, _measurement=h2o, state=MA, city=Cambridge}\n  StringPoints timestamps: [2000], values: [\"a\"]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA",
+        "Series tags={_field=b, _measurement=h2o, city=Cambridge, state=MA}\n  BooleanPoints timestamps: [1000], values: [false]",
+        "Series tags={_field=f, _measurement=h2o, city=Cambridge, state=MA}\n  FloatPoints timestamps: [3000], values: [6.0]",
+        "Series tags={_field=i, _measurement=h2o, city=Cambridge, state=MA}\n  IntegerPoints timestamps: [3000], values: [6]",
+        "Series tags={_field=s, _measurement=h2o, city=Cambridge, state=MA}\n  StringPoints timestamps: [2000], values: [\"a\"]",
     ];
 
     run_read_group_test_case(
@@ -636,11 +636,11 @@ async fn test_grouped_series_set_plan_max() {
     let group_columns = vec!["state"];
 
     let expected_results = vec![
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA",
-        "Series tags={_field=b, _measurement=h2o, state=MA, city=Cambridge}\n  BooleanPoints timestamps: [3000], values: [true]",
-        "Series tags={_field=f, _measurement=h2o, state=MA, city=Cambridge}\n  FloatPoints timestamps: [2000], values: [7.0]",
-        "Series tags={_field=i, _measurement=h2o, state=MA, city=Cambridge}\n  IntegerPoints timestamps: [2000], values: [7]",
-        "Series tags={_field=s, _measurement=h2o, state=MA, city=Cambridge}\n  StringPoints timestamps: [4000], values: [\"z\"]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA",
+        "Series tags={_field=b, _measurement=h2o, city=Cambridge, state=MA}\n  BooleanPoints timestamps: [3000], values: [true]",
+        "Series tags={_field=f, _measurement=h2o, city=Cambridge, state=MA}\n  FloatPoints timestamps: [2000], values: [7.0]",
+        "Series tags={_field=i, _measurement=h2o, city=Cambridge, state=MA}\n  IntegerPoints timestamps: [2000], values: [7]",
+        "Series tags={_field=s, _measurement=h2o, city=Cambridge, state=MA}\n  StringPoints timestamps: [4000], values: [\"z\"]",
     ];
 
     run_read_group_test_case(
@@ -686,13 +686,13 @@ async fn test_grouped_series_set_plan_group_by_state_city() {
     let group_columns = vec!["state", "city"];
 
     let expected_results = vec![
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: CA, LA",
-        "Series tags={_field=humidity, _measurement=h2o, state=CA, city=LA}\n  FloatPoints timestamps: [600], values: [21.0]",
-        "Series tags={_field=temp, _measurement=h2o, state=CA, city=LA}\n  FloatPoints timestamps: [600], values: [181.0]",
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA, Boston",
-        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Boston}\n  FloatPoints timestamps: [400], values: [141.0]",
-        "Group tag_keys: _field, _measurement, state, city partition_key_vals: MA, Cambridge",
-        "Series tags={_field=temp, _measurement=h2o, state=MA, city=Cambridge}\n  FloatPoints timestamps: [200], values: [243.0]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: CA, LA",
+        "Series tags={_field=humidity, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [600], values: [21.0]",
+        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  FloatPoints timestamps: [600], values: [181.0]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA, Boston",
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  FloatPoints timestamps: [400], values: [141.0]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA, Cambridge",
+        "Series tags={_field=temp, _measurement=h2o, city=Cambridge, state=MA}\n  FloatPoints timestamps: [200], values: [243.0]"
     ];
 
     run_read_group_test_case(
@@ -755,6 +755,169 @@ async fn test_grouped_series_set_plan_group_aggregate_none() {
 
     run_read_group_test_case(
         MeasurementForGroupKeys {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
+
+struct MeasurementForGroupByField {}
+#[async_trait]
+impl DbSetup for MeasurementForGroupByField {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let lp_lines1 = vec![
+            "system,host=local,region=A load1=1.1,load2=2.1 100",
+            "system,host=local,region=A load1=1.2,load2=2.2 200",
+            "system,host=remote,region=B load1=10.1,load2=2.1 100",
+        ];
+
+        let lp_lines2 = vec![
+            "system,host=remote,region=B load1=10.2,load2=20.2 200",
+            "system,host=local,region=C load1=100.1,load2=200.1 100",
+            "aa_system,host=local,region=C load1=100.1,load2=200.1 100",
+        ];
+
+        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
+    }
+}
+
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_by_field_none() {
+    // no predicate
+    let predicate = PredicateBuilder::default().build();
+
+    let agg = Aggregate::None;
+    let group_columns = vec!["_field"];
+
+    // Expect the data is grouped so all the distinct values of load1
+    // are before the values for load2
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: load1",
+        "Series tags={_field=load1, _measurement=aa_system, host=local, region=C}\n  FloatPoints timestamps: [100], values: [100.1]",
+        "Series tags={_field=load1, _measurement=system, host=local, region=A}\n  FloatPoints timestamps: [100, 200], values: [1.1, 1.2]",
+        "Series tags={_field=load1, _measurement=system, host=local, region=C}\n  FloatPoints timestamps: [100], values: [100.1]",
+        "Series tags={_field=load1, _measurement=system, host=remote, region=B}\n  FloatPoints timestamps: [100, 200], values: [10.1, 10.2]",
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: load2",
+        "Series tags={_field=load2, _measurement=aa_system, host=local, region=C}\n  FloatPoints timestamps: [100], values: [200.1]",
+        "Series tags={_field=load2, _measurement=system, host=local, region=A}\n  FloatPoints timestamps: [100, 200], values: [2.1, 2.2]",
+        "Series tags={_field=load2, _measurement=system, host=local, region=C}\n  FloatPoints timestamps: [100], values: [200.1]",
+        "Series tags={_field=load2, _measurement=system, host=remote, region=B}\n  FloatPoints timestamps: [100, 200], values: [2.1, 20.2]",
+    ];
+
+    run_read_group_test_case(
+        MeasurementForGroupByField {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_by_field_and_tag_none() {
+    // no predicate
+    let predicate = PredicateBuilder::default().build();
+
+    let agg = Aggregate::None;
+    let group_columns = vec!["_field", "region"];
+
+    // Expect the data is grouped so all the distinct values of load1
+    // are before the values for load2, grouped by region
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: load1, A",
+        "Series tags={_field=load1, _measurement=system, host=local, region=A}\n  FloatPoints timestamps: [100, 200], values: [1.1, 1.2]",
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: load1, B",
+        "Series tags={_field=load1, _measurement=system, host=remote, region=B}\n  FloatPoints timestamps: [100, 200], values: [10.1, 10.2]",
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: load1, C",
+        "Series tags={_field=load1, _measurement=aa_system, host=local, region=C}\n  FloatPoints timestamps: [100], values: [100.1]",
+        "Series tags={_field=load1, _measurement=system, host=local, region=C}\n  FloatPoints timestamps: [100], values: [100.1]",
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: load2, A",
+        "Series tags={_field=load2, _measurement=system, host=local, region=A}\n  FloatPoints timestamps: [100, 200], values: [2.1, 2.2]",
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: load2, B",
+        "Series tags={_field=load2, _measurement=system, host=remote, region=B}\n  FloatPoints timestamps: [100, 200], values: [2.1, 20.2]",
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: load2, C",
+        "Series tags={_field=load2, _measurement=aa_system, host=local, region=C}\n  FloatPoints timestamps: [100], values: [200.1]",
+        "Series tags={_field=load2, _measurement=system, host=local, region=C}\n  FloatPoints timestamps: [100], values: [200.1]",
+    ];
+
+    run_read_group_test_case(
+        MeasurementForGroupByField {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_by_tag_and_field_none() {
+    // no predicate
+    let predicate = PredicateBuilder::default().build();
+
+    let agg = Aggregate::None;
+    // note group by the tag first then the field.... Output shoud be
+    // sorted on on region first and then _field
+    let group_columns = vec!["region", "_field"];
+
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: A, load1",
+        "Series tags={_field=load1, _measurement=system, host=local, region=A}\n  FloatPoints timestamps: [100, 200], values: [1.1, 1.2]",
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: A, load2",
+        "Series tags={_field=load2, _measurement=system, host=local, region=A}\n  FloatPoints timestamps: [100, 200], values: [2.1, 2.2]",
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: B, load1",
+        "Series tags={_field=load1, _measurement=system, host=remote, region=B}\n  FloatPoints timestamps: [100, 200], values: [10.1, 10.2]",
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: B, load2",
+        "Series tags={_field=load2, _measurement=system, host=remote, region=B}\n  FloatPoints timestamps: [100, 200], values: [2.1, 20.2]",
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: C, load1",
+        "Series tags={_field=load1, _measurement=aa_system, host=local, region=C}\n  FloatPoints timestamps: [100], values: [100.1]",
+        "Series tags={_field=load1, _measurement=system, host=local, region=C}\n  FloatPoints timestamps: [100], values: [100.1]",
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: C, load2",
+        "Series tags={_field=load2, _measurement=aa_system, host=local, region=C}\n  FloatPoints timestamps: [100], values: [200.1]",
+        "Series tags={_field=load2, _measurement=system, host=local, region=C}\n  FloatPoints timestamps: [100], values: [200.1]",
+    ];
+
+    run_read_group_test_case(
+        MeasurementForGroupByField {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_measurement_tag_count() {
+    // no predicate
+    let predicate = PredicateBuilder::default().build();
+
+    let agg = Aggregate::Count;
+    let group_columns = vec!["_measurement", "region"];
+
+    // Expect the data is grouped so output is sorted by measurement and then region
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: aa_system, C",
+        "Series tags={_field=load1, _measurement=aa_system, host=local, region=C}\n  IntegerPoints timestamps: [100], values: [1]",
+        "Series tags={_field=load2, _measurement=aa_system, host=local, region=C}\n  IntegerPoints timestamps: [100], values: [1]",
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: system, A",
+        "Series tags={_field=load1, _measurement=system, host=local, region=A}\n  IntegerPoints timestamps: [200], values: [2]",
+        "Series tags={_field=load2, _measurement=system, host=local, region=A}\n  IntegerPoints timestamps: [200], values: [2]",
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: system, B",
+        "Series tags={_field=load1, _measurement=system, host=remote, region=B}\n  IntegerPoints timestamps: [200], values: [2]",
+        "Series tags={_field=load2, _measurement=system, host=remote, region=B}\n  IntegerPoints timestamps: [200], values: [2]",
+        "Group tag_keys: _field, _measurement, host, region partition_key_vals: system, C",
+        "Series tags={_field=load1, _measurement=system, host=local, region=C}\n  IntegerPoints timestamps: [100], values: [1]",
+        "Series tags={_field=load2, _measurement=system, host=local, region=C}\n  IntegerPoints timestamps: [100], values: [1]",
+    ];
+
+    run_read_group_test_case(
+        MeasurementForGroupByField {},
         predicate,
         agg,
         group_columns,

@@ -2,7 +2,7 @@
 //! DataFusion
 
 use async_trait::async_trait;
-use std::{fmt, sync::Arc};
+use std::{convert::TryInto, fmt, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
 
@@ -26,7 +26,10 @@ use crate::exec::{
     fieldlist::{FieldList, IntoFieldList},
     query_tracing::TracedStream,
     schema_pivot::{SchemaPivotExec, SchemaPivotNode},
-    seriesset::{converter::SeriesSetConverter, SeriesSetItem},
+    seriesset::{
+        converter::{GroupGenerator, SeriesSetConverter},
+        series::Series,
+    },
     split::StreamSplitExec,
     stringset::{IntoStringSet, StringSetRef},
 };
@@ -40,7 +43,7 @@ use crate::plan::{
 // Reuse DataFusion error and Result types for this module
 pub use datafusion::error::{DataFusionError as Error, Result};
 
-use super::{split::StreamSplitNode, task::DedicatedExecutor};
+use super::{seriesset::series::Either, split::StreamSplitNode, task::DedicatedExecutor};
 
 // The default catalog name - this impacts what SQL queries use if not specified
 pub const DEFAULT_CATALOG: &str = "public";
@@ -338,21 +341,23 @@ impl IOxExecutionContext {
     }
 
     /// Executes the SeriesSetPlans on the query executor, in
-    /// parallel, combining the results into the returned collection
-    /// of items.
+    /// parallel, producing series or groups
     ///
-    /// The SeriesSets are guaranteed to come back ordered by table_name.
-    pub async fn to_series_set(
+    /// TODO make this streaming rather than buffering the results
+    pub async fn to_series_and_groups(
         &self,
         series_set_plans: SeriesSetPlans,
-    ) -> Result<Vec<SeriesSetItem>> {
-        let SeriesSetPlans { mut plans } = series_set_plans;
+    ) -> Result<Vec<Either>> {
+        let SeriesSetPlans {
+            mut plans,
+            group_columns,
+        } = series_set_plans;
 
         if plans.is_empty() {
             return Ok(vec![]);
         }
 
-        // sort plans by table name
+        // sort plans by table (measurement) name
         plans.sort_by(|a, b| a.table_name.cmp(&b.table_name));
 
         // Run the plans in parallel
@@ -366,7 +371,6 @@ impl IOxExecutionContext {
                         plan,
                         tag_columns,
                         field_columns,
-                        num_prefix_tag_group_columns,
                     } = plan;
 
                     let tag_columns = Arc::new(tag_columns);
@@ -376,13 +380,7 @@ impl IOxExecutionContext {
                     let it = ctx.execute_stream(physical_plan).await?;
 
                     SeriesSetConverter::default()
-                        .convert(
-                            table_name,
-                            tag_columns,
-                            field_columns,
-                            num_prefix_tag_group_columns,
-                            it,
-                        )
+                        .convert(table_name, tag_columns, field_columns, it)
                         .await
                         .map_err(|e| {
                             Error::Execution(format!(
@@ -396,14 +394,31 @@ impl IOxExecutionContext {
 
         // join_all ensures that the results are consumed in the same order they
         // were spawned maintaining the guarantee to return results ordered
-        // by the plan sort order.
-        let handles = futures::future::try_join_all(handles).await?;
-        let mut results = vec![];
-        for handle in handles {
-            results.extend(handle.into_iter());
+        // by table name and plan sort order.
+        let all_series_sets = futures::future::try_join_all(handles).await?;
+
+        // convert to series sets
+        let mut data: Vec<Series> = vec![];
+        for series_sets in all_series_sets {
+            for series_set in series_sets {
+                let series: Vec<Series> = series_set
+                    .try_into()
+                    .map_err(|e| Error::Execution(format!("Error converting to series: {}", e)))?;
+                data.extend(series);
+            }
         }
 
-        Ok(results)
+        // If we have group columns, sort the results, and create the
+        // appropriate groups
+        if let Some(group_columns) = group_columns {
+            let grouper = GroupGenerator::new(group_columns);
+            grouper
+                .group(data)
+                .map_err(|e| Error::Execution(format!("Error forming groups: {}", e)))
+        } else {
+            let data = data.into_iter().map(|series| series.into()).collect();
+            Ok(data)
+        }
     }
 
     /// Executes `plan` and return the resulting FieldList on the query executor

@@ -87,29 +87,3 @@ pub struct SeriesSet {
     // The underlying record batch data
     pub batch: RecordBatch,
 }
-
-/// Describes a group of series "group of series" series. Namely,
-/// several logical timeseries that share the same timestamps and
-/// name=value tag keys, grouped by some subset of the tag keys
-///
-/// TODO: this may also support computing an aggregation per group,
-/// pending on what is required for the gRPC layer.
-#[derive(Debug)]
-pub struct GroupDescription {
-    /// the names of all tags (not just the tags used for grouping)
-    pub all_tags: Vec<Arc<str>>,
-
-    /// the values of the group tags that defined the group.
-    /// For example,
-    ///
-    /// If there were tags `t0`, `t1`, and `t2`, and the query had
-    /// group_keys of `[t1, t2]` then this list would have the values
-    /// of the t1 and t2 columns
-    pub gby_vals: Vec<Arc<str>>,
-}
-
-#[derive(Debug)]
-pub enum SeriesSetItem {
-    GroupStart(GroupDescription),
-    Data(SeriesSet),
-}

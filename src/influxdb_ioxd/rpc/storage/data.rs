@@ -1,14 +1,14 @@
 //! This module contains code to translate from InfluxDB IOx data
 //! formats into the formats needed by gRPC
 
-use std::{collections::BTreeSet, convert::TryInto, fmt, sync::Arc};
+use std::{collections::BTreeSet, fmt, sync::Arc};
 
 use arrow::datatypes::DataType as ArrowDataType;
 
 use observability_deps::tracing::trace;
 use query::exec::{
     fieldlist::FieldList,
-    seriesset::{series, GroupDescription, SeriesSet, SeriesSetItem},
+    seriesset::series::{self, Either},
 };
 
 use generated_types::{
@@ -21,7 +21,7 @@ use generated_types::{
 };
 
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
-use snafu::{ResultExt, Snafu};
+use snafu::Snafu;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -52,54 +52,7 @@ pub fn tag_keys_to_byte_vecs(tag_keys: Arc<BTreeSet<String>>) -> Vec<Vec<u8>> {
     byte_vecs
 }
 
-fn series_set_to_frames(series_set: SeriesSet) -> Result<Vec<Frame>> {
-    let series: Vec<series::Series> = series_set.try_into().context(ConvertingSeries)?;
-
-    let frames = series
-        .into_iter()
-        .map(|series| {
-            let series::Series { tags, data } = series;
-
-            let (data_type, data_frame) = match data {
-                series::Data::FloatPoints { timestamps, values } => (
-                    DataType::Float,
-                    Data::FloatPoints(FloatPointsFrame { timestamps, values }),
-                ),
-                series::Data::IntegerPoints { timestamps, values } => (
-                    DataType::Integer,
-                    Data::IntegerPoints(IntegerPointsFrame { timestamps, values }),
-                ),
-                series::Data::UnsignedPoints { timestamps, values } => (
-                    DataType::Unsigned,
-                    Data::UnsignedPoints(UnsignedPointsFrame { timestamps, values }),
-                ),
-                series::Data::BooleanPoints { timestamps, values } => (
-                    DataType::Boolean,
-                    Data::BooleanPoints(BooleanPointsFrame { timestamps, values }),
-                ),
-                series::Data::StringPoints { timestamps, values } => (
-                    DataType::String,
-                    Data::StringPoints(StringPointsFrame { timestamps, values }),
-                ),
-            };
-
-            let series_frame = Data::Series(SeriesFrame {
-                tags: convert_tags(tags),
-                data_type: data_type.into(),
-            });
-
-            vec![series_frame, data_frame]
-        })
-        .flatten()
-        .map(|data| Frame { data: Some(data) })
-        .collect();
-
-    Ok(frames)
-}
-
-/// Convert a `SeriesSetItem` into a form suitable for gRPC transport
-///
-/// Each `SeriesSetItem` gets converted into this pattern:
+/// Convert Series and Groups ` into a form suitable for gRPC transport:
 ///
 /// ```
 /// (GroupFrame) potentially
@@ -117,24 +70,71 @@ fn series_set_to_frames(series_set: SeriesSet) -> Result<Vec<Frame>> {
 /// ```
 ///
 /// The specific type of (*Points) depends on the type of field column.
-pub fn series_set_item_to_read_response(series_set_item: SeriesSetItem) -> Result<ReadResponse> {
-    let frames = match series_set_item {
-        SeriesSetItem::GroupStart(group_description) => {
-            vec![group_description_to_frame(group_description)]
+pub fn series_or_groups_to_read_response(series_or_groups: Vec<Either>) -> ReadResponse {
+    let mut frames = vec![];
+
+    for series_or_group in series_or_groups {
+        match series_or_group {
+            Either::Series(series) => {
+                series_to_frames(&mut frames, series);
+            }
+            Either::Group(group) => {
+                frames.push(group_to_frame(group));
+            }
         }
-        SeriesSetItem::Data(series_set) => series_set_to_frames(series_set)?,
-    };
+    }
+
     trace!(frames=%DisplayableFrames::new(&frames), "Response gRPC frames");
-    Ok(ReadResponse { frames })
+    ReadResponse { frames }
 }
 
-/// Converts a [`GroupDescription`] into a storage gRPC `GroupFrame`
+/// Converts a `Series` into frames for GRPC transport
+fn series_to_frames(frames: &mut Vec<Frame>, series: series::Series) {
+    let series::Series { tags, data } = series;
+
+    let (data_type, data_frame) = match data {
+        series::Data::FloatPoints { timestamps, values } => (
+            DataType::Float,
+            Data::FloatPoints(FloatPointsFrame { timestamps, values }),
+        ),
+        series::Data::IntegerPoints { timestamps, values } => (
+            DataType::Integer,
+            Data::IntegerPoints(IntegerPointsFrame { timestamps, values }),
+        ),
+        series::Data::UnsignedPoints { timestamps, values } => (
+            DataType::Unsigned,
+            Data::UnsignedPoints(UnsignedPointsFrame { timestamps, values }),
+        ),
+        series::Data::BooleanPoints { timestamps, values } => (
+            DataType::Boolean,
+            Data::BooleanPoints(BooleanPointsFrame { timestamps, values }),
+        ),
+        series::Data::StringPoints { timestamps, values } => (
+            DataType::String,
+            Data::StringPoints(StringPointsFrame { timestamps, values }),
+        ),
+    };
+
+    let series_frame = Data::Series(SeriesFrame {
+        tags: convert_tags(tags),
+        data_type: data_type.into(),
+    });
+
+    frames.push(Frame {
+        data: Some(series_frame),
+    });
+    frames.push(Frame {
+        data: Some(data_frame),
+    });
+}
+
+/// Converts a [`series::Group`] into a storage gRPC `GroupFrame`
 /// format that can be returned to the client.
-fn group_description_to_frame(group_description: GroupDescription) -> Frame {
+fn group_to_frame(group: series::Group) -> Frame {
     let series::Group {
         tag_keys,
         partition_key_vals,
-    } = group_description.into();
+    } = group;
 
     let group_frame = GroupFrame {
         tag_keys: arcs_to_bytes(tag_keys),
@@ -299,6 +299,8 @@ fn dump_tags(tags: &[Tag]) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryInto;
+
     use arrow::{
         array::{
             ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray,
@@ -307,7 +309,14 @@ mod tests {
         datatypes::DataType as ArrowDataType,
         record_batch::RecordBatch,
     };
-    use query::exec::{field::FieldIndexes, fieldlist::Field};
+    use query::exec::{
+        field::FieldIndexes,
+        fieldlist::Field,
+        seriesset::{
+            series::{Group, Series},
+            SeriesSet,
+        },
+    };
 
     use super::*;
 
@@ -338,11 +347,6 @@ mod tests {
         );
     }
 
-    fn series_set_to_read_response(series_set: SeriesSet) -> Result<ReadResponse> {
-        let frames = series_set_to_frames(series_set)?;
-        Ok(ReadResponse { frames })
-    }
-
     #[test]
     fn test_series_set_conversion() {
         let series_set = SeriesSet {
@@ -354,8 +358,12 @@ mod tests {
             batch: make_record_batch(),
         };
 
-        let response =
-            series_set_to_read_response(series_set).expect("Correctly converted series set");
+        let series: Vec<Series> = series_set
+            .try_into()
+            .expect("Correctly converted series set");
+        let series: Vec<Either> = series.into_iter().map(|s| s.into()).collect();
+
+        let response = series_or_groups_to_read_response(series);
 
         let dumped_frames = dump_frames(&response.frames);
 
@@ -381,15 +389,17 @@ mod tests {
 
     #[test]
     fn test_group_group_conversion() {
-        let group_description = GroupDescription {
-            all_tags: vec![Arc::from("tag1"), Arc::from("tag2")],
-            gby_vals: vec![Arc::from("val1"), Arc::from("val2")],
+        let group = Group {
+            tag_keys: vec![
+                Arc::from("_field"),
+                Arc::from("_measurement"),
+                Arc::from("tag1"),
+                Arc::from("tag2"),
+            ],
+            partition_key_vals: vec![Arc::from("val1"), Arc::from("val2")],
         };
 
-        let grouped_series_set_item = SeriesSetItem::GroupStart(group_description);
-
-        let response = series_set_item_to_read_response(grouped_series_set_item)
-            .expect("Correctly converted grouped_series_set_item");
+        let response = series_or_groups_to_read_response(vec![group.into()]);
 
         let dumped_frames = dump_frames(&response.frames);
 

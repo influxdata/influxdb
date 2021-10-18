@@ -29,7 +29,7 @@ use crate::influxdb_ioxd::{
     planner::Planner,
     rpc::storage::{
         data::{
-            fieldlist_to_measurement_fields_response, series_set_item_to_read_response,
+            fieldlist_to_measurement_fields_response, series_or_groups_to_read_response,
             tag_keys_to_byte_vecs,
         },
         expr::{self, AddRpcNode, GroupByAndAggregate, Loggable, SpecialTagKeys},
@@ -136,9 +136,6 @@ pub enum Error {
     #[snafu(display("Error computing groups series: {}", source))]
     ComputingGroupedSeriesSet { source: SeriesSetError },
 
-    #[snafu(display("Error converting time series into gRPC response:  {}", source))]
-    ConvertingSeriesSet { source: super::data::Error },
-
     #[snafu(display("Converting field information series into gRPC response:  {}", source))]
     ConvertingFieldList { source: super::data::Error },
 
@@ -194,7 +191,6 @@ impl Error {
             Self::ConvertingWindowAggregate { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingTagKeyInTagValues { .. } => Status::invalid_argument(self.to_string()),
             Self::ComputingGroupedSeriesSet { .. } => Status::invalid_argument(self.to_string()),
-            Self::ConvertingSeriesSet { .. } => Status::invalid_argument(self.to_string()),
             Self::ConvertingFieldList { .. } => Status::invalid_argument(self.to_string()),
             Self::SendingResults { .. } => Status::internal(self.to_string()),
             Self::InternalHintsFieldNotSupported { .. } => Status::internal(self.to_string()),
@@ -901,8 +897,8 @@ where
         .context(PlanningFilteringSeries { db_name })?;
 
     // Execute the plans.
-    let ss_items = ctx
-        .to_series_set(series_plan)
+    let series_or_groups = ctx
+        .to_series_and_groups(series_plan)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(FilteringSeries {
@@ -910,11 +906,9 @@ where
         })
         .log_if_error("Running series set plan")?;
 
-    // Convert results into API responses
-    ss_items
-        .into_iter()
-        .map(|series_set| series_set_item_to_read_response(series_set).context(ConvertingSeriesSet))
-        .collect::<Result<Vec<ReadResponse>, Error>>()
+    let response = series_or_groups_to_read_response(series_or_groups);
+
+    Ok(vec![response])
 }
 
 /// Launch async tasks that send the result of executing read_group to `tx`
@@ -967,8 +961,8 @@ where
     // if big queries are causing a significant latency in TTFB.
 
     // Execute the plans
-    let ss_items = ctx
-        .to_series_set(grouped_series_set_plan)
+    let series_or_groups = ctx
+        .to_series_and_groups(grouped_series_set_plan)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(GroupingSeries {
@@ -976,11 +970,9 @@ where
         })
         .log_if_error("Running Grouped SeriesSet Plan")?;
 
-    // Convert plans to API responses
-    ss_items
-        .into_iter()
-        .map(|series_set| series_set_item_to_read_response(series_set).context(ConvertingSeriesSet))
-        .collect::<Result<Vec<ReadResponse>, Error>>()
+    let response = series_or_groups_to_read_response(series_or_groups);
+
+    Ok(vec![response])
 }
 
 /// Return field names, restricted via optional measurement, timestamp and
@@ -1837,6 +1829,7 @@ mod tests {
 
         let chunk = TestChunk::new("TheMeasurement")
             .with_time_column()
+            .with_i64_field_column("my field")
             .with_tag_column("state")
             .with_one_row_of_data();
 
@@ -1865,7 +1858,11 @@ mod tests {
 
         let frames = fixture.storage_client.read_group(request).await.unwrap();
 
-        assert_eq!(frames.len(), 1);
+        // three frames:
+        // GroupFrame
+        // SeriesFrame (tag=state, field=my field)
+        // DataFrame
+        assert_eq!(frames.len(), 3);
 
         grpc_request_metric_has_count(&fixture, "ReadGroup", "ok", 1);
     }

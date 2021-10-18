@@ -125,7 +125,7 @@ async fn build_and_execute_plan(
 
     let results = executor
         .new_context(ExecutorType::Query)
-        .to_series_set(plan)
+        .to_series_and_groups(plan)
         .await
         .expect("Running series set plan");
 

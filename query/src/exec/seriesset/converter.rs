@@ -1,3 +1,7 @@
+//! This module contains code that "unpivots" annotated
+//! [`RecordBatch`]es to [`Series`] and [`Group`]s for output by the
+//! storage gRPC interface
+
 use arrow::{
     self,
     array::{Array, DictionaryArray, StringArray},
@@ -7,16 +11,22 @@ use arrow::{
 use datafusion::physical_plan::SendableRecordBatchStream;
 
 use observability_deps::tracing::trace;
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::sync::Arc;
 use tokio::sync::mpsc::error::SendError;
 use tokio_stream::StreamExt;
 
 use croaring::bitmap::Bitmap;
 
-use crate::exec::field::{self, FieldColumns, FieldIndexes};
+use crate::exec::{
+    field::{self, FieldColumns, FieldIndexes},
+    seriesset::series::Group,
+};
 
-use super::{GroupDescription, SeriesSet, SeriesSetItem};
+use super::{
+    series::{Either, Series},
+    SeriesSet,
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -34,14 +44,17 @@ pub enum Error {
     #[snafu(display("Internal field error while converting series set: {}", source))]
     InternalField { source: field::Error },
 
+    #[snafu(display("Internal error finding grouping colum: {}", column_name))]
+    FindingGroupColumn { column_name: String },
+
     #[snafu(display("Sending series set results during conversion: {:?}", source))]
     SendingDuringConversion {
-        source: Box<SendError<Result<SeriesSetItem>>>,
+        source: Box<SendError<Result<SeriesSet>>>,
     },
 
     #[snafu(display("Sending grouped series set results during conversion: {:?}", source))]
     SendingDuringGroupedConversion {
-        source: Box<SendError<Result<SeriesSetItem>>>,
+        source: Box<SendError<Result<SeriesSet>>>,
     },
 }
 
@@ -64,19 +77,14 @@ impl SeriesSetConverter {
     ///
     /// field_columns: The names of the columns which are "fields"
     ///
-    /// num_prefix_tag_group_columns: (optional) The size of the prefix
-    ///       of `tag_columns` that defines each group
-    ///
     /// it: record batch iterator that produces data in the desired order
     pub async fn convert(
         &mut self,
         table_name: Arc<str>,
         tag_columns: Arc<Vec<Arc<str>>>,
         field_columns: FieldColumns,
-        num_prefix_tag_group_columns: Option<usize>,
         mut it: SendableRecordBatchStream,
-    ) -> Result<Vec<SeriesSetItem>, Error> {
-        let mut group_generator = GroupGenerator::new(num_prefix_tag_group_columns);
+    ) -> Result<Vec<SeriesSet>, Error> {
         let mut results = vec![];
 
         // for now, only handle a single record batch
@@ -127,35 +135,26 @@ impl SeriesSetConverter {
             // call await during the loop)
 
             // emit each series
-            let series_sets = intersections
-                .iter()
-                .map(|end_row| {
-                    let series_set = SeriesSet {
-                        table_name: Arc::clone(&table_name),
-                        tags: Self::get_tag_keys(
-                            &batch,
-                            start_row as usize,
-                            &tag_columns,
-                            &tag_indexes,
-                        ),
-                        field_indexes: field_indexes.clone(),
-                        start_row: start_row as usize,
-                        num_rows: (end_row - start_row) as usize,
-                        batch: batch.clone(),
-                    };
+            let series_sets = intersections.iter().map(|end_row| {
+                let series_set = SeriesSet {
+                    table_name: Arc::clone(&table_name),
+                    tags: Self::get_tag_keys(
+                        &batch,
+                        start_row as usize,
+                        &tag_columns,
+                        &tag_indexes,
+                    ),
+                    field_indexes: field_indexes.clone(),
+                    start_row: start_row as usize,
+                    num_rows: (end_row - start_row) as usize,
+                    batch: batch.clone(),
+                };
 
-                    start_row = end_row;
-                    series_set
-                })
-                .collect::<Vec<_>>();
+                start_row = end_row;
+                series_set
+            });
 
-            results.reserve(series_sets.len());
-            for series_set in series_sets {
-                if let Some(group_desc) = group_generator.next_series(&series_set) {
-                    results.push(SeriesSetItem::GroupStart(group_desc));
-                }
-                results.push(SeriesSetItem::Data(series_set));
-            }
+            results.extend(series_sets);
         }
         Ok(results)
     }
@@ -237,7 +236,7 @@ impl SeriesSetConverter {
                 }
             }
             _ => unimplemented!(
-                "Series transition calculations not supported for type {:?} in column {:?}",
+                "Series transition calculations not supported for tag type {:?} in column {:?}",
                 col.data_type(),
                 batch.schema().fields()[col_idx]
             ),
@@ -316,56 +315,157 @@ impl SeriesSetConverter {
     }
 }
 
-/// Encapsulates the logic to generate new GroupFrames
-struct GroupGenerator {
-    num_prefix_tag_group_columns: Option<usize>,
-
-    // vec of num_prefix_tag_group_columns, if any
-    last_group_tags: Option<Vec<(Arc<str>, Arc<str>)>>,
+/// Reorders and groups a sequence of Series is grouped correctly
+#[derive(Debug)]
+pub struct GroupGenerator {
+    group_columns: Vec<Arc<str>>,
 }
 
 impl GroupGenerator {
-    fn new(num_prefix_tag_group_columns: Option<usize>) -> Self {
-        Self {
-            num_prefix_tag_group_columns,
-            last_group_tags: None,
-        }
+    pub fn new(group_columns: Vec<Arc<str>>) -> Self {
+        Self { group_columns }
     }
 
-    /// Process the next SeriesSet in the sequence. Return
-    /// `Some(GroupDescription{..})` if this marks the start of a new
-    /// group. Return None otherwise
-    fn next_series(&mut self, series_set: &SeriesSet) -> Option<GroupDescription> {
-        if let Some(num_prefix_tag_group_columns) = self.num_prefix_tag_group_columns {
-            // figure out if we are in a new group
-            let need_group_start = match &self.last_group_tags {
+    /// groups the set of `series` into SeriesOrGroups
+    pub fn group(&self, series: Vec<Series>) -> Result<Vec<Either>> {
+        let mut series = series
+            .into_iter()
+            .map(|series| SortableSeries::try_new(series, &self.group_columns))
+            .collect::<Result<Vec<_>>>()?;
+
+        // Potential optimization is to skip this sort if we are
+        // grouping by a prefix of the tags for a single measurement
+        //
+        // Another potential optimization is if we are only grouping on
+        // tag columns is to change the the actual plan output using
+        // DataFusion to sort the data in the required group (likely
+        // only possible with a single table)
+
+        // Resort the data according to group key values
+        series.sort();
+
+        // now find the groups boundaries and emit the output
+        let mut last_partition_key_vals: Option<Vec<Arc<str>>> = None;
+
+        // Note that if there are no group columns, we still need to
+        // sort by the tag keys, so that the output is sorted by tag
+        // keys, and thus we can't bail out early here
+        //
+        // Interesting, it isn't clear flux requires this ordering, but
+        // it is what TSM does so we preserve the behavior
+        let mut output = vec![];
+
+        // TODO make this more functional (issue is that sometimes the
+        // loop inserts one item into `output` and sometimes it inserts 2)
+        for SortableSeries {
+            series,
+            tag_vals,
+            num_partition_keys,
+        } in series.into_iter()
+        {
+            // keep only the values that form the group
+            let mut partition_key_vals = tag_vals;
+            partition_key_vals.truncate(num_partition_keys);
+
+            // figure out if we are in a new group (partition key values have changed)
+            let need_group_start = match &last_partition_key_vals {
                 None => true,
-                Some(last_group_tags) => {
-                    last_group_tags.as_slice() != &series_set.tags[0..num_prefix_tag_group_columns]
-                }
+                Some(last_partition_key_vals) => &partition_key_vals != last_partition_key_vals,
             };
 
             if need_group_start {
-                let group_tags = series_set.tags[0..num_prefix_tag_group_columns].to_vec();
+                last_partition_key_vals = Some(partition_key_vals.clone());
 
-                let all_tags = series_set
-                    .tags
-                    .iter()
-                    .map(|(tag, _value)| Arc::clone(tag))
-                    .collect::<Vec<_>>();
+                let tag_keys = series.tags.iter().map(|tag| Arc::clone(&tag.key)).collect();
 
-                let gby_vals = group_tags
-                    .iter()
-                    .map(|(_tag, value)| Arc::clone(value))
-                    .collect::<Vec<_>>();
+                let group = Group {
+                    tag_keys,
+                    partition_key_vals,
+                };
 
-                let group_desc = GroupDescription { all_tags, gby_vals };
-
-                self.last_group_tags = Some(group_tags);
-                return Some(group_desc);
+                output.push(group.into());
             }
+
+            output.push(series.into())
         }
-        None
+
+        Ok(output)
+    }
+}
+
+#[derive(Debug)]
+/// Wrapper around a Series that has the values of the group_by columns extracted
+struct SortableSeries {
+    series: Series,
+
+    /// All the tag values, reordered so that the group_columns are first
+    tag_vals: Vec<Arc<str>>,
+
+    /// How many of the first N tag_values are used for the partition key
+    num_partition_keys: usize,
+}
+
+impl PartialEq for SortableSeries {
+    fn eq(&self, other: &Self) -> bool {
+        self.tag_vals.eq(&other.tag_vals)
+    }
+}
+
+impl Eq for SortableSeries {}
+
+impl PartialOrd for SortableSeries {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.tag_vals.partial_cmp(&other.tag_vals)
+    }
+}
+
+impl Ord for SortableSeries {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.tag_vals.cmp(&other.tag_vals)
+    }
+}
+
+impl SortableSeries {
+    fn try_new(series: Series, group_columns: &[Arc<str>]) -> Result<Self> {
+        // Compute the order of new tag values
+        let tags = &series.tags;
+
+        // tag_used_set[i] is true if we have used the value in tag_columns[i]
+        let mut tag_used_set = vec![false; tags.len()];
+
+        // put the group columns first
+        //
+        // Note that this is an O(N^2) algorithm. We are assuming the
+        // number of tag columns is reasonably small
+        let mut tag_vals: Vec<_> = group_columns
+            .iter()
+            .map(|col| {
+                tags.iter()
+                    .enumerate()
+                    // Searching for columns linearly is likely to be pretty slow....
+                    .find(|(_i, tag)| tag.key == *col)
+                    .map(|(i, tag)| {
+                        assert!(!tag_used_set[i], "repeated group column");
+                        tag_used_set[i] = true;
+                        Arc::clone(&tag.value)
+                    })
+                    .context(FindingGroupColumn {
+                        column_name: col.as_ref(),
+                    })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        // Fill in all remaining tags
+        tag_vals.extend(tags.iter().enumerate().filter_map(|(i, tag)| {
+            let use_tag = !tag_used_set[i];
+            use_tag.then(|| Arc::clone(&tag.value))
+        }));
+
+        Ok(Self {
+            series,
+            tag_vals,
+            num_partition_keys: group_columns.len(),
+        })
     }
 }
 
@@ -692,147 +792,6 @@ mod tests {
         assert_eq!(series_set2.num_rows, 1);
     }
 
-    #[tokio::test]
-    async fn test_convert_groups() {
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("tag_a", DataType::Utf8, true),
-            Field::new("tag_b", DataType::Utf8, true),
-            Field::new("float_field", DataType::Float64, true),
-            Field::new("time", DataType::Int64, false),
-        ]));
-
-        let input = parse_to_iterator(
-            schema,
-            "one,ten,10.0,1000\n\
-             one,eleven,10.1,2000\n\
-             two,eleven,10.3,3000\n",
-        );
-
-        let table_name = "foo";
-        let tag_columns = ["tag_a", "tag_b"];
-        let num_prefix_tag_group_columns = 1;
-        let field_columns = ["float_field"];
-        let results = convert_groups(
-            table_name,
-            &tag_columns,
-            num_prefix_tag_group_columns,
-            &field_columns,
-            input,
-        )
-        .await;
-
-        // expect the output to be
-        // Group1 (tags: tag_a, tag_b, vals = one)
-        // Series1 (tag_a = one, tag_b = ten)
-        // Series2 (tag_a = one, tag_b = ten)
-        // Group2 (tags: tag_a, tag_b, vals = two)
-        // Series3 (tag_a = two, tag_b = eleven)
-
-        assert_eq!(results.len(), 5, "results were\n{:#?}", results); // 3 series, two groups (one and two)
-
-        let group_1 = extract_group(&results[0]);
-        let series_set1 = extract_series_set(&results[1]);
-        let series_set2 = extract_series_set(&results[2]);
-        let group_2 = extract_group(&results[3]);
-        let series_set3 = extract_series_set(&results[4]);
-
-        assert_eq!(group_1.all_tags, str_vec_to_arc_vec(&["tag_a", "tag_b"]));
-        assert_eq!(group_1.gby_vals, str_vec_to_arc_vec(&["one"]));
-
-        assert_eq!(series_set1.table_name.as_ref(), "foo");
-        assert_eq!(
-            series_set1.tags,
-            str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
-        );
-        assert_eq!(series_set1.start_row, 0);
-        assert_eq!(series_set1.num_rows, 1);
-
-        assert_eq!(series_set2.table_name.as_ref(), "foo");
-        assert_eq!(
-            series_set2.tags,
-            str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "eleven")])
-        );
-        assert_eq!(series_set2.start_row, 1);
-        assert_eq!(series_set2.num_rows, 1);
-
-        assert_eq!(group_2.all_tags, str_vec_to_arc_vec(&["tag_a", "tag_b"]));
-        assert_eq!(group_2.gby_vals, str_vec_to_arc_vec(&["two"]));
-
-        assert_eq!(series_set3.table_name.as_ref(), "foo");
-        assert_eq!(
-            series_set3.tags,
-            str_pair_vec_to_vec(&[("tag_a", "two"), ("tag_b", "eleven")])
-        );
-        assert_eq!(series_set3.start_row, 2);
-        assert_eq!(series_set3.num_rows, 1);
-    }
-
-    // test with no group tags specified
-    #[tokio::test]
-    async fn test_convert_groups_no_tags() {
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("tag_a", DataType::Utf8, true),
-            Field::new("tag_b", DataType::Utf8, true),
-            Field::new("float_field", DataType::Float64, true),
-            Field::new("time", DataType::Int64, false),
-        ]));
-
-        let input = parse_to_iterator(
-            schema,
-            "one,ten,10.0,1000\n\
-             one,eleven,10.1,2000\n",
-        );
-
-        let table_name = "foo";
-        let tag_columns = ["tag_a", "tag_b"];
-        let field_columns = ["float_field"];
-        let results = convert_groups(table_name, &tag_columns, 0, &field_columns, input).await;
-
-        // expect the output to be be (no vals, because no group columns are specified)
-        // Group1 (tags: tag_a, tag_b, vals = [])
-        // Series1 (tag_a = one, tag_b = ten)
-        // Series2 (tag_a = one, tag_b = ten)
-
-        assert_eq!(results.len(), 3, "results were\n{:#?}", results); // 3 series, two groups (one and two)
-
-        let group_1 = extract_group(&results[0]);
-        let series_set1 = extract_series_set(&results[1]);
-        let series_set2 = extract_series_set(&results[2]);
-
-        assert_eq!(group_1.all_tags, str_vec_to_arc_vec(&["tag_a", "tag_b"]));
-        assert_eq!(group_1.gby_vals, str_vec_to_arc_vec(&[]));
-
-        assert_eq!(series_set1.table_name.as_ref(), "foo");
-        assert_eq!(
-            series_set1.tags,
-            str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "ten")])
-        );
-        assert_eq!(series_set1.start_row, 0);
-        assert_eq!(series_set1.num_rows, 1);
-
-        assert_eq!(series_set2.table_name.as_ref(), "foo");
-        assert_eq!(
-            series_set2.tags,
-            str_pair_vec_to_vec(&[("tag_a", "one"), ("tag_b", "eleven")])
-        );
-        assert_eq!(series_set2.start_row, 1);
-        assert_eq!(series_set2.num_rows, 1);
-    }
-
-    fn extract_group(item: &SeriesSetItem) -> &GroupDescription {
-        match item {
-            SeriesSetItem::GroupStart(group) => group,
-            _ => panic!("Expected group, but got: {:?}", item),
-        }
-    }
-
-    fn extract_series_set(item: &SeriesSetItem) -> &SeriesSet {
-        match item {
-            SeriesSetItem::Data(series_set) => series_set,
-            _ => panic!("Expected series set, but got: {:?}", item),
-        }
-    }
-
     /// Test helper: run conversion and return a Vec
     pub async fn convert<'a>(
         table_name: &'a str,
@@ -847,40 +806,7 @@ mod tests {
         let field_columns = FieldColumns::from(field_columns);
 
         converter
-            .convert(table_name, tag_columns, field_columns, None, it)
-            .await
-            .expect("Conversion happened without error").into_iter().map(|item|{
-                if let SeriesSetItem::Data(series_set) = item {
-                    series_set
-                }
-                    else {
-                    panic!("Unexpected result from converting. Expected SeriesSetItem::Data, got: {:?}", item)
-                }
-            }).collect::<Vec<_>>()
-    }
-
-    /// Test helper: run conversion to groups and return a Vec
-    pub async fn convert_groups<'a>(
-        table_name: &'a str,
-        tag_columns: &'a [&'a str],
-        num_prefix_tag_group_columns: usize,
-        field_columns: &'a [&'a str],
-        it: SendableRecordBatchStream,
-    ) -> Vec<SeriesSetItem> {
-        let mut converter = SeriesSetConverter::default();
-
-        let table_name = Arc::from(table_name);
-        let tag_columns = Arc::new(str_vec_to_arc_vec(tag_columns));
-        let field_columns = FieldColumns::from(field_columns);
-
-        converter
-            .convert(
-                table_name,
-                tag_columns,
-                field_columns,
-                Some(num_prefix_tag_group_columns),
-                it,
-            )
+            .convert(table_name, tag_columns, field_columns, it)
             .await
             .expect("Conversion happened without error")
     }
