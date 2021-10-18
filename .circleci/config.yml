@@ -149,7 +149,7 @@ workflows:
           filters:
             branches:
               only:
-                - 2.1
+                - "2.1"
           requires:
             - e2e-monitor-ci
 
