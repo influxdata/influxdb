@@ -219,5 +219,10 @@ mod tests {
             Path::InMemory(parsed_path!(["foo", "bar"], "baz.json")).to_raw(),
             "foo/bar/baz.json"
         );
+
+        assert_eq!(
+            Path::InMemory(parsed_path!(["foo", "bar"])).to_raw(),
+            "foo/bar/"
+        );
     }
 }
