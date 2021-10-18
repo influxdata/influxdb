@@ -27,6 +27,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{future::Future, sync::Arc, time::Duration};
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
+use trace::ctx::SpanContext;
 use trace::{RingBufferTraceCollector, TraceCollector};
 use uuid::Uuid;
 
@@ -573,7 +574,11 @@ impl Database {
     /// - write it to a write buffer
     /// - write it to a local `Db`
     ///
-    pub async fn write_entry(&self, entry: entry::Entry) -> Result<(), WriteError> {
+    pub async fn write_entry(
+        &self,
+        entry: entry::Entry,
+        span_ctx: Option<SpanContext>,
+    ) -> Result<(), WriteError> {
         let recorder = self.shared.metrics.entry_ingest(entry.data().len());
 
         let db = {
@@ -592,7 +597,7 @@ impl Database {
             }
         };
 
-        db.store_entry(entry).await.map_err(|e| {
+        db.store_entry(entry, span_ctx).await.map_err(|e| {
             use super::db::Error;
             match e {
                 // TODO: Pull write buffer producer out of Db

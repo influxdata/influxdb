@@ -922,7 +922,7 @@ impl Db {
     }
 
     /// Stores an entry based on the configuration.
-    pub async fn store_entry(&self, entry: Entry) -> Result<()> {
+    pub async fn store_entry(&self, entry: Entry, span_ctx: Option<SpanContext>) -> Result<()> {
         let immutable = {
             let rules = self.rules.read();
             rules.lifecycle_rules.immutable
@@ -936,9 +936,8 @@ impl Db {
                 // will get picked up when data is read from the write buffer.
 
                 // TODO: be smarter than always using sequencer 0
-                // TODO: propgate span context
                 let _ = write_buffer
-                    .store_entry(&entry, 0, None)
+                    .store_entry(&entry, 0, span_ctx.as_ref())
                     .await
                     .context(WriteBufferWritingError)?;
                 Ok(())
@@ -948,9 +947,8 @@ impl Db {
                 // buffer to return success before adding the entry to the mutable buffer.
 
                 // TODO: be smarter than always using sequencer 0
-                // TODO: propagate span context
                 let (sequence, producer_wallclock_timestamp) = write_buffer
-                    .store_entry(&entry, 0, None)
+                    .store_entry(&entry, 0, span_ctx.as_ref())
                     .await
                     .context(WriteBufferWritingError)?;
                 let sequenced_entry = Arc::new(SequencedEntry::new_from_sequence(
@@ -1301,7 +1299,7 @@ pub mod test_helpers {
                         tables.insert(batch.name().to_string());
                     }
                 }
-                db.store_entry(entry).await?;
+                db.store_entry(entry, None).await?;
             }
         }
 
@@ -1501,7 +1499,7 @@ mod tests {
         let db = immutable_db().await;
 
         let entry = lp_to_entry("cpu bar=1 10");
-        let res = db.store_entry(entry).await;
+        let res = db.store_entry(entry, None).await;
         assert_contains!(
             res.unwrap_err().to_string(),
             "Cannot write to this database: no mutable buffer configured"
@@ -1529,7 +1527,7 @@ mod tests {
             .db;
 
         let entry = lp_to_entry("cpu bar=1 10");
-        test_db.store_entry(entry).await.unwrap();
+        test_db.store_entry(entry, None).await.unwrap();
 
         assert_eq!(write_buffer_state.get_messages(0).len(), 1);
     }
@@ -1551,7 +1549,7 @@ mod tests {
             .db;
 
         let entry = lp_to_entry("cpu bar=1 10");
-        db.store_entry(entry).await.unwrap();
+        db.store_entry(entry, None).await.unwrap();
 
         assert_eq!(write_buffer_state.get_messages(0).len(), 1);
 
@@ -1579,7 +1577,7 @@ mod tests {
 
         let entry = lp_to_entry("cpu bar=1 10");
 
-        let res = db.store_entry(entry).await;
+        let res = db.store_entry(entry, None).await;
 
         assert!(
             matches!(res, Err(Error::WriteBufferWritingError { .. })),
@@ -1593,7 +1591,7 @@ mod tests {
         // Validate that writes are rejected if this database is reading from the write buffer
         let db = immutable_db().await;
         let entry = lp_to_entry("cpu bar=1 10");
-        let res = db.store_entry(entry).await;
+        let res = db.store_entry(entry, None).await;
         assert_contains!(
             res.unwrap_err().to_string(),
             "Cannot write to this database: no mutable buffer configured"
@@ -1637,7 +1635,7 @@ mod tests {
         let entry = lp_to_entry(&lp);
 
         // This should succeed and start chunks in the MUB
-        db.store_entry(entry).await.unwrap();
+        db.store_entry(entry, None).await.unwrap();
 
         // 3 more lines that should go in the 3 partitions/chunks.
         // Line 1 has the same schema and should end up in the MUB.
@@ -1655,7 +1653,7 @@ mod tests {
         let entry = lp_to_entry(&lp);
 
         // This should return an error because there was at least one error in the loop
-        let result = db.store_entry(entry).await;
+        let result = db.store_entry(entry, None).await;
         assert_contains!(
             result.unwrap_err().to_string(),
             "Storing sequenced entry failed with the following error(s), and possibly more:"
@@ -2459,7 +2457,7 @@ mod tests {
         time.inc(Duration::from_secs(1));
 
         let entry = lp_to_entry("cpu bar=true 10");
-        let result = db.store_entry(entry).await;
+        let result = db.store_entry(entry, None).await;
         assert!(result.is_err());
         {
             let partition = db.catalog.partition("cpu", partition_key).unwrap();

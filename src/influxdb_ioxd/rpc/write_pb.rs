@@ -18,13 +18,14 @@ where
         &self,
         request: tonic::Request<WriteRequest>,
     ) -> Result<tonic::Response<WriteResponse>, tonic::Status> {
+        let span_ctx = request.extensions().get().cloned();
         let database_batch = request
             .into_inner()
             .database_batch
             .ok_or_else(|| FieldViolation::required("database_batch"))?;
 
         self.server
-            .write_pb(database_batch)
+            .write_pb(database_batch, span_ctx)
             .await
             .map_err(default_server_error_handler)?;
 
