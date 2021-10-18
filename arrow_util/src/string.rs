@@ -76,6 +76,19 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> PackedStringArray<K> {
         self.offsets.resize(self.offsets.len() + len, offset);
     }
 
+    /// Truncates the array to the given length
+    pub fn truncate(&mut self, len: usize) {
+        self.offsets.truncate(len + 1);
+        let last_idx = self.offsets.last().expect("offsets empty");
+        self.storage.truncate(last_idx.as_());
+    }
+
+    /// Removes all elements from this array
+    pub fn clear(&mut self) {
+        self.offsets.truncate(1);
+        self.storage.clear();
+    }
+
     pub fn iter(&self) -> PackedStringIterator<'_, K> {
         PackedStringIterator {
             array: self,
@@ -169,5 +182,23 @@ mod tests {
         assert_eq!(array.get(12).unwrap(), "");
         assert_eq!(array.get(9).unwrap(), "");
         assert_eq!(array.get(3).unwrap(), "");
+    }
+
+    #[test]
+    fn test_truncate() {
+        let mut array = PackedStringArray::<i32>::new();
+
+        array.append("hello");
+        array.append("world");
+        array.append("cupcake");
+
+        array.truncate(1);
+        assert_eq!(array.len(), 1);
+        assert_eq!(array.get(0).unwrap(), "hello");
+
+        array.append("world");
+        assert_eq!(array.len(), 2);
+        assert_eq!(array.get(0).unwrap(), "hello");
+        assert_eq!(array.get(1).unwrap(), "world");
     }
 }

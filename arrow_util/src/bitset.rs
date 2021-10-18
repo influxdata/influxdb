@@ -35,8 +35,41 @@ impl BitSet {
         self.buffer.resize(new_buf_len, 0);
     }
 
+    /// Appends `count` set bits
+    pub fn append_set(&mut self, count: usize) {
+        let new_len = self.len + count;
+        let new_buf_len = (new_len + 7) >> 3;
+
+        let skew = self.len & 7;
+        if skew != 0 {
+            *self.buffer.last_mut().unwrap() |= 0xFF << skew;
+        }
+
+        self.buffer.resize(new_buf_len, 0xFF);
+
+        let rem = new_len & 7;
+        if rem != 0 {
+            *self.buffer.last_mut().unwrap() &= (1 << rem) - 1;
+        }
+
+        self.len = new_len;
+    }
+
+    /// Truncates the bitset to the provided length
+    pub fn truncate(&mut self, len: usize) {
+        let new_buf_len = (len + 7) >> 3;
+        self.buffer.truncate(new_buf_len);
+        let overrun = len & 7;
+        if overrun > 0 {
+            *self.buffer.last_mut().unwrap() &= (1 << overrun) - 1;
+        }
+        self.len = len;
+    }
+
     /// Appends `count` boolean values from the slice of packed bits
     pub fn append_bits(&mut self, count: usize, to_set: &[u8]) {
+        assert_eq!((count + 7) >> 3, to_set.len());
+
         let new_len = self.len + count;
         let new_buf_len = (new_len + 7) >> 3;
         self.buffer.reserve(new_buf_len - self.buffer.len());
@@ -249,6 +282,53 @@ mod tests {
         assert_eq!(expected_indexes, actual_indexes);
         for index in actual_indexes {
             assert!(mask.get(index));
+        }
+    }
+
+    #[test]
+    fn test_append_fuzz() {
+        let mut mask = BitSet::new();
+        let mut all_bools = vec![];
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..100 {
+            let len = (rng.next_u32() % 32) as usize;
+            let set = rng.next_u32() & 1 == 0;
+
+            match set {
+                true => mask.append_set(len),
+                false => mask.append_unset(len),
+            }
+
+            all_bools.extend(std::iter::repeat(set).take(len));
+
+            let collected = compact_bools(&all_bools);
+            assert_eq!(mask.buffer, collected);
+        }
+    }
+
+    #[test]
+    fn test_truncate_fuzz() {
+        let mut mask = BitSet::new();
+        let mut all_bools = vec![];
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..100 {
+            let mask_length = (rng.next_u32() % 32) as usize;
+            let bools: Vec<_> = std::iter::from_fn(|| Some(rng.next_u32() & 1 == 0))
+                .take(mask_length)
+                .collect();
+
+            let collected = compact_bools(&bools);
+            mask.append_bits(mask_length, &collected);
+            all_bools.extend_from_slice(&bools);
+
+            let truncate = rng.next_u32() as usize % all_bools.len();
+            mask.truncate(truncate);
+            all_bools.truncate(truncate);
+
+            let collected = compact_bools(&all_bools);
+            assert_eq!(mask.buffer, collected);
         }
     }
 
