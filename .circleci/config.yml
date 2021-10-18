@@ -1056,7 +1056,7 @@ jobs:
                   set -x
                   S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/influxdb/releases"
                   CHANGELOG_FILENAME="CHANGELOG-${CIRCLE_TAG}.md"
-                  COMMIT_FILE_PATH="changelog-commit.txt"
+                  COMMIT_FILE_PATH="changelog-commit-${CIRCLE_BRANCH}.txt"
 
                   curl -o ${COMMIT_FILE_PATH} ${S3_PATH}/${COMMIT_FILE_PATH}
 
