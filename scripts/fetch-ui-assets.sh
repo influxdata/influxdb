@@ -18,20 +18,18 @@ declare -r SCRIPT_DIR=$(cd $(dirname ${0}) >/dev/null 2>&1 && pwd)
 declare -r ROOT_DIR=$(dirname ${SCRIPT_DIR})
 declare -r STATIC_DIR="$ROOT_DIR/static"
 
-# Download the SHA256 checksum attached to the release. To verify the integrity
-# of the download, this checksum will be used to check the download tar file
-# containing the built UI assets.
-curl -Ls https://github.com/influxdata/ui/releases/download/OSS-Master/sha256.txt --output sha256.txt
+# This must be updated depending on the actual sha256 checksum of the tar file
+# attached to the release.
+EXPECTED_UI_CHECKSUM=f90ada02d0e09082b36e4213f2a675089e95e01a9558bc356a0d880e2aaaccd1
 
 # Download the tar file containing the built UI assets.
-curl -L https://github.com/influxdata/ui/releases/download/OSS-Master/build.tar.gz --output build.tar.gz
+curl -L https://github.com/influxdata/ui/releases/download/OSS-2.1.0/build.tar.gz --output build.tar.gz
 
 # Verify the checksums match; exit if they don't.
-echo "$(cat sha256.txt)" | sha256sum --check -- \
+echo "${EXPECTED_UI_CHECKSUM} build.tar.gz" | sha256sum --check -- \
     || { echo "Checksums did not match for downloaded UI assets!"; exit 1; }
 
 # Extract the assets and clean up.
 mkdir -p "$STATIC_DIR/data"
 tar -xzf build.tar.gz -C "$STATIC_DIR/data"
-rm sha256.txt
 rm build.tar.gz
