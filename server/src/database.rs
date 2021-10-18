@@ -189,7 +189,8 @@ impl Database {
         Self { join, shared }
     }
 
-    /// Create fresh database without any any state.
+    /// Create fresh database without any any state. Returns its location in object storage
+    /// for saving in the server config file.
     pub async fn create(
         application: Arc<ApplicationState>,
         uuid: Uuid,

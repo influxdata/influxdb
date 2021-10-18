@@ -149,8 +149,8 @@ impl IoxObjectStore {
         RootPath::new(inner, server_id, database_name)
     }
 
-    /// List database names in object storage that need to be further checked for generations
-    /// and whether they're marked as deleted or not.
+    /// List database names and their locations in object storage that need to be further checked
+    /// for generations and whether they're marked as deleted or not.
     // TODO: this is in the process of being deprecated in favor of get_server_config_file
     pub async fn list_possible_databases(
         inner: &ObjectStore,
