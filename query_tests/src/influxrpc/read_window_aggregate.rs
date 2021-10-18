@@ -4,11 +4,15 @@ use crate::{
     scenarios::{util::all_scenarios_for_one_chunk, *},
 };
 
+use data_types::timestamp::TimestampRange;
 use server::{db::test_helpers::write_lp, utils::make_db};
 
 use async_trait::async_trait;
 use datafusion::prelude::*;
-use predicate::predicate::{Predicate, PredicateBuilder};
+use predicate::{
+    delete_predicate::DeletePredicate,
+    predicate::{Predicate, PredicateBuilder},
+};
 use query::{
     frontend::influxrpc::InfluxRpcPlanner,
     group_by::{Aggregate, WindowDuration},
@@ -98,6 +102,8 @@ impl DbSetup for MeasurementForWindowAggregate {
         make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
+
+// NGA todo: add delete DbSetup after all scenarios are done for 2 chunks
 
 #[tokio::test]
 async fn test_read_window_aggregate_nanoseconds() {
@@ -214,6 +220,8 @@ impl DbSetup for MeasurementForWindowAggregateMonths {
     }
 }
 
+// NGA todo: add delete DbSetup
+
 #[tokio::test]
 async fn test_read_window_aggregate_months() {
     let predicate = PredicateBuilder::default().build();
@@ -262,6 +270,71 @@ impl DbSetup for MeasurementForDefect2697 {
     }
 }
 
+struct MeasurementForDefect2697WithDelete {}
+#[async_trait]
+impl DbSetup for MeasurementForDefect2697WithDelete {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2021-01-01T00";
+
+        let lp = vec![
+            "mm,section=1a bar=5.0 1609459201000000011",
+            "mm,section=1a bar=0.28 1609459201000000031",
+            "mm,section=2b bar=4.0 1609459201000000009",
+            "mm,section=2b bar=6.0 1609459201000000015",
+            "mm,section=2b bar=1.2 1609459201000000022",
+            "mm,section=1a foo=1.0 1609459201000000001",
+            "mm,section=1a foo=3.0 1609459201000000005",
+            "mm,section=1a foo=11.24 1609459201000000024",
+            "mm,section=2b foo=2.0 1609459201000000002",
+        ];
+
+        // pred: delete from mm where 1609459201000000022 <= time <= 1609459201000000022
+        // 1 row of m0 with timestamp 1609459201000000022 (section=2b bar=1.2)
+        let delete_table_name = "mm";
+        let pred = DeletePredicate {
+            range: TimestampRange {
+                start: 1609459201000000022,
+                end: 1609459201000000022,
+            },
+            exprs: vec![],
+        };
+
+        all_scenarios_for_one_chunk(vec![&pred], vec![], lp, delete_table_name, partition_key).await
+    }
+}
+
+struct MeasurementForDefect2697WithDeleteAll {}
+#[async_trait]
+impl DbSetup for MeasurementForDefect2697WithDeleteAll {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2021-01-01T00";
+
+        let lp = vec![
+            "mm,section=1a bar=5.0 1609459201000000011",
+            "mm,section=1a bar=0.28 1609459201000000031",
+            "mm,section=2b bar=4.0 1609459201000000009",
+            "mm,section=2b bar=6.0 1609459201000000015",
+            "mm,section=2b bar=1.2 1609459201000000022",
+            "mm,section=1a foo=1.0 1609459201000000001",
+            "mm,section=1a foo=3.0 1609459201000000005",
+            "mm,section=1a foo=11.24 1609459201000000024",
+            "mm,section=2b foo=2.0 1609459201000000002",
+        ];
+
+        // pred: delete from mm where 1 <= time <= 1609459201000000031
+        let delete_table_name = "mm";
+        let pred = DeletePredicate {
+            range: TimestampRange {
+                start: 1,
+                end: 1609459201000000031,
+            },
+            exprs: vec![],
+        };
+
+        all_scenarios_for_one_chunk(vec![&pred], vec![], lp, delete_table_name, partition_key).await
+    }
+}
+
 // See https://github.com/influxdata/influxdb_iox/issues/2697
 #[tokio::test]
 async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697() {
@@ -295,6 +368,47 @@ async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697() {
     .await;
 }
 
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_aggregate_min_defect_2697_with_delete() {
+    let predicate = PredicateBuilder::default()
+        // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
+        .timestamp_range(1609459201000000001, 1609459201000000031)
+        .build();
+
+    let agg = Aggregate::Min;
+    let every = WindowDuration::from_nanoseconds(10);
+    let offset = WindowDuration::from_nanoseconds(0);
+
+    // one row deleted
+    let expected_results = vec![
+        "Series tags={_field=bar, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000011], values: [5.0]",
+        "Series tags={_field=foo, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000001, 1609459201000000024], values: [1.0, 11.24]",
+        "Series tags={_field=bar, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000009, 1609459201000000015], values: [4.0, 6.0]",
+        "Series tags={_field=foo, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000002], values: [2.0]",
+    ];
+    run_read_window_aggregate_test_case(
+        MeasurementForDefect2697WithDelete {},
+        predicate.clone(),
+        agg,
+        every.clone(),
+        offset.clone(),
+        expected_results,
+    )
+    .await;
+
+    // all rows deleted
+    let expected_results = vec![];
+    run_read_window_aggregate_test_case(
+        MeasurementForDefect2697WithDeleteAll {},
+        predicate,
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
+}
+
 // See https://github.com/influxdata/influxdb_iox/issues/2697
 #[tokio::test]
 async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697() {
@@ -318,6 +432,50 @@ async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697() {
 
     run_read_window_aggregate_test_case(
         MeasurementForDefect2697 {},
+        predicate,
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697_with_delete() {
+    let predicate = PredicateBuilder::default()
+        // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
+        .timestamp_range(1609459201000000001, 1609459201000000031)
+        .build();
+
+    let agg = Aggregate::Sum;
+    let every = WindowDuration::from_nanoseconds(10);
+    let offset = WindowDuration::from_nanoseconds(0);
+
+    // one row deleted
+
+    // The windowed aggregate is using a non-selector aggregate (SUM, COUNT, MEAD).
+    // For each distinct series the window defines the `time` column
+    let expected_results = vec![
+        "Series tags={_field=bar, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000020], values: [5.0]",
+        "Series tags={_field=foo, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000010, 1609459201000000030], values: [4.0, 11.24]",
+        "Series tags={_field=bar, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000010, 1609459201000000020], values: [4.0, 6.0]",
+        "Series tags={_field=foo, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000010], values: [2.0]",
+    ];
+    run_read_window_aggregate_test_case(
+        MeasurementForDefect2697WithDelete {},
+        predicate.clone(),
+        agg,
+        every.clone(),
+        offset.clone(),
+        expected_results,
+    )
+    .await;
+
+    // all rows deleted
+    let expected_results = vec![];
+    run_read_window_aggregate_test_case(
+        MeasurementForDefect2697WithDeleteAll {},
         predicate,
         agg,
         every,

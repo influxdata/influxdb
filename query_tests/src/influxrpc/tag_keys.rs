@@ -53,6 +53,8 @@ async fn list_tag_columns_no_predicate() {
     run_tag_keys_test_case(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys).await;
 }
 
+// NGA todo: add delete tests when TwoMeasurementsManyNullsWithDelete available
+
 #[tokio::test]
 async fn list_tag_columns_timestamp() {
     let predicate = PredicateBuilder::default()
@@ -140,6 +142,18 @@ async fn list_tag_name_end_to_end() {
         .build();
     let expected_tag_keys = vec!["host", "name", "region"];
     run_tag_keys_test_case(EndToEndTest {}, predicate, expected_tag_keys).await;
+}
+
+// https://github.com/influxdata/influxdb_iox/issues/2863
+#[ignore]
+#[tokio::test]
+async fn list_tag_name_end_to_end_with_delete() {
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(0, 10000)
+        .add_expr(col("host").eq(lit("server01")))
+        .build();
+    let expected_tag_keys = vec!["host", "region"];
+    run_tag_keys_test_case(EndToEndTestWithDelete {}, predicate, expected_tag_keys).await;
 }
 
 fn to_stringset(v: &[&str]) -> StringSetRef {
