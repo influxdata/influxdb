@@ -2,7 +2,7 @@
 //! store.
 use crate::{
     path::{cloud::CloudPath, DELIMITER},
-    ListResult, ObjectMeta, ObjectStoreApi,
+    ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -140,6 +140,10 @@ impl ObjectStoreApi for AmazonS3 {
 
     fn new_path(&self) -> Self::Path {
         CloudPath::default()
+    }
+
+    fn path_from_raw(&self, raw: &str) -> Self::Path {
+        CloudPath::raw(raw)
     }
 
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {

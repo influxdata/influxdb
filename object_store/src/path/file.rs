@@ -24,6 +24,10 @@ impl ObjectStorePath for FilePath {
     fn push_all_dirs<'a>(&mut self, parts: impl AsRef<[&'a str]>) {
         self.inner = mem::take(&mut self.inner).push_all_dirs(parts);
     }
+
+    fn to_raw(&self) -> String {
+        self.to_path_buf().display().to_string()
+    }
 }
 
 impl Ord for FilePath {
@@ -58,7 +62,7 @@ impl FilePath {
     /// Creates a filesystem `PathBuf` location by using the standard library's
     /// `PathBuf` building implementation appropriate for the current
     /// platform.
-    pub fn to_raw(&self) -> PathBuf {
+    pub fn to_path_buf(&self) -> PathBuf {
         use FilePathRepresentation::*;
 
         match &self.inner {
@@ -125,7 +129,7 @@ impl From<DirsAndFileName> for FilePath {
 
 impl fmt::Display for FilePath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", self.to_raw().display().to_string())
+        write!(f, "{}", self.to_raw())
     }
 }
 

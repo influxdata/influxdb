@@ -112,6 +112,10 @@ impl<T: ObjectStoreApi> ObjectStoreApi for ThrottledStore<T> {
         self.inner.new_path()
     }
 
+    fn path_from_raw(&self, raw: &str) -> Self::Path {
+        self.inner.path_from_raw(raw)
+    }
+
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<(), Self::Error> {
         sleep(self.config.wait_put_per_call).await;
 

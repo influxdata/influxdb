@@ -1,6 +1,9 @@
 //! This module contains the IOx implementation for using memory as the object
 //! store.
-use crate::{path::parsed::DirsAndFileName, ListResult, ObjectMeta, ObjectStoreApi};
+use crate::{
+    path::{cloud::CloudPath, parsed::DirsAndFileName},
+    ListResult, ObjectMeta, ObjectStoreApi,
+};
 use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
@@ -35,6 +38,13 @@ impl ObjectStoreApi for InMemory {
 
     fn new_path(&self) -> Self::Path {
         DirsAndFileName::default()
+    }
+
+    fn path_from_raw(&self, raw: &str) -> Self::Path {
+        // Reuse the CloudPath parsing logic even though the in-memory storage isn't considered
+        // to be cloud storage, necessarily
+        let cloud_path = CloudPath::raw(raw);
+        cloud_path.into()
     }
 
     async fn put(&self, location: &Self::Path, bytes: Bytes) -> Result<()> {

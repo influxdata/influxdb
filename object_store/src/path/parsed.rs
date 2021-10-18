@@ -29,6 +29,10 @@ impl ObjectStorePath for DirsAndFileName {
         self.directories
             .extend(parts.as_ref().iter().map(|&v| v.into()));
     }
+
+    fn to_raw(&self) -> String {
+        format!("{}", self)
+    }
 }
 
 impl fmt::Display for DirsAndFileName {

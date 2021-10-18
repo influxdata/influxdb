@@ -23,22 +23,10 @@ impl ObjectStorePath for CloudPath {
     fn push_all_dirs<'a>(&mut self, parts: impl AsRef<[&'a str]>) {
         self.inner = mem::take(&mut self.inner).push_all_dirs(parts);
     }
-}
-
-impl CloudPath {
-    /// Creates a cloud storage location from a string received from a cloud
-    /// storage API without parsing or allocating unless other methods are
-    /// called on this instance that need it
-    pub fn raw(path: impl Into<String>) -> Self {
-        let path = path.into();
-        Self {
-            inner: CloudPathRepresentation::Raw(path),
-        }
-    }
 
     /// Creates a cloud storage location by joining this `CloudPath`'s
     /// parts with `DELIMITER`
-    pub fn to_raw(&self) -> String {
+    fn to_raw(&self) -> String {
         use CloudPathRepresentation::*;
 
         match &self.inner {
@@ -58,6 +46,18 @@ impl CloudPath {
                 }
                 path
             }
+        }
+    }
+}
+
+impl CloudPath {
+    /// Creates a cloud storage location from a string received from a cloud
+    /// storage API without parsing or allocating unless other methods are
+    /// called on this instance that need it
+    pub fn raw(path: impl Into<String>) -> Self {
+        let path = path.into();
+        Self {
+            inner: CloudPathRepresentation::Raw(path),
         }
     }
 }

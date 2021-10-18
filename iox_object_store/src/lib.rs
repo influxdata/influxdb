@@ -342,7 +342,7 @@ impl IoxObjectStore {
     }
 
     /// Look in object storage for an existing database with this name and a non-deleted
-    /// generation, and error if none is found.
+    /// generation
     pub async fn find_existing(
         inner: Arc<ObjectStore>,
         server_id: ServerId,
@@ -350,6 +350,28 @@ impl IoxObjectStore {
     ) -> Result<Option<Self>, IoxObjectStoreError> {
         let root_path = Self::root_path_for(&inner, server_id, database_name);
 
+        Self::find(inner, server_id, database_name, root_path).await
+    }
+
+    /// Look in object storage for an existing database with this name and the given root path
+    /// that was retrieved from a server config
+    pub async fn find_at_root_path(
+        inner: Arc<ObjectStore>,
+        server_id: ServerId,
+        database_name: &DatabaseName<'static>,
+        root_path_str: &str,
+    ) -> Result<Option<Self>, IoxObjectStoreError> {
+        let root_path = RootPath::from_str(&inner, root_path_str);
+
+        Self::find(inner, server_id, database_name, root_path).await
+    }
+
+    async fn find(
+        inner: Arc<ObjectStore>,
+        server_id: ServerId,
+        database_name: &DatabaseName<'static>,
+        root_path: RootPath,
+    ) -> Result<Option<Self>, IoxObjectStoreError> {
         let generations = Self::list_generations(&inner, &root_path)
             .await
             .context(UnderlyingObjectStoreError)?;
@@ -409,7 +431,7 @@ impl IoxObjectStore {
     /// to use during initial database load, but not parsing for semantic meaning, as its format is
     /// subject to change!
     pub fn root_path(&self) -> String {
-        self.root_path.inner.to_string()
+        self.root_path.to_string()
     }
 
     // Deliberately private; this should not leak outside this crate
@@ -1357,5 +1379,36 @@ mod tests {
             err.to_string(),
             "Cannot restore; there is already an active database named `db`"
         );
+    }
+
+    #[tokio::test]
+    async fn round_trip_through_object_store_root_path() {
+        let object_store = make_object_store();
+        let server_id = make_server_id();
+
+        // Create a new iox object store that doesn't exist yet
+        let db = DatabaseName::new("db").unwrap();
+        let db_iox_store = create_database(Arc::clone(&object_store), server_id, &db).await;
+
+        // Save its root path as the server config would
+        let saved_root_path = dbg!(db_iox_store.root_path());
+
+        // Simulate server restarting and reading the server config to construct iox object stores,
+        // the database files in object storage should be found in the same root
+        let restarted_iox_store = IoxObjectStore::find_at_root_path(
+            Arc::clone(&object_store),
+            server_id,
+            &db,
+            &saved_root_path,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(db_iox_store.root_path(), restarted_iox_store.root_path());
+
+        // This should also equal root_path_for, which can be constructed even if a database
+        // hasn't been fully initialized yet
+        let alternate = IoxObjectStore::root_path_for(&object_store, server_id, &db).to_string();
+        assert_eq!(alternate, saved_root_path);
     }
 }
