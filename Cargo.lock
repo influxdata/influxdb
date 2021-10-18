@@ -844,7 +844,7 @@ dependencies = [
  "pin-project-lite",
  "rand",
  "smallvec",
- "sqlparser",
+ "sqlparser 0.11.0",
  "tokio",
  "tokio-stream",
 ]
@@ -3019,7 +3019,7 @@ dependencies = [
  "schema",
  "serde_json",
  "snafu",
- "sqlparser",
+ "sqlparser 0.12.0",
  "test_helpers",
  "tokio",
 ]
@@ -4077,6 +4077,15 @@ name = "sqlparser"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10e1ce16b71375ad72d28d111131069ce0d5f8603f4f86d8acd3456b41b57a51"
+dependencies = [
+ "log",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "760e624412a15d5838ae04fad01037beeff1047781431d74360cddd6b3c1c784"
 dependencies = [
  "log",
 ]
