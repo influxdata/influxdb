@@ -21,6 +21,7 @@ import (
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/pkg/cmputil"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 )
@@ -138,7 +139,7 @@ func TestPushDownRangeRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, cmputil.IgnoreProtobufUnexported())
 		})
 	}
 }
@@ -483,7 +484,7 @@ func TestPushDownFilterRule(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, cmputil.IgnoreProtobufUnexported())
 		})
 	}
 }
@@ -677,7 +678,7 @@ func TestPushDownGroupRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, cmputil.IgnoreProtobufUnexported())
 		})
 	}
 }
@@ -896,7 +897,7 @@ func TestReadTagKeysRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, cmputil.IgnoreProtobufUnexported())
 		})
 	}
 }
@@ -1117,7 +1118,7 @@ func TestReadTagValuesRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, cmputil.IgnoreProtobufUnexported())
 		})
 	}
 }
@@ -1955,7 +1956,7 @@ func TestPushDownWindowAggregateRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, cmputil.IgnoreProtobufUnexported())
 		})
 	}
 }
@@ -2069,7 +2070,7 @@ func TestPushDownWindowForceAggregateRule(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, cmputil.IgnoreProtobufUnexported())
 		})
 	}
 }
@@ -2619,7 +2620,7 @@ func TestTransposeGroupToWindowAggregateRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, cmputil.IgnoreProtobufUnexported())
 		})
 	}
 }
@@ -2728,7 +2729,7 @@ func TestPushDownBareAggregateRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, cmputil.IgnoreProtobufUnexported())
 		})
 	}
 }
@@ -3021,7 +3022,7 @@ func TestPushDownGroupAggregateRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			plantest.PhysicalRuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc, cmputil.IgnoreProtobufUnexported())
 		})
 	}
 }

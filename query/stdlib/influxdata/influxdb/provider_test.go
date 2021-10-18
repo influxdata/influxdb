@@ -2,7 +2,6 @@ package influxdb_test
 
 import (
 	"context"
-	"google.golang.org/protobuf/proto"
 	"testing"
 	"time"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 	"github.com/influxdata/influxdb/v2/v1/services/storage"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
