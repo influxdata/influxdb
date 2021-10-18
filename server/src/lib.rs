@@ -361,6 +361,14 @@ pub enum InitError {
     #[snafu(display("error listing databases in object storage: {}", source))]
     ListDatabases { source: object_store::Error },
 
+    #[snafu(display("error getting server config from object storage: {}", source))]
+    GetServerConfig { source: object_store::Error },
+
+    #[snafu(display("error deserializing server config from protobuf: {}", source))]
+    DeserializeServerConfig {
+        source: generated_types::DecodeError,
+    },
+
     #[snafu(display("error persisting initial server config to object storage: {}", source))]
     PersistInitialServerConfig { source: object_store::Error },
 }
@@ -704,7 +712,7 @@ where
             DatabaseAlreadyExists { db_name }
         );
 
-        res.context(CannotCreateDatabase)?;
+        let location = res.context(CannotCreateDatabase)?;
 
         let database = {
             let mut state = self.shared.state.write();
@@ -718,6 +726,7 @@ where
                         &self.shared,
                         DatabaseConfig {
                             name: db_name.clone(),
+                            location,
                             uuid: Some(uuid),
                             server_id,
                             wipe_catalog_on_error: false,
@@ -1191,11 +1200,40 @@ async fn maybe_initialize_server(shared: &ServerShared) {
         (init_ready, handle)
     };
 
-    let maybe_databases = IoxObjectStore::list_possible_databases(
+    let maybe_databases = IoxObjectStore::get_server_config_file(
         shared.application.object_store(),
         init_ready.server_id,
     )
-    .await;
+    .await
+    .map_err(|e| InitError::GetServerConfig { source: e })
+    .and_then(|config| {
+        generated_types::server_config::decode_persisted_server_config(config)
+            .map_err(|e| InitError::DeserializeServerConfig { source: e })
+    })
+    .map(|server_config| {
+        server_config
+            .databases
+            .into_iter()
+            .map(|(name, location)| {
+                (
+                    DatabaseName::new(name).expect("serialized db names should be valid"),
+                    location,
+                )
+            })
+            .collect()
+    });
+
+    // TODO: This is a temporary fallback until the transition to server config files being the
+    // source of truth for database name and location is finished.
+    let maybe_databases = match maybe_databases {
+        Ok(maybe) => Ok(maybe),
+        Err(_) => IoxObjectStore::list_possible_databases(
+            shared.application.object_store(),
+            init_ready.server_id,
+        )
+        .await
+        .map_err(|e| InitError::ListDatabases { source: e }),
+    };
 
     let next_state = match maybe_databases {
         Ok(databases) => {
@@ -1204,12 +1242,13 @@ async fn maybe_initialize_server(shared: &ServerShared) {
                 databases: HashMap::with_capacity(databases.len()),
             };
 
-            for db_name in databases {
+            for (db_name, location) in databases {
                 state
                     .new_database(
                         shared,
                         DatabaseConfig {
                             name: db_name,
+                            location,
                             // TODO: this will be the UUID from the object store path once we
                             // make that switch; we'll be guaranteed to have it then and this
                             // won't be an `Option`
@@ -1251,7 +1290,7 @@ async fn maybe_initialize_server(shared: &ServerShared) {
         }
         Err(e) => {
             error!(server_id=%init_ready.server_id, %e, "error initializing server");
-            ServerState::InitError(init_ready, Arc::new(InitError::ListDatabases { source: e }))
+            ServerState::InitError(init_ready, Arc::new(e))
         }
     };
 
@@ -2089,21 +2128,21 @@ mod tests {
             .await
             .expect("failed to create database");
 
-        // create invalid db rules for bar
-        let iox_object_store = IoxObjectStore::new(
-            Arc::clone(application.object_store()),
-            server_id,
-            &bar_db_name,
-        )
-        .await
-        .unwrap();
+        // create database bar so it gets written to the server config
+        let bar = create_simple_database(&server, "bar")
+            .await
+            .expect("failed to create database");
+
+        // make the db rules for bar invalid
+        let iox_object_store = bar.iox_object_store().unwrap();
+
         iox_object_store
             .put_database_rules_file(Bytes::from("x"))
             .await
             .unwrap();
         iox_object_store.get_database_rules_file().await.unwrap();
 
-        // start server
+        // restart server
         let server = make_server(application);
         server.set_id(server_id).unwrap();
         server.wait_for_init().await.unwrap();
