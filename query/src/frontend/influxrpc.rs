@@ -8,7 +8,9 @@ use arrow::datatypes::{DataType, Field};
 use data_types::chunk_metadata::ChunkId;
 use datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
-    logical_plan::{lit, Column, DFSchemaRef, Expr, ExprRewriter, LogicalPlan, LogicalPlanBuilder},
+    logical_plan::{
+        binary_expr, lit, Column, DFSchemaRef, Expr, ExprRewriter, LogicalPlan, LogicalPlanBuilder,
+    },
     optimizer::utils::expr_to_columns,
     prelude::col,
 };
@@ -46,6 +48,16 @@ use crate::{
 /// The plan for each table will have the value of `_measurement`
 /// filled in with a literal for the respective name of that field
 pub const MEASUREMENT_COLUMN_NAME: &str = "_measurement";
+
+/// Any column references to this name are rewritten to be a disjunctive set of
+/// expressions to all field columns for the table schema.
+///
+/// This is required to support predicates like
+/// `_value` = 1.77
+///
+/// The plan for each table will have expression containing `_value` rewritten
+/// into multiple expressions (one for each field column).
+pub const VALUE_COLUMN_NAME: &str = "_value";
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -1615,6 +1627,8 @@ impl PredicateNormalizer {
 ///
 /// * all references to the [MEASUREMENT_COLUMN_NAME] column in any
 /// `Exprs` are rewritten with the actual table name
+/// * any expression on the [VALUE_COLUMN_NAME] column is rewritten to be
+/// applied across all field columns.
 ///
 /// For example if the original predicate was
 /// ```text
@@ -1624,18 +1638,30 @@ impl PredicateNormalizer {
 /// When evaluated on table "cpu" then the predicate is rewritten to
 /// ```text
 /// "cpu" = "some_table"
+/// ```
 ///
+/// if the original predicate contained
+/// ```text
+/// _value > 34.2
+/// ```
+///
+/// When evaluated on table "cpu" then the expression is rewritten as a
+/// collection of disjunctive expressions against all field columns
+/// ```text
+/// ("field1" > 34.2 OR "field2" > 34.2 OR "fieldn" > 34.2)
+/// ```
 #[derive(Debug)]
 struct TableNormalizedPredicate {
     inner: Arc<Predicate>,
 }
 
 impl TableNormalizedPredicate {
-    fn new(table_name: &str, _: Arc<Schema>, mut inner: Predicate) -> Self {
+    fn new(table_name: &str, schema: Arc<Schema>, mut inner: Predicate) -> Self {
         inner.exprs = inner
             .exprs
             .into_iter()
             .map(|e| rewrite_measurement_references(table_name, e))
+            .map(|e| rewrite_field_value_references(Arc::clone(&schema), e))
             .collect::<Vec<_>>();
 
         Self {
@@ -1652,7 +1678,7 @@ impl TableNormalizedPredicate {
 /// with the actual table name
 fn rewrite_measurement_references(table_name: &str, expr: Expr) -> Expr {
     let mut rewriter = MeasurementRewriter { table_name };
-    expr.rewrite(&mut rewriter).expect("rewrite is infallable")
+    expr.rewrite(&mut rewriter).expect("rewrite is infallible")
 }
 
 struct MeasurementRewriter<'a> {
@@ -1670,6 +1696,52 @@ impl ExprRewriter for MeasurementRewriter<'_> {
                 lit(self.table_name)
             }
             // no rewrite needed
+            _ => expr,
+        })
+    }
+}
+
+/// Rewrites a predicate on `_value` to a disjunctive set of expressions on each
+/// distinct field column in the table.
+///
+/// For example, the predicate `_value = 1.77` on a table with three field
+/// columns would be rewritten to:
+///
+/// `(field1 = 1.77 OR field2 = 1.77 OR field3 = 1.77)`.
+fn rewrite_field_value_references(schema: Arc<Schema>, expr: Expr) -> Expr {
+    let mut rewriter = FieldValueRewriter { schema };
+    expr.rewrite(&mut rewriter).expect("rewrite is infallible")
+}
+
+struct FieldValueRewriter {
+    schema: Arc<Schema>,
+}
+
+impl ExprRewriter for FieldValueRewriter {
+    fn mutate(&mut self, expr: Expr) -> DatafusionResult<Expr> {
+        Ok(match expr {
+            Expr::BinaryExpr {
+                ref left,
+                op,
+                ref right,
+            } => {
+                if let Expr::Column(inner) = &**left {
+                    if inner.name != VALUE_COLUMN_NAME {
+                        return Ok(expr); // column name not `_value`.
+                    }
+
+                    // build a disjunctive expression using binary expressions
+                    // for each field column and the original expression's
+                    // operator and rhs.
+                    self.schema
+                        .fields_iter()
+                        .map(|field| binary_expr(col(field.name()), op, *right.clone()))
+                        .reduce(|a, b| a.or(b))
+                        .expect("at least one field column")
+                } else {
+                    expr
+                }
+            }
             _ => expr,
         })
     }
