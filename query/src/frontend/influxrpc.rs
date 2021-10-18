@@ -1761,6 +1761,7 @@ pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use datafusion::logical_plan::Operator;
     use schema::builder::SchemaBuilder;
 
     use super::*;
@@ -1796,5 +1797,59 @@ mod tests {
                 .eq(col("time"))
                 .and(col("_measurement").eq(lit("the_table")))
         ));
+    }
+
+    #[test]
+    fn test_field_value_rewriter() {
+        let schema = SchemaBuilder::new()
+            .tag("t1")
+            .tag("t2")
+            .field("f1", DataType::Float64)
+            .field("f2", DataType::Float64)
+            .timestamp()
+            .build()
+            .unwrap();
+
+        let mut rewriter = FieldValueRewriter {
+            schema: Arc::new(schema),
+        };
+
+        let cases = vec![
+            (
+                binary_expr(col("f1"), Operator::Eq, lit(1.82)),
+                binary_expr(col("f1"), Operator::Eq, lit(1.82)),
+            ),
+            (col("t2"), col("t2")),
+            (
+                binary_expr(col(VALUE_COLUMN_NAME), Operator::Eq, lit(1.82)),
+                //
+                // _value = 1.82 -> f1 = (1.82 OR f2 = 1.82)
+                //
+                binary_expr(
+                    binary_expr(col("f1"), Operator::Eq, lit(1.82)),
+                    Operator::Or,
+                    binary_expr(col("f2"), Operator::Eq, lit(1.82)),
+                ),
+            ),
+        ];
+
+        for (input, exp) in cases {
+            let rewritten = rewriter.mutate(input).unwrap();
+            assert_eq!(rewritten, exp);
+        }
+
+        // Test case with single field.
+        let schema = SchemaBuilder::new()
+            .field("f1", DataType::Float64)
+            .timestamp()
+            .build()
+            .unwrap();
+        let mut rewriter = FieldValueRewriter {
+            schema: Arc::new(schema),
+        };
+        let rewritten = rewriter
+            .mutate(binary_expr(col(VALUE_COLUMN_NAME), Operator::Gt, lit(1.88)))
+            .unwrap();
+        assert_eq!(rewritten, binary_expr(col("f1"), Operator::Gt, lit(1.88)));
     }
 }
