@@ -1680,6 +1680,7 @@ dependencies = [
  "parquet",
  "parquet_catalog",
  "parquet_file",
+ "pin-project",
  "pprof",
  "predicate",
  "predicates",

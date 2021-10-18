@@ -774,8 +774,7 @@ mod tests {
         let prepare_sql_span = child(sql_span, "prepare_sql").unwrap();
         child(prepare_sql_span, "prepare_plan").unwrap();
 
-        let collect_span = child(ctx_span, "collect").unwrap();
-        let execute_span = child(collect_span, "execute_stream_partitioned").unwrap();
+        let execute_span = child(ctx_span, "execute_stream_partitioned").unwrap();
         let coalesce_span = child(execute_span, "CoalescePartitionsEx").unwrap();
 
         // validate spans from DataFusion ExecutionPlan are present
