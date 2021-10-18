@@ -323,9 +323,11 @@ mod tests {
             mask.append_bits(mask_length, &collected);
             all_bools.extend_from_slice(&bools);
 
-            let truncate = rng.next_u32() as usize % all_bools.len();
-            mask.truncate(truncate);
-            all_bools.truncate(truncate);
+            if !all_bools.is_empty() {
+                let truncate = rng.next_u32() as usize % all_bools.len();
+                mask.truncate(truncate);
+                all_bools.truncate(truncate);
+            }
 
             let collected = compact_bools(&all_bools);
             assert_eq!(mask.buffer, collected);
