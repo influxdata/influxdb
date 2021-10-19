@@ -11,6 +11,3 @@ hashbrown = "0.11"
 indexmap = "1.7"
 itertools = "0.10.1"
 snafu = "0.6"
-
-[dev-dependencies]
-arrow_util = { path = "../arrow_util" }
