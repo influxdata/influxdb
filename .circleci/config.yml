@@ -127,9 +127,11 @@ jobs:
           # excluding datafusion because it's effectively a dependency masqueraded as workspace crate.
           command: cargo doc --document-private-items --no-deps --workspace --exclude datafusion
       - cache_save
+      - run:
+          name: Compress Docs
+          command: tar -cvzf rustdoc.tar.gz target/doc/
       - store_artifacts:
-          path: target/doc/
-          destination: rustdoc
+          path: rustdoc.tar.gz
 
   test:
     docker:
