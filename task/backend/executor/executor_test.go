@@ -103,7 +103,7 @@ func taskExecutorSystem(t *testing.T) tes {
 func TestTaskExecutor(t *testing.T) {
 	t.Run("QuerySuccess", testQuerySuccess)
 	t.Run("QueryFailure", testQueryFailure)
-	// t.Run("ManualRun", testManualRun)
+	t.Run("ManualRun", testManualRun)
 	t.Run("ResumeRun", testResumingRun)
 	t.Run("WorkerLimit", testWorkerLimit)
 	t.Run("LimitFunc", testLimitFunc)

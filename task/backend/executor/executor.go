@@ -226,7 +226,14 @@ func (e *Executor) ManualRun(ctx context.Context, id platform.ID, runID platform
 	if err != nil {
 		return nil, err
 	}
-	p, err := e.createPromise(context.Background(), r)
+
+	auth, err := icontext.GetAuthorizer(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx = icontext.SetAuthorizer(context.Background(), auth)
+	p, err := e.createPromise(ctx, r)
 
 	e.startWorker()
 	e.metrics.manualRunsCounter.WithLabelValues(id.String()).Inc()
