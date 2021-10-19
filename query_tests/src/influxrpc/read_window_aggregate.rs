@@ -166,6 +166,34 @@ async fn test_read_window_aggregate_nanoseconds_measurement_pred() {
     .await;
 }
 
+#[tokio::test]
+async fn test_read_window_aggregate_nanoseconds_measurement_count() {
+    // Expect that the type of `Count` is Integer
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(100, 450)
+        .build();
+
+    let agg = Aggregate::Count;
+    let every = WindowDuration::from_nanoseconds(200);
+    let offset = WindowDuration::from_nanoseconds(0);
+
+    let expected_results = vec![
+        "Series tags={_field=temp, _measurement=h2o, city=Boston, state=MA}\n  IntegerPoints timestamps: [200, 400, 600], values: [1, 2, 1]",
+        "Series tags={_field=temp, _measurement=h2o, city=Cambridge, state=MA}\n  IntegerPoints timestamps: [200, 400, 600], values: [1, 2, 1]",
+        "Series tags={_field=temp, _measurement=h2o, city=LA, state=CA}\n  IntegerPoints timestamps: [200, 400, 600], values: [1, 2, 1]",
+    ];
+
+    run_read_window_aggregate_test_case(
+        MeasurementForWindowAggregate {},
+        predicate,
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
+}
+
 struct MeasurementForWindowAggregateMonths {}
 #[async_trait]
 impl DbSetup for MeasurementForWindowAggregateMonths {

@@ -1182,6 +1182,8 @@ impl InfluxRpcPlanner {
             .sort(sort_exprs)
             .context(BuildingPlan)?;
 
+        let plan_builder = cast_aggregates(plan_builder, agg, &field_columns)?;
+
         // and finally create the plan
         let plan = plan_builder.build().context(BuildingPlan)?;
 
