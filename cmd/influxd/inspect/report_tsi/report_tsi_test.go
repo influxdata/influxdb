@@ -104,7 +104,7 @@ func Test_ReportTSI_TestData(t *testing.T) {
 			testName: "Valid_TopN",
 			bucketId: lowCard,
 			dataPath: path,
-			topN: 2,
+			topN:     2,
 			expectedOuts: []string{
 				fmt.Sprintf("Summary\nDatabase Path: %s\nCardinality (exact): 5", filepath.Join(path, lowCard)),
 				fmt.Sprintf("Shard ID: 1\nPath: %s\nCardinality (exact): 5", filepath.Join(path, lowCard, "autogen", "1")),
