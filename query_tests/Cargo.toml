@@ -9,7 +9,6 @@ description = "Tests of the query engine against different database configuratio
 
 [dependencies]
 async-trait = "0.1"
-chrono = "0.4"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
