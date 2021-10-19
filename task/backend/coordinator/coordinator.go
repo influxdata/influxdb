@@ -169,8 +169,8 @@ func (c *Coordinator) RunCancelled(ctx context.Context, runID platform.ID) error
 
 // RunForced speaks directly to the Executor to run a task immediately
 func (c *Coordinator) RunForced(ctx context.Context, task *taskmodel.Task, run *taskmodel.Run) error {
-	// The returned promise is not used, since clients expect the HTTP server to return immediately after scheduling the
-	// task rathern than waiting for the task to finish.
+	// the returned promise is not used, since clients expect the HTTP server to return immediately after scheduling the
+	// task rather than waiting for the task to finish
 	_, err := c.ex.ManualRun(ctx, task.ID, run.ID)
 	if err != nil {
 		return taskmodel.ErrRunExecutionError(err)
