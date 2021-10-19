@@ -232,6 +232,8 @@ func (e *Executor) ManualRun(ctx context.Context, id platform.ID, runID platform
 		return nil, err
 	}
 
+	// create a new context for running the task in the background so that returning the HTTP response does not cancel the
+	// context of the task to be run
 	ctx = icontext.SetAuthorizer(context.Background(), auth)
 	p, err := e.createPromise(ctx, r)
 
