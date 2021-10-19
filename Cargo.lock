@@ -1691,7 +1691,6 @@ dependencies = [
  "server",
  "snafu",
  "structopt",
- "synchronized-writer",
  "tempfile",
  "test_helpers",
  "thiserror",
