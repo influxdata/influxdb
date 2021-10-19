@@ -15,8 +15,7 @@ chrono = "0.4"
 # Google Cloud Storage integration
 cloud-storage = {version = "0.10.3", optional = true}
 futures = "0.3"
-# https://github.com/tkaitchuck/aHash/issues/95
-indexmap = { version = "~1.6.2", optional = true }
+indexmap = { version = "1.7", optional = true }
 itertools = "0.10.1"
 observability_deps = { path = "../observability_deps" }
 percent-encoding = "2.1"

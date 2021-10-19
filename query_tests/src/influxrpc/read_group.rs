@@ -3,6 +3,7 @@ use crate::{
     influxrpc::util::run_series_set_plan,
     scenarios::{
         make_two_chunk_scenarios, util::all_scenarios_for_one_chunk, DbScenario, DbSetup, NoData,
+        TwoMeasurementsManyFieldsOneChunk,
     },
 };
 
@@ -918,6 +919,36 @@ async fn test_grouped_series_set_plan_group_measurement_tag_count() {
 
     run_read_group_test_case(
         MeasurementForGroupByField {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_field_pred_and_null_fields() {
+    // no predicate
+    let predicate = PredicateBuilder::default().table("o2").build();
+
+    let agg = Aggregate::Count;
+    let group_columns = vec!["state", "_field"];
+
+    // Expect the data is grouped so output is sorted by measurement and then region
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement, state partition_key_vals: CA, reading",
+        "Series tags={_field=reading, _measurement=o2, state=CA}\n  IntegerPoints timestamps: [300], values: [0]",
+        "Group tag_keys: _field, _measurement, state partition_key_vals: CA, temp",
+        "Series tags={_field=temp, _measurement=o2, state=CA}\n  IntegerPoints timestamps: [300], values: [1]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA, reading",
+        "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  IntegerPoints timestamps: [50], values: [1]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA, temp",
+        "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  IntegerPoints timestamps: [50], values: [1]",
+    ];
+
+    run_read_group_test_case(
+        TwoMeasurementsManyFieldsOneChunk {},
         predicate,
         agg,
         group_columns,

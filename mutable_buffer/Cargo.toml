@@ -5,7 +5,7 @@ authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
-arrow = { version = "5.5", features = ["prettyprint"] }
+arrow = { version = "6.0", features = ["prettyprint"] }
 data_types = { path = "../data_types" }
 entry = { path = "../entry" }
 schema = { path = "../schema" }

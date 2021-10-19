@@ -125,8 +125,10 @@ impl PackedStringArray<i32> {
             .len(len)
             .add_buffer(offsets)
             .add_buffer(values)
-            .build();
-
+            .build()
+            // TODO consider skipping the validation checks by using
+            // `new_unchecked`
+            .expect("Valid array data");
         StringArray::from(data)
     }
 }

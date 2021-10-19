@@ -4,10 +4,9 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-arrow = { version = "5.0", features = ["prettyprint"] }
+arrow = { version = "6.0", features = ["prettyprint"] }
 base64 = "0.13"
 bytes = "1.0"
-chrono = "0.4"
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
 datafusion_util = { path = "../datafusion_util" }
@@ -17,7 +16,7 @@ iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
-parquet = "5.0"
+parquet = "6.0"
 parquet_file = { path = "../parquet_file" }
 parquet-format = "2.6"
 parking_lot = "0.11.1"
