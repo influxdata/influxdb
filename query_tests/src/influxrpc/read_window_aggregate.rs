@@ -512,3 +512,53 @@ async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697_with_delet
     )
     .await;
 }
+
+// Test data to validate fix for:
+// https://github.com/influxdata/influxdb_iox/issues/2890
+struct MeasurementForDefect2890 {}
+#[async_trait]
+impl DbSetup for MeasurementForDefect2890 {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2021-01-01T00";
+
+        let lp = vec![
+            "mm foo=2.0 1609459201000000001",
+            "mm foo=2.0 1609459201000000002",
+            "mm foo=3.0 1609459201000000005",
+            "mm foo=11.24 1609459201000000024",
+            "mm bar=4.0 1609459201000000009",
+            "mm bar=5.0 1609459201000000011",
+            "mm bar=6.0 1609459201000000015",
+            "mm bar=1.2 1609459201000000022",
+            "mm bar=2.8 1609459201000000031",
+        ];
+
+        all_scenarios_for_one_chunk(vec![], vec![], lp, "mm", partition_key).await
+    }
+}
+
+#[tokio::test]
+async fn test_read_window_aggregate_overflow() {
+    let predicate = PredicateBuilder::default()
+        .timestamp_range(1609459201000000001, 1609459201000000024)
+        .build();
+
+    let agg = Aggregate::Max;
+    // Note the giant window (every=9223372036854775807)
+    let every = WindowDuration::from_nanoseconds(i64::MAX);
+    let offset = WindowDuration::from_nanoseconds(0);
+
+    let expected_results = vec![
+        "Series tags={_field=bar, _measurement=mm}\n  FloatPoints timestamps: [1609459201000000015], values: [6.0]",
+        "Series tags={_field=foo, _measurement=mm}\n  FloatPoints timestamps: [1609459201000000005], values: [3.0]",
+    ];
+    run_read_window_aggregate_test_case(
+        MeasurementForDefect2890 {},
+        predicate,
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
+}
