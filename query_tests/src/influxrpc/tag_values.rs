@@ -78,8 +78,6 @@ async fn list_tag_values_no_predicate_state_col() {
     .await;
 }
 
-// https://github.com/influxdata/influxdb_iox/issues/2864
-#[ignore]
 #[tokio::test]
 async fn list_tag_values_no_predicate_state_col_with_delete() {
     let predicate = PredicateBuilder::default().build();
@@ -94,7 +92,6 @@ async fn list_tag_values_no_predicate_state_col_with_delete() {
     .await;
 }
 
-#[ignore]
 #[tokio::test]
 async fn list_tag_values_no_predicate_state_col_with_delete_all() {
     let predicate = PredicateBuilder::default().build();
