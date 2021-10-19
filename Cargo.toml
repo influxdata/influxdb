@@ -175,7 +175,6 @@ influxdb2_client = { path = "influxdb2_client" }
 influxdb_storage_client = { path = "influxdb_storage_client" }
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["flight"] }
 test_helpers = { path = "test_helpers" }
-synchronized-writer = "1"
 parking_lot = "0.11.2"
 write_buffer = { path = "write_buffer" }
 
