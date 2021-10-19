@@ -276,8 +276,8 @@ impl InfluxRpcPlanner {
         let mut normalizer = PredicateNormalizer::new(predicate);
 
         let mut known_columns = BTreeSet::new();
-        let mut do_full_plan = false;
         for chunk in database.chunks(normalizer.unnormalized()) {
+            let mut do_full_plan = false;
             if chunk.has_delete_predicates() {
                 do_full_plan = true;
             }
@@ -306,13 +306,13 @@ impl InfluxRpcPlanner {
 
             let selection = Selection::Some(&column_names);
 
-            // filter the columns further from the predicate
-            let maybe_names = chunk
-                .column_names(&predicate, selection)
-                .map_err(|e| Box::new(e) as _)
-                .context(FindingColumnNames)?;
-
             if !do_full_plan {
+                // filter the columns further from the predicate
+                let maybe_names = chunk
+                    .column_names(&predicate, selection)
+                    .map_err(|e| Box::new(e) as _)
+                    .context(FindingColumnNames)?;
+
                 match maybe_names {
                     Some(mut names) => {
                         debug!(
@@ -324,19 +324,20 @@ impl InfluxRpcPlanner {
                         known_columns.append(&mut names);
                     }
                     None => {
-                        debug!(
-                            table_name,
-                            chunk_id=%chunk.id().get(),
-                            "column names need full plan"
-                        );
-                        // can't get columns only from metadata, need
-                        // a general purpose plan
                         do_full_plan = true;
                     }
                 }
             }
 
+            // can't get columns only from metadata, need
+            // a general purpose plan
             if do_full_plan {
+                debug!(
+                    table_name,
+                    chunk_id=%chunk.id().get(),
+                    "column names need full plan"
+                );
+
                 need_full_plans
                     .entry(table_name.to_string())
                     .or_insert_with(Vec::new)

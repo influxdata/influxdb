@@ -147,7 +147,6 @@ impl StringSetPlanBuilder {
                     str_iter_to_batch(TABLE_NAMES_COLUMN_NAME, strings.into_iter().map(Some))
                         .context(InternalConvertingToArrow)?;
 
-                // NGA todo: need a different batch here for normal plan
                 let plan = make_scan_plan(batch).context(InternalPlanningStringSet)?;
 
                 plans.push(plan)
