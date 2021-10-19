@@ -195,6 +195,7 @@ func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *
 func (i *Index) Bytes() int {
 	var b int
 	i.mu.RLock()
+	defer i.mu.RUnlock()
 	b += 24 // mu RWMutex is 24 bytes
 	b += int(unsafe.Sizeof(i.partitions))
 	for _, p := range i.partitions {
@@ -215,7 +216,6 @@ func (i *Index) Bytes() int {
 	b += int(unsafe.Sizeof(i.database)) + len(i.database)
 	b += int(unsafe.Sizeof(i.version))
 	b += int(unsafe.Sizeof(i.PartitionN))
-	i.mu.RUnlock()
 	return b
 }
 
@@ -886,10 +886,10 @@ func (i *Index) DropSeriesList(seriesIDs []uint64, keys [][]byte, _ bool) error 
 
 	// Add sketch tombstone.
 	i.mu.Lock()
+	defer i.mu.Unlock()
 	for _, key := range keys {
 		i.sTSketch.Add(key)
 	}
-	i.mu.Unlock()
 
 	return nil
 }

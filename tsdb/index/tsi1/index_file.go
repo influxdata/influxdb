@@ -83,6 +83,7 @@ func NewIndexFile(sfile *tsdb.SeriesFile) *IndexFile {
 func (f *IndexFile) bytes() int {
 	var b int
 	f.wg.Add(1)
+	defer f.wg.Done()
 	b += 16 // wg WaitGroup is 16 bytes
 	b += int(unsafe.Sizeof(f.data))
 	// Do not count f.data contents because it is mmap'd
@@ -101,7 +102,6 @@ func (f *IndexFile) bytes() int {
 	b += 24 // mu RWMutex is 24 bytes
 	b += int(unsafe.Sizeof(f.compacting))
 	b += int(unsafe.Sizeof(f.path)) + len(f.path)
-	f.wg.Done()
 	return b
 }
 
@@ -160,8 +160,8 @@ func (f *IndexFile) Size() int64 { return int64(len(f.data)) }
 // Compacting returns true if the file is being compacted.
 func (f *IndexFile) Compacting() bool {
 	f.mu.RLock()
+	defer f.mu.RUnlock()
 	v := f.compacting
-	f.mu.RUnlock()
 	return v
 }
 
