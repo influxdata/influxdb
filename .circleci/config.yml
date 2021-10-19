@@ -575,7 +575,7 @@ commands:
                 name: Publish release
                 command: |
                   S3_FOLDER="platform/nightlies/test" \
-                  VERSION=2.0-${CIRCLE_TAG} \
+                  VERSION=2.1-${CIRCLE_TAG} \
                   goreleaser \
                     --debug \
                     release \
@@ -588,8 +588,8 @@ commands:
             - run:
                 name: Publish nightly
                 command: |
-                  S3_FOLDER="platform/nightlies/2.0" \
-                  VERSION="2.0-nightly" \
+                  S3_FOLDER="platform/nightlies/2.1" \
+                  VERSION="2.1-nightly" \
                   goreleaser \
                     --debug \
                     release \
@@ -1160,7 +1160,7 @@ jobs:
                 name: Nightly Changelog
                 command: |
                   set -x
-                  S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/platform/nightlies/2.0"
+                  S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/platform/nightlies/2.1"
                   CHANGELOG_FILENAME="CHANGELOG.md"
                   COMMIT_FILE_PATH="changelog-commit.txt"
                   curl -o ${CHANGELOG_FILENAME} ${S3_PATH}/${CHANGELOG_FILENAME}
