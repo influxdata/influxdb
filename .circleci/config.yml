@@ -185,7 +185,7 @@ workflows:
           filters:
             branches:
               only:
-                - "2.0"
+                - "2.1"
     jobs:
       - changelog:
           nightly: true
@@ -509,17 +509,21 @@ commands:
           command: |
             # Get jq to parse binfmt output.
             sudo apt-get update && sudo apt-get install -y jq
+
             # Uninstall any emulators provided by the system.
             emulators=($(docker run --rm --privileged tonistiigi/binfmt:latest | jq -r .emulators[]))
             for e in ${emulators[@]}; do
               docker run --rm --privileged tonistiigi/binfmt:latest --uninstall ${e}
             done
+
             # Install the QEMU emulators we need to cross-build.
             docker run --rm --privileged tonistiigi/binfmt:latest --install all
+
             # Create a new buildx context using the freshly-installed emulators.
             docker buildx create --name cross-builder
             docker buildx use --default cross-builder
             docker buildx inspect --bootstrap
+
             # Build the 1st stage of our Docker(s) on our target platforms, to flush out
             # any problems in our emulator setup.
             docker buildx build --target dependency-base --platform linux/amd64,linux/arm64 docker/influxd
@@ -892,6 +896,7 @@ jobs:
               -chdir=scripts/ci \
               destroy \
                 -auto-approve
+
 
   perf_test:
     executor: linux-amd64
