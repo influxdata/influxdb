@@ -207,8 +207,6 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
-        info!(" = Start building plan for table_name");
-
         let mut builder = StringSetPlanBuilder::new();
         let mut normalizer = PredicateNormalizer::new(predicate);
 
@@ -247,7 +245,6 @@ impl InfluxRpcPlanner {
         }
 
         let plan = builder.build().context(CreatingStringSet)?;
-        info!(" = End building plan for table_name");
         Ok(plan)
     }
 
@@ -259,7 +256,6 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
-        info!(" = Start building plan for tag_keys");
         debug!(predicate=?predicate, "planning tag_keys");
 
         // The basic algorithm is:
@@ -374,8 +370,6 @@ impl InfluxRpcPlanner {
             .build()
             .context(CreatingStringSet);
 
-        info!(" = End building plan for tag_keys");
-
         plan_set
     }
 
@@ -391,7 +385,6 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
-        info!(" = Start building plan for tag_values");
         debug!(predicate=?predicate, tag_name, "planning tag_values");
 
         // The basic algorithm is:
@@ -547,8 +540,6 @@ impl InfluxRpcPlanner {
             .build()
             .context(CreatingStringSet);
 
-        info!(" = End building plan for tag_values");
-
         plan_set
     }
 
@@ -560,7 +551,6 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
-        info!(" = Start building plan for field_columns");
         debug!(predicate=?predicate, "planning field_columns");
 
         // Algorithm is to run a "select field_cols from table where
@@ -586,7 +576,6 @@ impl InfluxRpcPlanner {
             }
         }
 
-        info!(" = End building plan for field_columns");
         Ok(field_list_plan)
     }
 
@@ -612,7 +601,6 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
-        info!(" = Start building plan for read_filter");
         debug!(predicate=?predicate, "planning read_filter");
 
         let mut normalizer = PredicateNormalizer::new(predicate);
@@ -636,7 +624,6 @@ impl InfluxRpcPlanner {
             }
         }
 
-        info!(" = End building plan for read_filter");
         Ok(SeriesSetPlans::new(ss_plans))
     }
 
@@ -670,7 +657,6 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
-        info!(" = Start building plan for read_group");
         debug!(predicate=?predicate, agg=?agg, "planning read_group");
 
         let mut normalizer = PredicateNormalizer::new(predicate);
@@ -698,7 +684,6 @@ impl InfluxRpcPlanner {
             }
         }
 
-        info!(" = End building plan for read_group");
         let plan = SeriesSetPlans::new(ss_plans);
 
         // Note always group (which will resort the frames)
@@ -723,7 +708,6 @@ impl InfluxRpcPlanner {
     where
         D: QueryDatabase + 'static,
     {
-        info!(" = Start building plan for read_window_aggregate");
         debug!(
             ?predicate,
             ?agg,
@@ -759,7 +743,6 @@ impl InfluxRpcPlanner {
             }
         }
 
-        info!(" = End building plan for read_window_aggregate");
         Ok(SeriesSetPlans::new(ss_plans))
     }
 
