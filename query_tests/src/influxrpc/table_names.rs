@@ -65,7 +65,7 @@ async fn list_table_names_no_data_pred_with_delete() {
 
 // https://github.com/influxdata/influxdb_iox/issues/2861
 // And all other ignored tests
-//#[ignore]
+#[ignore]
 #[tokio::test]
 async fn list_table_names_no_data_pred_with_delete_all() {
     run_table_names_test_case(
