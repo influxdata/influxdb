@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -40,11 +42,12 @@ func errLocalBucketNotFound(id platform.ID, cause error) error {
 
 func NewService(store *sqlite.SqlStore, bktSvc BucketService, log *zap.Logger) *service {
 	return &service{
-		store:         store,
-		idGenerator:   snowflake.NewIDGenerator(),
-		bucketService: bktSvc,
-		validator:     internal.NewValidator(),
-		log:           log,
+		store:               store,
+		idGenerator:         snowflake.NewIDGenerator(),
+		bucketService:       bktSvc,
+		validator:           internal.NewValidator(),
+		log:                 log,
+		durableQueueManager: internal.NewDurableQueueManager(log),
 	}
 }
 
@@ -58,12 +61,19 @@ type BucketService interface {
 	FindBucketByID(ctx context.Context, id platform.ID) (*influxdb.Bucket, error)
 }
 
+type DurableQueueManager interface {
+	InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) *durablequeue.Queue
+	DeleteQueue(replicationID platform.ID) error
+	UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error
+}
+
 type service struct {
-	store         *sqlite.SqlStore
-	idGenerator   platform.IDGenerator
-	bucketService BucketService
-	validator     ReplicationValidator
-	log           *zap.Logger
+	store               *sqlite.SqlStore
+	idGenerator         platform.IDGenerator
+	bucketService       BucketService
+	validator           ReplicationValidator
+	durableQueueManager DurableQueueManager
+	log                 *zap.Logger
 }
 
 func (s service) ListReplications(ctx context.Context, filter influxdb.ReplicationListFilter) (*influxdb.Replications, error) {
@@ -108,6 +118,8 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 		return nil, errLocalBucketNotFound(request.LocalBucketID, err)
 	}
 
+	s.durableQueueManager.InitializeQueue(request.RemoteID, request.MaxQueueSizeBytes)
+
 	q := sq.Insert("replications").
 		SetMap(sq.Eq{
 			"id":                       s.idGenerator.ID(),
@@ -130,12 +142,14 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 	}
 
 	var r influxdb.Replication
+
 	if err := s.store.DB.GetContext(ctx, &r, query, args...); err != nil {
 		if sqlErr, ok := err.(sqlite3.Error); ok && sqlErr.ExtendedCode == sqlite3.ErrConstraintForeignKey {
 			return nil, errRemoteNotFound(request.RemoteID, err)
 		}
 		return nil, err
 	}
+
 	return &r, nil
 }
 
@@ -202,6 +216,10 @@ func (s service) UpdateReplication(ctx context.Context, id platform.ID, request 
 	}
 	if request.MaxQueueSizeBytes != nil {
 		updates["max_queue_size_bytes"] = *request.MaxQueueSizeBytes
+		err := s.durableQueueManager.UpdateMaxQueueSize(*request.RemoteID,*request.MaxQueueSizeBytes)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	q := sq.Update("replications").SetMap(updates).Where(sq.Eq{"id": id}).
@@ -253,6 +271,11 @@ func (s service) ValidateUpdatedReplication(ctx context.Context, id platform.ID,
 func (s service) DeleteReplication(ctx context.Context, id platform.ID) error {
 	s.store.Mu.Lock()
 	defer s.store.Mu.Unlock()
+
+	err := s.durableQueueManager.DeleteQueue(id)
+	if err != nil {
+		return err
+	}
 
 	q := sq.Delete("replications").Where(sq.Eq{"id": id}).Suffix("RETURNING id")
 	query, args, err := q.ToSql()
