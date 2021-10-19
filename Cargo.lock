@@ -1271,7 +1271,6 @@ dependencies = [
  "prost-build",
  "regex",
  "serde",
- "thiserror",
  "time 0.1.0",
  "tonic",
  "tonic-build",
