@@ -9924,7 +9924,7 @@ func TestServer_Prometheus_Read(t *testing.T) {
 				},
 				{
 					Labels: []prompb.Label{
-						{Name: "host", Value: "server-1"},
+						{Name: "host", Value: "server-2"},
 						{Name: "region", Value: "west"},
 					},
 					Samples: []prompb.Sample{
