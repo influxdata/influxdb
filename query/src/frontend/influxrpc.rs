@@ -277,6 +277,10 @@ impl InfluxRpcPlanner {
 
         let mut known_columns = BTreeSet::new();
         for chunk in database.chunks(normalizer.unnormalized()) {
+            let mut do_full_plan = false;
+            if chunk.has_delete_predicates() {
+                do_full_plan = true;
+            }
             let table_name = chunk.table_name();
             let predicate = normalizer.normalized(table_name);
 
@@ -302,35 +306,42 @@ impl InfluxRpcPlanner {
 
             let selection = Selection::Some(&column_names);
 
-            // filter the columns further from the predicate
-            let maybe_names = chunk
-                .column_names(&predicate, selection)
-                .map_err(|e| Box::new(e) as _)
-                .context(FindingColumnNames)?;
+            if !do_full_plan {
+                // filter the columns further from the predicate
+                let maybe_names = chunk
+                    .column_names(&predicate, selection)
+                    .map_err(|e| Box::new(e) as _)
+                    .context(FindingColumnNames)?;
 
-            match maybe_names {
-                Some(mut names) => {
-                    debug!(
-                        table_name,
-                        names=?names,
-                        chunk_id=%chunk.id().get(),
-                        "column names found from metadata",
-                    );
-                    known_columns.append(&mut names);
+                match maybe_names {
+                    Some(mut names) => {
+                        debug!(
+                            table_name,
+                            names=?names,
+                            chunk_id=%chunk.id().get(),
+                            "column names found from metadata",
+                        );
+                        known_columns.append(&mut names);
+                    }
+                    None => {
+                        do_full_plan = true;
+                    }
                 }
-                None => {
-                    debug!(
-                        table_name,
-                        chunk_id=%chunk.id().get(),
-                        "column names need full plan"
-                    );
-                    // can't get columns only from metadata, need
-                    // a general purpose plan
-                    need_full_plans
-                        .entry(table_name.to_string())
-                        .or_insert_with(Vec::new)
-                        .push(Arc::clone(&chunk));
-                }
+            }
+
+            // can't get columns only from metadata, need
+            // a general purpose plan
+            if do_full_plan {
+                debug!(
+                    table_name,
+                    chunk_id=%chunk.id().get(),
+                    "column names need full plan"
+                );
+
+                need_full_plans
+                    .entry(table_name.to_string())
+                    .or_insert_with(Vec::new)
+                    .push(Arc::clone(&chunk));
             }
         }
 
