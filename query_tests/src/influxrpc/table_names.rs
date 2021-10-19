@@ -91,7 +91,7 @@ async fn list_table_names_data_pred_0_201_with_delete() {
     .await;
 }
 
-//#[ignore]
+#[ignore]
 #[tokio::test]
 async fn list_table_names_data_pred_0_201_with_delete_all() {
     run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(0, 201), vec!["disk"]).await;

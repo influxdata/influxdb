@@ -216,7 +216,6 @@ impl InfluxRpcPlanner {
             // Try and apply the predicate using only metadata
             let table_name = chunk.table_name();
             let predicate = normalizer.normalized(table_name);
-            if chunk.has_delete_predicates() { builder.has_deleted_data(); }
 
             let pred_result = chunk
                 .apply_predicate_to_metadata(&predicate)
@@ -279,7 +278,9 @@ impl InfluxRpcPlanner {
         let mut known_columns = BTreeSet::new();
         let mut do_full_plan = false;
         for chunk in database.chunks(normalizer.unnormalized()) {
-            if chunk.has_delete_predicates() { do_full_plan = true; }
+            if chunk.has_delete_predicates() {
+                do_full_plan = true;
+            }
             let table_name = chunk.table_name();
             let predicate = normalizer.normalized(table_name);
 
@@ -334,14 +335,13 @@ impl InfluxRpcPlanner {
                     }
                 }
             }
-            
+
             if do_full_plan {
                 need_full_plans
-                        .entry(table_name.to_string())
-                        .or_insert_with(Vec::new)
-                        .push(Arc::clone(&chunk));
+                    .entry(table_name.to_string())
+                    .or_insert_with(Vec::new)
+                    .push(Arc::clone(&chunk));
             }
-
         }
 
         let mut builder = StringSetPlanBuilder::new();
@@ -1513,7 +1513,7 @@ impl AggExprs {
     }
 }
 
-/// Creates a DataFusion expression suitable for calculating an aggregate: 
+/// Creates a DataFusion expression suitable for calculating an aggregate:
 ///
 /// equivalent to `CAST agg(field) as field`
 fn make_agg_expr(agg: Aggregate, field_name: &str) -> Result<Expr> {
