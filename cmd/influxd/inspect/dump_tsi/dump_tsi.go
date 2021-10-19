@@ -120,8 +120,8 @@ func (a *args) run() error {
 		return err
 	}
 	if fs != nil {
-		defer fs.Release()
 		defer fs.Close()
+		defer fs.Release()
 	}
 	if idx != nil {
 		defer idx.Close()
