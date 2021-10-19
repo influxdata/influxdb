@@ -58,19 +58,23 @@ func Untar(dir string, r io.Reader) error {
 
 		// if it's a file create it
 		case tar.TypeReg:
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
-			if err != nil {
+			if err := untarFile(target, tr, header); err != nil {
 				return err
 			}
-
-			// copy over contents
-			if _, err := io.Copy(f, tr); err != nil {
-				return err
-			}
-
-			// manually close here after each file operation; defering would cause each file close
-			// to wait until all operations have completed.
-			f.Close()
 		}
 	}
+}
+
+func untarFile(target string, tr *tar.Reader, header *tar.Header) error {
+	f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// copy over contents
+	if _, err := io.Copy(f, tr); err != nil {
+		return err
+	}
+	return nil
 }
