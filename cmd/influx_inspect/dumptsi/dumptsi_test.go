@@ -2,6 +2,7 @@ package dumptsi_test
 
 import (
 	"bytes"
+	"io/ioutil"
 	"os"
 	"testing"
 
@@ -18,7 +19,7 @@ func Test_DumpTSI_NoError(t *testing.T) {
 	cmd.Stdout = b
 
 	// Create the temp-dir for our un-tared files to live in
-	dir, err := os.MkdirTemp("", "dumptsitest-")
+	dir, err := ioutil.TempDir("", "dumptsitest-")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
