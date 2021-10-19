@@ -485,26 +485,6 @@ commands:
             echo 'export GOPATH=/home/circleci/go' >> $BASH_ENV
             echo 'export PATH=${GOPATH}/bin:${PATH}' >> $BASH_ENV
       - run:
-          name: Install updated Docker
-          command: |
-            export BUILDKIT_PROGRESS=plain
-            export DOCKER_BUILDKIT=1
-            export DOCKER_CLI_EXPERIMENTAL=enabled
-            echo 'export BUILDKIT_PROGRESS=plain' >> $BASH_ENV
-            echo 'export DOCKER_BUILDKIT=1' >> $BASH_ENV
-            echo 'export DOCKER_CLI_EXPERIMENTAL=enabled' >> $BASH_ENV
-            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-            sudo add-apt-repository \
-              "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-              $(lsb_release -cs) \
-              stable"
-            sudo apt-get update
-            sudo apt-get install -y \
-              containerd.io \
-              docker-ce \
-              docker-ce-cli
-            sudo service docker restart
-      - run:
           name: Set up Docker cross-builder
           command: |
             # Get jq to parse binfmt output.
@@ -972,7 +952,7 @@ jobs:
 
   release:
     machine:
-      image: ubuntu-2004:202010-01
+      image: linux-amd64
     resource_class: large
     environment:
       TMPDIR: /mnt/ramdisk
