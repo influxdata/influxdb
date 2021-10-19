@@ -2737,7 +2737,6 @@ dependencies = [
  "arrow_util",
  "base64 0.13.0",
  "bytes",
- "chrono",
  "data_types",
  "datafusion 0.1.0",
  "datafusion_util",
