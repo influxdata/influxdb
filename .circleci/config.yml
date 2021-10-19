@@ -240,7 +240,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - "2.1"
       - litmus_integration:
           requires:
             - deploy_nightly
