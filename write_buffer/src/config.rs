@@ -1,6 +1,7 @@
 use parking_lot::RwLock;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -13,6 +14,7 @@ use trace::TraceCollector;
 
 use crate::{
     core::{WriteBufferError, WriteBufferReading, WriteBufferWriting},
+    file::{FileBufferConsumer, FileBufferProducer},
     kafka::{KafkaBufferConsumer, KafkaBufferProducer},
     mock::{
         MockBufferForReading, MockBufferForReadingThatAlwaysErrors, MockBufferForWriting,
@@ -98,6 +100,17 @@ impl WriteBufferConfigFactory {
         assert_eq!(cfg.direction, WriteBufferDirection::Write);
 
         let writer = match &cfg.type_[..] {
+            "file" => {
+                let root = PathBuf::from(&cfg.connection);
+                let file_buffer = FileBufferProducer::new(
+                    &root,
+                    db_name,
+                    cfg.creation_config.as_ref(),
+                    Arc::clone(&self.time_provider),
+                )
+                .await?;
+                Arc::new(file_buffer) as _
+            }
             "kafka" => {
                 let kafka_buffer = KafkaBufferProducer::new(
                     &cfg.connection,
@@ -145,6 +158,17 @@ impl WriteBufferConfigFactory {
         assert_eq!(cfg.direction, WriteBufferDirection::Read);
 
         let reader = match &cfg.type_[..] {
+            "file" => {
+                let root = PathBuf::from(&cfg.connection);
+                let file_buffer = FileBufferConsumer::new(
+                    &root,
+                    db_name,
+                    cfg.creation_config.as_ref(),
+                    trace_collector,
+                )
+                .await?;
+                Box::new(file_buffer) as _
+            }
             "kafka" => {
                 let kafka_buffer = KafkaBufferConsumer::new(
                     &cfg.connection,
@@ -182,6 +206,7 @@ mod tests {
     use std::{convert::TryFrom, num::NonZeroU32};
 
     use data_types::{database_rules::WriteBufferCreationConfig, DatabaseName};
+    use tempfile::TempDir;
 
     use crate::{
         kafka::test_utils::random_kafka_topic, maybe_skip_kafka_integration,
@@ -189,6 +214,49 @@ mod tests {
     };
 
     use super::*;
+
+    #[tokio::test]
+    async fn test_writing_file() {
+        let root = TempDir::new().unwrap();
+        let time = Arc::new(time::SystemProvider::new());
+        let factory = WriteBufferConfigFactory::new(time);
+        let db_name = DatabaseName::try_from("foo").unwrap();
+        let cfg = WriteBufferConnection {
+            direction: WriteBufferDirection::Write,
+            type_: "file".to_string(),
+            connection: root.path().display().to_string(),
+            creation_config: Some(WriteBufferCreationConfig::default()),
+            ..Default::default()
+        };
+
+        let conn = factory
+            .new_config_write(db_name.as_str(), &cfg)
+            .await
+            .unwrap();
+        assert_eq!(conn.type_name(), "file");
+    }
+
+    #[tokio::test]
+    async fn test_reading_file() {
+        let root = TempDir::new().unwrap();
+        let time = Arc::new(time::SystemProvider::new());
+        let factory = WriteBufferConfigFactory::new(time);
+        let db_name = DatabaseName::try_from("foo").unwrap();
+        let cfg = WriteBufferConnection {
+            direction: WriteBufferDirection::Read,
+            type_: "file".to_string(),
+            connection: root.path().display().to_string(),
+            creation_config: Some(WriteBufferCreationConfig::default()),
+            ..Default::default()
+        };
+        let server_id = ServerId::try_from(1).unwrap();
+
+        let conn = factory
+            .new_config_read(server_id, db_name.as_str(), None, &cfg)
+            .await
+            .unwrap();
+        assert_eq!(conn.type_name(), "file");
+    }
 
     #[tokio::test]
     async fn test_writing_kafka() {
