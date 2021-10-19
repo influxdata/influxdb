@@ -115,7 +115,7 @@ func (cmd *Command) Run(args ...string) error {
 
 func (cmd *Command) run() error {
 	sfile := tsdb.NewSeriesFile(cmd.seriesFilePath)
-	sfile.Logger = logger.New(os.Stderr)
+	sfile.Logger = logger.New(cmd.Stderr)
 	if err := sfile.Open(); err != nil {
 		return err
 	}
@@ -126,6 +126,13 @@ func (cmd *Command) run() error {
 	if err != nil {
 		return err
 	}
+	if fs != nil {
+		defer fs.Close()
+		defer fs.Release()
+	}
+	if idx != nil {
+		defer idx.Close()
+	}
 
 	if cmd.showSeries {
 		if err := cmd.printSeries(sfile); err != nil {
@@ -135,8 +142,6 @@ func (cmd *Command) run() error {
 
 	// If this is an ad-hoc fileset then process it and close afterward.
 	if fs != nil {
-		defer fs.Close()
-		defer fs.Release()
 		if cmd.showSeries || cmd.showMeasurements {
 			return cmd.printMeasurements(sfile, fs)
 		}
@@ -144,7 +149,6 @@ func (cmd *Command) run() error {
 	}
 
 	// Otherwise iterate over each partition in the index.
-	defer idx.Close()
 	for i := 0; i < int(idx.PartitionN); i++ {
 		if err := func() error {
 			fs, err := idx.PartitionAt(i).RetainFileSet()
@@ -169,13 +173,13 @@ func (cmd *Command) readFileSet(sfile *tsdb.SeriesFile) (*tsi1.Index, *tsi1.File
 	if len(cmd.paths) == 1 {
 		fi, err := os.Stat(cmd.paths[0])
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("failed to get FileInfo of %q: %w", cmd.paths[0], err)
 		} else if fi.IsDir() {
 			// Verify directory is an index before opening it.
 			if ok, err := tsi1.IsIndexDir(cmd.paths[0]); err != nil {
 				return nil, nil, err
 			} else if !ok {
-				return nil, nil, fmt.Errorf("Not an index directory: %q", cmd.paths[0])
+				return nil, nil, fmt.Errorf("not an index directory: %q", cmd.paths[0])
 			}
 
 			idx := tsi1.NewIndex(sfile,
@@ -184,7 +188,7 @@ func (cmd *Command) readFileSet(sfile *tsdb.SeriesFile) (*tsi1.Index, *tsi1.File
 				tsi1.DisableCompactions(),
 			)
 			if err := idx.Open(); err != nil {
-				return nil, nil, err
+				return nil, nil, fmt.Errorf("failed to open TSI Index at %q: %w", idx.Path(), err)
 			}
 			return idx, nil, nil
 		}
@@ -197,7 +201,7 @@ func (cmd *Command) readFileSet(sfile *tsdb.SeriesFile) (*tsi1.Index, *tsi1.File
 		case tsi1.LogFileExt:
 			f := tsi1.NewLogFile(sfile, path)
 			if err := f.Open(); err != nil {
-				return nil, nil, err
+				return nil, nil, fmt.Errorf("failed to get TSI logfile at %q: %w", sfile.Path(), err)
 			}
 			files = append(files, f)
 
@@ -205,7 +209,7 @@ func (cmd *Command) readFileSet(sfile *tsdb.SeriesFile) (*tsi1.Index, *tsi1.File
 			f := tsi1.NewIndexFile(sfile)
 			f.SetPath(path)
 			if err := f.Open(); err != nil {
-				return nil, nil, err
+				return nil, nil, fmt.Errorf("failed to open index file at %q: %w", f.Path(), err)
 			}
 			files = append(files, f)
 
@@ -234,7 +238,7 @@ func (cmd *Command) printSeries(sfile *tsdb.SeriesFile) error {
 	for {
 		e, err := itr.Next()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get next series ID in %q: %w", sfile.Path(), err)
 		} else if e.SeriesID == 0 {
 			break
 		}
@@ -251,7 +255,7 @@ func (cmd *Command) printSeries(sfile *tsdb.SeriesFile) error {
 
 	// Flush & write footer spacing.
 	if err := tw.Flush(); err != nil {
-		return err
+		return fmt.Errorf("failed to flush tabwriter: %w", err)
 	}
 	fmt.Fprint(cmd.Stdout, "\n\n")
 
@@ -275,7 +279,7 @@ func (cmd *Command) printMeasurements(sfile *tsdb.SeriesFile, fs *tsi1.FileSet) 
 
 			fmt.Fprintf(tw, "%s\t%v\n", e.Name(), deletedString(e.Deleted()))
 			if err := tw.Flush(); err != nil {
-				return err
+				return fmt.Errorf("failed to flush tabwriter: %w", err)
 			}
 
 			if err := cmd.printTagKeys(sfile, fs, e.Name()); err != nil {
@@ -304,7 +308,7 @@ func (cmd *Command) printTagKeys(sfile *tsdb.SeriesFile, fs *tsi1.FileSet, name 
 
 		fmt.Fprintf(tw, "    %s\t%v\n", e.Key(), deletedString(e.Deleted()))
 		if err := tw.Flush(); err != nil {
-			return err
+			return fmt.Errorf("failed to flush tabwriter: %w", err)
 		}
 
 		if err := cmd.printTagValues(sfile, fs, name, e.Key()); err != nil {
@@ -331,7 +335,7 @@ func (cmd *Command) printTagValues(sfile *tsdb.SeriesFile, fs *tsi1.FileSet, nam
 
 		fmt.Fprintf(tw, "        %s\t%v\n", e.Value(), deletedString(e.Deleted()))
 		if err := tw.Flush(); err != nil {
-			return err
+			return fmt.Errorf("failed to flush tabwriter: %w", err)
 		}
 
 		if err := cmd.printTagValueSeries(sfile, fs, name, key, e.Value()); err != nil {
@@ -352,12 +356,12 @@ func (cmd *Command) printTagValueSeries(sfile *tsdb.SeriesFile, fs *tsi1.FileSet
 	tw := tabwriter.NewWriter(cmd.Stdout, 8, 8, 1, '\t', 0)
 	itr, err := fs.TagValueSeriesIDIterator(name, key, value)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get series ID iterator with name %q: %w", name, err)
 	}
 	for {
 		e, err := itr.Next()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to print tag value series: %w", err)
 		} else if e.SeriesID == 0 {
 			break
 		}
@@ -370,7 +374,7 @@ func (cmd *Command) printTagValueSeries(sfile *tsdb.SeriesFile, fs *tsi1.FileSet
 
 		fmt.Fprintf(tw, "            %s%s\n", name, tags.HashKey())
 		if err := tw.Flush(); err != nil {
-			return err
+			return fmt.Errorf("failed to flush tabwriter: %w", err)
 		}
 	}
 	fmt.Fprint(cmd.Stdout, "\n")
