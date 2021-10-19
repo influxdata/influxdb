@@ -3929,7 +3929,6 @@ dependencies = [
  "influxdb_tsm",
  "mutable_buffer",
  "object_store",
- "packers",
  "predicate",
  "query",
  "query_tests",
