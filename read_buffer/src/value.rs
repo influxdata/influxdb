@@ -1628,8 +1628,8 @@ impl From<Values<'_>> for arrow::array::ArrayRef {
                 if let Some(bm) = null_bitmap {
                     builder = builder.null_bit_buffer(bm.to_arrow());
                 }
-
-                Arc::new(DictionaryArray::<Int32Type>::from(builder.build()))
+                let data = builder.build().unwrap();
+                Arc::new(DictionaryArray::<Int32Type>::from(data))
             }
             Values::I64(values) => Arc::new(arrow::array::Int64Array::from(values)),
             Values::U64(values) => Arc::new(arrow::array::UInt64Array::from(values)),

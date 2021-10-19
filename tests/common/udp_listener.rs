@@ -115,7 +115,7 @@ impl UdpCapture {
     }
 
     // wait for a message to appear that passes `pred` or the timeout expires
-    pub fn wait_for<P>(&self, mut pred: P)
+    pub async fn wait_for<P>(&self, mut pred: P)
     where
         P: FnMut(&Message) -> bool,
     {
@@ -125,6 +125,7 @@ impl UdpCapture {
             if self.messages.lock().iter().any(|m| pred(m)) {
                 return;
             }
+            tokio::time::sleep(Duration::from_millis(200)).await
         }
         panic!(
             "Timeout expired before finding find messages that matches predicate. Messages:\n{:#?}",

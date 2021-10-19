@@ -5,7 +5,7 @@ authors = ["Nga Tran <nga-tran@live.com>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
-arrow = { version = "5.0", features = ["prettyprint"] }
+arrow = { version = "6.0", features = ["prettyprint"] }
 base64 = "0.13"
 bytes = "1.0"
 data_types = { path = "../data_types" }
@@ -17,7 +17,7 @@ iox_object_store = { path = "../iox_object_store" }
 metric = { path = "../metric" }
 object_store = { path = "../object_store" }
 observability_deps = { path = "../observability_deps" }
-parquet = "5.0"
+parquet = "6.0"
 parquet-format = "2.6"
 parking_lot = "0.11.1"
 pbjson-types = "0.1"

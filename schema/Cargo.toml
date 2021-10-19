@@ -6,7 +6,7 @@ edition = "2018"
 description = "IOx Schema definition"
 
 [dependencies]
-arrow = { version = "5.5", features = ["prettyprint"] }
+arrow = { version = "6.0", features = ["prettyprint"] }
 hashbrown = "0.11"
 indexmap = "1.7"
 itertools = "0.10.1"

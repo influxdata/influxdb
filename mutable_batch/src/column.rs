@@ -5,6 +5,7 @@ use std::mem;
 use std::sync::Arc;
 use std::{convert::TryInto, iter::Zip};
 
+use arrow::error::ArrowError;
 use arrow::{
     array::{
         ArrayDataBuilder, ArrayRef, BooleanArray, Float64Array, Int64Array,
@@ -12,7 +13,7 @@ use arrow::{
     },
     datatypes::DataType,
 };
-use snafu::{ensure, Snafu};
+use snafu::{ensure, ResultExt, Snafu};
 
 use arrow_util::bitset::{iter_set_positions, BitSet};
 use arrow_util::string::PackedStringArray;
@@ -53,6 +54,9 @@ pub enum Error {
         expected_bytes: usize,
         actual_bytes: usize,
     },
+
+    #[snafu(display("Internal MUB error constructing Arrow Array: {}", source))]
+    CreatingArrowArray { source: ArrowError },
 }
 
 /// A specialized `Error` for [`Column`] errors
@@ -428,7 +432,8 @@ impl Column {
                     .len(data.len())
                     .add_buffer(data.iter().cloned().collect())
                     .null_bit_buffer(nulls)
-                    .build();
+                    .build()
+                    .context(CreatingArrowArray)?;
                 Arc::new(Float64Array::from(data))
             }
             ColumnData::I64(data, _) => match self.influx_type {
@@ -437,7 +442,8 @@ impl Column {
                         .len(data.len())
                         .add_buffer(data.iter().cloned().collect())
                         .null_bit_buffer(nulls)
-                        .build();
+                        .build()
+                        .context(CreatingArrowArray)?;
                     Arc::new(TimestampNanosecondArray::from(data))
                 }
                 InfluxColumnType::IOx(IOxValueType::I64)
@@ -446,8 +452,8 @@ impl Column {
                         .len(data.len())
                         .add_buffer(data.iter().cloned().collect())
                         .null_bit_buffer(nulls)
-                        .build();
-
+                        .build()
+                        .context(CreatingArrowArray)?;
                     Arc::new(Int64Array::from(data))
                 }
                 _ => unreachable!(),
@@ -457,7 +463,8 @@ impl Column {
                     .len(data.len())
                     .add_buffer(data.iter().cloned().collect())
                     .null_bit_buffer(nulls)
-                    .build();
+                    .build()
+                    .context(CreatingArrowArray)?;
                 Arc::new(UInt64Array::from(data))
             }
             ColumnData::String(data, _) => Arc::new(data.to_arrow()),
@@ -466,7 +473,8 @@ impl Column {
                     .len(data.len())
                     .add_buffer(data.to_arrow())
                     .null_bit_buffer(nulls)
-                    .build();
+                    .build()
+                    .context(CreatingArrowArray)?;
                 Arc::new(BooleanArray::from(data))
             }
             ColumnData::Tag(data, dictionary, _) => {

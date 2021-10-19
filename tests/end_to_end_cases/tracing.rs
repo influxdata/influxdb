@@ -56,7 +56,9 @@ pub async fn test_tracing_sql() {
     //  "shallow" packet inspection and verify the UDP server got
     //  something that had some expected results (maybe we could
     //  eventually verify the payload here too)
-    udp_capture.wait_for(|m| m.to_string().contains("IOxReadFilterNode"));
+    udp_capture
+        .wait_for(|m| m.to_string().contains("IOxReadFilterNode"))
+        .await;
 
     // debugging assistance
     //println!("Traces received (1):\n\n{:#?}", udp_capture.messages());
@@ -99,7 +101,9 @@ pub async fn test_tracing_storage_api() {
     //  "shallow" packet inspection and verify the UDP server got
     //  something that had some expected results (maybe we could
     //  eventually verify the payload here too)
-    udp_capture.wait_for(|m| m.to_string().contains("IOxReadFilterNode"));
+    udp_capture
+        .wait_for(|m| m.to_string().contains("IOxReadFilterNode"))
+        .await;
 
     // debugging assistance
     //println!("Traces received (2):\n\n{:#?}", udp_capture.messages());
@@ -132,7 +136,9 @@ pub async fn test_tracing_create_trace() {
     //  "shallow" packet inspection and verify the UDP server got
     //  something that had some expected results (maybe we could
     //  eventually verify the payload here too)
-    udp_capture.wait_for(|m| m.to_string().contains("IOxReadFilterNode"));
+    udp_capture
+        .wait_for(|m| m.to_string().contains("IOxReadFilterNode"))
+        .await;
 
     // debugging assistance
     //println!("Traces received (1):\n\n{:#?}", udp_capture.messages());

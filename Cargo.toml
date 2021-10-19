@@ -118,8 +118,8 @@ trogging = { path = "trogging", default-features = false, features = ["structopt
 time = { path = "time" }
 
 # Crates.io dependencies, in alphabetical order
-arrow = { version = "5.5", features = ["prettyprint"] }
-arrow-flight = "5.5"
+arrow = { version = "6.0", features = ["prettyprint"] }
+arrow-flight = "6.0"
 backtrace = "0.3"
 byteorder = "1.3.4"
 bytes = "1.0"
@@ -139,7 +139,7 @@ log = "0.4"
 once_cell = { version = "1.4.0", features = ["parking_lot"] }
 parking_lot = "0.11.2"
 itertools = "0.10.1"
-parquet = "5.5"
+parquet = "6.0"
 pin-project = "1.0"
 # used by arrow/datafusion anyway
 prettytable-rs = "0.8"
@@ -201,4 +201,3 @@ aws = ["object_store/aws"] # Optional AWS / S3 object store support
 # Cargo cannot currently implement mutually exclusive features so let's force every build
 # to pick either heappy or jemalloc_replacing_malloc feature at least until we figure out something better.
 jemalloc_replacing_malloc = ["tikv-jemalloc-sys"]
-

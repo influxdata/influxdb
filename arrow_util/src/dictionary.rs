@@ -155,7 +155,10 @@ impl StringDictionary<i32> {
             array_builder = array_builder.null_bit_buffer(nulls);
         }
 
-        DictionaryArray::<Int32Type>::from(array_builder.build())
+        // TODO consider skipping the validation checks by using
+        // `build_unchecked()`
+        let array_data = array_builder.build().expect("Valid array data");
+        DictionaryArray::<Int32Type>::from(array_data)
     }
 }
 
