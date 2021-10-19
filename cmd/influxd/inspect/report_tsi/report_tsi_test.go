@@ -10,11 +10,13 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/pkg/tar"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
 
 type cmdParams struct {
+	testName     string
 	bucketId     string
 	concurrency  int
 	dataPath     string
@@ -24,87 +26,100 @@ type cmdParams struct {
 	expectErr    bool
 }
 
-func Test_ReportTSI_Missing_BucketID(t *testing.T) {
-	params := cmdParams{
-		expectErr:   true,
-		expectedOut: "required flag(s) \"bucket-id\" not set",
+const (
+	bucketID = "12345"
+	lowCard  = "test-db-low-cardinality"
+	highCard = "test-db-high-cardinality"
+)
+
+func Test_ReportTSI_GeneratedData(t *testing.T) {
+	shardlessPath := newTempDirectories(t, false)
+	defer os.RemoveAll(shardlessPath)
+
+	shardPath := newTempDirectories(t, true)
+	defer os.RemoveAll(shardPath)
+
+	tests := []cmdParams{
+		{
+			testName:    "Bucket_Does_Not_Exist",
+			expectErr:   true,
+			expectedOut: fmt.Sprintf("open %s", filepath.Join(bucketID, "autogen")),
+		},
+		{
+			testName:    "Bucket_Contains_No_Shards",
+			dataPath:    shardlessPath,
+			expectedOut: fmt.Sprintf("No shards under %s", filepath.Join(shardlessPath, bucketID, "autogen")),
+		},
+		{
+			testName:    "Invalid_Index_Dir",
+			dataPath:    shardPath,
+			expectErr:   true,
+			expectedOut: fmt.Sprintf("not a TSI index directory: %s", filepath.Join(shardPath, bucketID, "autogen", "1", "index")),
+		},
 	}
-	runCommand(t, params)
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.testName, func(t *testing.T) {
+			runCommand(t, tc)
+		})
+	}
 }
 
-func Test_ReportTSI_Bucket_Does_Not_Exist(t *testing.T) {
-	params := cmdParams{
-		bucketId:    "12345",
-		expectErr:   true,
-		expectedOut: fmt.Sprintf("open %s", filepath.Join("12345", "autogen")),
-	}
-	runCommand(t, params)
-}
+func Test_ReportTSI_TestData(t *testing.T) {
 
-func Test_ReportTSI_Bucket_Contains_No_Shards(t *testing.T) {
-	path := newTempDirectories(t, false)
+	// Create temp directory for extracted test data
+	path, err := os.MkdirTemp("", "report-tsi-test-")
+	require.NoError(t, err)
 	defer os.RemoveAll(path)
-	params := cmdParams{
-		bucketId:    "12345",
-		dataPath:    path,
-		expectedOut: "No shards under " + filepath.Join(path, "12345", "autogen"),
-	}
-	runCommand(t, params)
-}
 
-func Test_ReportTSI_Invalid_Index_Dir(t *testing.T) {
-	path := newTempDirectories(t, true)
-	defer os.RemoveAll(path)
-	params := cmdParams{
-		bucketId:    "12345",
-		dataPath:    path,
-		expectErr:   true,
-		expectedOut: fmt.Sprintf("not a TSI index directory: %s", filepath.Join(path, "12345", "autogen", "1", "index")),
-	}
-	runCommand(t, params)
-}
+	// Extract test data
+	file, err := os.Open("../tsi-test-data.tar.gz")
+	require.NoError(t, err)
+	defer file.Close()
+	require.NoError(t, tar.Untar(path, file))
 
-func Test_ReportTSI_Valid_No_Roaring_Bitmap(t *testing.T) {
-	params := cmdParams{
-		bucketId:    "test-db-low-cardinality",
-		dataPath:    filepath.Join("..", "tsi-test-data"),
-		concurrency: 1,
-		expectedOuts: []string{
-			fmt.Sprintf("Summary\nDatabase Path: %s\nCardinality (exact): 5", filepath.Join("..", "tsi-test-data", "test-db-low-cardinality")),
-			fmt.Sprintf("Shard ID: 1\nPath: %s\nCardinality (exact): 5", filepath.Join("..", "tsi-test-data", "test-db-low-cardinality", "autogen", "1")),
-			"\"m0\"\t1\t\n\"m1\"\t1\t\n\"m2\"\t1\t\n\"m3\"\t1\t\n\"m4\"\t1\t",
+	tests := []cmdParams{
+		{
+			testName: "Valid_No_Roaring_Bitmap",
+			bucketId: lowCard,
+			dataPath: path,
+			expectedOuts: []string{
+				fmt.Sprintf("Summary\nDatabase Path: %s\nCardinality (exact): 5", filepath.Join(path, lowCard)),
+				fmt.Sprintf("Shard ID: 1\nPath: %s\nCardinality (exact): 5", filepath.Join(path, lowCard, "autogen", "1")),
+				"\"m0\"\t1\t\n\"m1\"\t1\t\n\"m2\"\t1\t\n\"m3\"\t1\t\n\"m4\"\t1\t",
+			},
+		},
+		{
+			testName: "Valid_Roaring_Bitmap",
+			bucketId: highCard,
+			dataPath: path,
+			expectedOuts: []string{
+				fmt.Sprintf("Summary\nDatabase Path: %s\nCardinality (exact): 31", filepath.Join(path, highCard)),
+				fmt.Sprintf("Shard ID: 1\nPath: %s\nCardinality (exact): 31", filepath.Join(path, highCard, "autogen", "1")),
+				"\"m0\"\t27\t\n\"m1\"\t1\t\n\"m2\"\t1\t\n\"m3\"\t1\t\n\"m4\"\t1\t",
+			},
+		},
+		{
+			testName: "Valid_TopN",
+			bucketId: lowCard,
+			dataPath: path,
+			topN: 2,
+			expectedOuts: []string{
+				fmt.Sprintf("Summary\nDatabase Path: %s\nCardinality (exact): 5", filepath.Join(path, lowCard)),
+				fmt.Sprintf("Shard ID: 1\nPath: %s\nCardinality (exact): 5", filepath.Join(path, lowCard, "autogen", "1")),
+				"\"m0\"\t1\t\n\"m1\"\t1\t\n\n\n",
+			},
 		},
 	}
-	runCommand(t, params)
-}
 
-func Test_ReportTSI_Valid_Roaring_Bitmap(t *testing.T) {
-	params := cmdParams{
-		bucketId:    "test-db-high-cardinality",
-		dataPath:    filepath.Join("..", "tsi-test-data"),
-		concurrency: 1,
-		expectedOuts: []string{
-			fmt.Sprintf("Summary\nDatabase Path: %s\nCardinality (exact): 31", filepath.Join("..", "tsi-test-data", "test-db-high-cardinality")),
-			fmt.Sprintf("Shard ID: 1\nPath: %s\nCardinality (exact): 31", filepath.Join("..", "tsi-test-data", "test-db-high-cardinality", "autogen", "1")),
-			"\"m0\"\t27\t\n\"m1\"\t1\t\n\"m2\"\t1\t\n\"m3\"\t1\t\n\"m4\"\t1\t",
-		},
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.testName, func(t *testing.T) {
+			tc.concurrency = 1
+			runCommand(t, tc)
+		})
 	}
-	runCommand(t, params)
-}
-
-func Test_ReportTSI_Valid_TopN(t *testing.T) {
-	params := cmdParams{
-		bucketId:    "test-db-low-cardinality",
-		dataPath:    filepath.Join("..", "tsi-test-data"),
-		concurrency: 1,
-		topN:        2,
-		expectedOuts: []string{
-			fmt.Sprintf("Summary\nDatabase Path: %s\nCardinality (exact): 5", filepath.Join("..", "tsi-test-data", "test-db-low-cardinality")),
-			fmt.Sprintf("Shard ID: 1\nPath: %s\nCardinality (exact): 5", filepath.Join("..", "tsi-test-data", "test-db-low-cardinality", "autogen", "1")),
-			"\"m0\"\t1\t\n\"m1\"\t1\t\n\n\n",
-		},
-	}
-	runCommand(t, params)
 }
 
 func newTempDirectories(t *testing.T, withShards bool) string {
@@ -113,12 +128,12 @@ func newTempDirectories(t *testing.T, withShards bool) string {
 	dataDir, err := os.MkdirTemp("", "reporttsi")
 	require.NoError(t, err)
 
-	err = os.MkdirAll(filepath.Join(dataDir, "12345", "autogen"), 0777)
+	err = os.MkdirAll(filepath.Join(dataDir, bucketID, "autogen"), 0777)
 	require.NoError(t, err)
 
 	if withShards {
 		// Create shard and index directory within it, with one partition
-		err = os.MkdirAll(filepath.Join(dataDir, "12345", "autogen", "1", "index", "0"), 0777)
+		err = os.MkdirAll(filepath.Join(dataDir, bucketID, "autogen", "1", "index", "0"), 0777)
 		require.NoError(t, err)
 	}
 
@@ -133,7 +148,9 @@ func initCommand(t *testing.T, params cmdParams) *cobra.Command {
 
 	allArgs := make([]string, 0)
 
-	if params.bucketId != "" {
+	if params.bucketId == "" {
+		allArgs = append(allArgs, "--bucket-id", bucketID)
+	} else {
 		allArgs = append(allArgs, "--bucket-id", params.bucketId)
 	}
 
