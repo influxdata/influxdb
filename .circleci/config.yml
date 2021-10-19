@@ -772,7 +772,7 @@ jobs:
       - install_core_deps
       - install_cross_bin_deps
       # Build the static binary for linux
-      - run: goreleaser build --snapshot --single-target
+      - run: S3_FOLDER="influxdb/releases/" VERSION="$(git describe | sed 's/^v//' | sed 's/^[a-zA-Z]/2\.0-&/')" goreleaser build --snapshot --single-target
       - store_artifacts:
           path: dist
       - persist_to_workspace:
