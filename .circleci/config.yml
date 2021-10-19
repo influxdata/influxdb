@@ -518,7 +518,7 @@ commands:
                 name: Build release
                 # `goreleaser release --skip-publish` builds Docker images, but doesn't push them.
                 # As opposed to `goreleaser build`, which stops before building Dockers.
-                command: S3_FOLDER="influxdb/releases/" VERSION="$(git describe | sed 's/^v//' | sed 's/^[a-zA-Z]/2\.0-&/')" goreleaser --debug release --skip-publish --skip-sign -p 1 --rm-dist --skip-validate
+                command: S3_FOLDER="influxdb/releases/" VERSION="$(git describe | sed 's/^v//' | sed 's/^[a-zA-Z]/2\.1-&/')" goreleaser --debug release --skip-publish --skip-sign -p 1 --rm-dist --skip-validate
       - when:
           condition:
             and:
@@ -752,7 +752,7 @@ jobs:
       - install_core_deps
       - install_cross_bin_deps
       # Build the static binary for linux
-      - run: S3_FOLDER="influxdb/releases/" VERSION="$(git describe | sed 's/^v//' | sed 's/^[a-zA-Z]/2\.0-&/')" goreleaser build --snapshot --single-target
+      - run: S3_FOLDER="influxdb/releases/" VERSION="$(git describe | sed 's/^v//' | sed 's/^[a-zA-Z]/2\.1-&/')" goreleaser build --snapshot --single-target
       - store_artifacts:
           path: dist
       - persist_to_workspace:
@@ -1165,12 +1165,12 @@ jobs:
                   CHANGELOG_FILENAME="CHANGELOG-${CIRCLE_TAG}.md"
                   COMMIT_FILE_PATH="changelog-commit-${CIRCLE_BRANCH}.txt"
                   curl -o ${COMMIT_FILE_PATH} ${S3_PATH}/${COMMIT_FILE_PATH}
-                  LAST_COMMIT=$(git describe --abbrev=0 --tags --exclude='*[rc]*' $(git rev-list --tags='v2*' --skip=1 --max-count=1))
+                  LAST_COMMIT=$(git describe --abbrev=0 --tags --exclude='*[rc]*' $(git rev-list --tags='v2.1*' --skip=1 --max-count=1))
                   NEWEST_COMMIT=${CIRCLE_SHA1}
                   if [ -n "<< pipeline.parameters.build_and_sign_tag >>" ]; then
                     git fetch --all --tags
                     CIRCLE_TAG=<< pipeline.parameters.build_and_sign_tag >>
-                    LAST_COMMIT=$(git tag -l --sort=-version:refname 'v2*[!-rc].[0-9]' | grep -A 1 << pipeline.parameters.build_and_sign_tag >> | tail -n 1)
+                    LAST_COMMIT=$(git tag -l --sort=-version:refname 'v2.1*[!-rc].[0-9]' | grep -A 1 << pipeline.parameters.build_and_sign_tag >> | tail -n 1)
                     NEWEST_COMMIT=${CIRCLE_TAG}
                     CHANGELOG_FILENAME="CHANGELOG-${CIRCLE_TAG}.md"
                     COMMIT_FILE_PATH="changelog-commit-${CIRCLE_TAG}.txt"
