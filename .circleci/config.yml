@@ -260,80 +260,141 @@ workflows:
           requires:
             - changelog
 
-release:
-  jobs:
-    - godeps:
-        filters:
-          branches:
-            ignore: /.*/
-          tags:
-            only:
-              - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-              - /^.*test$/
-    - gotest:
-        requires:
-          - godeps
-        filters:
-          branches:
-            ignore: /.*/
-          tags:
-            only:
-              - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-              - /^.*test$/
-    - golint:
-        requires:
-          - godeps
-        filters:
-          branches:
-            ignore: /.*/
-          tags:
-            only:
-              - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-              - /^.*test$/
-    - fluxtest:
-        requires:
-          - godeps
-        filters:
-          branches:
-            ignore: /.*/
-          tags:
-            only:
-              - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-              - /^.*test$/
-    - tlstest:
-        requires:
-          - godeps
-        filters:
-          branches:
-            ignore: /.*/
-          tags:
-            only:
-              - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-              - /^.*test$/
-    - changelog:
-        nightly: false
-        requires:
-          - gotest
-          - golint
-          - fluxtest
-          - tlstest
-        filters:
-          branches:
-            ignore: /.*/
-          tags:
-            only:
-              - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-              - /^.*test$/
-    - release:
-        requires:
-          - changelog
-        filters:
-          branches:
-            ignore: /.*/
-          tags:
-            only:
-              - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-              - /^.*test$/
+  release:
+    jobs:
+      - godeps:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - test-race:
+          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
+          name: gotest
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - test-build:
+          matrix:
+            parameters:
+              os: [ linux, darwin, windows ]
+              arch: [ amd64, arm64 ]
+            exclude:
+              - os: darwin
+                arch: arm64
+              - os: windows
+                arch: arm64
+              # linux/amd64 can be tested directly from our cross-builder image
+              # to save time & enable running with the race detector.
+              - os: linux
+                arch: amd64
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - test-prebuilt:
+          name: test-linux-arm64
+          executor: linux-arm64
+          requires:
+            - test-build-arm64-linux
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - test-prebuilt:
+          name: test-darwin
+          executor: darwin
+          requires:
+            - test-build-amd64-darwin
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - test-prebuilt:
+          name: test-windows
+          executor: windows
+          requires:
+            - test-build-amd64-windows
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - fluxtest:
+          requires:
+            - godeps
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - tlstest:
+          requires:
+            - godeps
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - lint:
+          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
+          name: golint
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - changelog:
+          nightly: false
+          requires:
+            - gotest
+            - test-build
+            - test-linux-arm64
+            - test-darwin
+            - test-windows
+            - fluxtest
+            - tlstest
+            - golint
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - release:
+          requires:
+            - changelog
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
 
 commands:
   # Install system dependencies needed to run a native build of influxd
