@@ -11,6 +11,8 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/runtime"
+	"go.uber.org/zap"
+
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/feature"
@@ -20,7 +22,6 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
-	"go.uber.org/zap"
 )
 
 const (
@@ -225,7 +226,7 @@ func (e *Executor) ManualRun(ctx context.Context, id platform.ID, runID platform
 	if err != nil {
 		return nil, err
 	}
-	p, err := e.createPromise(ctx, r)
+	p, err := e.createPromise(context.Background(), r)
 
 	e.startWorker()
 	e.metrics.manualRunsCounter.WithLabelValues(id.String()).Inc()
