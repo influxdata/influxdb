@@ -16,7 +16,6 @@ data_types = { path = "../data_types" }
 generated_types = { path = "../generated_types" }
 influxdb2_client = { path = "../influxdb2_client" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
-packers = { path = "../packers" }
 itertools = "0.10.0"
 rand = { version = "0.8.3", features = ["small_rng"] }
 rand_core = "0.6.2"

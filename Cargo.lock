@@ -1816,7 +1816,6 @@ dependencies = [
  "influxdb2_client",
  "influxdb_iox_client",
  "itertools",
- "packers",
  "rand",
  "rand_core",
  "rand_seeder",
