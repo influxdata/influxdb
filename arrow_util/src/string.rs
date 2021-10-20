@@ -3,6 +3,7 @@ use arrow::array::StringArray;
 use arrow::buffer::Buffer;
 use num_traits::{AsPrimitive, FromPrimitive, Zero};
 use std::fmt::Debug;
+use std::ops::Range;
 
 /// A packed string array that stores start and end indexes into
 /// a contiguous string slice.
@@ -71,6 +72,26 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> PackedStringArray<K> {
                 .offsets
                 .iter()
                 .map(|x| K::from_usize(x.as_() + offset).expect("failed to fit into offset type")),
+        )
+    }
+
+    /// Extends this [`PackedStringArray`] by `range` elements from `other`
+    pub fn extend_from_range(&mut self, other: &PackedStringArray<K>, range: Range<usize>) {
+        let first_offset: usize = other.offsets[range.start].as_();
+        let end_offset: usize = other.offsets[range.end].as_();
+
+        let insert_offset = self.storage.len();
+
+        self.storage
+            .push_str(&other.storage[first_offset..end_offset]);
+
+        self.offsets.extend(
+            (&other.offsets[(range.start + 1)..(range.end + 1)])
+                .iter()
+                .map(|x| {
+                    K::from_usize(x.as_() - first_offset + insert_offset)
+                        .expect("failed to fit into offset type")
+                }),
         )
     }
 
@@ -214,5 +235,51 @@ mod tests {
         assert_eq!(array.len(), 2);
         assert_eq!(array.get(0).unwrap(), "hello");
         assert_eq!(array.get(1).unwrap(), "world");
+    }
+
+    #[test]
+    fn test_extend_from_range() {
+        let mut a = PackedStringArray::<i32>::new();
+
+        a.append("hello");
+        a.append("world");
+        a.append("cupcake");
+        a.append("");
+
+        let mut b = PackedStringArray::<i32>::new();
+
+        b.append("foo");
+        b.append("bar");
+        b.append("");
+        b.append("fiz");
+
+        a.extend_from_range(&b, 1..3);
+
+        assert_eq!(a.len(), 6);
+
+        let a_content: Vec<_> = a.iter().collect();
+        assert_eq!(a_content, vec!["hello", "world", "cupcake", "", "bar", ""]);
+
+        // Should be a no-op
+        a.extend_from_range(&b, 0..0);
+
+        let a_content: Vec<_> = a.iter().collect();
+        assert_eq!(a_content, vec!["hello", "world", "cupcake", "", "bar", ""]);
+
+        a.extend_from_range(&b, 0..1);
+
+        let a_content: Vec<_> = a.iter().collect();
+        assert_eq!(
+            a_content,
+            vec!["hello", "world", "cupcake", "", "bar", "", "foo"]
+        );
+
+        a.extend_from_range(&b, 1..4);
+
+        let a_content: Vec<_> = a.iter().collect();
+        assert_eq!(
+            a_content,
+            vec!["hello", "world", "cupcake", "", "bar", "", "foo", "bar", "", "fiz"]
+        );
     }
 }

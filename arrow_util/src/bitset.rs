@@ -1,4 +1,5 @@
 use arrow::buffer::Buffer;
+use std::ops::Range;
 
 /// An arrow-compatible mutable bitset implementation
 ///
@@ -69,6 +70,35 @@ impl BitSet {
     /// Extends this [`BitSet`] by the context of `other`
     pub fn extend_from(&mut self, other: &BitSet) {
         self.append_bits(other.len, &other.buffer)
+    }
+
+    /// Extends this [`BitSet`] by `range` elements in `other`
+    pub fn extend_from_range(&mut self, other: &BitSet, range: Range<usize>) {
+        let count = range.end - range.start;
+        if count == 0 {
+            return;
+        }
+
+        let start_byte = range.start >> 3;
+        let end_byte = (range.end + 7) >> 3;
+        let skew = range.start & 7;
+
+        // `append_bits` requires the provided `to_set` to be byte aligned, therefore
+        // if the range being copied is not byte aligned we must first append
+        // the leading bits to reach a byte boundary
+        if skew == 0 {
+            // No skew can simply append bytes directly
+            self.append_bits(count, &other.buffer[start_byte..end_byte])
+        } else if start_byte + 1 == end_byte {
+            // Append bits from single byte
+            self.append_bits(count, &[other.buffer[start_byte] >> skew])
+        } else {
+            // Append trailing bits from first byte to reach byte boundary, then append
+            // bits from the remaining byte-aligned mask
+            let offset = 8 - skew;
+            self.append_bits(offset, &[other.buffer[start_byte] >> skew]);
+            self.append_bits(count - offset, &other.buffer[(start_byte + 1)..end_byte]);
+        }
     }
 
     /// Appends `count` boolean values from the slice of packed bits
@@ -172,7 +202,8 @@ pub fn iter_set_positions(bytes: &[u8]) -> impl Iterator<Item = usize> + '_ {
 mod tests {
     use super::*;
     use arrow::array::BooleanBufferBuilder;
-    use rand::RngCore;
+    use rand::prelude::*;
+    use rand::rngs::OsRng;
 
     /// Computes a compacted representation of a given bool array
     fn compact_bools(bools: &[bool]) -> Vec<u8> {
@@ -239,11 +270,17 @@ mod tests {
         assert!(mask.get(19));
     }
 
+    fn make_rng() -> StdRng {
+        let seed = OsRng::default().next_u64();
+        println!("Seed: {}", seed);
+        StdRng::seed_from_u64(seed)
+    }
+
     #[test]
     fn test_bit_mask_all_set() {
         let mut mask = BitSet::new();
         let mut all_bools = vec![];
-        let mut rng = rand::thread_rng();
+        let mut rng = make_rng();
 
         for _ in 0..100 {
             let mask_length = (rng.next_u32() % 50) as usize;
@@ -266,7 +303,7 @@ mod tests {
     fn test_bit_mask_fuzz() {
         let mut mask = BitSet::new();
         let mut all_bools = vec![];
-        let mut rng = rand::thread_rng();
+        let mut rng = make_rng();
 
         for _ in 0..100 {
             let mask_length = (rng.next_u32() % 50) as usize;
@@ -294,7 +331,7 @@ mod tests {
     fn test_append_fuzz() {
         let mut mask = BitSet::new();
         let mut all_bools = vec![];
-        let mut rng = rand::thread_rng();
+        let mut rng = make_rng();
 
         for _ in 0..100 {
             let len = (rng.next_u32() % 32) as usize;
@@ -316,7 +353,7 @@ mod tests {
     fn test_truncate_fuzz() {
         let mut mask = BitSet::new();
         let mut all_bools = vec![];
-        let mut rng = rand::thread_rng();
+        let mut rng = make_rng();
 
         for _ in 0..100 {
             let mask_length = (rng.next_u32() % 32) as usize;
@@ -336,6 +373,35 @@ mod tests {
 
             let collected = compact_bools(&all_bools);
             assert_eq!(mask.buffer, collected);
+        }
+    }
+
+    #[test]
+    fn test_extend_range_fuzz() {
+        let mut rng = make_rng();
+        let src_len = 32;
+        let src_bools: Vec<_> = std::iter::from_fn(|| Some(rng.next_u32() & 1 == 0))
+            .take(src_len)
+            .collect();
+
+        let mut src_mask = BitSet::new();
+        src_mask.append_bits(src_len, &compact_bools(&src_bools));
+
+        let mut dst_bools = Vec::new();
+        let mut dst_mask = BitSet::new();
+
+        for _ in 0..100 {
+            let a = rng.next_u32() as usize % src_len;
+            let b = rng.next_u32() as usize % src_len;
+
+            let start = a.min(b);
+            let end = a.max(b);
+
+            dst_bools.extend_from_slice(&src_bools[start..end]);
+            dst_mask.extend_from_range(&src_mask, start..end);
+
+            let collected = compact_bools(&dst_bools);
+            assert_eq!(dst_mask.buffer, collected);
         }
     }
 
