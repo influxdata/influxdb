@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	errors2 "github.com/influxdata/influxdb/pkg/errors"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
@@ -113,7 +114,7 @@ func (cmd *Command) Run(args ...string) error {
 	return cmd.run()
 }
 
-func (cmd *Command) run() error {
+func (cmd *Command) run() (rErr error) {
 	sfile := tsdb.NewSeriesFile(cmd.seriesFilePath)
 	sfile.Logger = logger.New(cmd.Stderr)
 	if err := sfile.Open(); err != nil {
@@ -127,11 +128,11 @@ func (cmd *Command) run() error {
 		return err
 	}
 	if fs != nil {
-		defer fs.Close()
+		defer errors2.Capture(&rErr, fs.Close)
 		defer fs.Release()
 	}
 	if idx != nil {
-		defer idx.Close()
+		defer errors2.Capture(&rErr, idx.Close)
 	}
 
 	if cmd.showSeries {
