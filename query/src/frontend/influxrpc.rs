@@ -205,7 +205,7 @@ impl InfluxRpcPlanner {
     /// Returns a builder that includes
     ///   . A set of table names got from meta data that will participate
     ///      in the requested `predicate`
-    ///   . A set of plans of tables of either 
+    ///   . A set of plans of tables of either
     ///       . chunks with deleted data or
     ///       . chunks without deleted data but cannot be decided from meta data
     pub fn table_names<D>(&self, database: &D, predicate: Predicate) -> Result<TableNamePlanBuilder>
