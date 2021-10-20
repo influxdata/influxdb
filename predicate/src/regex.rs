@@ -104,13 +104,12 @@ mod test {
                     "| Blood Orange  | 12     |",
                     "| cocteau twins | 13     |",
                     "+---------------+--------+",
-                    "",
                 ],
             ),
             (
                 ".*",  // match everything except NULL values
                 false, // filter away all the values matched
-                vec!["++", "++", ""],
+                vec!["++", "++"],
             ),
             (
                 "", // an empty pattern also matches everything except NULL
@@ -125,7 +124,6 @@ mod test {
                     "| Blood Orange  | 12     |",
                     "| cocteau twins | 13     |",
                     "+---------------+--------+",
-                    "",
                 ],
             ),
             (
@@ -137,7 +135,6 @@ mod test {
                     "+--------------+--------+",
                     "| Blood Orange | 12     |",
                     "+--------------+--------+",
-                    "",
                 ],
             ),
             (
@@ -150,7 +147,6 @@ mod test {
                     "| Blood Orange  | 12     |",
                     "| cocteau twins | 13     |",
                     "+---------------+--------+",
-                    "",
                 ],
             ),
         ];

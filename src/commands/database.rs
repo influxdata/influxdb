@@ -1,6 +1,7 @@
 //! This module implements the `database` CLI command
 
 use chrono::{DateTime, Utc};
+use comfy_table::{Cell, Table};
 use influxdb_iox_client::{
     connection::Connection,
     flight,
@@ -11,7 +12,6 @@ use influxdb_iox_client::{
     },
     write::{self, WriteError},
 };
-use prettytable::{format, Cell, Row, Table};
 use std::{
     convert::TryInto, fs::File, io::Read, num::NonZeroU64, path::PathBuf, str::FromStr,
     time::Duration,
@@ -272,12 +272,12 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 };
 
                 let mut table = Table::new();
-                table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
-                table.set_titles(Row::new(vec![
+                table.load_preset("||--+-++|    ++++++");
+                table.set_header(vec![
                     Cell::new("Deleted at"),
                     Cell::new("Generation ID"),
                     Cell::new("Name"),
-                ]));
+                ]);
 
                 for database in databases {
                     let deleted_at = database
@@ -287,11 +287,11 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                             dt.ok().map(|d| d.to_string())
                         })
                         .unwrap_or_else(String::new);
-                    table.add_row(Row::new(vec![
+                    table.add_row(vec![
                         Cell::new(&deleted_at),
                         Cell::new(&database.generation_id.to_string()),
                         Cell::new(&database.db_name),
-                    ]));
+                    ]);
                 }
 
                 print!("{}", table);

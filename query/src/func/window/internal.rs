@@ -258,7 +258,11 @@ impl Add<Duration> for i64 {
         if d.negative {
             nsecs = -nsecs;
         }
-        new_t + nsecs
+        // new_t + nsecs
+        // follow the golang behavior and ignore overflow
+        // see https://github.com/influxdata/influxdb_iox/issues/2890
+        let (v, _overflow) = new_t.overflowing_add(nsecs);
+        v
     }
 }
 

@@ -1440,8 +1440,7 @@ mod tests {
 | bottom_degrees | location     | state | surface_degrees | time                 |
 +----------------+--------------+-------+-----------------+----------------------+
 | 50.4           | santa_monica | CA    | 65.2            | 2021-04-01T14:10:24Z |
-+----------------+--------------+-------+-----------------+----------------------+
-"#;
++----------------+--------------+-------+-----------------+----------------------+"#;
 
         check_response("query", response, StatusCode::OK, Some(expected)).await;
 
@@ -1651,7 +1650,12 @@ mod tests {
 
             assert_eq!(status, expected_status);
             if let Some(expected_body) = expected_body {
-                assert!(body.contains(expected_body));
+                assert!(
+                    body.contains(expected_body),
+                    "Could not find expected in body.\n\nExpected:\n{}\n\nBody:\n{}",
+                    expected_body,
+                    body
+                );
             }
         } else {
             panic!("Unexpected error response: {:?}", response);

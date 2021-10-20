@@ -27,7 +27,7 @@ use rdkafka::{
 };
 use time::{Time, TimeProvider};
 use trace::{ctx::SpanContext, TraceCollector};
-use trace_http::ctx::TraceHeaderParser;
+use trace_http::ctx::{format_jaeger_trace_context, TraceHeaderParser};
 
 use crate::core::{
     EntryStream, FetchHighWatermark, FetchHighWatermarkFut, WriteBufferError, WriteBufferReading,
@@ -118,16 +118,7 @@ impl From<&IoxHeaders> for OwnedHeaders {
         if let Some(span_context) = iox_headers.span_context.as_ref() {
             res = res.add(
                 HEADER_TRACE_CONTEXT,
-                &format!(
-                    "{:x}:{:x}:{:x}:1",
-                    span_context.trace_id.get(),
-                    span_context.span_id.get(),
-                    span_context
-                        .parent_span_id
-                        .as_ref()
-                        .map(|span_id| span_id.get())
-                        .unwrap_or_default()
-                ),
+                &format_jaeger_trace_context(span_context),
             )
         }
 

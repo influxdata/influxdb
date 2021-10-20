@@ -478,8 +478,8 @@ mod tests {
         datatypes::Field,
         datatypes::{Schema, SchemaRef},
         record_batch::RecordBatch,
-        util::pretty::pretty_format_batches,
     };
+    use arrow_util::assert_batches_eq;
     use datafusion::physical_plan::common::SizedRecordBatchStream;
     use test_helpers::{str_pair_vec_to_vec, str_vec_to_arc_vec};
 
@@ -539,16 +539,9 @@ mod tests {
             "| one   | ten   | 10          | 1         | 1000 |",
             "| one   | ten   | 10.1        | 2         | 2000 |",
             "+-------+-------+-------------+-----------+------+",
-            "",
         ];
 
-        let actual_data = pretty_format_batches(&[series_set.batch.clone()])
-            .expect("formatting batch")
-            .split('\n')
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
-
-        assert_eq!(expected_data, actual_data);
+        assert_batches_eq!(expected_data, &[series_set.batch.clone()]);
     }
 
     #[tokio::test]
@@ -593,16 +586,9 @@ mod tests {
             "| one   | ten   | 10          |           | 1000 |",
             "| one   | ten   | 10.1        |           | 2000 |",
             "+-------+-------+-------------+-----------+------+",
-            "",
         ];
 
-        let actual_data = pretty_format_batches(&[series_set.batch.clone()])
-            .expect("formatting batch")
-            .split('\n')
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
-
-        assert_eq!(expected_data, actual_data);
+        assert_batches_eq!(expected_data, &[series_set.batch.clone()]);
     }
 
     #[tokio::test]

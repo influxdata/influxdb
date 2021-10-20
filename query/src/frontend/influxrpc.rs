@@ -277,6 +277,10 @@ impl InfluxRpcPlanner {
 
         let mut known_columns = BTreeSet::new();
         for chunk in database.chunks(normalizer.unnormalized()) {
+            // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
+            // deleted data before getting tag keys
+            let mut do_full_plan = chunk.has_delete_predicates();
+
             let table_name = chunk.table_name();
             let predicate = normalizer.normalized(table_name);
 
@@ -302,35 +306,42 @@ impl InfluxRpcPlanner {
 
             let selection = Selection::Some(&column_names);
 
-            // filter the columns further from the predicate
-            let maybe_names = chunk
-                .column_names(&predicate, selection)
-                .map_err(|e| Box::new(e) as _)
-                .context(FindingColumnNames)?;
+            if !do_full_plan {
+                // filter the columns further from the predicate
+                let maybe_names = chunk
+                    .column_names(&predicate, selection)
+                    .map_err(|e| Box::new(e) as _)
+                    .context(FindingColumnNames)?;
 
-            match maybe_names {
-                Some(mut names) => {
-                    debug!(
-                        table_name,
-                        names=?names,
-                        chunk_id=%chunk.id().get(),
-                        "column names found from metadata",
-                    );
-                    known_columns.append(&mut names);
+                match maybe_names {
+                    Some(mut names) => {
+                        debug!(
+                            table_name,
+                            names=?names,
+                            chunk_id=%chunk.id().get(),
+                            "column names found from metadata",
+                        );
+                        known_columns.append(&mut names);
+                    }
+                    None => {
+                        do_full_plan = true;
+                    }
                 }
-                None => {
-                    debug!(
-                        table_name,
-                        chunk_id=%chunk.id().get(),
-                        "column names need full plan"
-                    );
-                    // can't get columns only from metadata, need
-                    // a general purpose plan
-                    need_full_plans
-                        .entry(table_name.to_string())
-                        .or_insert_with(Vec::new)
-                        .push(Arc::clone(&chunk));
-                }
+            }
+
+            // can't get columns only from metadata, need
+            // a general purpose plan
+            if do_full_plan {
+                debug!(
+                    table_name,
+                    chunk_id=%chunk.id().get(),
+                    "column names need full plan"
+                );
+
+                need_full_plans
+                    .entry(table_name.to_string())
+                    .or_insert_with(Vec::new)
+                    .push(Arc::clone(&chunk));
             }
         }
 
@@ -399,6 +410,10 @@ impl InfluxRpcPlanner {
         let mut normalizer = PredicateNormalizer::new(predicate);
         let mut known_values = BTreeSet::new();
         for chunk in database.chunks(normalizer.unnormalized()) {
+            // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
+            // deleted data before getting tag values
+            let mut do_full_plan = chunk.has_delete_predicates();
+
             let table_name = chunk.table_name();
             let predicate = normalizer.normalized(table_name);
 
@@ -443,35 +458,42 @@ impl InfluxRpcPlanner {
                 }
             );
 
-            // try and get the list of values directly from metadata
-            let maybe_values = chunk
-                .column_values(tag_name, &predicate)
-                .map_err(|e| Box::new(e) as _)
-                .context(FindingColumnValues)?;
+            if !do_full_plan {
+                // try and get the list of values directly from metadata
+                let maybe_values = chunk
+                    .column_values(tag_name, &predicate)
+                    .map_err(|e| Box::new(e) as _)
+                    .context(FindingColumnValues)?;
 
-            match maybe_values {
-                Some(mut names) => {
-                    debug!(
-                        table_name,
-                        names=?names,
-                        chunk_id=%chunk.id().get(),
-                        "tag values found from metadata",
-                    );
-                    known_values.append(&mut names);
+                match maybe_values {
+                    Some(mut names) => {
+                        debug!(
+                            table_name,
+                            names=?names,
+                            chunk_id=%chunk.id().get(),
+                            "tag values found from metadata",
+                        );
+                        known_values.append(&mut names);
+                    }
+                    None => {
+                        do_full_plan = true;
+                    }
                 }
-                None => {
-                    debug!(
-                        table_name,
-                        chunk_id=%chunk.id().get(),
-                        "need full plan to find tag values"
-                    );
-                    // can't get columns only from metadata, need
-                    // a general purpose plan
-                    need_full_plans
-                        .entry(table_name.to_string())
-                        .or_insert_with(Vec::new)
-                        .push(Arc::clone(&chunk));
-                }
+            }
+
+            // can't get columns only from metadata, need
+            // a general purpose plan
+            if do_full_plan {
+                debug!(
+                    table_name,
+                    chunk_id=%chunk.id().get(),
+                    "need full plan to find tag values"
+                );
+
+                need_full_plans
+                    .entry(table_name.to_string())
+                    .or_insert_with(Vec::new)
+                    .push(Arc::clone(&chunk));
             }
         }
 
@@ -1170,6 +1192,8 @@ impl InfluxRpcPlanner {
             .context(BuildingPlan)?
             .sort(sort_exprs)
             .context(BuildingPlan)?;
+
+        let plan_builder = cast_aggregates(plan_builder, agg, &field_columns)?;
 
         // and finally create the plan
         let plan = plan_builder.build().context(BuildingPlan)?;

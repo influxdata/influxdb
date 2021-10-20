@@ -3,8 +3,7 @@ use arrow::datatypes::{DataType, TimeUnit};
 use arrow::error::Result;
 use arrow::record_batch::RecordBatch;
 
-use prettytable::format;
-use prettytable::{Cell, Row, Table};
+use comfy_table::{Cell, Table};
 
 use chrono::prelude::*;
 
@@ -54,7 +53,7 @@ fn array_value_to_string(column: &ArrayRef, row: usize) -> Result<String> {
 /// NB: COPIED FROM ARROW
 fn create_table(results: &[RecordBatch]) -> Result<Table> {
     let mut table = Table::new();
-    table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+    table.load_preset("||--+-++|    ++++++");
 
     if results.is_empty() {
         return Ok(table);
@@ -66,7 +65,7 @@ fn create_table(results: &[RecordBatch]) -> Result<Table> {
     for field in schema.fields() {
         header.push(Cell::new(field.name()));
     }
-    table.set_titles(Row::new(header));
+    table.set_header(header);
 
     for batch in results {
         for row in 0..batch.num_rows() {
@@ -75,7 +74,7 @@ fn create_table(results: &[RecordBatch]) -> Result<Table> {
                 let column = batch.column(col);
                 cells.push(Cell::new(&array_value_to_string(column, row)?));
             }
-            table.add_row(Row::new(cells));
+            table.add_row(cells);
         }
     }
 

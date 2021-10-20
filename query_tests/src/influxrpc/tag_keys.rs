@@ -144,8 +144,6 @@ async fn list_tag_name_end_to_end() {
     run_tag_keys_test_case(EndToEndTest {}, predicate, expected_tag_keys).await;
 }
 
-// https://github.com/influxdata/influxdb_iox/issues/2863
-#[ignore]
 #[tokio::test]
 async fn list_tag_name_end_to_end_with_delete() {
     let predicate = PredicateBuilder::default()

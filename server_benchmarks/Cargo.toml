@@ -22,7 +22,6 @@ influxdb_tsm = { path = "../influxdb_tsm" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 mutable_buffer = { path = "../mutable_buffer" }
 object_store = { path = "../object_store" }
-packers = { path = "../packers" }
 predicate = { path = "../predicate" }
 query = { path = "../query" }
 query_tests = { path = "../query_tests" }
