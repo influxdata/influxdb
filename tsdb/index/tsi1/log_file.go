@@ -239,8 +239,8 @@ func (f *LogFile) Release() { f.wg.Done() }
 // Stat returns size and last modification time of the file.
 func (f *LogFile) Stat() (int64, time.Time) {
 	f.mu.RLock()
+	defer f.mu.RUnlock()
 	size, modTime := f.size, f.modTime
-	f.mu.RUnlock()
 	return size, modTime
 }
 
@@ -257,8 +257,8 @@ func (f *LogFile) TombstoneSeriesIDSet() (*tsdb.SeriesIDSet, error) {
 // Size returns the size of the file, in bytes.
 func (f *LogFile) Size() int64 {
 	f.mu.RLock()
+	defer f.mu.RUnlock()
 	v := f.size
-	f.mu.RUnlock()
 	return v
 }
 
