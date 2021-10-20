@@ -469,6 +469,39 @@ async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697() {
     .await;
 }
 
+// See issue: https://github.com/influxdata/influxdb_iox/issues/2845
+//
+// Adds coverage to window_aggregate plan for filtering on _field.
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_aggregate_filter_on_field() {
+    let predicate = PredicateBuilder::default()
+        // time >= '2021-01-01T00:00:01.000000001Z' AND time <= '2021-01-01T00:00:01.000000031Z'
+        .timestamp_range(1609459201000000001, 1609459201000000031)
+        .add_expr(col("_field").eq(lit("foo")))
+        .build();
+
+    let agg = Aggregate::Sum;
+    let every = WindowDuration::from_nanoseconds(10);
+    let offset = WindowDuration::from_nanoseconds(0);
+
+    // The windowed aggregate is using a non-selector aggregate (SUM, COUNT, MEAD).
+    // For each distinct series the window defines the `time` column
+    let expected_results = vec![
+        "Series tags={_field=foo, _measurement=mm, section=1a}\n  FloatPoints timestamps: [1609459201000000010, 1609459201000000030], values: [4.0, 11.24]",
+        "Series tags={_field=foo, _measurement=mm, section=2b}\n  FloatPoints timestamps: [1609459201000000010], values: [2.0]",
+    ];
+
+    run_read_window_aggregate_test_case(
+        MeasurementForDefect2697 {},
+        predicate,
+        agg,
+        every,
+        offset,
+        expected_results,
+    )
+    .await;
+}
+
 #[tokio::test]
 async fn test_grouped_series_set_plan_group_aggregate_sum_defect_2697_with_delete() {
     let predicate = PredicateBuilder::default()
