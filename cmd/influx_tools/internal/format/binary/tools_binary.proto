@@ -10,7 +10,7 @@ message Header {
   Version version = 1;
   string database = 2;
   string retention_policy = 3;
-  int64 shard_duration = 4; // [(gogoproto.stdduration) = true];
+  int64 shard_duration = 4;
 }
 
 message BucketHeader {
