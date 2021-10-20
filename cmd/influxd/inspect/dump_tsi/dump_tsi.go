@@ -121,11 +121,11 @@ func (a *args) run() (rErr error) {
 		return err
 	}
 	if fs != nil {
-		defer errors.Capture(&rErr, fs.Close)
+		defer errors.Capture(&rErr, fs.Close)()
 		defer fs.Release()
 	}
 	if idx != nil {
-		defer errors.Capture(&rErr, idx.Close)
+		defer errors.Capture(&rErr, idx.Close)()
 	}
 
 	if a.showSeries {

@@ -19,7 +19,7 @@ func Untar(dir string, r io.Reader) (rErr error) {
 	if err != nil {
 		return err
 	}
-	defer errors2.Capture(&rErr, gzr.Close)
+	defer errors2.Capture(&rErr, gzr.Close)()
 
 	tr := tar.NewReader(gzr)
 
@@ -73,7 +73,7 @@ func untarFile(target string, tr *tar.Reader, header *tar.Header) (rErr error) {
 	if err != nil {
 		return err
 	}
-	defer errors2.Capture(&rErr, f.Close)
+	defer errors2.Capture(&rErr, f.Close)()
 
 	// copy over contents
 	if _, err := io.Copy(f, tr); err != nil {
