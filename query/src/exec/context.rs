@@ -478,7 +478,7 @@ impl IOxExecutionContext {
         }
     }
 
-    /// Executes table_plans and if not empty, add that table nto the return list
+    /// Executes table_plans and, if returns some rows, add that table into the return list
     /// Tables discovered from meta data won't need any plan
     pub async fn to_table_names(&self, builder: TableNamePlanBuilder) -> Result<StringSetRef> {
         let ctx = self.child_ctx("to_table_names");

@@ -205,8 +205,9 @@ impl InfluxRpcPlanner {
     /// Returns a builder that includes
     ///   . A set of table names got from meta data that will participate
     ///      in the requested `predicate`
-    ///   . A set of plans of tables of either chunks with deleted data or
-    ///      cannot decided from meta data
+    ///   . A set of plans of tables of either 
+    ///       . chunks with deleted data or
+    ///       . chunks without deleted data but cannot be decided from meta data
     pub fn table_names<D>(&self, database: &D, predicate: Predicate) -> Result<TableNamePlanBuilder>
     where
         D: QueryDatabase + 'static,
@@ -941,6 +942,7 @@ impl InfluxRpcPlanner {
     /// for a specified table:
     ///
     /// The output looks like (time)
+    /// The time column is chosen because it must be included in all tables
     ///
     /// The data is not sorted in any particular order
     ///
@@ -954,8 +956,8 @@ impl InfluxRpcPlanner {
     ///      Filter(predicate) [optional]
     ///        Scan
     /// ```
-    //  TODO: for optimization in the future, better to build `select count(*)` plan
-    //        but if we do this, we also need to change the way we handle output
+    //  TODO: for optimization in the future, build `select count(*)` plan instead,
+    //        ,but if we do this, we also need to change the way we handle output
     //        of the function invoking this because it will always return a number
     fn table_name_plan<C>(
         &self,
