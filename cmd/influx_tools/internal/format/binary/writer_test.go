@@ -12,6 +12,8 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
 func TestWriter_WriteOneBucketOneSeries(t *testing.T) {
@@ -34,18 +36,18 @@ func TestWriter_WriteOneBucketOneSeries(t *testing.T) {
 	// header
 	var hdr binary.Header
 	assertTypeValue(t, &buf, binary.HeaderType, &hdr)
-	assertEqual(t, hdr, binary.Header{Version: binary.Version0, Database: "db", RetentionPolicy: "rp", ShardDuration: time.Second})
+	assertEqual(t, &hdr, &binary.Header{Version: binary.Header_Version0, Database: "db", RetentionPolicy: "rp", ShardDuration: int64(time.Second)})
 
 	// bucket header
 	var bh binary.BucketHeader
 	assertTypeValue(t, &buf, binary.BucketHeaderType, &bh)
-	assertEqual(t, bh, binary.BucketHeader{Start: 0, End: int64(time.Second)})
+	assertEqual(t, &bh, &binary.BucketHeader{Start: 0, End: int64(time.Second)})
 
 	// series
 	var sh binary.SeriesHeader
 	assertTypeValue(t, &buf, binary.SeriesHeaderType, &sh)
-	assertEqual(t, sh, binary.SeriesHeader{
-		FieldType: binary.IntegerFieldType,
+	assertEqual(t, &sh, &binary.SeriesHeader{
+		FieldType: binary.FieldType_IntegerFieldType,
 		SeriesKey: []byte("cpu,host=host1,region=us-west-1"),
 		Field:     []byte("idle"),
 	})
@@ -54,7 +56,7 @@ func TestWriter_WriteOneBucketOneSeries(t *testing.T) {
 	for i := 0; i < len(ts); i++ {
 		var ip binary.IntegerPoints
 		assertTypeValue(t, &buf, binary.IntegerPointsType, &ip)
-		assertEqual(t, ip, binary.IntegerPoints{Timestamps: ts[i : i+1], Values: vs[i : i+1]})
+		assertEqual(t, &ip, &binary.IntegerPoints{Timestamps: ts[i : i+1], Values: vs[i : i+1]})
 	}
 
 	// series footer
@@ -89,7 +91,7 @@ func (c *intCursor) Next() *tsdb.IntegerArray {
 
 func assertEqual(t *testing.T, got, exp interface{}) {
 	t.Helper()
-	if !cmp.Equal(got, exp) {
+	if !cmp.Equal(got, exp, protocmp.Transform()) {
 		t.Fatalf("not equal: -got/+exp\n%s", cmp.Diff(got, exp))
 	}
 }
@@ -102,16 +104,12 @@ func assertNoError(t *testing.T, err error) {
 	t.Fatalf("unexpected error: %v", err)
 }
 
-type message interface {
-	Unmarshal([]byte) error
-}
-
-func assertTypeValue(t *testing.T, r io.Reader, expType binary.MessageType, m message) {
+func assertTypeValue(t *testing.T, r io.Reader, expType binary.MessageType, m proto.Message) {
 	t.Helper()
 	typ, d, err := tlv.ReadTLV(r)
 	assertNoError(t, err)
 	assertEqual(t, typ, byte(expType))
 
-	err = m.Unmarshal(d)
+	err = proto.Unmarshal(d, m)
 	assertNoError(t, err)
 }
