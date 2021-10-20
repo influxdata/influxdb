@@ -126,7 +126,7 @@ type Header struct {
 	Version         Header_Version `protobuf:"varint,1,opt,name=version,proto3,enum=binary.Header_Version" json:"version,omitempty"`
 	Database        string         `protobuf:"bytes,2,opt,name=database,proto3" json:"database,omitempty"`
 	RetentionPolicy string         `protobuf:"bytes,3,opt,name=retention_policy,json=retentionPolicy,proto3" json:"retention_policy,omitempty"`
-	ShardDuration   int64          `protobuf:"varint,4,opt,name=shard_duration,json=shardDuration,proto3" json:"shard_duration,omitempty"` // [(gogoproto.stdduration) = true];
+	ShardDuration   int64          `protobuf:"varint,4,opt,name=shard_duration,json=shardDuration,proto3" json:"shard_duration,omitempty"`
 }
 
 func (x *Header) Reset() {
