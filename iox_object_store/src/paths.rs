@@ -15,6 +15,7 @@ pub mod transaction_file;
 use transaction_file::TransactionFilePath;
 
 const SERVER_CONFIG_FILE_NAME: &str = "config.pb";
+const DATABASE_OWNER_FILE_NAME: &str = "owner.pb";
 
 /// The path to the server file containing the list of databases this server owns.
 // TODO: this is in the process of replacing all_databases_path for the floating databases design
@@ -106,6 +107,12 @@ impl GenerationPath {
 
     pub(crate) fn transactions_path(&self) -> TransactionsPath {
         TransactionsPath::new(self)
+    }
+
+    pub(crate) fn owner_path(&self) -> Path {
+        let mut result = self.inner.clone();
+        result.set_file_name(DATABASE_OWNER_FILE_NAME);
+        result
     }
 }
 

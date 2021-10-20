@@ -1492,7 +1492,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_database_persists_rules_and_server_config() {
+    async fn create_database_persists_rules_owner_and_server_config() {
         let application = make_application();
         let server = make_server(Arc::clone(&application));
         let server_id = ServerId::try_from(1).unwrap();
@@ -1538,6 +1538,14 @@ mod tests {
 
         // rules that are being used are the same
         assert_eq!(provided_rules.rules(), read_rules.rules());
+
+        // assert this database knows it's owned by this server
+        let owner_info = bananas.owner_info().unwrap();
+        assert_eq!(owner_info.id, server_id.get_u32());
+        assert_eq!(
+            owner_info.location,
+            IoxObjectStore::server_config_path(application.object_store(), server_id).to_string()
+        );
 
         // assert server config file exists and has 1 entry
         let config = server_config(application.object_store(), server_id).await;
@@ -2122,6 +2130,7 @@ mod tests {
 
         let foo_db_name = DatabaseName::new("foo").unwrap();
         let bar_db_name = DatabaseName::new("bar").unwrap();
+        let baz_db_name = DatabaseName::new("baz").unwrap();
 
         // create database foo
         create_simple_database(&server, "foo")
@@ -2142,6 +2151,24 @@ mod tests {
             .unwrap();
         iox_object_store.get_database_rules_file().await.unwrap();
 
+        // create database bar so it gets written to the server config
+        let baz = create_simple_database(&server, "baz")
+            .await
+            .expect("failed to create database");
+
+        // make the owner info for baz say it's owned by a different server
+        let baz_iox_object_store = baz.iox_object_store().unwrap();
+        let owner_info = management::v1::OwnerInfo {
+            id: 2,
+            location: "2/config.pb".to_string(),
+        };
+        let mut encoded = bytes::BytesMut::new();
+        generated_types::server_config::encode_database_owner_info(&owner_info, &mut encoded)
+            .expect("owner info serialization should be valid");
+        let encoded = encoded.freeze();
+
+        baz_iox_object_store.put_owner_file(encoded).await.unwrap();
+
         // restart server
         let server = make_server(application);
         server.set_id(server_id).unwrap();
@@ -2156,11 +2183,12 @@ mod tests {
         // DB names contain all DBs
         assert_eq!(
             server.db_names_sorted(),
-            vec!["bar".to_string(), "foo".to_string()]
+            vec!["bar".to_string(), "baz".to_string(), "foo".to_string()]
         );
 
         let foo_database = server.database(&foo_db_name).unwrap();
         let bar_database = server.database(&bar_db_name).unwrap();
+        let baz_database = server.database(&baz_db_name).unwrap();
 
         foo_database.wait_for_init().await.unwrap();
         assert!(foo_database.init_error().is_none());
@@ -2172,6 +2200,12 @@ mod tests {
             "failed to decode Protobuf message: invalid varint"
         );
         assert!(Arc::ptr_eq(&err, &bar_database.init_error().unwrap()));
+
+        let baz_err = baz_database.wait_for_init().await.unwrap_err();
+        assert_contains!(
+            baz_err.to_string(),
+            "Server ID in the database's owner info file (2) does not match this server's ID (1)"
+        );
 
         // can only write to successfully created DBs
         let lines = parsed_lines("cpu foo=1 10");
