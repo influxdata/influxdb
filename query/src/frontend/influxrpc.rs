@@ -1638,6 +1638,8 @@ impl PredicateNormalizer {
 /// `Exprs` are rewritten with the actual table name
 /// * any expression on the [VALUE_COLUMN_NAME] column is rewritten to be
 /// applied across all field columns.
+/// * any expression on the [FIELD_COLUMN_NAME] is rewritten to be
+/// applied for the particular fields.
 ///
 /// For example if the original predicate was
 /// ```text
