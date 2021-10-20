@@ -23,4 +23,6 @@ if ! command -v gawk &> /dev/null; then
   echo "  ...."
 fi
 
+export TZ=C
+
 exec gawk -F"time=" '{print strftime("%Y-%m-%d %H:%M:%S", $2/1000000000), $1 }'
