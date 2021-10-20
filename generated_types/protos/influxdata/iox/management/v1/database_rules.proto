@@ -86,6 +86,9 @@ message LifecycleRules {
   uint64 parquet_cache_limit = 17;
 }
 
+// Database rules.
+//
+// TODO(marco): add `WriteSources` to this message.
 message DatabaseRules {
   // The unencoded name of the database
   //
@@ -103,6 +106,8 @@ message DatabaseRules {
   LifecycleRules lifecycle_rules = 3;
 
   // If not specified, does not configure any routing
+  //
+  // TODO(marco): remove this
   oneof routing_rules {
     // Shard config
     ShardConfig shard_config = 8;
@@ -121,6 +126,8 @@ message DatabaseRules {
   // Optionally, the connection for the write buffer for writing or reading/restoring data.
   //
   // If not specified, does not configure a write buffer
+  //
+  // TODO(marco): remove this
   WriteBufferConnection write_buffer_connection = 13;
 }
 

@@ -1,0 +1,148 @@
+syntax = "proto3";
+package influxdata.iox.management.v1;
+option go_package = "github.com/influxdata/iox/management/v1";
+
+import "influxdata/iox/management/v1/partition_template.proto";
+import "influxdata/iox/management/v1/shard.proto";
+import "influxdata/iox/management/v1/write_buffer.proto";
+
+// Router for writes and queries.
+//
+// A router acts similar to a "real" database except that it does NOT store or manage any data by itself but forwards
+// this responsiblity to other nodes (which then in turn provide an actual database or another routing layer).
+//
+// # Write Routing
+//
+// ## Overall Picture
+// Data is accepted from all sources, is sharded, and is (according to the sharding) written into the sink sets. There
+// may be a prioritization for sources that is "HTTP and gRPC first, and write buffers in declared order".
+//
+// ```text
+//           ( HTTP )--+        +------->( sink set 1 )
+//                     |        |
+//           ( gRPC )--+-->( sharder )--> ...
+//                     |        |
+// ( Write Buffer 1 )--+        +------->( sink set n )
+//        ...          |
+// ( Write Buffer n )--+
+// ```
+//
+// ## Sharder
+// A sharder takes data and for every row/line:
+//
+// 1. Checks if a matcher matches the row, first matcher wins. If that's the case, the row/line is directly sent to the
+//    sink set.
+// 2. If no matcher matches the row/line is handled by the hash ring.
+//
+// ```text
+// --->[ matcher 1? ]-{no}---...--->[ matcher n? ]-{no}---+
+//           |                            |               |
+//         {yes}                        {yes}             |
+//           |                            |               |
+//           V                            V               |
+//     ( sink set 1 )               ( sink set n )        |
+//           ^                            ^               |
+//           |                            |               |
+//           +--------( hash ring )-------+               |
+//                          ^                             |
+//                          |                             |
+//                          +-----------------------------+
+// ```
+//
+// ## Sink Set
+// Data is written to all sinks in the set in implementation-defined order. Errors do NOT short-circuit. If an error
+// occurs for at least one sink that has `ignore_errors = false`, an error is returned. An empty sink set acts as NULL
+// sink and always succeeds.
+//
+// **IMPORTANT: Queries are NOT distributed! The are always only answered by a single node.**
+//
+// # Query Routing
+// Queries always arrive via gRPC and are forwarded one sink. The specific sink is selected via an engine that might
+// take the following features into account:
+//
+// - **freshness:** For each sink what are the lasted sequence numbers pulled from the write buffer.
+// - **stickyness:** The same client should ideally reach the same sink in subsequent requests to improve caching.
+// - **circuit breaking:** If a sink is unhealthy it should be excluded from the candidate list for a while.
+//
+// ```text
+// ( gRPC )-->[ selection engine ]-->( sink 1 )
+//                             |        ...
+//                             +---->( sink n )
+// ```
+message Router {
+  // Router name.
+  //
+  // The name is unique for this node.
+  string name = 1;
+
+  // Sources of write requests.
+  WriteSources write_sources = 2;
+
+  // Write sharder.
+  //
+  // NOTE: This only uses the `specific_targets` and `hash_ring` config of the sharder. The other fields are ignored.
+  //
+  // TODO(marco): remove the note above once the `ShardConfig` was cleaned up.
+  ShardConfig write_sharder = 3;
+
+  // Sinks for write requests.
+  map<uint32, WriteSinkSet> write_sinks = 4;
+
+  // Sinks for query requests.
+  QuerySinks query_sinks = 5;
+
+  // Template that generates a partition key for each row inserted into the database.
+  //
+  // This is a temporary config until the partition is moved entirely into the database.
+  //
+  // If not specified, a server-side default is used
+  //
+  // TODO(marco): remove this
+  PartitionTemplate partition_template = 6;
+}
+
+// Sources of write request aka new data.
+//
+// Data is accepted from these sources and a status is provided back to it.
+message WriteSources {
+  // If set writes via gRPC and HTTP are accepted.
+  //
+  // You may want to disable this when incoming data should solely be received via write buffer(s).
+  bool allow_unsequenced_inputs = 2;
+
+  // Write buffer connections.
+  repeated WriteBufferConnection write_buffers = 3;
+}
+
+// Sink of write requests aka new data.
+//
+// Data is sent to this sink and a status is received from it.
+message WriteSink {
+  // Where the data goes.
+  oneof sink {
+    // gRPC-based remote, addressed by its server ID.
+    uint32 grpc_remote = 1;
+
+    // Write buffer connection.
+    WriteBufferConnection write_buffer = 2;
+  }
+
+  // If set, errors during writing to this sink are ignored and do NOT lead to an overall failure.
+  bool ignore_errors = 3;
+}
+
+// Set of write sinks.
+message WriteSinkSet {
+  // Sinks within the set.
+  repeated WriteSink sinks = 1;
+}
+
+// Sinks for query requests.
+//
+// Queries are sent to one of these sinks and the resulting data is received from it.
+//
+// Note that the query results are flowing into the opposite direction (aka a query sink is a result source).
+message QuerySinks {
+  // gRPC-based remotes, addressed by their server IDs.
+  repeated uint32 grpc_remotes = 1;
+}

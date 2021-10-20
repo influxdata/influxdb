@@ -40,6 +40,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("jobs.proto"),
         management_path.join("partition.proto"),
         management_path.join("partition_template.proto"),
+        management_path.join("router.proto"),
         management_path.join("server_config.proto"),
         management_path.join("service.proto"),
         management_path.join("shard.proto"),

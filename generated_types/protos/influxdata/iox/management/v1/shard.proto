@@ -30,10 +30,14 @@ message ShardConfig {
   /// If set to true the router will ignore any errors sent by the remote
   /// targets in this route. That is, the write request will succeed
   /// regardless of this route's success.
+  ///
+  /// TODO(marco): remove this
   bool ignore_errors = 3;
 
   /// Mapping between shard IDs and node groups. Other sharding rules use
   /// ShardId as targets.
+  ///
+  /// TODO(marco): remove this
   map<uint32, Sink> shards = 4;
 }
 
