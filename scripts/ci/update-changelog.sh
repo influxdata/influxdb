@@ -14,7 +14,7 @@ done
 
 # The default "starting" commit is a somewhat arbitrary starting point for
 # cataloging recent commits in a way that breaks from the old convention
-DEFAULT_START_COMMIT="891e7d47827e99947e46c82f509e479aa13acf24"
+DEFAULT_START_COMMIT="53455b135c5badbd3e4550270d1e8f43520e0c4c"
 DEFAULT_NEWEST_COMMIT="$(git rev-parse HEAD)"
 DEFAULT_COMMIT_RANGE="${DEFAULT_START_COMMIT}..${DEFAULT_NEWEST_COMMIT}"
 
@@ -70,13 +70,9 @@ done
 
 output="$(git cliff ${@} ${DEFAULT_GIT_CLIFF_OPTIONS} ${COMMIT_RANGE})"
 
-if [ -n "$PREPEND_TARGET" ] ; then
-  if [ -n "$output" ]; then
-    newline=$'\n\n'
-    echo "${output}${newline}$(cat $PREPEND_TARGET)"
-  else
-    echo "$(cat $PREPEND_TARGET)"
-  fi
+if [ -n "$PREPEND_TARGET" ] && [ -n "$output" ]; then
+  newline=$'\n\n'
+  echo "${output}${newline}$(cat $PREPEND_TARGET)" > $PREPEND_TARGET
 else
   echo "$output"
 fi

@@ -46,12 +46,21 @@ parameters:
   aws_teardown_query_format:
     default: "n/a"
     type: string
+  build_and_sign:
+    default: false
+    type: boolean
+  build_and_sign_tag:
+    default: ""
+    type: string
 
 workflows:
   version: 2
   build:
     when:
-      not: << pipeline.parameters.aws_teardown >>
+      not:
+        or:
+          - << pipeline.parameters.aws_teardown >>
+          - << pipeline.parameters.build_and_sign >>
     jobs:
       - godeps
       - test-race:
@@ -122,7 +131,7 @@ workflows:
           filters:
             branches:
               only:
-                - "master"
+                - "2.1"
       - perf_test:
           name: perf-test-influxql
           format: http
@@ -132,7 +141,7 @@ workflows:
           filters:
             branches:
               only:
-                - "master"
+                - "2.1"
       - grace_daily:
           requires:
             - build
@@ -144,7 +153,7 @@ workflows:
             - build
           filters:
             branches:
-              only: master
+              only: "2.1"
       - share-testing-image:
           filters:
             branches:
@@ -161,7 +170,7 @@ workflows:
           filters:
             branches:
               only:
-                - "master"
+                - "2.1"
     jobs:
       - aws_destroy_by_date
   aws_destroy_callback:
@@ -176,9 +185,10 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - "2.1"
     jobs:
-      - changelog
+      - changelog:
+          nightly: true
       - godeps
       - test-race:
           # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
@@ -230,13 +240,100 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - "2.1"
       - litmus_integration:
           requires:
             - deploy_nightly
       - grace_daily:
           requires:
             - deploy_nightly
+
+  build_and_sign_workflow:
+    when:
+      and:
+        - << pipeline.parameters.build_and_sign >>
+        - << pipeline.parameters.build_and_sign_tag >>
+    jobs:
+      - changelog:
+          nightly: false
+      - release:
+          requires:
+            - changelog
+
+  release:
+    jobs:
+      - godeps:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - test-race:
+          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
+          name: gotest
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - fluxtest:
+          requires:
+            - godeps
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - tlstest:
+          requires:
+            - godeps
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - lint:
+          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
+          name: golint
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - changelog:
+          nightly: false
+          requires:
+            - gotest
+            - fluxtest
+            - tlstest
+            - golint
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
+      - release:
+          requires:
+            - changelog
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only:
+                - /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+                - /^.*test$/
 
 commands:
   # Install system dependencies needed to run a native build of influxd
@@ -354,17 +451,33 @@ commands:
     parameters:
       publish_release:
         type: boolean
+      nightly:
+        type: boolean
+        default: false
+      build_tag:
+        default: ""
+        type: string
     steps:
+      - attach_workspace:
+          at: /tmp/workspace
       - when:
-          condition: << parameters.publish_release >>
+          condition:
+            or:
+              - << parameters.publish_release >>
+              - << parameters.nightly >>
           steps:
             - bail_if_forked
             - run:
                 name: Import GPG key
                 command: |
-                  echo -e "$GPG_PRIVATE_KEY" > private.key
-                  gpg --batch --import private.key
+                  echo -e "$GPG_PRIVATE_KEY" | gpg --batch --import --
             - quay_login
+            - run:
+                name: Copy changelog artifacts into checkout dir
+                # This step is required to enable goreleaser to find the
+                # correct changelog files to upload to S3
+                command: |
+                  cp -a /tmp/workspace/changelog_artifacts ./changelog_artifacts
       - run:
           name: Set GOPATH
           # Machine executors use a different GOPATH from the cimg/go Docker executors.
@@ -396,19 +509,74 @@ commands:
             docker buildx build --target dependency-base --platform linux/amd64,linux/arm64 docker/influxd
       - install_cross_bin_deps
       - unless:
-          condition: << parameters.publish_release >>
+          condition:
+            or:
+              - << parameters.publish_release >>
+              - << parameters.nightly >>
           steps:
             - run:
                 name: Build release
                 # `goreleaser release --skip-publish` builds Docker images, but doesn't push them.
                 # As opposed to `goreleaser build`, which stops before building Dockers.
-                command: goreleaser --debug release --skip-publish --skip-sign -p 1 --rm-dist --skip-validate
+                command: S3_FOLDER="influxdb/releases/" VERSION="$(git describe | sed 's/^v//' | sed 's/^[a-zA-Z]/2\.1-&/')" goreleaser --debug release --skip-publish --skip-sign -p 1 --rm-dist --skip-validate
       - when:
-          condition: << parameters.publish_release >>
+          condition:
+            and:
+              - << parameters.publish_release >>
+              - not:
+                  matches:
+                    pattern: "^.*test$"
+                    value: << pipeline.git.tag >>
           steps:
             - run:
                 name: Publish release
-                command: goreleaser --debug release -p 1 --rm-dist --skip-validate
+                command: |
+                  VERSION_TAG="${CIRCLE_TAG}"
+                  if [ -n "<< parameters.build_tag >>" ]; then
+                    VERSION_TAG="<< parameters.build_tag >>"
+                  fi
+                  S3_FOLDER="influxdb/releases/" \
+                  VERSION=${VERSION_TAG##v} \
+                  goreleaser \
+                    --debug \
+                    release \
+                      -p 1 \
+                      --rm-dist \
+                      --skip-validate
+      - when:
+          condition:
+            and:
+              - << parameters.publish_release >>
+              - matches:
+                  pattern: "^.*test$"
+                  value: << pipeline.git.tag >>
+          steps:
+            - run:
+                name: Publish release
+                command: |
+                  S3_FOLDER="platform/nightlies/test" \
+                  VERSION=2.1-${CIRCLE_TAG} \
+                  goreleaser \
+                    --debug \
+                    release \
+                      -p 1 \
+                      --rm-dist \
+                      --skip-validate
+      - when:
+          condition: << parameters.nightly >>
+          steps:
+            - run:
+                name: Publish nightly
+                command: |
+                  S3_FOLDER="platform/nightlies/2.1" \
+                  VERSION="2.1-nightly" \
+                  goreleaser \
+                    --debug \
+                    release \
+                      -p 1 \
+                      --rm-dist \
+                      --skip-validate
+
   quay_login:
     steps:
       - run:
@@ -584,7 +752,7 @@ jobs:
       - install_core_deps
       - install_cross_bin_deps
       # Build the static binary for linux
-      - run: goreleaser build --snapshot --single-target
+      - run: S3_FOLDER="influxdb/releases/" VERSION="$(git describe | sed 's/^v//' | sed 's/^[a-zA-Z]/2\.1-&/')" goreleaser build --snapshot --single-target
       - store_artifacts:
           path: dist
       - persist_to_workspace:
@@ -674,7 +842,7 @@ jobs:
           name: Terraform apply
           command: |
             set -x
-            export DEBNAME="/tmp/workspace/artifacts/influxdb2-nightly-amd64.deb"
+            export DEBNAME="$(find /tmp/workspace/artifacts/influxdb2-*amd64.deb)"
             terraform -chdir=scripts/ci init -input=false
             AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY terraform \
               -chdir=scripts/ci \
@@ -782,15 +950,23 @@ jobs:
             instance_id=$(AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 describe-instances --filters "Name=tag:Name,Values=$name" --query 'Reservations[].Instances[].InstanceId' --output text)
             AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
 
-  deploy_nightly:
-    executor: linux-amd64
+  release:
+    machine:
+      image: linux-amd64
+    resource_class: large
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      - attach_workspace:
-          at: /tmp/workspace
+      - when:
+          condition: << pipeline.parameters.build_and_sign_tag >>
+          steps:
+            - run:
+                name: checkout by tag
+                command: |
+                  git fetch --all --tags
+                  git checkout tags/<< pipeline.parameters.build_and_sign_tag >> -b << pipeline.parameters.build_and_sign_tag >>
       - run:
           name: Create RAM disk
           command: |
@@ -802,19 +978,40 @@ jobs:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - install_core_deps
       - upgrade_go
-      - run:
-          # Goreleaser's blob stanza requires relative paths
-          name: Copy changelog artifacts into checkout dir
-          command: |
-            cp -a /tmp/workspace/changelog_artifacts ./changelog_artifacts
       - run_goreleaser:
           publish_release: true
+          build_tag: << pipeline.parameters.build_and_sign_tag >>
+      - persist_to_workspace:
+          root: .
+          paths:
+            - etc/litmus_success_notify.sh
+            - etc/litmus_fail_notify.sh
+
+  deploy_nightly:
+    executor: linux-amd64
+    environment:
+      TMPDIR: /mnt/ramdisk
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - run:
+          name: Create RAM disk
+          command: |
+            sudo mkdir -p ${TMPDIR}
+            sudo mount -t tmpfs -o size=4G tmpfs ${TMPDIR}
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
+      - install_core_deps
+      - upgrade_go
+      - run_goreleaser:
+          publish_release: false
+          nightly: true
       - persist_to_workspace:
           root: .
           paths:
             - dist/influxd_linux_amd64/influxd
-            - etc/litmus_success_notify.sh
-            - etc/litmus_fail_notify.sh
 
   #################################
   ### e2e/integration test jobs ###
@@ -921,43 +1118,95 @@ jobs:
             docker tag quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} quay.io/influxdb/oss-acceptance:2.1
             docker push quay.io/influxdb/oss-acceptance:2.1
   changelog:
+    parameters:
+      nightly:
+        type: boolean
     machine:
       image: ubuntu-2004:202010-01
     steps:
       - checkout
       - install_core_deps
       - run:
-          name: Run script
+          name: Install git-cliff
           command: |
             set -x
             git clone --depth=1 --branch v0.2.5 https://github.com/orhun/git-cliff
             cd git-cliff
             cargo install git-cliff
-            cd ..
-
-            S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/platform/nightlies/master"
-            curl -o CHANGELOG.md ${S3_PATH}/CHANGELOG.md
-            curl -o scripts/ci/changelog-commit.txt ${S3_PATH}/changelog-commit.txt
-
+      - when:
+          condition: << parameters.nightly >>
+          steps:
+            - run:
+                name: Nightly Changelog
+                command: |
+                  set -x
+                  S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/platform/nightlies/2.1"
+                  CHANGELOG_FILENAME="CHANGELOG.md"
+                  COMMIT_FILE_PATH="changelog-commit.txt"
+                  curl -o ${CHANGELOG_FILENAME} ${S3_PATH}/${CHANGELOG_FILENAME}
+                  curl -o ${COMMIT_FILE_PATH} ${S3_PATH}/${COMMIT_FILE_PATH}
+                  LAST_COMMIT=$(cat $COMMIT_FILE_PATH)
+                  NEWEST_COMMIT=${CIRCLE_SHA1}
+                  cat \<< EOF >> env_vars.sh
+                  S3_PATH=${S3_PATH}
+                  CHANGELOG_FILENAME=${CHANGELOG_FILENAME}
+                  COMMIT_RANGE="${LAST_COMMIT}..${NEWEST_COMMIT}"
+                  COMMIT_FILE_PATH=$COMMIT_FILE_PATH
+                  SCRIPT_OPTIONS="--prepend ${CHANGELOG_FILENAME}"
+                  EOF
+      - unless:
+          condition: << parameters.nightly >>
+          steps:
+            - run:
+                name: Release Changelog
+                command: |
+                  set -x
+                  S3_PATH="https://s3.amazonaws.com/dl.influxdata.com/influxdb/releases"
+                  CHANGELOG_FILENAME="CHANGELOG-${CIRCLE_TAG}.md"
+                  COMMIT_FILE_PATH="changelog-commit-${CIRCLE_BRANCH}.txt"
+                  curl -o ${COMMIT_FILE_PATH} ${S3_PATH}/${COMMIT_FILE_PATH}
+                  LAST_COMMIT=$(git describe --abbrev=0 --tags --exclude='*[rc]*' $(git rev-list --tags='v2.1*' --skip=1 --max-count=1))
+                  NEWEST_COMMIT=${CIRCLE_SHA1}
+                  if [ -n "<< pipeline.parameters.build_and_sign_tag >>" ]; then
+                    git fetch --all --tags
+                    CIRCLE_TAG=<< pipeline.parameters.build_and_sign_tag >>
+                    LAST_COMMIT=$(git tag -l --sort=-version:refname 'v2.1*[!-rc].[0-9]' | grep -A 1 << pipeline.parameters.build_and_sign_tag >> | tail -n 1)
+                    NEWEST_COMMIT=${CIRCLE_TAG}
+                    CHANGELOG_FILENAME="CHANGELOG-${CIRCLE_TAG}.md"
+                    COMMIT_FILE_PATH="changelog-commit-${CIRCLE_TAG}.txt"
+                  fi
+                  cat \<< EOF >> env_vars.sh
+                  S3_PATH=${S3_PATH}
+                  CHANGELOG_FILENAME="${CHANGELOG_FILENAME}"
+                  COMMIT_RANGE="${LAST_COMMIT}..${NEWEST_COMMIT}"
+                  COMMIT_FILE_PATH=${COMMIT_FILE_PATH}
+                  SCRIPT_OPTIONS=""
+                  CIRCLE_TAG=${CIRCLE_TAG}
+                  EOF
+      - run:
+          name: Changelog
+          command: |
+            set -x
+            source env_vars.sh
             TIMESTAMP="$(date -u '+%Y%m%d')"
-            COMMIT_FILE_PATH="scripts/ci/changelog-commit.txt"
-            LAST_COMMIT=$(cat $COMMIT_FILE_PATH)
-            NEWEST_COMMIT=${CIRCLE_SHA1}
+            TAG=${TIMESTAMP}
+            if [ -n "${CIRCLE_TAG}" ]; then
+              TAG=${CIRCLE_TAG}
+            fi
             ./scripts/ci/update-changelog.sh \
-              --commit-range "$LAST_COMMIT..$NEWEST_COMMIT" \
-              --prepend CHANGELOG.md \
+              --commit-range "${COMMIT_RANGE}" \
+              ${SCRIPT_OPTIONS} \
               -- \
-              --tag $TIMESTAMP > CHANGELOG-2.md
-            echo ${CIRCLE_SHA1} > $COMMIT_FILE_PATH
-            cat CHANGELOG-2.md
-
+              --tag ${TAG} > $CHANGELOG_FILENAME
+            if [ -z "<< pipeline.parameters.build_and_sign >>" ]; then
+              echo "${CIRCLE_SHA1}" > "${COMMIT_FILE_PATH}"
+            fi
             mkdir changelog_artifacts
-            cp CHANGELOG-2.md changelog_artifacts/CHANGELOG.md
+            cp $CHANGELOG_FILENAME changelog_artifacts
             cp $COMMIT_FILE_PATH changelog_artifacts
       - store_artifacts:
           path: changelog_artifacts/
       - persist_to_workspace:
           root: .
-          paths:
-            - changelog_artifacts
+          paths: changelog_artifacts/
 
