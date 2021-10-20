@@ -5,12 +5,13 @@ import (
 	"errors"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/task/backend/executor"
 	"github.com/influxdata/influxdb/v2/task/backend/middleware"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
-	"go.uber.org/zap"
 )
 
 var _ middleware.Coordinator = (*Coordinator)(nil)
@@ -166,31 +167,13 @@ func (c *Coordinator) RunCancelled(ctx context.Context, runID platform.ID) error
 	return err
 }
 
-// RunRetried speaks directly to the executor to re-try a task run immediately
-func (c *Coordinator) RunRetried(ctx context.Context, task *taskmodel.Task, run *taskmodel.Run) error {
-	promise, err := c.ex.ManualRun(ctx, task.ID, run.ID)
-	if err != nil {
-		return taskmodel.ErrRunExecutionError(err)
-	}
-
-	<-promise.Done()
-	if err = promise.Error(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // RunForced speaks directly to the Executor to run a task immediately
 func (c *Coordinator) RunForced(ctx context.Context, task *taskmodel.Task, run *taskmodel.Run) error {
-	promise, err := c.ex.ManualRun(ctx, task.ID, run.ID)
+	// the returned promise is not used, since clients expect the HTTP server to return immediately after scheduling the
+	// task rather than waiting for the task to finish
+	_, err := c.ex.ManualRun(ctx, task.ID, run.ID)
 	if err != nil {
 		return taskmodel.ErrRunExecutionError(err)
-	}
-
-	<-promise.Done()
-	if err = promise.Error(); err != nil {
-		return err
 	}
 
 	return nil

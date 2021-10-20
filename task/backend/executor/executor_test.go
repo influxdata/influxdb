@@ -12,6 +12,12 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/flux"
+	"github.com/opentracing/opentracing-go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber/jaeger-client-go"
+	"go.uber.org/zap/zaptest"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
@@ -29,11 +35,6 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
-	"github.com/opentracing/opentracing-go"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-client-go"
-	"go.uber.org/zap/zaptest"
 )
 
 func TestMain(m *testing.M) {

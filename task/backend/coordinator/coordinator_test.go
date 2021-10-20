@@ -8,10 +8,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"go.uber.org/zap/zaptest"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
-	"go.uber.org/zap/zaptest"
 )
 
 func Test_Coordinator_Executor_Methods(t *testing.T) {
@@ -40,19 +41,6 @@ func Test_Coordinator_Executor_Methods(t *testing.T) {
 			name: "RunForced",
 			call: func(t *testing.T, c *Coordinator) {
 				if err := c.RunForced(context.Background(), taskOne, runOne); err != nil {
-					t.Errorf("expected nil error found %q", err)
-				}
-			},
-			executor: &executorE{
-				calls: []interface{}{
-					manualRunCall{taskOne.ID, runOne.ID},
-				},
-			},
-		},
-		{
-			name: "RunRetried",
-			call: func(t *testing.T, c *Coordinator) {
-				if err := c.RunRetried(context.Background(), taskOne, runOne); err != nil {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
