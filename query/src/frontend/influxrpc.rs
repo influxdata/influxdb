@@ -1904,7 +1904,7 @@ mod tests {
         ];
 
         for (input, exp) in cases {
-            let rewritten = rewriter.mutate(input).unwrap();
+            let rewritten = input.rewrite(&mut rewriter).unwrap();
             assert_eq!(rewritten, exp);
         }
 
@@ -1917,9 +1917,9 @@ mod tests {
         let mut rewriter = FieldValueRewriter {
             schema: Arc::new(schema),
         };
-        let rewritten = rewriter
-            .mutate(binary_expr(col(VALUE_COLUMN_NAME), Operator::Gt, lit(1.88)))
-            .unwrap();
+
+        let input = binary_expr(col(VALUE_COLUMN_NAME), Operator::Gt, lit(1.88));
+        let rewritten = input.rewrite(&mut rewriter).unwrap();
         assert_eq!(rewritten, binary_expr(col("f1"), Operator::Gt, lit(1.88)));
     }
 
