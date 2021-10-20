@@ -64,7 +64,12 @@ async fn test_operations() {
     let query_results = client.perform_query(&db_name2, sql_query).await.unwrap();
 
     let batches = collect_query(query_results).await;
-    let expected_read_data = vec!["++", "||", "++", "++"];
+    let expected_read_data = vec![
+        "+--------+-------------+",
+        "| status | description |",
+        "+--------+-------------+",
+        "+--------+-------------+",
+    ];
 
     assert_batches_eq!(expected_read_data, &batches);
 }

@@ -2,7 +2,7 @@ use influxdb_iox_client::{connection::Connection, management};
 use structopt::StructOpt;
 use thiserror::Error;
 
-use prettytable::{format, Cell, Row, Table};
+use comfy_table::{Cell, Table};
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
@@ -51,17 +51,14 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 println!("no remotes configured");
             } else {
                 let mut table = Table::new();
-                table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
-                table.set_titles(Row::new(vec![
-                    Cell::new("ID"),
-                    Cell::new("Connection string"),
-                ]));
+                table.load_preset("||--+-++|    ++++++");
+                table.set_header(vec![Cell::new("ID"), Cell::new("Connection string")]);
 
                 for i in remotes {
-                    table.add_row(Row::new(vec![
+                    table.add_row(vec![
                         Cell::new(&format!("{}", i.id)),
                         Cell::new(&i.connection_string),
-                    ]));
+                    ]);
                 }
                 print!("{}", table);
             }

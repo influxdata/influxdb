@@ -142,7 +142,7 @@ itertools = "0.10.1"
 parquet = "6.0"
 pin-project = "1.0"
 # used by arrow/datafusion anyway
-prettytable-rs = "0.8"
+comfy-table = { version = "4.0", default-features = false }
 pprof = { version = "^0.5", default-features = false, features = ["flamegraph", "protobuf"], optional = true }
 prost = "0.8"
 rustyline = { version = "9.0", default-features = false }

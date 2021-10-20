@@ -511,7 +511,7 @@ mod tests {
         let split_exec = StreamSplitExec::new(input, split_expr);
 
         let output0 = run_and_get_output(&split_exec, 0).await.unwrap();
-        let expected = vec!["++", "||", "++", "++"];
+        let expected = vec!["+---------+", "| int_col |", "+---------+", "+---------+"];
         assert_batches_sorted_eq!(&expected, &output0);
 
         let output1 = run_and_get_output(&split_exec, 1).await.unwrap();

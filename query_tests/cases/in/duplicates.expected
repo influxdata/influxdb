@@ -22,6 +22,7 @@
 |               |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                                   |
 |               |         RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                    |
 |               |           IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                                   |
+|               |                                                                                                                                             |
 +---------------+---------------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: EXPLAIN select time, state, city, min_temp, max_temp, area from h2o;
 +---------------+-----------------------------------------------------------------------------------------------------------------------------------------+
@@ -43,6 +44,7 @@
 |               |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                                   |
 |               |     RepartitionExec: partitioning=RoundRobinBatch(4)                                                                                    |
 |               |       IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate                                                                   |
+|               |                                                                                                                                         |
 +---------------+-----------------------------------------------------------------------------------------------------------------------------------------+
 -- SQL: EXPLAIN select state as name from h2o UNION ALL select city as name from h2o;
 +---------------+-----------------------------------------------------------------------------------+
@@ -84,4 +86,5 @@
 |               |         IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate           |
 |               |       RepartitionExec: partitioning=RoundRobinBatch(4)                            |
 |               |         IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate           |
+|               |                                                                                   |
 +---------------+-----------------------------------------------------------------------------------+

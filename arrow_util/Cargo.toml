@@ -14,7 +14,7 @@ snafu = "0.6"
 hashbrown = "0.11"
 # used by arrow anyway (needed for printing workaround)
 chrono = "0.4"
-prettytable-rs = "0.8"
+comfy-table = { version = "4.0", default-features = false }
 
 [dev-dependencies]
 rand = "0.8.3"
