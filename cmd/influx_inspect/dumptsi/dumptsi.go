@@ -128,11 +128,11 @@ func (cmd *Command) run() (rErr error) {
 		return err
 	}
 	if fs != nil {
-		defer errors2.Capture(&rErr, fs.Close)
+		defer errors2.Capture(&rErr, fs.Close)()
 		defer fs.Release()
 	}
 	if idx != nil {
-		defer errors2.Capture(&rErr, idx.Close)
+		defer errors2.Capture(&rErr, idx.Close)()
 	}
 
 	if cmd.showSeries {
