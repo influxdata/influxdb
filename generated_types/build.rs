@@ -42,6 +42,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("server_config.proto"),
         management_path.join("service.proto"),
         management_path.join("shard.proto"),
+        management_path.join("write_buffer.proto"),
         root.join("google/longrunning/operations.proto"),
         root.join("google/rpc/error_details.proto"),
         root.join("google/rpc/status.proto"),
