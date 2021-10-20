@@ -15,7 +15,7 @@ use datafusion::{
 use datafusion_util::AsExpr;
 
 use hashbrown::{HashMap, HashSet};
-use observability_deps::tracing::{debug, info, trace};
+use observability_deps::tracing::{debug, trace};
 use predicate::predicate::{Predicate, PredicateMatch};
 use schema::selection::Selection;
 use schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME};
@@ -31,7 +31,9 @@ use crate::{
     plan::{
         fieldlist::FieldListPlan,
         seriesset::{SeriesSetPlan, SeriesSetPlans},
-        stringset::{Error as StringSetError, StringSetPlan, StringSetPlanBuilder},
+        stringset::{
+            Error as StringSetError, StringSetPlan, StringSetPlanBuilder, TableNamePlanBuilder,
+        },
     },
     provider::ProviderBuilder,
     QueryChunk, QueryChunkMeta, QueryDatabase,
@@ -200,52 +202,95 @@ impl InfluxRpcPlanner {
         Self {}
     }
 
-    /// Returns a plan that lists the names of tables in this
-    /// database that have at least one row that matches the
-    /// conditions listed on `predicate`
-    pub fn table_names<D>(&self, database: &D, predicate: Predicate) -> Result<StringSetPlan>
+    /// Returns a builder that includes
+    ///   . A set of table names got from meta data that will participate
+    ///      in the requested `predicate`
+    ///   . A set of plans of tables of either chunks with deleted data or
+    ///      cannot decided from meta data
+    pub fn table_names<D>(&self, database: &D, predicate: Predicate) -> Result<TableNamePlanBuilder>
     where
         D: QueryDatabase + 'static,
     {
-        let mut builder = StringSetPlanBuilder::new();
+        let mut builder = TableNamePlanBuilder::new();
         let mut normalizer = PredicateNormalizer::new(predicate);
 
+        // Mapping between table and chunks that need full plan
+        let mut full_plan_table_chunks = BTreeMap::new();
+
+        // Identify which chunks can answer from its metadata and then record its table,
+        // and which chunks needs full plan and group them into their table
         for chunk in database.chunks(normalizer.unnormalized()) {
-            // Try and apply the predicate using only metadata
             let table_name = chunk.table_name();
-            let predicate = normalizer.normalized(table_name);
 
-            let pred_result = chunk
-                .apply_predicate_to_metadata(&predicate)
-                .map_err(|e| Box::new(e) as _)
-                .context(CheckingChunkPredicate {
-                    chunk_id: chunk.id(),
-                })?;
+            // Table is already in the returned table list, no longer needs to discover it from other chunks
+            if builder.contains_meta_data_table(table_name.to_string()) {
+                continue;
+            }
 
-            builder = match pred_result {
-                PredicateMatch::AtLeastOne => builder.append_table(chunk.table_name()),
-                // no match, ignore table
-                PredicateMatch::Zero => builder,
-                // can't evaluate predicate, need a new plan
-                PredicateMatch::Unknown => {
-                    // TODO: General purpose plans for table_names.
-                    // https://github.com/influxdata/influxdb_iox/issues/762
-                    debug!(
-                        chunk=%chunk.id().get(),
-                        ?predicate,
-                        %table_name,
-                        "can not evaluate predicate"
-                    );
-                    return UnsupportedPredicateForTableNames {
-                        predicate: predicate.as_ref().clone(),
+            // If the chunk has delete predicates, we need to scan (do full plan) the data to eliminate
+            // deleted data before we can determine if its table participates in the requested predicate.
+            if chunk.has_delete_predicates() {
+                full_plan_table_chunks
+                    .entry(table_name.to_string())
+                    .or_insert_with(Vec::new)
+                    .push(Arc::clone(&chunk));
+            } else {
+                // See if we can have enough info from the chunk's meta data to answer
+                // that this table participates in the request
+                let predicate = normalizer.normalized(table_name);
+                //
+                // Try and apply the predicate using only metadata
+                let pred_result = chunk
+                    .apply_predicate_to_metadata(&predicate)
+                    .map_err(|e| Box::new(e) as _)
+                    .context(CheckingChunkPredicate {
+                        chunk_id: chunk.id(),
+                    })?;
+                //
+                match pred_result {
+                    PredicateMatch::AtLeastOne => {
+                        // Meta data of the table covers predicates of the request
+                        builder.append_meta_data_table(table_name.to_string());
                     }
-                    .fail();
+                    PredicateMatch::Unknown => {
+                        // We cannot match the predicate to get answer from meta data, let do full plan
+                        full_plan_table_chunks
+                            .entry(table_name.to_string())
+                            .or_insert_with(Vec::new)
+                            .push(Arc::clone(&chunk));
+                    }
+                    PredicateMatch::Zero => {} // this chunk's table does not participate in the request
                 }
-            };
+            }
         }
 
-        let plan = builder.build().context(CreatingStringSet)?;
-        Ok(plan)
+        // remove items from full_plan_table_chunks whose tables are already in the returned list
+        let meta_data_tables = builder.meta_data_table_names();
+        for table in meta_data_tables {
+            full_plan_table_chunks.remove(&table);
+            if full_plan_table_chunks.is_empty() {
+                break;
+            }
+        }
+
+        // No full plans needed
+        if full_plan_table_chunks.is_empty() {
+            return Ok(builder);
+        }
+
+        // Now build plans for full-plan tables
+        for (table_name, chunks) in full_plan_table_chunks {
+            let schema = database.table_schema(&table_name).context(TableRemoved {
+                table_name: &table_name,
+            })?;
+            if let Some(plan) =
+                self.table_name_plan(&table_name, schema, &mut normalizer, chunks)?
+            {
+                builder.append_plans(table_name, plan);
+            }
+        }
+
+        Ok(builder)
     }
 
     /// Returns a set of plans that produces the names of "tag"
@@ -365,12 +410,10 @@ impl InfluxRpcPlanner {
         }
 
         // add the known columns we could find from metadata only
-        let plan_set = builder
+        builder
             .append(known_columns.into())
             .build()
-            .context(CreatingStringSet);
-
-        plan_set
+            .context(CreatingStringSet)
     }
 
     /// Returns a plan which finds the distinct, non-null tag values
@@ -535,12 +578,10 @@ impl InfluxRpcPlanner {
         }
 
         // add the known values we could find from metadata only
-        let plan_set = builder
+        builder
             .append(known_values.into())
             .build()
-            .context(CreatingStringSet);
-
-        plan_set
+            .context(CreatingStringSet)
     }
 
     /// Returns a plan that produces a list of columns and their
@@ -881,6 +922,64 @@ impl InfluxRpcPlanner {
             .iter()
             .filter_map(|(influx_column_type, field)| match influx_column_type {
                 Some(InfluxColumnType::Field(_)) => Some(col(field.name())),
+                Some(InfluxColumnType::Timestamp) => Some(col(field.name())),
+                Some(_) => None,
+                None => None,
+            })
+            .collect::<Vec<_>>();
+
+        let plan = plan_builder
+            .project(select_exprs)
+            .context(BuildingPlan)?
+            .build()
+            .context(BuildingPlan)?;
+
+        Ok(Some(plan))
+    }
+
+    /// Creates a DataFusion LogicalPlan that returns the timestamp
+    /// for a specified table:
+    ///
+    /// The output looks like (time)
+    ///
+    /// The data is not sorted in any particular order
+    ///
+    /// returns `None` if the table contains no rows that would pass
+    /// the predicate.
+    ///
+    /// The created plan looks like:
+    ///
+    /// ```text
+    ///  Projection (select time)
+    ///      Filter(predicate) [optional]
+    ///        Scan
+    /// ```
+    //  TODO: for optimization in the future, better to build `select count(*)` plan
+    //        but if we do this, we also need to change the way we handle output
+    //        of the function invoking this because it will always return a number
+    fn table_name_plan<C>(
+        &self,
+        table_name: &str,
+        schema: Arc<Schema>,
+        normalizer: &mut PredicateNormalizer,
+        chunks: Vec<Arc<C>>,
+    ) -> Result<Option<LogicalPlan>>
+    where
+        C: QueryChunk + 'static,
+    {
+        let scan_and_filter = self.scan_and_filter(table_name, schema, normalizer, chunks)?;
+        let TableScanAndFilter {
+            plan_builder,
+            schema,
+        } = match scan_and_filter {
+            None => return Ok(None),
+            Some(t) => t,
+        };
+
+        // Selection of only time
+        let select_exprs = schema
+            .iter()
+            .filter_map(|(influx_column_type, field)| match influx_column_type {
                 Some(InfluxColumnType::Timestamp) => Some(col(field.name())),
                 Some(_) => None,
                 None => None,
