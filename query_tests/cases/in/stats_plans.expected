@@ -10,6 +10,7 @@
 |               |   RepartitionExec: partitioning=RoundRobinBatch(4)          |
 |               |     ProjectionExec: expr=[3 as COUNT(Uint8(1))]             |
 |               |       EmptyExec: produce_one_row=true                       |
+|               |                                                             |
 +---------------+-------------------------------------------------------------+
 -- SQL: EXPLAIN SELECT count(*) from h2o where temp > 70.0 and temp < 72.0;
 +---------------+---------------------------------------------------------------------------------------------------------------------------------+
@@ -27,4 +28,5 @@
 |               |           FilterExec: temp@0 > 70 AND temp@0 < 72                                                                               |
 |               |             RepartitionExec: partitioning=RoundRobinBatch(4)                                                                    |
 |               |               IOxReadFilterNode: table_name=h2o, chunks=1 predicate=Predicate exprs: [#temp > Float64(70), #temp < Float64(72)] |
+|               |                                                                                                                                 |
 +---------------+---------------------------------------------------------------------------------------------------------------------------------+

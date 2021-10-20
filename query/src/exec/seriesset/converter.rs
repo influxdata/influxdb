@@ -449,6 +449,16 @@ impl SortableSeries {
                         tag_used_set[i] = true;
                         Arc::clone(&tag.value)
                     })
+                    .or_else(|| {
+                        // treat these specially and use value "" to mirror what TSM does
+                        // see https://github.com/influxdata/influxdb_iox/issues/2693#issuecomment-947695442
+                        // for more details
+                        if col.as_ref() == "_start" || col.as_ref() == "_stop" {
+                            Some(Arc::from(""))
+                        } else {
+                            None
+                        }
+                    })
                     .context(FindingGroupColumn {
                         column_name: col.as_ref(),
                     })

@@ -928,6 +928,47 @@ async fn test_grouped_series_set_plan_group_measurement_tag_count() {
 }
 
 #[tokio::test]
+async fn test_grouped_series_set_plan_group_field_start_stop() {
+    // no predicate
+    let predicate = PredicateBuilder::default().table("o2").build();
+
+    let agg = Aggregate::Count;
+
+    // Expect the data is grouped so output is sorted by state, with
+    // blank partition values for _start and _stop (mirroring TSM)
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement, state partition_key_vals: , , CA",
+        "Series tags={_field=reading, _measurement=o2, state=CA}\n  IntegerPoints timestamps: [300], values: [0]",
+        "Series tags={_field=temp, _measurement=o2, state=CA}\n  IntegerPoints timestamps: [300], values: [1]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: , , MA",
+        "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  IntegerPoints timestamps: [50], values: [1]",
+        "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  IntegerPoints timestamps: [50], values: [1]",
+    ];
+
+    let group_columns = vec!["_start", "_stop", "state"];
+
+    run_read_group_test_case(
+        TwoMeasurementsManyFieldsOneChunk {},
+        predicate.clone(),
+        agg,
+        group_columns,
+        expected_results.clone(),
+    )
+    .await;
+
+    let group_columns = vec!["_stop", "_start", "state"];
+
+    run_read_group_test_case(
+        TwoMeasurementsManyFieldsOneChunk {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn test_grouped_series_set_plan_group_field_pred_and_null_fields() {
     // no predicate
     let predicate = PredicateBuilder::default().table("o2").build();
@@ -935,7 +976,7 @@ async fn test_grouped_series_set_plan_group_field_pred_and_null_fields() {
     let agg = Aggregate::Count;
     let group_columns = vec!["state", "_field"];
 
-    // Expect the data is grouped so output is sorted by measurement and then region
+    // Expect the data is grouped so output is sorted by measurement state
     let expected_results = vec![
         "Group tag_keys: _field, _measurement, state partition_key_vals: CA, reading",
         "Series tags={_field=reading, _measurement=o2, state=CA}\n  IntegerPoints timestamps: [300], values: [0]",
@@ -945,6 +986,39 @@ async fn test_grouped_series_set_plan_group_field_pred_and_null_fields() {
         "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  IntegerPoints timestamps: [50], values: [1]",
         "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA, temp",
         "Series tags={_field=temp, _measurement=o2, city=Boston, state=MA}\n  IntegerPoints timestamps: [50], values: [1]",
+    ];
+
+    run_read_group_test_case(
+        TwoMeasurementsManyFieldsOneChunk {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
+
+// See issue: https://github.com/influxdata/influxdb_iox/issues/2845
+//
+// This test adds coverage for filtering on _field when executing a read_group
+// plan.
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_field_pred_filter_on_field() {
+    // no predicate
+    let predicate = PredicateBuilder::default()
+        .table("o2")
+        .add_expr(col("_field").eq(lit("reading")))
+        .build();
+
+    let agg = Aggregate::Count;
+    let group_columns = vec!["state", "_field"];
+
+    // Expect the data is grouped so output is sorted by measurement and then region
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement, state partition_key_vals: CA, reading",
+        "Series tags={_field=reading, _measurement=o2, state=CA}\n  IntegerPoints timestamps: [300], values: [0]",
+        "Group tag_keys: _field, _measurement, city, state partition_key_vals: MA, reading",
+        "Series tags={_field=reading, _measurement=o2, city=Boston, state=MA}\n  IntegerPoints timestamps: [50], values: [1]",
     ];
 
     run_read_group_test_case(

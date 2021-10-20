@@ -482,7 +482,7 @@ async fn test_get_chunks() {
         .and(predicate::str::contains(
             r#""storage": "CHUNK_STORAGE_OPEN_MUTABLE_BUFFER","#,
         ))
-        .and(predicate::str::contains(r#""memoryBytes": "1016""#))
+        .and(predicate::str::contains(r#""memoryBytes": "1048""#))
         // Check for a non empty timestamp such as
         // "time_of_first_write": "2021-03-30T17:11:10.723866Z",
         .and(predicate::str::contains(r#""timeOfFirstWrite": "20"#));

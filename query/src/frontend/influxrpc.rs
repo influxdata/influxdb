@@ -8,9 +8,13 @@ use arrow::datatypes::{DataType, Field};
 use data_types::chunk_metadata::ChunkId;
 use datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
-    logical_plan::{lit, Column, DFSchemaRef, Expr, ExprRewriter, LogicalPlan, LogicalPlanBuilder},
+    logical_plan::{
+        binary_expr, lit, Column, DFSchemaRef, Expr, ExprRewriter, LogicalPlan, LogicalPlanBuilder,
+        Operator,
+    },
     optimizer::utils::expr_to_columns,
     prelude::col,
+    scalar::ScalarValue,
 };
 use datafusion_util::AsExpr;
 
@@ -48,6 +52,23 @@ use crate::{
 /// The plan for each table will have the value of `_measurement`
 /// filled in with a literal for the respective name of that field
 pub const MEASUREMENT_COLUMN_NAME: &str = "_measurement";
+
+/// Any equality expressions using this column name are removed and replaced
+/// with projections on the specified column.
+///
+/// This is required to support predicates like
+/// `_field` = temperature
+pub const FIELD_COLUMN_NAME: &str = "_field";
+
+/// Any column references to this name are rewritten to be a disjunctive set of
+/// expressions to all field columns for the table schema.
+///
+/// This is required to support predicates like
+/// `_value` = 1.77
+///
+/// The plan for each table will have expression containing `_value` rewritten
+/// into multiple expressions (one for each field column).
+pub const VALUE_COLUMN_NAME: &str = "_value";
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -222,6 +243,7 @@ impl InfluxRpcPlanner {
         // and which chunks needs full plan and group them into their table
         for chunk in database.chunks(normalizer.unnormalized()) {
             let table_name = chunk.table_name();
+            let schema = chunk.schema();
 
             // Table is already in the returned table list, no longer needs to discover it from other chunks
             if builder.contains_meta_data_table(table_name.to_string()) {
@@ -238,7 +260,7 @@ impl InfluxRpcPlanner {
             } else {
                 // See if we can have enough info from the chunk's meta data to answer
                 // that this table participates in the request
-                let predicate = normalizer.normalized(table_name);
+                let predicate = normalizer.normalized(table_name, schema);
                 //
                 // Try and apply the predicate using only metadata
                 let pred_result = chunk
@@ -324,7 +346,7 @@ impl InfluxRpcPlanner {
             let mut do_full_plan = chunk.has_delete_predicates();
 
             let table_name = chunk.table_name();
-            let predicate = normalizer.normalized(table_name);
+            let predicate = normalizer.normalized(table_name, chunk.schema());
 
             // Try and apply the predicate using only metadata
             let pred_result = chunk
@@ -452,7 +474,7 @@ impl InfluxRpcPlanner {
             let mut do_full_plan = chunk.has_delete_predicates();
 
             let table_name = chunk.table_name();
-            let predicate = normalizer.normalized(table_name);
+            let predicate = normalizer.normalized(table_name, chunk.schema());
 
             // Try and apply the predicate using only metadata
             let pred_result = chunk
@@ -799,7 +821,7 @@ impl InfluxRpcPlanner {
     {
         let mut table_chunks = BTreeMap::new();
         for chunk in chunks {
-            let predicate = normalizer.normalized(chunk.table_name());
+            let predicate = normalizer.normalized(chunk.table_name(), chunk.schema());
             // Try and apply the predicate using only metadata
             let pred_result = chunk
                 .apply_predicate_to_metadata(&predicate)
@@ -1018,8 +1040,9 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.as_ref();
-        let scan_and_filter = self.scan_and_filter(table_name, schema, normalizer, chunks)?;
-        let predicate = normalizer.normalized(table_name);
+        let scan_and_filter =
+            self.scan_and_filter(table_name, Arc::clone(&schema), normalizer, chunks)?;
+        let predicate = normalizer.normalized(table_name, schema);
 
         let TableScanAndFilter {
             plan_builder,
@@ -1129,8 +1152,9 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter = self.scan_and_filter(&table_name, schema, normalizer, chunks)?;
-        let predicate = normalizer.normalized(&table_name);
+        let scan_and_filter =
+            self.scan_and_filter(&table_name, Arc::clone(&schema), normalizer, chunks)?;
+        let predicate = normalizer.normalized(&table_name, schema);
 
         let TableScanAndFilter {
             plan_builder,
@@ -1239,8 +1263,9 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter = self.scan_and_filter(&table_name, schema, normalizer, chunks)?;
-        let predicate = normalizer.normalized(&table_name);
+        let scan_and_filter =
+            self.scan_and_filter(&table_name, Arc::clone(&schema), normalizer, chunks)?;
+        let predicate = normalizer.normalized(&table_name, schema);
 
         let TableScanAndFilter {
             plan_builder,
@@ -1317,7 +1342,7 @@ impl InfluxRpcPlanner {
     where
         C: QueryChunk + 'static,
     {
-        let predicate = normalizer.normalized(table_name);
+        let predicate = normalizer.normalized(table_name, Arc::clone(&schema));
 
         // Scan all columns to begin with (DataFusion projection
         // push-down optimization will prune out unneeded columns later)
@@ -1653,7 +1678,8 @@ fn make_selector_expr(
         .alias(column_name))
 }
 
-/// Creates specialized / normalized predicates
+/// Creates specialized / normalized predicates that are tailored to a specific
+/// table.
 #[derive(Debug)]
 struct PredicateNormalizer {
     unnormalized: Predicate,
@@ -1673,14 +1699,15 @@ impl PredicateNormalizer {
         &self.unnormalized
     }
 
-    /// Return a reference to a predicate specialized for `table_name`
-    fn normalized(&mut self, table_name: &str) -> Arc<Predicate> {
+    /// Return a reference to a predicate specialized for `table_name` based on
+    /// its `schema`.
+    fn normalized(&mut self, table_name: &str, schema: Arc<Schema>) -> Arc<Predicate> {
         if let Some(normalized_predicate) = self.normalized.get(table_name) {
             return normalized_predicate.inner();
         }
 
         let normalized_predicate =
-            TableNormalizedPredicate::new(table_name, self.unnormalized.clone());
+            TableNormalizedPredicate::new(table_name, schema, self.unnormalized.clone());
 
         self.normalized
             .entry(table_name.to_string())
@@ -1694,6 +1721,10 @@ impl PredicateNormalizer {
 ///
 /// * all references to the [MEASUREMENT_COLUMN_NAME] column in any
 /// `Exprs` are rewritten with the actual table name
+/// * any expression on the [VALUE_COLUMN_NAME] column is rewritten to be
+/// applied across all field columns.
+/// * any expression on the [FIELD_COLUMN_NAME] is rewritten to be
+/// applied for the particular fields.
 ///
 /// For example if the original predicate was
 /// ```text
@@ -1703,19 +1734,45 @@ impl PredicateNormalizer {
 /// When evaluated on table "cpu" then the predicate is rewritten to
 /// ```text
 /// "cpu" = "some_table"
+/// ```
 ///
+/// if the original predicate contained
+/// ```text
+/// _value > 34.2
+/// ```
+///
+/// When evaluated on table "cpu" then the expression is rewritten as a
+/// collection of disjunctive expressions against all field columns
+/// ```text
+/// ("field1" > 34.2 OR "field2" > 34.2 OR "fieldn" > 34.2)
+/// ```
 #[derive(Debug)]
 struct TableNormalizedPredicate {
     inner: Arc<Predicate>,
 }
 
 impl TableNormalizedPredicate {
-    fn new(table_name: &str, mut inner: Predicate) -> Self {
+    fn new(table_name: &str, schema: Arc<Schema>, mut inner: Predicate) -> Self {
+        let mut field_projections = BTreeSet::new();
         inner.exprs = inner
             .exprs
             .into_iter()
             .map(|e| rewrite_measurement_references(table_name, e))
+            .map(|e| rewrite_field_value_references(Arc::clone(&schema), e))
+            .map(|e| {
+                // Rewrite any references to `_field = a_field_name` with a literal true
+                // and keep track of referenced field names to add to the field
+                // column projection set.
+                rewrite_field_column_references(&mut field_projections, e)
+            })
             .collect::<Vec<_>>();
+
+        if !field_projections.is_empty() {
+            match &mut inner.field_columns {
+                Some(field_columns) => field_columns.extend(field_projections.into_iter()),
+                None => inner.field_columns = Some(field_projections),
+            };
+        }
 
         Self {
             inner: Arc::new(inner),
@@ -1731,7 +1788,7 @@ impl TableNormalizedPredicate {
 /// with the actual table name
 fn rewrite_measurement_references(table_name: &str, expr: Expr) -> Expr {
     let mut rewriter = MeasurementRewriter { table_name };
-    expr.rewrite(&mut rewriter).expect("rewrite is infallable")
+    expr.rewrite(&mut rewriter).expect("rewrite is infallible")
 }
 
 struct MeasurementRewriter<'a> {
@@ -1754,6 +1811,99 @@ impl ExprRewriter for MeasurementRewriter<'_> {
     }
 }
 
+/// Rewrites a predicate on `_value` to a disjunctive set of expressions on each
+/// distinct field column in the table.
+///
+/// For example, the predicate `_value = 1.77` on a table with three field
+/// columns would be rewritten to:
+///
+/// `(field1 = 1.77 OR field2 = 1.77 OR field3 = 1.77)`.
+fn rewrite_field_value_references(schema: Arc<Schema>, expr: Expr) -> Expr {
+    let mut rewriter = FieldValueRewriter { schema };
+    expr.rewrite(&mut rewriter).expect("rewrite is infallible")
+}
+
+struct FieldValueRewriter {
+    schema: Arc<Schema>,
+}
+
+impl ExprRewriter for FieldValueRewriter {
+    fn mutate(&mut self, expr: Expr) -> DatafusionResult<Expr> {
+        Ok(match expr {
+            Expr::BinaryExpr {
+                ref left,
+                op,
+                ref right,
+            } => {
+                if let Expr::Column(inner) = &**left {
+                    if inner.name != VALUE_COLUMN_NAME {
+                        return Ok(expr); // column name not `_value`.
+                    }
+
+                    // build a disjunctive expression using binary expressions
+                    // for each field column and the original expression's
+                    // operator and rhs.
+                    self.schema
+                        .fields_iter()
+                        .map(|field| binary_expr(col(field.name()), op, *right.clone()))
+                        .reduce(|a, b| a.or(b))
+                        .expect("at least one field column")
+                } else {
+                    expr
+                }
+            }
+            _ => expr,
+        })
+    }
+}
+
+/// Rewrites a predicate on `_field` as a projection on a specific defined by
+/// the literal in the expression.
+///
+/// For example, the expression `_field = "load4"` is removed from the
+/// normalised expression, and a column "load4" added to the predicate
+/// projection.
+fn rewrite_field_column_references(
+    field_projections: &'_ mut BTreeSet<String>,
+    expr: Expr,
+) -> Expr {
+    let mut rewriter = FieldColumnRewriter { field_projections };
+    expr.rewrite(&mut rewriter).expect("rewrite is infallible")
+}
+
+struct FieldColumnRewriter<'a> {
+    field_projections: &'a mut BTreeSet<String>,
+}
+
+impl<'a> ExprRewriter for FieldColumnRewriter<'a> {
+    fn mutate(&mut self, expr: Expr) -> DatafusionResult<Expr> {
+        Ok(match expr {
+            Expr::BinaryExpr {
+                ref left,
+                op,
+                ref right,
+            } => {
+                if let Expr::Column(inner) = &**left {
+                    if inner.name != FIELD_COLUMN_NAME || op != Operator::Eq {
+                        // TODO(edd): add support for !=
+                        return Ok(expr);
+                    }
+
+                    if let Expr::Literal(ScalarValue::Utf8(Some(name))) = &**right {
+                        self.field_projections.insert(name.to_owned());
+                        return Ok(Expr::Literal(ScalarValue::Boolean(Some(true))));
+                    }
+
+                    expr
+                } else {
+                    expr
+                }
+            }
+            _ => expr,
+        })
+    }
+}
+
 /// Returns true if all columns referred to in `expr` are present in
 /// the schema, false otherwise
 pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
@@ -1768,6 +1918,7 @@ pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use datafusion::logical_plan::Operator;
     use schema::builder::SchemaBuilder;
 
     use super::*;
@@ -1803,5 +1954,106 @@ mod tests {
                 .eq(col("time"))
                 .and(col("_measurement").eq(lit("the_table")))
         ));
+    }
+
+    #[test]
+    fn test_field_value_rewriter() {
+        let schema = SchemaBuilder::new()
+            .tag("t1")
+            .tag("t2")
+            .field("f1", DataType::Float64)
+            .field("f2", DataType::Float64)
+            .timestamp()
+            .build()
+            .unwrap();
+
+        let mut rewriter = FieldValueRewriter {
+            schema: Arc::new(schema),
+        };
+
+        let cases = vec![
+            (
+                binary_expr(col("f1"), Operator::Eq, lit(1.82)),
+                binary_expr(col("f1"), Operator::Eq, lit(1.82)),
+            ),
+            (col("t2"), col("t2")),
+            (
+                binary_expr(col(VALUE_COLUMN_NAME), Operator::Eq, lit(1.82)),
+                //
+                // _value = 1.82 -> f1 = (1.82 OR f2 = 1.82)
+                //
+                binary_expr(
+                    binary_expr(col("f1"), Operator::Eq, lit(1.82)),
+                    Operator::Or,
+                    binary_expr(col("f2"), Operator::Eq, lit(1.82)),
+                ),
+            ),
+        ];
+
+        for (input, exp) in cases {
+            let rewritten = input.rewrite(&mut rewriter).unwrap();
+            assert_eq!(rewritten, exp);
+        }
+
+        // Test case with single field.
+        let schema = SchemaBuilder::new()
+            .field("f1", DataType::Float64)
+            .timestamp()
+            .build()
+            .unwrap();
+        let mut rewriter = FieldValueRewriter {
+            schema: Arc::new(schema),
+        };
+
+        let input = binary_expr(col(VALUE_COLUMN_NAME), Operator::Gt, lit(1.88));
+        let rewritten = input.rewrite(&mut rewriter).unwrap();
+        assert_eq!(rewritten, binary_expr(col("f1"), Operator::Gt, lit(1.88)));
+    }
+
+    #[test]
+    fn test_field_column_rewriter() {
+        let mut field_columns = BTreeSet::new();
+        let mut rewriter = FieldColumnRewriter {
+            field_projections: &mut field_columns,
+        };
+
+        let cases = vec![
+            (
+                binary_expr(col("f1"), Operator::Eq, lit(1.82)),
+                binary_expr(col("f1"), Operator::Eq, lit(1.82)),
+                vec![],
+            ),
+            (
+                // TODO - should be rewritten and project onto all field columns
+                binary_expr(col(FIELD_COLUMN_NAME), Operator::NotEq, lit("foo")),
+                binary_expr(col(FIELD_COLUMN_NAME), Operator::NotEq, lit("foo")),
+                vec![],
+            ),
+            (
+                binary_expr(col(FIELD_COLUMN_NAME), Operator::Eq, lit("f1")),
+                lit(true),
+                vec!["f1"],
+            ),
+            (
+                binary_expr(
+                    binary_expr(col(FIELD_COLUMN_NAME), Operator::Eq, lit("f1")),
+                    Operator::Or,
+                    binary_expr(col(FIELD_COLUMN_NAME), Operator::Eq, lit("f2")),
+                ),
+                binary_expr(lit(true), Operator::Or, lit(true)),
+                vec!["f1", "f2"],
+            ),
+        ];
+
+        for (input, exp_expr, field_columns) in cases {
+            let rewritten = input.rewrite(&mut rewriter).unwrap();
+
+            assert_eq!(rewritten, exp_expr);
+            let mut exp_field_columns = field_columns
+                .into_iter()
+                .map(String::from)
+                .collect::<BTreeSet<String>>();
+            assert_eq!(rewriter.field_projections, &mut exp_field_columns);
+        }
     }
 }
