@@ -659,3 +659,40 @@ async fn test_read_filter_data_plan_order_with_delete() {
     )
     .await;
 }
+
+// See issue: https://github.com/influxdata/influxdb_iox/issues/2845
+#[derive(Debug)]
+pub struct MeasurementsForDefect2845 {}
+#[async_trait]
+impl DbSetup for MeasurementsForDefect2845 {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2018-05-22T19";
+
+        let lp_lines = vec![
+            "system,host=host.local load1=1.83 1527018806000000000",
+            "system,host=host.local load1=1.63 1527018816000000000",
+            "system,host=host.local load3=1.72 1527018806000000000",
+            "system,host=host.local load4=1.77 1527018806000000000",
+            "system,host=host.local load4=1.78 1527018816000000000",
+            "system,host=host.local load4=1.77 1527018826000000000",
+        ];
+
+        all_scenarios_for_one_chunk(vec![], vec![], lp_lines, "system", partition_key).await
+    }
+}
+
+#[tokio::test]
+async fn test_read_filter_filter_on_value_2845() {
+    test_helpers::maybe_start_logging();
+
+    let predicate = PredicateBuilder::default()
+        .add_expr(col("_value").eq(lit(1.77)))
+        .add_expr(col("_field").eq(lit("load4")))
+        .build();
+
+    let expected_results = vec![
+        "Series tags={_field=load4, _measurement=system, host=host.local}\n  FloatPoints timestamps: [1527018806000000000, 1527018826000000000], values: [1.77, 1.77]",
+    ];
+
+    run_read_filter_test_case(MeasurementsForDefect2845 {}, predicate, expected_results).await;
+}
