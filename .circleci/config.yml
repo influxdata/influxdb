@@ -951,9 +951,7 @@ jobs:
             AWS_ACCESS_KEY_ID=${TEST_AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${TEST_AWS_SECRET_ACCESS_KEY} aws --region us-west-2 ec2 terminate-instances --instance-ids $instance_id
 
   release:
-    machine:
-      image: linux-amd64
-    resource_class: large
+    executor: linux-amd64
     environment:
       TMPDIR: /mnt/ramdisk
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
