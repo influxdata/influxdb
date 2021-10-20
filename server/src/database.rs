@@ -16,7 +16,9 @@ use futures::{
     future::{BoxFuture, FusedFuture, Shared},
     FutureExt, TryFutureExt,
 };
-use generated_types::database_state::DatabaseState as DatabaseStateCode;
+use generated_types::{
+    database_state::DatabaseState as DatabaseStateCode, influxdata::iox::management,
+};
 use internal_types::freezable::Freezable;
 use iox_object_store::IoxObjectStore;
 use observability_deps::tracing::{error, info, warn};
@@ -212,6 +214,21 @@ impl Database {
 
         let location = iox_object_store.root_path();
 
+        let owner_info = management::v1::OwnerInfo {
+            id: server_id.get_u32(),
+            location: IoxObjectStore::server_config_path(application.object_store(), server_id)
+                .to_string(),
+        };
+        let mut encoded = bytes::BytesMut::new();
+        generated_types::server_config::encode_database_owner_info(&owner_info, &mut encoded)
+            .expect("owner info serialization should be valid");
+        let encoded = encoded.freeze();
+
+        iox_object_store
+            .put_owner_file(encoded)
+            .await
+            .context(SavingOwner)?;
+
         provided_rules
             .persist(uuid, &iox_object_store)
             .await
@@ -365,6 +382,11 @@ impl Database {
         self.shared.state.read().provided_rules()
     }
 
+    /// Returns the info about the owning server if it has been loaded
+    pub fn owner_info(&self) -> Option<management::v1::OwnerInfo> {
+        self.shared.state.read().owner_info()
+    }
+
     /// Always-constructable location in object store; may not actually exist yet
     pub fn location(&self) -> String {
         IoxObjectStore::root_path_for(
@@ -480,11 +502,13 @@ impl Database {
             match &**self.shared.state.read() {
                 DatabaseState::Known(_)
                 | DatabaseState::DatabaseObjectStoreFound(_)
+                | DatabaseState::OwnerInfoLoaded(_)
                 | DatabaseState::RulesLoaded(_)
                 | DatabaseState::CatalogLoaded(_) => {} // Non-terminal state
                 DatabaseState::Initialized(_) => return Ok(()),
                 DatabaseState::DatabaseObjectStoreLookupError(_, e)
                 | DatabaseState::NoActiveDatabase(_, e)
+                | DatabaseState::OwnerInfoLoadError(_, e)
                 | DatabaseState::RulesLoadError(_, e)
                 | DatabaseState::CatalogLoadError(_, e)
                 | DatabaseState::ReplayError(_, e) => return Err(Arc::clone(e)),
@@ -819,6 +843,7 @@ async fn initialize_database(shared: &DatabaseShared) {
                 // Can perform work
                 DatabaseState::Known(_)
                 | DatabaseState::DatabaseObjectStoreFound(_)
+                | DatabaseState::OwnerInfoLoaded(_)
                 | DatabaseState::RulesLoaded(_)
                 | DatabaseState::CatalogLoaded(_) => {
                     match state.try_freeze() {
@@ -837,6 +862,7 @@ async fn initialize_database(shared: &DatabaseShared) {
                 }
                 // Operator intervention required
                 DatabaseState::DatabaseObjectStoreLookupError(_, e)
+                | DatabaseState::OwnerInfoLoadError(_, e)
                 | DatabaseState::RulesLoadError(_, e)
                 | DatabaseState::CatalogLoadError(_, e)
                 | DatabaseState::ReplayError(_, e) => {
@@ -873,6 +899,10 @@ async fn initialize_database(shared: &DatabaseShared) {
                 Err(e) => DatabaseState::DatabaseObjectStoreLookupError(state, Arc::new(e)),
             },
             DatabaseState::DatabaseObjectStoreFound(state) => match state.advance(shared).await {
+                Ok(state) => DatabaseState::OwnerInfoLoaded(state),
+                Err(e) => DatabaseState::OwnerInfoLoadError(state, Arc::new(e)),
+            },
+            DatabaseState::OwnerInfoLoaded(state) => match state.advance(shared).await {
                 Ok(state) => DatabaseState::RulesLoaded(state),
                 Err(e) => DatabaseState::RulesLoadError(state, Arc::new(e)),
             },
@@ -930,6 +960,24 @@ pub enum InitError {
     #[snafu(display("error during replay: {}", source))]
     Replay { source: crate::db::Error },
 
+    #[snafu(display("error saving database owner: {}", source))]
+    SavingOwner { source: object_store::Error },
+
+    #[snafu(display("error loading owner info: {}", source))]
+    LoadingOwnerInfo { source: object_store::Error },
+
+    #[snafu(display("error decoding owner info: {}", source))]
+    DecodingOwnerInfo {
+        source: generated_types::DecodeError,
+    },
+
+    #[snafu(display(
+        "Server ID in the database's owner info file ({}) does not match this server's ID ({})",
+        actual,
+        expected
+    ))]
+    DatabaseOwnerMismatch { actual: u32, expected: u32 },
+
     #[snafu(display("error saving database rules: {}", source))]
     SavingRules { source: crate::rules::Error },
 
@@ -957,14 +1005,15 @@ pub enum InitError {
 enum DatabaseState {
     Known(DatabaseStateKnown),
     DatabaseObjectStoreFound(DatabaseStateDatabaseObjectStoreFound),
-
+    OwnerInfoLoaded(DatabaseStateOwnerInfoLoaded),
     RulesLoaded(DatabaseStateRulesLoaded),
     CatalogLoaded(DatabaseStateCatalogLoaded),
     Initialized(DatabaseStateInitialized),
 
     DatabaseObjectStoreLookupError(DatabaseStateKnown, Arc<InitError>),
     NoActiveDatabase(DatabaseStateKnown, Arc<InitError>),
-    RulesLoadError(DatabaseStateDatabaseObjectStoreFound, Arc<InitError>),
+    OwnerInfoLoadError(DatabaseStateDatabaseObjectStoreFound, Arc<InitError>),
+    RulesLoadError(DatabaseStateOwnerInfoLoaded, Arc<InitError>),
     CatalogLoadError(DatabaseStateRulesLoaded, Arc<InitError>),
     ReplayError(DatabaseStateCatalogLoaded, Arc<InitError>),
 }
@@ -982,6 +1031,7 @@ impl DatabaseState {
             DatabaseState::DatabaseObjectStoreFound(_) => {
                 DatabaseStateCode::DatabaseObjectStoreFound
             }
+            DatabaseState::OwnerInfoLoaded(_) => DatabaseStateCode::OwnerInfoLoaded,
             DatabaseState::RulesLoaded(_) => DatabaseStateCode::RulesLoaded,
             DatabaseState::CatalogLoaded(_) => DatabaseStateCode::CatalogLoaded,
             DatabaseState::Initialized(_) => DatabaseStateCode::Initialized,
@@ -989,6 +1039,7 @@ impl DatabaseState {
                 DatabaseStateCode::DatabaseObjectStoreLookupError
             }
             DatabaseState::NoActiveDatabase(_, _) => DatabaseStateCode::NoActiveDatabase,
+            DatabaseState::OwnerInfoLoadError(_, _) => DatabaseStateCode::OwnerInfoLoadError,
             DatabaseState::RulesLoadError(_, _) => DatabaseStateCode::RulesLoadError,
             DatabaseState::CatalogLoadError(_, _) => DatabaseStateCode::CatalogLoadError,
             DatabaseState::ReplayError(_, _) => DatabaseStateCode::ReplayError,
@@ -999,11 +1050,13 @@ impl DatabaseState {
         match self {
             DatabaseState::Known(_)
             | DatabaseState::DatabaseObjectStoreFound(_)
+            | DatabaseState::OwnerInfoLoaded(_)
             | DatabaseState::RulesLoaded(_)
             | DatabaseState::CatalogLoaded(_)
             | DatabaseState::Initialized(_) => None,
             DatabaseState::DatabaseObjectStoreLookupError(_, e)
             | DatabaseState::NoActiveDatabase(_, e)
+            | DatabaseState::OwnerInfoLoadError(_, e)
             | DatabaseState::RulesLoadError(_, e)
             | DatabaseState::CatalogLoadError(_, e)
             | DatabaseState::ReplayError(_, e) => Some(e),
@@ -1016,6 +1069,8 @@ impl DatabaseState {
             | DatabaseState::DatabaseObjectStoreFound(_)
             | DatabaseState::DatabaseObjectStoreLookupError(_, _)
             | DatabaseState::NoActiveDatabase(_, _)
+            | DatabaseState::OwnerInfoLoaded(_)
+            | DatabaseState::OwnerInfoLoadError(_, _)
             | DatabaseState::RulesLoadError(_, _) => None,
             DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
                 Some(Arc::clone(&state.provided_rules))
@@ -1027,13 +1082,35 @@ impl DatabaseState {
         }
     }
 
+    fn owner_info(&self) -> Option<management::v1::OwnerInfo> {
+        match self {
+            DatabaseState::Known(_)
+            | DatabaseState::DatabaseObjectStoreFound(_)
+            | DatabaseState::DatabaseObjectStoreLookupError(_, _)
+            | DatabaseState::NoActiveDatabase(_, _)
+            | DatabaseState::OwnerInfoLoadError(_, _)
+            | DatabaseState::RulesLoadError(_, _) => None,
+            DatabaseState::OwnerInfoLoaded(state) => Some(state.owner_info.clone()),
+            DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
+                Some(state.owner_info.clone())
+            }
+            DatabaseState::CatalogLoaded(state) | DatabaseState::ReplayError(state, _) => {
+                Some(state.owner_info.clone())
+            }
+            DatabaseState::Initialized(state) => Some(state.owner_info.clone()),
+        }
+    }
+
     fn iox_object_store(&self) -> Option<Arc<IoxObjectStore>> {
         match self {
             DatabaseState::Known(_)
             | DatabaseState::DatabaseObjectStoreLookupError(_, _)
-            | DatabaseState::NoActiveDatabase(_, _)
-            | DatabaseState::RulesLoadError(_, _) => None,
-            DatabaseState::DatabaseObjectStoreFound(state) => {
+            | DatabaseState::NoActiveDatabase(_, _) => None,
+            DatabaseState::DatabaseObjectStoreFound(state)
+            | DatabaseState::OwnerInfoLoadError(state, _) => {
+                Some(Arc::clone(&state.iox_object_store))
+            }
+            DatabaseState::OwnerInfoLoaded(state) | DatabaseState::RulesLoadError(state, _) => {
                 Some(Arc::clone(&state.iox_object_store))
             }
             DatabaseState::RulesLoaded(state) | DatabaseState::CatalogLoadError(state, _) => {
@@ -1091,6 +1168,42 @@ struct DatabaseStateDatabaseObjectStoreFound {
 }
 
 impl DatabaseStateDatabaseObjectStoreFound {
+    /// Load owner info from object storage and verify it matches the current owner
+    async fn advance(
+        &self,
+        shared: &DatabaseShared,
+    ) -> Result<DatabaseStateOwnerInfoLoaded, InitError> {
+        let raw_owner_info = self
+            .iox_object_store
+            .get_owner_file()
+            .await
+            .context(LoadingOwnerInfo)?;
+
+        let owner_info = generated_types::server_config::decode_database_owner_info(raw_owner_info)
+            .context(DecodingOwnerInfo)?;
+
+        if owner_info.id != shared.config.server_id.get_u32() {
+            return DatabaseOwnerMismatch {
+                actual: owner_info.id,
+                expected: shared.config.server_id.get_u32(),
+            }
+            .fail();
+        }
+
+        Ok(DatabaseStateOwnerInfoLoaded {
+            owner_info,
+            iox_object_store: Arc::clone(&self.iox_object_store),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct DatabaseStateOwnerInfoLoaded {
+    owner_info: management::v1::OwnerInfo,
+    iox_object_store: Arc<IoxObjectStore>,
+}
+
+impl DatabaseStateOwnerInfoLoaded {
     /// Load database rules from object storage
     async fn advance(
         &self,
@@ -1110,6 +1223,7 @@ impl DatabaseStateDatabaseObjectStoreFound {
 
         Ok(DatabaseStateRulesLoaded {
             provided_rules: Arc::new(rules),
+            owner_info: self.owner_info.clone(),
             iox_object_store: Arc::clone(&self.iox_object_store),
         })
     }
@@ -1118,6 +1232,7 @@ impl DatabaseStateDatabaseObjectStoreFound {
 #[derive(Debug, Clone)]
 struct DatabaseStateRulesLoaded {
     provided_rules: Arc<ProvidedDatabaseRules>,
+    owner_info: management::v1::OwnerInfo,
     iox_object_store: Arc<IoxObjectStore>,
 }
 
@@ -1175,6 +1290,7 @@ impl DatabaseStateRulesLoaded {
             lifecycle_worker,
             replay_plan: Arc::new(replay_plan),
             provided_rules: Arc::clone(&self.provided_rules),
+            owner_info: self.owner_info.clone(),
         })
     }
 }
@@ -1185,6 +1301,7 @@ struct DatabaseStateCatalogLoaded {
     lifecycle_worker: Arc<LifecycleWorker>,
     replay_plan: Arc<Option<ReplayPlan>>,
     provided_rules: Arc<ProvidedDatabaseRules>,
+    owner_info: management::v1::OwnerInfo,
 }
 
 impl DatabaseStateCatalogLoaded {
@@ -1232,6 +1349,7 @@ impl DatabaseStateCatalogLoaded {
             write_buffer_consumer,
             lifecycle_worker: Arc::clone(&self.lifecycle_worker),
             provided_rules: Arc::clone(&self.provided_rules),
+            owner_info: self.owner_info.clone(),
         })
     }
 }
@@ -1242,6 +1360,7 @@ pub struct DatabaseStateInitialized {
     write_buffer_consumer: Option<Arc<WriteBufferConsumer>>,
     lifecycle_worker: Arc<LifecycleWorker>,
     provided_rules: Arc<ProvidedDatabaseRules>,
+    owner_info: management::v1::OwnerInfo,
 }
 
 impl DatabaseStateInitialized {

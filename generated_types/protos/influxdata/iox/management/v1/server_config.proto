@@ -11,3 +11,13 @@ option go_package = "github.com/influxdata/iox/management/v1";
 message ServerConfig {
   map<string, string> databases = 1;
 }
+
+// Stores information about a server that owns a database. To be stored in a database's object
+// store directory as verification of ownership.
+message OwnerInfo {
+  // The ID of the server that owns this database
+  uint32 id = 1;
+
+  // The path to this server's config file in object storage
+  string location = 2;
+}
