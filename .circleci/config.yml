@@ -6,7 +6,7 @@ parameters:
     # when updating the go version, should also update the go version in go.mod
     description: docker tag for cross build container from quay.io . Created by https://github.com/influxdata/edge/tree/master/dockerfiles/cross-builder .
     type: string
-    default: go1.15.10-7cf4f53e6ee40b73ace29f6fde884a1618c6ac42
+    default: go1.15.10-f7b4e805fa9588c1c2fa4562ea29e576557fb797
 
 commands:
   install_rust:
@@ -102,12 +102,8 @@ jobs:
           command: |
             set -x
             mkdir -p junit
-            go test -v ./... 2>&1 | tee tests.log
+            gotestsum --junitfile junit/influxdb.junit.xml -- ./...
           no_output_timeout: 1500s
-      - run:
-          name: Convert test output to junit
-          command: go-junit-report < tests.log > junit/influxdb.junit.xml
-          when: always
       - store_test_results:
           path: junit/
   unit_test_tsi:
@@ -126,12 +122,8 @@ jobs:
             set -x
             mkdir -p junit-tsi
             export INFLUXDB_DATA_INDEX_VERSION="tsi1"
-            go test -v ./... 2>&1 | tee tests.log
+            gotestsum --junitfile junit-tsi/influxdb.junit.xml -- ./...
           no_output_timeout: 1500s
-      - run:
-          name: Convert test output to junit
-          command: go-junit-report < tests.log > junit-tsi/influxdb.junit.xml
-          when: always
       - store_test_results:
           path: junit-tsi/
   unit_test_race:
@@ -150,12 +142,8 @@ jobs:
             set -x
             mkdir -p junit-race/
             export GORACE="halt_on_error=1"
-            go test -race -v ./... 2>&1 | tee tests.log
+            gotestsum --junitfile junit-race/influxdb.junit.xml -- -race ./...
           no_output_timeout: 1500s
-      - run:
-          name: Convert test output to junit
-          command: go-junit-report < tests.log > junit-race/influxdb.junit.xml
-          when: always
       - store_test_results:
           path: junit-race/
   fluxtest:
