@@ -440,14 +440,19 @@ where
         Self::new_with_distinct(min, max, total_count, null_count, distinct_count)
     }
 
-    /// Create new statitics with the specified count and null count
+    /// Create new statistics with no values
+    pub fn new_empty() -> Self {
+        Self::new_with_distinct(None, None, 0, 0, None)
+    }
+
+    /// Create new statistics with the specified count and null count
     pub fn new(min: Option<T>, max: Option<T>, total_count: u64, null_count: u64) -> Self {
         let distinct_count = None;
         Self::new_with_distinct(min, max, total_count, null_count, distinct_count)
     }
 
-    /// Create new statitics with the specified count and null count and distinct values
-    fn new_with_distinct(
+    /// Create new statistics with the specified count and null count and distinct values
+    pub fn new_with_distinct(
         min: Option<T>,
         max: Option<T>,
         total_count: u64,

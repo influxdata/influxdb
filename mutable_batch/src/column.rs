@@ -1,5 +1,6 @@
 //! A [`Column`] stores the rows for a given column name
 
+use std::fmt::Formatter;
 use std::iter::Enumerate;
 use std::mem;
 use std::sync::Arc;
@@ -28,10 +29,10 @@ use schema::{IOxValueType, InfluxColumnType, InfluxFieldType, TIME_DATA_TYPE};
 ///
 /// An i32 is used to match the default for Arrow dictionaries
 #[allow(clippy::upper_case_acronyms)]
-type DID = i32;
+pub(crate) type DID = i32;
 
 /// An invalid DID used for NULL rows
-const INVALID_DID: DID = -1;
+pub(crate) const INVALID_DID: DID = -1;
 
 /// The type of the dictionary used
 type Dictionary = arrow_util::dictionary::StringDictionary<DID>;
@@ -66,19 +67,37 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// statistics
 #[derive(Debug)]
 pub struct Column {
-    influx_type: InfluxColumnType,
-    valid: BitSet,
-    data: ColumnData,
+    pub(crate) influx_type: InfluxColumnType,
+    pub(crate) valid: BitSet,
+    pub(crate) data: ColumnData,
 }
 
 #[derive(Debug)]
-enum ColumnData {
+pub(crate) enum ColumnData {
     F64(Vec<f64>, StatValues<f64>),
     I64(Vec<i64>, StatValues<i64>),
     U64(Vec<u64>, StatValues<u64>),
     String(PackedStringArray<i32>, StatValues<String>),
     Bool(BitSet, StatValues<bool>),
     Tag(Vec<DID>, Dictionary, StatValues<String>),
+}
+
+impl std::fmt::Display for ColumnData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ColumnData::F64(col_data, _) => write!(f, "F64({})", col_data.len()),
+            ColumnData::I64(col_data, _) => write!(f, "I64({})", col_data.len()),
+            ColumnData::U64(col_data, _) => write!(f, "U64({})", col_data.len()),
+            ColumnData::String(col_data, _) => write!(f, "String({})", col_data.len()),
+            ColumnData::Bool(col_data, _) => write!(f, "Bool({})", col_data.len()),
+            ColumnData::Tag(col_data, dictionary, _) => write!(
+                f,
+                "Tag(keys:{},values:{})",
+                col_data.len(),
+                dictionary.values().len()
+            ),
+        }
+    }
 }
 
 impl Column {

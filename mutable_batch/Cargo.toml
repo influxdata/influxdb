@@ -12,6 +12,7 @@ entry = { path = "../entry" }
 schema = { path = "../schema" }
 snafu = "0.6"
 hashbrown = "0.11"
+itertools = "0.10"
 
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }

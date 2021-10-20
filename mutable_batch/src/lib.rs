@@ -9,11 +9,12 @@
     clippy::clone_on_ref_ptr
 )]
 
-//! A mutable data structure for a collection of writes
+//! A mutable data structure for a collection of writes.
 //!
-//! Currently supports:
-//! - `[TableBatch`] writes
-//! - [`RecordBatch`] conversion
+//! Can be viewed as a mutable version of [`RecordBatch`] that remains the exclusive
+//! owner of its buffers, permitting mutability. The in-memory layout is similar, however,
+//! permitting fast conversion to [`RecordBatch`]
+//!
 
 use crate::column::Column;
 use arrow::record_batch::RecordBatch;
@@ -24,6 +25,7 @@ use schema::{builder::SchemaBuilder, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 pub mod column;
+pub mod writer;
 
 #[allow(missing_docs)]
 #[derive(Debug, Snafu)]
@@ -61,15 +63,23 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// can be appended to and converted into an Arrow `RecordBatch`
 #[derive(Debug, Default)]
 pub struct MutableBatch {
-    /// Map of column id from the chunk dictionary to the column
-    columns: HashMap<String, Column>,
+    /// Map of column name to index in `MutableBatch::columns`
+    column_names: HashMap<String, usize>,
+
+    /// Columns contained within this MutableBatch
+    columns: Vec<Column>,
+
+    /// The number of rows in this MutableBatch
+    row_count: usize,
 }
 
 impl MutableBatch {
     /// Create a new empty batch
     pub fn new() -> Self {
         Self {
+            column_names: Default::default(),
             columns: Default::default(),
+            row_count: 0,
         }
     }
 
@@ -93,7 +103,8 @@ impl MutableBatch {
         let mut schema_builder = SchemaBuilder::new();
         let schema = match selection {
             Selection::All => {
-                for (column_name, column) in self.columns.iter() {
+                for (column_name, column_idx) in self.column_names.iter() {
+                    let column = &self.columns[*column_idx];
                     schema_builder.influx_column(column_name, column.influx_type());
                 }
 
@@ -121,8 +132,7 @@ impl MutableBatch {
             .iter()
             .map(|(_, field)| {
                 let column = self
-                    .columns
-                    .get(field.name())
+                    .column(field.name())
                     .expect("schema contains non-existent column");
 
                 column.to_arrow().context(ColumnError {
@@ -136,21 +146,24 @@ impl MutableBatch {
 
     /// Returns an iterator over the columns in this batch in no particular order
     pub fn columns(&self) -> impl Iterator<Item = (&String, &Column)> + '_ {
-        self.columns.iter()
+        self.column_names
+            .iter()
+            .map(move |(name, idx)| (name, &self.columns[*idx]))
     }
 
     /// Return the number of rows in this chunk
     pub fn rows(&self) -> usize {
-        self.columns
-            .values()
-            .next()
-            .map(|col| col.len())
-            .unwrap_or(0)
+        self.row_count
     }
 
     /// Returns a reference to the specified column
     pub(crate) fn column(&self, column: &str) -> Result<&Column> {
-        self.columns.get(column).context(ColumnNotFound { column })
+        let idx = self
+            .column_names
+            .get(column)
+            .context(ColumnNotFound { column })?;
+
+        Ok(&self.columns[*idx])
     }
 
     /// Validates the schema of the passed in columns, then adds their values to
@@ -189,10 +202,12 @@ impl MutableBatch {
                 }
             );
 
-            if let Some(c) = self.columns.get(column.name()) {
-                c.validate_schema(column).context(ColumnError {
-                    column: column.name(),
-                })?;
+            if let Some(c_idx) = self.column_names.get(column.name()) {
+                self.columns[*c_idx]
+                    .validate_schema(column)
+                    .context(ColumnError {
+                        column: column.name(),
+                    })?;
             }
 
             Ok(())
@@ -200,18 +215,23 @@ impl MutableBatch {
 
         for fb_column in columns {
             let influx_type = fb_column.influx_type();
+            let columns_len = self.columns.len();
 
-            let column = self
-                .columns
+            let column_idx = *self
+                .column_names
                 .raw_entry_mut()
                 .from_key(fb_column.name())
-                .or_insert_with(|| {
-                    (
-                        fb_column.name().to_string(),
-                        Column::new(row_count_before_insert, influx_type),
-                    )
-                })
+                .or_insert_with(|| (fb_column.name().to_string(), columns_len))
                 .1;
+
+            if columns_len == column_idx {
+                self.columns
+                    .push(Column::new(row_count_before_insert, influx_type))
+            }
+
+            let column = &mut self.columns[column_idx];
+
+            assert_eq!(column.len(), row_count_before_insert);
 
             column.append(&fb_column, mask).context(ColumnError {
                 column: fb_column.name(),
@@ -221,9 +241,10 @@ impl MutableBatch {
         }
 
         // Pad any columns that did not have values in this batch with NULLs
-        for c in self.columns.values_mut() {
+        for c in &mut self.columns {
             c.push_nulls_to_len(final_row_count);
         }
+        self.row_count = final_row_count;
 
         Ok(())
     }
