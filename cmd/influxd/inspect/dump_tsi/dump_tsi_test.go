@@ -26,8 +26,8 @@ func Test_DumpTSI_NoError(t *testing.T) {
 	// Untar the test data
 	file, err := os.Open("../tsi-test-data.tar.gz")
 	require.NoError(t, err)
-	defer file.Close()
 	require.NoError(t, tar.Untar(dir, file))
+	require.NoError(t, file.Close())
 
 	// Run the test
 	cmd.SetArgs([]string{

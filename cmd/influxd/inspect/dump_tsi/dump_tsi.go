@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/influxdata/influxdb/v2/models"
+	"github.com/influxdata/influxdb/v2/pkg/errors"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/spf13/cobra"
@@ -107,7 +108,7 @@ func NewDumpTSICommand() *cobra.Command {
 	return cmd
 }
 
-func (a *args) run() error {
+func (a *args) run() (rErr error) {
 	sfile := tsdb.NewSeriesFile(a.seriesFilePath)
 	if err := sfile.Open(); err != nil {
 		return err
@@ -120,11 +121,11 @@ func (a *args) run() error {
 		return err
 	}
 	if fs != nil {
-		defer fs.Close()
+		defer errors.Capture(&rErr, fs.Close)
 		defer fs.Release()
 	}
 	if idx != nil {
-		defer idx.Close()
+		defer errors.Capture(&rErr, idx.Close)
 	}
 
 	if a.showSeries {

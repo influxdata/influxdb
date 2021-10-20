@@ -3,20 +3,23 @@ package tar
 import (
 	"archive/tar"
 	"compress/gzip"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
+
+	errors2 "github.com/influxdata/influxdb/v2/pkg/errors"
 )
 
 // Untar takes a destination path and a reader; a tar reader loops over the tarfile
 // creating the file structure at 'dir' along the way, and writing any files
-func Untar(dir string, r io.Reader) error {
+func Untar(dir string, r io.Reader) (rErr error) {
 
 	gzr, err := gzip.NewReader(r)
 	if err != nil {
 		return err
 	}
-	defer gzr.Close()
+	defer errors2.Capture(&rErr, gzr.Close)
 
 	tr := tar.NewReader(gzr)
 
@@ -26,7 +29,7 @@ func Untar(dir string, r io.Reader) error {
 		switch {
 
 		// if no more files are found return
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return nil
 
 		// return any other error
@@ -65,12 +68,12 @@ func Untar(dir string, r io.Reader) error {
 	}
 }
 
-func untarFile(target string, tr *tar.Reader, header *tar.Header) error {
+func untarFile(target string, tr *tar.Reader, header *tar.Header) (rErr error) {
 	f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer errors2.Capture(&rErr, f.Close)
 
 	// copy over contents
 	if _, err := io.Copy(f, tr); err != nil {

@@ -76,8 +76,8 @@ func Test_ReportTSI_TestData(t *testing.T) {
 	// Extract test data
 	file, err := os.Open("../tsi-test-data.tar.gz")
 	require.NoError(t, err)
-	defer file.Close()
 	require.NoError(t, tar.Untar(path, file))
+	require.NoError(t, file.Close())
 
 	tests := []cmdParams{
 		{
