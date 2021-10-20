@@ -4,6 +4,7 @@ use object_store::ObjectStore;
 use observability_deps::tracing::info;
 use query::exec::Executor;
 use time::TimeProvider;
+use trace::TraceCollector;
 use write_buffer::config::WriteBufferConfigFactory;
 
 use crate::JobRegistry;
@@ -18,13 +19,18 @@ pub struct ApplicationState {
     job_registry: Arc<JobRegistry>,
     metric_registry: Arc<metric::Registry>,
     time_provider: Arc<dyn TimeProvider>,
+    trace_collector: Option<Arc<dyn TraceCollector>>,
 }
 
 impl ApplicationState {
     /// Creates a new `ApplicationState`
     ///
     /// Uses number of CPUs in the system if num_worker_threads is not set
-    pub fn new(object_store: Arc<ObjectStore>, num_worker_threads: Option<usize>) -> Self {
+    pub fn new(
+        object_store: Arc<ObjectStore>,
+        num_worker_threads: Option<usize>,
+        trace_collector: Option<Arc<dyn TraceCollector>>,
+    ) -> Self {
         let num_threads = num_worker_threads.unwrap_or_else(num_cpus::get);
         info!(%num_threads, "using specified number of threads per thread pool");
 
@@ -45,6 +51,7 @@ impl ApplicationState {
             job_registry,
             metric_registry,
             time_provider,
+            trace_collector,
         }
     }
 
@@ -66,6 +73,10 @@ impl ApplicationState {
 
     pub fn time_provider(&self) -> &Arc<dyn TimeProvider> {
         &self.time_provider
+    }
+
+    pub fn trace_collector(&self) -> &Option<Arc<dyn TraceCollector>> {
+        &self.trace_collector
     }
 
     pub fn executor(&self) -> &Arc<Executor> {

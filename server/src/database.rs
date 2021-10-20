@@ -30,7 +30,6 @@ use std::{future::Future, sync::Arc, time::Duration};
 use tokio::{sync::Notify, task::JoinError};
 use tokio_util::sync::CancellationToken;
 use trace::ctx::SpanContext;
-use trace::{RingBufferTraceCollector, TraceCollector};
 use uuid::Uuid;
 
 const INIT_BACKOFF: Duration = Duration::from_secs(1);
@@ -1312,10 +1311,8 @@ impl DatabaseStateCatalogLoaded {
     ) -> Result<DatabaseStateInitialized, InitError> {
         let db = Arc::clone(&self.db);
 
-        // TODO: use proper trace collector
-        let trace_collector: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
-
         let rules = self.provided_rules.rules();
+        let trace_collector = shared.application.trace_collector();
         let write_buffer_factory = shared.application.write_buffer_factory();
         let write_buffer_consumer = match rules.write_buffer_connection.as_ref() {
             Some(connection) if matches!(connection.direction, WriteBufferDirection::Read) => {
@@ -1323,7 +1320,7 @@ impl DatabaseStateCatalogLoaded {
                     .new_config_read(
                         shared.config.server_id,
                         shared.config.name.as_str(),
-                        Some(&trace_collector),
+                        trace_collector.as_ref(),
                         connection,
                     )
                     .await
@@ -1375,13 +1372,14 @@ impl DatabaseStateInitialized {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_utils::make_application;
+
     use super::*;
     use data_types::database_rules::{
         PartitionTemplate, TemplatePart, WriteBufferConnection, WriteBufferDirection,
     };
     use data_types::sequence::Sequence;
     use entry::{test_helpers::lp_to_entries, SequencedEntry};
-    use object_store::ObjectStore;
     use std::{
         convert::{TryFrom, TryInto},
         num::NonZeroU32,
@@ -1393,10 +1391,7 @@ mod tests {
 
     #[tokio::test]
     async fn database_shutdown_waits_for_jobs() {
-        let application = Arc::new(ApplicationState::new(
-            Arc::new(ObjectStore::new_in_memory()),
-            None,
-        ));
+        let application = make_application();
 
         let database = Database::new(
             Arc::clone(&application),
@@ -1454,10 +1449,7 @@ mod tests {
 
     async fn initialized_database() -> (Arc<ApplicationState>, Database) {
         let server_id = ServerId::try_from(1).unwrap();
-        let application = Arc::new(ApplicationState::new(
-            Arc::new(ObjectStore::new_in_memory()),
-            None,
-        ));
+        let application = make_application();
 
         let db_name = DatabaseName::new("test").unwrap();
         let uuid = Uuid::new_v4();
@@ -1594,10 +1586,7 @@ mod tests {
         ));
 
         // setup application
-        let application = Arc::new(ApplicationState::new(
-            Arc::new(ObjectStore::new_in_memory()),
-            None,
-        ));
+        let application = make_application();
         application
             .write_buffer_factory()
             .register_mock("my_mock".to_string(), state.clone());

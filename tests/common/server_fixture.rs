@@ -292,7 +292,7 @@ struct TestServer {
 }
 
 // Options for creating test servers
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct TestConfig {
     /// Additional environment variables
     env: Vec<(String, String)>,

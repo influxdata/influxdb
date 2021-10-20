@@ -1352,6 +1352,7 @@ pub mod test_utils {
         Arc::new(ApplicationState::new(
             Arc::new(ObjectStore::new_in_memory()),
             None,
+            None,
         ))
     }
 
@@ -2091,7 +2092,7 @@ mod tests {
     async fn init_error_generic() {
         // use an object store that will hopefully fail to read
         let store = Arc::new(ObjectStore::new_failing_store().unwrap());
-        let application = Arc::new(ApplicationState::new(store, None));
+        let application = Arc::new(ApplicationState::new(store, None, None));
         let server = make_server(application);
 
         server.set_id(ServerId::try_from(1).unwrap()).unwrap();

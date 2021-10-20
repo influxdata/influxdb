@@ -151,12 +151,22 @@ async fn stream_in_sequenced_entries<'a>(
         // store entry
         let mut logged_hard_limit = false;
         loop {
+            let span_context = sequenced_entry
+                .span_context()
+                .map(|parent| parent.child("IOx write buffer"));
+
             match db.store_sequenced_entry(
                 Arc::clone(&sequenced_entry),
                 crate::db::filter_table_batch_keep_all,
             ) {
                 Ok(_) => {
                     metrics.success();
+
+                    if let Some(mut span_context) = span_context {
+                        span_context.ok("stored entry");
+                        span_context.export();
+                    }
+
                     break;
                 }
                 Err(crate::db::Error::HardLimitReached {}) => {
@@ -169,6 +179,12 @@ async fn stream_in_sequenced_entries<'a>(
                         );
                         logged_hard_limit = true;
                     }
+
+                    if let Some(mut span_context) = span_context {
+                        span_context.error("hard limit reached");
+                        span_context.export();
+                    }
+
                     tokio::time::sleep(Duration::from_millis(100)).await;
                     continue;
                 }
@@ -179,6 +195,11 @@ async fn stream_in_sequenced_entries<'a>(
                         sequencer_id,
                         "Error storing SequencedEntry from write buffer in database"
                     );
+
+                    if let Some(mut span_context) = span_context {
+                        span_context.error("cannot store entry");
+                        span_context.export();
+                    }
 
                     // no retry
                     break;

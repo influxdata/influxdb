@@ -1,5 +1,8 @@
 use crate::{
-    common::server_fixture::ServerFixture,
+    common::{
+        server_fixture::{ServerFixture, TestConfig},
+        udp_listener::UdpCapture,
+    },
     end_to_end_cases::scenario::{rand_name, DatabaseBuilder},
 };
 use arrow_util::assert_batches_sorted_eq;
@@ -17,6 +20,7 @@ use rdkafka::{
     ClientConfig, Message, Offset, TopicPartitionList,
 };
 use std::convert::TryFrom;
+use tempfile::TempDir;
 use test_helpers::assert_contains;
 use write_buffer::{kafka::test_utils::kafka_sequencer_options, maybe_skip_kafka_integration};
 
@@ -324,4 +328,90 @@ async fn test_create_database_missing_write_buffer_sequencers() {
         "{}",
         &err
     );
+}
+
+#[tokio::test]
+pub async fn test_cross_write_buffer_tracing() {
+    let write_buffer_dir = TempDir::new().unwrap();
+
+    // setup tracing
+    let udp_capture = UdpCapture::new().await;
+    let test_config = TestConfig::new()
+        .with_env("TRACES_EXPORTER", "jaeger")
+        .with_env("TRACES_EXPORTER_JAEGER_AGENT_HOST", udp_capture.ip())
+        .with_env("TRACES_EXPORTER_JAEGER_AGENT_PORT", udp_capture.port())
+        .with_client_header("jaeger-debug-id", "some-debug-id");
+
+    // we need to use two servers but the same DB name here because the Kafka topic is named after the DB name
+    let db_name = rand_name();
+
+    // create producer server
+    let server_write = ServerFixture::create_single_use_with_config(test_config.clone()).await;
+    server_write
+        .management_client()
+        .update_server_id(1)
+        .await
+        .unwrap();
+    server_write.wait_server_initialized().await;
+    let conn_write = WriteBufferConnection {
+        direction: WriteBufferDirection::Write.into(),
+        r#type: "file".to_string(),
+        connection: write_buffer_dir.path().display().to_string(),
+        creation_config: Some(WriteBufferCreationConfig {
+            n_sequencers: 1,
+            options: kafka_sequencer_options(),
+        }),
+        ..Default::default()
+    };
+    DatabaseBuilder::new(db_name.clone())
+        .write_buffer(conn_write.clone())
+        .build(server_write.grpc_channel())
+        .await;
+
+    // create consumer DB
+    let server_read = ServerFixture::create_single_use_with_config(test_config).await;
+    server_read
+        .management_client()
+        .update_server_id(2)
+        .await
+        .unwrap();
+    server_read.wait_server_initialized().await;
+    let conn_read = WriteBufferConnection {
+        direction: WriteBufferDirection::Read.into(),
+        ..conn_write
+    };
+    DatabaseBuilder::new(db_name.clone())
+        .write_buffer(conn_read)
+        .build(server_read.grpc_channel())
+        .await;
+
+    // write some points
+    let mut write_client = server_write.write_client();
+    let lp_lines = [
+        "cpu,region=west user=23.2 100",
+        "cpu,region=west user=21.0 150",
+        "disk,region=east bytes=99i 200",
+    ];
+    let num_lines_written = write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("cannot write");
+    assert_eq!(num_lines_written, 3);
+
+    //  "shallow" packet inspection and verify the UDP server got
+    //  something that had some expected results (maybe we could
+    //  eventually verify the payload here too)
+    udp_capture
+        .wait_for(|m| m.to_string().contains("IOx write buffer"))
+        .await;
+    udp_capture
+        .wait_for(|m| m.to_string().contains("stored entry"))
+        .await;
+
+    // // debugging assistance
+    // tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+    // println!("Traces received (1):\n\n{:#?}", udp_capture.messages());
+
+    // wait for the UDP server to shutdown
+    udp_capture.stop().await
 }
