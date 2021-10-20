@@ -156,6 +156,14 @@ impl MutableBatch {
         self.row_count
     }
 
+    /// Extend this [`MutableBatch`] with the contents of `other`
+    pub fn extend_from(&mut self, other: &Self) -> writer::Result<()> {
+        let mut writer = writer::Writer::new(self, other.row_count);
+        writer.write_batch(other)?;
+        writer.commit();
+        Ok(())
+    }
+
     /// Returns a reference to the specified column
     pub(crate) fn column(&self, column: &str) -> Result<&Column> {
         let idx = self

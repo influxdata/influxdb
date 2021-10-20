@@ -433,6 +433,61 @@ impl<'a> Writer<'a> {
         Ok(())
     }
 
+    /// Write the provided MutableBatch
+    pub(crate) fn write_batch(&mut self, src: &MutableBatch) -> Result<()> {
+        assert_eq!(src.row_count, self.to_insert);
+
+        for (src_col_name, src_col_idx) in &src.column_names {
+            let src_col = &src.columns[*src_col_idx];
+            let (dst_col_idx, dst_col) = self.column_mut(src_col_name, src_col.influx_type)?;
+
+            let stats = match (&mut dst_col.data, &src_col.data) {
+                (ColumnData::F64(dst_data, _), ColumnData::F64(src_data, stats)) => {
+                    dst_data.extend_from_slice(src_data);
+                    Statistics::F64(stats.clone())
+                }
+                (ColumnData::I64(dst_data, _), ColumnData::I64(src_data, stats)) => {
+                    dst_data.extend_from_slice(src_data);
+                    Statistics::I64(stats.clone())
+                }
+                (ColumnData::U64(dst_data, _), ColumnData::U64(src_data, stats)) => {
+                    dst_data.extend_from_slice(src_data);
+                    Statistics::U64(stats.clone())
+                }
+                (ColumnData::Bool(dst_data, _), ColumnData::Bool(src_data, stats)) => {
+                    dst_data.extend_from(src_data);
+                    Statistics::Bool(stats.clone())
+                }
+                (ColumnData::String(dst_data, _), ColumnData::String(src_data, stats)) => {
+                    dst_data.extend_from(src_data);
+                    Statistics::String(stats.clone())
+                }
+                (
+                    ColumnData::Tag(dst_data, dst_dict, _),
+                    ColumnData::Tag(src_data, src_dict, stats),
+                ) => {
+                    let mapping: Vec<_> = src_dict
+                        .values()
+                        .iter()
+                        .map(|value| dst_dict.lookup_value_or_insert(value))
+                        .collect();
+
+                    dst_data.extend(src_data.iter().map(|src_id| match *src_id {
+                        INVALID_DID => INVALID_DID,
+                        _ => mapping[*src_id as usize],
+                    }));
+
+                    Statistics::String(stats.clone())
+                }
+                _ => unreachable!("src: {}, dst: {}", src_col.data, dst_col.data),
+            };
+
+            dst_col.valid.extend_from(&src_col.valid);
+            self.statistics.push((dst_col_idx, stats));
+        }
+        Ok(())
+    }
+
     fn column_mut(
         &mut self,
         name: &str,

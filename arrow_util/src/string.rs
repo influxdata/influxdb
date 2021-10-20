@@ -62,6 +62,18 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> PackedStringArray<K> {
         id
     }
 
+    /// Extends this [`PackedStringArray`] by the contents of `other`
+    pub fn extend_from(&mut self, other: &PackedStringArray<K>) {
+        let offset = self.storage.len();
+        self.storage.push_str(other.storage.as_str());
+        self.offsets.extend(
+            other
+                .offsets
+                .iter()
+                .map(|x| K::from_usize(x.as_() + offset).expect("failed to fit into offset type")),
+        )
+    }
+
     /// Get the value at a given index
     pub fn get(&self, index: usize) -> Option<&str> {
         let start_offset = self.offsets.get(index)?.as_();

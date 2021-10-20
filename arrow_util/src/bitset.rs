@@ -66,6 +66,11 @@ impl BitSet {
         self.len = len;
     }
 
+    /// Extends this [`BitSet`] by the context of `other`
+    pub fn extend_from(&mut self, other: &BitSet) {
+        self.append_bits(other.len, &other.buffer)
+    }
+
     /// Appends `count` boolean values from the slice of packed bits
     pub fn append_bits(&mut self, count: usize, to_set: &[u8]) {
         assert_eq!((count + 7) >> 3, to_set.len());
