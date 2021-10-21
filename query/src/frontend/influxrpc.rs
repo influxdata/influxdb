@@ -1177,9 +1177,6 @@ impl InfluxRpcPlanner {
             field_columns,
         } = AggExprs::try_new_for_read_group(agg, &schema, &predicate)?;
 
-        dbg!(&agg_exprs);
-        dbg!(&field_columns);
-
         let plan_builder = plan_builder
             .aggregate(group_exprs, agg_exprs)
             .context(BuildingPlan)?;
@@ -1491,7 +1488,12 @@ struct FieldExpr<'a> {
     datatype: &'a DataType,
 }
 
-/// Returns an iterator of fields from schema that pass the predicate
+// Returns an iterator of fields from schema that pass the predicate. If there
+// are expressions associated with field column projections then these are
+// applied to the column via `CASE` statements.
+//
+// TODO(edd): correctly support multiple `_value` expressions. Right now they
+// are OR'd together, which makes sense for all operators expect `_value != xyz`.
 fn filtered_fields_iter<'a>(
     schema: &'a Schema,
     predicate: &'a Predicate,
@@ -1501,6 +1503,14 @@ fn filtered_fields_iter<'a>(
             return None;
         }
 
+        // For example, assume two fields (`field1` and `field2`) along with
+        // a predicate like: `_value = 1.32 OR _value = 2.87`. The projected
+        // field columns become:
+        //
+        // SELECT
+        //  CASE WHEN #field1 = Float64(1.32) OR #field1 = Float64(2.87) THEN #field1 END AS field1,
+        //  CASE WHEN #field2 = Float64(1.32) OR #field2 = Float64(2.87) THEN #field2 END AS field2
+        //
         let expr = predicate
             .value_expr
             .iter()
@@ -1617,12 +1627,17 @@ impl AggExprs {
     //  agg_function(time) as time
     fn agg_for_read_group(agg: Aggregate, schema: &Schema, predicate: &Predicate) -> Result<Self> {
         let agg_exprs = filtered_fields_iter(schema, predicate)
-            .map(|field| make_agg_expr(agg, field.name))
-            .chain(
-                schema
-                    .time_iter()
-                    .map(|field| make_agg_expr(agg, field.name())),
-            )
+            .map(|field| make_agg_expr(agg, field))
+            .chain(schema.time_iter().map(|field| {
+                make_agg_expr(
+                    agg,
+                    FieldExpr {
+                        expr: col(field.name()),
+                        datatype: field.data_type(),
+                        name: field.name(),
+                    },
+                )
+            }))
             .collect::<Result<Vec<_>>>()?;
 
         let field_columns = filtered_fields_iter(schema, predicate)
@@ -1652,7 +1667,7 @@ impl AggExprs {
         predicate: &Predicate,
     ) -> Result<Self> {
         let agg_exprs = filtered_fields_iter(schema, predicate)
-            .map(|field| make_agg_expr(agg, field.name))
+            .map(|field| make_agg_expr(agg, field))
             .collect::<Result<Vec<_>>>()?;
 
         let field_columns = filtered_fields_iter(schema, predicate)
@@ -1670,18 +1685,19 @@ impl AggExprs {
 /// Creates a DataFusion expression suitable for calculating an aggregate:
 ///
 /// equivalent to `CAST agg(field) as field`
-fn make_agg_expr(agg: Aggregate, field_name: &str) -> Result<Expr> {
+fn make_agg_expr(agg: Aggregate, field_expr: FieldExpr<'_>) -> Result<Expr> {
     // For timestamps, use `MAX` which corresponds to the last
     // timestamp in the group, unless `MIN` was specifically requested
     // to be consistent with the Go implementation which takes the
     // timestamp at the end of the window
-    let agg = if field_name == TIME_COLUMN_NAME && agg != Aggregate::Min {
+    let agg = if field_expr.name == TIME_COLUMN_NAME && agg != Aggregate::Min {
         Aggregate::Max
     } else {
         agg
     };
 
-    agg.to_datafusion_expr(col(field_name))
+    let field_name = field_expr.name;
+    agg.to_datafusion_expr(field_expr.expr)
         .context(CreatingAggregates)
         .map(|agg| agg.alias(field_name))
 }
