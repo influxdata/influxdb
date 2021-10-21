@@ -38,14 +38,14 @@ func errLocalBucketNotFound(id platform.ID, cause error) error {
 	}
 }
 
-func NewService(store *sqlite.SqlStore, bktSvc BucketService, log *zap.Logger) *service {
+func NewService(store *sqlite.SqlStore, bktSvc BucketService, log *zap.Logger, enginePath string) *service {
 	return &service{
 		store:               store,
 		idGenerator:         snowflake.NewIDGenerator(),
 		bucketService:       bktSvc,
 		validator:           internal.NewValidator(),
 		log:                 log,
-		durableQueueManager: internal.NewDurableQueueManager(log),
+		durableQueueManager: internal.NewDurableQueueManager(log, enginePath),
 	}
 }
 

@@ -13,16 +13,18 @@ import (
 type durableQueueManager struct {
 	replicationQueues map[platform.ID]*durablequeue.Queue
 	logger            *zap.Logger
+	enginePath		  string
 }
 
 // NewDurableQueueManager creates a new durableQueueManager struct, for managing durable queues associated with
 //replication streams.
-func NewDurableQueueManager(log *zap.Logger) *durableQueueManager {
+func NewDurableQueueManager(log *zap.Logger, enginePath string) *durableQueueManager {
 	replicationQueues := make(map[platform.ID]*durablequeue.Queue)
 
 	return &durableQueueManager{
 		replicationQueues: replicationQueues,
 		logger:            log,
+		enginePath:		   enginePath,
 	}
 }
 
@@ -30,9 +32,7 @@ func NewDurableQueueManager(log *zap.Logger) *durableQueueManager {
 func (qm *durableQueueManager) InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) error {
 	// Set up path for new queue on disk
 	dir := filepath.Join(
-		os.Getenv("HOME"),
-		".influxdbv2",
-		"engine",
+		qm.enginePath,
 		"replicationq",
 		replicationID.String(),
 	)
@@ -90,17 +90,11 @@ func (qm *durableQueueManager) DeleteQueue(replicationID platform.ID) error {
 		return err
 	}
 
+	qm.logger.Debug("Closed replication stream durable queue and deleted its data on disk",
+		zap.String("id", replicationID.String()), zap.String("path", qm.replicationQueues[replicationID].Dir()))
+
 	// Remove entry from replicationQueues map
 	delete(qm.replicationQueues, replicationID)
-
-	qm.logger.Debug("Closed replication stream durable queue and deleted its data on disk",
-		zap.String("id", replicationID.String()), zap.String("path", filepath.Join(
-			os.Getenv("HOME"),
-			".influxdbv2",
-			"engine",
-			"replicationq",
-			replicationID.String(),
-		)))
 
 	return nil
 }

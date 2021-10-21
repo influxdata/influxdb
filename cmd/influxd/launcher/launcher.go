@@ -655,7 +655,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	remotesServer := remotesTransport.NewInstrumentedRemotesHandler(
 		m.log.With(zap.String("handler", "remotes")), m.reg, remotesSvc)
 
-	replicationSvc := replications.NewService(m.sqlStore, ts, m.log.With(zap.String("service", "replications")))
+	replicationSvc := replications.NewService(m.sqlStore, ts, m.log.With(zap.String("service", "replications")), opts.EnginePath)
 	replicationServer := replicationTransport.NewInstrumentedReplicationHandler(
 		m.log.With(zap.String("handler", "replications")), m.reg, replicationSvc)
 

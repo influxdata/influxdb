@@ -360,6 +360,11 @@ func (l *Queue) TotalBytes() int64 {
 	return n
 }
 
+// Dir returns the directory associated with the queue.
+func (l *Queue) Dir() string {
+	return l.dir
+}
+
 // diskUsage returns the total size on disk used by the Queue.
 func (l *Queue) diskUsage() int64 {
 	var size int64
