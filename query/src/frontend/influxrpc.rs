@@ -9,8 +9,7 @@ use data_types::chunk_metadata::ChunkId;
 use datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
     logical_plan::{
-        binary_expr, lit, Column, DFSchemaRef, Expr, ExprRewriter, LogicalPlan, LogicalPlanBuilder,
-        Operator,
+        lit, Column, DFSchemaRef, Expr, ExprRewriter, LogicalPlan, LogicalPlanBuilder, Operator,
     },
     optimizer::utils::expr_to_columns,
     prelude::col,
@@ -20,7 +19,7 @@ use datafusion_util::AsExpr;
 
 use hashbrown::{HashMap, HashSet};
 use observability_deps::tracing::{debug, trace};
-use predicate::predicate::{Predicate, PredicateMatch};
+use predicate::predicate::{BinaryExpr, Predicate, PredicateMatch};
 use schema::selection::Selection;
 use schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -243,7 +242,6 @@ impl InfluxRpcPlanner {
         // and which chunks needs full plan and group them into their table
         for chunk in database.chunks(normalizer.unnormalized()) {
             let table_name = chunk.table_name();
-            let schema = chunk.schema();
 
             // Table is already in the returned table list, no longer needs to discover it from other chunks
             if builder.contains_meta_data_table(table_name.to_string()) {
@@ -260,7 +258,7 @@ impl InfluxRpcPlanner {
             } else {
                 // See if we can have enough info from the chunk's meta data to answer
                 // that this table participates in the request
-                let predicate = normalizer.normalized(table_name, schema);
+                let predicate = normalizer.normalized(table_name);
                 //
                 // Try and apply the predicate using only metadata
                 let pred_result = chunk
@@ -346,7 +344,7 @@ impl InfluxRpcPlanner {
             let mut do_full_plan = chunk.has_delete_predicates();
 
             let table_name = chunk.table_name();
-            let predicate = normalizer.normalized(table_name, chunk.schema());
+            let predicate = normalizer.normalized(table_name);
 
             // Try and apply the predicate using only metadata
             let pred_result = chunk
@@ -474,7 +472,7 @@ impl InfluxRpcPlanner {
             let mut do_full_plan = chunk.has_delete_predicates();
 
             let table_name = chunk.table_name();
-            let predicate = normalizer.normalized(table_name, chunk.schema());
+            let predicate = normalizer.normalized(table_name);
 
             // Try and apply the predicate using only metadata
             let pred_result = chunk
@@ -821,7 +819,7 @@ impl InfluxRpcPlanner {
     {
         let mut table_chunks = BTreeMap::new();
         for chunk in chunks {
-            let predicate = normalizer.normalized(chunk.table_name(), chunk.schema());
+            let predicate = normalizer.normalized(chunk.table_name());
             // Try and apply the predicate using only metadata
             let pred_result = chunk
                 .apply_predicate_to_metadata(&predicate)
@@ -1040,9 +1038,8 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.as_ref();
-        let scan_and_filter =
-            self.scan_and_filter(table_name, Arc::clone(&schema), normalizer, chunks)?;
-        let predicate = normalizer.normalized(table_name, schema);
+        let scan_and_filter = self.scan_and_filter(table_name, schema, normalizer, chunks)?;
+        let predicate = normalizer.normalized(table_name);
 
         let TableScanAndFilter {
             plan_builder,
@@ -1152,9 +1149,8 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter =
-            self.scan_and_filter(&table_name, Arc::clone(&schema), normalizer, chunks)?;
-        let predicate = normalizer.normalized(&table_name, schema);
+        let scan_and_filter = self.scan_and_filter(&table_name, schema, normalizer, chunks)?;
+        let predicate = normalizer.normalized(&table_name);
 
         let TableScanAndFilter {
             plan_builder,
@@ -1263,9 +1259,8 @@ impl InfluxRpcPlanner {
         C: QueryChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter =
-            self.scan_and_filter(&table_name, Arc::clone(&schema), normalizer, chunks)?;
-        let predicate = normalizer.normalized(&table_name, schema);
+        let scan_and_filter = self.scan_and_filter(&table_name, schema, normalizer, chunks)?;
+        let predicate = normalizer.normalized(&table_name);
 
         let TableScanAndFilter {
             plan_builder,
@@ -1342,7 +1337,7 @@ impl InfluxRpcPlanner {
     where
         C: QueryChunk + 'static,
     {
-        let predicate = normalizer.normalized(table_name, Arc::clone(&schema));
+        let predicate = normalizer.normalized(table_name);
 
         // Scan all columns to begin with (DataFusion projection
         // push-down optimization will prune out unneeded columns later)
@@ -1701,13 +1696,13 @@ impl PredicateNormalizer {
 
     /// Return a reference to a predicate specialized for `table_name` based on
     /// its `schema`.
-    fn normalized(&mut self, table_name: &str, schema: Arc<Schema>) -> Arc<Predicate> {
+    fn normalized(&mut self, table_name: &str) -> Arc<Predicate> {
         if let Some(normalized_predicate) = self.normalized.get(table_name) {
             return normalized_predicate.inner();
         }
 
         let normalized_predicate =
-            TableNormalizedPredicate::new(table_name, schema, self.unnormalized.clone());
+            TableNormalizedPredicate::new(table_name, self.unnormalized.clone());
 
         self.normalized
             .entry(table_name.to_string())
@@ -1752,13 +1747,18 @@ struct TableNormalizedPredicate {
 }
 
 impl TableNormalizedPredicate {
-    fn new(table_name: &str, schema: Arc<Schema>, mut inner: Predicate) -> Self {
+    fn new(table_name: &str, mut inner: Predicate) -> Self {
         let mut field_projections = BTreeSet::new();
+        let mut field_value_exprs = vec![];
+
         inner.exprs = inner
             .exprs
             .into_iter()
             .map(|e| rewrite_measurement_references(table_name, e))
-            .map(|e| rewrite_field_value_references(Arc::clone(&schema), e))
+            // Rewrite any references to `_value = some_value` to literal true values.
+            // Keeps track of these expressions, which can then be used to
+            // augment field projections with conditions using `CASE` statements.
+            .map(|e| rewrite_field_value_references(&mut field_value_exprs, e))
             .map(|e| {
                 // Rewrite any references to `_field = a_field_name` with a literal true
                 // and keep track of referenced field names to add to the field
@@ -1766,6 +1766,8 @@ impl TableNormalizedPredicate {
                 rewrite_field_column_references(&mut field_projections, e)
             })
             .collect::<Vec<_>>();
+        // Store any field value (`_value`) expressions on the `Predicate`.
+        inner.value_expr = field_value_exprs;
 
         if !field_projections.is_empty() {
             match &mut inner.field_columns {
@@ -1811,23 +1813,19 @@ impl ExprRewriter for MeasurementRewriter<'_> {
     }
 }
 
-/// Rewrites a predicate on `_value` to a disjunctive set of expressions on each
-/// distinct field column in the table.
-///
-/// For example, the predicate `_value = 1.77` on a table with three field
-/// columns would be rewritten to:
-///
-/// `(field1 = 1.77 OR field2 = 1.77 OR field3 = 1.77)`.
-fn rewrite_field_value_references(schema: Arc<Schema>, expr: Expr) -> Expr {
-    let mut rewriter = FieldValueRewriter { schema };
+/// Rewrites an expression on `_value` as a boolean true literal, pushing any
+/// encountered expressions onto `value_exprs` so they can be moved onto column
+/// projections.
+fn rewrite_field_value_references(value_exprs: &mut Vec<BinaryExpr>, expr: Expr) -> Expr {
+    let mut rewriter = FieldValueRewriter { value_exprs };
     expr.rewrite(&mut rewriter).expect("rewrite is infallible")
 }
 
-struct FieldValueRewriter {
-    schema: Arc<Schema>,
+struct FieldValueRewriter<'a> {
+    value_exprs: &'a mut Vec<BinaryExpr>,
 }
 
-impl ExprRewriter for FieldValueRewriter {
+impl<'a> ExprRewriter for FieldValueRewriter<'a> {
     fn mutate(&mut self, expr: Expr) -> DatafusionResult<Expr> {
         Ok(match expr {
             Expr::BinaryExpr {
@@ -1836,21 +1834,16 @@ impl ExprRewriter for FieldValueRewriter {
                 ref right,
             } => {
                 if let Expr::Column(inner) = &**left {
-                    if inner.name != VALUE_COLUMN_NAME {
-                        return Ok(expr); // column name not `_value`.
+                    if inner.name == VALUE_COLUMN_NAME {
+                        self.value_exprs.push(BinaryExpr {
+                            left: inner.to_owned(),
+                            op,
+                            right: right.as_expr(),
+                        });
+                        return Ok(Expr::Literal(ScalarValue::Boolean(Some(true))));
                     }
-
-                    // build a disjunctive expression using binary expressions
-                    // for each field column and the original expression's
-                    // operator and rhs.
-                    self.schema
-                        .fields_iter()
-                        .map(|field| binary_expr(col(field.name()), op, *right.clone()))
-                        .reduce(|a, b| a.or(b))
-                        .expect("at least one field column")
-                } else {
-                    expr
                 }
+                expr
             }
             _ => expr,
         })
@@ -1918,7 +1911,7 @@ pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use datafusion::logical_plan::Operator;
+    use datafusion::logical_plan::{binary_expr, Operator};
     use schema::builder::SchemaBuilder;
 
     use super::*;
@@ -1958,56 +1951,57 @@ mod tests {
 
     #[test]
     fn test_field_value_rewriter() {
-        let schema = SchemaBuilder::new()
-            .tag("t1")
-            .tag("t2")
-            .field("f1", DataType::Float64)
-            .field("f2", DataType::Float64)
-            .timestamp()
-            .build()
-            .unwrap();
-
         let mut rewriter = FieldValueRewriter {
-            schema: Arc::new(schema),
+            value_exprs: &mut vec![],
         };
 
         let cases = vec![
             (
                 binary_expr(col("f1"), Operator::Eq, lit(1.82)),
                 binary_expr(col("f1"), Operator::Eq, lit(1.82)),
+                vec![],
             ),
-            (col("t2"), col("t2")),
+            (col("t2"), col("t2"), vec![]),
             (
                 binary_expr(col(VALUE_COLUMN_NAME), Operator::Eq, lit(1.82)),
-                //
-                // _value = 1.82 -> f1 = (1.82 OR f2 = 1.82)
-                //
-                binary_expr(
-                    binary_expr(col("f1"), Operator::Eq, lit(1.82)),
-                    Operator::Or,
-                    binary_expr(col("f2"), Operator::Eq, lit(1.82)),
-                ),
+                // _value = 1.82 -> true
+                lit(true),
+                vec![BinaryExpr {
+                    left: Column {
+                        relation: None,
+                        name: VALUE_COLUMN_NAME.into(),
+                    },
+                    op: Operator::Eq,
+                    right: lit(1.82),
+                }],
             ),
         ];
 
-        for (input, exp) in cases {
+        for (input, exp, mut value_exprs) in cases {
             let rewritten = input.rewrite(&mut rewriter).unwrap();
             assert_eq!(rewritten, exp);
+            assert_eq!(rewriter.value_exprs, &mut value_exprs);
         }
 
         // Test case with single field.
-        let schema = SchemaBuilder::new()
-            .field("f1", DataType::Float64)
-            .timestamp()
-            .build()
-            .unwrap();
         let mut rewriter = FieldValueRewriter {
-            schema: Arc::new(schema),
+            value_exprs: &mut vec![],
         };
 
         let input = binary_expr(col(VALUE_COLUMN_NAME), Operator::Gt, lit(1.88));
         let rewritten = input.rewrite(&mut rewriter).unwrap();
-        assert_eq!(rewritten, binary_expr(col("f1"), Operator::Gt, lit(1.88)));
+        assert_eq!(rewritten, lit(true));
+        assert_eq!(
+            rewriter.value_exprs,
+            &mut vec![BinaryExpr {
+                left: Column {
+                    relation: None,
+                    name: VALUE_COLUMN_NAME.into(),
+                },
+                op: Operator::Gt,
+                right: lit(1.88),
+            }]
+        );
     }
 
     #[test]

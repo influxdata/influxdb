@@ -11,7 +11,7 @@ use std::{
 use data_types::timestamp::TimestampRange;
 use datafusion::{
     error::DataFusionError,
-    logical_plan::{col, lit_timestamp_nano, Expr, Operator},
+    logical_plan::{col, lit_timestamp_nano, Column, Expr, Operator},
     optimizer::utils,
 };
 use datafusion_util::{make_range_expr, AndExprBuilder};
@@ -26,6 +26,7 @@ pub const EMPTY_PREDICATE: Predicate = Predicate {
     exprs: vec![],
     range: None,
     partition_key: None,
+    value_expr: vec![],
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -72,6 +73,11 @@ pub struct Predicate {
     /// these expressions should be returned. Other rows are excluded
     /// from the results.
     pub exprs: Vec<Expr>,
+
+    /// Optional arbitrary predicates on the special `_value` column. These
+    /// expressions are applied to `field_columns` projections in the form of
+    /// `CASE` statement conditions.
+    pub value_expr: Vec<BinaryExpr>,
 }
 
 impl Predicate {
@@ -467,6 +473,14 @@ impl PredicateBuilder {
             _ => false,
         }
     }
+}
+
+// A representation of the `BinaryExpr` variant of a Datafusion expression.
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub struct BinaryExpr {
+    pub left: Column,
+    pub op: Operator,
+    pub right: Expr,
 }
 
 #[cfg(test)]
