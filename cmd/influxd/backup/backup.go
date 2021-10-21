@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/cmd/influxd/backup_util"
+	errors2 "github.com/influxdata/influxdb/pkg/errors"
 	"github.com/influxdata/influxdb/services/snapshotter"
 	"github.com/influxdata/influxdb/tcp"
 	gzip "github.com/klauspost/pgzip"
@@ -390,7 +391,7 @@ func (cmd *Command) backupResponsePaths(response *snapshotter.Response) error {
 
 // backupMetastore will backup the whole metastore on the host to the backup path
 // if useDB is non-empty, it will backup metadata only for the named database.
-func (cmd *Command) backupMetastore() error {
+func (cmd *Command) backupMetastore() (retErr error) {
 	metastoreArchivePath, err := cmd.nextPath(filepath.Join(cmd.path, backup_util.Metafile))
 	if err != nil {
 		return err
@@ -402,12 +403,12 @@ func (cmd *Command) backupMetastore() error {
 		Type: snapshotter.RequestMetastoreBackup,
 	}
 
-	err = cmd.downloadAndVerify(req, metastoreArchivePath, func(file string) error {
+	err = cmd.downloadAndVerify(req, metastoreArchivePath, func(file string) (rErr error) {
 		f, err := os.Open(file)
 		if err != nil {
 			return err
 		}
-		defer f.Close()
+		defer errors2.Capture(&rErr, f.Close)()
 
 		var magicByte [8]byte
 		n, err := io.ReadFull(f, magicByte[:])
@@ -438,7 +439,7 @@ func (cmd *Command) backupMetastore() error {
 
 	if cmd.portable {
 		metaBytes, err := backup_util.GetMetaBytes(metastoreArchivePath)
-		defer os.Remove(metastoreArchivePath)
+		defer errors2.Capture(&retErr, func() error { return os.Remove(metastoreArchivePath) })()
 		if err != nil {
 			return err
 		}
@@ -510,13 +511,13 @@ func (cmd *Command) downloadAndVerify(req *snapshotter.Request, path string, val
 }
 
 // download downloads a snapshot of either the metastore or a shard from a host to a given path.
-func (cmd *Command) download(req *snapshotter.Request, path string) error {
+func (cmd *Command) download(req *snapshotter.Request, path string) (retErr error) {
 	// Create local file to write to.
 	f, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("open temp file: %s", err)
 	}
-	defer f.Close()
+	defer errors2.Capture(&retErr, f.Close)()
 
 	min := 2 * time.Second
 	for i := 0; i < 10; i++ {
@@ -526,7 +527,7 @@ func (cmd *Command) download(req *snapshotter.Request, path string) error {
 			if err != nil {
 				return err
 			}
-			defer conn.Close()
+			defer errors2.Capture(&retErr, conn.Close)()
 
 			_, err = conn.Write([]byte{byte(req.Type)})
 			if err != nil {
