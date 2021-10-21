@@ -2226,6 +2226,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mutable_batch_pb"
+version = "0.1.0"
+dependencies = [
+ "arrow_util",
+ "generated_types",
+ "hashbrown",
+ "mutable_batch",
+ "schema",
+ "snafu",
+]
+
+[[package]]
 name = "mutable_buffer"
 version = "0.1.0"
 dependencies = [

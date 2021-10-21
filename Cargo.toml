@@ -53,6 +53,7 @@ members = [
     "metric_exporters",
     "mutable_batch",
     "mutable_batch_lp",
+    "mutable_batch_pb",
     "mutable_buffer",
     "object_store",
     "observability_deps",
