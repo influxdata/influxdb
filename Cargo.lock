@@ -2201,10 +2201,26 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow_util",
+ "chrono",
  "data_types",
  "entry",
  "hashbrown",
  "itertools",
+ "rand",
+ "schema",
+ "snafu",
+]
+
+[[package]]
+name = "mutable_batch_lp"
+version = "0.1.0"
+dependencies = [
+ "arrow_util",
+ "bytes",
+ "criterion",
+ "flate2",
+ "influxdb_line_protocol",
+ "mutable_batch",
  "schema",
  "snafu",
 ]

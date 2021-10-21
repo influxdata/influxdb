@@ -2,11 +2,12 @@
 
 use crate::column::{Column, ColumnData, INVALID_DID};
 use crate::MutableBatch;
-use arrow_util::bitset::iter_set_positions;
-use data_types::partition_metadata::{StatValues, Statistics};
+use arrow_util::bitset::{iter_set_positions, iter_set_positions_with_offset, BitSet};
+use data_types::partition_metadata::{IsNan, StatValues, Statistics};
 use schema::{InfluxColumnType, InfluxFieldType};
 use snafu::Snafu;
 use std::num::NonZeroU64;
+use std::ops::Range;
 
 #[allow(missing_docs, missing_copy_implementations)]
 #[derive(Debug, Snafu)]
@@ -488,6 +489,98 @@ impl<'a> Writer<'a> {
         Ok(())
     }
 
+    /// Write `range` rows from the provided MutableBatch
+    pub(crate) fn write_batch_range(
+        &mut self,
+        src: &MutableBatch,
+        range: Range<usize>,
+    ) -> Result<()> {
+        if range.start == 0 && range.end == src.row_count {
+            return self.write_batch(src);
+        }
+
+        assert_eq!(range.end - range.start, self.to_insert);
+        for (src_col_name, src_col_idx) in &src.column_names {
+            let src_col = &src.columns[*src_col_idx];
+            let (dst_col_idx, dst_col) = self.column_mut(src_col_name, src_col.influx_type)?;
+            let stats = match (&mut dst_col.data, &src_col.data) {
+                (ColumnData::F64(dst_data, _), ColumnData::F64(src_data, _)) => {
+                    dst_data.extend_from_slice(&src_data[range.clone()]);
+                    Statistics::F64(compute_stats(src_col.valid.bytes(), range.clone(), |x| {
+                        &src_data[x]
+                    }))
+                }
+                (ColumnData::I64(dst_data, _), ColumnData::I64(src_data, _)) => {
+                    dst_data.extend_from_slice(&src_data[range.clone()]);
+                    Statistics::I64(compute_stats(src_col.valid.bytes(), range.clone(), |x| {
+                        &src_data[x]
+                    }))
+                }
+                (ColumnData::U64(dst_data, _), ColumnData::U64(src_data, _)) => {
+                    dst_data.extend_from_slice(&src_data[range.clone()]);
+                    Statistics::U64(compute_stats(src_col.valid.bytes(), range.clone(), |x| {
+                        &src_data[x]
+                    }))
+                }
+                (ColumnData::Bool(dst_data, _), ColumnData::Bool(src_data, _)) => {
+                    dst_data.extend_from_range(src_data, range.clone());
+                    Statistics::Bool(compute_bool_stats(
+                        src_col.valid.bytes(),
+                        range.clone(),
+                        src_data,
+                    ))
+                }
+                (ColumnData::String(dst_data, _), ColumnData::String(src_data, _)) => {
+                    dst_data.extend_from_range(src_data, range.clone());
+                    Statistics::String(compute_stats(src_col.valid.bytes(), range.clone(), |x| {
+                        src_data.get(x).unwrap()
+                    }))
+                }
+                (
+                    ColumnData::Tag(dst_data, dst_dict, _),
+                    ColumnData::Tag(src_data, src_dict, _),
+                ) => {
+                    let mut mapping: Vec<_> = vec![None; src_dict.values().len()];
+
+                    let mut stats = StatValues::new_empty();
+                    dst_data.extend(src_data[range.clone()].iter().map(|src_id| match *src_id {
+                        INVALID_DID => {
+                            stats.update_for_nulls(1);
+                            INVALID_DID
+                        }
+                        _ => {
+                            let maybe_did = &mut mapping[*src_id as usize];
+                            match maybe_did {
+                                Some(did) => {
+                                    stats.total_count += 1;
+                                    *did
+                                }
+                                None => {
+                                    let value = src_dict.lookup_id(*src_id).unwrap();
+                                    stats.update(value);
+
+                                    let did = dst_dict.lookup_value_or_insert(value);
+                                    *maybe_did = Some(did);
+                                    did
+                                }
+                            }
+                        }
+                    }));
+
+                    Statistics::String(stats)
+                }
+                _ => unreachable!(),
+            };
+
+            dst_col
+                .valid
+                .extend_from_range(&src_col.valid, range.clone());
+
+            self.statistics.push((dst_col_idx, stats));
+        }
+        Ok(())
+    }
+
     fn column_mut(
         &mut self,
         name: &str,
@@ -608,6 +701,42 @@ fn append_valid_mask(column: &mut Column, valid_mask: Option<&[u8]>, to_insert: 
         Some(mask) => column.valid.append_bits(to_insert, mask),
         None => column.valid.append_set(to_insert),
     }
+}
+
+fn compute_bool_stats(valid: &[u8], range: Range<usize>, col_data: &BitSet) -> StatValues<bool> {
+    // There are likely faster ways to do this
+    let indexes =
+        iter_set_positions_with_offset(valid, range.start).take_while(|idx| *idx < range.end);
+
+    let mut stats = StatValues::new_empty();
+    for index in indexes {
+        let value = col_data.get(index);
+        stats.update(&value)
+    }
+
+    let count = range.end - range.start;
+    stats.update_for_nulls(count as u64 - stats.total_count);
+    stats
+}
+
+fn compute_stats<'a, T, U, F>(valid: &[u8], range: Range<usize>, accessor: F) -> StatValues<T>
+where
+    U: 'a + ToOwned<Owned = T> + PartialOrd + ?Sized + IsNan,
+    F: Fn(usize) -> &'a U,
+    T: std::borrow::Borrow<U>,
+{
+    let values = iter_set_positions_with_offset(valid, range.start)
+        .take_while(|idx| *idx < range.end)
+        .map(accessor);
+
+    let mut stats = StatValues::new_empty();
+    for value in values {
+        stats.update(value)
+    }
+
+    let count = range.end - range.start;
+    stats.update_for_nulls(count as u64 - stats.total_count);
+    stats
 }
 
 impl<'a> Drop for Writer<'a> {

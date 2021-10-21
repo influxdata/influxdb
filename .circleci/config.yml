@@ -289,6 +289,16 @@ jobs:
       - run:
           name: buf lint
           command: buf lint
+      - run:
+          name: buf breaking changes
+          command: |
+            echo "If you want to make changes forbidden by this lint, please"
+            echo "coordinate with the conductor team and disable this lint"
+            echo "for your breaking change and re-enable it in a subsequent PR"
+            git fetch origin main
+            # compare against only changes in this branch (not against
+            # other stuff that may have been added to master since last merge)
+            MERGE_BASE=$(git merge-base origin/main $CIRCLE_BRANCH) sh -c 'buf breaking --against ".git#ref=$MERGE_BASE"'
 
   # Check that any generated files are  is up-to-date with the changes in this PR.
   # named "check-flatbuffers" because that name is hardcoded into github checks

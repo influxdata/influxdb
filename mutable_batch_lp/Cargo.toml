@@ -1,0 +1,22 @@
+[package]
+name = "mutable_batch_lp"
+version = "0.1.0"
+edition = "2018"
+description = "Conversion logic for line protocol -> MutableBatch"
+
+[dependencies]
+influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+mutable_batch = { path = "../mutable_batch" }
+schema = { path = "../schema" }
+snafu = "0.6"
+
+[dev-dependencies]
+arrow_util = { path = "../arrow_util" }
+bytes = "1.0"
+criterion = "0.3"
+flate2 = "1.0"
+
+[[bench]]
+name = "write_lp"
+harness = false
+
