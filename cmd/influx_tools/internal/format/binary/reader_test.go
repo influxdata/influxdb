@@ -30,7 +30,7 @@ func TestReader_OneBucketOneIntegerSeries(t *testing.T) {
 		seriesName:  []byte("series"),
 		seriesField: []byte("field"),
 		seriesTags:  models.NewTags(map[string]string{"k": "v"}),
-		fieldType:   binary.IntegerFieldType,
+		fieldType:   binary.FieldType_IntegerFieldType,
 		ts:          ts,
 		vs:          vs,
 	}
@@ -63,7 +63,7 @@ func TestReader_OneBucketOneFloatSeries(t *testing.T) {
 		seriesName:  []byte("series"),
 		seriesField: []byte("field"),
 		seriesTags:  models.NewTags(map[string]string{"k": "v"}),
-		fieldType:   binary.FloatFieldType,
+		fieldType:   binary.FieldType_FloatFieldType,
 		ts:          ts,
 		vs:          vs,
 	}
@@ -96,7 +96,7 @@ func TestReader_OneBucketOneUnsignedSeries(t *testing.T) {
 		seriesName:  []byte("series"),
 		seriesField: []byte("field"),
 		seriesTags:  models.NewTags(map[string]string{"k": "v"}),
-		fieldType:   binary.UnsignedFieldType,
+		fieldType:   binary.FieldType_UnsignedFieldType,
 		ts:          ts,
 		vs:          vs,
 	}
@@ -129,7 +129,7 @@ func TestReader_OneBucketOneBooleanSeries(t *testing.T) {
 		seriesName:  []byte("series"),
 		seriesField: []byte("field"),
 		seriesTags:  models.NewTags(map[string]string{"k": "v"}),
-		fieldType:   binary.BooleanFieldType,
+		fieldType:   binary.FieldType_BooleanFieldType,
 		ts:          ts,
 		vs:          vs,
 	}
@@ -162,7 +162,7 @@ func TestReader_OneBucketOneStringSeries(t *testing.T) {
 		seriesName:  []byte("series"),
 		seriesField: []byte("field"),
 		seriesTags:  models.NewTags(map[string]string{"k": "v"}),
-		fieldType:   binary.StringFieldType,
+		fieldType:   binary.FieldType_StringFieldType,
 		ts:          ts,
 		vs:          vs,
 	}
@@ -197,7 +197,7 @@ func verifySingleSeries(t *testing.T, buf bytes.Buffer, s *oneSeriesData) {
 	r := binary.NewReader(&buf)
 	h, err := r.ReadHeader()
 	assertNoError(t, err)
-	assertEqual(t, h, &binary.Header{Database: s.db, RetentionPolicy: s.rp, ShardDuration: s.sd})
+	assertEqual(t, h, &binary.Header{Database: s.db, RetentionPolicy: s.rp, ShardDuration: int64(s.sd)})
 
 	bh, err := r.NextBucket()
 	assertNoError(t, err)
@@ -262,7 +262,7 @@ func TestReader_OneBucketMixedSeries(t *testing.T) {
 	r := binary.NewReader(&buf)
 	h, err := r.ReadHeader()
 	assertNoError(t, err)
-	assertEqual(t, h, &binary.Header{Database: db, RetentionPolicy: rp, ShardDuration: time.Hour * 24})
+	assertEqual(t, h, &binary.Header{Database: db, RetentionPolicy: rp, ShardDuration: int64(time.Hour * 24)})
 
 	bh, err := r.NextBucket()
 	assertNoError(t, err)
@@ -273,7 +273,7 @@ func TestReader_OneBucketMixedSeries(t *testing.T) {
 
 	seriesKey := make([]byte, 0)
 	seriesKey = models.AppendMakeKey(seriesKey[:0], seriesName, seriesTags1)
-	assertEqual(t, sh, &binary.SeriesHeader{FieldType: binary.IntegerFieldType, SeriesKey: seriesKey, Field: seriesField})
+	assertEqual(t, sh, &binary.SeriesHeader{FieldType: binary.FieldType_IntegerFieldType, SeriesKey: seriesKey, Field: seriesField})
 
 	for i := 0; i < len(t1s); i++ {
 		next, err := r.Points().Next()
@@ -293,7 +293,7 @@ func TestReader_OneBucketMixedSeries(t *testing.T) {
 	assertNoError(t, err)
 
 	seriesKey = models.AppendMakeKey(seriesKey[:0], seriesName, seriesTags2)
-	assertEqual(t, sh, &binary.SeriesHeader{FieldType: binary.FloatFieldType, SeriesKey: seriesKey, Field: seriesField})
+	assertEqual(t, sh, &binary.SeriesHeader{FieldType: binary.FieldType_FloatFieldType, SeriesKey: seriesKey, Field: seriesField})
 
 	for i := 0; i < len(t2s); i++ {
 		next, err := r.Points().Next()
@@ -333,7 +333,7 @@ func TestReader_EmptyBucket(t *testing.T) {
 	r := binary.NewReader(&buf)
 	h, err := r.ReadHeader()
 	assertNoError(t, err)
-	assertEqual(t, h, &binary.Header{Database: db, RetentionPolicy: rp, ShardDuration: time.Hour * 24})
+	assertEqual(t, h, &binary.Header{Database: db, RetentionPolicy: rp, ShardDuration: int64(time.Hour * 24)})
 
 	bh, err := r.NextBucket()
 	assertNoError(t, err)

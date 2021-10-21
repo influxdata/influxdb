@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/tlv"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
+	"google.golang.org/protobuf/proto"
 )
 
 type Reader struct {
@@ -65,7 +66,7 @@ func (r *Reader) ReadHeader() (*Header, error) {
 		return nil, fmt.Errorf("expected header type, got %v", t)
 	}
 	h := &Header{}
-	err = h.Unmarshal(lv)
+	err = proto.Unmarshal(lv, h)
 	*r.state = readBucket
 
 	return h, err
@@ -93,7 +94,7 @@ func (r *Reader) NextBucket() (*BucketHeader, error) {
 	}
 
 	bh := &BucketHeader{}
-	err = bh.Unmarshal(lv)
+	err = proto.Unmarshal(lv, bh)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +120,7 @@ func (r *Reader) NextSeries() (*SeriesHeader, error) {
 		return nil, fmt.Errorf("expected series header type, got %v", t)
 	}
 	sh := &SeriesHeader{}
-	err = sh.Unmarshal(lv)
+	err = proto.Unmarshal(lv, sh)
 	if err != nil {
 		return nil, err
 	}
@@ -128,15 +129,15 @@ func (r *Reader) NextSeries() (*SeriesHeader, error) {
 
 	var pointsType MessageType
 	switch sh.FieldType {
-	case FloatFieldType:
+	case FieldType_FloatFieldType:
 		pointsType = FloatPointsType
-	case IntegerFieldType:
+	case FieldType_IntegerFieldType:
 		pointsType = IntegerPointsType
-	case UnsignedFieldType:
+	case FieldType_UnsignedFieldType:
 		pointsType = UnsignedPointsType
-	case BooleanFieldType:
+	case FieldType_BooleanFieldType:
 		pointsType = BooleanPointsType
-	case StringFieldType:
+	case FieldType_StringFieldType:
 		pointsType = StringPointsType
 	default:
 		return nil, fmt.Errorf("unsupported series field type %v", sh.FieldType)
@@ -212,7 +213,7 @@ func (pr *PointsReader) marshalValues(lv []byte) error {
 
 func (pr *PointsReader) marshalFloats(lv []byte) error {
 	fp := &FloatPoints{}
-	err := fp.Unmarshal(lv)
+	err := proto.Unmarshal(lv, fp)
 	if err != nil {
 		return err
 	}
@@ -226,7 +227,7 @@ func (pr *PointsReader) marshalFloats(lv []byte) error {
 
 func (pr *PointsReader) marshalIntegers(lv []byte) error {
 	ip := &IntegerPoints{}
-	err := ip.Unmarshal(lv)
+	err := proto.Unmarshal(lv, ip)
 	if err != nil {
 		return err
 	}
@@ -240,7 +241,7 @@ func (pr *PointsReader) marshalIntegers(lv []byte) error {
 
 func (pr *PointsReader) marshalUnsigned(lv []byte) error {
 	up := &UnsignedPoints{}
-	err := up.Unmarshal(lv)
+	err := proto.Unmarshal(lv, up)
 	if err != nil {
 		return err
 	}
@@ -254,7 +255,7 @@ func (pr *PointsReader) marshalUnsigned(lv []byte) error {
 
 func (pr *PointsReader) marshalBooleans(lv []byte) error {
 	bp := &BooleanPoints{}
-	err := bp.Unmarshal(lv)
+	err := proto.Unmarshal(lv, bp)
 	if err != nil {
 		return err
 	}
@@ -268,7 +269,7 @@ func (pr *PointsReader) marshalBooleans(lv []byte) error {
 
 func (pr *PointsReader) marshalStrings(lv []byte) error {
 	sp := &StringPoints{}
-	err := sp.Unmarshal(lv)
+	err := proto.Unmarshal(lv, sp)
 	if err != nil {
 		return err
 	}

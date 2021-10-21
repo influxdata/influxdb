@@ -1,7 +1,6 @@
 package binary
 
-// TODO(dstrand1): re-enable codegen for binary.proto when influx_tools is ported to new protobuf lib
-// go:generate sh -c "protoc -I$(go list -f '{{ .Dir }}' -m github.com/gogo/protobuf) -I. --gogofaster_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types:. binary.proto"
+//go:generate protoc --go_out=. tools_binary.proto
 //go:generate stringer -type=MessageType
 
 import "errors"
@@ -29,11 +28,6 @@ const (
 	StringPointsType
 	SeriesFooterType
 )
-
-type message interface {
-	Size() int
-	MarshalTo(dAtA []byte) (int, error)
-}
 
 /*
 Stream format

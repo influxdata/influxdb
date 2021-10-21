@@ -18,7 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-//go:generate protoc --go_out=./internal internal/data.proto
+//go:generate protoc --go_out=./internal internal/backup_util.proto
 
 const (
 	// Suffix is a suffix added to the backup while it's in-process.
