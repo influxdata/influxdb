@@ -1110,7 +1110,6 @@ func (f *FileStore) copyOrLink(oldpath string, newpath string) error {
 // copyNotLink - use file copies instead of hard links for 2 scenarios:
 // Windows does not permit deleting a file with open file handles
 // Azure does not support hard links in its default file system
-
 func (f *FileStore) copyNotLink(oldPath, newPath string) (returnErr error) {
 	rfd, err := os.Open(oldPath)
 	if err != nil {
