@@ -181,12 +181,30 @@ impl BitSet {
     pub fn byte_len(&self) -> usize {
         self.buffer.len()
     }
+
+    /// Return the raw packed bytes used by thie bitset
+    pub fn bytes(&self) -> &[u8] {
+        &self.buffer
+    }
 }
 
 /// Returns an iterator over set bit positions in increasing order
 pub fn iter_set_positions(bytes: &[u8]) -> impl Iterator<Item = usize> + '_ {
-    let mut byte_idx = 0;
-    let mut in_progress = bytes.get(0).cloned().unwrap_or(0);
+    iter_set_positions_with_offset(bytes, 0)
+}
+
+/// Returns an iterator over set bit positions in increasing order starting
+/// at the provided bit offset
+pub fn iter_set_positions_with_offset(
+    bytes: &[u8],
+    offset: usize,
+) -> impl Iterator<Item = usize> + '_ {
+    let mut byte_idx = offset >> 3;
+    let mut in_progress = bytes.get(byte_idx).cloned().unwrap_or(0);
+
+    let skew = offset & 7;
+    in_progress &= 0xFF << skew;
+
     std::iter::from_fn(move || loop {
         if in_progress != 0 {
             let bit_pos = in_progress.trailing_zeros();
@@ -322,6 +340,22 @@ mod tests {
         let expected_indexes: Vec<_> = iter_set_bools(&all_bools).collect();
         let actual_indexes: Vec<_> = iter_set_positions(&mask.buffer).collect();
         assert_eq!(expected_indexes, actual_indexes);
+
+        if !all_bools.is_empty() {
+            for _ in 0..10 {
+                let offset = rng.next_u32() as usize % all_bools.len();
+
+                let expected_indexes: Vec<_> = iter_set_bools(&all_bools[offset..])
+                    .map(|x| x + offset)
+                    .collect();
+
+                let actual_indexes: Vec<_> =
+                    iter_set_positions_with_offset(&mask.buffer, offset).collect();
+
+                assert_eq!(expected_indexes, actual_indexes);
+            }
+        }
+
         for index in actual_indexes {
             assert!(mask.get(index));
         }

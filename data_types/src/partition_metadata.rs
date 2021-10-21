@@ -421,6 +421,19 @@ impl<T> Default for StatValues<T> {
     }
 }
 
+impl<T> StatValues<T> {
+    /// Create new statistics with no values
+    pub fn new_empty() -> Self {
+        Self {
+            min: None,
+            max: None,
+            total_count: 0,
+            null_count: 0,
+            distinct_count: None,
+        }
+    }
+}
+
 impl<T> StatValues<T>
 where
     T: Clone + PartialEq + PartialOrd + IsNan,
@@ -438,11 +451,6 @@ where
         let null_count = 0;
         let distinct_count = None;
         Self::new_with_distinct(min, max, total_count, null_count, distinct_count)
-    }
-
-    /// Create new statistics with no values
-    pub fn new_empty() -> Self {
-        Self::new_with_distinct(None, None, 0, 0, None)
     }
 
     /// Create new statistics with the specified count and null count
