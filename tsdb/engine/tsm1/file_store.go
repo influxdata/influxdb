@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
@@ -193,6 +195,8 @@ type FileStore struct {
 	parseFileName ParseFileNameFunc
 
 	obs tsdb.FileStoreObserver
+
+	copyFiles bool
 }
 
 // FileStat holds information about a TSM file on disk.
@@ -244,6 +248,7 @@ func NewFileStore(dir string) *FileStore {
 		},
 		obs:           noFileStoreObserver{},
 		parseFileName: DefaultParseFileName,
+		copyFiles:     runtime.GOOS == "windows",
 	}
 	fs.purger.fileStore = fs
 	return fs
@@ -1072,17 +1077,94 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 func (f *FileStore) MakeSnapshotLinks(destPath string, files []TSMFile) (returnErr error) {
 	for _, tsmf := range files {
 		newpath := filepath.Join(destPath, filepath.Base(tsmf.Path()))
-		if err := copyOrLink(tsmf.Path(), newpath); err != nil {
+		err := f.copyOrLink(tsmf.Path(), newpath)
+		if err != nil {
 			return err
 		}
 		if tf := tsmf.TombstoneStats(); tf.TombstoneExists {
 			newpath := filepath.Join(destPath, filepath.Base(tf.Path))
-			if err := copyOrLink(tf.Path, newpath); err != nil {
+			err := f.copyOrLink(tf.Path, newpath)
+			if err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func (f *FileStore) copyOrLink(oldpath string, newpath string) error {
+	if f.copyFiles {
+		f.logger.Info("copying backup snapshots", zap.String("OldPath", oldpath), zap.String("NewPath", newpath))
+		if err := f.copyNotLink(oldpath, newpath); err != nil {
+			return err
+		}
+	} else {
+		f.logger.Info("linking backup snapshots", zap.String("OldPath", oldpath), zap.String("NewPath", newpath))
+		if err := f.linkNotCopy(oldpath, newpath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// copyNotLink - use file copies instead of hard links for 2 scenarios:
+// Windows does not permit deleting a file with open file handles
+// Azure does not support hard links in its default file system
+func (f *FileStore) copyNotLink(oldPath, newPath string) (returnErr error) {
+	rfd, err := os.Open(oldPath)
+	if err != nil {
+		return fmt.Errorf("error opening file for backup %s: %q", oldPath, err)
+	} else {
+		defer func() {
+			if e := rfd.Close(); returnErr == nil && e != nil {
+				returnErr = fmt.Errorf("error closing source file for backup %s: %w", oldPath, e)
+			}
+		}()
+	}
+	fi, err := rfd.Stat()
+	if err != nil {
+		return fmt.Errorf("error collecting statistics from file for backup %s: %w", oldPath, err)
+	}
+	wfd, err := os.OpenFile(newPath, os.O_RDWR|os.O_CREATE, fi.Mode())
+	if err != nil {
+		return fmt.Errorf("error creating temporary file for backup %s:  %w", newPath, err)
+	} else {
+		defer func() {
+			if e := wfd.Close(); returnErr == nil && e != nil {
+				returnErr = fmt.Errorf("error closing temporary file for backup %s: %w", newPath, e)
+			}
+		}()
+	}
+	if _, err := io.Copy(wfd, rfd); err != nil {
+		return fmt.Errorf("unable to copy file for backup from %s to %s: %w", oldPath, newPath, err)
+	}
+	if err := os.Chtimes(newPath, fi.ModTime(), fi.ModTime()); err != nil {
+		return fmt.Errorf("unable to set modification time on temporary backup file %s: %w", newPath, err)
+	}
+	return nil
+}
+
+// linkNotCopy - use hard links for backup snapshots
+func (f *FileStore) linkNotCopy(oldPath, newPath string) error {
+	if err := os.Link(oldPath, newPath); err != nil {
+		if errors.Is(err, syscall.ENOTSUP) {
+			if fi, e := os.Stat(oldPath); e == nil && !fi.IsDir() {
+				f.logger.Info("file system does not support hard links, switching to copies for backup", zap.String("OldPath", oldPath), zap.String("NewPath", newPath))
+				// Force future snapshots to copy
+				f.copyFiles = true
+				return f.copyNotLink(oldPath, newPath)
+			} else if e != nil {
+				// Stat failed
+				return fmt.Errorf("error creating hard link for backup, cannot determine if %s is a file or directory: %w", oldPath, e)
+			} else {
+				return fmt.Errorf("error creating hard link for backup - %s is a directory, not a file: %q", oldPath, err)
+			}
+		} else {
+			return fmt.Errorf("error creating hard link for backup from %s to %s: %w", oldPath, newPath, err)
+		}
+	} else {
+		return nil
+	}
 }
 
 // CreateSnapshot creates hardlinks for all tsm and tombstone files
