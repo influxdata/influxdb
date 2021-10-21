@@ -284,6 +284,9 @@ jobs:
   protobuf-lint:
     docker:
       - image: bufbuild/buf:0.40.0
+    environment:
+      # Value to look for to skip breaking changes check
+      SKIP_LABEL: "https://api.github.com/repos/influxdata/influxdb_iox/labels/incompatible%20protobuf"
     steps:
       - checkout
       - run:
@@ -293,8 +296,11 @@ jobs:
           name: buf breaking changes
           command: |
             echo "If you want to make changes forbidden by this lint, please"
-            echo "coordinate with the conductor team and disable this lint"
-            echo "for your breaking change and re-enable it in a subsequent PR"
+            echo "coordinate with the conductor team, add the 'incompatible protobuf' label"
+            echo "to the PR, and rerun this test"
+            # Check if label is present using github API:
+            # Inspired by https://discuss.circleci.com/t/tag-label-filter/11158
+            if wget -O -  https://api.github.com/repos/influxdata/influxdb_iox/issues/$(echo $CIRCLE_PULL_REQUEST | grep -oE "[^/pull]+$") | grep "$SKIP_LABEL" ; then echo "SKIPPING (FOUND LABEL)" && exit ; else echo "CHECKING (NO LABEL FOUND)"; fi
             git fetch origin main
             # compare against only changes in this branch (not against
             # other stuff that may have been added to master since last merge)
