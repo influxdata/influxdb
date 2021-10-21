@@ -36,65 +36,108 @@ var (
 
 var _ taskmodel.TaskService = (*Service)(nil)
 
-type kvTask struct {
-	ID              platform.ID            `json:"id"`
-	Type            string                 `json:"type,omitempty"`
-	OrganizationID  platform.ID            `json:"orgID"`
-	Organization    string                 `json:"org"`
-	OwnerID         platform.ID            `json:"ownerID"`
-	Name            string                 `json:"name"`
-	Description     string                 `json:"description,omitempty"`
-	Status          string                 `json:"status"`
-	Flux            string                 `json:"flux"`
-	Every           string                 `json:"every,omitempty"`
-	Cron            string                 `json:"cron,omitempty"`
-	LastRunStatus   string                 `json:"lastRunStatus,omitempty"`
-	LastRunError    string                 `json:"lastRunError,omitempty"`
-	Offset          influxdb.Duration      `json:"offset,omitempty"`
-	LatestCompleted time.Time              `json:"latestCompleted,omitempty"`
-	LatestScheduled time.Time              `json:"latestScheduled,omitempty"`
-	LatestSuccess   time.Time              `json:"latestSuccess,omitempty"`
-	LatestFailure   time.Time              `json:"latestFailure,omitempty"`
-	CreatedAt       time.Time              `json:"createdAt,omitempty"`
-	UpdatedAt       time.Time              `json:"updatedAt,omitempty"`
-	Metadata        map[string]interface{} `json:"metadata,omitempty"`
+type matchableTask interface {
+	GetID() platform.ID
+	GetOrgID() platform.ID
+	GetOwnerID() platform.ID
+	GetType() string
+	GetName() string
+	GetStatus() string
+	ToInfluxDB() *taskmodel.Task
 }
 
-func kvToInfluxTask(k *kvTask) *taskmodel.Task {
+type basicKvTask struct {
+	ID              platform.ID       `json:"id"`
+	Type            string            `json:"type,omitempty"`
+	OrganizationID  platform.ID       `json:"orgID"`
+	OwnerID         platform.ID       `json:"ownerID"`
+	Name            string            `json:"name"`
+	Description     string            `json:"description,omitempty"`
+	Status          string            `json:"status"`
+	Every           string            `json:"every,omitempty"`
+	Cron            string            `json:"cron,omitempty"`
+	LastRunStatus   string            `json:"lastRunStatus,omitempty"`
+	LastRunError    string            `json:"lastRunError,omitempty"`
+	Offset          influxdb.Duration `json:"offset,omitempty"`
+	LatestCompleted time.Time         `json:"latestCompleted,omitempty"`
+	LatestScheduled time.Time         `json:"latestScheduled,omitempty"`
+	LatestSuccess   time.Time         `json:"latestSuccess,omitempty"`
+	LatestFailure   time.Time         `json:"latestFailure,omitempty"`
+}
+
+func (kv basicKvTask) GetID() platform.ID {
+	return kv.ID
+}
+
+func (kv basicKvTask) GetOrgID() platform.ID {
+	return kv.OrganizationID
+}
+
+func (kv basicKvTask) GetOwnerID() platform.ID {
+	return kv.OwnerID
+}
+
+func (kv basicKvTask) GetType() string {
+	return kv.Type
+}
+
+func (kv basicKvTask) GetName() string {
+	return kv.Name
+}
+
+func (kv basicKvTask) GetStatus() string {
+	return kv.Status
+}
+
+func (kv basicKvTask) ToInfluxDB() *taskmodel.Task {
 	return &taskmodel.Task{
-		ID:              k.ID,
-		Type:            k.Type,
-		OrganizationID:  k.OrganizationID,
-		Organization:    k.Organization,
-		OwnerID:         k.OwnerID,
-		Name:            k.Name,
-		Description:     k.Description,
-		Status:          k.Status,
-		Flux:            k.Flux,
-		Every:           k.Every,
-		Cron:            k.Cron,
-		LastRunStatus:   k.LastRunStatus,
-		LastRunError:    k.LastRunError,
-		Offset:          k.Offset.Duration,
-		LatestCompleted: k.LatestCompleted,
-		LatestScheduled: k.LatestScheduled,
-		LatestSuccess:   k.LatestSuccess,
-		LatestFailure:   k.LatestFailure,
-		CreatedAt:       k.CreatedAt,
-		UpdatedAt:       k.UpdatedAt,
-		Metadata:        k.Metadata,
+		ID:              kv.ID,
+		Type:            kv.Type,
+		OrganizationID:  kv.OrganizationID,
+		OwnerID:         kv.OwnerID,
+		Name:            kv.Name,
+		Description:     kv.Description,
+		Status:          kv.Status,
+		Every:           kv.Every,
+		Cron:            kv.Cron,
+		LastRunStatus:   kv.LastRunStatus,
+		LastRunError:    kv.LastRunError,
+		Offset:          kv.Offset.Duration,
+		LatestCompleted: kv.LatestCompleted,
+		LatestScheduled: kv.LatestScheduled,
+		LatestSuccess:   kv.LatestSuccess,
+		LatestFailure:   kv.LatestFailure,
 	}
+}
+
+type kvTask struct {
+	basicKvTask
+	Organization string                 `json:"org"`
+	Flux         string                 `json:"flux"`
+	CreatedAt    time.Time              `json:"createdAt,omitempty"`
+	UpdatedAt    time.Time              `json:"updatedAt,omitempty"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
+}
+
+func (kv kvTask) ToInfluxDB() *taskmodel.Task {
+	res := kv.basicKvTask.ToInfluxDB()
+	res.Organization = kv.Organization
+	res.Flux = kv.Flux
+	res.CreatedAt = kv.CreatedAt
+	res.UpdatedAt = kv.UpdatedAt
+	res.Metadata = kv.Metadata
+	return res
 }
 
 // FindTaskByID returns a single task
 func (s *Service) FindTaskByID(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
 	var t *taskmodel.Task
 	err := s.kv.View(ctx, func(tx Tx) error {
-		task, err := s.findTaskByID(ctx, tx, id)
+		task, err := s.findTaskByID(ctx, tx, id, false)
 		if err != nil {
 			return err
 		}
-		t = task
+		t = task.ToInfluxDB()
 		return nil
 	})
 	if err != nil {
@@ -106,7 +149,7 @@ func (s *Service) FindTaskByID(ctx context.Context, id platform.ID) (*taskmodel.
 
 // findTaskByID is an internal method used to do any action with tasks internally
 // that do not require authorization.
-func (s *Service) findTaskByID(ctx context.Context, tx Tx, id platform.ID) (*taskmodel.Task, error) {
+func (s *Service) findTaskByID(ctx context.Context, tx Tx, id platform.ID, basicOnly bool) (matchableTask, error) {
 	taskKey, err := taskKey(id)
 	if err != nil {
 		return nil, err
@@ -124,15 +167,14 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id platform.ID) (*tas
 	if err != nil {
 		return nil, err
 	}
-	kvTask := &kvTask{}
-	if err := json.Unmarshal(v, kvTask); err != nil {
-		return nil, taskmodel.ErrInternalTaskServiceError(err)
+	var t matchableTask
+	if basicOnly {
+		t = &basicKvTask{}
+	} else {
+		t = &kvTask{}
 	}
-
-	t := kvToInfluxTask(kvTask)
-
-	if t.LatestCompleted.IsZero() {
-		t.LatestCompleted = t.CreatedAt
+	if err := json.Unmarshal(v, t); err != nil {
+		return nil, taskmodel.ErrInternalTaskServiceError(err)
 	}
 
 	return t, nil
@@ -233,14 +275,18 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter taskmodel.T
 	matchFn := newTaskMatchFn(filter, nil)
 
 	for k, v := c.Next(); k != nil; k, v = c.Next() {
-		kvTask := &kvTask{}
-		if err := json.Unmarshal(v, kvTask); err != nil {
+		var task matchableTask
+		if filter.Type != nil && *filter.Type == taskmodel.TaskBasicType {
+			task = &basicKvTask{}
+		} else {
+			task =  &kvTask{}
+		}
+		if err := json.Unmarshal(v, task); err != nil {
 			return nil, 0, taskmodel.ErrInternalTaskServiceError(err)
 		}
 
-		t := kvToInfluxTask(kvTask)
-		if matchFn == nil || matchFn(t) {
-			ts = append(ts, t)
+		if matchFn == nil || matchFn(task) {
+			ts = append(ts, task.ToInfluxDB())
 
 			if len(ts) >= filter.Limit {
 				break
@@ -306,7 +352,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, orgID platform.ID, 
 			return nil, 0, taskmodel.ErrInvalidTaskID
 		}
 
-		t, err := s.findTaskByID(ctx, tx, *id)
+		t, err := s.findTaskByID(ctx, tx, *id, filter.Type != nil && *filter.Type == taskmodel.TaskBasicType)
 		if err != nil {
 			if err == taskmodel.ErrTaskNotFound {
 				// we might have some crufty index's
@@ -317,12 +363,12 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, orgID platform.ID, 
 		}
 
 		// If the new task doesn't belong to the org we have looped outside the org filter
-		if t.OrganizationID != orgID {
+		if t.GetOrgID() != orgID {
 			break
 		}
 
 		if matchFn == nil || matchFn(t) {
-			ts = append(ts, t)
+			ts = append(ts, t.ToInfluxDB())
 			// Check if we are over running the limit
 			if len(ts) >= filter.Limit {
 				break
@@ -333,55 +379,60 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, orgID platform.ID, 
 	return ts, len(ts), c.Err()
 }
 
-type taskMatchFn func(*taskmodel.Task) bool
+type taskMatchFn func(matchableTask) bool
 
 // newTaskMatchFn returns a function for validating
 // a task matches the filter. Will return nil if
 // the filter should match all tasks.
-func newTaskMatchFn(f taskmodel.TaskFilter, org *influxdb.Organization) func(t *taskmodel.Task) bool {
+func newTaskMatchFn(f taskmodel.TaskFilter, org *influxdb.Organization) func(t matchableTask) bool {
 	var fn taskMatchFn
 
 	if org != nil {
 		expected := org.ID
 		prevFn := fn
-		fn = func(t *taskmodel.Task) bool {
+		fn = func(t matchableTask) bool {
 			res := prevFn == nil || prevFn(t)
-			return res && expected == t.OrganizationID
+			return res && expected == t.GetOrgID()
 		}
 	}
 
 	if f.Type != nil {
 		expected := *f.Type
+		if expected == taskmodel.TaskBasicType {
+			// "basic" type == get "system" type tasks, but without full metadata
+			expected = taskmodel.TaskSystemType
+		}
 		prevFn := fn
-		fn = func(t *taskmodel.Task) bool {
+		fn = func(t matchableTask) bool {
 			res := prevFn == nil || prevFn(t)
+			typ := t.GetType()
 			return res &&
-				((expected == taskmodel.TaskSystemType && (t.Type == taskmodel.TaskSystemType || t.Type == "")) || expected == t.Type)
+				((expected == taskmodel.TaskSystemType && (typ == taskmodel.TaskSystemType || typ == "")) || expected == typ)
 		}
 	}
 
 	if f.Name != nil {
 		expected := *f.Name
 		prevFn := fn
-		fn = func(t *taskmodel.Task) bool {
+		fn = func(t matchableTask) bool {
 			res := prevFn == nil || prevFn(t)
-			return res && (expected == t.Name)
+			return res && (expected == t.GetName())
 		}
 	}
 
 	if f.Status != nil {
 		prevFn := fn
-		fn = func(t *taskmodel.Task) bool {
+		fn = func(t matchableTask) bool {
 			res := prevFn == nil || prevFn(t)
-			return res && (t.Status == *f.Status)
+			return res && (t.GetStatus() == *f.Status)
 		}
 	}
 
 	if f.User != nil {
 		prevFn := fn
-		fn = func(t *taskmodel.Task) bool {
+		fn = func(t matchableTask) bool {
 			res := prevFn == nil || prevFn(t)
-			return res && t.OwnerID == *f.User
+			return res && t.GetOwnerID() == *f.User
 		}
 	}
 
@@ -423,15 +474,18 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter taskmodel.Task
 	matchFn := newTaskMatchFn(filter, nil)
 
 	for k, v := c.Next(); k != nil; k, v = c.Next() {
-		kvTask := &kvTask{}
-		if err := json.Unmarshal(v, kvTask); err != nil {
+		var task matchableTask
+		if filter.Type != nil && *filter.Type == taskmodel.TaskBasicType {
+			task = &basicKvTask{}
+		} else {
+			task =  &kvTask{}
+		}
+		if err := json.Unmarshal(v, task); err != nil {
 			return nil, 0, taskmodel.ErrInternalTaskServiceError(err)
 		}
 
-		t := kvToInfluxTask(kvTask)
-
-		if matchFn == nil || matchFn(t) {
-			ts = append(ts, t)
+		if matchFn == nil || matchFn(task) {
+			ts = append(ts, task.ToInfluxDB())
 
 			if len(ts) >= filter.Limit {
 				break
@@ -595,10 +649,11 @@ func (s *Service) UpdateTask(ctx context.Context, id platform.ID, upd taskmodel.
 
 func (s *Service) updateTask(ctx context.Context, tx Tx, id platform.ID, upd taskmodel.TaskUpdate) (*taskmodel.Task, error) {
 	// retrieve the task
-	task, err := s.findTaskByID(ctx, tx, id)
+	t, err := s.findTaskByID(ctx, tx, id, false)
 	if err != nil {
 		return nil, err
 	}
+	task := t.ToInfluxDB()
 
 	updatedAt := s.clock.Now().UTC()
 
@@ -765,13 +820,13 @@ func (s *Service) deleteTask(ctx context.Context, tx Tx, id platform.ID) error {
 	}
 
 	// retrieve the task
-	task, err := s.findTaskByID(ctx, tx, id)
+	task, err := s.findTaskByID(ctx, tx, id, true)
 	if err != nil {
 		return err
 	}
 
 	// remove the orgs index
-	orgKey, err := taskOrgKey(task.OrganizationID, task.ID)
+	orgKey, err := taskOrgKey(task.GetOrgID(), task.GetID())
 	if err != nil {
 		return err
 	}
@@ -781,7 +836,7 @@ func (s *Service) deleteTask(ctx context.Context, tx Tx, id platform.ID) error {
 	}
 
 	// remove latest completed
-	lastCompletedKey, err := taskLatestCompletedKey(task.ID)
+	lastCompletedKey, err := taskLatestCompletedKey(task.GetID())
 	if err != nil {
 		return err
 	}
@@ -791,13 +846,13 @@ func (s *Service) deleteTask(ctx context.Context, tx Tx, id platform.ID) error {
 	}
 
 	// remove the runs
-	runs, _, err := s.findRuns(ctx, tx, taskmodel.RunFilter{Task: task.ID})
+	runs, _, err := s.findRuns(ctx, tx, taskmodel.RunFilter{Task: task.GetID()})
 	if err != nil {
 		return err
 	}
 
 	for _, run := range runs {
-		key, err := taskRunKey(task.ID, run.ID)
+		key, err := taskRunKey(task.GetID(), run.ID)
 		if err != nil {
 			return err
 		}
@@ -807,7 +862,7 @@ func (s *Service) deleteTask(ctx context.Context, tx Tx, id platform.ID) error {
 		}
 	}
 	// remove the task
-	key, err := taskKey(task.ID)
+	key, err := taskKey(task.GetID())
 	if err != nil {
 		return err
 	}
@@ -819,9 +874,9 @@ func (s *Service) deleteTask(ctx context.Context, tx Tx, id platform.ID) error {
 	uid, _ := icontext.GetUserID(ctx)
 	return s.audit.Log(resource.Change{
 		Type:           resource.Delete,
-		ResourceID:     task.ID,
+		ResourceID:     task.GetID(),
 		ResourceType:   influxdb.TasksResourceType,
-		OrganizationID: task.OrganizationID,
+		OrganizationID: task.GetOrgID(),
 		UserID:         uid,
 		Time:           time.Now(),
 	})

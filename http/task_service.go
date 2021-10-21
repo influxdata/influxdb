@@ -571,8 +571,19 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request, orgs influxdb.O
 		req.filter.Status = &status
 	}
 
-	// the task api can only create or lookup system tasks.
-	req.filter.Type = &taskmodel.TaskSystemType
+	switch typ := qp.Get("type"); typ {
+	case "basic":
+		req.filter.Type = &taskmodel.TaskBasicType
+	case "system":
+		fallthrough
+	case "":
+		req.filter.Type = &taskmodel.TaskSystemType
+	default:
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg:  fmt.Sprintf("%q is not a valid task type", typ),
+		}
+	}
 
 	if name := qp.Get("name"); name != "" {
 		req.filter.Name = &name

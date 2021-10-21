@@ -10,8 +10,8 @@ import (
 )
 
 func Test_newTaskMatchFN(t *testing.T) {
-	ct := func(typ string, name string) *taskmodel.Task {
-		return &taskmodel.Task{
+	ct := func(typ string, name string) *basicKvTask {
+		return &basicKvTask{
 			Type:           typ,
 			OrganizationID: 1,
 			Name:           name,
@@ -47,7 +47,7 @@ func Test_newTaskMatchFN(t *testing.T) {
 
 	type test struct {
 		name string
-		task *taskmodel.Task
+		task matchableTask
 		fn   taskMatchFn
 		exp  bool
 	}
