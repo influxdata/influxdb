@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/influxdata/influxdb/v2/pkg/durablequeue"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -62,7 +60,7 @@ type BucketService interface {
 }
 
 type DurableQueueManager interface {
-	InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) *durablequeue.Queue
+	InitializeQueue(replicationID platform.ID, maxQueueSizeBytes int64) error
 	DeleteQueue(replicationID platform.ID) error
 	UpdateMaxQueueSize(replicationID platform.ID, maxQueueSizeBytes int64) error
 }
@@ -118,7 +116,9 @@ func (s service) CreateReplication(ctx context.Context, request influxdb.CreateR
 		return nil, errLocalBucketNotFound(request.LocalBucketID, err)
 	}
 
-	s.durableQueueManager.InitializeQueue(request.RemoteID, request.MaxQueueSizeBytes)
+	if err := s.durableQueueManager.InitializeQueue(request.RemoteID, request.MaxQueueSizeBytes); err != nil {
+		return nil, err
+	}
 
 	q := sq.Insert("replications").
 		SetMap(sq.Eq{
@@ -216,8 +216,7 @@ func (s service) UpdateReplication(ctx context.Context, id platform.ID, request 
 	}
 	if request.MaxQueueSizeBytes != nil {
 		updates["max_queue_size_bytes"] = *request.MaxQueueSizeBytes
-		err := s.durableQueueManager.UpdateMaxQueueSize(*request.RemoteID,*request.MaxQueueSizeBytes)
-		if err != nil {
+		if err := s.durableQueueManager.UpdateMaxQueueSize(*request.RemoteID, *request.MaxQueueSizeBytes); err != nil {
 			return nil, err
 		}
 	}
@@ -272,8 +271,7 @@ func (s service) DeleteReplication(ctx context.Context, id platform.ID) error {
 	s.store.Mu.Lock()
 	defer s.store.Mu.Unlock()
 
-	err := s.durableQueueManager.DeleteQueue(id)
-	if err != nil {
+	if err := s.durableQueueManager.DeleteQueue(id); err != nil {
 		return err
 	}
 
@@ -307,6 +305,18 @@ func (s service) DeleteBucketReplications(ctx context.Context, localBucketID pla
 	if err := s.store.DB.SelectContext(ctx, &deleted, query, args...); err != nil {
 		return err
 	}
+
+	for _, replication := range deleted {
+		id, err := platform.IDFromString(replication)
+		if err != nil {
+			return err
+		}
+
+		if err := s.durableQueueManager.DeleteQueue(*id); err != nil {
+			return err
+		}
+	}
+
 	s.log.Debug("Deleted all replications for local bucket",
 		zap.String("bucket_id", localBucketID.String()), zap.Strings("ids", deleted))
 
