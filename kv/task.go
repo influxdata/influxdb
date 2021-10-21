@@ -272,7 +272,7 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter taskmodel.T
 		return nil, 0, taskmodel.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	matchFn := newTaskMatchFn(filter, nil)
+	matchFn := newTaskMatchFn(filter)
 
 	for k, v := c.Next(); k != nil; k, v = c.Next() {
 		var task matchableTask
@@ -344,7 +344,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, orgID platform.ID, 
 	// free cursor resources
 	defer c.Close()
 
-	matchFn := newTaskMatchFn(filter, nil)
+	matchFn := newTaskMatchFn(filter)
 
 	for k, v := c.Next(); k != nil; k, v = c.Next() {
 		id, err := platform.IDFromString(string(v))
@@ -384,59 +384,39 @@ type taskMatchFn func(matchableTask) bool
 // newTaskMatchFn returns a function for validating
 // a task matches the filter. Will return nil if
 // the filter should match all tasks.
-func newTaskMatchFn(f taskmodel.TaskFilter, org *influxdb.Organization) func(t matchableTask) bool {
-	var fn taskMatchFn
-
-	if org != nil {
-		expected := org.ID
-		prevFn := fn
-		fn = func(t matchableTask) bool {
-			res := prevFn == nil || prevFn(t)
-			return res && expected == t.GetOrgID()
-		}
+func newTaskMatchFn(f taskmodel.TaskFilter) taskMatchFn {
+	if f.Type == nil && f.Name == nil && f.Status == nil && f.User == nil {
+		return nil
 	}
 
-	if f.Type != nil {
-		expected := *f.Type
-		if expected == taskmodel.TaskBasicType {
-			// "basic" type == get "system" type tasks, but without full metadata
-			expected = taskmodel.TaskSystemType
-		}
-		prevFn := fn
-		fn = func(t matchableTask) bool {
-			res := prevFn == nil || prevFn(t)
+	return func(t matchableTask) bool {
+		if f.Type != nil {
+			expected := *f.Type
+			if expected == taskmodel.TaskBasicType {
+				// "basic" type == get "system" type tasks, but without full metadata
+				expected = taskmodel.TaskSystemType
+			}
 			typ := t.GetType()
-			return res &&
-				((expected == taskmodel.TaskSystemType && (typ == taskmodel.TaskSystemType || typ == "")) || expected == typ)
+			// Default to "system" for old tasks without a persisted type
+			if typ == "" {
+				typ = taskmodel.TaskSystemType
+			}
+			if expected != typ {
+				return false
+			}
 		}
-	}
-
-	if f.Name != nil {
-		expected := *f.Name
-		prevFn := fn
-		fn = func(t matchableTask) bool {
-			res := prevFn == nil || prevFn(t)
-			return res && (expected == t.GetName())
+		if f.Name != nil && t.GetName() != *f.Name {
+			return false
 		}
-	}
-
-	if f.Status != nil {
-		prevFn := fn
-		fn = func(t matchableTask) bool {
-			res := prevFn == nil || prevFn(t)
-			return res && (t.GetStatus() == *f.Status)
+		if f.Status != nil && t.GetStatus() != *f.Status {
+			return false
 		}
-	}
-
-	if f.User != nil {
-		prevFn := fn
-		fn = func(t matchableTask) bool {
-			res := prevFn == nil || prevFn(t)
-			return res && t.GetOwnerID() == *f.User
+		if f.User != nil && t.GetOwnerID() != *f.User {
+			return false
 		}
-	}
 
-	return fn
+		return true
+	}
 }
 
 // findAllTasks is a subset of the find tasks function. Used for cleanliness.
@@ -471,7 +451,7 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter taskmodel.Task
 	// free cursor resources
 	defer c.Close()
 
-	matchFn := newTaskMatchFn(filter, nil)
+	matchFn := newTaskMatchFn(filter)
 
 	for k, v := c.Next(); k != nil; k, v = c.Next() {
 		var task matchableTask
