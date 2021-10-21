@@ -433,7 +433,6 @@ func (cmd *Command) backupMetastore() (retErr error) {
 		return err
 	}
 
-
 	if !cmd.portable {
 		cmd.BackupFiles = append(cmd.BackupFiles, metastoreArchivePath)
 	}
