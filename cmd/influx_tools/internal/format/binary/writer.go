@@ -154,15 +154,7 @@ func (w *Writer) writeTypeMessage(typ MessageType, msg proto.Message) {
 		return
 	}
 
-	// ensure size
-	n := proto.Size(msg)
-	if n > cap(w.buf) {
-		w.buf = make([]byte, n)
-	} else {
-		w.buf = w.buf[:n]
-	}
-
-	_, w.err = proto.MarshalOptions{}.MarshalAppend(w.buf, msg)
+	w.buf, w.err = proto.MarshalOptions{}.MarshalAppend(w.buf[0:0], msg)
 	w.writeTypeBytes(typ)
 }
 
