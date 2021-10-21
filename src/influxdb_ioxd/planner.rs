@@ -7,7 +7,11 @@ use query::{
     exec::IOxExecutionContext,
     frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
     group_by::{Aggregate, WindowDuration},
-    plan::{fieldlist::FieldListPlan, seriesset::SeriesSetPlans, stringset::StringSetPlan},
+    plan::{
+        fieldlist::FieldListPlan,
+        seriesset::SeriesSetPlans,
+        stringset::{StringSetPlan, TableNamePlanBuilder},
+    },
     QueryDatabase,
 };
 
@@ -50,7 +54,7 @@ impl Planner {
         &self,
         database: Arc<D>,
         predicate: Predicate,
-    ) -> Result<StringSetPlan>
+    ) -> Result<TableNamePlanBuilder>
     where
         D: QueryDatabase + 'static,
     {

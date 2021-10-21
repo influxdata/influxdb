@@ -24,11 +24,11 @@ where
         let planner = InfluxRpcPlanner::new();
         let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
-        let plan = planner
+        let builder = planner
             .table_names(db.as_ref(), predicate.clone())
             .expect("built plan successfully");
         let names = ctx
-            .to_string_set(plan)
+            .to_table_names(builder)
             .await
             .expect("converted plan to strings successfully");
 
@@ -63,9 +63,6 @@ async fn list_table_names_no_data_pred_with_delete() {
     .await;
 }
 
-// https://github.com/influxdata/influxdb_iox/issues/2861
-// And all other ignored tests
-#[ignore]
 #[tokio::test]
 async fn list_table_names_no_data_pred_with_delete_all() {
     run_table_names_test_case(
@@ -91,7 +88,6 @@ async fn list_table_names_data_pred_0_201_with_delete() {
     .await;
 }
 
-#[ignore]
 #[tokio::test]
 async fn list_table_names_data_pred_0_201_with_delete_all() {
     run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(0, 201), vec!["disk"]).await;
@@ -107,7 +103,6 @@ async fn list_table_names_data_pred_0_200_with_delete() {
     run_table_names_test_case(TwoMeasurementsWithDelete {}, tsp(0, 200), vec!["cpu"]).await;
 }
 
-#[ignore]
 #[tokio::test]
 async fn list_table_names_data_pred_0_200_with_delete_all() {
     run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(0, 200), vec![]).await;
@@ -123,7 +118,6 @@ async fn list_table_names_data_pred_50_101_with_delete() {
     run_table_names_test_case(TwoMeasurementsWithDelete {}, tsp(50, 101), vec!["cpu"]).await;
 }
 
-#[ignore]
 #[tokio::test]
 async fn list_table_names_data_pred_50_101_with_delete_all() {
     run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(50, 101), vec![]).await;
@@ -134,13 +128,11 @@ async fn list_table_names_data_pred_101_160() {
     run_table_names_test_case(TwoMeasurements {}, tsp(101, 160), vec!["cpu"]).await;
 }
 
-#[ignore]
 #[tokio::test]
 async fn list_table_names_data_pred_101_160_with_delete() {
     run_table_names_test_case(TwoMeasurementsWithDelete {}, tsp(101, 160), vec![]).await;
 }
 
-#[ignore]
 #[tokio::test]
 async fn list_table_names_data_pred_101_160_with_delete_all() {
     run_table_names_test_case(TwoMeasurementsWithDeleteAll {}, tsp(101, 160), vec![]).await;

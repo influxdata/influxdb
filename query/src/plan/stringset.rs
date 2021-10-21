@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use arrow_util::util::str_iter_to_batch;
 use datafusion::logical_plan::LogicalPlan;
@@ -95,20 +95,6 @@ impl StringSetPlanBuilder {
         Self::default()
     }
 
-    /// Returns a reference to any strings already known to be in this
-    /// set
-    pub fn known_strings(&self) -> &StringSet {
-        &self.strings
-    }
-
-    /// Append the name of a table to the known strings
-    pub fn append_table(mut self, table_name: &str) -> Self {
-        if !self.strings.contains(table_name) {
-            self.strings.insert(table_name.to_string());
-        }
-        self
-    }
-
     /// Append the strings from the passed plan into ourselves if possible, or
     /// passes on the plan
     pub fn append(mut self, other: StringSetPlan) -> Self {
@@ -154,6 +140,39 @@ impl StringSetPlanBuilder {
 
             Ok(StringSetPlan::Plan(plans))
         }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct TableNamePlanBuilder {
+    /// Known tables achieved from meta data
+    meta_data_tables: StringSet,
+    /// Other tables and their general plans
+    plans: BTreeMap<String, LogicalPlan>,
+}
+
+impl TableNamePlanBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn append_meta_data_table(&mut self, table: String) {
+        self.meta_data_tables.insert(table);
+    }
+
+    pub fn append_plans(&mut self, table_name: String, plan: LogicalPlan) {
+        self.plans.insert(table_name, plan);
+    }
+
+    pub fn contains_meta_data_table(&self, table: String) -> bool {
+        self.meta_data_tables.contains(&table)
+    }
+
+    pub fn meta_data_table_names(&self) -> StringSet {
+        self.meta_data_tables.clone()
+    }
+
+    pub fn table_plans(&self) -> BTreeMap<String, LogicalPlan> {
+        self.plans.clone()
     }
 }
 
