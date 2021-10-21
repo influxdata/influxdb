@@ -9,7 +9,8 @@ use data_types::chunk_metadata::ChunkId;
 use datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
     logical_plan::{
-        lit, Column, DFSchemaRef, Expr, ExprRewriter, LogicalPlan, LogicalPlanBuilder, Operator,
+        binary_expr, lit, when, Column, DFSchemaRef, Expr, ExprRewriter, LogicalPlan,
+        LogicalPlanBuilder, Operator,
     },
     optimizer::utils::expr_to_columns,
     prelude::col,
@@ -1547,6 +1548,7 @@ impl AggExprs {
                 agg,
                 SelectorOutput::Value,
                 field.name(),
+                &predicate.value_expr,
                 field.data_type(),
                 field.name(),
             )?);
@@ -1557,6 +1559,7 @@ impl AggExprs {
                 agg,
                 SelectorOutput::Time,
                 field.name(),
+                &predicate.value_expr,
                 field.data_type(),
                 &time_column_name,
             )?);
@@ -1653,11 +1656,23 @@ fn make_agg_expr(agg: Aggregate, field_name: &str) -> Result<Expr> {
 /// Creates a DataFusion expression suitable for calculating the time
 /// part of a selector:
 ///
-/// equivalent to `CAST selector_time(field) as column_name`
+/// If there are no value expressions then the output expression is equivalent
+/// to `CAST selector_time(field) as column_name`.
+///
+/// If there are value expressions, e.g., `_value == 1.87 OR _value == 1.99`
+/// then the output expression is equivalent to:
+///
+/// CAST selector_time(
+///     CASE
+///         WHEN field = 1.87 OR field = 1.99 THEN field
+///         ELSE NULL
+///     END
+/// ) as column_name
 fn make_selector_expr(
     agg: Aggregate,
     output: SelectorOutput,
     field_name: &str,
+    value_exprs: &[BinaryExpr],
     data_type: &DataType,
     column_name: &str,
 ) -> Result<Expr> {
@@ -1668,8 +1683,27 @@ fn make_selector_expr(
         Aggregate::Max => selector_max(data_type, output),
         _ => return InternalAggregateNotSelector { agg }.fail(),
     };
+
+    let exprs = value_exprs
+        .iter()
+        .map(|BinaryExpr { left: _, op, right }| {
+            when(
+                binary_expr(col(field_name), *op, right.as_expr()),
+                col(field_name),
+            )
+            .end()
+        })
+        .collect::<Result<Vec<Expr>, _>>()
+        .context(BuildingPlan)?;
+
+    // TODO(edd): likely need to add support for `_value != 1.98`...
+    let field_projection_expr = exprs
+        .into_iter()
+        .reduce(|a, b| a.or(b))
+        .unwrap_or_else(|| col(field_name));
+
     Ok(uda
-        .call(vec![col(field_name), col(TIME_COLUMN_NAME)])
+        .call(vec![field_projection_expr, col(TIME_COLUMN_NAME)])
         .alias(column_name))
 }
 
