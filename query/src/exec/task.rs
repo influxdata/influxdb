@@ -17,6 +17,9 @@ use observability_deps::tracing::warn;
 struct Task {
     fut: Pin<Box<dyn Future<Output = ()> + Send>>,
     cancel: CancellationToken,
+
+    #[allow(dead_code)]
+    task_ref: Arc<()>,
 }
 
 impl Task {
@@ -80,6 +83,9 @@ struct State {
 
     /// The thread that is doing the work
     thread: Option<std::thread::JoinHandle<()>>,
+
+    /// Task counter (uses Arc strong count).
+    task_refs: Arc<()>,
 }
 
 /// The default worker priority (value passed to `libc::setpriority`);
@@ -147,6 +153,7 @@ impl DedicatedExecutor {
         let state = State {
             requests: Some(tx),
             thread: Some(thread),
+            task_refs: Arc::new(()),
         };
 
         Self {
@@ -173,12 +180,12 @@ impl DedicatedExecutor {
             }
         });
         let cancel = CancellationToken::new();
+        let mut state = self.state.lock();
         let task = Task {
             fut,
             cancel: cancel.clone(),
+            task_ref: Arc::clone(&state.task_refs),
         };
-
-        let mut state = self.state.lock();
 
         if let Some(requests) = &mut state.requests {
             // would fail if someone has started shutdown
@@ -188,6 +195,14 @@ impl DedicatedExecutor {
         }
 
         Job { rx, cancel }
+    }
+
+    /// Number of currently active tasks.
+    pub fn tasks(&self) -> usize {
+        let state = self.state.lock();
+
+        // the strong count is always `1 + jobs` because of the Arc we hold within Self
+        Arc::strong_count(&state.task_refs).saturating_sub(1)
     }
 
     /// signals shutdown of this executor and any Clones
@@ -237,7 +252,10 @@ fn set_current_thread_priority(prio: i32) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, Barrier};
+    use std::{
+        sync::{Arc, Barrier},
+        time::Duration,
+    };
     use tokio::sync::Barrier as AsyncBarrier;
 
     #[cfg(unix)]
@@ -408,18 +426,39 @@ mod tests {
 
     #[tokio::test]
     async fn drop_receiver() {
-        let barrier1 = Arc::new(AsyncBarrier::new(2));
-        let barrier2 = Arc::new(AsyncBarrier::new(2));
-
+        // create empty executor
         let exec = DedicatedExecutor::new("Test DedicatedExecutor", 1);
+        assert_eq!(exec.tasks(), 0);
 
+        // create first blocked task
+        let barrier1 = Arc::new(AsyncBarrier::new(2));
         let dedicated_task1 = exec.spawn(do_work_async(11, Arc::clone(&barrier1)));
-        let dedicated_task2 = exec.spawn(do_work_async(22, Arc::clone(&barrier2)));
+        assert_eq!(exec.tasks(), 1);
 
+        // create second blocked task
+        let barrier2 = Arc::new(AsyncBarrier::new(2));
+        let dedicated_task2 = exec.spawn(do_work_async(22, Arc::clone(&barrier2)));
+        assert_eq!(exec.tasks(), 2);
+
+        // cancel task
         drop(dedicated_task1);
 
+        // cancelation might take a short while
+        tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                if dbg!(exec.tasks()) == 1 {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        })
+        .await
+        .unwrap();
+
+        // unblock other task
         barrier2.wait().await;
         assert_eq!(dedicated_task2.await.unwrap(), 22);
+        assert_eq!(exec.tasks(), 0);
 
         exec.join()
     }

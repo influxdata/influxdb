@@ -8,6 +8,8 @@
 // Actual tests
 
 #[cfg(test)]
+pub mod cancellation;
+#[cfg(test)]
 #[rustfmt::skip]
 mod cases;
 #[cfg(test)]

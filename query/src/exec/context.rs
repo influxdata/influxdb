@@ -547,4 +547,9 @@ impl IOxExecutionContext {
             recorder: self.recorder.child(name),
         }
     }
+
+    /// Number of currently active tasks.
+    pub fn tasks(&self) -> usize {
+        self.exec.tasks()
+    }
 }
