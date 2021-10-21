@@ -1030,3 +1030,56 @@ async fn test_grouped_series_set_plan_group_field_pred_filter_on_field() {
     )
     .await;
 }
+
+// Test data to validate fix for:
+// https://github.com/influxdata/influxdb_iox/issues/2691
+struct MeasurementForDefect2691 {}
+#[async_trait]
+impl DbSetup for MeasurementForDefect2691 {
+    async fn make(&self) -> Vec<DbScenario> {
+        let partition_key = "2018-05-22T19";
+
+        let lp = vec![
+            "system,host=host.local load1=1.83 1527018806000000000",
+            "system,host=host.local load1=1.63 1527018816000000000",
+            "system,host=host.local load3=1.72 1527018806000000000",
+            "system,host=host.local load4=1.77 1527018806000000000",
+            "system,host=host.local load4=1.78 1527018816000000000",
+            "system,host=host.local load4=1.77 1527018826000000000",
+        ];
+
+        all_scenarios_for_one_chunk(vec![], vec![], lp, "system", partition_key).await
+    }
+}
+
+// See issue: https://github.com/influxdata/influxdb_iox/issues/2691
+//
+// This test adds coverage for filtering on _value when executing a read_group
+// plan.
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_field_pred_filter_on_value() {
+    // no predicate
+    let predicate = PredicateBuilder::default()
+        // 2018-05-22T19:53:26Z, stop: 2018-05-24T00:00:00Z
+        .timestamp_range(1527018806000000000, 1527120000000000000)
+        .add_expr(col("_value").eq(lit(1.77)))
+        .build();
+
+    let agg = Aggregate::Max;
+    let group_columns = vec!["_field"];
+
+    // Expect the data is grouped so output is sorted by measurement and then region
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement, host partition_key_vals: load4",
+        "Series tags={_field=load4, _measurement=system, host=host.local}\n  FloatPoints timestamps: [1527018806000000000], values: [1.77]",
+    ];
+
+    run_read_group_test_case(
+        MeasurementForDefect2691 {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
