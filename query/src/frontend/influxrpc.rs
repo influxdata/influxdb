@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use arrow::datatypes::{DataType, Field};
+use arrow::datatypes::DataType;
 use data_types::chunk_metadata::ChunkId;
 use datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
@@ -1066,9 +1066,9 @@ impl InfluxRpcPlanner {
         // Select away anything that isn't in the influx data model
         let tags_fields_and_timestamps: Vec<Expr> = schema
             .tags_iter()
-            .chain(filtered_fields_iter(&schema, &predicate))
-            .chain(schema.time_iter())
             .map(|field| field.name().as_expr())
+            .chain(filtered_fields_iter(&schema, &predicate).map(|f| f.expr))
+            .chain(schema.time_iter().map(|field| field.name().as_expr()))
             .collect();
 
         let plan_builder = plan_builder
@@ -1083,7 +1083,7 @@ impl InfluxRpcPlanner {
             .collect();
 
         let field_columns = filtered_fields_iter(&schema, &predicate)
-            .map(|field| Arc::from(field.name().as_str()))
+            .map(|field| Arc::from(field.name))
             .collect();
 
         // TODO: remove the use of tag_columns and field_column names
@@ -1176,6 +1176,9 @@ impl InfluxRpcPlanner {
             agg_exprs,
             field_columns,
         } = AggExprs::try_new_for_read_group(agg, &schema, &predicate)?;
+
+        dbg!(&agg_exprs);
+        dbg!(&field_columns);
 
         let plan_builder = plan_builder
             .aggregate(group_exprs, agg_exprs)
@@ -1478,14 +1481,43 @@ pub(crate) struct AggExprs {
     field_columns: FieldColumns,
 }
 
+// Encapsulates a field column projection as an expression. In the simplest case
+// the expression is a `Column` expression. In more complex cases it might be
+// a predicate that filters rows for the projection.
+#[derive(Clone)]
+struct FieldExpr<'a> {
+    expr: Expr,
+    name: &'a str,
+    datatype: &'a DataType,
+}
+
 /// Returns an iterator of fields from schema that pass the predicate
 fn filtered_fields_iter<'a>(
     schema: &'a Schema,
     predicate: &'a Predicate,
-) -> impl Iterator<Item = &'a Field> {
-    schema
-        .fields_iter()
-        .filter(move |f| predicate.should_include_field(f.name()))
+) -> impl Iterator<Item = FieldExpr<'a>> {
+    schema.fields_iter().filter_map(move |f| {
+        if !predicate.should_include_field(f.name()) {
+            return None;
+        }
+
+        let expr = predicate
+            .value_expr
+            .iter()
+            .map(|BinaryExpr { left: _, op, right }| {
+                binary_expr(col(f.name()), *op, right.as_expr())
+            })
+            .reduce(|a, b| a.or(b))
+            .map(|when_expr| when(when_expr, col(f.name())).end())
+            .unwrap_or_else(|| Ok(col(f.name())))
+            .unwrap();
+
+        Some(FieldExpr {
+            expr: expr.alias(f.name()),
+            name: f.name(),
+            datatype: f.data_type(),
+        })
+    })
 }
 
 /// Creates aggregate expressions and tracks field output according to
@@ -1544,28 +1576,25 @@ impl AggExprs {
         let mut field_list = Vec::new();
 
         for field in filtered_fields_iter(schema, predicate) {
+            let field_name = field.name;
             agg_exprs.push(make_selector_expr(
                 agg,
                 SelectorOutput::Value,
-                field.name(),
-                &predicate.value_expr,
-                field.data_type(),
-                field.name(),
+                field.clone(),
+                field_name,
             )?);
 
-            let time_column_name = format!("{}_{}", TIME_COLUMN_NAME, field.name());
+            let time_column_name = format!("{}_{}", TIME_COLUMN_NAME, field_name);
 
             agg_exprs.push(make_selector_expr(
                 agg,
                 SelectorOutput::Time,
-                field.name(),
-                &predicate.value_expr,
-                field.data_type(),
+                field,
                 &time_column_name,
             )?);
 
             field_list.push((
-                Arc::from(field.name().as_str()), // value name
+                Arc::from(field_name), // value name
                 Arc::from(time_column_name.as_str()),
             ));
         }
@@ -1588,12 +1617,16 @@ impl AggExprs {
     //  agg_function(time) as time
     fn agg_for_read_group(agg: Aggregate, schema: &Schema, predicate: &Predicate) -> Result<Self> {
         let agg_exprs = filtered_fields_iter(schema, predicate)
-            .chain(schema.time_iter())
-            .map(|field| make_agg_expr(agg, field.name()))
+            .map(|field| make_agg_expr(agg, field.name))
+            .chain(
+                schema
+                    .time_iter()
+                    .map(|field| make_agg_expr(agg, field.name())),
+            )
             .collect::<Result<Vec<_>>>()?;
 
         let field_columns = filtered_fields_iter(schema, predicate)
-            .map(|field| Arc::from(field.name().as_str()))
+            .map(|field| Arc::from(field.name))
             .collect::<Vec<_>>()
             .into();
 
@@ -1619,11 +1652,11 @@ impl AggExprs {
         predicate: &Predicate,
     ) -> Result<Self> {
         let agg_exprs = filtered_fields_iter(schema, predicate)
-            .map(|field| make_agg_expr(agg, field.name()))
+            .map(|field| make_agg_expr(agg, field.name))
             .collect::<Result<Vec<_>>>()?;
 
         let field_columns = filtered_fields_iter(schema, predicate)
-            .map(|field| Arc::from(field.name().as_str()))
+            .map(|field| Arc::from(field.name))
             .collect::<Vec<_>>()
             .into();
 
@@ -1653,58 +1686,38 @@ fn make_agg_expr(agg: Aggregate, field_name: &str) -> Result<Expr> {
         .map(|agg| agg.alias(field_name))
 }
 
-/// Creates a DataFusion expression suitable for calculating the time
-/// part of a selector:
+/// Creates a DataFusion expression suitable for calculating the time part of a
+/// selector:
 ///
-/// If there are no value expressions then the output expression is equivalent
-/// to `CAST selector_time(field) as column_name`.
+/// The output expression is equivalent to `CAST selector_time(field_expression)
+/// as col_name`.
 ///
-/// If there are value expressions, e.g., `_value == 1.87 OR _value == 1.99`
-/// then the output expression is equivalent to:
+/// In the simplest scenarios the field expressions are `Column` expressions.
+/// In some cases the field expressions are `CASE` statements such as for
+/// example:
 ///
 /// CAST selector_time(
-///     CASE
-///         WHEN field = 1.87 OR field = 1.99 THEN field
-///         ELSE NULL
-///     END
-/// ) as column_name
-fn make_selector_expr(
+///     CASE WHEN field = 1.87 OR field = 1.99 THEN field
+///     ELSE NULL
+/// END) as col_name
+///
+fn make_selector_expr<'a>(
     agg: Aggregate,
     output: SelectorOutput,
-    field_name: &str,
-    value_exprs: &[BinaryExpr],
-    data_type: &DataType,
-    column_name: &str,
+    field: FieldExpr<'a>,
+    col_name: &'a str,
 ) -> Result<Expr> {
     let uda = match agg {
-        Aggregate::First => selector_first(data_type, output),
-        Aggregate::Last => selector_last(data_type, output),
-        Aggregate::Min => selector_min(data_type, output),
-        Aggregate::Max => selector_max(data_type, output),
+        Aggregate::First => selector_first(field.datatype, output),
+        Aggregate::Last => selector_last(field.datatype, output),
+        Aggregate::Min => selector_min(field.datatype, output),
+        Aggregate::Max => selector_max(field.datatype, output),
         _ => return InternalAggregateNotSelector { agg }.fail(),
     };
 
-    let exprs = value_exprs
-        .iter()
-        .map(|BinaryExpr { left: _, op, right }| {
-            when(
-                binary_expr(col(field_name), *op, right.as_expr()),
-                col(field_name),
-            )
-            .end()
-        })
-        .collect::<Result<Vec<Expr>, _>>()
-        .context(BuildingPlan)?;
-
-    // TODO(edd): likely need to add support for `_value != 1.98`...
-    let field_projection_expr = exprs
-        .into_iter()
-        .reduce(|a, b| a.or(b))
-        .unwrap_or_else(|| col(field_name));
-
     Ok(uda
-        .call(vec![field_projection_expr, col(TIME_COLUMN_NAME)])
-        .alias(column_name))
+        .call(vec![field.expr, col(TIME_COLUMN_NAME)])
+        .alias(col_name))
 }
 
 /// Creates specialized / normalized predicates that are tailored to a specific

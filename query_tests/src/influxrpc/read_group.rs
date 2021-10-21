@@ -9,7 +9,10 @@ use crate::{
 
 use async_trait::async_trait;
 use data_types::timestamp::TimestampRange;
-use datafusion::prelude::*;
+use datafusion::{
+    logical_plan::{binary_expr, Operator},
+    prelude::*,
+};
 use predicate::{
     delete_expr::DeleteExpr,
     delete_predicate::DeletePredicate,
@@ -1070,6 +1073,40 @@ async fn test_grouped_series_set_plan_group_field_pred_filter_on_value() {
 
     // Expect the data is grouped so output is sorted by measurement and then region
     let expected_results = vec![
+        "Group tag_keys: _field, _measurement, host partition_key_vals: load4",
+        "Series tags={_field=load4, _measurement=system, host=host.local}\n  FloatPoints timestamps: [1527018806000000000], values: [1.77]",
+    ];
+
+    run_read_group_test_case(
+        MeasurementForDefect2691 {},
+        predicate,
+        agg,
+        group_columns,
+        expected_results,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_grouped_series_set_plan_group_field_pred_filter_on_multiple_value() {
+    // no predicate
+    let predicate = PredicateBuilder::default()
+        // 2018-05-22T19:53:26Z, stop: 2018-05-24T00:00:00Z
+        .timestamp_range(1527018806000000000, 1527120000000000000)
+        .add_expr(binary_expr(
+            col("_value").eq(lit(1.77)),
+            Operator::Or,
+            col("_value").eq(lit(1.72)),
+        ))
+        .build();
+
+    let agg = Aggregate::Max;
+    let group_columns = vec!["_field"];
+
+    // Expect the data is grouped so output is sorted by measurement and then region
+    let expected_results = vec![
+        "Group tag_keys: _field, _measurement, host partition_key_vals: load3",
+        "Series tags={_field=load3, _measurement=system, host=host.local}\n  FloatPoints timestamps: [1527018806000000000], values: [1.72]",
         "Group tag_keys: _field, _measurement, host partition_key_vals: load4",
         "Series tags={_field=load4, _measurement=system, host=host.local}\n  FloatPoints timestamps: [1527018806000000000], values: [1.77]",
     ];
