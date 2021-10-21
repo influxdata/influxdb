@@ -7,7 +7,6 @@ import "google/protobuf/timestamp.proto";
 import "influxdata/iox/management/v1/database_rules.proto";
 import "influxdata/iox/management/v1/chunk.proto";
 import "influxdata/iox/management/v1/partition.proto";
-import "influxdata/iox/management/v1/router.proto";
 
 service ManagementService {
   rpc GetServerId(GetServerIdRequest) returns (GetServerIdResponse);
@@ -103,15 +102,6 @@ service ManagementService {
 
   // Delete data for a table on a specified predicate
   rpc Delete(DeleteRequest) returns (DeleteResponse);
-
-  // Create new router.
-  rpc CreateRouter(CreateRouterRequest) returns (CreateRouterResponse);
-
-  // Update router config.
-  rpc UpdateRouter(UpdateRouterRequest) returns (UpdateRouterResponse);
-
-  // Delete router.
-  rpc DeleteRouter(DeleteRouterRequest) returns (DeleteRouterResponse);
 }
 
 message GetServerIdRequest {}
@@ -521,21 +511,3 @@ message DeleteRequest {
 
 message DeleteResponse {
 }
-
-message CreateRouterRequest {
-  Router router = 1;
-}
-
-message CreateRouterResponse {}
-
-message UpdateRouterRequest {
-  Router router = 1;
-}
-
-message UpdateRouterResponse {}
-
-message DeleteRouterRequest {
-  string router_name = 1;
-}
-
-message DeleteRouterResponse {}

@@ -645,30 +645,6 @@ where
 
         Ok(Response::new(DeleteResponse {}))
     }
-
-    async fn create_router(
-        &self,
-        _request: tonic::Request<CreateRouterRequest>,
-    ) -> Result<tonic::Response<CreateRouterResponse>, tonic::Status> {
-        // TODO(marco): implement
-        Err(tonic::Status::unimplemented("not yet implemented"))
-    }
-
-    async fn update_router(
-        &self,
-        _request: tonic::Request<UpdateRouterRequest>,
-    ) -> Result<tonic::Response<UpdateRouterResponse>, tonic::Status> {
-        // TODO(marco): implement
-        Err(tonic::Status::unimplemented("not yet implemented"))
-    }
-
-    async fn delete_router(
-        &self,
-        _request: tonic::Request<DeleteRouterRequest>,
-    ) -> Result<tonic::Response<DeleteRouterResponse>, tonic::Status> {
-        // TODO(marco): implement
-        Err(tonic::Status::unimplemented("not yet implemented"))
-    }
 }
 
 /// Returns [`DatabaseRules`] formated according to the `omit_defaults` flag. If `omit_defaults` is

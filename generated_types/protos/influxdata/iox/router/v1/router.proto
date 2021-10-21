@@ -1,6 +1,6 @@
 syntax = "proto3";
-package influxdata.iox.management.v1;
-option go_package = "github.com/influxdata/iox/management/v1";
+package influxdata.iox.router.v1;
+option go_package = "github.com/influxdata/iox/router/v1";
 
 import "influxdata/iox/management/v1/partition_template.proto";
 import "influxdata/iox/management/v1/shard.proto";
@@ -83,7 +83,7 @@ message Router {
   // NOTE: This only uses the `specific_targets` and `hash_ring` config of the sharder. The other fields are ignored.
   //
   // TODO(marco): remove the note above once the `ShardConfig` was cleaned up.
-  ShardConfig write_sharder = 3;
+  influxdata.iox.management.v1.ShardConfig write_sharder = 3;
 
   // Sinks for write requests.
   map<uint32, WriteSinkSet> write_sinks = 4;
@@ -98,7 +98,7 @@ message Router {
   // If not specified, a server-side default is used
   //
   // TODO(marco): remove this
-  PartitionTemplate partition_template = 6;
+  influxdata.iox.management.v1.PartitionTemplate partition_template = 6;
 }
 
 // Sources of write request aka new data.
@@ -111,7 +111,7 @@ message WriteSources {
   bool allow_unsequenced_inputs = 2;
 
   // Write buffer connections.
-  repeated WriteBufferConnection write_buffers = 3;
+  repeated influxdata.iox.management.v1.WriteBufferConnection write_buffers = 3;
 }
 
 // Sink of write requests aka new data.
@@ -124,7 +124,7 @@ message WriteSink {
     uint32 grpc_remote = 1;
 
     // Write buffer connection.
-    WriteBufferConnection write_buffer = 2;
+    influxdata.iox.management.v1.WriteBufferConnection write_buffer = 2;
   }
 
   // If set, errors during writing to this sink are ignored and do NOT lead to an overall failure.

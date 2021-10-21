@@ -21,12 +21,14 @@ fn main() -> Result<()> {
 /// - `com.github.influxdata.idpe.storage.read.rs`
 /// - `influxdata.iox.catalog.v1.rs`
 /// - `influxdata.iox.management.v1.rs`
+/// - `influxdata.iox.router.v1.rs`
 /// - `influxdata.iox.write.v1.rs`
 /// - `influxdata.platform.storage.rs`
 fn generate_grpc_types(root: &Path) -> Result<()> {
     let catalog_path = root.join("influxdata/iox/catalog/v1");
     let idpe_path = root.join("com/github/influxdata/idpe/storage/read");
     let management_path = root.join("influxdata/iox/management/v1");
+    let router_path = root.join("influxdata/iox/router/v1");
     let storage_path = root.join("influxdata/platform/storage");
     let write_path = root.join("influxdata/iox/write/v1");
 
@@ -40,7 +42,6 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("jobs.proto"),
         management_path.join("partition.proto"),
         management_path.join("partition_template.proto"),
-        management_path.join("router.proto"),
         management_path.join("server_config.proto"),
         management_path.join("service.proto"),
         management_path.join("shard.proto"),
@@ -50,6 +51,8 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         root.join("google/rpc/status.proto"),
         root.join("grpc/health/v1/service.proto"),
         root.join("influxdata/pbdata/v1/influxdb_pb_data_protocol.proto"),
+        router_path.join("router.proto"),
+        router_path.join("service.proto"),
         storage_path.join("predicate.proto"),
         storage_path.join("service.proto"),
         storage_path.join("storage_common.proto"),
