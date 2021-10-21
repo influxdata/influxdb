@@ -992,6 +992,8 @@ jobs:
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace
       - run:
           name: Create RAM disk
           command: |
@@ -1010,6 +1012,8 @@ jobs:
           root: .
           paths:
             - dist/influxd_linux_amd64/influxd
+            - etc/litmus_success_notify.sh
+            - etc/litmus_fail_notify.sh
 
   #################################
   ### e2e/integration test jobs ###
