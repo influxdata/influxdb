@@ -144,7 +144,7 @@ func TestMonitor_StoreStatistics(t *testing.T) {
 	defer s.Close()
 	defer cancel()
 
-	timer := time.NewTimer(100 * time.Millisecond)
+	timer := time.NewTimer(5 * time.Second)
 	select {
 	case points := <-ch:
 		timer.Stop()
@@ -345,7 +345,7 @@ func TestMonitor_Expvar(t *testing.T) {
 	defer cancel()
 
 	hostname, _ := os.Hostname()
-	timer := time.NewTimer(100 * time.Millisecond)
+	timer := time.NewTimer(5 * time.Second)
 	select {
 	case points := <-ch:
 		timer.Stop()
