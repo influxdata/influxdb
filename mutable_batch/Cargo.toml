@@ -16,3 +16,4 @@ itertools = "0.10"
 
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }
+rand = "0.8"

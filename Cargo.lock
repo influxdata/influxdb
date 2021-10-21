@@ -2205,6 +2205,7 @@ dependencies = [
  "entry",
  "hashbrown",
  "itertools",
+ "rand",
  "schema",
  "snafu",
 ]

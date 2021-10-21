@@ -26,6 +26,7 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::ops::Range;
 
 pub mod column;
+pub mod filter;
 pub mod writer;
 
 #[allow(missing_docs)]
