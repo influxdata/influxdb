@@ -279,7 +279,7 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter taskmodel.T
 		if filter.Type != nil && *filter.Type == taskmodel.TaskBasicType {
 			task = &basicKvTask{}
 		} else {
-			task =  &kvTask{}
+			task = &kvTask{}
 		}
 		if err := json.Unmarshal(v, task); err != nil {
 			return nil, 0, taskmodel.ErrInternalTaskServiceError(err)
@@ -478,7 +478,7 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter taskmodel.Task
 		if filter.Type != nil && *filter.Type == taskmodel.TaskBasicType {
 			task = &basicKvTask{}
 		} else {
-			task =  &kvTask{}
+			task = &kvTask{}
 		}
 		if err := json.Unmarshal(v, task); err != nil {
 			return nil, 0, taskmodel.ErrInternalTaskServiceError(err)
