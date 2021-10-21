@@ -24,7 +24,6 @@ This release adds an embedded SQLite database for storing metadata required by t
 
 ### Features
 
-1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells
 1. [21218](https://github.com/influxdata/influxdb/pull/21218): Add the properties of a static legend for line graphs and band plots
 1. [21367](https://github.com/influxdata/influxdb/pull/21367): List users via the API now supports pagination
 1. [21543](https://github.com/influxdata/influxdb/pull/21543): Added `influxd` configuration flag `--sqlite-path` for specifying a user-defined path to the SQLite database file
@@ -65,9 +64,7 @@ This release adds an embedded SQLite database for storing metadata required by t
 ### Bug Fixes
 
 1. [21648](https://github.com/influxdata/influxdb/pull/21648): Change static legend's `hide` to `show` to let users decide if they want it
-1. [22442](https://github.com/influxdata/influxdb/pull/22442): Detect noninteractive prompt when displaying warning in `buildtsi`
-1. [22458](https://github.com/influxdata/influxdb/pull/22458): Ensure files are closed before they are deleted or moved in `deletetsm`
-1. [22448](https://github.com/influxdata/influxdb/pull/22448): More expressive errors
+1. [22448](https://github.com/influxdata/influxdb/pull/22448): Log API errors to server logs and tell clients to check the server logs for the error message
 1. [22545](https://github.com/influxdata/influxdb/pull/22545): Sync series segment to disk after writing
 1. [22604](https://github.com/influxdata/influxdb/pull/22604): Do not allow shard creation to create overlapping shards
 1. [22650](https://github.com/influxdata/influxdb/pull/22650): Don't drop shard-group durations when upgrading DBs
