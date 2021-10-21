@@ -1493,7 +1493,7 @@ struct FieldExpr<'a> {
 // applied to the column via `CASE` statements.
 //
 // TODO(edd): correctly support multiple `_value` expressions. Right now they
-// are OR'd together, which makes sense for all operators expect `_value != xyz`.
+// are OR'd together, which makes sense for equality operators like `_value == xyz`.
 fn filtered_fields_iter<'a>(
     schema: &'a Schema,
     predicate: &'a Predicate,
