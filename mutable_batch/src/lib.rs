@@ -27,6 +27,7 @@ use std::ops::Range;
 
 pub mod column;
 pub mod filter;
+pub mod partition;
 pub mod writer;
 
 #[allow(missing_docs)]
