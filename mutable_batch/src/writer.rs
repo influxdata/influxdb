@@ -42,6 +42,8 @@ pub struct Writer<'a> {
     statistics: Vec<(usize, Statistics)>,
     /// The initial number of rows in the MutableBatch
     initial_rows: usize,
+    /// The initial number of columns in the MutableBatch
+    initial_cols: usize,
     /// The number of rows to insert
     to_insert: usize,
     /// If this Writer committed successfully
@@ -54,10 +56,12 @@ impl<'a> Writer<'a> {
     /// If the writer is dropped without calling commit all changes will be rolled back
     pub fn new(batch: &'a mut MutableBatch, to_insert: usize) -> Self {
         let initial_rows = batch.rows();
+        let initial_cols = batch.columns.len();
         Self {
             batch,
             statistics: vec![],
             initial_rows,
+            initial_cols,
             to_insert,
             success: false,
         }
@@ -743,6 +747,13 @@ impl<'a> Drop for Writer<'a> {
     fn drop(&mut self) {
         if !self.success {
             let initial_rows = self.initial_rows;
+            let initial_cols = self.initial_cols;
+
+            if self.batch.columns.len() != initial_cols {
+                self.batch.columns.truncate(initial_cols);
+                self.batch.column_names.retain(|_, v| *v < initial_cols)
+            }
+
             for col in &mut self.batch.columns {
                 col.valid.truncate(initial_rows);
                 match &mut col.data {
