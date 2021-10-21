@@ -1,21 +1,16 @@
 syntax = "proto3";
 package binary;
-
-import "gogoproto/gogo.proto";
-
-option (gogoproto.goproto_getters_all) = false;
+option go_package = ".;binary";
 
 message Header {
   enum Version {
-    option (gogoproto.goproto_enum_prefix) = false;
-
-    VERSION_0 = 0 [(gogoproto.enumvalue_customname) = "Version0"];
+    Version0 = 0;
   }
 
   Version version = 1;
   string database = 2;
   string retention_policy = 3;
-  int64 shard_duration = 4 [(gogoproto.stdduration) = true];
+  int64 shard_duration = 4;
 }
 
 message BucketHeader {
@@ -53,13 +48,11 @@ message StringPoints {
 }
 
 enum FieldType {
-  option (gogoproto.goproto_enum_prefix) = false;
-
-  FLOAT = 0 [(gogoproto.enumvalue_customname) = "FloatFieldType"];
-  INTEGER = 1 [(gogoproto.enumvalue_customname) = "IntegerFieldType"];
-  UNSIGNED = 2 [(gogoproto.enumvalue_customname) = "UnsignedFieldType"];
-  BOOLEAN = 3 [(gogoproto.enumvalue_customname) = "BooleanFieldType"];
-  STRING = 4 [(gogoproto.enumvalue_customname) = "StringFieldType"];
+  FloatFieldType = 0;
+  IntegerFieldType = 1;
+  UnsignedFieldType = 2;
+  BooleanFieldType = 3;
+  StringFieldType = 4;
 }
 
 message SeriesHeader {

@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
+	"google.golang.org/protobuf/proto"
 )
 
 type Writer struct {
@@ -105,10 +106,10 @@ func (w *Writer) writeHeader() {
 	w.write(Magic[:])
 
 	h := Header{
-		Version:         Version0,
+		Version:         Header_Version0,
 		Database:        w.db,
 		RetentionPolicy: w.rp,
-		ShardDuration:   w.duration,
+		ShardDuration:   int64(w.duration),
 	}
 	w.writeTypeMessage(HeaderType, &h)
 }
@@ -148,24 +149,16 @@ func (w *Writer) write(p []byte) {
 	_, w.err = w.w.Write(p)
 }
 
-func (w *Writer) writeTypeMessage(typ MessageType, msg message) {
+func (w *Writer) writeTypeMessage(typ MessageType, msg proto.Message) {
 	if w.err != nil {
 		return
 	}
 
-	// ensure size
-	n := msg.Size()
-	if n > cap(w.buf) {
-		w.buf = make([]byte, n)
-	} else {
-		w.buf = w.buf[:n]
-	}
-
-	_, w.err = msg.MarshalTo(w.buf)
-	w.writeTypeBytes(typ, w.buf)
+	w.buf, w.err = proto.MarshalOptions{}.MarshalAppend(w.buf[0:0], msg)
+	w.writeTypeBytes(typ)
 }
 
-func (w *Writer) writeTypeBytes(typ MessageType, b []byte) {
+func (w *Writer) writeTypeBytes(typ MessageType) {
 	if w.err != nil {
 		return
 	}
@@ -216,7 +209,7 @@ func (bw *bucketWriter) EndSeries() {
 		panic(fmt.Sprintf("writer state: got=%v, exp=%v,%v", bw.w.state, writeSeriesHeader, writePoints))
 	}
 	if bw.w.state == writePoints {
-		bw.w.writeSeriesFooter(IntegerFieldType, bw.n)
+		bw.w.writeSeriesFooter(FieldType_IntegerFieldType, bw.n)
 	}
 	bw.w.state = writeSeries
 }
@@ -227,7 +220,7 @@ func (bw *bucketWriter) WriteIntegerCursor(cur tsdb.IntegerArrayCursor) {
 	}
 
 	if bw.w.state == writeSeriesHeader {
-		bw.w.writeSeriesHeader(bw.key, bw.field, IntegerFieldType)
+		bw.w.writeSeriesHeader(bw.key, bw.field, FieldType_IntegerFieldType)
 	}
 
 	if bw.w.state != writePoints {
@@ -254,7 +247,7 @@ func (bw *bucketWriter) WriteFloatCursor(cur tsdb.FloatArrayCursor) {
 	}
 
 	if bw.w.state == writeSeriesHeader {
-		bw.w.writeSeriesHeader(bw.key, bw.field, FloatFieldType)
+		bw.w.writeSeriesHeader(bw.key, bw.field, FieldType_FloatFieldType)
 	}
 
 	if bw.w.state != writePoints {
@@ -281,7 +274,7 @@ func (bw *bucketWriter) WriteUnsignedCursor(cur tsdb.UnsignedArrayCursor) {
 	}
 
 	if bw.w.state == writeSeriesHeader {
-		bw.w.writeSeriesHeader(bw.key, bw.field, UnsignedFieldType)
+		bw.w.writeSeriesHeader(bw.key, bw.field, FieldType_UnsignedFieldType)
 	}
 
 	if bw.w.state != writePoints {
@@ -308,7 +301,7 @@ func (bw *bucketWriter) WriteBooleanCursor(cur tsdb.BooleanArrayCursor) {
 	}
 
 	if bw.w.state == writeSeriesHeader {
-		bw.w.writeSeriesHeader(bw.key, bw.field, BooleanFieldType)
+		bw.w.writeSeriesHeader(bw.key, bw.field, FieldType_BooleanFieldType)
 	}
 
 	if bw.w.state != writePoints {
@@ -335,7 +328,7 @@ func (bw *bucketWriter) WriteStringCursor(cur tsdb.StringArrayCursor) {
 	}
 
 	if bw.w.state == writeSeriesHeader {
-		bw.w.writeSeriesHeader(bw.key, bw.field, StringFieldType)
+		bw.w.writeSeriesHeader(bw.key, bw.field, FieldType_StringFieldType)
 	}
 
 	if bw.w.state != writePoints {
