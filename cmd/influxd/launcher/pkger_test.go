@@ -549,6 +549,13 @@ func TestLauncher_Pkger(t *testing.T) {
 				})
 				defer cleanup()
 
+				// Wait for time.Now() to move ahead of the stack's latest update time.
+				// We do this so that on Windows (where time.Now() is updated relatively slowly)
+				// it doesn't appear that the stack was updated at the same time it was created.
+				for now := time.Now(); now.Equal(stack.LatestEvent().UpdatedAt); now = time.Now() {
+					time.Sleep(time.Millisecond)
+				}
+
 				assertStack := func(t *testing.T, st pkger.Stack) {
 					t.Helper()
 					assert.Equal(t, stack.ID, st.ID)
