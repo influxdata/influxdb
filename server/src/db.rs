@@ -1424,22 +1424,22 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        convert::TryFrom,
-        iter::Iterator,
-        num::{NonZeroU32, NonZeroU64, NonZeroUsize},
-        ops::Deref,
-        str,
-        time::{Duration, Instant},
+    use super::*;
+    use crate::{
+        assert_store_sequenced_entry_failures,
+        db::{
+            catalog::chunk::ChunkStage,
+            test_helpers::{
+                mutable_chunk_ids, parquet_file_chunk_ids, read_buffer_chunk_ids, run_query,
+                try_write_lp, write_lp,
+            },
+        },
+        utils::{make_db, make_db_time, TestDb},
     };
-
-    use arrow::record_batch::RecordBatch;
-    use bytes::Bytes;
-    use futures::{stream, StreamExt, TryStreamExt};
-    use tokio_util::sync::CancellationToken;
-
     use ::test_helpers::assert_contains;
+    use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
+    use bytes::Bytes;
     use data_types::{
         chunk_metadata::{ChunkAddr, ChunkStorage},
         database_rules::{LifecycleRules, PartitionTemplate, TemplatePart},
@@ -1447,6 +1447,7 @@ mod tests {
         write_summary::TimestampSummary,
     };
     use entry::test_helpers::lp_to_entry;
+    use futures::{stream, StreamExt, TryStreamExt};
     use iox_object_store::ParquetFilePath;
     use metric::{Attributes, CumulativeGauge, Metric, Observation};
     use object_store::ObjectStore;
@@ -1459,25 +1460,19 @@ mod tests {
     use query::{QueryChunk, QueryDatabase};
     use schema::selection::Selection;
     use schema::Schema;
+    use std::{
+        convert::TryFrom,
+        iter::Iterator,
+        num::{NonZeroU32, NonZeroU64, NonZeroUsize},
+        ops::Deref,
+        str,
+        time::{Duration, Instant},
+    };
     use time::Time;
+    use tokio_util::sync::CancellationToken;
     use write_buffer::mock::{
         MockBufferForWriting, MockBufferForWritingThatAlwaysErrors, MockBufferSharedState,
     };
-
-    use crate::{
-        assert_store_sequenced_entry_failures,
-        db::{
-            catalog::chunk::ChunkStage,
-            test_helpers::{run_query, try_write_lp, write_lp},
-        },
-        utils::{make_db, TestDb},
-    };
-    use crate::{
-        db::test_helpers::{mutable_chunk_ids, parquet_file_chunk_ids, read_buffer_chunk_ids},
-        utils::make_db_time,
-    };
-
-    use super::*;
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = TestError> = std::result::Result<T, E>;
@@ -2188,7 +2183,6 @@ mod tests {
         let object_store = Arc::new(ObjectStore::new_in_memory());
         let time = Arc::new(time::MockProvider::new(Time::from_timestamp(11, 22)));
 
-        // Create a DB given a server id, an object store and a db name
         let test_db = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
                 late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
@@ -2198,7 +2192,6 @@ mod tests {
             .time_provider(Arc::<time::MockProvider>::clone(&time))
             .build()
             .await;
-
         let db = test_db.db;
 
         // Write some line protocols in Mutable buffer of the DB
@@ -2289,7 +2282,6 @@ mod tests {
         let object_store = Arc::new(ObjectStore::new_in_memory());
         let time = Arc::new(time::MockProvider::new(Time::from_timestamp(11, 22)));
 
-        // Create a DB given a server id, an object store and a db name
         let test_db = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
                 late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
@@ -3225,16 +3217,15 @@ mod tests {
 
         // ==================== do: create DB ====================
         // Create a DB given a server id, an object store and a db name
-        let test_db = TestDb::builder()
+        let test_db_builder = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
                 late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
                 ..Default::default()
             })
             .object_store(Arc::clone(&object_store))
             .server_id(server_id)
-            .db_name(db_name)
-            .build()
-            .await;
+            .db_name(db_name);
+        let test_db = test_db_builder.build().await;
         let db = test_db.db;
 
         // ==================== check: empty catalog created ====================
@@ -3288,12 +3279,7 @@ mod tests {
         // ==================== do: re-load DB ====================
         // Re-create database with same store, serverID, and DB name
         drop(db);
-        let test_db = TestDb::builder()
-            .object_store(Arc::clone(&object_store))
-            .server_id(server_id)
-            .db_name(db_name)
-            .build()
-            .await;
+        let test_db = test_db_builder.build().await;
         let db = Arc::new(test_db.db);
 
         // ==================== check: DB state ====================
@@ -3327,7 +3313,6 @@ mod tests {
         let object_store = Arc::new(ObjectStore::new_in_memory());
 
         // ==================== do: create DB ====================
-        // Create a DB given a server id, an object store and a db name
         let test_db = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
                 late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
@@ -3424,7 +3409,7 @@ mod tests {
 
         // ==================== do: create DB ====================
         // Create a DB given a server id, an object store and a db name
-        let test_db = TestDb::builder()
+        let test_db_builder = TestDb::builder()
             .object_store(Arc::clone(&object_store))
             .server_id(server_id)
             .db_name(db_name)
@@ -3432,9 +3417,8 @@ mod tests {
                 catalog_transactions_until_checkpoint: NonZeroU64::try_from(2).unwrap(),
                 late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
                 ..Default::default()
-            })
-            .build()
-            .await;
+            });
+        let test_db = test_db_builder.build().await;
         let db = Arc::new(test_db.db);
 
         // ==================== do: write data to parquet ====================
@@ -3469,12 +3453,7 @@ mod tests {
 
         // ==================== do: re-load DB ====================
         // Re-create database with same store, serverID, and DB name
-        let test_db = TestDb::builder()
-            .object_store(Arc::clone(&object_store))
-            .server_id(server_id)
-            .db_name(db_name)
-            .build()
-            .await;
+        let test_db = test_db_builder.build().await;
         let db = Arc::new(test_db.db);
 
         // ==================== check: DB state ====================
@@ -3561,7 +3540,8 @@ mod tests {
 
     #[tokio::test]
     async fn table_wide_schema_enforcement() {
-        // need a table with a partition template that uses a tag column, so that we can easily write to different partitions
+        // need a table with a partition template that uses a tag column, so that we can easily
+        // write to different partitions
         let test_db = TestDb::builder()
             .partition_template(PartitionTemplate {
                 parts: vec![TemplatePart::Column("tag_partition_by".to_string())],
@@ -3651,9 +3631,9 @@ mod tests {
 
     #[tokio::test]
     async fn drop_unpersisted_chunk_on_persisted_db() {
-        // We don't support dropping unpersisted chunks from a persisted DB because we would forget the write buffer
-        // progress (partition checkpoints are only created when new parquet files are stored).
-        // See https://github.com/influxdata/influxdb_iox/issues/2291
+        // We don't support dropping unpersisted chunks from a persisted DB because we would forget
+        // the write buffer progress (partition checkpoints are only created when new parquet files
+        // are stored). See https://github.com/influxdata/influxdb_iox/issues/2291
         let test_db = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
                 persist: true,
