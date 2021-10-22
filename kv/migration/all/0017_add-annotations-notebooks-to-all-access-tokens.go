@@ -93,13 +93,16 @@ func oldAllAccessPerms(orgId platform.ID, userId platform.ID) []influxdb.Permiss
 	perms := make([]influxdb.Permission, 0, len(opPerms)-1) // -1 because write-org permission isn't included.
 	for _, p := range opPerms {
 		if p.Resource.Type == influxdb.OrgsResourceType {
+			// All-access grants read-only access to the enclosing org.
 			if p.Action == influxdb.WriteAction {
 				continue
 			}
 			p.Resource.ID = &orgId
 		} else if p.Resource.Type == influxdb.UsersResourceType {
+			// It grants read and write access to the associated user.
 			p.Resource.ID = &userId
 		} else {
+			// It grants read and write access to all other resources in the enclosing org.
 			p.Resource.OrgID = &orgId
 		}
 		perms = append(perms, p)
