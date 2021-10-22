@@ -35,7 +35,7 @@ pub enum Error {
     NoData { bucket: String, location: String },
 
     #[snafu(display(
-        "Unable to DELETE data. Bucket: {}, Location: {}, Error: {}",
+        "Unable to DELETE data. Bucket: {}, Location: {}, Error: {:?}",
         bucket,
         location,
         source,
@@ -47,7 +47,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Unable to GET data. Bucket: {}, Location: {}, Error: {}",
+        "Unable to GET data. Bucket: {}, Location: {}, Error: {:?}",
         bucket,
         location,
         source,
@@ -59,7 +59,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Unable to GET part of the data. Bucket: {}, Location: {}, Error: {}",
+        "Unable to GET part of the data. Bucket: {}, Location: {}, Error: {:?}",
         bucket,
         location,
         source,
@@ -71,7 +71,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Unable to PUT data. Bucket: {}, Location: {}, Error: {}",
+        "Unable to PUT data. Bucket: {}, Location: {}, Error: {:?}",
         bucket,
         location,
         source,
@@ -82,14 +82,14 @@ pub enum Error {
         location: String,
     },
 
-    #[snafu(display("Unable to list data. Bucket: {}, Error: {}", bucket, source))]
+    #[snafu(display("Unable to list data. Bucket: {}, Error: {:?}", bucket, source))]
     UnableToListData {
         source: rusoto_core::RusotoError<rusoto_s3::ListObjectsV2Error>,
         bucket: String,
     },
 
     #[snafu(display(
-        "Unable to parse last modified date. Bucket: {}, Error: {}",
+        "Unable to parse last modified date. Bucket: {}, Error: {:?}",
         bucket,
         source
     ))]
@@ -98,7 +98,7 @@ pub enum Error {
         bucket: String,
     },
 
-    #[snafu(display("Unable to buffer data into temporary file, Error: {}", source))]
+    #[snafu(display("Unable to buffer data into temporary file, Error: {:?}", source))]
     UnableToBufferStream { source: std::io::Error },
 
     #[snafu(display(
