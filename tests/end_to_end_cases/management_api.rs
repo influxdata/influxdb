@@ -237,15 +237,6 @@ async fn test_list_databases() {
         assert!(rules.lifecycle_rules.is_some());
     }
 
-    // validate that neither database appears in the list of deleted databases
-    let deleted_databases = client
-        .list_deleted_databases()
-        .await
-        .expect("list deleted databases failed");
-    let names: Vec<_> = deleted_databases.into_iter().map(|db| db.db_name).collect();
-    assert!(!names.contains(&name1));
-    assert!(!names.contains(&name2));
-
     // now fetch without defaults, and neither should have their rules filled in
     let omit_defaults = true;
     let databases: Vec<_> = client
@@ -299,20 +290,6 @@ async fn test_list_databases() {
     let names: Vec<_> = databases.iter().map(|rules| rules.name.clone()).collect();
     assert!(!dbg!(&names).contains(&name1));
     assert!(dbg!(&names).contains(&name2));
-
-    // The deleted database should be included in the list of deleted databases
-    let deleted_databases = client
-        .list_deleted_databases()
-        .await
-        .expect("list deleted databases failed");
-
-    assert!(
-        deleted_databases
-            .iter()
-            .any(|db| db.db_name == name1 && db.generation_id == 0),
-        "could not find expected database in {:?}",
-        deleted_databases
-    );
 }
 
 #[tokio::test]

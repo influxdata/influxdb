@@ -793,23 +793,7 @@ where
         Ok(())
     }
 
-    /// List deleted databases in object storage.
-    pub async fn list_deleted_databases(&self) -> Result<Vec<DetailedDatabase>> {
-        let server_id = {
-            let state = self.shared.state.read();
-            let initialized = state.initialized()?;
-            initialized.server_id
-        };
-
-        Ok(IoxObjectStore::list_deleted_databases(
-            self.shared.application.object_store(),
-            server_id,
-        )
-        .await
-        .context(ListDeletedDatabases)?)
-    }
-
-    /// List all databases, active and deleted, in object storage, including their generation IDs.
+    /// List this server's databases in object storage, including their generation IDs.
     pub async fn list_detailed_databases(&self) -> Result<Vec<DetailedDatabase>> {
         let server_id = {
             let state = self.shared.state.read();
