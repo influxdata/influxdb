@@ -867,7 +867,7 @@ impl DbSetup for OneMeasurementManyFieldsWithDelete {
             "h2o,tag1=foo,tag2=bar field1=70.3,field5=false 3000",
         ];
 
-        // pred: delete from h2o where 1000 <= time <= 1000
+        // pred: delete from h2o where 1000 <= time <= 1100
         // 1 rows of h2o with timestamp 1000 will be deleted which means
         // field4 no longer available
         let delete_table_name = "h2o";
