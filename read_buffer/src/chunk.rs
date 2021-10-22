@@ -873,7 +873,7 @@ mod test {
                     .collect::<DictionaryArray<Int32Type>>(),
             ),
             Arc::new(
-                (vec![None, None, None] as Vec<Option<&str>>)
+                (vec![Some("host a"), None, Some("host b")] as Vec<Option<&str>>)
                     .into_iter()
                     .collect::<DictionaryArray<Int32Type>>(),
             ),
@@ -881,7 +881,11 @@ mod test {
             Arc::new(UInt64Array::from(vec![1000, 3000, 5000])),
             Arc::new(Int64Array::from(vec![1000, -1000, 4000])),
             Arc::new(BooleanArray::from(vec![true, true, false])),
-            Arc::new(StringArray::from(vec![Some("msg a"), Some("msg b"), None])),
+            Arc::new(StringArray::from(vec![
+                Some("msg a"),
+                Some("msg b"),
+                Some("msg b"),
+            ])),
             Arc::new(TimestampNanosecondArray::from_vec(
                 vec![11111111, 222222, 3333],
                 None,
@@ -925,7 +929,13 @@ mod test {
             ColumnSummary {
                 name: "host".into(),
                 influxdb_type: Some(InfluxDbType::Tag),
-                stats: Statistics::String(StatValues::new_all_null(3)),
+                stats: Statistics::String(StatValues {
+                    min: Some("host a".into()),
+                    max: Some("host b".into()),
+                    total_count: 3,
+                    null_count: 1,
+                    distinct_count: Some(NonZeroU64::new(3).unwrap()),
+                }),
             },
             ColumnSummary {
                 name: "icounter".into(),
@@ -939,8 +949,8 @@ mod test {
                     min: Some("msg a".into()),
                     max: Some("msg b".into()),
                     total_count: 3,
-                    null_count: 1,
-                    distinct_count: Some(NonZeroU64::new(3).unwrap()),
+                    null_count: 0,
+                    distinct_count: Some(NonZeroU64::new(2).unwrap()),
                 }),
             },
             ColumnSummary {
