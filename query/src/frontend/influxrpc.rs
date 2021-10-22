@@ -1893,11 +1893,8 @@ impl<'a> ExprRewriter for FieldColumnRewriter<'a> {
                         self.field_projections.insert(name.to_owned());
                         return Ok(Expr::Literal(ScalarValue::Boolean(Some(true))));
                     }
-
-                    expr
-                } else {
-                    expr
                 }
+                expr
             }
             _ => expr,
         })
