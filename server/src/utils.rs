@@ -82,13 +82,12 @@ impl TestDbBuilder {
 
         let time_provider = Arc::clone(&self.time_provider);
 
-        let iox_object_store =
-            IoxObjectStore::find_existing(Arc::clone(&object_store), server_id, &db_name)
-                .await
-                .unwrap();
+        let iox_object_store = IoxObjectStore::load(Arc::clone(&object_store), server_id, &db_name)
+            .await
+            .unwrap();
         let iox_object_store = match iox_object_store {
             Some(ios) => ios,
-            None => IoxObjectStore::new(Arc::clone(&object_store), server_id, &db_name)
+            None => IoxObjectStore::create(Arc::clone(&object_store), server_id, &db_name)
                 .await
                 .unwrap(),
         };

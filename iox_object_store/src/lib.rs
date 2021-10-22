@@ -254,7 +254,7 @@ impl IoxObjectStore {
     ///
     /// Caller *MUST* ensure there is at most 1 concurrent call of this function with the same
     /// parameters; this function does *NOT* do any locking.
-    pub async fn new(
+    pub async fn create(
         inner: Arc<ObjectStore>,
         server_id: ServerId,
         database_name: &DatabaseName<'static>,
@@ -291,7 +291,7 @@ impl IoxObjectStore {
 
     /// Look in object storage for an existing database with this name and a non-deleted
     /// generation
-    pub async fn find_existing(
+    pub async fn load(
         inner: Arc<ObjectStore>,
         server_id: ServerId,
         database_name: &DatabaseName<'static>,
@@ -303,7 +303,7 @@ impl IoxObjectStore {
 
     /// Look in object storage for an existing database with this name and the given root path
     /// that was retrieved from a server config
-    pub async fn find_at_root_path(
+    pub async fn load_at_root_path(
         inner: Arc<ObjectStore>,
         server_id: ServerId,
         database_name: &DatabaseName<'static>,
@@ -694,7 +694,7 @@ mod tests {
         let database_name = DatabaseName::new("clouds").unwrap();
         let database_name_str = database_name.as_str();
         let iox_object_store =
-            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
+            IoxObjectStore::create(Arc::clone(&object_store), server_id, &database_name)
                 .await
                 .unwrap();
         let uuid = Uuid::new_v4();
@@ -792,7 +792,7 @@ mod tests {
         let database_name = DatabaseName::new("clouds").unwrap();
         let database_name_str = database_name.as_str();
         let iox_object_store =
-            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
+            IoxObjectStore::create(Arc::clone(&object_store), server_id, &database_name)
                 .await
                 .unwrap();
         let uuid = Uuid::new_v4();
@@ -867,7 +867,7 @@ mod tests {
         let database_name = DatabaseName::new("clouds").unwrap();
         let rules_path = make_db_rules_path(&object_store, server_id, "clouds");
         let iox_object_store =
-            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
+            IoxObjectStore::create(Arc::clone(&object_store), server_id, &database_name)
                 .await
                 .unwrap();
 
@@ -930,7 +930,7 @@ mod tests {
         let database_name = DatabaseName::new("clouds").unwrap();
         let owner_path = make_owner_path(&object_store, server_id, "clouds");
         let iox_object_store =
-            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
+            IoxObjectStore::create(Arc::clone(&object_store), server_id, &database_name)
                 .await
                 .unwrap();
 
@@ -972,7 +972,7 @@ mod tests {
         let server_id = make_server_id();
         let database_name = DatabaseName::new("clouds").unwrap();
         let iox_object_store =
-            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
+            IoxObjectStore::create(Arc::clone(&object_store), server_id, &database_name)
                 .await
                 .unwrap();
 
@@ -1007,7 +1007,7 @@ mod tests {
         let root_path = IoxObjectStore::root_path_for(&object_store, server_id, &database_name);
 
         let iox_object_store =
-            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
+            IoxObjectStore::create(Arc::clone(&object_store), server_id, &database_name)
                 .await
                 .unwrap();
 
@@ -1038,7 +1038,7 @@ mod tests {
         assert!(!generations[0].is_active());
 
         let iox_object_store =
-            IoxObjectStore::new(Arc::clone(&object_store), server_id, &database_name)
+            IoxObjectStore::create(Arc::clone(&object_store), server_id, &database_name)
                 .await
                 .unwrap();
 
@@ -1069,7 +1069,7 @@ mod tests {
         database_name: &DatabaseName<'static>,
     ) -> IoxObjectStore {
         let iox_object_store =
-            IoxObjectStore::new(Arc::clone(&object_store), server_id, database_name)
+            IoxObjectStore::create(Arc::clone(&object_store), server_id, database_name)
                 .await
                 .unwrap();
 
@@ -1281,7 +1281,7 @@ mod tests {
 
         // Simulate server restarting and reading the server config to construct iox object stores,
         // the database files in object storage should be found in the same root
-        let restarted_iox_store = IoxObjectStore::find_at_root_path(
+        let restarted_iox_store = IoxObjectStore::load_at_root_path(
             Arc::clone(&object_store),
             server_id,
             &db,

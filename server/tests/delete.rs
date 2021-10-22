@@ -200,7 +200,7 @@ async fn delete_predicate_preservation() {
 
     // ==================== do: remove checkpoint files ====================
     let iox_object_store =
-        IoxObjectStore::find_existing(Arc::clone(application.object_store()), server_id, &db_name)
+        IoxObjectStore::load(Arc::clone(application.object_store()), server_id, &db_name)
             .await
             .unwrap()
             .unwrap();

@@ -857,7 +857,7 @@ pub async fn make_iox_object_store() -> Arc<IoxObjectStore> {
     let server_id = make_server_id();
     let database_name = DatabaseName::new("db1").unwrap();
     Arc::new(
-        IoxObjectStore::new(
+        IoxObjectStore::create(
             Arc::new(ObjectStore::new_in_memory()),
             server_id,
             &database_name,

@@ -323,7 +323,7 @@ mod tests {
         let server_id = ServerId::try_from(1).unwrap();
         let db_name = DatabaseName::new("preserved_catalog_test").unwrap();
         let iox_object_store = Arc::new(
-            IoxObjectStore::new(object_store, server_id, &db_name)
+            IoxObjectStore::create(object_store, server_id, &db_name)
                 .await
                 .unwrap(),
         );

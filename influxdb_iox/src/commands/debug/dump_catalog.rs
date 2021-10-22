@@ -108,7 +108,7 @@ pub async fn command(config: Config) -> Result<()> {
     let database_name = DatabaseName::try_from(config.db_name).context(InvalidDbName)?;
     let server_id = config.server_id_config.server_id.context(NoServerId)?;
     let iox_object_store =
-        IoxObjectStore::find_existing(Arc::new(object_store), server_id, &database_name)
+        IoxObjectStore::load(Arc::new(object_store), server_id, &database_name)
             .await
             .context(IoxObjectStoreFailure)?
             .context(NoIoxObjectStore)?;

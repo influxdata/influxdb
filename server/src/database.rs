@@ -200,7 +200,7 @@ impl Database {
     ) -> Result<String, InitError> {
         let db_name = provided_rules.db_name();
         let iox_object_store = Arc::new(
-            match IoxObjectStore::new(Arc::clone(application.object_store()), server_id, db_name)
+            match IoxObjectStore::create(Arc::clone(application.object_store()), server_id, db_name)
                 .await
             {
                 Ok(ios) => ios,
@@ -1145,7 +1145,7 @@ impl DatabaseStateKnown {
         &self,
         shared: &DatabaseShared,
     ) -> Result<DatabaseStateDatabaseObjectStoreFound, InitError> {
-        let iox_object_store = IoxObjectStore::find_at_root_path(
+        let iox_object_store = IoxObjectStore::load_at_root_path(
             Arc::clone(shared.application.object_store()),
             shared.config.server_id,
             &shared.config.name,

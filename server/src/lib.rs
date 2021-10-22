@@ -2544,7 +2544,7 @@ mod tests {
             Error::DatabaseNotFound { .. }
         ));
         let non_existing_iox_object_store = Arc::new(
-            IoxObjectStore::new(
+            IoxObjectStore::create(
                 Arc::clone(application.object_store()),
                 server_id,
                 &db_name_non_existing,
@@ -2654,7 +2654,7 @@ mod tests {
         server.wait_for_init().await.unwrap();
 
         let iox_object_store = Arc::new(
-            IoxObjectStore::new(Arc::clone(application.object_store()), server_id, &db_name)
+            IoxObjectStore::create(Arc::clone(application.object_store()), server_id, &db_name)
                 .await
                 .unwrap(),
         );
