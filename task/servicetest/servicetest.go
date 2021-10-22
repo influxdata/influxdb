@@ -63,6 +63,10 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory, testCategory ...s
 					testTaskCRUD(t, sys)
 				})
 
+				t.Run("FindTasks basic", func(t *testing.T) {
+					testTaskFindTasksBasic(t, sys)
+				})
+
 				t.Run("FindTasks paging", func(t *testing.T) {
 					testTaskFindTasksPaging(t, sys)
 				})
@@ -493,6 +497,43 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	// Task should not be returned.
 	if _, err := sys.TaskService.FindTaskByID(sys.Ctx, origID); err != taskmodel.ErrTaskNotFound {
 		t.Fatalf("expected %v, got %v", taskmodel.ErrTaskNotFound, err)
+	}
+}
+
+func testTaskFindTasksBasic(t *testing.T, sys *System) {
+	script := `option task = {name: "Task %03d", cron: "* * * * *", concurrency: 100, offset: 10s}
+
+from(bucket: "b") 
+    |> to(bucket: "two", orgID: "000000000000000")`
+
+	cr := creds(t, sys)
+
+	tc := taskmodel.TaskCreate{
+		OrganizationID: cr.OrgID,
+		OwnerID:        cr.UserID,
+		Type:           taskmodel.TaskSystemType,
+	}
+
+	authorizedCtx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
+
+	created := make([]*taskmodel.Task, 50)
+	for i := 0; i < 50; i++ {
+		tc.Flux = fmt.Sprintf(script, i/10)
+		tc.Description = fmt.Sprintf("Task %d", i)
+		tsk, err := sys.TaskService.CreateTask(authorizedCtx, tc)
+		require.NoError(t, err)
+		require.True(t, tsk.ID.Valid(), "no task ID set")
+		created[i] = tsk
+	}
+
+	tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{Type: &taskmodel.TaskBasicType})
+	require.NoError(t, err)
+	require.Equal(t, 50, len(tasks))
+
+	// Basic results should exclude query text, but include other metdata like description.
+	for i, tsk := range tasks {
+		require.Empty(t, tsk.Flux)
+		require.Equal(t, fmt.Sprintf("Task %d", i), tsk.Description)
 	}
 }
 

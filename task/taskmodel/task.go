@@ -30,6 +30,8 @@ const (
 var (
 	// TaskSystemType is the type set in tasks' for all crud requests
 	TaskSystemType = "system"
+	// TaskBasicType is short-hand used by the UI to request a minimal subset of system task metadata
+	TaskBasicType = "basic"
 )
 
 // Task is a task. 🎊
