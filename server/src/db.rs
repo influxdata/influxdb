@@ -3277,7 +3277,7 @@ mod tests {
         }
 
         // ==================== do: re-load DB ====================
-        // Re-create database with same store, serverID, and DB name
+        // Re-create database with same store, serverID, UUID, and DB name
         drop(db);
         let test_db = test_db_builder.build().await;
         let db = Arc::new(test_db.db);
@@ -3452,7 +3452,7 @@ mod tests {
         drop(db);
 
         // ==================== do: re-load DB ====================
-        // Re-create database with same store, serverID, and DB name
+        // Re-create database with same store, server ID, UUID, and DB name
         let test_db = test_db_builder.build().await;
         let db = Arc::new(test_db.db);
 

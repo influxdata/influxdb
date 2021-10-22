@@ -921,19 +921,16 @@ async fn initialize_database(shared: &DatabaseShared) {
 /// Errors encountered during initialization of a database
 #[derive(Debug, Snafu)]
 pub enum InitError {
-    #[snafu(display(
-        "error finding active generation directory in object storage: {}",
-        source
-    ))]
+    #[snafu(display("error finding database directory in object storage: {}", source))]
     DatabaseObjectStoreLookup {
         source: iox_object_store::IoxObjectStoreError,
     },
 
-    #[snafu(display("no active generation directory found, not loading"))]
+    #[snafu(display("no active database found in object storage, not loading"))]
     NoActiveDatabase,
 
     #[snafu(display(
-        "Database names in deserialized rules ({}) does not match expected value ({})",
+        "Database name in deserialized rules ({}) does not match expected value ({})",
         actual,
         expected
     ))]
@@ -1400,7 +1397,7 @@ mod tests {
         // Should have failed to load (this isn't important to the test)
         let err = database.wait_for_init().await.unwrap_err();
         assert!(
-            matches!(err.as_ref(), InitError::NoActiveDatabase { .. }),
+            matches!(err.as_ref(), InitError::DatabaseObjectStoreLookup { .. }),
             "got {:?}",
             err
         );
