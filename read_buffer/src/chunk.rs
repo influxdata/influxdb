@@ -495,6 +495,7 @@ mod test {
     use data_types::partition_metadata::{ColumnSummary, InfluxDbType, StatValues, Statistics};
     use metric::{MetricKind, Observation, ObservationSet, RawReporter};
     use schema::builder::SchemaBuilder;
+    use std::iter::FromIterator;
     use std::{num::NonZeroU64, sync::Arc};
 
     // helper to make the `add_remove_tables` test simpler to read.
@@ -854,6 +855,8 @@ mod test {
 
     #[test]
     fn table_summaries() {
+        use std::iter::repeat;
+
         let schema = SchemaBuilder::new()
             .non_null_tag("env")
             .tag("host")
@@ -862,6 +865,11 @@ mod test {
             .non_null_field("icounter", Int64)
             .non_null_field("active", Boolean)
             .non_null_field("msg", Utf8)
+            .field("zf64", Float64)
+            .field("zu64", UInt64)
+            .field("zi64", Int64)
+            .field("zbool", Boolean)
+            .field("zstr", Utf8)
             .timestamp()
             .build()
             .unwrap();
@@ -873,7 +881,7 @@ mod test {
                     .collect::<DictionaryArray<Int32Type>>(),
             ),
             Arc::new(
-                (vec![None, None, None] as Vec<Option<&str>>)
+                (vec![Some("host a"), None, Some("host b")] as Vec<Option<&str>>)
                     .into_iter()
                     .collect::<DictionaryArray<Int32Type>>(),
             ),
@@ -881,7 +889,20 @@ mod test {
             Arc::new(UInt64Array::from(vec![1000, 3000, 5000])),
             Arc::new(Int64Array::from(vec![1000, -1000, 4000])),
             Arc::new(BooleanArray::from(vec![true, true, false])),
-            Arc::new(StringArray::from(vec![Some("msg a"), Some("msg b"), None])),
+            Arc::new(StringArray::from(vec![
+                Some("msg a"),
+                Some("msg b"),
+                Some("msg b"),
+            ])),
+            // all null columns
+            Arc::new(Float64Array::from_iter(repeat(None).take(3))),
+            Arc::new(UInt64Array::from_iter(repeat(None).take(3))),
+            Arc::new(Int64Array::from_iter(repeat(None).take(3))),
+            Arc::new(BooleanArray::from_iter(repeat(None).take(3))),
+            Arc::new(StringArray::from_iter(
+                repeat::<Option<String>>(None).take(3),
+            )),
+            // timestamp column
             Arc::new(TimestampNanosecondArray::from_vec(
                 vec![11111111, 222222, 3333],
                 None,
@@ -925,7 +946,13 @@ mod test {
             ColumnSummary {
                 name: "host".into(),
                 influxdb_type: Some(InfluxDbType::Tag),
-                stats: Statistics::String(StatValues::new_all_null(3)),
+                stats: Statistics::String(StatValues {
+                    min: Some("host a".into()),
+                    max: Some("host b".into()),
+                    total_count: 3,
+                    null_count: 1,
+                    distinct_count: Some(NonZeroU64::new(3).unwrap()),
+                }),
             },
             ColumnSummary {
                 name: "icounter".into(),
@@ -939,8 +966,8 @@ mod test {
                     min: Some("msg a".into()),
                     max: Some("msg b".into()),
                     total_count: 3,
-                    null_count: 1,
-                    distinct_count: Some(NonZeroU64::new(3).unwrap()),
+                    null_count: 0,
+                    distinct_count: Some(NonZeroU64::new(2).unwrap()),
                 }),
             },
             ColumnSummary {
@@ -952,6 +979,31 @@ mod test {
                 name: "time".into(),
                 influxdb_type: Some(InfluxDbType::Timestamp),
                 stats: Statistics::I64(StatValues::new_non_null(Some(3333), Some(11111111), 3)),
+            },
+            ColumnSummary {
+                name: "zbool".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::Bool(StatValues::new_all_null(3, None)),
+            },
+            ColumnSummary {
+                name: "zf64".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::F64(StatValues::new_all_null(3, None)),
+            },
+            ColumnSummary {
+                name: "zi64".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::I64(StatValues::new_all_null(3, None)),
+            },
+            ColumnSummary {
+                name: "zstr".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::String(StatValues::new_all_null(3, Some(1))),
+            },
+            ColumnSummary {
+                name: "zu64".into(),
+                influxdb_type: Some(InfluxDbType::Field),
+                stats: Statistics::U64(StatValues::new_all_null(3, None)),
             },
         ];
 
