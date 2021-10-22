@@ -2183,7 +2183,6 @@ mod tests {
         let object_store = Arc::new(ObjectStore::new_in_memory());
         let time = Arc::new(time::MockProvider::new(Time::from_timestamp(11, 22)));
 
-        // Create a DB given a server id, an object store and a db name
         let test_db = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
                 late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
@@ -2193,7 +2192,6 @@ mod tests {
             .time_provider(Arc::<time::MockProvider>::clone(&time))
             .build()
             .await;
-
         let db = test_db.db;
 
         // Write some line protocols in Mutable buffer of the DB
@@ -2284,7 +2282,6 @@ mod tests {
         let object_store = Arc::new(ObjectStore::new_in_memory());
         let time = Arc::new(time::MockProvider::new(Time::from_timestamp(11, 22)));
 
-        // Create a DB given a server id, an object store and a db name
         let test_db = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
                 late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
@@ -3316,7 +3313,6 @@ mod tests {
         let object_store = Arc::new(ObjectStore::new_in_memory());
 
         // ==================== do: create DB ====================
-        // Create a DB given a server id, an object store and a db name
         let test_db = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
                 late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
@@ -3544,7 +3540,8 @@ mod tests {
 
     #[tokio::test]
     async fn table_wide_schema_enforcement() {
-        // need a table with a partition template that uses a tag column, so that we can easily write to different partitions
+        // need a table with a partition template that uses a tag column, so that we can easily
+        // write to different partitions
         let test_db = TestDb::builder()
             .partition_template(PartitionTemplate {
                 parts: vec![TemplatePart::Column("tag_partition_by".to_string())],
@@ -3634,9 +3631,9 @@ mod tests {
 
     #[tokio::test]
     async fn drop_unpersisted_chunk_on_persisted_db() {
-        // We don't support dropping unpersisted chunks from a persisted DB because we would forget the write buffer
-        // progress (partition checkpoints are only created when new parquet files are stored).
-        // See https://github.com/influxdata/influxdb_iox/issues/2291
+        // We don't support dropping unpersisted chunks from a persisted DB because we would forget
+        // the write buffer progress (partition checkpoints are only created when new parquet files
+        // are stored). See https://github.com/influxdata/influxdb_iox/issues/2291
         let test_db = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
                 persist: true,
