@@ -238,7 +238,7 @@ impl fmt::Display for Predicate {
             for (i, expr) in self.exprs.iter().enumerate() {
                 write!(f, "{}", expr)?;
                 if i < self.exprs.len() - 1 {
-                    write!(f, " ")?;
+                    write!(f, ", ")?;
                 }
             }
             write!(f, "]")?;
