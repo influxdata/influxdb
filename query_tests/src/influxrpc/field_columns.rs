@@ -191,8 +191,6 @@ async fn test_field_name_plan() {
     }
 }
 
-// BUG: https://github.com/influxdata/influxdb_iox/issues/2860
-#[ignore]
 #[tokio::test]
 async fn test_field_name_plan_with_delete() {
     test_helpers::maybe_start_logging();
