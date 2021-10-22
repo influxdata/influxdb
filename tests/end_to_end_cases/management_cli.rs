@@ -232,18 +232,6 @@ async fn delete_database() {
         .success()
         .stdout(predicate::str::contains(db));
 
-    // Listing deleted databases does not include the newly created, active database
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("database")
-        .arg("list")
-        .arg("--deleted")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains(db).not());
-
     // Listing detailed database info does include the active database, along with its generation
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -278,18 +266,6 @@ async fn delete_database() {
         .assert()
         .success()
         .stdout(predicate::str::contains(db).not());
-
-    // ... unless we ask to list deleted databases
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("database")
-        .arg("list")
-        .arg("--deleted")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(deleted_db_match(db, 0));
 
     // Listing detailed database info does include the deleted database
     Command::cargo_bin("influxdb_iox")
@@ -340,18 +316,6 @@ async fn delete_database() {
         .success()
         .stdout(predicate::str::contains(db));
 
-    // And the one deleted database will be in the deleted list
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("database")
-        .arg("list")
-        .arg("--deleted")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(deleted_db_match(db, 0));
-
     // Listing detailed database info includes both active and deleted
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -386,18 +350,6 @@ async fn delete_database() {
         .assert()
         .success()
         .stdout(predicate::str::contains(db).not());
-
-    // The 2 generations of the database should be in the deleted list
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("database")
-        .arg("list")
-        .arg("--deleted")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(deleted_db_match(db, 0).and(deleted_db_match(db, 1)));
 
     // Listing detailed database info includes both deleted generations
     Command::cargo_bin("influxdb_iox")
@@ -437,18 +389,6 @@ async fn delete_database() {
         .assert()
         .success()
         .stdout(predicate::str::contains(db));
-
-    // Only generation 1 is in the deleted list
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("database")
-        .arg("list")
-        .arg("--deleted")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(deleted_db_match(db, 0).not().and(deleted_db_match(db, 1)));
 
     // Listing detailed database info includes both active and deleted
     Command::cargo_bin("influxdb_iox")
