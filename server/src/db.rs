@@ -1424,22 +1424,22 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        convert::TryFrom,
-        iter::Iterator,
-        num::{NonZeroU32, NonZeroU64, NonZeroUsize},
-        ops::Deref,
-        str,
-        time::{Duration, Instant},
+    use super::*;
+    use crate::{
+        assert_store_sequenced_entry_failures,
+        db::{
+            catalog::chunk::ChunkStage,
+            test_helpers::{
+                mutable_chunk_ids, parquet_file_chunk_ids, read_buffer_chunk_ids, run_query,
+                try_write_lp, write_lp,
+            },
+        },
+        utils::{make_db, make_db_time, TestDb},
     };
-
-    use arrow::record_batch::RecordBatch;
-    use bytes::Bytes;
-    use futures::{stream, StreamExt, TryStreamExt};
-    use tokio_util::sync::CancellationToken;
-
     use ::test_helpers::assert_contains;
+    use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
+    use bytes::Bytes;
     use data_types::{
         chunk_metadata::{ChunkAddr, ChunkStorage},
         database_rules::{LifecycleRules, PartitionTemplate, TemplatePart},
@@ -1447,6 +1447,7 @@ mod tests {
         write_summary::TimestampSummary,
     };
     use entry::test_helpers::lp_to_entry;
+    use futures::{stream, StreamExt, TryStreamExt};
     use iox_object_store::ParquetFilePath;
     use metric::{Attributes, CumulativeGauge, Metric, Observation};
     use object_store::ObjectStore;
@@ -1459,25 +1460,19 @@ mod tests {
     use query::{QueryChunk, QueryDatabase};
     use schema::selection::Selection;
     use schema::Schema;
+    use std::{
+        convert::TryFrom,
+        iter::Iterator,
+        num::{NonZeroU32, NonZeroU64, NonZeroUsize},
+        ops::Deref,
+        str,
+        time::{Duration, Instant},
+    };
     use time::Time;
+    use tokio_util::sync::CancellationToken;
     use write_buffer::mock::{
         MockBufferForWriting, MockBufferForWritingThatAlwaysErrors, MockBufferSharedState,
     };
-
-    use crate::{
-        assert_store_sequenced_entry_failures,
-        db::{
-            catalog::chunk::ChunkStage,
-            test_helpers::{run_query, try_write_lp, write_lp},
-        },
-        utils::{make_db, TestDb},
-    };
-    use crate::{
-        db::test_helpers::{mutable_chunk_ids, parquet_file_chunk_ids, read_buffer_chunk_ids},
-        utils::make_db_time,
-    };
-
-    use super::*;
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = TestError> = std::result::Result<T, E>;
