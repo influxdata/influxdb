@@ -444,20 +444,12 @@ mod tests {
         drop(dedicated_task1);
 
         // cancelation might take a short while
-        tokio::time::timeout(Duration::from_secs(10), async {
-            loop {
-                if dbg!(exec.tasks()) == 1 {
-                    return;
-                }
-                tokio::time::sleep(Duration::from_millis(1)).await;
-            }
-        })
-        .await
-        .unwrap();
+        wait_for_tasks(&exec, 1).await;
 
         // unblock other task
         barrier2.wait().await;
         assert_eq!(dedicated_task2.await.unwrap(), 22);
+        wait_for_tasks(&exec, 0).await;
         assert_eq!(exec.tasks(), 0);
 
         exec.join()
@@ -473,5 +465,19 @@ mod tests {
     async fn do_work_async(result: usize, barrier: Arc<AsyncBarrier>) -> usize {
         barrier.wait().await;
         result
+    }
+
+    // waits for up to 1 sec for the correct number of tasks
+    async fn wait_for_tasks(exec: &DedicatedExecutor, num: usize) {
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if dbg!(exec.tasks()) == num {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        })
+        .await
+        .expect("Did not find expected num tasks within a second")
     }
 }
