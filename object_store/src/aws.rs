@@ -35,9 +35,10 @@ pub enum Error {
     NoData { bucket: String, location: String },
 
     #[snafu(display(
-        "Unable to DELETE data. Bucket: {}, Location: {}, Error: {}",
+        "Unable to DELETE data. Bucket: {}, Location: {}, Error: {} ({:?})",
         bucket,
         location,
+        source,
         source,
     ))]
     UnableToDeleteData {
@@ -47,9 +48,10 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Unable to GET data. Bucket: {}, Location: {}, Error: {}",
+        "Unable to GET data. Bucket: {}, Location: {}, Error: {} ({:?})",
         bucket,
         location,
+        source,
         source,
     ))]
     UnableToGetData {
@@ -59,9 +61,10 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Unable to GET part of the data. Bucket: {}, Location: {}, Error: {}",
+        "Unable to GET part of the data. Bucket: {}, Location: {}, Error: {} ({:?})",
         bucket,
         location,
+        source,
         source,
     ))]
     UnableToGetPieceOfData {
@@ -71,9 +74,10 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Unable to PUT data. Bucket: {}, Location: {}, Error: {}",
+        "Unable to PUT data. Bucket: {}, Location: {}, Error: {} ({:?})",
         bucket,
         location,
+        source,
         source,
     ))]
     UnableToPutData {
@@ -82,29 +86,40 @@ pub enum Error {
         location: String,
     },
 
-    #[snafu(display("Unable to list data. Bucket: {}, Error: {}", bucket, source))]
+    #[snafu(display(
+        "Unable to list data. Bucket: {}, Error: {} ({:?})",
+        bucket,
+        source,
+        source,
+    ))]
     UnableToListData {
         source: rusoto_core::RusotoError<rusoto_s3::ListObjectsV2Error>,
         bucket: String,
     },
 
     #[snafu(display(
-        "Unable to parse last modified date. Bucket: {}, Error: {}",
+        "Unable to parse last modified date. Bucket: {}, Error: {} ({:?})",
         bucket,
-        source
+        source,
+        source,
     ))]
     UnableToParseLastModified {
         source: chrono::ParseError,
         bucket: String,
     },
 
-    #[snafu(display("Unable to buffer data into temporary file, Error: {}", source))]
+    #[snafu(display(
+        "Unable to buffer data into temporary file, Error: {} ({:?})",
+        source,
+        source,
+    ))]
     UnableToBufferStream { source: std::io::Error },
 
     #[snafu(display(
-        "Could not parse `{}` as an AWS region. Regions should look like `us-east-2`. {:?}",
+        "Could not parse `{}` as an AWS region. Regions should look like `us-east-2`. {} ({:?})",
         region,
-        source
+        source,
+        source,
     ))]
     InvalidRegion {
         region: String,
