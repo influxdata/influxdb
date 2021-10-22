@@ -736,10 +736,31 @@ where
 
     /// Delete an existing, active database with this name. Return an error if no active database
     /// with this name can be found.
-    pub async fn delete_database(&self, db_name: &DatabaseName<'static>) -> Result<()> {
+    pub async fn delete_database(&self, db_name: &DatabaseName<'static>) -> Result<Uuid> {
+        // Wait for exclusive access to mutate server state
+        let handle_fut = self.shared.state.read().freeze();
+        let handle = handle_fut.await;
+
         let database = self.database(db_name)?;
-        database.delete().await.context(CannotMarkDatabaseDeleted)?;
-        Ok(())
+        let uuid = database.delete().await.context(CannotMarkDatabaseDeleted)?;
+
+        {
+            let mut state = self.shared.state.write();
+
+            // Exchange FreezeHandle for mutable access via WriteGuard
+            let mut state = state.unfreeze(handle);
+
+            match &mut *state {
+                ServerState::Initialized(initialized) => {
+                    initialized.databases.remove(db_name);
+                }
+                _ => unreachable!(),
+            }
+        }
+
+        self.persist_server_config().await?;
+
+        Ok(uuid)
     }
 
     /// Restore a database and generation that has been marked as deleted. Return an error if no

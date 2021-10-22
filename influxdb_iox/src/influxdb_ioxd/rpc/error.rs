@@ -130,12 +130,9 @@ pub fn default_database_error_handler(error: server::database::Error) -> tonic::
             error!(%source, "Unexpected error deleting database");
             InternalError {}.into()
         }
-        Error::NoActiveDatabaseToDelete { db_name } => NotFound {
-            resource_type: "database".to_string(),
-            resource_name: db_name,
-            ..Default::default()
+        Error::CannotDeleteInactiveDatabase { .. } => {
+            tonic::Status::failed_precondition(error.to_string())
         }
-        .into(),
         Error::CannotRestoreActiveDatabase { .. } => {
             tonic::Status::failed_precondition(error.to_string())
         }

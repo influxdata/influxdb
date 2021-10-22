@@ -174,7 +174,9 @@ message DeleteDatabaseRequest {
   string db_name = 1;
 }
 
-message DeleteDatabaseResponse {}
+message DeleteDatabaseResponse {
+  bytes uuid = 1;
+}
 
 message RestoreDatabaseRequest {
   // Was the generation ID of the deleted database.

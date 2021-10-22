@@ -1685,6 +1685,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tonic",
+ "uuid",
 ]
 
 [[package]]

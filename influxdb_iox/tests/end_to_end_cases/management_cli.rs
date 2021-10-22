@@ -244,17 +244,24 @@ async fn delete_database() {
         .success()
         .stdout(active_db_match(db, 0));
 
-    // Delete the database
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("database")
-        .arg("delete")
-        .arg(db)
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains(format!("Deleted database {}", db)));
+    // Delete the database, returns the UUID
+    let db_uuid = String::from_utf8(
+        Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("database")
+            .arg("delete")
+            .arg(db)
+            .arg("--host")
+            .arg(addr)
+            .assert()
+            .success()
+            .stderr(predicate::str::contains(format!("Deleted database {}", db)))
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    let db_uuid = db_uuid.trim();
 
     // Listing the databases does not include the deleted database
     Command::cargo_bin("influxdb_iox")
@@ -316,19 +323,7 @@ async fn delete_database() {
         .success()
         .stdout(predicate::str::contains(db));
 
-    // Listing detailed database info includes both active and deleted
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("database")
-        .arg("list")
-        .arg("--detailed")
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(deleted_db_match(db, 0).and(active_db_match(db, 1)));
-
-    // Delete the 2nd database
+    // Delete the 2nd database, returns its UUID
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
@@ -338,7 +333,7 @@ async fn delete_database() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains(format!("Deleted database {}", db)));
+        .stderr(predicate::str::contains(format!("Deleted database {}", db)));
 
     // This database should no longer be in the active list
     Command::cargo_bin("influxdb_iox")

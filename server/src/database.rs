@@ -82,14 +82,17 @@ pub enum Error {
     #[snafu(display("cannot persisted updated rules: {}", source))]
     CannotPersistUpdatedRules { source: crate::rules::Error },
 
-    #[snafu(display("cannot mark database deleted: {}", source))]
+    #[snafu(display("cannot mark database {} deleted: {}", db_name, source))]
     CannotMarkDatabaseDeleted {
         db_name: String,
         source: object_store::Error,
     },
 
-    #[snafu(display("no active database named {} to delete", db_name))]
-    NoActiveDatabaseToDelete { db_name: String },
+    #[snafu(display(
+        "cannot delete database named {} that has already been marked as deleted",
+        db_name
+    ))]
+    CannotDeleteInactiveDatabase { db_name: String },
 
     #[snafu(display("cannot restore database named {} that is already active", db_name))]
     CannotRestoreActiveDatabase { db_name: String },
@@ -239,7 +242,7 @@ impl Database {
     }
 
     /// Mark this database as deleted.
-    pub async fn delete(&self) -> Result<(), Error> {
+    pub async fn delete(&self) -> Result<Uuid, Error> {
         let db_name = &self.shared.config.name;
         info!(%db_name, "marking database deleted");
 
@@ -249,7 +252,7 @@ impl Database {
         {
             let state = self.shared.state.read();
             // Can't delete an already deleted database.
-            ensure!(state.is_active(), NoActiveDatabaseToDelete { db_name });
+            ensure!(state.is_active(), CannotDeleteInactiveDatabase { db_name });
         }
 
         // If there is an object store for this database, write out a tombstone file.
@@ -259,13 +262,15 @@ impl Database {
             .with_context(|| {
                 let state = self.shared.state.read();
                 TransitionInProgress {
-                    db_name,
+                    db_name: db_name.clone(),
                     state: state.state_code(),
                 }
             })?
             .write_tombstone()
             .await
             .context(CannotMarkDatabaseDeleted { db_name })?;
+
+        let uuid = self.provided_rules().expect("should have rules").uuid();
 
         let mut state = self.shared.state.write();
         let mut state = state.unfreeze(handle);
@@ -275,7 +280,7 @@ impl Database {
         );
         self.shared.state_notify.notify_waiters();
 
-        Ok(())
+        Ok(uuid)
     }
 
     /// Create a restored database without any any state.

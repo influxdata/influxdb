@@ -342,8 +342,9 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::Delete(command) => {
             let mut client = management::Client::new(connection);
-            client.delete_database(&command.name).await?;
-            println!("Deleted database {}", command.name);
+            let uuid = client.delete_database(&command.name).await?;
+            eprintln!("Deleted database {}", command.name);
+            println!("{}", uuid);
         }
         Command::Restore(command) => {
             let mut client = management::Client::new(connection);

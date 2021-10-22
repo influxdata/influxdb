@@ -1,13 +1,12 @@
-use bytes::Bytes;
-use thiserror::Error;
-
 use self::generated_types::{management_service_client::ManagementServiceClient, *};
-
-use crate::connection::Connection;
-
-use crate::google::{longrunning::IoxOperation, FieldViolation};
-use std::convert::TryInto;
-use std::num::NonZeroU32;
+use crate::{
+    connection::Connection,
+    google::{longrunning::IoxOperation, FieldViolation},
+};
+use bytes::Bytes;
+use std::{convert::TryInto, num::NonZeroU32};
+use thiserror::Error;
+use uuid::Uuid;
 
 /// Re-export generated_types
 pub mod generated_types {
@@ -144,6 +143,10 @@ pub enum DeleteDatabaseError {
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
+
+    /// UUID returned as bytes from server could not be converted to a `Uuid`
+    #[error("Invalid UUID: {}: {:?}", .0, .0)]
+    InvalidUuid(uuid::Error),
 }
 
 /// Errors returned by Client::delete_database
@@ -656,8 +659,9 @@ impl Client {
     pub async fn delete_database(
         &mut self,
         db_name: impl Into<String> + Send,
-    ) -> Result<(), DeleteDatabaseError> {
-        self.inner
+    ) -> Result<Uuid, DeleteDatabaseError> {
+        let response = self
+            .inner
             .delete_database(DeleteDatabaseRequest {
                 db_name: db_name.into(),
             })
@@ -669,7 +673,10 @@ impl Client {
                 _ => DeleteDatabaseError::ServerError(status),
             })?;
 
-        Ok(())
+        let uuid = Uuid::from_slice(&response.into_inner().uuid)
+            .map_err(DeleteDatabaseError::InvalidUuid)?;
+
+        Ok(uuid)
     }
 
     /// Restore database

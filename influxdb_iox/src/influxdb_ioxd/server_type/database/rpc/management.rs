@@ -175,12 +175,15 @@ where
     ) -> Result<Response<DeleteDatabaseResponse>, Status> {
         let db_name = DatabaseName::new(request.into_inner().db_name).field("db_name")?;
 
-        self.server
+        let uuid = self
+            .server
             .delete_database(&db_name)
             .await
             .map_err(default_server_error_handler)?;
 
-        Ok(Response::new(DeleteDatabaseResponse {}))
+        Ok(Response::new(DeleteDatabaseResponse {
+            uuid: uuid.as_bytes().to_vec(),
+        }))
     }
 
     async fn restore_database(
