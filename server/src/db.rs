@@ -3225,16 +3225,15 @@ mod tests {
 
         // ==================== do: create DB ====================
         // Create a DB given a server id, an object store and a db name
-        let test_db = TestDb::builder()
+        let test_db_builder = TestDb::builder()
             .lifecycle_rules(LifecycleRules {
                 late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
                 ..Default::default()
             })
             .object_store(Arc::clone(&object_store))
             .server_id(server_id)
-            .db_name(db_name)
-            .build()
-            .await;
+            .db_name(db_name);
+        let test_db = test_db_builder.build().await;
         let db = test_db.db;
 
         // ==================== check: empty catalog created ====================
@@ -3288,12 +3287,7 @@ mod tests {
         // ==================== do: re-load DB ====================
         // Re-create database with same store, serverID, and DB name
         drop(db);
-        let test_db = TestDb::builder()
-            .object_store(Arc::clone(&object_store))
-            .server_id(server_id)
-            .db_name(db_name)
-            .build()
-            .await;
+        let test_db = test_db_builder.build().await;
         let db = Arc::new(test_db.db);
 
         // ==================== check: DB state ====================
@@ -3424,7 +3418,7 @@ mod tests {
 
         // ==================== do: create DB ====================
         // Create a DB given a server id, an object store and a db name
-        let test_db = TestDb::builder()
+        let test_db_builder = TestDb::builder()
             .object_store(Arc::clone(&object_store))
             .server_id(server_id)
             .db_name(db_name)
@@ -3432,9 +3426,8 @@ mod tests {
                 catalog_transactions_until_checkpoint: NonZeroU64::try_from(2).unwrap(),
                 late_arrive_window_seconds: NonZeroU32::try_from(1).unwrap(),
                 ..Default::default()
-            })
-            .build()
-            .await;
+            });
+        let test_db = test_db_builder.build().await;
         let db = Arc::new(test_db.db);
 
         // ==================== do: write data to parquet ====================
@@ -3469,12 +3462,7 @@ mod tests {
 
         // ==================== do: re-load DB ====================
         // Re-create database with same store, serverID, and DB name
-        let test_db = TestDb::builder()
-            .object_store(Arc::clone(&object_store))
-            .server_id(server_id)
-            .db_name(db_name)
-            .build()
-            .await;
+        let test_db = test_db_builder.build().await;
         let db = Arc::new(test_db.db);
 
         // ==================== check: DB state ====================
