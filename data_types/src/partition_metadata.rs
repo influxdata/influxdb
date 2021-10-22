@@ -494,12 +494,21 @@ where
     }
 
     /// Create statistics for a column that only has nulls up to now
-    pub fn new_all_null(total_count: u64) -> Self {
+    pub fn new_all_null(total_count: u64, distinct_count: Option<u64>) -> Self {
         let min = None;
         let max = None;
         let null_count = total_count;
-        let distinct_count = NonZeroU64::new(1);
-        Self::new_with_distinct(min, max, total_count, null_count, distinct_count)
+
+        if let Some(count) = distinct_count {
+            assert!(count > 0);
+        }
+        Self::new_with_distinct(
+            min,
+            max,
+            total_count,
+            null_count,
+            distinct_count.map(|c| NonZeroU64::new(c).unwrap()),
+        )
     }
 
     pub fn update_from(&mut self, other: &Self) {
@@ -660,6 +669,8 @@ impl IsNan for f64 {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryFrom;
+
     use super::*;
 
     #[test]
@@ -677,13 +688,25 @@ mod tests {
 
     #[test]
     fn statistics_new_all_null() {
-        let actual = StatValues::<i64>::new_all_null(3);
+        // i64 values do not have a distinct count
+        let actual = StatValues::<i64>::new_all_null(3, None);
         let expected = StatValues {
             min: None,
             max: None,
             total_count: 3,
             null_count: 3,
-            distinct_count: NonZeroU64::new(1),
+            distinct_count: None,
+        };
+        assert_eq!(actual, expected);
+
+        // string columns can have a distinct count
+        let actual = StatValues::<i64>::new_all_null(3, Some(1_u64));
+        let expected = StatValues {
+            min: None,
+            max: None,
+            total_count: 3,
+            null_count: 3,
+            distinct_count: Some(NonZeroU64::try_from(1_u64).unwrap()),
         };
         assert_eq!(actual, expected);
     }
