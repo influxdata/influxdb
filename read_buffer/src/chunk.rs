@@ -974,6 +974,7 @@ mod test {
                 .field("sketchy_sensor", Int64)
                 .non_null_field("active", Boolean)
                 .field("msg", Utf8)
+                .field("all_null", Utf8)
                 .timestamp()
                 .build()
                 .unwrap();
@@ -997,6 +998,7 @@ mod test {
                     Some("message b"),
                     None,
                 ])),
+                Arc::new(StringArray::from(vec![None, None, None])),
                 Arc::new(TimestampNanosecondArray::from_vec(
                     vec![i, 2 * i, 3 * i],
                     None,
@@ -1058,6 +1060,7 @@ mod test {
         );
         assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
         assert_rb_column_equals(&first_row_group, "msg", &exp_msg_values);
+        assert_rb_column_equals(&first_row_group, "all_null", &Values::String(vec![None]));
         assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![100])); // first row from first record batch
 
         let second_row_group = itr.next().unwrap();
@@ -1070,7 +1073,15 @@ mod test {
             &exp_sketchy_sensor_values,
         );
         assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
+        assert_rb_column_equals(&first_row_group, "all_null", &Values::String(vec![None]));
         assert_rb_column_equals(&second_row_group, "time", &Values::I64(vec![200])); // first row from second record batch
+
+        // No rows returned when filtering on all_null column
+        let predicate = Predicate::new(vec![BinaryExpr::from(("all_null", "!=", "a string"))]);
+        let mut itr = chunk
+            .read_filter(predicate, Selection::All, vec![])
+            .unwrap();
+        assert!(itr.next().is_none());
 
         // Error when predicate is invalid
         let predicate =
