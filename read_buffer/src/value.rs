@@ -1139,6 +1139,9 @@ impl std::fmt::Display for &Scalar {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum OwnedValue {
+    // Represents a NULL value in a column row.
+    Null,
+
     /// A UTF-8 valid string.
     String(String),
 
@@ -1167,11 +1170,35 @@ impl PartialOrd for OwnedValue {
 
 impl OwnedValue {
     pub fn new_null() -> Self {
-        Self::Scalar(Scalar::Null)
+        Self::Null
     }
 
     pub fn is_null(&self) -> bool {
-        matches!(self, Self::Scalar(Scalar::Null))
+        matches!(self, Self::Null)
+    }
+
+    pub fn as_string(&self) -> Option<String> {
+        match self {
+            OwnedValue::Null => None,
+            OwnedValue::String(s) => Some(s.clone()),
+            v => panic!("{:?} cannot be unwrapped as string", v),
+        }
+    }
+
+    pub fn as_byte_array(&self) -> Option<Vec<u8>> {
+        match self {
+            OwnedValue::Null => None,
+            OwnedValue::ByteArray(arr) => Some(arr.clone()),
+            v => panic!("{:?} cannot be unwrapped as byte array", v),
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            OwnedValue::Null => None,
+            OwnedValue::Boolean(b) => Some(*b),
+            v => panic!("{:?} cannot be unwrapped as string", v),
+        }
     }
 
     /// Update self to the min of self and other, taking into
@@ -1203,9 +1230,35 @@ impl OwnedValue {
     }
 }
 
+// Implementations of as_type for various scalar types.
+macro_rules! owned_value_as_impls {
+    ($(($type:ident, $name:ident),)*) => {
+        $(
+            impl OwnedValue {
+                pub fn $name(&self) -> Option<$type> {
+                    match self {
+                        OwnedValue::Null => None,
+                        OwnedValue::Scalar(s) => {
+                            (!s.is_null()).then(|| s.$name())
+                        }
+                        v => panic!("{:?} cannot be unwrapped as {:?}", v, stringify!($type)),
+                    }
+                }
+            }
+        )*
+    };
+}
+
+owned_value_as_impls! {
+    (i64, as_i64),
+    (f64, as_f64),
+    (u64, as_u64),
+}
+
 impl std::fmt::Display for &OwnedValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            OwnedValue::Null => write!(f, "NULL"),
             OwnedValue::String(s) => s.fmt(f),
             OwnedValue::ByteArray(s) => write!(f, "{}", String::from_utf8_lossy(s)),
             OwnedValue::Boolean(b) => b.fmt(f),
