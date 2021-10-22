@@ -156,7 +156,7 @@ pub enum Error {
     CannotMarkDatabaseDeleted { source: crate::database::Error },
 
     #[snafu(display("{}", source))]
-    CannotRestoreDatabase { source: crate::database::Error },
+    CannotRestoreDatabase { source: crate::database::InitError },
 
     #[snafu(display("database already exists: {}", db_name))]
     DatabaseAlreadyExists { db_name: String },
@@ -763,31 +763,62 @@ where
         Ok(uuid)
     }
 
-    /// Restore a database and generation that has been marked as deleted. Return an error if no
-    /// database with this generation can be found, or if there's already an active database with
-    /// this name.
-    pub async fn restore_database(&self, db_name: &DatabaseName<'static>) -> Result<()> {
-        let database = {
+    /// Restore a database that has been marked as deleted. Return an error if no database with
+    /// this UUID can be found, or if there's already an active database with this name.
+    pub async fn restore_database(
+        &self,
+        db_name: &DatabaseName<'static>,
+        uuid: Uuid,
+    ) -> Result<()> {
+        // Wait for exclusive access to mutate server state
+        let handle_fut = self.shared.state.read().freeze();
+        let handle = handle_fut.await;
+
+        let server_id = {
             let state = self.shared.state.read();
             let initialized = state.initialized()?;
 
-            let database = Arc::clone(
-                initialized
-                    .databases
-                    .get(db_name)
-                    .context(DatabaseNotFound { db_name })?,
-            );
-
-            if let Some(init_error) = database.init_error() {
-                if !matches!(&*init_error, database::InitError::NoActiveDatabase) {
-                    return DatabaseAlreadyExists { db_name }.fail();
-                }
+            if initialized.databases.contains_key(db_name) {
+                return DatabaseAlreadyExists { db_name }.fail();
             }
-
-            database
+            initialized.server_id
         };
 
-        database.restore().await.context(CannotRestoreDatabase)?;
+        let location = Database::restore(
+            Arc::clone(&self.shared.application),
+            db_name,
+            uuid,
+            server_id,
+        )
+        .await
+        .context(CannotRestoreDatabase)?;
+
+        let database = {
+            let mut state = self.shared.state.write();
+
+            // Exchange FreezeHandle for mutable access via WriteGuard
+            let mut state = state.unfreeze(handle);
+
+            let database = match &mut *state {
+                ServerState::Initialized(initialized) => initialized
+                    .new_database(
+                        &self.shared,
+                        DatabaseConfig {
+                            name: db_name.clone(),
+                            location,
+                            server_id,
+                            wipe_catalog_on_error: false,
+                            skip_replay: false,
+                        },
+                    )
+                    .expect("database unique"),
+                _ => unreachable!(),
+            };
+            Arc::clone(database)
+        };
+
+        // Save the database to the server config as soon as it's added to the `ServerState`
+        self.persist_server_config().await?;
 
         database.wait_for_init().await.context(DatabaseInit)?;
 

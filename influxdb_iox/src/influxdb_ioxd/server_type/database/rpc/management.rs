@@ -1,16 +1,16 @@
-use std::convert::TryFrom;
-use std::fmt::Debug;
-use std::sync::Arc;
-
-use data_types::chunk_metadata::ChunkId;
-use data_types::{server_id::ServerId, DatabaseName};
-use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound};
-use generated_types::influxdata::iox::management::v1::{Error as ProtobufError, *};
+use data_types::{chunk_metadata::ChunkId, server_id::ServerId, DatabaseName};
+use generated_types::{
+    google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound},
+    influxdata::iox::management::v1::{Error as ProtobufError, *},
+};
 use predicate::delete_predicate::DeletePredicate;
 use query::QueryDatabase;
-use server::rules::ProvidedDatabaseRules;
-use server::{connection::ConnectionManager, ApplicationState, Error, Server};
+use server::{
+    connection::ConnectionManager, rules::ProvidedDatabaseRules, ApplicationState, Error, Server,
+};
+use std::{convert::TryFrom, fmt::Debug, str::FromStr, sync::Arc};
 use tonic::{Request, Response, Status};
+use uuid::Uuid;
 
 struct ManagementService<M: ConnectionManager> {
     application: Arc<ApplicationState>,
@@ -192,9 +192,10 @@ where
     ) -> Result<Response<RestoreDatabaseResponse>, Status> {
         let request = request.into_inner();
         let db_name = DatabaseName::new(request.db_name).field("db_name")?;
+        let uuid = Uuid::from_str(&request.uuid).field("uuid")?;
 
         self.server
-            .restore_database(&db_name)
+            .restore_database(&db_name, uuid)
             .await
             .map_err(default_server_error_handler)?;
 

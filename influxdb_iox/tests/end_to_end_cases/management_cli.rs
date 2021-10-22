@@ -363,7 +363,7 @@ async fn delete_database() {
         .unwrap()
         .arg("database")
         .arg("restore")
-        .arg("0")
+        .arg(db_uuid)
         .arg(db)
         .arg("--host")
         .arg(addr)
@@ -374,7 +374,7 @@ async fn delete_database() {
             db
         )));
 
-    // This database is back in the active list
+    // The 1st database is back in the active list
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")

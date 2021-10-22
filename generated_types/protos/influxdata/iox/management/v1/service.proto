@@ -185,6 +185,9 @@ message RestoreDatabaseRequest {
 
   // the name of the database
   string db_name = 2;
+
+  // The UUID of the deleted database.
+  string uuid = 3;
 }
 
 message RestoreDatabaseResponse {}

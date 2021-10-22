@@ -191,7 +191,10 @@ struct Delete {
 /// Restore a deleted database
 #[derive(Debug, StructOpt)]
 struct Restore {
-    /// The name of the database to restore
+    /// The UUID of the database to restore
+    uuid: String,
+
+    /// The name to give the database upon restoring it
     name: String,
 }
 
@@ -348,8 +351,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         }
         Command::Restore(command) => {
             let mut client = management::Client::new(connection);
-            client.restore_database(&command.name).await?;
-            println!("Restored database {}", command.name);
+            client
+                .restore_database(&command.name, &command.uuid)
+                .await?;
+            println!("Restored database {} ({})", command.name, command.uuid);
         }
     }
 
