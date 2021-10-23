@@ -408,14 +408,11 @@ impl SequenceNumberSection {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use std::{
-        convert::TryFrom,
-        num::{NonZeroU32, NonZeroU64, NonZeroUsize},
-        sync::Arc,
-        time::{Duration, Instant},
+    use crate::{
+        lifecycle::LifecycleWorker,
+        utils::{TestDb, TestDbBuilder},
+        write_buffer::WriteBufferConsumer,
     };
-
     use arrow_util::assert_batches_eq;
     use data_types::{
         database_rules::{PartitionTemplate, Partitioner, TemplatePart},
@@ -432,15 +429,17 @@ mod tests {
         min_max_sequence::OptionalMinMaxSequence,
     };
     use query::{exec::ExecutionContextProvider, frontend::sql::SqlQueryPlanner};
+    use std::{
+        convert::TryFrom,
+        num::{NonZeroU32, NonZeroU64, NonZeroUsize},
+        sync::Arc,
+        time::{Duration, Instant},
+    };
     use test_helpers::{assert_contains, assert_not_contains, tracing::TracingCapture};
     use time::{Time, TimeProvider};
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
     use write_buffer::mock::{MockBufferForReading, MockBufferSharedState};
-
-    use crate::lifecycle::LifecycleWorker;
-    use crate::utils::TestDb;
-    use crate::write_buffer::WriteBufferConsumer;
 
     #[derive(Debug)]
     struct TestSequencedEntry {
@@ -572,15 +571,17 @@ mod tests {
             let write_buffer_state =
                 MockBufferSharedState::empty_with_n_sequencers(self.n_sequencers);
 
-            let (mut test_db, mut shutdown, mut join_handle) = Self::create_test_db(
+            let test_db_builder = Self::create_test_db_builder(
                 Arc::clone(&object_store),
                 server_id,
                 db_name,
                 partition_template.clone(),
                 self.catalog_transactions_until_checkpoint,
                 Arc::<time::MockProvider>::clone(&time),
-            )
-            .await;
+            );
+
+            let (mut test_db, mut shutdown, mut join_handle) =
+                Self::create_test_db(&test_db_builder).await;
 
             let mut lifecycle = LifecycleWorker::new(Arc::clone(&test_db.db));
 
@@ -620,15 +621,8 @@ mod tests {
                         drop(test_db);
 
                         // then create new one
-                        let (test_db_tmp, shutdown_tmp, join_handle_tmp) = Self::create_test_db(
-                            Arc::clone(&object_store),
-                            server_id,
-                            db_name,
-                            partition_template.clone(),
-                            self.catalog_transactions_until_checkpoint,
-                            Arc::<time::MockProvider>::clone(&time),
-                        )
-                        .await;
+                        let (test_db_tmp, shutdown_tmp, join_handle_tmp) =
+                            Self::create_test_db(&test_db_builder).await;
                         test_db = test_db_tmp;
                         shutdown = shutdown_tmp;
                         join_handle = join_handle_tmp;
@@ -759,14 +753,29 @@ mod tests {
         }
 
         async fn create_test_db(
+            builder: &TestDbBuilder,
+        ) -> (TestDb, CancellationToken, JoinHandle<()>) {
+            let test_db = builder.build().await;
+            // start background worker
+
+            let shutdown: CancellationToken = Default::default();
+            let shutdown_captured = shutdown.clone();
+            let db_captured = Arc::clone(&test_db.db);
+            let join_handle =
+                tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
+
+            (test_db, shutdown, join_handle)
+        }
+
+        fn create_test_db_builder(
             object_store: Arc<ObjectStore>,
             server_id: ServerId,
             db_name: &'static str,
             partition_template: PartitionTemplate,
             catalog_transactions_until_checkpoint: NonZeroU64,
             time_provider: Arc<dyn TimeProvider>,
-        ) -> (TestDb, CancellationToken, JoinHandle<()>) {
-            let test_db = TestDb::builder()
+        ) -> TestDbBuilder {
+            TestDb::builder()
                 .object_store(object_store)
                 .server_id(server_id)
                 .lifecycle_rules(data_types::database_rules::LifecycleRules {
@@ -779,17 +788,6 @@ mod tests {
                 .partition_template(partition_template)
                 .time_provider(time_provider)
                 .db_name(db_name)
-                .build()
-                .await;
-
-            // start background worker
-            let shutdown: CancellationToken = Default::default();
-            let shutdown_captured = shutdown.clone();
-            let db_captured = Arc::clone(&test_db.db);
-            let join_handle =
-                tokio::spawn(async move { db_captured.background_worker(shutdown_captured).await });
-
-            (test_db, shutdown, join_handle)
         }
 
         /// Evaluates given checks.
