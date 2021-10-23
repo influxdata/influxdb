@@ -1,4 +1,5 @@
 //! Tests for the Influx gRPC queries
+use datafusion::logical_plan::{col, lit};
 use predicate::predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE};
 use query::{
     exec::stringset::{IntoStringSet, StringSetRef},
@@ -24,11 +25,12 @@ where
         let planner = InfluxRpcPlanner::new();
         let ctx = db.executor().new_context(query::exec::ExecutorType::Query);
 
-        let builder = planner
+        let plan = planner
             .table_names(db.as_ref(), predicate.clone())
             .expect("built plan successfully");
+
         let names = ctx
-            .to_table_names(builder)
+            .to_string_set(plan)
             .await
             .expect("converted plan to strings successfully");
 
@@ -51,6 +53,51 @@ async fn list_table_names_no_data_no_pred() {
 #[tokio::test]
 async fn list_table_names_no_data_pred() {
     run_table_names_test_case(TwoMeasurements {}, EMPTY_PREDICATE, vec!["cpu", "disk"]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_no_data_passes() {
+    // no rows pass this predicate
+    run_table_names_test_case(
+        TwoMeasurementsManyFields {},
+        tsp(10000000, 20000000),
+        vec![],
+    )
+    .await;
+}
+
+#[tokio::test]
+#[ignore]
+// https://github.com/influxdata/influxdb_iox/issues/2932
+async fn list_table_names_no_non_null_data_passes() {
+    // only a single row with a null field passes this predicate (expect no table names)
+    let predicate = PredicateBuilder::default()
+        .table("o2")
+        // only get last row of o2 (timestamp = 300)
+        .timestamp_range(200, 400)
+        // model predicate like _field='reading' which last row does not have
+        .field_columns(vec!["reading"])
+        .build();
+
+    run_table_names_test_case(TwoMeasurementsManyFields {}, predicate, vec![]).await;
+}
+
+#[tokio::test]
+async fn list_table_names_no_non_null_general_data_passes() {
+    // only a single row with a null field passes this predicate
+    // (expect no table names) -- has a general purpose predicate to
+    // force a generic plan
+    let predicate = PredicateBuilder::default()
+        .table("o2")
+        // only get last row of o2 (timestamp = 300)
+        .timestamp_range(200, 400)
+        // model predicate like _field='reading' which last row does not have
+        .field_columns(vec!["reading"])
+        // (state = CA) OR (temp > 50)
+        .add_expr(col("state").eq(lit("CA")).or(col("temp").gt(lit(50))))
+        .build();
+
+    run_table_names_test_case(TwoMeasurementsManyFields {}, predicate, vec![]).await;
 }
 
 #[tokio::test]

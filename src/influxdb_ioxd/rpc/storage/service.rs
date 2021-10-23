@@ -724,14 +724,14 @@ where
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
     let ctx = db.new_query_context(span_ctx);
 
-    let builder = Planner::new(&ctx)
+    let plan = Planner::new(&ctx)
         .table_names(db, predicate)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingTables { db_name })?;
 
     let table_names = ctx
-        .to_table_names(builder)
+        .to_string_set(plan)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingTables { db_name })?;

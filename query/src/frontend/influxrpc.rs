@@ -26,7 +26,7 @@ use schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use crate::{
-    exec::{field::FieldColumns, make_schema_pivot},
+    exec::{field::FieldColumns, make_non_null_checker, make_schema_pivot},
     func::{
         selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
         window::make_window_bound_expr,
@@ -35,9 +35,7 @@ use crate::{
     plan::{
         fieldlist::FieldListPlan,
         seriesset::{SeriesSetPlan, SeriesSetPlans},
-        stringset::{
-            Error as StringSetError, StringSetPlan, StringSetPlanBuilder, TableNamePlanBuilder,
-        },
+        stringset::{Error as StringSetError, StringSetPlan, StringSetPlanBuilder},
     },
     provider::ProviderBuilder,
     QueryChunk, QueryChunkMeta, QueryDatabase,
@@ -229,11 +227,13 @@ impl InfluxRpcPlanner {
     ///   . A set of plans of tables of either
     ///       . chunks with deleted data or
     ///       . chunks without deleted data but cannot be decided from meta data
-    pub fn table_names<D>(&self, database: &D, predicate: Predicate) -> Result<TableNamePlanBuilder>
+    pub fn table_names<D>(&self, database: &D, predicate: Predicate) -> Result<StringSetPlan>
     where
         D: QueryDatabase + 'static,
     {
-        let mut builder = TableNamePlanBuilder::new();
+        debug!(predicate=?predicate, "planning table_names");
+
+        let mut builder = StringSetPlanBuilder::new();
         let mut normalizer = PredicateNormalizer::new(predicate);
 
         // Mapping between table and chunks that need full plan
@@ -244,9 +244,11 @@ impl InfluxRpcPlanner {
         for chunk in database.chunks(normalizer.unnormalized()) {
             let table_name = chunk.table_name();
             let schema = chunk.schema();
+            trace!(chunk_id=%chunk.id(), table_name, "Considering table");
 
             // Table is already in the returned table list, no longer needs to discover it from other chunks
-            if builder.contains_meta_data_table(table_name.to_string()) {
+            if builder.contains(table_name) {
+                trace!("already seen");
                 continue;
             }
 
@@ -258,10 +260,11 @@ impl InfluxRpcPlanner {
                     .or_insert_with(Vec::new)
                     .push(Arc::clone(&chunk));
             } else {
-                // See if we can have enough info from the chunk's meta data to answer
-                // that this table participates in the request
+                // See if we have enough info only from the chunk's
+                // meta data to know if the table has data that
+                // matches the predicate
                 let predicate = normalizer.normalized(table_name, schema);
-                //
+
                 // Try and apply the predicate using only metadata
                 let pred_result = chunk
                     .apply_predicate_to_metadata(&predicate)
@@ -269,36 +272,36 @@ impl InfluxRpcPlanner {
                     .context(CheckingChunkPredicate {
                         chunk_id: chunk.id(),
                     })?;
-                //
+
                 match pred_result {
                     PredicateMatch::AtLeastOne => {
+                        trace!("Metadata predicate: table matches");
                         // Meta data of the table covers predicates of the request
-                        builder.append_meta_data_table(table_name.to_string());
+                        builder.append_string(table_name);
                     }
                     PredicateMatch::Unknown => {
+                        trace!("Metadata predicate: unknown match");
                         // We cannot match the predicate to get answer from meta data, let do full plan
                         full_plan_table_chunks
                             .entry(table_name.to_string())
                             .or_insert_with(Vec::new)
                             .push(Arc::clone(&chunk));
                     }
-                    PredicateMatch::Zero => {} // this chunk's table does not participate in the request
+                    PredicateMatch::Zero => {
+                        trace!("Metadata predicate: zero rows match");
+                    } // this chunk's table does not participate in the request
                 }
             }
         }
 
-        // remove items from full_plan_table_chunks whose tables are already in the returned list
-        let meta_data_tables = builder.meta_data_table_names();
-        for table in meta_data_tables {
-            full_plan_table_chunks.remove(&table);
+        // remove items from full_plan_table_chunks whose tables are
+        // already in the returned list
+        for table in builder.known_strings_iter() {
+            trace!(%table, "Table is known to have matches, skipping plan");
+            full_plan_table_chunks.remove(table);
             if full_plan_table_chunks.is_empty() {
                 break;
             }
-        }
-
-        // No full plans needed
-        if full_plan_table_chunks.is_empty() {
-            return Ok(builder);
         }
 
         // Now build plans for full-plan tables
@@ -309,11 +312,11 @@ impl InfluxRpcPlanner {
             if let Some(plan) =
                 self.table_name_plan(&table_name, schema, &mut normalizer, chunks)?
             {
-                builder.append_plans(table_name, plan);
+                builder = builder.append_other(plan.into());
             }
         }
 
-        Ok(builder)
+        builder.build().context(CreatingStringSet)
     }
 
     /// Returns a set of plans that produces the names of "tag"
@@ -427,14 +430,14 @@ impl InfluxRpcPlanner {
                 let plan = self.tag_keys_plan(&table_name, schema, &mut normalizer, chunks)?;
 
                 if let Some(plan) = plan {
-                    builder = builder.append(plan)
+                    builder = builder.append_other(plan)
                 }
             }
         }
 
         // add the known columns we could find from metadata only
         builder
-            .append(known_columns.into())
+            .append_other(known_columns.into())
             .build()
             .context(CreatingStringSet)
     }
@@ -596,13 +599,13 @@ impl InfluxRpcPlanner {
                     .build()
                     .context(BuildingPlan)?;
 
-                builder = builder.append(plan.into());
+                builder = builder.append_other(plan.into());
             }
         }
 
         // add the known values we could find from metadata only
         builder
-            .append(known_values.into())
+            .append_other(known_values.into())
             .build()
             .context(CreatingStringSet)
     }
@@ -960,11 +963,11 @@ impl InfluxRpcPlanner {
         Ok(Some(plan))
     }
 
-    /// Creates a DataFusion LogicalPlan that returns the timestamp
-    /// for a specified table:
+    /// Creates a DataFusion LogicalPlan that returns the values in
+    /// the fields for a specified table:
     ///
-    /// The output looks like (time)
-    /// The time column is chosen because it must be included in all tables
+    /// The output produces the table name as a single string if any
+    /// non null values are passed in.
     ///
     /// The data is not sorted in any particular order
     ///
@@ -974,13 +977,11 @@ impl InfluxRpcPlanner {
     /// The created plan looks like:
     ///
     /// ```text
-    ///  Projection (select time)
+    ///  NonNullChecker
+    ///    Projection (select fields)
     ///      Filter(predicate) [optional]
     ///        Scan
     /// ```
-    //  TODO: for optimization in the future, build `select count(*)` plan instead,
-    //        ,but if we do this, we also need to change the way we handle output
-    //        of the function invoking this because it will always return a number
     fn table_name_plan<C>(
         &self,
         table_name: &str,
@@ -991,6 +992,7 @@ impl InfluxRpcPlanner {
     where
         C: QueryChunk + 'static,
     {
+        debug!(%table_name, "Creating table_name full plan");
         let scan_and_filter = self.scan_and_filter(table_name, schema, normalizer, chunks)?;
         let TableScanAndFilter {
             plan_builder,
@@ -1000,21 +1002,20 @@ impl InfluxRpcPlanner {
             Some(t) => t,
         };
 
-        // Selection of only time
-        let select_exprs = schema
-            .iter()
-            .filter_map(|(influx_column_type, field)| match influx_column_type {
-                Some(InfluxColumnType::Timestamp) => Some(col(field.name())),
-                Some(_) => None,
-                None => None,
-            })
-            .collect::<Vec<_>>();
+        // Select only fields requested
+        let predicate = normalizer.normalized(table_name, Arc::clone(&schema));
+        let select_exprs: Vec<_> = filtered_fields_iter(&schema, &predicate)
+            .map(|field| col(field.name().as_str()))
+            .collect();
 
         let plan = plan_builder
             .project(select_exprs)
             .context(BuildingPlan)?
             .build()
             .context(BuildingPlan)?;
+
+        // Add the final node that outputs the table name or not, depending
+        let plan = make_non_null_checker(table_name, plan);
 
         Ok(Some(plan))
     }
