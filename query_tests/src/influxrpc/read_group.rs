@@ -28,27 +28,6 @@ async fn run_read_group_test_case<D>(
 ) where
     D: DbSetup,
 {
-    run_read_group_test_case_special(
-        db_setup,
-        predicate,
-        agg,
-        group_columns,
-        expected_results,
-        false,
-    )
-    .await
-}
-
-async fn run_read_group_test_case_special<D>(
-    db_setup: D,
-    predicate: Predicate,
-    agg: Aggregate,
-    group_columns: Vec<&str>,
-    expected_results: Vec<&str>,
-    result_may_empty: bool,
-) where
-    D: DbSetup,
-{
     test_helpers::maybe_start_logging();
 
     for scenario in db_setup.make().await {
@@ -65,10 +44,6 @@ async fn run_read_group_test_case_special<D>(
             .expect("built plan successfully");
 
         let string_results = run_series_set_plan(&ctx, plans).await;
-
-        if result_may_empty && string_results.is_empty() {
-            continue;
-        }
 
         assert_eq!(
             expected_results, string_results,
@@ -142,9 +117,13 @@ impl DbSetup for OneMeasurementNoTagsWithDeleteAll {
             exprs: vec![],
         };
 
+        // Apply predicate at the end to make all scenarios have same schema:
+        // there exists a chunk (either MUB, RUB, or OS) with all soft deleted row.
+        // This means the scenarios that rows deleted before the chunk is moved
+        // are not included.
         all_scenarios_for_one_chunk(
-            vec![&pred],
             vec![],
+            vec![&pred],
             lp_lines,
             delete_table_name,
             partition_key,
@@ -228,36 +207,38 @@ async fn test_read_group_data_no_tag_columns_with_delete() {
 }
 
 #[tokio::test]
-async fn test_read_group_data_no_tag_columns_with_delete_all() {
+async fn test_read_group_data_no_tag_columns_count_with_delete_all() {
     let predicate = Predicate::default();
-
-    // count
     let agg = Aggregate::Count;
     let group_columns = vec![];
     let expected_results = vec![
         "Group tag_keys: _field, _measurement partition_key_vals: ",
         "Series tags={_field=foo, _measurement=m0}\n  IntegerPoints timestamps: [0], values: [0]",
     ];
-    run_read_group_test_case_special(
+
+    run_read_group_test_case(
         OneMeasurementNoTagsWithDeleteAll {},
         predicate.clone(),
         agg,
         group_columns.clone(),
         expected_results,
-        true,
     )
     .await;
+}
 
-    // min
+#[tokio::test]
+async fn test_read_group_data_no_tag_columns_min_with_delete_all() {
+    let predicate = Predicate::default();
     let agg = Aggregate::Min;
-    let expected_results = vec!["Group tag_keys: _field, _measurement partition_key_vals: "];
-    run_read_group_test_case_special(
+    let group_columns = vec![];
+    let expected_results = vec![];
+
+    run_read_group_test_case(
         OneMeasurementNoTagsWithDeleteAll {},
         predicate,
         agg,
         group_columns,
         expected_results,
-        true,
     )
     .await;
 }
