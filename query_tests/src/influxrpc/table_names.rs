@@ -67,8 +67,6 @@ async fn list_table_names_no_data_passes() {
 }
 
 #[tokio::test]
-#[ignore]
-// https://github.com/influxdata/influxdb_iox/issues/2932
 async fn list_table_names_no_non_null_data_passes() {
     // only a single row with a null field passes this predicate (expect no table names)
     let predicate = PredicateBuilder::default()

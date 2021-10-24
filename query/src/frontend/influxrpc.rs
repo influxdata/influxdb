@@ -274,7 +274,7 @@ impl InfluxRpcPlanner {
                     })?;
 
                 match pred_result {
-                    PredicateMatch::AtLeastOne => {
+                    PredicateMatch::AtLeastOneNonNullField => {
                         trace!("Metadata predicate: table matches");
                         // Meta data of the table covers predicates of the request
                         builder.append_string(table_name);
@@ -833,19 +833,13 @@ impl InfluxRpcPlanner {
                     chunk_id: chunk.id(),
                 })?;
 
-            match pred_result {
-                PredicateMatch::AtLeastOne |
+            if !matches!(pred_result, PredicateMatch::Zero) {
                 // have to include chunk as we can't rule it out
-                PredicateMatch::Unknown => {
-                    let table_name = chunk.table_name().to_string();
-                    table_chunks
-                        .entry(table_name)
-                        .or_insert_with(Vec::new)
-                        .push(Arc::clone(&chunk));
-                }
-                // Skip chunk here based on metadata
-                PredicateMatch::Zero => {
-                }
+                let table_name = chunk.table_name().to_string();
+                table_chunks
+                    .entry(table_name)
+                    .or_insert_with(Vec::new)
+                    .push(Arc::clone(&chunk));
             }
         }
         Ok(table_chunks)
